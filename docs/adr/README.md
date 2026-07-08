@@ -1,0 +1,10 @@
+# Architecture Decision Records
+
+ADRs capture the architectural decisions made on the Design Tool project. Each ADR is numbered, dated, and immutable once merged — supersede with a new ADR rather than editing an old one.
+
+## Index
+
+- [ADR-0001: Monorepo structure](./0001-monorepo-structure.md)
+- [ADR-0002: Dev-only gating of all inspector transforms](./0002-dev-only-gating.md)
+- [ADR-0003: Managed stylesheet; never inline styles](./0003-managed-stylesheet-no-inline.md)
+- [ADR-0004: Single React instance via Vite aliasing](./0004-single-react-instance-via-vite-aliasing.md)

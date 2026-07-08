@@ -1,0 +1,25 @@
+{
+  "name": "design-tool",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "lint": "eslint packages examples --ext .ts,.tsx",
+    "typecheck": "pnpm -r typecheck",
+    "test:unit": "pnpm -r test:unit",
+    "test:e2e": "pnpm --filter sandbox playwright test",
+    "build": "pnpm -r build",
+    "dev:sandbox": "pnpm --filter sandbox dev"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=10"
+  }
+}
