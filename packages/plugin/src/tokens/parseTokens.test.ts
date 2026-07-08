@@ -1,0 +1,207 @@
+import { describe, it, expect } from "vitest";
+import { parseTokens } from "./parseTokens";
+
+describe("parseTokens", () => {
+  it("extracts :root custom properties with name, value, source", () => {
+    const css = `:root {
+  --color-surface-raised: #ffffff;
+  --space-1: 4px;
+}`;
+    const entries = parseTokens(css, "src/styles.css");
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toEqual({
+      name: "--color-surface-raised",
+      value: "#ffffff",
+      source: "src/styles.css:2",
+    });
+    expect(entries[1]).toEqual({
+      name: "--space-1",
+      value: "4px",
+      source: "src/styles.css:3",
+    });
+  });
+
+  it("extracts @theme custom properties (Tailwind v4)", () => {
+    const css = `@theme {
+  --blue-500: #3b82f6;
+}`;
+    const entries = parseTokens(css, "src/theme.css");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toEqual({
+      name: "--blue-500",
+      value: "#3b82f6",
+      source: "src/theme.css:2",
+    });
+  });
+
+  it("extracts @layer nested :root custom properties", () => {
+    const css = `@layer base {
+  :root {
+    --base: 1px;
+  }
+}`;
+    const entries = parseTokens(css, "src/base.css");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toEqual({
+      name: "--base",
+      value: "1px",
+      source: "src/base.css:3",
+    });
+  });
+
+  it("extracts custom properties declared directly inside @layer", () => {
+    const css = `@layer base {
+  --direct: 2px;
+}`;
+    const entries = parseTokens(css, "src/l.css");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.name).toBe("--direct");
+  });
+
+  it("extracts custom properties inside @scope", () => {
+    const css = `@scope (.a) {
+  :root {
+    --scoped: 8px;
+  }
+}`;
+    expect(parseTokens(css, "src/s.css")).toHaveLength(1);
+  });
+
+  it("preserves alias tokens (var(--y)) literally without resolving", () => {
+    const css = `:root {
+  --x: var(--y);
+}`;
+    const entries = parseTokens(css, "src/a.css");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.value).toBe("var(--y)");
+  });
+
+  it("strips !important from the captured value", () => {
+    const css = `:root {
+  --hot: red !important;
+}`;
+    const entries = parseTokens(css, "src/a.css");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.value).toBe("red");
+  });
+
+  it("trims surrounding whitespace from the value", () => {
+    const css = `:root {
+  --p:   12px   ;
+}`;
+    const entries = parseTokens(css, "src/a.css");
+    expect(entries[0]!.value).toBe("12px");
+  });
+
+  it("skips non-:root non-at-rule selectors (local vars not global tokens)", () => {
+    const css = `.button {
+  --local: red;
+}`;
+    expect(parseTokens(css, "src/b.css")).toEqual([]);
+  });
+
+  it("skips non-:root selectors even inside @layer", () => {
+    const css = `@layer base {
+  .button { --local: red; }
+}`;
+    expect(parseTokens(css, "src/b.css")).toEqual([]);
+  });
+
+  it("records correct source line numbers for multi-line CSS", () => {
+    const css = `/* header comment */
+
+:root {
+  --first: 1px;
+
+  --second: 2px;
+}
+`;
+    const entries = parseTokens(css, "src/m.css");
+    expect(entries[0]!.source).toBe("src/m.css:4");
+    expect(entries[1]!.source).toBe("src/m.css:6");
+  });
+
+  it("returns [] for unbalanced / malformed CSS without throwing", () => {
+    const css = `:root { --x: red;`;
+    expect(() => parseTokens(css, "src/x.css")).not.toThrow();
+    expect(parseTokens(css, "src/x.css")).toEqual([]);
+  });
+
+  it("returns [] for garbled CSS", () => {
+    expect(parseTokens("###@@@!!!", "src/g.css")).toEqual([]);
+  });
+
+  it("returns [] for empty CSS", () => {
+    expect(parseTokens("", "src/e.css")).toEqual([]);
+  });
+
+  it("returns [] for CSS with no custom properties", () => {
+    expect(parseTokens("body { color: red; }", "src/n.css")).toEqual([]);
+  });
+
+  it("handles comma-separated :root selector list", () => {
+    const css = `:root, :root {
+  --combo: 5px;
+}`;
+    expect(parseTokens(css, "src/c.css")).toHaveLength(1);
+  });
+
+  it("does not treat non-:root selector in a comma list as a token", () => {
+    const css = `:root, .btn {
+  --mixed: 5px;
+}`;
+    expect(parseTokens(css, "src/c.css")).toEqual([]);
+  });
+
+  it("captures :root attribute selector variants (e.g. :root[data-theme])", () => {
+    const css = `:root[data-theme="dark"] {
+  --dark-bg: #111;
+}`;
+    expect(parseTokens(css, "src/d.css")).toHaveLength(1);
+    expect(parseTokens(css, "src/d.css")[0]!.name).toBe("--dark-bg");
+  });
+
+  it("captures :root pseudo-class variants (e.g. :root:hover)", () => {
+    const css = `:root:hover {
+  --hover-bg: #222;
+}`;
+    expect(parseTokens(css, "src/d.css")).toHaveLength(1);
+  });
+
+  it("does NOT capture custom properties inside @supports (false-positive guard)", () => {
+    const css = `@supports (display: grid) {
+  --x: red;
+}`;
+    expect(parseTokens(css, "src/s.css")).toEqual([]);
+  });
+
+  it("does NOT capture custom properties inside @media (false-positive guard)", () => {
+    const css = `@media screen {
+  --x: red;
+}`;
+    expect(parseTokens(css, "src/s.css")).toEqual([]);
+  });
+
+  it("does NOT capture custom properties inside @container", () => {
+    const css = `@container (min-width: 100px) {
+  --x: red;
+}`;
+    expect(parseTokens(css, "src/s.css")).toEqual([]);
+  });
+
+  it("does NOT capture custom properties inside @font-face", () => {
+    const css = `@font-face {
+  --x: red;
+}`;
+    expect(parseTokens(css, "src/s.css")).toEqual([]);
+  });
+
+  it("captures nested custom properties inside @theme nested in @layer", () => {
+    const css = `@layer theme {
+  @theme {
+    --nested: 1px;
+  }
+}`;
+    expect(parseTokens(css, "src/n.css")).toHaveLength(1);
+  });
+});

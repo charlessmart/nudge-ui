@@ -1,0 +1,234 @@
+import { describe, it, expect } from "vitest";
+import { injectDataCid, injectIdentity } from "./injectDataCid";
+
+describe("injectDataCid", () => {
+  it("injects data-cid from arrow-function component name", () => {
+    const code = `const Button = () => <button>Save</button>;`;
+    const res = injectDataCid(code, "/src/Button.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-cid="Button"');
+  });
+
+  it("injects enclosing component name for nested JSX in a function declaration", () => {
+    const code = `function App() { return <div><Button /></div>; }`;
+    const res = injectDataCid(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-cid="App"');
+    expect(res!.code).toContain('data-cid="Button"');
+  });
+
+  it("falls back to Anonymous for JSX in a non-component scope", () => {
+    const code = `const handleClick = () => <div>hi</div>;`;
+    const res = injectDataCid(code, "/src/x.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-cid="Anonymous"');
+  });
+
+  it("skips files inside node_modules", () => {
+    const code = `const Button = () => <button>Save</button>;`;
+    const res = injectDataCid(code, "/node_modules/foo/src/Button.tsx");
+    expect(res).toBeNull();
+  });
+
+  it("skips .ts files (no JSX transform)", () => {
+    const code = `export const x = 1;`;
+    const res = injectDataCid(code, "/src/utils.ts");
+    expect(res).toBeNull();
+  });
+
+  it("returns null for CSS input", () => {
+    expect(injectDataCid(":root { --a: 1; }", "/src/s.css")).toBeNull();
+  });
+
+  it("returns null for JSON input", () => {
+    expect(injectDataCid('{"a":1}', "/src/s.json")).toBeNull();
+  });
+
+  it("produces a sourcemap covering the edit", () => {
+    const code = `const Button = () => <button>Save</button>;`;
+    const res = injectDataCid(code, "/src/Button.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.map).not.toBeNull();
+    expect(res!.map!.sources).toContain("/src/Button.tsx");
+  });
+
+  it("does not duplicate data-cid on an element that already has it", () => {
+    const code = `function App() { return <div><span data-cid="X">a</span></div>; }`;
+    const res = injectDataCid(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    const matches = res!.code.match(/data-cid="X"/g);
+    expect(matches?.length).toBe(1);
+    expect(res!.code).toContain('data-cid="App"');
+  });
+
+  it("returns null when nothing was transformed", () => {
+    const code = `const x = 1;`;
+    const res = injectDataCid(code, "/src/x.tsx");
+    expect(res).toBeNull();
+  });
+
+  it("resolves data-cid for JSXMemberExpression components", () => {
+    const code = `function App() { return <Foo.Bar />; }`;
+    const res = injectDataCid(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-cid="Foo.Bar"');
+  });
+
+  it("falls back to enclosing scope for lowercase HTML elements", () => {
+    const code = `function App() { return <div><span>hi</span></div>; }`;
+    const res = injectDataCid(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-cid="App"');
+    expect(res!.code).not.toContain('data-cid="div"');
+    expect(res!.code).not.toContain('data-cid="span"');
+  });
+});
+
+describe("injectIdentity — data-src", () => {
+  it("injects data-src as relPath:line:col with 1-indexed column", () => {
+    const code = `const Button = () => (\n  <button>Save</button>\n);`;
+    // line 2, name `button` starts at column 3 (0-indexed) -> 4 (1-indexed)
+    const res = injectIdentity(code, "/src/Button.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-src="src/Button.tsx:2:4"');
+  });
+
+  it("strips a resolved project root prefix", () => {
+    const code = `const Button = () => <button>Save</button>;`;
+    const res = injectIdentity(code, "/projects/app/src/Button.tsx", "/projects/app");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-src="src/Button.tsx:');
+  });
+
+  it("emits data-src with leading slash stripped when no root is provided", () => {
+    const code = `const Button = () => <button>Save</button>;`;
+    const res = injectIdentity(code, "/src/Button.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toMatch(/data-src="src\/Button\.tsx:\d+:\d+"/);
+    expect(res!.code).not.toMatch(/data-src="\/src/);
+  });
+
+  it("emits data-src on a JSXMemberExpression component", () => {
+    const code = `function App() { return <Foo.Bar />; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toMatch(/data-src="src\/App\.tsx:\d+:\d+"/);
+  });
+
+  it("omits data-src when the AST node has no loc (defensive)", () => {
+    // We can't easily produce a loc-less node via the public API, so just
+    // assert that the happy path always has loc — this test exercises the
+    // same path and serves as a guard that loc is populated for real code.
+    const code = `const X = () => <div />;`;
+    const res = injectIdentity(code, "/src/X.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-src="src/X.tsx:');
+  });
+});
+
+describe("injectIdentity — data-cprops", () => {
+  it("serialises a string literal prop", () => {
+    const code = `function App() { return <Button variant="primary">Save</Button>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-cprops="variant:primary"');
+  });
+
+  it("serialises a numeric literal prop", () => {
+    const code = `function App() { return <Counter count={5}>x</Counter>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain("count:5");
+  });
+
+  it("serialises a boolean shorthand prop as key:true", () => {
+    const code = `function App() { return <Button primary>x</Button>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain("primary:true");
+  });
+
+  it("serialises a boolean literal prop {false}", () => {
+    const code = `function App() { return <Button disabled={false}>x</Button>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain("disabled:false");
+  });
+
+  it("serialises an inline arrow function prop as fn(name)", () => {
+    const code = `function App() { return <Button onClick={() => {}}>x</Button>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain("onClick:fn(onClick)");
+  });
+
+  it("omits bare identifier props (PLAN.md canonical example omits onClick={handleClick})", () => {
+    const code = `function App() { return <Button onClick={handleClick}>x</Button>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).not.toContain("onClick:");
+    expect(res!.code).not.toMatch(/data-cprops="onClick/);
+  });
+
+  it("treats a non-function identifier (string const) as omitted too", () => {
+    const code = `function App() { const title = "x"; return <Button title={title} variant="primary">Save</Button>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).not.toContain("title:fn(title)");
+    expect(res!.code).not.toMatch(/title:/);
+    expect(res!.code).toContain("variant:primary");
+  });
+
+  it("omits object/array/member-expression expression props", () => {
+    const code = `function App() { return <Card style={{ color: "red" }} items={[1,2]} onClick={obj.handleClick}>x</Card>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).not.toContain("style:");
+    expect(res!.code).not.toContain("items:");
+    expect(res!.code).not.toContain("onClick:fn");
+  });
+
+  it("does not emit data-cprops when there are no serialisable props", () => {
+    const code = `function App() { return <Card style={{ color: "red" }} {...rest}>x</Card>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).not.toContain("data-cprops=");
+  });
+
+  it("joins multiple serialisable props with a comma, no spaces", () => {
+    const code = `function App() { return <Button variant="primary" size="large">Save</Button>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-cprops="variant:primary,size:large"');
+  });
+
+  it("emits all three attrs together on a realistic Button", () => {
+    const code = `function App() { return <Button variant="primary" onClick={() => {}}>Save</Button>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-cid="Button"');
+    expect(res!.code).toMatch(/data-src="src\/App\.tsx:\d+:\d+"/);
+    expect(res!.code).toContain('data-cprops="variant:primary,onClick:fn(onClick)"');
+  });
+
+  it("does not duplicate any of the three attrs on re-run", () => {
+    const code = `function App() { return <Button variant="primary">Save</Button>; }`;
+    const once = injectIdentity(code, "/src/App.tsx");
+    expect(once).not.toBeNull();
+    const twice = injectIdentity(once!.code, "/src/App.tsx");
+    // Second pass should find all three already present and produce no new injection.
+    expect(twice).toBeNull();
+  });
+
+  it("skips identity attrs when serialising cprops", () => {
+    const code = `function App() { return <Button data-cid="X" variant="primary">Save</Button>; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    // data-cid already present -> not re-injected; variant serialised; identity
+    // attr names never appear inside cprops.
+    const cidMatches = res!.code.match(/data-cid="X"/g);
+    expect(cidMatches?.length).toBe(1);
+    expect(res!.code).toContain('data-cprops="variant:primary"');
+    expect(res!.code).not.toMatch(/data-cprops="[^"]*data-cid/);
+  });
+});

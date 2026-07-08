@@ -1,0 +1,51 @@
+:root {
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #f5f5f5;
+  --color-text-primary: #111111;
+  --color-text-secondary: #666666;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: var(--color-surface-sunken);
+  color: var(--color-text-primary);
+}
+
+.app {
+  max-width: 480px;
+  margin: var(--space-3) auto;
+  padding: var(--space-3);
+  background: var(--color-surface-raised);
+  border-radius: var(--space-2);
+}
+
+.header h1 {
+  margin: 0 0 var(--space-1);
+}
+
+.subtitle {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.content {
+  padding: var(--space-2) 0;
+}
+
+.btn {
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--space-1);
+  cursor: pointer;
+}
+
+.footer {
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
