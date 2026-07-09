@@ -21,6 +21,7 @@ import { SpacingBox } from "./styleEditors/SpacingBox.tsx";
 import { Typography } from "./styleEditors/Typography.tsx";
 import { ColorPicker } from "./styleEditors/ColorPicker.tsx";
 import { BorderEditor } from "./styleEditors/BorderEditor.tsx";
+import { LayoutSection } from "./styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
 
 const HANDLED_PROPERTIES = new Set([
@@ -33,6 +34,13 @@ const HANDLED_PROPERTIES = new Set([
   "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
   "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
   "border-radius", "box-shadow",
+  // Layout properties
+  "display", "position",
+  "flex-direction", "justify-content", "align-items", "flex-wrap", "align-content",
+  "row-gap", "column-gap",
+  "flex-grow", "flex-shrink", "flex-basis",
+  "align-self", "order",
+  "top", "right", "bottom", "left",
 ]);
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
@@ -212,6 +220,99 @@ const STYLES = `
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+.dt-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dt-layout__group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #1f2937;
+}
+.dt-layout__group-title {
+  color: #93c5fd;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.dt-layout-field {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 4px;
+  align-items: center;
+}
+.dt-layout-field__label {
+  color: #9ca3af;
+  font-size: 11px;
+}
+.dt-layout-field__select {
+  width: 100%;
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 11px;
+}
+.dt-layout__inset-grid {
+  display: grid;
+  grid-template-columns: 14px repeat(4, 1fr);
+  gap: 3px;
+  align-items: center;
+}
+.dt-layout__inset-label {
+  color: #6b7280;
+  font-size: 9px;
+  text-align: center;
+}
+.dt-layout__gap-row {
+  margin-top: 2px;
+}
+.dt-layout__gap-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.dt-layout-combo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dt-layout-combo--compact .dt-layout-combo__select {
+  font-size: 10px;
+  padding: 1px 3px;
+}
+.dt-layout-combo__select {
+  width: 100%;
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 11px;
+}
+.dt-layout-combo__custom {
+  display: flex;
+}
+.dt-layout-combo__input {
+  width: 100%;
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 11px;
+}
+.dt-layout-combo--compact .dt-layout-combo__input {
+  font-size: 10px;
+  padding: 1px 3px;
 }
 .dt-spacing {
   display: flex;
@@ -579,6 +680,10 @@ export function InspectorShell(): ReactElement {
               </div>
             </div>
             <div className="dt-style-editors" data-test="style-editors">
+              <LayoutSection
+                element={selected}
+                onAfterEdit={refreshSelected}
+              />
               <ColorPicker
                 element={selected}
                 property="color"

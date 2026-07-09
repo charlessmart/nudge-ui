@@ -30,6 +30,14 @@ export function App() {
           variant="primary"
           onClick={() => setClicks((c) => c + 1)}
         />
+        <div className="flex-row" data-test="flex-container">
+          <span data-test="flex-child-a">A</span>
+          <span data-test="flex-child-b">B</span>
+          <span data-test="flex-child-c">C</span>
+        </div>
+        <div className="positioned-box" data-test="positioned-box">
+          positioned
+        </div>
       </main>
       <Footer />
       {import.meta.env.DEV ? (
