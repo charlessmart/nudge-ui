@@ -1,18 +1,29 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
+import type { ResolvedProperty } from "../tokens/resolution.ts";
+import { TokenField } from "../tokens/TokenField.tsx";
+import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
 import { parseLength } from "./computedValue.ts";
 
 const FONT_WEIGHTS = ["100", "200", "300", "400", "500", "600", "700", "800", "900"];
 
+function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
+  return rows.find((r) => r.property === prop) ?? null;
+}
+
 export interface TypographyProps {
   element: SelectedElement;
+  entries?: TokenEntry[];
+  tokenRows?: ResolvedProperty[];
+  onAfterEdit?: () => void;
 }
 
 export function Typography(props: TypographyProps): ReactElement {
-  const { element } = props;
+  const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
+  const allEntries = entries ?? [];
   const [fontSize, setFontSize] = useState(0);
   const [fontSizeUnit, setFontSizeUnit] = useState("px");
   const [fontWeight, setFontWeight] = useState("400");
@@ -65,6 +76,7 @@ export function Typography(props: TypographyProps): ReactElement {
             </select>
           </span>
         </label>
+        {renderTokenRow("font-size")}
         <label className="dt-field">
           <span className="dt-field__label">font-weight</span>
           <select
@@ -82,6 +94,7 @@ export function Typography(props: TypographyProps): ReactElement {
             ))}
           </select>
         </label>
+        {renderTokenRow("font-weight")}
         <label className="dt-field">
           <span className="dt-field__label">line-height</span>
           <input
@@ -94,6 +107,7 @@ export function Typography(props: TypographyProps): ReactElement {
             }}
           />
         </label>
+        {renderTokenRow("line-height")}
         <label className="dt-field">
           <span className="dt-field__label">letter-spacing</span>
           <span className="dt-field__row">
@@ -121,7 +135,34 @@ export function Typography(props: TypographyProps): ReactElement {
             </select>
           </span>
         </label>
+        {renderTokenRow("letter-spacing")}
+        <label className="dt-field">
+          <span className="dt-field__label">font-family</span>
+          <input
+            type="text"
+            data-test="font-family"
+            defaultValue={getComputedStyle(el).getPropertyValue("font-family")}
+            onBlur={(e) => setStyle(el, "font-family", e.target.value)}
+          />
+        </label>
+        {renderTokenRow("font-family")}
       </div>
     </div>
   );
+
+  function renderTokenRow(prop: string): ReactElement {
+    const tokenRow = findTokenRow(tokenRows, prop);
+    return (
+      <div className="dt-field dt-field--token" data-test={`token-row-${prop}`}>
+        <span className="dt-field__label">token</span>
+        <TokenField
+          property={prop}
+          tokenRow={tokenRow}
+          domElement={el}
+          entries={allEntries}
+          onAfterEdit={onAfterEdit}
+        />
+      </div>
+    );
+  }
 }

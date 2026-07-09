@@ -167,6 +167,41 @@ export function getResolvedProperties(
     const cv = computed.getPropertyValue(prop.property);
     if (cv) prop.resolvedValue = cv;
   }
+
+  // Walk ancestors to find inherited token values — when no rule directly
+  // targets the element but a parent/ancestor sets the property via var(--token)
+  const seenProperties = new Set(result.map((p) => p.property));
+  let ancestor: HTMLElement | null = el.parentElement;
+  while (ancestor) {
+    const ancestorComputed = getComputedStyle(ancestor);
+    for (const rule of rules) {
+      let matched: boolean;
+      try {
+        matched = ancestor.matches(rule.selectorText);
+      } catch {
+        matched = false;
+      }
+      if (!matched) continue;
+      for (const decl of rule.declarations) {
+        if (seenProperties.has(decl.property)) continue;
+        const res = resolveTokenValue(decl.value, tokenTable);
+        if (!res.tokenName) continue;
+        const ancestorVal = ancestorComputed.getPropertyValue(decl.property);
+        const elVal = computed.getPropertyValue(decl.property);
+        if (ancestorVal && ancestorVal === elVal) {
+          result.push({
+            property: decl.property,
+            tokenName: res.tokenName,
+            declaredValue: decl.value.trim(),
+            resolvedValue: elVal,
+          });
+          seenProperties.add(decl.property);
+        }
+      }
+    }
+    ancestor = ancestor.parentElement;
+  }
+
   return result;
 }
 import { useEffect, useState } from "react";

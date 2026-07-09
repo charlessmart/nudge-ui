@@ -2,66 +2,56 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
+import type { ResolvedProperty } from "../tokens/resolution.ts";
+import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
-import { swapToken } from "../tokens/editActions.ts";
 import { setStyle } from "./styleActions.ts";
-import { classifyToken } from "../tokens/TokenDropdown.tsx";
 import { parseLength } from "./computedValue.ts";
 
 const BORDER_STYLES = ["none", "solid", "dashed", "dotted", "double", "groove", "ridge"];
 
-function colorTokens(entries: TokenEntry[]): TokenEntry[] {
-  return entries.filter((e) => classifyToken(e.name) === "color");
+function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
+  return rows.find((r) => r.property === prop) ?? null;
 }
 
 export interface BorderEditorProps {
   element: SelectedElement;
   entries?: TokenEntry[];
+  tokenRows?: ResolvedProperty[];
+  onAfterEdit?: () => void;
 }
 
 export function BorderEditor(props: BorderEditorProps): ReactElement {
-  const { element, entries } = props;
+  const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
   const allEntries = entries ?? tokens;
-  const colors = colorTokens(allEntries);
 
   const [width, setWidth] = useState(0);
   const [styleChoice, setStyleChoice] = useState("solid");
-  const [colorValue, setColorValue] = useState("");
   const [colorToken, setColorToken] = useState("");
   const [radius, setRadius] = useState(0);
   const [shadow, setShadow] = useState("");
+
+  const borderColorRow = findTokenRow(tokenRows, "border-color");
+  const borderRadiusRow = findTokenRow(tokenRows, "border-radius");
+  const boxShadowRow = findTokenRow(tokenRows, "box-shadow");
+  const borderWidthRow = findTokenRow(tokenRows, "border-width");
 
   useEffect(() => {
     const computed = getComputedStyle(el);
     const w = parseLength(computed.getPropertyValue("border-top-width"));
     setWidth(w.value);
     setStyleChoice(computed.getPropertyValue("border-top-style") || "solid");
-    setColorValue(computed.getPropertyValue("border-top-color") || "");
-    setColorToken("");
+    setColorToken(borderColorRow?.tokenName ?? "");
     const r = parseLength(computed.getPropertyValue("border-radius"));
     setRadius(r.value);
     setShadow(computed.getPropertyValue("box-shadow") || "");
-  }, [el]);
+  }, [el, borderColorRow]);
 
   function composeBorderColor(): string {
     if (colorToken) return `var(${colorToken})`;
-    return colorValue || "currentColor";
-  }
-
-  function handleToken(name: string): void {
-    setColorToken(name);
-    if (!name) return;
-    const chosen = colors.find((c) => c.name === name);
-    if (!chosen) return;
-    swapToken(el, "border-color", chosen, null);
-    setStyle(el, "border", `${width}px ${styleChoice} var(${name})`);
-  }
-
-  function handleColorRaw(value: string): void {
-    setColorValue(value);
-    setColorToken("");
-    setStyle(el, "border", `${width}px ${styleChoice} ${value || "currentColor"}`);
+    const raw = getComputedStyle(el).getPropertyValue("border-top-color").trim();
+    return raw || "currentColor";
   }
 
   function handleWidth(v: number): void {
@@ -103,6 +93,16 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             <span className="dt-field__unit">px</span>
           </span>
         </label>
+        <div className="dt-field dt-field--token">
+          <span className="dt-field__label">width token</span>
+          <TokenField
+            property="border-width"
+            tokenRow={borderWidthRow}
+            domElement={el}
+            entries={allEntries}
+            onAfterEdit={onAfterEdit}
+          />
+        </div>
         <label className="dt-field">
           <span className="dt-field__label">border-style</span>
           <select data-test="border-style" value={styleChoice} onChange={(e) => handleStyle(e.target.value)}>
@@ -114,27 +114,13 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           </select>
         </label>
         <label className="dt-field">
-          <span className="dt-field__label">border-color token</span>
-          <select
-            data-test="border-color-token"
-            value={colorToken}
-            onChange={(e) => handleToken(e.target.value)}
-          >
-            <option value="">— raw —</option>
-            {colors.map((c) => (
-              <option key={c.name} value={c.name}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="dt-field">
-          <span className="dt-field__label">border-color raw</span>
-          <input
-            type="text"
-            data-test="border-color-raw"
-            value={colorValue}
-            onChange={(e) => handleColorRaw(e.target.value)}
+          <span className="dt-field__label">border-color</span>
+          <TokenField
+            property="border-color"
+            tokenRow={borderColorRow}
+            domElement={el}
+            entries={allEntries}
+            onAfterEdit={onAfterEdit}
           />
         </label>
         <label className="dt-field">
@@ -152,6 +138,16 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             <span className="dt-field__unit">px</span>
           </span>
         </label>
+        <div className="dt-field dt-field--token">
+          <span className="dt-field__label">radius token</span>
+          <TokenField
+            property="border-radius"
+            tokenRow={borderRadiusRow}
+            domElement={el}
+            entries={allEntries}
+            onAfterEdit={onAfterEdit}
+          />
+        </div>
         <label className="dt-field">
           <span className="dt-field__label">box-shadow</span>
           <input
@@ -162,6 +158,16 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             onChange={(e) => handleShadow(e.target.value)}
           />
         </label>
+        <div className="dt-field dt-field--token">
+          <span className="dt-field__label">shadow token</span>
+          <TokenField
+            property="box-shadow"
+            tokenRow={boxShadowRow}
+            domElement={el}
+            entries={allEntries}
+            onAfterEdit={onAfterEdit}
+          />
+        </div>
       </div>
     </div>
   );

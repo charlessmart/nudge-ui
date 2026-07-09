@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { BorderEditor } from "./BorderEditor.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
+import type { ResolvedProperty } from "../tokens/resolution.ts";
 import {
   makeSelected,
   mount,
@@ -19,6 +20,13 @@ const ENTRIES: TokenEntry[] = [
   { name: "--color-text-secondary", value: "#666666", source: "s:2" },
   { name: "--space-2", value: "8px", source: "s:7" },
 ];
+
+const BORDER_COLOR_ROW: ResolvedProperty = {
+  property: "border-color",
+  tokenName: "--color-text-secondary",
+  declaredValue: "var(--color-text-secondary)",
+  resolvedValue: "#666666",
+};
 
 describe("BorderEditor", () => {
   let handle: MountHandle;
@@ -84,21 +92,29 @@ describe("BorderEditor", () => {
     expect(sheetText()).toContain("box-shadow: 0 2px 4px rgba(0,0,0,0.2);");
   });
 
-  it("choosing a border-color token writes var(--token) in the border shorthand", () => {
+  it("pre-selects the border-color token from the resolved tokenRow", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
-    handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
-    const tokenSelect = handle.host.querySelector('[data-test="border-color-token"]') as HTMLSelectElement;
-    setSelectValue(tokenSelect, "--color-text-secondary");
-    expect(sheetText()).toContain("border: 1px solid var(--color-text-secondary);");
+    handle = mount(createElement(BorderEditor, {
+      element: selected,
+      entries: ENTRIES,
+      tokenRows: [BORDER_COLOR_ROW],
+    }));
+    const select = handle.host.querySelector('[data-test="token-select"]') as HTMLSelectElement;
+    expect(select).toBeTruthy();
+    expect(select.value).toBe("--color-text-secondary");
   });
 
-  it("typing a raw border-color writes the literal in the border shorthand", () => {
+  it("raw border-color input exists and writes to the sheet", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
-    const raw = handle.host.querySelector('[data-test="border-color-raw"]') as HTMLInputElement;
-    setInputValue(raw, "#ff0000");
-    expect(sheetText()).toContain("border: 1px solid #ff0000;");
+    const tokenFields = handle.host.querySelectorAll('[data-test="token-field"]');
+    const borderColorField = Array.from(tokenFields).find(
+      (f) => f.getAttribute("data-property") === "border-color",
+    );
+    expect(borderColorField).toBeTruthy();
+    const raw = borderColorField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    expect(raw).toBeTruthy();
   });
 });

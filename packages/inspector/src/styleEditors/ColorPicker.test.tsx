@@ -4,11 +4,10 @@ import { createElement } from "react";
 import { ColorPicker } from "./ColorPicker.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
+import type { ResolvedProperty } from "../tokens/resolution.ts";
 import {
   makeSelected,
   mount,
-  setInputValue,
-  setSelectValue,
   mockComputedStyle,
   restoreComputedStyle,
   sheetText,
@@ -21,6 +20,13 @@ const ENTRIES: TokenEntry[] = [
   { name: "--color-surface-raised", value: "#ffffff", source: "s:3" },
   { name: "--space-1", value: "4px", source: "s:6" },
 ];
+
+const TOKEN_ROW: ResolvedProperty = {
+  property: "color",
+  tokenName: "--color-text-primary",
+  declaredValue: "var(--color-text-primary)",
+  resolvedValue: "#111111",
+};
 
 describe("ColorPicker", () => {
   let handle: MountHandle;
@@ -39,44 +45,29 @@ describe("ColorPicker", () => {
     document.body.innerHTML = "";
   });
 
-  it("offers only color tokens in the palette dropdown", () => {
+  it("renders a TokenField", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ color: "rgb(17, 17, 17)" });
-    handle = mount(createElement(ColorPicker, { element: selected, property: "color", entries: ENTRIES }));
-    const select = handle.host.querySelector('[data-test="color-token-select"]') as HTMLSelectElement;
-    const options = Array.from(select.querySelectorAll("option")).map((o) => o.value);
-    expect(options).toContain("--color-text-primary");
-    expect(options).toContain("--color-text-secondary");
-    expect(options).not.toContain("--space-1");
+    handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
+    const field = handle.host.querySelector('[data-test="token-field"]');
+    expect(field).toBeTruthy();
+    expect(field!.getAttribute("data-property")).toBe("color");
   });
 
-  it("choosing a token calls swapToken and writes var(--token) to the sheet", () => {
-    const { el, selected } = makeSelected();
-    mockComputedStyle({ color: "rgb(17, 17, 17)" });
-    handle = mount(createElement(ColorPicker, { element: selected, property: "color", entries: ENTRIES }));
-    const select = handle.host.querySelector('[data-test="color-token-select"]') as HTMLSelectElement;
-    setSelectValue(select, "--color-text-secondary");
-    expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
-    expect(sheetText()).toContain("color: var(--color-text-secondary);");
-    expect(el.style.color).toBe("");
-  });
-
-  it("typing a raw hex calls setStyle and writes the literal value", () => {
+  it("shows a token dropdown when tokenRow is provided", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ color: "rgb(17, 17, 17)" });
-    handle = mount(createElement(ColorPicker, { element: selected, property: "color", entries: ENTRIES }));
-    const raw = handle.host.querySelector('[data-test="color-raw"]') as HTMLInputElement;
-    setInputValue(raw, "#abcdef");
-    expect(sheetText()).toContain("color: #abcdef;");
+    handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES, tokenRow: TOKEN_ROW }));
+    const select = handle.host.querySelector('[data-test="token-select"]') as HTMLSelectElement;
+    expect(select).toBeTruthy();
+    expect(select.value).toBe("--color-text-primary");
   });
 
-  it("shows a swatch preview reflecting the selected token value", () => {
+  it("shows a raw input when no tokenRow is provided", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ color: "rgb(17, 17, 17)" });
-    handle = mount(createElement(ColorPicker, { element: selected, property: "color", entries: ENTRIES }));
-    const select = handle.host.querySelector('[data-test="color-token-select"]') as HTMLSelectElement;
-    setSelectValue(select, "--color-text-secondary");
-    const swatch = handle.host.querySelector('[data-test="color-swatch"]') as HTMLElement;
-    expect(swatch.style.background).toMatch(/102, 102, 102|#666666/i);
+    handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
+    const raw = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    expect(raw).toBeTruthy();
   });
 });

@@ -23,6 +23,22 @@ import { ColorPicker } from "./styleEditors/ColorPicker.tsx";
 import { BorderEditor } from "./styleEditors/BorderEditor.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
 
+const HANDLED_PROPERTIES = new Set([
+  "color", "background-color",
+  "padding", "margin",
+  "padding-top", "padding-right", "padding-bottom", "padding-left",
+  "margin-top", "margin-right", "margin-bottom", "margin-left",
+  "font-size", "font-weight", "font-family", "line-height", "letter-spacing",
+  "border-width", "border-style", "border-color",
+  "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
+  "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
+  "border-radius", "box-shadow",
+]);
+
+function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
+  return rows.find((r) => r.property === prop) ?? null;
+}
+
 export { toggleInspector, setInspectorOpen };
 export type { SelectedElement } from "./selectionStore.ts";
 
@@ -38,7 +54,7 @@ const STYLES = `
   bottom: 16px;
   right: 16px;
   width: 320px;
-  height: 240px;
+  height: 90dvh;
   background: #111827;
   color: #f9fafb;
   border: 1px solid #374151;
@@ -372,6 +388,94 @@ const STYLES = `
   background: #047857;
   border-color: #065f46;
 }
+.dt-tokens-other {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.dt-field--token {
+  margin-top: -2px;
+}
+.dt-token-field {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  width: 100%;
+}
+.dt-token-field .dt-token-dropdown {
+  grid-column: unset;
+  margin: 0;
+  flex: 1;
+}
+.dt-delink-btn {
+  background: transparent;
+  border: 1px solid #374151;
+  border-radius: 3px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dt-delink-btn:hover {
+  color: #f9fafb;
+  border-color: #ef4444;
+}
+.dt-raw-input {
+  flex: 1;
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 11px;
+}
+.dt-suggestion-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  z-index: 10;
+  margin-top: 2px;
+}
+.dt-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.dt-suggestion-item:hover {
+  background: #374151;
+}
+.dt-suggestion-item__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid #374151;
+  flex-shrink: 0;
+}
+.dt-suggestion-item__name {
+  color: #93c5fd;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dt-suggestion-item__value {
+  color: #6b7280;
+  font-size: 10px;
+  white-space: nowrap;
+}
 `;
 
 function resolveHost(): HTMLElement {
@@ -474,50 +578,76 @@ export function InspectorShell(): ReactElement {
                 </span>
               </div>
             </div>
-            <div className="dt-tokens" data-test="tokens-panel">
-              <div className="dt-tokens__title">Tokens</div>
-              {tokenRows.length === 0 ? (
-                <div className="dt-tokens__empty">No CSS declarations on this element</div>
-              ) : (
-                tokenRows.map((row) => (
-                  <div
-                    className="dt-tokens__row"
-                    data-test="token-row"
-                    key={row.property}
-                    data-property={row.property}
-                    data-token={row.tokenName ?? ""}
-                  >
-                    <span className="dt-tokens__prop" data-test="token-property">
-                      {row.property}
-                    </span>
-                    <span
-                      className="dt-tokens__name"
-                      data-test="token-name"
-                      data-token={row.tokenName ? "true" : "false"}
-                    >
-                      {row.tokenName ?? "not a token"}
-                    </span>
-                    <span className="dt-tokens__value" data-test="token-value">
-                      {row.resolvedValue}
-                    </span>
-                    {selected ? (
-                      <TokenDropdown
-                        row={row}
-                        domElement={selected.domElement}
-                        entries={tokenEntries}
-                        onAfterEdit={refreshSelected}
-                      />
-                    ) : null}
-                  </div>
-                ))
-              )}
-            </div>
             <div className="dt-style-editors" data-test="style-editors">
-              <div className="dt-style-editors__title">Style editors</div>
-              <SpacingBox element={selected} />
-              <Typography element={selected} />
-              <ColorPicker element={selected} property="color" entries={tokenEntries} />
-              <BorderEditor element={selected} entries={tokenEntries} />
+              <ColorPicker
+                element={selected}
+                property="color"
+                entries={tokenEntries}
+                tokenRow={findTokenRow(tokenRows, "color")}
+                onAfterEdit={refreshSelected}
+              />
+              <ColorPicker
+                element={selected}
+                property="background-color"
+                entries={tokenEntries}
+                tokenRow={findTokenRow(tokenRows, "background-color")}
+                onAfterEdit={refreshSelected}
+              />
+              <SpacingBox
+                element={selected}
+                entries={tokenEntries}
+                paddingTokenRow={findTokenRow(tokenRows, "padding")}
+                marginTokenRow={findTokenRow(tokenRows, "margin")}
+                onAfterEdit={refreshSelected}
+              />
+              <Typography
+                element={selected}
+                entries={tokenEntries}
+                tokenRows={tokenRows}
+                onAfterEdit={refreshSelected}
+              />
+              <BorderEditor
+                element={selected}
+                entries={tokenEntries}
+                tokenRows={tokenRows}
+                onAfterEdit={refreshSelected}
+              />
+              {tokenRows.filter((r) => !HANDLED_PROPERTIES.has(r.property)).length > 0 ? (
+                <div className="dt-tokens-other" data-test="tokens-other">
+                  <div className="dt-tokens__title">Other tokens</div>
+                  {tokenRows
+                    .filter((r) => !HANDLED_PROPERTIES.has(r.property))
+                    .map((row) => (
+                      <div
+                        className="dt-tokens__row"
+                        data-test="token-row"
+                        key={row.property}
+                        data-property={row.property}
+                        data-token={row.tokenName ?? ""}
+                      >
+                        <span className="dt-tokens__prop" data-test="token-property">
+                          {row.property}
+                        </span>
+                        <span
+                          className="dt-tokens__name"
+                          data-test="token-name"
+                          data-token={row.tokenName ? "true" : "false"}
+                        >
+                          {row.tokenName ?? "not a token"}
+                        </span>
+                        <span className="dt-tokens__value" data-test="token-value">
+                          {row.resolvedValue}
+                        </span>
+                        <TokenDropdown
+                          row={row}
+                          domElement={selected.domElement}
+                          entries={tokenEntries}
+                          onAfterEdit={refreshSelected}
+                        />
+                      </div>
+                    ))}
+                </div>
+              ) : null}
             </div>
             </>
           ) : (

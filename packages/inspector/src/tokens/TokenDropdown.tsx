@@ -23,7 +23,7 @@ const GROUP_LABELS: Record<TokenGroup, string> = {
   generic: "Other",
 };
 
-function groupOfProperty(property: string): TokenGroup {
+export function groupOfProperty(property: string): TokenGroup {
   const p = property.toLowerCase();
   if (
     p === "background" ||

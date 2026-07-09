@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
+import type { ResolvedProperty } from "../tokens/resolution.ts";
+import { TokenField } from "../tokens/TokenField.tsx";
+import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
 import { parsePxNumber } from "./computedValue.ts";
@@ -27,11 +30,16 @@ function shorthand(sides: SpacingSides): string {
 
 export interface SpacingBoxProps {
   element: SelectedElement;
+  entries?: TokenEntry[];
+  paddingTokenRow?: ResolvedProperty | null;
+  marginTokenRow?: ResolvedProperty | null;
+  onAfterEdit?: () => void;
 }
 
 export function SpacingBox(props: SpacingBoxProps): ReactElement {
-  const { element } = props;
+  const { element, entries, paddingTokenRow, marginTokenRow, onAfterEdit } = props;
   const el = element.domElement;
+  const allEntries = entries ?? [];
   const [padding, setPadding] = useState<SpacingSides>({ top: 0, right: 0, bottom: 0, left: 0 });
   const [margin, setMargin] = useState<SpacingSides>({ top: 0, right: 0, bottom: 0, left: 0 });
 
@@ -77,6 +85,16 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
             onChange={(v) => commitPadding({ ...padding, left: v })}
           />
         </div>
+        <div className="dt-field" data-test="spacing-padding-token">
+          <span className="dt-field__label">token</span>
+          <TokenField
+            property="padding"
+            tokenRow={paddingTokenRow}
+            domElement={el}
+            entries={allEntries}
+            onAfterEdit={onAfterEdit}
+          />
+        </div>
         <div className="dt-spacing__group" data-test="spacing-margin">
           <div className="dt-spacing__label">margin</div>
           <SideInput
@@ -98,6 +116,16 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
             kind="margin-left"
             value={margin.left}
             onChange={(v) => commitMargin({ ...margin, left: v })}
+          />
+        </div>
+        <div className="dt-field" data-test="spacing-margin-token">
+          <span className="dt-field__label">token</span>
+          <TokenField
+            property="margin"
+            tokenRow={marginTokenRow}
+            domElement={el}
+            entries={allEntries}
+            onAfterEdit={onAfterEdit}
           />
         </div>
       </div>
