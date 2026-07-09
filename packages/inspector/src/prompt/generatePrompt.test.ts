@@ -9,11 +9,11 @@ const SURFACE_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5
 const SPACE_3: TokenEntry = { name: "--space-3", value: "12px", source: "styles.css:3" };
 
 function rec(
-  overrides: Partial<ChangeRecord> & { cid: string; file: string; property: string },
+  overrides: Partial<ChangeRecord> & { cid: string; file: string; property: string; line?: number },
 ): ChangeRecord {
   return {
     line: 42,
-    selector: `[data-cid="${overrides.cid}"][data-src*="${overrides.file}"]`,
+    selector: `[data-cid="${overrides.cid}"][data-src*="${overrides.file}:${overrides.line ?? 42}"]`,
     oldToken: null,
     newToken: null,
     source: { file: overrides.file, line: overrides.line ?? 42, component: overrides.cid },
@@ -44,7 +44,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("### Button (src/Button.tsx:42)");
     expect(out).toContain("- `background`: `--color-surface-raised` → `--color-surface-sunken`");
     expect(out).toContain("## Selectors (fallback)");
-    expect(out).toContain('- `[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(out).toContain('- `[data-cid="Button"][data-src*="src/Button.tsx:42"]');
   });
 
   it("renders a raw value edit with the not-a-token marker", () => {
@@ -127,8 +127,8 @@ describe("generatePrompt", () => {
     const out = generatePrompt([a, b]);
     expect(out).toContain("### Button (src/Button.tsx:42)");
     expect(out).toContain("### NavLink (src/components/Header.tsx:58)");
-    expect(out).toContain('- `[data-cid="Button"][data-src*="src/Button.tsx"]');
-    expect(out).toContain('- `[data-cid="NavLink"][data-src*="src/components/Header.tsx"]');
+    expect(out).toContain('- `[data-cid="Button"][data-src*="src/Button.tsx:42"]');
+    expect(out).toContain('- `[data-cid="NavLink"][data-src*="src/components/Header.tsx:58"]');
   });
 
   it("uses the first group file basename in the top header", () => {

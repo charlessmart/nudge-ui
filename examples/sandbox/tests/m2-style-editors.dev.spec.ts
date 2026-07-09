@@ -77,7 +77,7 @@ test("dev: style editors write through the managed stylesheet and update the .bt
 
   const sheet = await sheetText(page);
   expect(sheet).toContain('[data-cid="Button"]');
-  expect(sheet).toContain('[data-src*="src/Button.tsx"]');
+  expect(sheet).toContain('[data-src*="src/Button.tsx:32"]');
   expect(sheet).toContain("padding: 24px");
   expect(sheet).toContain("font-size: 18px");
   expect(sheet).toContain("border-radius: 12px");

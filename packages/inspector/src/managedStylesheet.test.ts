@@ -44,12 +44,12 @@ describe("applyRules", () => {
   it("writes the expected CSS text for a single rule", () => {
     applyRules([
       {
-        selector: '[data-cid="Button"][data-src*="src/Button.tsx"]',
+        selector: '[data-cid="Button"][data-src*="src/Button.tsx:1"]',
         declarations: { background: "var(--color-surface-sunken)", "border-radius": "8px" },
       },
     ]);
     const el = document.getElementById(SHEET_ID) as HTMLStyleElement;
-    expect(el.textContent).toContain('[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(el.textContent).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(el.textContent).toContain("background: var(--color-surface-sunken);");
     expect(el.textContent).toContain("border-radius: 8px;");
   });

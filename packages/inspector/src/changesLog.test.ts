@@ -25,7 +25,7 @@ function makeRecord(
     cid: "Button",
     file: "src/Button.tsx",
     line: 1,
-    selector: '[data-cid="Button"][data-src*="src/Button.tsx"]',
+    selector: '[data-cid="Button"][data-src*="src/Button.tsx:1"]',
     property,
     oldToken,
     newToken,

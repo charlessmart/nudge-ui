@@ -31,7 +31,7 @@ describe("setStyle", () => {
     const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
     expect(sheet).not.toBeNull();
     const text = sheet.textContent ?? "";
-    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(text).toContain("padding: 24px 8px 24px 8px;");
   });
 

@@ -109,7 +109,7 @@ test.describe("clipboard permissions", () => {
     expect(text).toContain("Design changes for Button.tsx");
     expect(text).toContain("Framework: React + CSS custom properties");
     expect(text).toContain("--color-surface-sunken");
-    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:32"]');
     expect(text).toContain("border-radius");
     expect(text).toContain("12px");
     expect(text).toContain("(not a token — consider adding one)");

@@ -53,7 +53,7 @@ describe("BorderEditor", () => {
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
     const width = handle.host.querySelector('[data-test="border-width"]') as HTMLInputElement;
     setInputValue(width, "2");
-    expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(sheetText()).toContain("border: 2px solid rgb(102, 102, 102);");
   });
 

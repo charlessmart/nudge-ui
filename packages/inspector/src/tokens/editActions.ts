@@ -13,9 +13,12 @@ export { getPendingRules, getChangesList as getChangeRecords, clearChanges as re
 export function buildSelector(cid: string, src: string): string | null {
   if (!cid) return null;
   const parsed = parseDataSrc(src);
-  const file = parsed ? parsed.file : src;
+  if (!parsed) {
+    return src ? `[data-cid="${escapeAttrValue(cid)}"][data-src*="${escapeAttrValue(src)}"]` : null;
+  }
+  const { file, line } = parsed;
   if (!file) return null;
-  return `[data-cid="${escapeAttrValue(cid)}"][data-src*="${escapeAttrValue(file)}"]`;
+  return `[data-cid="${escapeAttrValue(cid)}"][data-src*="${escapeAttrValue(file)}:${line}"]`;
 }
 
 export function swapToken(

@@ -64,7 +64,7 @@ describe("SpacingBox", () => {
     handle = mount(createElement(SpacingBox, { element: selected }));
     const pt = handle.host.querySelector('[data-test="padding-top"]') as HTMLInputElement;
     setInputValue(pt, "24");
-    expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(sheetText()).toContain("padding: 24px 0px 0px 0px;");
     expect(el.style.padding).toBe("");
   });

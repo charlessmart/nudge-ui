@@ -56,7 +56,7 @@ describe("ColorPicker", () => {
     handle = mount(createElement(ColorPicker, { element: selected, property: "color", entries: ENTRIES }));
     const select = handle.host.querySelector('[data-test="color-token-select"]') as HTMLSelectElement;
     setSelectValue(select, "--color-text-secondary");
-    expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(sheetText()).toContain("color: var(--color-text-secondary);");
     expect(el.style.color).toBe("");
   });

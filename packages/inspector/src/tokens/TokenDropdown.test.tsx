@@ -148,7 +148,7 @@ describe("TokenDropdown rendering", () => {
     nativeSetter!.call(select, "--radius-md");
     select.dispatchEvent(new Event("change", { bubbles: true }));
     const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
-    expect(sheet.textContent).toContain('[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(sheet.textContent).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(sheet.textContent).toContain("border-radius: var(--radius-md);");
     btn.remove();
   });

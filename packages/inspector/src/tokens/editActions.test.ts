@@ -24,9 +24,9 @@ const COLOR_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffff
 const SPACE_2: TokenEntry = { name: "--space-2", value: "8px", source: "styles.css:7" };
 
 describe("buildSelector", () => {
-  it("composes [data-cid=...][data-src*=...] from cid + file parsed from src", () => {
+  it("composes [data-cid=...][data-src*=...] from cid + file:line parsed from src", () => {
     expect(buildSelector("Button", "src/Button.tsx:42:8")).toBe(
-      '[data-cid="Button"][data-src*="src/Button.tsx"]',
+      '[data-cid="Button"][data-src*="src/Button.tsx:42"]',
     );
   });
 
@@ -36,6 +36,13 @@ describe("buildSelector", () => {
 
   it("uses the whole src as the file match when it does not match line:col", () => {
     expect(buildSelector("App", "App.tsx")).toBe('[data-cid="App"][data-src*="App.tsx"]');
+  });
+
+  it("dedupes by selector+property even across different elements on the same line", () => {
+    const a = buildSelector("Button", "src/Button.tsx:1:1");
+    const b = buildSelector("Button", "src/Button.tsx:1:5");
+    expect(a).toBe(b);
+    expect(a).toBe('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
   });
 });
 
@@ -57,7 +64,7 @@ describe("swapToken", () => {
     const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
     expect(sheet).not.toBeNull();
     const text = sheet.textContent ?? "";
-    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(text).toContain("background: var(--color-blue);");
   });
 
@@ -67,7 +74,7 @@ describe("swapToken", () => {
     expect(rec).not.toBeNull();
     expect(rec!.cid).toBe("Button");
     expect(rec!.file).toBe("src/Button.tsx");
-    expect(rec!.selector).toBe('[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(rec!.selector).toBe('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(rec!.property).toBe("background");
     expect(rec!.newToken!.name).toBe("--color-blue");
     expect(rec!.oldToken?.name).toBe("--color-surface-raised");
