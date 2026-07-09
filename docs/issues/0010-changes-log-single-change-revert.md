@@ -18,13 +18,13 @@ This log is what the prompt generator (#11) reads to produce the agent handoff.
 
 ## Acceptance criteria
 
-- [ ] Every edit (token swap, style editor change, replace-with-token) appends a structured change record to the log
-- [ ] Each record has `elementId`, `property`, `oldValue`, `newValue`, `tokenName?`, and `source: { file, line, component }`
-- [ ] Changes are grouped by element in the log UI
-- [ ] Single-change revert removes one entry and rebuilds the managed stylesheet from the remaining log
-- [ ] Managed stylesheet is always rebuildable from the log (rebuild function iterates log → emits rules)
-- [ ] Reverting a change restores the element's pre-edit visual state
-- [ ] Log survives inspector toggle (open/close `Alt+I`) without losing entries
+- [x] Every edit (token swap, style editor change, replace-with-token) appends a structured change record to the log
+- [x] Each record has `elementId`, `property`, `oldValue`, `newValue`, `tokenName?`, and `source: { file, line, component }`
+- [x] Changes are grouped by element in the log UI
+- [x] Single-change revert removes one entry and rebuilds the managed stylesheet from the remaining log
+- [x] Managed stylesheet is always rebuildable from the log (rebuild function iterates log → emits rules)
+- [x] Reverting a change restores the element's pre-edit visual state
+- [x] Log survives inspector toggle (open/close `Alt+I`) without losing entries
 
 ## Blocked by
 

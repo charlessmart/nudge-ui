@@ -18,13 +18,13 @@ Wire the keyboard shortcut `Alt+I` to toggle inspector visibility on/off. No ins
 
 ## Acceptance criteria
 
-- [ ] Vite plugin injects `<div id="design-tool-root">` into document body in dev mode only
-- [ ] Inspector mounts as a Shadow DOM React portal in the mount point
-- [ ] Shadow DOM is CSS-isolated: host app styles do not leak into the inspector; inspector styles do not leak into the host
-- [ ] `Alt+I` toggles inspector visibility (open/close)
-- [ ] Inspector mount point and portal absent in production build (tree-shaking verified)
-- [ ] React-strategy decision documented in an ADR (alias vs bundle)
-- [ ] Inspector shell renders an empty panel (placeholder) so later slices have a surface to populate
+- [x] Vite plugin injects `<div id="design-tool-root">` into document body in dev mode only
+- [x] Inspector mounts as a Shadow DOM React portal in the mount point
+- [x] Shadow DOM is CSS-isolated: host app styles do not leak into the inspector; inspector styles do not leak into the host
+- [x] `Alt+I` toggles inspector visibility (open/close)
+- [x] Inspector mount point and portal absent in production build (tree-shaking verified)
+- [x] React-strategy decision documented in an ADR (alias vs bundle)
+- [x] Inspector shell renders an empty panel (placeholder) so later slices have a surface to populate
 
 ## Blocked by
 

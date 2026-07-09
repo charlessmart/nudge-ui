@@ -18,14 +18,14 @@ HITL because: (a) the managed-stylesheet rule format is a hard architectural con
 
 ## Acceptance criteria
 
-- [ ] A single `<style id="design-tool-styles">` element is injected into document head (one only, reused across edits)
-- [ ] Every style edit writes a rule to the managed stylesheet — zero inline styles written to tracked elements
-- [ ] Rules keyed by `[data-cid="..."][data-src*="..."]`, not fragile DOM selectors
-- [ ] Token panel shows a dropdown of alternative tokens grouped by type (color, spacing, etc.) for each resolved token property
-- [ ] Selecting an alternative token writes a rule and the element updates live without a full reload
-- [ ] "Not a token" values have a "replace with token" affordance that promotes a hardcoded value to a token reference
-- [ ] Edits survive React re-renders (managed stylesheet is external to the React tree)
-- [ ] ADR records the managed-stylesheet + no-inline-style rule and the rationale
+- [x] A single `<style id="design-tool-styles">` element is injected into document head (one only, reused across edits)
+- [x] Every style edit writes a rule to the managed stylesheet — zero inline styles written to tracked elements
+- [x] Rules keyed by `[data-cid="..."][data-src*="..."]`, not fragile DOM selectors
+- [x] Token panel shows a dropdown of alternative tokens grouped by type (color, spacing, etc.) for each resolved token property
+- [x] Selecting an alternative token writes a rule and the element updates live without a full reload
+- [x] "Not a token" values have a "replace with token" affordance that promotes a hardcoded value to a token reference
+- [x] Edits survive React re-renders (managed stylesheet is external to the React tree)
+- [x] ADR records the managed-stylesheet + no-inline-style rule and the rationale
 
 ## Blocked by
 

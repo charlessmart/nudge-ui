@@ -1,0 +1,535 @@
+import { useEffect } from "react";
+import type { ReactElement } from "react";
+import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
+import {
+  useSelectedElement,
+  useHierarchy,
+  useHierarchyIndex,
+  setHierarchyIndex,
+  setSelectedElement,
+  stepUp,
+  stepDown,
+} from "./selectionStore.ts";
+import { InspectorOverlay } from "./InspectorOverlay.tsx";
+import { useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
+import type { ResolvedProperty } from "./tokens/resolution.ts";
+import type { TokenEntry } from "virtual:design-tokens";
+import { tokens } from "virtual:design-tokens";
+import { TokenDropdown } from "./tokens/TokenDropdown.tsx";
+import { resolveSelectionFromElement } from "./resolveSelection.ts";
+import { SpacingBox } from "./styleEditors/SpacingBox.tsx";
+import { Typography } from "./styleEditors/Typography.tsx";
+import { ColorPicker } from "./styleEditors/ColorPicker.tsx";
+import { BorderEditor } from "./styleEditors/BorderEditor.tsx";
+import { ChangesLog } from "./ChangesLog.tsx";
+
+export { toggleInspector, setInspectorOpen };
+export type { SelectedElement } from "./selectionStore.ts";
+
+let inspectorHost: HTMLElement | null = null;
+export function setInspectorHost(host: HTMLElement | null): void {
+  inspectorHost = host;
+}
+
+const STYLES = `
+:host { all: initial; }
+.dt-panel {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 320px;
+  height: 240px;
+  background: #111827;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  z-index: 2147483647;
+}
+.dt-panel[data-open="false"] { display: none; }
+.dt-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid #374151;
+  font-weight: 600;
+}
+.dt-panel__body {
+  padding: 12px;
+  color: #d1d5db;
+  overflow: auto;
+  flex: 1;
+}
+.dt-selection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dt-selection__row {
+  display: flex;
+  gap: 6px;
+}
+.dt-selection__label {
+  color: #9ca3af;
+  min-width: 56px;
+}
+.dt-selection__value {
+  color: #f9fafb;
+  word-break: break-all;
+}
+.dt-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.dt-breadcrumb__sep {
+  color: #6b7280;
+}
+.dt-breadcrumb__step {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: #9ca3af;
+  background: transparent;
+  border: none;
+  font: inherit;
+}
+.dt-breadcrumb__step[data-active="true"] {
+  color: #f9fafb;
+  background: #1f2937;
+  font-weight: 600;
+}
+.dt-hover-outline {
+  position: fixed;
+  pointer-events: none;
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+  z-index: 2147483646;
+}
+.dt-selected-outline {
+  position: fixed;
+  pointer-events: none;
+  outline: 2px solid #ef4444;
+  outline-offset: -2px;
+  z-index: 2147483646;
+}
+.dt-tokens {
+  margin-top: 8px;
+  border-top: 1px solid #374151;
+  padding-top: 8px;
+}
+.dt-tokens__title {
+  color: #9ca3af;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.dt-tokens__empty {
+  color: #6b7280;
+}
+.dt-tokens__row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 4px;
+  padding: 2px 0;
+  align-items: baseline;
+}
+.dt-tokens__prop {
+  color: #f9fafb;
+  font-feature-settings: "tnum";
+  word-break: break-all;
+}
+.dt-tokens__name {
+  color: #93c5fd;
+  word-break: break-all;
+}
+.dt-tokens__name[data-token="false"] {
+  color: #6b7280;
+}
+.dt-tokens__value {
+  grid-column: 2;
+  color: #9ca3af;
+  font-size: 11px;
+  word-break: break-all;
+}
+.dt-token-dropdown {
+  grid-column: 2;
+  margin: 2px 0 4px;
+}
+.dt-token-dropdown select {
+  width: 100%;
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 11px;
+}
+.dt-style-editors {
+  margin-top: 8px;
+  border-top: 1px solid #374151;
+  padding-top: 8px;
+}
+.dt-style-editors__title {
+  color: #9ca3af;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.dt-editor {
+  margin-bottom: 10px;
+  padding: 6px;
+  background: #0f1623;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+}
+.dt-editor__title {
+  color: #93c5fd;
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dt-spacing {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dt-spacing__group {
+  display: grid;
+  grid-template-columns: 48px repeat(4, 1fr);
+  gap: 4px;
+  align-items: center;
+}
+.dt-spacing__label {
+  color: #9ca3af;
+  font-size: 11px;
+}
+.dt-spacing__side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dt-spacing__side-label {
+  color: #6b7280;
+  font-size: 9px;
+}
+.dt-typography,
+.dt-border,
+.dt-color {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dt-field {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 4px;
+  align-items: center;
+}
+.dt-field__label {
+  color: #9ca3af;
+  font-size: 11px;
+}
+.dt-field__row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.dt-field__unit {
+  color: #6b7280;
+  font-size: 11px;
+}
+.dt-editor input,
+.dt-editor select {
+  width: 100%;
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 11px;
+}
+.dt-field__row input {
+  flex: 1;
+}
+.dt-color__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.dt-color__swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid #374151;
+}
+.dt-color__computed {
+  color: #d1d5db;
+  font-size: 11px;
+  word-break: break-all;
+}
+.dt-changes {
+  margin-top: 8px;
+  border-top: 1px solid #374151;
+  padding-top: 8px;
+}
+.dt-changes__title {
+  color: #9ca3af;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.dt-changes__empty {
+  color: #6b7280;
+}
+.dt-changes__group {
+  margin-bottom: 8px;
+  padding: 6px;
+  background: #0f1623;
+  border: 1px solid #1f2937;
+  border-radius: 4px;
+}
+.dt-changes__group-title {
+  color: #93c5fd;
+  font-weight: 600;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.dt-changes__group-file {
+  color: #6b7280;
+  font-weight: 400;
+  word-break: break-all;
+}
+.dt-changes__row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto 1fr auto;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 11px;
+}
+.dt-changes__prop {
+  color: #f9fafb;
+  word-break: break-all;
+}
+.dt-changes__before {
+  color: #9ca3af;
+  word-break: break-all;
+}
+.dt-changes__arrow {
+  color: #6b7280;
+}
+.dt-changes__after {
+  color: #93c5fd;
+  word-break: break-all;
+}
+.dt-changes__revert {
+  background: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.dt-changes__revert:hover {
+  background: #374151;
+}
+.dt-changes__copy {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  background: #1d4ed8;
+  color: #f9fafb;
+  border: 1px solid #1e40af;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dt-changes__copy:hover:not(:disabled) {
+  background: #2563eb;
+}
+.dt-changes__copy:disabled {
+  background: #1f2937;
+  color: #6b7280;
+  border-color: #374151;
+  cursor: not-allowed;
+}
+.dt-changes__copy[data-copied="true"] {
+  background: #047857;
+  border-color: #065f46;
+}
+`;
+
+function resolveHost(): HTMLElement {
+  return inspectorHost ?? document.getElementById("design-tool-root") ?? document.body;
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA") return true;
+  if (target.isContentEditable) return true;
+  return false;
+}
+
+export function InspectorShell(): ReactElement {
+  const isOpen = useInspectorOpen();
+  const selected = useSelectedElement();
+  const hierarchy = useHierarchy();
+  const hierarchyIndex = useHierarchyIndex();
+
+  useEffect(() => {
+    if (!isOpen || !selected) return;
+    function onKeydown(e: KeyboardEvent): void {
+      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      if (isEditableTarget(e.target)) return;
+      e.preventDefault();
+      if (e.key === "ArrowUp") stepUp();
+      else stepDown();
+    }
+    window.addEventListener("keydown", onKeydown);
+    return () => {
+      window.removeEventListener("keydown", onKeydown);
+    };
+  }, [isOpen, selected]);
+
+  const ordered = [...hierarchy].reverse();
+
+  const tokenRows = useResolvedPropertiesDebounced(selected);
+  const tokenEntries: TokenEntry[] = tokens;
+
+  function refreshSelected(): void {
+    if (!selected) return;
+    const reResolved = resolveSelectionFromElement(selected.domElement);
+    if (!reResolved) return;
+    setSelectedElement(reResolved);
+  }
+
+  return (
+    <>
+      <style>{STYLES}</style>
+      <InspectorOverlay host={resolveHost()} />
+      <div className="dt-panel" data-open={isOpen ? "true" : "false"}>
+        <div className="dt-panel__header">
+          <span>Design Tool</span>
+          <span>{isOpen ? "open" : "closed"}</span>
+        </div>
+        <div className="dt-panel__body">
+          {selected ? (
+            <>
+            <div className="dt-selection" data-test="selection">
+              {ordered.length > 0 ? (
+                <div className="dt-breadcrumb" data-test="breadcrumb">
+                  {ordered.map((node, i) => {
+                    const realIndex = chainIndex(hierarchy.length, i);
+                    const cid = node.getAttribute("data-cid") ?? "?";
+                    const active = realIndex === hierarchyIndex;
+                    return (
+                      <span key={realIndex}>
+                        {i > 0 ? <span className="dt-breadcrumb__sep"> › </span> : null}
+                        <button
+                          type="button"
+                          className="dt-breadcrumb__step"
+                          data-test="breadcrumb-step"
+                          data-active={active ? "true" : "false"}
+                          data-index={realIndex}
+                          data-cid={cid}
+                          onClick={() => setHierarchyIndex(realIndex)}
+                        >
+                          {cid}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <div className="dt-selection__row">
+                <span className="dt-selection__label">cid</span>
+                <span className="dt-selection__value">{selected.cid}</span>
+              </div>
+              <div className="dt-selection__row">
+                <span className="dt-selection__label">src</span>
+                <span className="dt-selection__value">
+                  {selected.file}:{selected.line}:{selected.column}
+                </span>
+              </div>
+              <div className="dt-selection__row">
+                <span className="dt-selection__label">props</span>
+                <span className="dt-selection__value">
+                  {selected.cprops ?? "No props"}
+                </span>
+              </div>
+            </div>
+            <div className="dt-tokens" data-test="tokens-panel">
+              <div className="dt-tokens__title">Tokens</div>
+              {tokenRows.length === 0 ? (
+                <div className="dt-tokens__empty">No CSS declarations on this element</div>
+              ) : (
+                tokenRows.map((row) => (
+                  <div
+                    className="dt-tokens__row"
+                    data-test="token-row"
+                    key={row.property}
+                    data-property={row.property}
+                    data-token={row.tokenName ?? ""}
+                  >
+                    <span className="dt-tokens__prop" data-test="token-property">
+                      {row.property}
+                    </span>
+                    <span
+                      className="dt-tokens__name"
+                      data-test="token-name"
+                      data-token={row.tokenName ? "true" : "false"}
+                    >
+                      {row.tokenName ?? "not a token"}
+                    </span>
+                    <span className="dt-tokens__value" data-test="token-value">
+                      {row.resolvedValue}
+                    </span>
+                    {selected ? (
+                      <TokenDropdown
+                        row={row}
+                        domElement={selected.domElement}
+                        entries={tokenEntries}
+                        onAfterEdit={refreshSelected}
+                      />
+                    ) : null}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="dt-style-editors" data-test="style-editors">
+              <div className="dt-style-editors__title">Style editors</div>
+              <SpacingBox element={selected} />
+              <Typography element={selected} />
+              <ColorPicker element={selected} property="color" entries={tokenEntries} />
+              <BorderEditor element={selected} entries={tokenEntries} />
+            </div>
+            </>
+          ) : (
+            "Inspector shell ready (Alt+I to toggle)"
+          )}
+          <ChangesLog />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function chainIndex(length: number, reversedIndex: number): number {
+  return length - 1 - reversedIndex;
+}

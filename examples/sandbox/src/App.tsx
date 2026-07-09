@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Button } from "./Button";
 import { Footer } from "./Footer";
 import { tokens } from "virtual:design-tokens";
@@ -7,17 +8,27 @@ if (import.meta.env.DEV && typeof window !== "undefined") {
 }
 
 export function App() {
+  const [clicks, setClicks] = useState(0);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __designToolRerender?: () => void }).__designToolRerender = () =>
+      setClicks((c) => c + 1);
+    return () => {
+      delete (window as unknown as { __designToolRerender?: () => void }).__designToolRerender;
+    };
+  }, []);
   return (
     <div>
       <header className="header">
         <h1>Design Tool Sandbox</h1>
         <p className="subtitle">Edit tokens live in dev.</p>
+        <p data-test="click-counter">clicks: {clicks}</p>
       </header>
       <main className="content">
         <Button
           label="Save"
           variant="primary"
-          onClick={() => undefined}
+          onClick={() => setClicks((c) => c + 1)}
         />
       </main>
       <Footer />

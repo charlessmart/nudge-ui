@@ -1,0 +1,95 @@
+import { test, expect } from "@playwright/test";
+
+async function sheetText(page: import("@playwright/test").Page): Promise<string> {
+  return await page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? "");
+}
+
+async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        const sr = document.getElementById("design-tool-root")?.shadowRoot;
+        return !!sr?.querySelector('[data-test="style-editors"]');
+      });
+    }, { timeout: 5000 })
+    .toBe(true);
+}
+
+async function setInput(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
+  await page.evaluate(({ t, v }) => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const input = sr?.querySelector(`[data-test="${t}"]`) as HTMLInputElement | null;
+    if (!input) return;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setter.call(input, v);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, { t: testId, v: value });
+}
+
+async function setSelect(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
+  await page.evaluate(({ t, v }) => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const select = sr?.querySelector(`[data-test="${t}"]`) as HTMLSelectElement | null;
+    if (!select) return;
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
+    setter.call(select, v);
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  }, { t: testId, v: value });
+}
+
+async function computedProp(page: import("@playwright/test").Page, prop: string): Promise<string> {
+  return await page.evaluate((p) => {
+    const btn = document.querySelector(".btn") as HTMLElement | null;
+    return btn ? getComputedStyle(btn).getPropertyValue(p) : "";
+  }, prop);
+}
+
+test("dev: style editors write through the managed stylesheet and update the .btn live", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForEditors(page);
+
+  await setInput(page, "padding-top", "24");
+  await expect
+    .poll(async () => computedProp(page, "padding-top"), { timeout: 5000 })
+    .toBe("24px");
+
+  await setInput(page, "font-size", "18");
+  await expect
+    .poll(async () => computedProp(page, "font-size"), { timeout: 5000 })
+    .toBe("18px");
+
+  await setInput(page, "border-radius", "12");
+  await expect
+    .poll(async () => computedProp(page, "border-radius"), { timeout: 5000 })
+    .toBe("12px");
+
+  const tokenValue = await page.evaluate(() => {
+    const li = Array.from(document.querySelectorAll('[data-token-name="--color-text-secondary"]'))[0];
+    return li?.textContent ?? "";
+  });
+  const expectedRgb = hexToRgbString(tokenValue);
+
+  await setSelect(page, "color-token-select", "--color-text-secondary");
+  await expect
+    .poll(async () => computedProp(page, "color"), { timeout: 5000 })
+    .toContain(expectedRgb ?? "102, 102, 102");
+
+  const sheet = await sheetText(page);
+  expect(sheet).toContain('[data-cid="Button"]');
+  expect(sheet).toContain('[data-src*="src/Button.tsx"]');
+  expect(sheet).toContain("padding: 24px");
+  expect(sheet).toContain("font-size: 18px");
+  expect(sheet).toContain("border-radius: 12px");
+  expect(sheet).toContain("color: var(--color-text-secondary);");
+});
+
+function hexToRgbString(raw: string): string | null {
+  const match = /#([0-9a-fA-F]{6})/.exec(raw);
+  if (!match) return null;
+  const hex = match[1]!;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}

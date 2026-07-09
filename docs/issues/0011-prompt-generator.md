@@ -17,14 +17,14 @@ Writes the prompt to the clipboard on click.
 
 ## Acceptance criteria
 
-- [ ] "Copy prompt" button reads the changes log and generates structured markdown
-- [ ] Prompt starts with a framework + styling-system detection header
-- [ ] Each change rendered as: component name, file:line, property, before→after, token name (if applicable)
-- [ ] Changes grouped by component in the prompt
-- [ ] When `data-src` source mapping is uncertain/absent, prompt includes grep-ready `[data-cid="..."]` selector fallback
-- [ ] Prompt is compact (no full CSS block dumps — deltas only)
-- [ ] Clicking "Copy prompt" writes the generated markdown to the clipboard
-- [ ] Empty changes log produces a clear "no changes to export" state, not a malformed prompt
+- [x] "Copy prompt" button reads the changes log and generates structured markdown
+- [x] Prompt starts with a framework + styling-system detection header
+- [x] Each change rendered as: component name, file:line, property, before→after, token name (if applicable)
+- [x] Changes grouped by component in the prompt
+- [x] When `data-src` source mapping is uncertain/absent, prompt includes grep-ready `[data-cid="..."]` selector fallback
+- [x] Prompt is compact (no full CSS block dumps — deltas only)
+- [x] Clicking "Copy prompt" writes the generated markdown to the clipboard
+- [x] Empty changes log produces a clear "no changes to export" state, not a malformed prompt
 
 ## Blocked by
 

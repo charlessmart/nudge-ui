@@ -16,13 +16,13 @@ The hover overlay must not interfere with the host app's layout (positioned abso
 
 ## Acceptance criteria
 
-- [ ] Hovering host-app elements shows an outline overlay positioned exactly over the target
-- [ ] Overlay is rendered inside the Shadow DOM (doesn't pollute host DOM)
-- [ ] Overlay does not cause layout shifts in the host app (absolute positioning, no reflow)
-- [ ] Clicking a host element selects it and resolves its `data-cid`, `data-src`, `data-cprops` attributes
-- [ ] When `__source` / `_debugSource` fiber data is available, it's captured alongside the attribute identity
-- [ ] Selected element identity is displayed in the inspector (component name, file:line)
-- [ ] Inspector does not select its own Shadow DOM elements (scoped to host app DOM)
+- [x] Hovering host-app elements shows an outline overlay positioned exactly over the target
+- [x] Overlay is rendered inside the Shadow DOM (doesn't pollute host DOM)
+- [x] Overlay does not cause layout shifts in the host app (absolute positioning, no reflow)
+- [x] Clicking a host element selects it and resolves its `data-cid`, `data-src`, `data-cprops` attributes
+- [x] When `__source` / `_debugSource` fiber data is available, it's captured alongside the attribute identity
+- [x] Selected element identity is displayed in the inspector (component name, file:line)
+- [x] Inspector does not select its own Shadow DOM elements (scoped to host app DOM)
 
 ## Blocked by
 

@@ -1,0 +1,184 @@
+import { describe, it, expect } from "vitest";
+import { generatePrompt } from "./generatePrompt.ts";
+import { detectFramework } from "./detectFramework.ts";
+import type { ChangeRecord } from "../changesLog.ts";
+import type { TokenEntry } from "virtual:design-tokens";
+
+const SURFACE_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:1" };
+const SURFACE_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5f5f5", source: "styles.css:2" };
+const SPACE_3: TokenEntry = { name: "--space-3", value: "12px", source: "styles.css:3" };
+
+function rec(
+  overrides: Partial<ChangeRecord> & { cid: string; file: string; property: string },
+): ChangeRecord {
+  return {
+    line: 42,
+    selector: `[data-cid="${overrides.cid}"][data-src*="${overrides.file}"]`,
+    oldToken: null,
+    newToken: null,
+    source: { file: overrides.file, line: overrides.line ?? 42, component: overrides.cid },
+    ...overrides,
+  };
+}
+
+describe("generatePrompt", () => {
+  it("returns the empty sentinel when there are no changes", () => {
+    const out = generatePrompt([]);
+    expect(out).toBe(
+      "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Design Tool inspector first.",
+    );
+  });
+
+  it("renders a token swap matching PLAN.md structure", () => {
+    const r = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "background",
+      oldToken: SURFACE_RAISED,
+      newToken: SURFACE_SUNKEN,
+    });
+    const out = generatePrompt([r]);
+    expect(out).toContain("# Design changes for Button.tsx");
+    expect(out).toContain("Framework: React + CSS custom properties");
+    expect(out).toContain("## Changes");
+    expect(out).toContain("### Button (src/Button.tsx:42)");
+    expect(out).toContain("- `background`: `--color-surface-raised` → `--color-surface-sunken`");
+    expect(out).toContain("## Selectors (fallback)");
+    expect(out).toContain('- `[data-cid="Button"][data-src*="src/Button.tsx"]');
+  });
+
+  it("renders a raw value edit with the not-a-token marker", () => {
+    const r = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "padding",
+      rawValue: "16px",
+      oldRawValue: "4px",
+    });
+    const out = generatePrompt([r]);
+    expect(out).toContain("- `padding`: `4px` → `16px` (not a token — consider adding one)");
+  });
+
+  it("renders a raw value edit with only the new value when no old value is recorded", () => {
+    const r = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "padding",
+      rawValue: "16px",
+    });
+    const out = generatePrompt([r]);
+    expect(out).toContain("- `padding`: `16px` (not a token — consider adding one)");
+    expect(out).not.toContain("→");
+  });
+
+  it("renders a promotion of a hardcoded value to a token", () => {
+    const r = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "border-radius",
+      newToken: SPACE_3,
+      oldRawValue: "8px",
+    });
+    const out = generatePrompt([r]);
+    expect(out).toContain(
+      "- `border-radius`: `8px` → `var(--space-3)` (promoted from raw value — consider adding a dedicated token)",
+    );
+  });
+
+  it("groups multiple changes for the same element + file under one heading", () => {
+    const a = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "background",
+      oldToken: SURFACE_RAISED,
+      newToken: SURFACE_SUNKEN,
+    });
+    const b = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "border-radius",
+      rawValue: "12px",
+    });
+    const out = generatePrompt([a, b]);
+    const headings = out.split("\n").filter((l) => l.startsWith("### Button"));
+    expect(headings).toHaveLength(1);
+    expect(out).toContain("- `background`: `--color-surface-raised` → `--color-surface-sunken`");
+    expect(out).toContain("- `border-radius`: `12px` (not a token — consider adding one)");
+    const selectorLines = out.split("\n").filter((l) => l.startsWith("- `[data-cid=\"Button\"]"));
+    expect(selectorLines).toHaveLength(1);
+  });
+
+  it("renders multiple headings for changes across multiple elements", () => {
+    const a = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "background",
+      oldToken: SURFACE_RAISED,
+      newToken: SURFACE_SUNKEN,
+    });
+    const b = rec({
+      cid: "NavLink",
+      file: "src/components/Header.tsx",
+      line: 58,
+      property: "color",
+      oldToken: null,
+      newToken: SURFACE_RAISED,
+    });
+    const out = generatePrompt([a, b]);
+    expect(out).toContain("### Button (src/Button.tsx:42)");
+    expect(out).toContain("### NavLink (src/components/Header.tsx:58)");
+    expect(out).toContain('- `[data-cid="Button"][data-src*="src/Button.tsx"]');
+    expect(out).toContain('- `[data-cid="NavLink"][data-src*="src/components/Header.tsx"]');
+  });
+
+  it("uses the first group file basename in the top header", () => {
+    const a = rec({
+      cid: "Button",
+      file: "src/components/Header.tsx",
+      property: "background",
+      oldToken: SURFACE_RAISED,
+      newToken: SURFACE_SUNKEN,
+    });
+    const out = generatePrompt([a]);
+    expect(out).toContain("# Design changes for Header.tsx");
+  });
+
+  it("accepts framework hints and surfaces them in the header", () => {
+    const r = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "background",
+      oldToken: SURFACE_RAISED,
+      newToken: SURFACE_SUNKEN,
+    });
+    const out = generatePrompt([r], { framework: "React", stylingSystem: "vanilla-extract (sprinkles)" });
+    expect(out).toContain("Framework: React + vanilla-extract (sprinkles)");
+  });
+});
+
+describe("detectFramework", () => {
+  it("defaults to React + CSS custom properties when no adapter is present", () => {
+    expect(detectFramework([])).toEqual({ framework: "React", stylingSystem: "CSS custom properties" });
+    expect(detectFramework([{ name: "--x", value: "1", source: "a.css" }])).toEqual({
+      framework: "React",
+      stylingSystem: "CSS custom properties",
+    });
+  });
+
+  it("detects vanilla-extract (sprinkles) when any token carries that adapter", () => {
+    const tokens: TokenEntry[] = [
+      { name: "--x", value: "1", source: "a.css", adapter: "vanilla-extract" },
+      { name: "--y", value: "2", source: "b.css" },
+    ];
+    expect(detectFramework(tokens)).toEqual({ framework: "React", stylingSystem: "vanilla-extract (sprinkles)" });
+  });
+
+  it("detects tailwind v3 / v4", () => {
+    expect(detectFramework([{ name: "--x", value: "1", source: "a", adapter: "tailwind-v3" }]).stylingSystem).toBe(
+      "Tailwind v3",
+    );
+    expect(detectFramework([{ name: "--x", value: "1", source: "a", adapter: "tailwind-v4" }]).stylingSystem).toBe(
+      "Tailwind v4",
+    );
+  });
+});

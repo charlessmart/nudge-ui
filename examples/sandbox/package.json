@@ -13,6 +13,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@design-tool/inspector": "workspace:*",
     "@design-tool/plugin": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"

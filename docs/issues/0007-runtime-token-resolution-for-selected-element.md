@@ -18,13 +18,13 @@ This is the read-only half of the token panel; #8 adds the edit loop on top.
 
 ## Acceptance criteria
 
-- [ ] Inspector walks `getComputedStyle` for the selected element
-- [ ] For each property using `var(--x)`, the custom property is resolved through the cascade to its declaration
-- [ ] Resolved custom property name is matched against the build-time token table from #3
-- [ ] Token panel displays: property name, token name (if matched), resolved value
-- [ ] Properties with values that don't resolve to a known token show the raw value with a "not a token" indicator
-- [ ] Token panel updates when the selected element changes (including hierarchy stepping from #6)
-- [ ] Performance acceptable: computing the panel for one element doesn't jank the page (debounced, scoped to the selection)
+- [x] Inspector walks `getComputedStyle` for the selected element
+- [x] For each property using `var(--x)`, the custom property is resolved through the cascade to its declaration
+- [x] Resolved custom property name is matched against the build-time token table from #3
+- [x] Token panel displays: property name, token name (if matched), resolved value
+- [x] Properties with values that don't resolve to a known token show the raw value with a "not a token" indicator
+- [x] Token panel updates when the selected element changes (including hierarchy stepping from #6)
+- [x] Performance acceptable: computing the panel for one element doesn't jank the page (debounced, scoped to the selection)
 
 ## Blocked by
 

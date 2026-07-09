@@ -12,12 +12,12 @@ This resolves the core ambiguity of click-to-select: "did they mean the DOM node
 
 ## Acceptance criteria
 
-- [ ] Arrow up moves selection to the enclosing component boundary (nearest ancestor with a different `data-cid`)
-- [ ] Arrow down moves selection back toward the originally clicked DOM node
-- [ ] Stepping never escapes the host app DOM into the inspector's Shadow DOM
-- [ ] Current position in the hierarchy is shown as a breadcrumb in the inspector
-- [ ] Each breadcrumb step updates the selected element identity (`data-cid` / `data-src`) shown in the inspector
-- [ ] When the originally clicked node has no enclosing component with a distinct `data-cid`, stepping is a no-op with clear indication
+- [x] Arrow up moves selection to the enclosing component boundary (nearest ancestor with a different `data-cid`)
+- [x] Arrow down moves selection back toward the originally clicked DOM node
+- [x] Stepping never escapes the host app DOM into the inspector's Shadow DOM
+- [x] Current position in the hierarchy is shown as a breadcrumb in the inspector
+- [x] Each breadcrumb step updates the selected element identity (`data-cid` / `data-src`) shown in the inspector
+- [x] When the originally clicked node has no enclosing component with a distinct `data-cid`, stepping is a no-op with clear indication
 
 ## Blocked by
 

@@ -17,13 +17,13 @@ Each editor reads the current value from the selected element's computed styles 
 
 ## Acceptance criteria
 
-- [ ] Spacing box editor renders padding + margin with per-side numeric controls, updates live
-- [ ] Typography editor controls font-size, weight, line-height, letter-spacing; updates live
-- [ ] Color picker offers a palette dropdown sourced from color tokens in the token table
-- [ ] Border, radius, shadow editors control their respective properties; updates live
-- [ ] All edits go through the managed stylesheet (no inline styles)
-- [ ] All edits are keyed by `data-cid` + `data-src` (same identity rules as #8)
-- [ ] Editors read current values from the selected element's computed styles on selection
+- [x] Spacing box editor renders padding + margin with per-side numeric controls, updates live
+- [x] Typography editor controls font-size, weight, line-height, letter-spacing; updates live
+- [x] Color picker offers a palette dropdown sourced from color tokens in the token table
+- [x] Border, radius, shadow editors control their respective properties; updates live
+- [x] All edits go through the managed stylesheet (no inline styles)
+- [x] All edits are keyed by `data-cid` + `data-src` (same identity rules as #8)
+- [x] Editors read current values from the selected element's computed styles on selection
 
 ## Blocked by
 
