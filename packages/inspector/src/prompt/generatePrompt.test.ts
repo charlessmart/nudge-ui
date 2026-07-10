@@ -143,6 +143,75 @@ describe("generatePrompt", () => {
     expect(out).toContain("# Design changes for Header.tsx");
   });
 
+  it("deduplicates by diffing first vs last, ignoring intermediate changes", () => {
+    const a = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "padding",
+      rawValue: "8px",
+      oldRawValue: "4px",
+    });
+    const b = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "padding",
+      rawValue: "12px",
+      oldRawValue: "8px",
+    });
+    const c = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "padding",
+      rawValue: "16px",
+      oldRawValue: "12px",
+    });
+    const out = generatePrompt([a, b, c]);
+    expect(out).toContain("- `padding`: `4px` → `16px` (not a token — consider adding one)");
+    expect(out).not.toContain("8px → 12px");
+  });
+
+  it("deduplicates token swaps by diffing original token vs final token", () => {
+    const a = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "background",
+      oldToken: SURFACE_RAISED,
+      newToken: SURFACE_SUNKEN,
+    });
+    const b = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "background",
+      oldToken: SURFACE_SUNKEN,
+      newToken: SPACE_3,
+    });
+    const out = generatePrompt([a, b]);
+    expect(out).toContain(
+      "- `background`: `--color-surface-raised` → `--space-3`",
+    );
+    expect(out).not.toContain("--color-surface-sunken → --space-3");
+  });
+
+  it("deduplication is scoped per element — different cid properties are not collapsed", () => {
+    const a = rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "padding",
+      rawValue: "8px",
+    });
+    const b = rec({
+      cid: "NavLink",
+      file: "src/components/Header.tsx",
+      property: "padding",
+      rawValue: "16px",
+    });
+    const out = generatePrompt([a, b]);
+    expect(out).toContain("### Button (src/Button.tsx:42)");
+    expect(out).toContain("### NavLink (src/components/Header.tsx:42)");
+    expect(out).toContain("`8px`");
+    expect(out).toContain("`16px`");
+  });
+
   it("accepts framework hints and surfaces them in the header", () => {
     const r = rec({
       cid: "Button",

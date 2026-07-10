@@ -23,14 +23,15 @@ import { ColorPicker } from "./styleEditors/ColorPicker.tsx";
 import { BorderEditor } from "./styleEditors/BorderEditor.tsx";
 import { LayoutSection } from "./styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
+import { undo, redo } from "./changesLog.ts";
 
 const HANDLED_PROPERTIES = new Set([
-  "color", "background-color",
+  "color", "background-color", "background",
   "padding", "margin",
   "padding-top", "padding-right", "padding-bottom", "padding-left",
   "margin-top", "margin-right", "margin-bottom", "margin-left",
   "font-size", "font-weight", "font-family", "line-height", "letter-spacing",
-  "border-width", "border-style", "border-color",
+  "border-width", "border-style", "border-color", "border",
   "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
   "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
   "border-radius", "box-shadow",
@@ -598,8 +599,24 @@ export function InspectorShell(): ReactElement {
   const hierarchyIndex = useHierarchyIndex();
 
   useEffect(() => {
-    if (!isOpen || !selected) return;
+    if (!isOpen) return;
     function onKeydown(e: KeyboardEvent): void {
+      const mod = e.metaKey || e.ctrlKey;
+
+      if (!isEditableTarget(e.target) && selected) {
+        if (mod && !e.shiftKey && e.key.toLowerCase() === "z") {
+          e.preventDefault();
+          undo();
+          return;
+        }
+        if (mod && e.shiftKey && e.key.toLowerCase() === "z") {
+          e.preventDefault();
+          redo();
+          return;
+        }
+      }
+
+      if (!selected) return;
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
       if (isEditableTarget(e.target)) return;
       e.preventDefault();
@@ -695,14 +712,13 @@ export function InspectorShell(): ReactElement {
                 element={selected}
                 property="background-color"
                 entries={tokenEntries}
-                tokenRow={findTokenRow(tokenRows, "background-color")}
+                tokenRow={findTokenRow(tokenRows, "background-color") ?? findTokenRow(tokenRows, "background")}
                 onAfterEdit={refreshSelected}
               />
               <SpacingBox
                 element={selected}
                 entries={tokenEntries}
-                paddingTokenRow={findTokenRow(tokenRows, "padding")}
-                marginTokenRow={findTokenRow(tokenRows, "margin")}
+                tokenRows={tokenRows}
                 onAfterEdit={refreshSelected}
               />
               <Typography

@@ -41,11 +41,13 @@ async function selectBackground(page: import("@playwright/test").Page, value: st
 async function setBorderRadius(page: import("@playwright/test").Page, value: string): Promise<void> {
   await page.evaluate((v) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const input = sr?.querySelector('[data-test="border-radius"]') as HTMLInputElement | null;
-    if (!input) return;
+    const raw = sr?.querySelector(
+      '[data-test="token-field"][data-property="border-radius"] [data-test="raw-input"]',
+    ) as HTMLInputElement | null;
+    if (!raw) return;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    setter.call(input, v);
-    input.dispatchEvent(new Event("change", { bubbles: true }));
+    setter.call(raw, v);
+    raw.dispatchEvent(new Event("change", { bubbles: true }));
   }, value);
 }
 
@@ -86,7 +88,7 @@ test.describe("clipboard permissions", () => {
     await selectBackground(page, "--color-surface-sunken");
     await expect.poll(async () => changeCount(page), { timeout: 5000 }).toBe(1);
 
-    await setBorderRadius(page, "12");
+    await setBorderRadius(page, "12px");
     await expect.poll(async () => changeCount(page), { timeout: 5000 }).toBe(2);
 
     await page.evaluate(() => {

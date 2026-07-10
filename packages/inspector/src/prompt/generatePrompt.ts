@@ -68,10 +68,42 @@ function changeLine(rec: ChangeRecord): string {
   return `- \`${prop}\`: (no value)`;
 }
 
+function deduplicateChanges(changes: ChangeRecord[]): ChangeRecord[] {
+  const groups = new Map<string, ChangeRecord[]>();
+  for (const change of changes) {
+    const key = `${change.cid}\u0000${change.file}\u0000${change.property}`;
+    const list = groups.get(key);
+    if (list) {
+      list.push(change);
+    } else {
+      groups.set(key, [change]);
+    }
+  }
+
+  const result: ChangeRecord[] = [];
+  for (const list of groups.values()) {
+    if (list.length === 1) {
+      result.push(list[0]!);
+    } else {
+      const first = list[0]!;
+      const last = list[list.length - 1]!;
+      result.push({
+        ...last,
+        oldToken: first.oldToken,
+        oldRawValue: first.oldRawValue,
+      });
+    }
+  }
+  return result;
+}
+
 export function generatePrompt(changes: ChangeRecord[], frameworkHints?: FrameworkHints): string {
   if (changes.length === 0) return EMPTY_SENTINEL;
 
-  const groups = groupChanges(changes);
+  const deduplicated = deduplicateChanges(changes);
+  if (deduplicated.length === 0) return EMPTY_SENTINEL;
+
+  const groups = groupChanges(deduplicated);
   const first = groups[0]!;
   const headerFile = basename(first.file);
   const framework = frameworkHints?.framework ?? "React";

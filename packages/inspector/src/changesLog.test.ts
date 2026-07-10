@@ -7,6 +7,8 @@ import {
   getChangesList,
   getPendingRules,
   subscribeChanges,
+  undo,
+  redo,
 } from "./changesLog.ts";
 import type { ChangeRecord } from "./changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
@@ -131,6 +133,104 @@ describe("changesLog", () => {
     const rules = getPendingRules();
     expect(rules).toHaveLength(1);
     expect(rules[0]!.declarations["font-size"]).toBe("18px");
+  });
+
+  describe("undo / redo", () => {
+    it("undo returns false when the log is empty", () => {
+      expect(undo()).toBe(false);
+    });
+
+    it("undo pops the last change and redo restores it", () => {
+      const first = makeRecord("background", COLOR_B, COLOR_A);
+      const second = makeRecord("color", COLOR_C, null);
+      appendChange(first);
+      appendChange(second);
+      expect(getChangesList()).toHaveLength(2);
+
+      undo();
+      expect(getChangesList()).toHaveLength(1);
+      expect(getChangesList()[0]).toBe(first);
+      expect(getPendingRules()).toHaveLength(1);
+
+      redo();
+      expect(getChangesList()).toHaveLength(2);
+      expect(getChangesList()[1]).toBe(second);
+      expect(getPendingRules()).toHaveLength(2);
+    });
+
+    it("redo returns false when the undo stack is empty", () => {
+      expect(redo()).toBe(false);
+    });
+
+    it("new appendChange clears the redo stack", () => {
+      appendChange(makeRecord("background", COLOR_B, COLOR_A));
+      appendChange(makeRecord("color", COLOR_C, null));
+      undo();
+      expect(redo()).toBe(true);
+
+      appendChange(makeRecord("padding", null, null, "16px"));
+      expect(redo()).toBe(false);
+    });
+
+    it("revertChange clears the redo stack", () => {
+      const first = makeRecord("background", COLOR_B, COLOR_A);
+      const second = makeRecord("color", COLOR_C, null);
+      appendChange(first);
+      appendChange(second);
+      undo();
+      expect(getChangesList()).toHaveLength(1);
+
+      revertChange(first);
+      expect(getChangesList()).toHaveLength(0);
+      expect(redo()).toBe(false);
+    });
+
+    it("clearChanges clears the undo stack", () => {
+      appendChange(makeRecord("background", COLOR_B, COLOR_A));
+      appendChange(makeRecord("color", COLOR_C, null));
+      undo();
+      clearChanges();
+      expect(redo()).toBe(false);
+    });
+
+    it("multiple undos and redos maintain correct state", () => {
+      const a = makeRecord("background", COLOR_B, COLOR_A);
+      const b = makeRecord("color", COLOR_C, null);
+      const c = makeRecord("padding", null, null, "16px");
+      appendChange(a);
+      appendChange(b);
+      appendChange(c);
+      expect(getChangesList()).toHaveLength(3);
+
+      undo();
+      expect(getChangesList()).toHaveLength(2);
+      undo();
+      expect(getChangesList()).toHaveLength(1);
+      undo();
+      expect(getChangesList()).toHaveLength(0);
+      expect(undo()).toBe(false);
+
+      redo();
+      expect(getChangesList()).toHaveLength(1);
+      expect(getChangesList()[0]).toBe(a);
+      redo();
+      expect(getChangesList()).toHaveLength(2);
+      redo();
+      expect(getChangesList()).toHaveLength(3);
+      expect(redo()).toBe(false);
+    });
+
+    it("undo/redo preserves stylesheet integrity (last write wins)", () => {
+      appendChange(makeRecord("background", COLOR_B, COLOR_A));
+      appendChange(makeRecord("background", COLOR_C, COLOR_B));
+      expect(getPendingRules()[0]!.declarations.background).toBe("var(--color-c)");
+
+      undo();
+      expect(getPendingRules()[0]!.declarations.background).toBe("var(--color-b)");
+
+      redo();
+      expect(getPendingRules()[0]!.declarations.background).toBe("var(--color-c)");
+    });
   });
 
   it("rebuild from log: pendingRules is a pure function of the log", () => {

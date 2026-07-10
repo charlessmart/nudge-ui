@@ -7,7 +7,6 @@ import {
   makeSelected,
   mount,
   setInputValue,
-  setSelectValue,
   mockComputedStyle,
   restoreComputedStyle,
   sheetText,
@@ -31,7 +30,7 @@ describe("Typography", () => {
     document.body.innerHTML = "";
   });
 
-  it("parses font-size value and unit from getComputedStyle on mount", () => {
+  it("renders a TokenField for font-size in raw mode by default", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "font-size": "16px",
@@ -40,13 +39,14 @@ describe("Typography", () => {
       "letter-spacing": "0px",
     });
     handle = mount(createElement(Typography, { element: selected }));
-    const size = handle.host.querySelector('[data-test="font-size"]') as HTMLInputElement;
-    const unit = handle.host.querySelector('[data-test="font-size-unit"]') as HTMLSelectElement;
-    expect(size.value).toBe("16");
-    expect(unit.value).toBe("px");
+    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="font-size"]');
+    expect(tokenField).toBeTruthy();
+    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    expect(raw).toBeTruthy();
+    expect(raw.value).toBe("16px");
   });
 
-  it("writes font-size with the selected unit on number change", () => {
+  it("writes font-size via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "font-size": "16px",
@@ -55,12 +55,13 @@ describe("Typography", () => {
       "letter-spacing": "0px",
     });
     handle = mount(createElement(Typography, { element: selected }));
-    const size = handle.host.querySelector('[data-test="font-size"]') as HTMLInputElement;
-    setInputValue(size, "18");
+    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="font-size"]');
+    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    setInputValue(raw, "18px");
     expect(sheetText()).toContain("font-size: 18px;");
   });
 
-  it("round-trips the unit select (rem) into the written rule", () => {
+  it("writes font-weight via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "font-size": "16px",
@@ -69,26 +70,28 @@ describe("Typography", () => {
       "letter-spacing": "0px",
     });
     handle = mount(createElement(Typography, { element: selected }));
-    const unit = handle.host.querySelector('[data-test="font-size-unit"]') as HTMLSelectElement;
-    setSelectValue(unit, "rem");
-    expect(sheetText()).toContain("font-size: 16rem;");
-  });
-
-  it("writes font-weight via the weight select", () => {
-    const { selected } = makeSelected();
-    mockComputedStyle({
-      "font-size": "16px",
-      "font-weight": "400",
-      "line-height": "1.5",
-      "letter-spacing": "0px",
-    });
-    handle = mount(createElement(Typography, { element: selected }));
-    const weight = handle.host.querySelector('[data-test="font-weight"]') as HTMLSelectElement;
-    setSelectValue(weight, "700");
+    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="font-weight"]');
+    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    setInputValue(raw, "700");
     expect(sheetText()).toContain("font-weight: 700;");
   });
 
-  it("writes letter-spacing with unit", () => {
+  it("writes line-height via the raw input", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "font-size": "16px",
+      "font-weight": "400",
+      "line-height": "1.5",
+      "letter-spacing": "0px",
+    });
+    handle = mount(createElement(Typography, { element: selected }));
+    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="line-height"]');
+    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    setInputValue(raw, "1.6");
+    expect(sheetText()).toContain("line-height: 1.6;");
+  });
+
+  it("writes letter-spacing via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "font-size": "16px",
@@ -97,15 +100,14 @@ describe("Typography", () => {
       "letter-spacing": "0.05em",
     });
     handle = mount(createElement(Typography, { element: selected }));
-    const ls = handle.host.querySelector('[data-test="letter-spacing"]') as HTMLInputElement;
-    const lsUnit = handle.host.querySelector('[data-test="letter-spacing-unit"]') as HTMLSelectElement;
-    expect(ls.value).toBe("0.05");
-    expect(lsUnit.value).toBe("em");
-    setInputValue(ls, "1");
+    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="letter-spacing"]');
+    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    expect(raw.value).toBe("0.05em");
+    setInputValue(raw, "1em");
     expect(sheetText()).toContain("letter-spacing: 1em;");
   });
 
-  it("writes line-height raw text", () => {
+  it("renders a TokenField for each typographic property", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "font-size": "16px",
@@ -114,8 +116,8 @@ describe("Typography", () => {
       "letter-spacing": "0px",
     });
     handle = mount(createElement(Typography, { element: selected }));
-    const lh = handle.host.querySelector('[data-test="line-height"]') as HTMLInputElement;
-    setInputValue(lh, "1.6");
-    expect(sheetText()).toContain("line-height: 1.6;");
+    for (const prop of ["font-size", "font-weight", "line-height", "letter-spacing", "font-family"]) {
+      expect(handle.host.querySelector(`[data-test="token-field"][data-property="${prop}"]`)).toBeTruthy();
+    }
   });
 });

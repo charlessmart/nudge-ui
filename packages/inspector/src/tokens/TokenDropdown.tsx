@@ -55,9 +55,19 @@ export function groupOfProperty(property: string): TokenGroup {
   if (
     p === "padding" ||
     p === "margin" ||
-    p.endsWith("-padding") ||
-    p.endsWith("-margin") ||
+    p.startsWith("padding-") ||
+    p.startsWith("margin-") ||
     p === "gap" ||
+    p === "row-gap" ||
+    p === "column-gap" ||
+    p.startsWith("border-") && p.endsWith("-width") ||
+    p === "border-spacing" ||
+    p === "width" ||
+    p === "height" ||
+    p === "min-width" ||
+    p === "max-width" ||
+    p === "min-height" ||
+    p === "max-height" ||
     p === "top" ||
     p === "right" ||
     p === "bottom" ||

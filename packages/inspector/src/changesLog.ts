@@ -17,6 +17,7 @@ export interface ChangeRecord {
 }
 
 let changes: ChangeRecord[] = [];
+let undoStack: ChangeRecord[] = [];
 const listeners = new Set<() => void>();
 
 function subscribe(cb: () => void): () => void {
@@ -65,12 +66,14 @@ function reapply(): void {
 }
 
 export function appendChange(change: ChangeRecord): void {
+  undoStack = [];
   changes = [...changes, change];
   notify();
   reapply();
 }
 
 export function revertChange(change: ChangeRecord): void {
+  undoStack = [];
   const next = changes.filter((c) => c !== change);
   if (next.length === changes.length) return;
   changes = next;
@@ -78,8 +81,29 @@ export function revertChange(change: ChangeRecord): void {
   reapply();
 }
 
+export function undo(): boolean {
+  if (changes.length === 0) return false;
+  const popped = changes.at(-1)!;
+  changes = changes.slice(0, -1);
+  undoStack.push(popped);
+  notify();
+  reapply();
+  return true;
+}
+
+export function redo(): boolean {
+  if (undoStack.length === 0) return false;
+  const popped = undoStack.at(-1)!;
+  undoStack = undoStack.slice(0, -1);
+  changes = [...changes, popped];
+  notify();
+  reapply();
+  return true;
+}
+
 export function clearChanges(): void {
   changes = [];
+  undoStack = [];
   notify();
 }
 

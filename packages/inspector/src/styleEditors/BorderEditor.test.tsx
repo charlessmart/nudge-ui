@@ -52,17 +52,18 @@ describe("BorderEditor", () => {
       "border-top-color": "rgb(102, 102, 102)",
       "border-radius": "4px",
       "box-shadow": "none",
+      "border-width": "1px",
     };
   }
 
-  it("composes border shorthand from width + style + color on width change", () => {
+  it("writes border-width via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
-    const width = handle.host.querySelector('[data-test="border-width"]') as HTMLInputElement;
-    setInputValue(width, "2");
-    expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
-    expect(sheetText()).toContain("border: 2px solid rgb(102, 102, 102);");
+    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="border-width"]');
+    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    setInputValue(raw, "2px");
+    expect(sheetText()).toContain("border-width: 2px;");
   });
 
   it("changes border-style via the style select", () => {
@@ -71,24 +72,26 @@ describe("BorderEditor", () => {
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
     const styleSelect = handle.host.querySelector('[data-test="border-style"]') as HTMLSelectElement;
     setSelectValue(styleSelect, "dashed");
-    expect(sheetText()).toContain("border: 1px dashed rgb(102, 102, 102);");
+    expect(sheetText()).toContain("border-style: dashed;");
   });
 
-  it("writes border-radius as a single px value", () => {
+  it("writes border-radius via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
-    const radius = handle.host.querySelector('[data-test="border-radius"]') as HTMLInputElement;
-    setInputValue(radius, "12");
+    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="border-radius"]');
+    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    setInputValue(raw, "12px");
     expect(sheetText()).toContain("border-radius: 12px;");
   });
 
-  it("writes box-shadow raw text", () => {
+  it("writes box-shadow via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
-    const shadow = handle.host.querySelector('[data-test="box-shadow"]') as HTMLInputElement;
-    setInputValue(shadow, "0 2px 4px rgba(0,0,0,0.2)");
+    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="box-shadow"]');
+    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    setInputValue(raw, "0 2px 4px rgba(0,0,0,0.2)");
     expect(sheetText()).toContain("box-shadow: 0 2px 4px rgba(0,0,0,0.2);");
   });
 

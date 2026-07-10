@@ -59,11 +59,13 @@ async function selectBackground(page: import("@playwright/test").Page, value: st
 async function setFontSize(page: import("@playwright/test").Page, value: string): Promise<void> {
   await page.evaluate((v) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const input = sr?.querySelector('[data-test="font-size"]') as HTMLInputElement | null;
-    if (!input) return;
+    const raw = sr?.querySelector(
+      '[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]',
+    ) as HTMLInputElement | null;
+    if (!raw) return;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    setter.call(input, v);
-    input.dispatchEvent(new Event("change", { bubbles: true }));
+    setter.call(raw, v);
+    raw.dispatchEvent(new Event("change", { bubbles: true }));
   }, value);
 }
 
@@ -91,7 +93,7 @@ test("dev: changes log records token swap and font-size edit, single-change reve
     .toContain("--color-surface-sunken");
   await expect.poll(async () => changeCount(page), { timeout: 5000 }).toBe(1);
 
-  await setFontSize(page, "18");
+  await setFontSize(page, "18px");
   await expect
     .poll(async () => sheetText(page), { timeout: 5000 })
     .toContain("font-size: 18px");

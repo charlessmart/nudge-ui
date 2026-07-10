@@ -15,15 +15,17 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
     .toBe(true);
 }
 
-async function setInput(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
-  await page.evaluate(({ t, v }) => {
+async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
+  await page.evaluate(({ p, v }) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const input = sr?.querySelector(`[data-test="${t}"]`) as HTMLInputElement | null;
-    if (!input) return;
+    const raw = sr?.querySelector(
+      `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
+    ) as HTMLInputElement | null;
+    if (!raw) return;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    setter.call(input, v);
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  }, { t: testId, v: value });
+    setter.call(raw, v);
+    raw.dispatchEvent(new Event("change", { bubbles: true }));
+  }, { p: property, v: value });
 }
 
 async function setSelect(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
@@ -49,17 +51,17 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   await page.click("text=Save");
   await waitForEditors(page);
 
-  await setInput(page, "padding-top", "24");
+  await setInput(page, "padding-top", "24px");
   await expect
     .poll(async () => computedProp(page, "padding-top"), { timeout: 5000 })
     .toBe("24px");
 
-  await setInput(page, "font-size", "18");
+  await setInput(page, "font-size", "18px");
   await expect
     .poll(async () => computedProp(page, "font-size"), { timeout: 5000 })
     .toBe("18px");
 
-  await setInput(page, "border-radius", "12");
+  await setInput(page, "border-radius", "12px");
   await expect
     .poll(async () => computedProp(page, "border-radius"), { timeout: 5000 })
     .toBe("12px");
@@ -78,7 +80,7 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   const sheet = await sheetText(page);
   expect(sheet).toContain('[data-cid="Button"]');
   expect(sheet).toContain('[data-src*="src/Button.tsx:32"]');
-  expect(sheet).toContain("padding: 24px");
+  expect(sheet).toContain("padding-top: 24px");
   expect(sheet).toContain("font-size: 18px");
   expect(sheet).toContain("border-radius: 12px");
   expect(sheet).toContain("color: var(--color-text-secondary);");
