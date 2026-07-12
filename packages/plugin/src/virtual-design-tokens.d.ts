@@ -5,5 +5,9 @@ declare module "virtual:design-tokens" {
     source: string;
     adapter?: string;
   }
+  export interface TokenContext { selector?: string; media?: string; supports?: string; scope?: string; layer?: string }
+  export interface TokenDeclaration { value: string; source: string; important: boolean; context: TokenContext }
+  export interface TokenDefinition { cssName: string; name: string; declarations: TokenDeclaration[] }
   export const tokens: TokenEntry[];
+  export const tokenCatalog: TokenDefinition[];
 }

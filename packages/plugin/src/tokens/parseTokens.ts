@@ -4,7 +4,7 @@ import postcss, {
   type Rule,
   type AtRule,
 } from "postcss";
-import type { TokenEntry } from "../virtual/design-tokens.ts";
+import type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
 
 const GLOBAL_TOKEN_AT_RULES = new Set(["theme", "layer", "scope"]);
 
@@ -51,6 +51,32 @@ function belongsToGlobalTokenContext(decl: Declaration): boolean {
 }
 
 export function parseTokens(css: string, sourceId: string): TokenEntry[] {
+  return parseTokenCatalog(css, sourceId).map((token) => ({
+    name: token.cssName,
+    value: token.declarations[0]?.value ?? "",
+    source: token.declarations[0]?.source ?? sourceId,
+  }));
+}
+
+function declarationContext(decl: Declaration): TokenContext {
+  const context: TokenContext = {};
+  let current: PostcssNode | undefined = decl.parent;
+  while (current) {
+    if (current.type === "rule" && context.selector === undefined) {
+      context.selector = (current as Rule).selector;
+    } else if (current.type === "atrule") {
+      const at = current as AtRule;
+      if (at.name === "media") context.media = at.params;
+      else if (at.name === "supports") context.supports = at.params;
+      else if (at.name === "scope") context.scope = at.params;
+      else if (at.name === "layer") context.layer = at.params;
+    }
+    current = current.parent;
+  }
+  return context;
+}
+
+export function parseTokenCatalog(css: string, sourceId: string): TokenDefinition[] {
   let root;
   try {
     root = postcss.parse(css, { from: sourceId });
@@ -58,7 +84,7 @@ export function parseTokens(css: string, sourceId: string): TokenEntry[] {
     return [];
   }
 
-  const entries: TokenEntry[] = [];
+  const definitions = new Map<string, TokenDefinition>();
   root.walkDecls((decl) => {
     if (!decl.prop.startsWith("--")) return;
     if (!belongsToGlobalTokenContext(decl)) return;
@@ -72,11 +98,15 @@ export function parseTokens(css: string, sourceId: string): TokenEntry[] {
     const line = decl.source?.start?.line;
     if (typeof line !== "number") return;
 
-    entries.push({
-      name: decl.prop,
+    const declaration: TokenDeclaration = {
       value,
       source: `${sourceId}:${line}`,
-    });
+      important: Boolean(decl.important),
+      context: declarationContext(decl),
+    };
+    const existing = definitions.get(decl.prop);
+    if (existing) existing.declarations.push(declaration);
+    else definitions.set(decl.prop, { cssName: decl.prop, name: decl.prop, declarations: [declaration] });
   });
-  return entries;
+  return [...definitions.values()];
 }

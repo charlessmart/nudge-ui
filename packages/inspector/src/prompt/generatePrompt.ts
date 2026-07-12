@@ -26,7 +26,7 @@ function basename(filePath: string): string {
 function groupChanges(changes: ChangeRecord[]): Group[] {
   const map = new Map<string, Group>();
   for (const change of changes) {
-    const key = `${change.cid}\u0000${change.file}`;
+    const key = [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site"].join("\u0000");
     let group = map.get(key);
     if (!group) {
       const first = change;
@@ -52,26 +52,32 @@ function changeLine(rec: ChangeRecord): string {
   const oldRaw = rec.oldRawValue;
 
   if (newToken && oldToken) {
-    return `- \`${prop}\`: \`${oldToken.name}\` → \`${newToken.name}\``;
+    return `- \`${prop}\`: \`${oldToken.name}\` → \`${newToken.name}\`${conflictSuffix(rec)}`;
   }
 
   if (newToken && !oldToken) {
     const before = oldRaw !== undefined ? `\`${oldRaw}\` → ` : "";
-    return `- \`${prop}\`: ${before}\`var(${newToken.name})\` (promoted from raw value — consider adding a dedicated token)`;
+    return `- \`${prop}\`: ${before}\`var(${newToken.name})\` (promoted from raw value — consider adding a dedicated token)${conflictSuffix(rec)}`;
   }
 
   if (!newToken && rec.rawValue !== undefined) {
     const before = oldRaw !== undefined ? `\`${oldRaw}\` → ` : "";
-    return `- \`${prop}\`: ${before}\`${rec.rawValue}\` (not a token — consider adding one)`;
+    return `- \`${prop}\`: ${before}\`${rec.rawValue}\` (not a token — consider adding one)${conflictSuffix(rec)}`;
   }
 
   return `- \`${prop}\`: (no value)`;
 }
 
+function conflictSuffix(rec: ChangeRecord): string {
+  const result = rec.previewResult;
+  if (!result || result.status === "applied") return "";
+  return ` — preview conflict: browser computed \`${result.computedValue || "(no value)"}\` (${result.reason ?? "cascade conflict"}); implement the requested value without assuming \`!important\``;
+}
+
 function deduplicateChanges(changes: ChangeRecord[]): ChangeRecord[] {
   const groups = new Map<string, ChangeRecord[]>();
   for (const change of changes) {
-    const key = `${change.cid}\u0000${change.file}\u0000${change.property}`;
+    const key = [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site", change.property].join("\u0000");
     const list = groups.get(key);
     if (list) {
       list.push(change);
@@ -121,6 +127,12 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
     lines.push(`### ${group.cid} (${group.file}:${group.line})`);
     for (const change of group.changes) {
       lines.push(changeLine(change));
+      if (change.scope === "instance-preview" && change.instanceEvidence) {
+        const evidence = change.instanceEvidence;
+        lines.push(`  - Scope: one rendered instance (index ${evidence.renderedIndex}); implement a data-driven conditional at the source site.`);
+        if (evidence.props) lines.push(`  - Props evidence: \`${evidence.props}\``);
+        if (evidence.text) lines.push(`  - Text evidence: \`${evidence.text}\``);
+      }
     }
     lines.push("");
   }

@@ -3,6 +3,15 @@ export interface StyleRule {
   declarations: Record<string, string>;
 }
 
+export type PreviewConflictReason = "higher-specificity" | "inline-style" | "important" | "animation" | "transition" | "target-missing";
+
+export interface PreviewResult {
+  requestedValue: string;
+  computedValue: string;
+  status: "applied" | "conflict";
+  reason?: PreviewConflictReason;
+}
+
 const SHEET_ID = "design-tool-styles";
 
 export function ensureManagedSheet(): CSSStyleSheet {
@@ -57,6 +66,55 @@ export function applyRules(rules: StyleRule[]): void {
   if (!el) return;
   const text = rulesToCssText(rules);
   el.textContent = text;
+}
+
+function commaListIncludes(value: string, property: string): boolean {
+  return value.split(",").map((part) => part.trim()).some((part) => part === "all" || part === property);
+}
+
+function hasImportantAuthorRule(el: HTMLElement, property: string): boolean {
+  for (const sheet of Array.from(document.styleSheets)) {
+    let rules: CSSRuleList;
+    try { rules = sheet.cssRules; } catch { continue; }
+    for (const rule of Array.from(rules)) {
+      if (!(rule instanceof CSSStyleRule)) continue;
+      try {
+        if (el.matches(rule.selectorText) && rule.style.getPropertyPriority(property) === "important") return true;
+      } catch { /* Ignore browser-specific selectors. */ }
+    }
+  }
+  return false;
+}
+
+/** Verify what the browser painted after the managed sheet was projected. */
+export function verifyPreview(el: HTMLElement | null, property: string, requestedValue: string): PreviewResult {
+  if (!el || !el.isConnected) {
+    return { requestedValue, computedValue: "", status: "conflict", reason: "target-missing" };
+  }
+  const computed = getComputedStyle(el);
+  const computedValue = computed.getPropertyValue(property).trim();
+  const probe = document.createElement(el.tagName.toLowerCase());
+  probe.setAttribute("data-design-tool", "value-probe");
+  probe.style.setProperty(property, requestedValue);
+  probe.style.setProperty("position", "fixed", "important");
+  probe.style.setProperty("visibility", "hidden", "important");
+  probe.removeAttribute("id");
+  el.parentElement?.insertBefore(probe, el.nextSibling);
+  if (!probe.isConnected) document.body.appendChild(probe);
+  const expectedValue = getComputedStyle(probe).getPropertyValue(property).trim() || requestedValue.trim();
+  probe.remove();
+  if (computedValue === expectedValue) return { requestedValue, computedValue, status: "applied" };
+
+  let reason: PreviewConflictReason = "higher-specificity";
+  if (el.style.getPropertyPriority(property) === "important" || hasImportantAuthorRule(el, property)) reason = "important";
+  else if (el.style.getPropertyValue(property)) reason = "inline-style";
+  else if (typeof el.getAnimations === "function" && el.getAnimations().some((animation) => animation.playState !== "finished")) reason = "animation";
+  else {
+    const transitionProperty = computed.transitionProperty || el.style.transitionProperty;
+    const transitionDuration = computed.transitionDuration || el.style.transitionDuration;
+    if (commaListIncludes(transitionProperty, property) && transitionDuration !== "0s" && transitionDuration !== "") reason = "transition";
+  }
+  return { requestedValue, computedValue, status: "conflict", reason };
 }
 
 export function removeManagedSheet(): void {

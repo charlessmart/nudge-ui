@@ -4,6 +4,7 @@ import {
   buildTokenTable,
   resolveTokenValue,
   resolvePropertiesFromRules,
+  computeSpecificity,
   type MatchedRule,
   type TokenTable,
 } from "./resolution.ts";
@@ -92,6 +93,31 @@ describe("resolveTokenValue", () => {
   });
 });
 
+describe("computeSpecificity", () => {
+  it.each([
+    ["*", 0],
+    ["div", 100],
+    [".foo", 10000],
+    ["div.foo", 10100],
+    ["#bar", 1000000],
+    [".foo .bar", 20000],
+    [".foo > .bar", 20000],
+    ["div > p", 200],
+    ["[data-x]", 10000],
+    ["[data-x].foo", 20000],
+    ["button:hover", 10100],
+    ["a::before", 200],
+    ["#a .b div", 1010100],
+    ["a, b, c", 100],
+    [".a, #b", 1000000],
+    ["div :not(.foo)", 10100],
+    [":is(.a, #b)", 1000000],
+    [":where(.a, #b)", 0],
+  ])("'%s' → %d", (selector, expected) => {
+    expect(computeSpecificity(selector)).toBe(expected);
+  });
+});
+
 describe("resolvePropertiesFromRules", () => {
   let btn: HTMLButtonElement;
 
@@ -116,6 +142,7 @@ describe("resolvePropertiesFromRules", () => {
     const rules: MatchedRule[] = [
       {
         selectorText: ".btn",
+        specificity: 10000,
         declarations: [
           { property: "padding", value: "var(--space-1) var(--space-2)" },
           { property: "background", value: "var(--color-surface-raised)" },
@@ -126,6 +153,7 @@ describe("resolvePropertiesFromRules", () => {
       },
       {
         selectorText: ":root",
+        specificity: 0,
         declarations: [{ property: "--space-1", value: "4px" }],
       },
     ];
@@ -154,13 +182,14 @@ describe("resolvePropertiesFromRules", () => {
     const rules: MatchedRule[] = [
       {
         selectorText: ".other",
+        specificity: 10000,
         declarations: [{ property: "background", value: "var(--color-surface-raised)" }],
       },
     ];
     expect(resolvePropertiesFromRules(btn, rules, table)).toEqual([]);
   });
 
-  it("later matching rule wins for the same property", () => {
+  it("higher specificity wins regardless of stylesheet order", () => {
     const table = makeTable([
       { name: "--space-1", value: "4px", source: "s:6" },
       { name: "--space-2", value: "8px", source: "s:7" },
@@ -168,10 +197,12 @@ describe("resolvePropertiesFromRules", () => {
     const rules: MatchedRule[] = [
       {
         selectorText: ".btn",
+        specificity: 10000,
         declarations: [{ property: "padding", value: "var(--space-1)" }],
       },
       {
         selectorText: "button.btn",
+        specificity: 10100,
         declarations: [{ property: "padding", value: "var(--space-2)" }],
       },
     ];
@@ -181,14 +212,71 @@ describe("resolvePropertiesFromRules", () => {
     expect(result[0]!.resolvedValue).toBe("8px");
   });
 
+  it("higher specificity beats a later lower-specificity rule", () => {
+    const table = makeTable([
+      { name: "--space-1", value: "4px", source: "s:6" },
+      { name: "--space-2", value: "8px", source: "s:7" },
+    ]);
+    const rules: MatchedRule[] = [
+      {
+        selectorText: "button.btn",
+        specificity: 10100,
+        declarations: [{ property: "padding", value: "var(--space-1)" }],
+      },
+      {
+        selectorText: "*",
+        specificity: 0,
+        declarations: [{ property: "padding", value: "var(--space-2)" }],
+      },
+    ];
+    // button.btn (spec 10100) beats * (spec 0) even though it comes first
+    const result = resolvePropertiesFromRules(btn, rules, table);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.tokenName).toBe("--space-1");
+    expect(result[0]!.resolvedValue).toBe("4px");
+  });
+
   it("caps the result to the maximum number of properties", () => {
     const table = makeTable([{ name: "--space-1", value: "4px", source: "s:6" }]);
     const declarations = Array.from({ length: 120 }, (_, i) => ({
       property: `--x${i}`,
       value: `var(--space-1)`,
     }));
-    const rules: MatchedRule[] = [{ selectorText: ".btn", declarations }];
+    const rules: MatchedRule[] = [{ selectorText: ".btn", specificity: 10000, declarations }];
     const result = resolvePropertiesFromRules(btn, rules, table);
     expect(result.length).toBeLessThanOrEqual(100);
+  });
+
+  it("uses the specificity of the selector-list branch that actually matches", () => {
+    const table = makeTable([
+      { name: "--low", value: "red", source: "s:1" },
+      { name: "--high", value: "blue", source: "s:2" },
+    ]);
+    const result = resolvePropertiesFromRules(btn, [
+      { selectorText: "#never, .btn", specificity: 1_000_000, sourceOrder: 0, declarations: [{ property: "color", value: "var(--low)" }] },
+      { selectorText: "button.btn", specificity: 10_100, sourceOrder: 1, declarations: [{ property: "color", value: "var(--high)" }] },
+    ], table);
+    expect(result[0]?.tokenName).toBe("--high");
+    expect(result[0]?.evidence.selector).toBe("button.btn");
+  });
+
+  it("excludes inactive conditional candidates", () => {
+    const table = makeTable([{ name: "--active", value: "red", source: "s:1" }]);
+    expect(resolvePropertiesFromRules(btn, [
+      { selectorText: ".btn", specificity: 10_000, active: false, declarations: [{ property: "color", value: "var(--active)" }] },
+    ], table)).toEqual([]);
+  });
+
+  it("represents importance, layers and source order in candidate selection", () => {
+    const table = makeTable([
+      { name: "--important", value: "red", source: "s:1" },
+      { name: "--later", value: "blue", source: "s:2" },
+    ]);
+    const result = resolvePropertiesFromRules(btn, [
+      { selectorText: ".btn", specificity: 10_000, sourceOrder: 0, layer: "theme", declarations: [{ property: "color", value: "var(--important)", important: true }] },
+      { selectorText: ".btn", specificity: 10_000, sourceOrder: 1, declarations: [{ property: "color", value: "var(--later)" }] },
+    ], table);
+    expect(result[0]?.tokenName).toBe("--important");
+    expect(result[0]?.evidence).toMatchObject({ important: true, layer: "theme", sourceOrder: 0 });
   });
 });

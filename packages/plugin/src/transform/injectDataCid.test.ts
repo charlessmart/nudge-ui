@@ -85,6 +85,31 @@ describe("injectDataCid", () => {
 });
 
 describe("injectIdentity — data-src", () => {
+  it("annotates the host definition even when a custom invocation cannot forward props", () => {
+    const definition = `export function Button({ label }: { label: string }) { return <button>{label}</button>; }`;
+    const result = injectIdentity(definition, "/src/Button.tsx");
+    expect(result!.code).toContain('data-cid="Button"');
+    expect(result!.code).toContain('data-src="src/Button.tsx:1:');
+  });
+
+  it("attributes nested host elements to their enclosing component through a fragment", () => {
+    const code = `function Card() { return <><div><span>x</span></div></>; }`;
+    const result = injectIdentity(code, "/src/Card.tsx");
+    expect(result!.code.match(/data-cid="Card"/g)).toHaveLength(2);
+  });
+
+  it("gives repeated render sites distinct definition locations", () => {
+    const code = `function List() { return <>{[1].map(x => <span key={x}>{x}</span>)}<span>end</span></>; }`;
+    const result = injectIdentity(code, "/src/List.tsx")!.code;
+    const sources = [...result.matchAll(/data-src="([^"]+)"/g)].map((m) => m[1]);
+    expect(new Set(sources).size).toBe(2);
+  });
+
+  it("preserves all host-authored identity attributes", () => {
+    const code = `function App() { return <div data-cid="Owned" data-src="owned:1:1" data-cprops="owned:true" />; }`;
+    expect(injectIdentity(code, "/src/App.tsx")).toBeNull();
+  });
+
   it("injects data-src as relPath:line:col with 1-indexed column", () => {
     const code = `const Button = () => (\n  <button>Save</button>\n);`;
     // line 2, name `button` starts at column 3 (0-indexed) -> 4 (1-indexed)

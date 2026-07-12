@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { applyRules } from "./managedStylesheet.ts";
-import type { StyleRule } from "./managedStylesheet.ts";
+import { applyRules, verifyPreview } from "./managedStylesheet.ts";
+import type { PreviewResult, StyleRule } from "./managedStylesheet.ts";
 
 export interface ChangeRecord {
   cid: string;
@@ -14,10 +14,15 @@ export interface ChangeRecord {
   rawValue?: string;
   oldRawValue?: string;
   source: { file: string; line: number; component: string };
+  scope?: "source-site" | "instance-preview";
+  instanceEvidence?: { renderedIndex: number; props: string | null; text: string | null };
+  previewResult?: PreviewResult;
 }
 
 let changes: ChangeRecord[] = [];
-let undoStack: ChangeRecord[] = [];
+interface HistoryEntry { before: ChangeRecord[]; after: ChangeRecord[] }
+let undoStack: HistoryEntry[] = [];
+let redoStack: HistoryEntry[] = [];
 const listeners = new Set<() => void>();
 
 function subscribe(cb: () => void): () => void {
@@ -45,6 +50,15 @@ function ruleKey(rec: ChangeRecord): string {
   return `${rec.selector}\u0000${rec.property}`;
 }
 
+function changeKey(rec: ChangeRecord): string {
+  return [rec.cid, rec.file, rec.line, rec.selector, rec.scope ?? "source-site", rec.property].join("\u0000");
+}
+
+function baselineValue(rec: ChangeRecord): string {
+  if (rec.oldToken) return `var(${rec.oldToken.name})`;
+  return rec.oldRawValue ?? "";
+}
+
 export function getPendingRules(): StyleRule[] {
   const map = new Map<string, StyleRule>();
   for (const rec of changes) {
@@ -63,47 +77,78 @@ export function getPendingRules(): StyleRule[] {
 
 function reapply(): void {
   applyRules(getPendingRules());
+  changes = changes.map((change) => {
+    const requestedValue = recordValue(change);
+    const targets = Array.from(document.querySelectorAll<HTMLElement>(change.selector));
+    const results = targets.length === 0
+      ? [verifyPreview(null, change.property, requestedValue)]
+      : targets.map((target) => verifyPreview(target, change.property, requestedValue));
+    return { ...change, previewResult: results.find((result) => result.status === "conflict") ?? results[0] };
+  });
 }
 
 export function appendChange(change: ChangeRecord): void {
-  undoStack = [];
-  changes = [...changes, change];
-  notify();
+  const before = changes;
+  const key = changeKey(change);
+  const existing = changes.find((candidate) => changeKey(candidate) === key);
+  const canonical = existing ? { ...change, oldToken: existing.oldToken, oldRawValue: existing.oldRawValue } : change;
+  changes = changes.filter((candidate) => changeKey(candidate) !== key);
+  if (recordValue(canonical) !== baselineValue(canonical)) changes = [...changes, canonical];
   reapply();
+  undoStack = [...undoStack, { before, after: changes }];
+  redoStack = [];
+  notify();
 }
 
 export function revertChange(change: ChangeRecord): void {
-  undoStack = [];
-  const next = changes.filter((c) => c !== change);
+  const before = changes;
+  const key = changeKey(change);
+  const next = changes.filter((c) => changeKey(c) !== key);
   if (next.length === changes.length) return;
   changes = next;
-  notify();
   reapply();
+  undoStack = [...undoStack, { before, after: changes }];
+  redoStack = [];
+  notify();
+}
+
+export function discardChangesForSelector(selector: string): void {
+  const before = changes;
+  changes = changes.filter((change) => change.selector !== selector);
+  if (changes.length === before.length) return;
+  reapply();
+  undoStack = [...undoStack, { before, after: changes }];
+  redoStack = [];
+  notify();
 }
 
 export function undo(): boolean {
-  if (changes.length === 0) return false;
-  const popped = changes.at(-1)!;
-  changes = changes.slice(0, -1);
-  undoStack.push(popped);
-  notify();
+  const entry = undoStack.at(-1);
+  if (!entry) return false;
+  undoStack = undoStack.slice(0, -1);
+  changes = entry.before;
   reapply();
+  redoStack = [...redoStack, entry];
+  notify();
   return true;
 }
 
 export function redo(): boolean {
-  if (undoStack.length === 0) return false;
-  const popped = undoStack.at(-1)!;
-  undoStack = undoStack.slice(0, -1);
-  changes = [...changes, popped];
-  notify();
+  const entry = redoStack.at(-1);
+  if (!entry) return false;
+  redoStack = redoStack.slice(0, -1);
+  changes = entry.after;
   reapply();
+  undoStack = [...undoStack, entry];
+  notify();
   return true;
 }
 
 export function clearChanges(): void {
   changes = [];
   undoStack = [];
+  redoStack = [];
+  applyRules([]);
   notify();
 }
 

@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Button } from "./Button";
 import { Footer } from "./Footer";
-import { tokens } from "virtual:design-tokens";
+import { RepeatedItem } from "./RepeatedItem";
+import { tokenCatalog, tokens } from "virtual:design-tokens";
 
 if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as { __designTokens?: unknown }).__designTokens = tokens;
+  (window as unknown as { __designTokenCatalog?: unknown }).__designTokenCatalog = tokenCatalog;
 }
 
 export function App() {
@@ -30,6 +32,11 @@ export function App() {
           variant="primary"
           onClick={() => setClicks((c) => c + 1)}
         />
+        <div data-test="repeated-items">
+          {Array.from({ length: 6 }, (_, index) => (
+            <RepeatedItem key={index} label={`Repeated ${index + 1}`} />
+          ))}
+        </div>
         <div className="flex-row" data-test="flex-container">
           <span data-test="flex-child-a">A</span>
           <span data-test="flex-child-b">B</span>

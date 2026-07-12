@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
@@ -11,7 +11,7 @@ import {
   stepDown,
 } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
-import { useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
+import { getTokenEntriesForElement, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
 import type { ResolvedProperty } from "./tokens/resolution.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
@@ -23,7 +23,8 @@ import { ColorPicker } from "./styleEditors/ColorPicker.tsx";
 import { BorderEditor } from "./styleEditors/BorderEditor.tsx";
 import { LayoutSection } from "./styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
-import { undo, redo } from "./changesLog.ts";
+import { discardChangesForSelector, undo, redo } from "./changesLog.ts";
+import { countSourceSiteMatches, getEditScope, relinkElement, selectorForElement, unlinkElement } from "./editScope.ts";
 
 const HANDLED_PROPERTIES = new Set([
   "color", "background-color", "background",
@@ -107,6 +108,9 @@ const STYLES = `
   color: #f9fafb;
   word-break: break-all;
 }
+.dt-scope { margin-top: 6px; padding: 7px; border: 1px solid #374151; border-radius: 4px; color: #d1d5db; }
+.dt-scope button { margin-top: 5px; background: #1f2937; color: #f9fafb; border: 1px solid #4b5563; border-radius: 4px; padding: 3px 7px; font: inherit; cursor: pointer; }
+.dt-scope[data-lost="true"] { border-color: #b45309; color: #fbbf24; }
 .dt-breadcrumb {
   display: flex;
   flex-wrap: wrap;
@@ -450,6 +454,11 @@ const STYLES = `
   color: #93c5fd;
   word-break: break-all;
 }
+.dt-changes__conflict {
+  grid-column: 1 / -1;
+  color: #f0a060;
+  font-size: 10px;
+}
 .dt-changes__revert {
   background: #1f2937;
   color: #f9fafb;
@@ -597,6 +606,18 @@ export function InspectorShell(): ReactElement {
   const selected = useSelectedElement();
   const hierarchy = useHierarchy();
   const hierarchyIndex = useHierarchyIndex();
+  const [scopeRevision, refreshScope] = useState(0);
+  const [instancePreviewLost, setInstancePreviewLost] = useState(false);
+
+  useEffect(() => {
+    setInstancePreviewLost(false);
+    if (!selected || getEditScope(selected.domElement) !== "instance-preview") return;
+    const observer = new MutationObserver(() => {
+      if (!selected.domElement.isConnected) setInstancePreviewLost(true);
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [selected, scopeRevision]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -632,7 +653,7 @@ export function InspectorShell(): ReactElement {
   const ordered = [...hierarchy].reverse();
 
   const tokenRows = useResolvedPropertiesDebounced(selected);
-  const tokenEntries: TokenEntry[] = tokens;
+  const tokenEntries: TokenEntry[] = selected ? getTokenEntriesForElement(selected.domElement) : tokens;
 
   function refreshSelected(): void {
     if (!selected) return;
@@ -695,6 +716,53 @@ export function InspectorShell(): ReactElement {
                   {selected.cprops ?? "No props"}
                 </span>
               </div>
+              <div className="dt-scope" data-test="edit-scope" data-lost={instancePreviewLost ? "true" : "false"}>
+                {instancePreviewLost ? (
+                  <span>Instance preview lost. The edit was not broadened to other rendered elements.</span>
+                ) : getEditScope(selected.domElement) === "instance-preview" ? (
+                  <>
+                    <span>Editing only this unlinked rendered element.</span><br />
+                    <button type="button" data-test="relink-element" onClick={() => {
+                      const instanceSelector = selectorForElement(selected.domElement);
+                      if (instanceSelector) discardChangesForSelector(instanceSelector);
+                      relinkElement(selected.domElement);
+                      refreshScope((n) => n + 1);
+                    }}>Re-link to source</button>
+                  </>
+                ) : (
+                  <>
+                    <span>Affects {countSourceSiteMatches(selected.domElement)} rendered {countSourceSiteMatches(selected.domElement) === 1 ? "element" : "components/elements"}.</span>
+                    {countSourceSiteMatches(selected.domElement) > 1 ? (
+                      <><br /><button type="button" data-test="unlink-element" onClick={() => { unlinkElement(selected.domElement); refreshScope((n) => n + 1); }}>Unlink this element</button></>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="dt-tokens" data-test="tokens-panel">
+              <div className="dt-tokens__title">Tokens</div>
+              {tokenRows.length === 0 ? (
+                <div className="dt-tokens__empty">No attributable CSS declarations on this element</div>
+              ) : tokenRows.map((row) => (
+                <div
+                  className="dt-tokens__row"
+                  data-test="token-row"
+                  key={row.property}
+                  data-property={row.property}
+                  data-token={row.tokenName ?? ""}
+                  data-confidence={row.confidence}
+                >
+                  <span className="dt-tokens__prop" data-test="token-property">{row.property}</span>
+                  <span className="dt-tokens__name" data-test="token-name" data-token={row.tokenName ? "true" : "false"}>
+                    {row.tokenName ?? "not a token"}
+                  </span>
+                  <span className={`dt-token-confidence dt-token-confidence--${row.confidence}`} data-test="token-confidence">
+                    {row.confidence}
+                  </span>
+                  <span className="dt-tokens__value" data-test="token-value">{row.resolvedValue}</span>
+                  <TokenDropdown row={row} domElement={selected.domElement} entries={tokenEntries} onAfterEdit={refreshSelected} />
+                </div>
+              ))}
             </div>
             <div className="dt-style-editors" data-test="style-editors">
               <LayoutSection
@@ -745,6 +813,7 @@ export function InspectorShell(): ReactElement {
                         key={row.property}
                         data-property={row.property}
                         data-token={row.tokenName ?? ""}
+                        data-confidence={row.confidence}
                       >
                         <span className="dt-tokens__prop" data-test="token-property">
                           {row.property}
@@ -755,6 +824,9 @@ export function InspectorShell(): ReactElement {
                           data-token={row.tokenName ? "true" : "false"}
                         >
                           {row.tokenName ?? "not a token"}
+                        </span>
+                        <span className={`dt-token-confidence dt-token-confidence--${row.confidence}`} data-test="token-confidence">
+                          {row.confidence}
                         </span>
                         <span className="dt-tokens__value" data-test="token-value">
                           {row.resolvedValue}

@@ -1,24 +1,22 @@
 import type { TokenEntry } from "virtual:design-tokens";
 import { parseDataSrc } from "../resolveSelection.ts";
-import { escapeAttrValue } from "../managedStylesheet.ts";
 import {
   appendChange,
   getPendingRules,
 } from "../changesLog.ts";
 import type { ChangeRecord } from "../changesLog.ts";
+import { getEditScope, getInstanceEvidence, selectorForElement, sourceSiteSelector } from "../editScope.ts";
 
 export type { ChangeRecord } from "../changesLog.ts";
 export { getPendingRules, getChangesList as getChangeRecords, clearChanges as resetPendingRules } from "../changesLog.ts";
 
 export function buildSelector(cid: string, src: string): string | null {
-  if (!cid) return null;
-  const parsed = parseDataSrc(src);
-  if (!parsed) {
-    return src ? `[data-cid="${escapeAttrValue(cid)}"][data-src*="${escapeAttrValue(src)}"]` : null;
-  }
-  const { file, line } = parsed;
-  if (!file) return null;
-  return `[data-cid="${escapeAttrValue(cid)}"][data-src*="${escapeAttrValue(file)}:${line}"]`;
+  return sourceSiteSelector(cid, src);
+}
+
+function scopeFields(el: HTMLElement) {
+  const scope = getEditScope(el);
+  return { scope, instanceEvidence: scope === "instance-preview" ? getInstanceEvidence(el) : undefined };
 }
 
 export function swapToken(
@@ -29,7 +27,7 @@ export function swapToken(
 ): ChangeRecord | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
-  const selector = buildSelector(cid, src);
+  const selector = selectorForElement(el);
   if (!selector) return null;
   const parsed = parseDataSrc(src);
   const file = parsed ? parsed.file : src;
@@ -44,6 +42,7 @@ export function swapToken(
     oldToken,
     newToken,
     source: { file, line, component: cid },
+    ...scopeFields(el),
   };
   appendChange(record);
   return record;
@@ -52,7 +51,7 @@ export function swapToken(
 export function setStyle(el: HTMLElement, property: string, value: string): ChangeRecord | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
-  const selector = buildSelector(cid, src);
+  const selector = selectorForElement(el);
   if (!selector) return null;
   const parsed = parseDataSrc(src);
   const file = parsed ? parsed.file : src;
@@ -78,6 +77,7 @@ export function setStyle(el: HTMLElement, property: string, value: string): Chan
     rawValue: value,
     oldRawValue,
     source: { file, line, component: cid },
+    ...scopeFields(el),
   };
   appendChange(record);
   return record;

@@ -50,7 +50,7 @@ describe("changesLog", () => {
     const rec = makeRecord("background", COLOR_B, COLOR_A);
     appendChange(rec);
     expect(getChangesList()).toHaveLength(1);
-    expect(getChangesList()[0]).toBe(rec);
+    expect(getChangesList()[0]).toMatchObject(rec);
   });
 
   it("subscribe fires when a change is appended", () => {
@@ -69,25 +69,26 @@ describe("changesLog", () => {
     expect(getChangesList()).toHaveLength(2);
   });
 
-  it("multiple appends for same property keep multiple records but getPendingRules returns one rule (last wins)", () => {
+  it("multiple appends for same property preserve the first baseline and latest value as one delta", () => {
     appendChange(makeRecord("background", COLOR_B, COLOR_A));
     appendChange(makeRecord("background", COLOR_C, COLOR_B));
-    expect(getChangesList()).toHaveLength(2);
+    expect(getChangesList()).toHaveLength(1);
+    expect(getChangesList()[0]!.oldToken).toBe(COLOR_A);
+    expect(getChangesList()[0]!.newToken).toBe(COLOR_C);
     const rules = getPendingRules();
     expect(rules).toHaveLength(1);
     expect(rules[0]!.declarations.background).toBe("var(--color-c)");
   });
 
-  it("revertChange removes the change and recomposes pendingRules", () => {
+  it("revertChange removes the canonical delta", () => {
     const first = makeRecord("background", COLOR_B, COLOR_A);
     const second = makeRecord("background", COLOR_C, COLOR_B);
     appendChange(first);
     appendChange(second);
     expect(getPendingRules()[0]!.declarations.background).toBe("var(--color-c)");
     revertChange(second);
-    expect(getChangesList()).toHaveLength(1);
-    expect(getChangesList()[0]).toBe(first);
-    expect(getPendingRules()[0]!.declarations.background).toBe("var(--color-b)");
+    expect(getChangesList()).toHaveLength(0);
+    expect(getPendingRules()).toHaveLength(0);
   });
 
   it("reverting the last change for a property leaves the sheet with no rule for that selector+property", () => {
@@ -114,16 +115,13 @@ describe("changesLog", () => {
     expect(getPendingRules()).toHaveLength(0);
   });
 
-  it("single-change revert proof: A->B, B->C, revert B->C shows A->B then revert A->B empties sheet", () => {
+  it("single-change revert clears the full baseline-to-current delta", () => {
     const aToB = makeRecord("background", COLOR_B, COLOR_A);
     const bToC = makeRecord("background", COLOR_C, COLOR_B);
     appendChange(aToB);
     appendChange(bToC);
     expect(getPendingRules()[0]!.declarations.background).toBe("var(--color-c)");
     revertChange(bToC);
-    expect(getChangesList()).toHaveLength(1);
-    expect(getPendingRules()[0]!.declarations.background).toBe("var(--color-b)");
-    revertChange(aToB);
     expect(getChangesList()).toHaveLength(0);
     expect(getPendingRules()).toHaveLength(0);
   });
@@ -149,12 +147,12 @@ describe("changesLog", () => {
 
       undo();
       expect(getChangesList()).toHaveLength(1);
-      expect(getChangesList()[0]).toBe(first);
+      expect(getChangesList()[0]).toMatchObject(first);
       expect(getPendingRules()).toHaveLength(1);
 
       redo();
       expect(getChangesList()).toHaveLength(2);
-      expect(getChangesList()[1]).toBe(second);
+      expect(getChangesList()[1]).toMatchObject(second);
       expect(getPendingRules()).toHaveLength(2);
     });
 
@@ -212,7 +210,7 @@ describe("changesLog", () => {
 
       redo();
       expect(getChangesList()).toHaveLength(1);
-      expect(getChangesList()[0]).toBe(a);
+      expect(getChangesList()[0]).toMatchObject(a);
       redo();
       expect(getChangesList()).toHaveLength(2);
       redo();
@@ -245,5 +243,26 @@ describe("changesLog", () => {
     expect(rebuilt).toHaveLength(2);
     expect(rebuilt[0]!.declarations).toEqual(before[0]!.declarations);
     expect(rebuilt[1]!.declarations).toEqual(before[1]!.declarations);
+  });
+
+  it("returning to the original baseline removes the canonical delta", () => {
+    appendChange(makeRecord("background", COLOR_B, COLOR_A));
+    appendChange(makeRecord("background", COLOR_A, COLOR_B));
+    expect(getChangesList()).toHaveLength(0);
+    expect(getPendingRules()).toHaveLength(0);
+  });
+
+  it("keeps different source lines and scopes distinct", () => {
+    const lineTwo = { ...makeRecord("color", COLOR_B, COLOR_A), line: 2, source: { file: "src/Button.tsx", line: 2, component: "Button" } };
+    const instance = { ...makeRecord("color", COLOR_C, COLOR_A), scope: "instance-preview" as const, selector: '[data-dt-instance="one"]' };
+    appendChange(lineTwo);
+    appendChange(instance);
+    expect(getChangesList()).toHaveLength(2);
+  });
+
+  it("clearChanges also empties the managed stylesheet", () => {
+    appendChange(makeRecord("color", null, null, "red"));
+    clearChanges();
+    expect(document.getElementById("design-tool-styles")?.textContent).toBe("");
   });
 });

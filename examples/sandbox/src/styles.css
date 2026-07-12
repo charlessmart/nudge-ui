@@ -8,6 +8,10 @@
   --space-3: 16px;
 }
 
+:root[data-theme="dark"] {
+  --color-surface-raised: #171717;
+}
+
 body {
   margin: 0;
   font-family: system-ui, sans-serif;

@@ -3,8 +3,8 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { Alias, Plugin, ResolvedConfig } from "vite";
 import { injectIdentity } from "./transform/injectDataCid.ts";
-import { parseTokens } from "./tokens/parseTokens.ts";
-import type { TokenEntry } from "./virtual/design-tokens.ts";
+import { parseTokenCatalog } from "./tokens/parseTokens.ts";
+import type { TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
 
 export interface DesignToolOptions {
   enabled?: boolean;
@@ -87,12 +87,12 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   const enabled = options.enabled ?? true;
   let root: string | undefined;
   let command: "serve" | "build" = "serve";
-  const cssTokens = new Map<string, TokenEntry[]>();
+  const cssTokens = new Map<string, TokenDefinition[]>();
 
   function cacheTokensForFile(id: string, code: string): void {
     if (!CSS_EXT.test(id)) return;
     const rel = relativePath(id, root);
-    cssTokens.set(id, parseTokens(code, rel));
+    cssTokens.set(id, parseTokenCatalog(code, rel));
   }
 
   return {
@@ -133,14 +133,24 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       if (id === RESOLVED_TOKENS_ID) {
         // ADR-0002: production builds receive an empty token table.
         if (command === "build") {
-          return `export const tokens = [];\nexport default tokens;\n`;
+          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport default tokens;\n`;
         }
-        const all: TokenEntry[] = [];
+        const catalogByName = new Map<string, TokenDefinition>();
         for (const list of cssTokens.values()) {
-          for (const entry of list) all.push(entry);
+          for (const definition of list) {
+            const existing = catalogByName.get(definition.cssName);
+            if (existing) existing.declarations.push(...definition.declarations);
+            else catalogByName.set(definition.cssName, { ...definition, declarations: [...definition.declarations] });
+          }
         }
+        const catalog = [...catalogByName.values()];
+        const all: TokenEntry[] = catalog.map((definition) => ({
+          name: definition.cssName,
+          value: definition.declarations[0]?.value ?? "",
+          source: definition.declarations[0]?.source ?? "",
+        }));
         const body = JSON.stringify(all);
-        return `export const tokens = ${body};\nexport default tokens;\n`;
+        return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${body};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {
         // ADR-0002: no inspector bootstrap in production builds.
@@ -206,5 +216,5 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
 
 export { injectIdentity, injectDataCid } from "./transform/injectDataCid.ts";
 export type { InjectResult } from "./transform/injectDataCid.ts";
-export { parseTokens } from "./tokens/parseTokens.ts";
-export type { TokenEntry } from "./virtual/design-tokens.ts";
+export { parseTokens, parseTokenCatalog } from "./tokens/parseTokens.ts";
+export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";

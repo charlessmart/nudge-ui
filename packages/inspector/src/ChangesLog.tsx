@@ -14,7 +14,7 @@ interface Group {
 function groupChanges(changes: ChangeRecord[]): Group[] {
   const map = new Map<string, Group>();
   for (const change of changes) {
-    const key = `${change.cid}\u0000${change.file}`;
+    const key = [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site"].join("\u0000");
     let group = map.get(key);
     if (!group) {
       group = { key, cid: change.cid, file: change.file, changes: [] };
@@ -61,6 +61,11 @@ export function ChangesLog(): ReactElement {
                 <span className="dt-changes__before">{displayBefore(change)}</span>
                 <span className="dt-changes__arrow">→</span>
                 <span className="dt-changes__after">{displayAfter(change)}</span>
+                {change.previewResult?.status === "conflict" ? (
+                  <span className="dt-changes__conflict" data-test="preview-conflict" title={`Computed: ${change.previewResult.computedValue}`}>
+                    Preview blocked ({change.previewResult.reason})
+                  </span>
+                ) : null}
                 <button
                   type="button"
                   className="dt-changes__revert"

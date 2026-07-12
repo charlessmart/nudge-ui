@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { ensureManagedSheet, applyRules, escapeAttrValue, rulesToCssText } from "./managedStylesheet.ts";
+import { ensureManagedSheet, applyRules, escapeAttrValue, rulesToCssText, verifyPreview } from "./managedStylesheet.ts";
 import type { StyleRule } from "./managedStylesheet.ts";
 
 const SHEET_ID = "design-tool-styles";
@@ -105,5 +105,47 @@ describe("escapeAttrValue", () => {
     const selector = `[data-cid="${escaped}"]`;
     expect(el.matches(selector)).toBe(true);
     document.body.innerHTML = "";
+  });
+});
+
+describe("verifyPreview", () => {
+  beforeEach(() => { document.body.innerHTML = '<div id="target"></div>'; });
+  afterEach(() => { document.body.innerHTML = ""; document.getElementById(SHEET_ID)?.remove(); });
+
+  it("reports applied only when computed style equals the request", () => {
+    const target = document.querySelector("#target") as HTMLElement;
+    applyRules([{ selector: "#target", declarations: { display: "block" } }]);
+    expect(verifyPreview(target, "display", "block")).toEqual({ requestedValue: "block", computedValue: "block", status: "applied" });
+  });
+
+  it("resolves token requests before comparing them with computed output", () => {
+    const target = document.querySelector("#target") as HTMLElement;
+    document.documentElement.style.setProperty("--test-display", "block");
+    applyRules([{ selector: "#target", declarations: { display: "var(--test-display)" } }]);
+    expect(verifyPreview(target, "display", "var(--test-display)").status).toBe("applied");
+    document.documentElement.style.removeProperty("--test-display");
+  });
+
+  it("classifies inline and important conflicts", () => {
+    const target = document.querySelector("#target") as HTMLElement;
+    target.style.setProperty("display", "grid");
+    expect(verifyPreview(target, "display", "block").reason).toBe("inline-style");
+    target.style.setProperty("display", "grid", "important");
+    expect(verifyPreview(target, "display", "block").reason).toBe("important");
+  });
+
+  it("classifies higher specificity, animation and transition conflicts", () => {
+    const target = document.querySelector("#target") as HTMLElement;
+    expect(verifyPreview(target, "display", "grid").reason).toBe("higher-specificity");
+    Object.defineProperty(target, "getAnimations", { configurable: true, value: () => [{ playState: "running" }] });
+    expect(verifyPreview(target, "display", "grid").reason).toBe("animation");
+    Object.defineProperty(target, "getAnimations", { configurable: true, value: () => [] });
+    target.style.transitionProperty = "display";
+    target.style.transitionDuration = "1s";
+    expect(verifyPreview(target, "display", "grid").reason).toBe("transition");
+  });
+
+  it("reports a missing instance target without broadening", () => {
+    expect(verifyPreview(null, "color", "red").reason).toBe("target-missing");
   });
 });

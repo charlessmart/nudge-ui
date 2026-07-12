@@ -26,6 +26,8 @@ const BORDER_COLOR_ROW: ResolvedProperty = {
   tokenName: "--color-text-secondary",
   declaredValue: "var(--color-text-secondary)",
   resolvedValue: "#666666",
+  confidence: "exact",
+  evidence: { reason: "test fixture" },
 };
 
 describe("BorderEditor", () => {

@@ -39,12 +39,19 @@ async function selectBackground(page: import("@playwright/test").Page, value: st
 }
 
 async function setBorderRadius(page: import("@playwright/test").Page, value: string): Promise<void> {
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const field = sr?.querySelector(
+      '[data-test="token-field"][data-property="border-radius"]',
+    );
+    (field?.querySelector('[data-test="delink-btn"]') as HTMLButtonElement | null)?.click();
+  });
   await page.evaluate((v) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
     const raw = sr?.querySelector(
       '[data-test="token-field"][data-property="border-radius"] [data-test="raw-input"]',
     ) as HTMLInputElement | null;
-    if (!raw) return;
+    if (!raw) throw new Error("Missing border-radius raw editor after delinking");
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
     setter.call(raw, v);
     raw.dispatchEvent(new Event("change", { bubbles: true }));

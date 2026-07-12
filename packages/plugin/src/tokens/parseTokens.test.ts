@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseTokens } from "./parseTokens";
+import { parseTokenCatalog, parseTokens } from "./parseTokens";
 
 describe("parseTokens", () => {
   it("extracts :root custom properties with name, value, source", () => {
@@ -203,5 +203,38 @@ describe("parseTokens", () => {
   }
 }`;
     expect(parseTokens(css, "src/n.css")).toHaveLength(1);
+  });
+});
+
+describe("parseTokenCatalog", () => {
+  it("groups duplicate theme declarations without discarding context", () => {
+    const catalog = parseTokenCatalog(`:root { --surface: white; }
+:root[data-theme="dark"] { --surface: #111 !important; }`, "src/theme.css");
+    expect(catalog).toHaveLength(1);
+    expect(catalog[0]).toMatchObject({ cssName: "--surface", name: "--surface" });
+    expect(catalog[0]?.declarations).toEqual([
+      { value: "white", source: "src/theme.css:1", important: false, context: { selector: ":root" } },
+      { value: "#111", source: "src/theme.css:2", important: true, context: { selector: ':root[data-theme="dark"]' } },
+    ]);
+  });
+
+  it("retains media, supports, scope and layer contexts", () => {
+    const css = `@layer theme {
+  @media (prefers-color-scheme: dark) {
+    @supports (color: oklch(0 0 0)) {
+      @scope (.app) {
+        :root { --surface: oklch(0.1 0 0); }
+      }
+    }
+  }
+}`;
+    const declaration = parseTokenCatalog(css, "src/context.css")[0]?.declarations[0];
+    expect(declaration?.context).toEqual({
+      selector: ":root",
+      scope: "(.app)",
+      supports: "(color: oklch(0 0 0))",
+      media: "(prefers-color-scheme: dark)",
+      layer: "theme",
+    });
   });
 });

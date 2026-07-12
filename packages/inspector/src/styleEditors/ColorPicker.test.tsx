@@ -26,6 +26,8 @@ const TOKEN_ROW: ResolvedProperty = {
   tokenName: "--color-text-primary",
   declaredValue: "var(--color-text-primary)",
   resolvedValue: "#111111",
+  confidence: "exact",
+  evidence: { reason: "test fixture" },
 };
 
 describe("ColorPicker", () => {

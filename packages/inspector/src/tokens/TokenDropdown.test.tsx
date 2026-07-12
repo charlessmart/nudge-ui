@@ -81,6 +81,8 @@ describe("TokenDropdown rendering", () => {
       tokenName,
       declaredValue: tokenName ? `var(${tokenName})` : "pointer",
       resolvedValue: tokenName ? "#fff" : "pointer",
+      confidence: tokenName ? "exact" : "unknown",
+      evidence: { reason: "test fixture" },
     };
   }
 

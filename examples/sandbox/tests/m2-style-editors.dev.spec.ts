@@ -28,17 +28,6 @@ async function setInput(page: import("@playwright/test").Page, property: string,
   }, { p: property, v: value });
 }
 
-async function setSelect(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
-  await page.evaluate(({ t, v }) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const select = sr?.querySelector(`[data-test="${t}"]`) as HTMLSelectElement | null;
-    if (!select) return;
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
-    setter.call(select, v);
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  }, { t: testId, v: value });
-}
-
 async function computedProp(page: import("@playwright/test").Page, prop: string): Promise<string> {
   return await page.evaluate((p) => {
     const btn = document.querySelector(".btn") as HTMLElement | null;
@@ -72,7 +61,25 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   });
   const expectedRgb = hexToRgbString(tokenValue);
 
-  await setSelect(page, "color-token-select", "--color-text-secondary");
+  await page.evaluate((value) => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const select = sr?.querySelector(
+      '[data-test="tokens-panel"] [data-test="token-row"][data-property="color"] [data-test="token-select"]',
+    ) as HTMLSelectElement | null;
+    if (select) {
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
+      setter.call(select, value);
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      return;
+    }
+    const raw = sr?.querySelector(
+      '[data-test="token-field"][data-property="color"] [data-test="raw-input"]',
+    ) as HTMLInputElement | null;
+    if (!raw) throw new Error("Missing color editor");
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setter.call(raw, `var(${value})`);
+    raw.dispatchEvent(new Event("change", { bubbles: true }));
+  }, "--color-text-secondary");
   await expect
     .poll(async () => computedProp(page, "color"), { timeout: 5000 })
     .toContain(expectedRgb ?? "102, 102, 102");
