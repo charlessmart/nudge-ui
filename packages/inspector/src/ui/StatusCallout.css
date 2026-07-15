@@ -1,0 +1,18 @@
+.dt-status-callout {
+  padding: 7px;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-small);
+  color: var(--dt-text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.dt-status-callout--warning {
+  border-color: var(--dt-warning);
+  color: var(--dt-warning-text);
+}
+
+.dt-status-callout--danger {
+  border-color: var(--dt-danger);
+  color: var(--dt-danger-text);
+}

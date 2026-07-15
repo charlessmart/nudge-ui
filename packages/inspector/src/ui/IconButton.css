@@ -1,0 +1,22 @@
+.dt-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-small);
+  color: var(--dt-text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.dt-icon-button:hover:not(:disabled) {
+  color: var(--dt-text-primary);
+  border-color: var(--dt-danger);
+}
+
+.dt-icon-button:focus-visible {
+  outline: 2px solid var(--dt-focus);
+  outline-offset: 1px;
+}

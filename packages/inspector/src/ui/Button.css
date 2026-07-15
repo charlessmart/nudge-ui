@@ -1,0 +1,58 @@
+.dt-button {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--dt-radius-control);
+  color: var(--dt-text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+}
+
+.dt-button--default {
+  min-height: 24px;
+}
+
+.dt-button--compact {
+  min-height: 20px;
+  padding: 2px 6px;
+}
+
+.dt-button--primary {
+  background: var(--dt-accent);
+  border-color: var(--dt-accent-strong);
+}
+
+.dt-button--secondary {
+  background: var(--dt-surface-control);
+  border-color: var(--dt-border-strong);
+}
+
+.dt-button--quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--dt-text-muted);
+}
+
+.dt-button--danger {
+  background: var(--dt-surface-control);
+  border-color: var(--dt-danger);
+}
+
+.dt-button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.dt-button:focus-visible {
+  outline: 2px solid var(--dt-focus);
+  outline-offset: 1px;
+}
+
+.dt-button:disabled {
+  background: var(--dt-surface-control);
+  border-color: var(--dt-border-subtle);
+  color: var(--dt-text-muted);
+  cursor: not-allowed;
+  filter: none;
+}

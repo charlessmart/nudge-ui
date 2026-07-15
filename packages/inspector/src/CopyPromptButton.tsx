@@ -5,6 +5,7 @@ import { tokens } from "virtual:design-tokens";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { detectFramework } from "./prompt/detectFramework.ts";
 import { copyToClipboard } from "./prompt/copyToClipboard.ts";
+import { Button } from "./ui/Button.tsx";
 
 export function CopyPromptButton(): ReactElement {
   const changes = useChanges();
@@ -21,8 +22,8 @@ export function CopyPromptButton(): ReactElement {
   }
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="primary"
       className="dt-changes__copy"
       data-test="copy-prompt"
       disabled={disabled}
@@ -30,6 +31,6 @@ export function CopyPromptButton(): ReactElement {
       onClick={onClick}
     >
       {copied ? "Copied!" : disabled ? "No changes" : "Copy prompt"}
-    </button>
+    </Button>
   );
 }

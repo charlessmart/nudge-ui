@@ -1,0 +1,17 @@
+import type { ReactNode, ReactElement } from "react";
+
+export interface StatusCalloutProps {
+  children?: ReactNode;
+  tone?: "neutral" | "warning" | "danger";
+  className?: string;
+  "data-test"?: string;
+  "data-lost"?: string;
+}
+
+export function StatusCallout({ children, tone = "neutral", className, "data-test": dataTest, "data-lost": dataLost }: StatusCalloutProps): ReactElement {
+  return (
+    <div className={`dt-status-callout dt-status-callout--${tone}${className ? ` ${className}` : ""}`} data-test={dataTest} data-lost={dataLost}>
+      {children}
+    </div>
+  );
+}

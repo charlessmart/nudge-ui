@@ -11,8 +11,10 @@ test("dev: a blocked managed preview remains visible in the change log", async (
       '[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]',
     ) as HTMLInputElement | null;
     if (!input) throw new Error("Missing font-size editor");
+    input.focus();
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "22px");
     input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.blur();
   });
 
   await expect.poll(() => page.locator(".btn").evaluate((el) => getComputedStyle(el).fontSize)).toBe("13px");

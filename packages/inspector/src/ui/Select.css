@@ -1,0 +1,23 @@
+.dt-select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  background: var(--dt-surface-control);
+  color: var(--dt-text-primary);
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: var(--dt-radius-control);
+  padding: 3px 5px;
+  font: inherit;
+  font-size: 11px;
+}
+
+.dt-select--compact {
+  padding: 2px 4px;
+  font-size: 10px;
+}
+
+.dt-select:focus-visible {
+  outline: 2px solid var(--dt-focus);
+  outline-offset: 1px;
+  border-color: var(--dt-focus);
+}

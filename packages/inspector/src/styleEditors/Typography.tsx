@@ -3,6 +3,7 @@ import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
+import { FieldRow } from "../ui/FieldRow.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
@@ -24,8 +25,7 @@ export function Typography(props: TypographyProps): ReactElement {
     <div className="dt-editor" data-test="typography">
       <div className="dt-editor__title">Typography</div>
       <div className="dt-typography">
-        <div className="dt-field">
-          <span className="dt-field__label">font-size</span>
+        <FieldRow label="font-size">
           <TokenField
             property="font-size"
             tokenRow={findTokenRow(tokenRows, "font-size")}
@@ -33,9 +33,8 @@ export function Typography(props: TypographyProps): ReactElement {
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
-        </div>
-        <div className="dt-field">
-          <span className="dt-field__label">font-weight</span>
+        </FieldRow>
+        <FieldRow label="font-weight">
           <TokenField
             property="font-weight"
             tokenRow={findTokenRow(tokenRows, "font-weight")}
@@ -43,9 +42,8 @@ export function Typography(props: TypographyProps): ReactElement {
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
-        </div>
-        <div className="dt-field">
-          <span className="dt-field__label">line-height</span>
+        </FieldRow>
+        <FieldRow label="line-height">
           <TokenField
             property="line-height"
             tokenRow={findTokenRow(tokenRows, "line-height")}
@@ -53,9 +51,8 @@ export function Typography(props: TypographyProps): ReactElement {
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
-        </div>
-        <div className="dt-field">
-          <span className="dt-field__label">letter-spacing</span>
+        </FieldRow>
+        <FieldRow label="letter-spacing">
           <TokenField
             property="letter-spacing"
             tokenRow={findTokenRow(tokenRows, "letter-spacing")}
@@ -63,9 +60,8 @@ export function Typography(props: TypographyProps): ReactElement {
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
-        </div>
-        <div className="dt-field">
-          <span className="dt-field__label">font-family</span>
+        </FieldRow>
+        <FieldRow label="font-family">
           <TokenField
             property="font-family"
             tokenRow={findTokenRow(tokenRows, "font-family")}
@@ -73,7 +69,7 @@ export function Typography(props: TypographyProps): ReactElement {
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
-        </div>
+        </FieldRow>
       </div>
     </div>
   );

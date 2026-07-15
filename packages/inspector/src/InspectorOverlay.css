@@ -1,0 +1,15 @@
+.dt-hover-outline,
+.dt-selected-outline {
+  position: fixed;
+  pointer-events: none;
+  outline-offset: -2px;
+  z-index: 2147483646;
+}
+
+.dt-hover-outline {
+  outline: 2px solid #3b82f6;
+}
+
+.dt-selected-outline {
+  outline: 2px solid #ef4444;
+}

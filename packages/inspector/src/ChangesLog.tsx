@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { useChanges, revertChange } from "./changesLog.ts";
 import type { ChangeRecord } from "./changesLog.ts";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
+import { Button } from "./ui/Button.tsx";
 
 interface Group {
   key: string;
@@ -66,15 +67,15 @@ export function ChangesLog(): ReactElement {
                     Preview blocked ({change.previewResult.reason})
                   </span>
                 ) : null}
-                <button
-                  type="button"
+                <Button
+                  size="compact"
                   className="dt-changes__revert"
                   data-test="change-revert"
                   data-property={change.property}
                   onClick={() => revertChange(change)}
                 >
                   Revert
-                </button>
+                </Button>
               </div>
             ))}
           </div>

@@ -12,8 +12,10 @@ async function setRaw(page: import("@playwright/test").Page, property: string, v
     const root = document.getElementById("design-tool-root")?.shadowRoot;
     const input = root?.querySelector(`[data-test="token-field"][data-property="${property}"] [data-test="raw-input"]`) as HTMLInputElement | null;
     if (!input) throw new Error(`Missing ${property} editor`);
+    input.focus();
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
     input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.blur();
   }, { property, value });
 }
 

@@ -133,6 +133,19 @@ describe("changesLog", () => {
     expect(rules[0]!.declarations["font-size"]).toBe("18px");
   });
 
+  it("does not create another undo step for an identical effective edit", () => {
+    const rec = makeRecord("font-size", null, null, "18px");
+    appendChange(makeRecord("color", COLOR_B, COLOR_A));
+    appendChange(rec);
+    appendChange({ ...rec });
+
+    expect(getChangesList()).toHaveLength(2);
+    expect(undo()).toBe(true);
+    expect(getChangesList()).toHaveLength(1);
+    expect(redo()).toBe(true);
+    expect(getChangesList()).toHaveLength(2);
+  });
+
   describe("undo / redo", () => {
     it("undo returns false when the log is empty", () => {
       expect(undo()).toBe(false);

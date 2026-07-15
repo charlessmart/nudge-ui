@@ -5,6 +5,9 @@ import type { ResolvedProperty } from "./resolution.ts";
 import { TokenDropdown, classifyToken, groupOfProperty } from "./TokenDropdown.tsx";
 import { promoteToToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
+import { IconButton } from "../ui/IconButton.tsx";
+import { PopoverListbox } from "../ui/PopoverListbox.tsx";
+import { ColorSwatch } from "../ui/ColorSwatch.tsx";
 
 export interface TokenFieldProps {
   property: string;
@@ -33,8 +36,8 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   );
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
   const selectedFromPopover = useRef(false);
+  const cancelOnBlur = useRef(false);
 
   useEffect(() => {
     setMode(tokenRow?.tokenName ? "token" : "raw");
@@ -47,7 +50,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     return entries.filter((entry) => {
       if (classifyToken(entry.name) !== group) return false;
       if (!target) return true;
-      return entry.name.toLowerCase().includes(target);
+      return entry.name.toLowerCase().includes(target) || entry.value.toLowerCase().includes(target);
     });
   }, [entries, property, rawValue]);
 
@@ -61,6 +64,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
 
   function handleSuggestionSelect(chosen: TokenEntry): void {
     selectedFromPopover.current = true;
+    cancelOnBlur.current = false;
     promoteToToken(el, property, chosen);
     setMode("token");
     onAfterEdit?.();
@@ -68,11 +72,6 @@ export function TokenField(props: TokenFieldProps): ReactElement {
 
   function handleRawChange(value: string): void {
     setRawValue(value);
-    if (value.trim()) setStyle(el, property, value.trim());
-  }
-
-  function handleRawFocus(): void {
-    setIsFocused(true);
   }
 
   function handleRawBlur(): void {
@@ -81,12 +80,15 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       setIsFocused(false);
       return;
     }
+    if (!cancelOnBlur.current) commitRawValue();
+    cancelOnBlur.current = false;
     setIsFocused(false);
   }
 
   function handleRawKeyDown(e: React.KeyboardEvent): void {
     if (e.key === "Escape") {
       setRawValue(tokenRow?.resolvedValue ?? computedRaw(el, property));
+      cancelOnBlur.current = true;
       setIsFocused(false);
       inputRef.current?.blur();
     } else if (e.key === "Enter") {
@@ -94,6 +96,24 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       inputRef.current?.blur();
     }
   }
+
+  function commitRawValue(): void {
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      setRawValue(tokenRow?.resolvedValue ?? computedRaw(el, property));
+      return;
+    }
+    if (setStyle(el, property, trimmed)) onAfterEdit?.();
+  }
+
+  const rawTokenRow: ResolvedProperty = {
+    property,
+    tokenName: null,
+    declaredValue: rawValue,
+    resolvedValue: rawValue,
+    confidence: "unknown",
+    evidence: tokenRow?.evidence ?? { reason: "raw value editor" },
+  };
 
   if (mode === "token" && tokenRow) {
     return (
@@ -104,11 +124,10 @@ export function TokenField(props: TokenFieldProps): ReactElement {
           entries={entries}
           onAfterEdit={onAfterEdit}
         />
-        <button
-          type="button"
-          className="dt-delink-btn"
+        <IconButton
+          label="Replace with raw value"
+          className="dt-token-field__delink"
           data-test="delink-btn"
-          title="Replace with raw value"
           onClick={handleDelink}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -116,7 +135,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
             <path d="M1 3.5 L3.5 1 L5.5 3 L3 5.5" />
             <path d="M4.5 6.5 L7 9 L9 7" />
           </svg>
-        </button>
+        </IconButton>
       </span>
     );
   }
@@ -124,44 +143,36 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   const showPopover = isFocused && filteredTokens.length > 0;
 
   return (
-    <span className="dt-token-field" data-test="token-field" data-property={property}>
-      <input
-        ref={inputRef}
-        type="text"
-        data-test="raw-input"
-        className="dt-raw-input"
-        value={rawValue}
-        onChange={(e) => handleRawChange(e.target.value)}
-        onFocus={handleRawFocus}
-        onBlur={handleRawBlur}
-        onKeyDown={handleRawKeyDown}
+    <span className="dt-token-field dt-token-field--raw" data-test="token-field" data-property={property}>
+      <PopoverListbox
+        query={rawValue}
+        value={null}
+        open={showPopover}
         placeholder={property}
+        inputRef={inputRef}
+        inputDataTest="raw-input"
+        inputOnBlur={handleRawBlur}
+        inputOnKeyDown={handleRawKeyDown}
+        items={filteredTokens.slice(0, 30).map((entry) => ({
+          value: entry.name,
+          label: entry.name,
+          "data-test": "suggestion-item",
+          leading: classifyToken(entry.name) === "color" ? <ColorSwatch color={entry.value} size="small" /> : undefined,
+          trailing: <span>{entry.value}</span>,
+        }))}
+        onQueryChange={handleRawChange}
+        onOpenChange={setIsFocused}
+        onSelect={(value) => {
+          const chosen = entries.find((entry) => entry.name === value);
+          if (chosen) handleSuggestionSelect(chosen);
+        }}
       />
-      {showPopover ? (
-        <div className="dt-suggestion-popover" ref={popoverRef} data-test="suggestion-popover">
-          {filteredTokens.slice(0, 30).map((entry) => (
-            <div
-              key={entry.name}
-              className="dt-suggestion-item"
-              data-test="suggestion-item"
-              data-token={entry.name}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleSuggestionSelect(entry);
-              }}
-            >
-              {classifyToken(entry.name) === "color" ? (
-                <span
-                  className="dt-suggestion-item__swatch"
-                  style={{ background: entry.value || "transparent" }}
-                />
-              ) : null}
-              <span className="dt-suggestion-item__name">{entry.name}</span>
-              <span className="dt-suggestion-item__value">{entry.value}</span>
-            </div>
-          ))}
-        </div>
-      ) : null}
+      <TokenDropdown
+        row={rawTokenRow}
+        domElement={el}
+        entries={entries}
+        onAfterEdit={onAfterEdit}
+      />
     </span>
   );
 }

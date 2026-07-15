@@ -1,0 +1,26 @@
+.dt-token-field {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  width: 100%;
+}
+
+.dt-token-field > .dt-popover-listbox,
+.dt-token-field > .dt-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.dt-token-field--raw > .dt-token-dropdown {
+  flex: 0 1 118px;
+}
+
+.dt-token-field--raw > .dt-token-dropdown .dt-select {
+  width: 100%;
+}
+
+.dt-token-field__select {
+  flex: 1;
+  min-width: 0;
+}

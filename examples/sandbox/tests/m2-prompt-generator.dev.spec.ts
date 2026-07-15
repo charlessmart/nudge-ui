@@ -5,8 +5,7 @@ async function waitForRow(page: import("@playwright/test").Page): Promise<void> 
     .poll(async () => {
       return await page.evaluate(() => {
         const sr = document.getElementById("design-tool-root")?.shadowRoot;
-        const panel = sr?.querySelector('[data-test="tokens-panel"]');
-        return !!panel && panel.querySelectorAll('[data-test="token-row"]').length > 0;
+        return !!sr?.querySelector('[data-test="style-editors"] [data-test="token-field"]');
       });
     }, { timeout: 5000 })
     .toBe(true);
@@ -24,18 +23,7 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
 }
 
 async function selectBackground(page: import("@playwright/test").Page, value: string): Promise<void> {
-  await page.evaluate((v) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const panel = sr?.querySelector('[data-test="tokens-panel"]');
-    if (!panel) return;
-    const rows = Array.from(panel.querySelectorAll('[data-test="token-row"]'));
-    const row = rows.find((r) => (r.getAttribute("data-property") ?? "") === "background");
-    const select = row?.querySelector('[data-test="token-select"]') as HTMLSelectElement | null;
-    if (!select) return;
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
-    setter.call(select, v);
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  }, value);
+  await page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-select"]').selectOption(value);
 }
 
 async function setBorderRadius(page: import("@playwright/test").Page, value: string): Promise<void> {
@@ -53,8 +41,10 @@ async function setBorderRadius(page: import("@playwright/test").Page, value: str
     ) as HTMLInputElement | null;
     if (!raw) throw new Error("Missing border-radius raw editor after delinking");
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    raw.focus();
     setter.call(raw, v);
     raw.dispatchEvent(new Event("change", { bubbles: true }));
+    raw.blur();
   }, value);
 }
 

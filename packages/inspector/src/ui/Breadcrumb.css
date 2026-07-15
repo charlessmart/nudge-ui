@@ -1,0 +1,38 @@
+.dt-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.dt-breadcrumb__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dt-breadcrumb__separator {
+  color: var(--dt-text-muted-subtle);
+}
+
+.dt-breadcrumb__step {
+  cursor: pointer;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--dt-radius-small);
+  color: var(--dt-text-muted);
+  background: transparent;
+  font: inherit;
+}
+
+.dt-breadcrumb__step[data-active="true"] {
+  color: var(--dt-text-primary);
+  background: var(--dt-surface-control);
+  font-weight: 600;
+}
+
+.dt-breadcrumb__step:focus-visible {
+  outline: 2px solid var(--dt-focus);
+  outline-offset: 1px;
+}

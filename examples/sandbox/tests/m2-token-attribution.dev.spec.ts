@@ -9,17 +9,14 @@ test("dev: catalog retains light and dark declarations for one token", async ({ 
   expect(surface?.declarations).toHaveLength(2);
 });
 
-test("dev: panel exposes exact and unknown attribution confidence", async ({ page }) => {
+test("dev: tokenized and raw values appear in their relevant editors", async ({ page }) => {
   await page.goto("/");
   await page.click("text=Save");
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
-    return [...(root?.querySelectorAll('[data-test="token-row"]') ?? [])].map((row) => ({
-      property: row.getAttribute("data-property"),
-      confidence: row.getAttribute("data-confidence"),
-    }));
-  })).toEqual(expect.arrayContaining([
-    { property: "background", confidence: "exact" },
-    { property: "cursor", confidence: "unknown" },
-  ]));
+    return {
+      background: Boolean(root?.querySelector('[data-test="token-field"][data-property="background-color"] [data-test="token-select"]')),
+      cursor: Boolean(root?.querySelector('[data-test="token-field"][data-property="cursor"]')),
+    };
+  })).toEqual({ background: true, cursor: false });
 });

@@ -59,6 +59,12 @@ function baselineValue(rec: ChangeRecord): string {
   return rec.oldRawValue ?? "";
 }
 
+function sameEffectiveChanges(a: ChangeRecord[], b: ChangeRecord[]): boolean {
+  if (a.length !== b.length) return false;
+  const values = new Map(a.map((change) => [changeKey(change), recordValue(change)]));
+  return b.every((change) => values.get(changeKey(change)) === recordValue(change));
+}
+
 export function getPendingRules(): StyleRule[] {
   const map = new Map<string, StyleRule>();
   for (const rec of changes) {
@@ -92,8 +98,10 @@ export function appendChange(change: ChangeRecord): void {
   const key = changeKey(change);
   const existing = changes.find((candidate) => changeKey(candidate) === key);
   const canonical = existing ? { ...change, oldToken: existing.oldToken, oldRawValue: existing.oldRawValue } : change;
-  changes = changes.filter((candidate) => changeKey(candidate) !== key);
-  if (recordValue(canonical) !== baselineValue(canonical)) changes = [...changes, canonical];
+  const next = changes.filter((candidate) => changeKey(candidate) !== key);
+  const nextChanges = recordValue(canonical) !== baselineValue(canonical) ? [...next, canonical] : next;
+  if (sameEffectiveChanges(before, nextChanges)) return;
+  changes = nextChanges;
   reapply();
   undoStack = [...undoStack, { before, after: changes }];
   redoStack = [];

@@ -6,6 +6,8 @@ import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
+import { FieldRow } from "../ui/FieldRow.tsx";
+import { Select } from "../ui/Select.tsx";
 
 const BORDER_STYLES = ["none", "solid", "dashed", "dotted", "double", "groove", "ridge"];
 
@@ -44,14 +46,14 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   function handleStyle(s: string): void {
     setStyleChoice(s);
     setStyle(el, "border-style", s);
+    onAfterEdit?.();
   }
 
   return (
     <div className="dt-editor" data-test="border-editor">
       <div className="dt-editor__title">Border · radius · shadow</div>
       <div className="dt-border">
-        <div className="dt-field">
-          <span className="dt-field__label">border-width</span>
+        <FieldRow label="border-width">
           <TokenField
             property="border-width"
             tokenRow={borderWidthRow}
@@ -59,19 +61,16 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
-        </div>
-        <label className="dt-field">
-          <span className="dt-field__label">border-style</span>
-          <select data-test="border-style" value={styleChoice} onChange={(e) => handleStyle(e.target.value)}>
-            {BORDER_STYLES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="dt-field">
-          <span className="dt-field__label">border-color</span>
+        </FieldRow>
+        <FieldRow label="border-style">
+          <Select
+            data-test="border-style"
+            value={styleChoice}
+            options={BORDER_STYLES.map((s) => ({ value: s, label: s }))}
+            onValueChange={handleStyle}
+          />
+        </FieldRow>
+        <FieldRow label="border-color">
           <TokenField
             property="border-color"
             tokenRow={borderColorRow}
@@ -79,9 +78,8 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
-        </div>
-        <div className="dt-field">
-          <span className="dt-field__label">border-radius</span>
+        </FieldRow>
+        <FieldRow label="border-radius">
           <TokenField
             property="border-radius"
             tokenRow={borderRadiusRow}
@@ -89,9 +87,8 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
-        </div>
-        <div className="dt-field">
-          <span className="dt-field__label">box-shadow</span>
+        </FieldRow>
+        <FieldRow label="box-shadow">
           <TokenField
             property="box-shadow"
             tokenRow={boxShadowRow}
@@ -99,7 +96,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
-        </div>
+        </FieldRow>
       </div>
     </div>
   );

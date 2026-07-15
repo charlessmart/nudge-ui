@@ -23,8 +23,10 @@ async function setInput(page: import("@playwright/test").Page, property: string,
     ) as HTMLInputElement | null;
     if (!raw) return;
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    raw.focus();
     setter.call(raw, v);
     raw.dispatchEvent(new Event("change", { bubbles: true }));
+    raw.blur();
   }, { p: property, v: value });
 }
 
@@ -64,7 +66,7 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   await page.evaluate((value) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
     const select = sr?.querySelector(
-      '[data-test="tokens-panel"] [data-test="token-row"][data-property="color"] [data-test="token-select"]',
+      '[data-test="token-field"][data-property="color"] [data-test="token-select"]',
     ) as HTMLSelectElement | null;
     if (select) {
       const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
@@ -77,8 +79,10 @@ test("dev: style editors write through the managed stylesheet and update the .bt
     ) as HTMLInputElement | null;
     if (!raw) throw new Error("Missing color editor");
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    raw.focus();
     setter.call(raw, `var(${value})`);
     raw.dispatchEvent(new Event("change", { bubbles: true }));
+    raw.blur();
   }, "--color-text-secondary");
   await expect
     .poll(async () => computedProp(page, "color"), { timeout: 5000 })

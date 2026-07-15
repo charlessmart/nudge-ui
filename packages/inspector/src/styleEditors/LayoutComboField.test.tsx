@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import {
@@ -90,5 +90,31 @@ describe("LayoutComboField", () => {
 
     const input = handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]') as HTMLInputElement;
     expect(input).toBeTruthy();
+  });
+
+  it("waits until the custom input blurs before applying the layout value", () => {
+    const { el } = makeSelected();
+    mockComputedStyle({ "flex-grow": "0" });
+    handle = mount(
+      createElement(LayoutComboField, {
+        property: "flex-grow",
+        presets: ["0", "1"],
+        domElement: el,
+      }),
+    );
+    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLSelectElement;
+    setSelectValue(select, "__custom__");
+    const input = handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "4");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(sheetText()).toBe("");
+
+    act(() => input.blur());
+    expect(sheetText()).toContain("flex-grow: 4;");
   });
 });

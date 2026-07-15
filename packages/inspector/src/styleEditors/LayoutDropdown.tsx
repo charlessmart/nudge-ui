@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { setStyle } from "./styleActions.ts";
+import { FieldRow } from "../ui/FieldRow.tsx";
+import { Select } from "../ui/Select.tsx";
 
 export interface LayoutDropdownProps {
   property: string;
@@ -24,8 +26,7 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
     }
   }, [el, property, options]);
 
-  function handleChange(e: React.ChangeEvent<HTMLSelectElement>): void {
-    const next = e.target.value;
+  function handleChange(next: string): void {
     setValue(next);
     setStyle(el, property, next);
     onAfterEdit?.();
@@ -34,18 +35,13 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
   const allOptions = value && !options.includes(value) ? [...options, value] : options;
 
   return (
-    <div className="dt-layout-field" data-test="layout-dropdown" data-property={property}>
-      <span className="dt-layout-field__label">{property}</span>
-      <select
-        className="dt-layout-field__select"
+    <FieldRow label={property} data-test="layout-dropdown">
+      <Select
         data-test={`layout-select-${property}`}
         value={value}
-        onChange={handleChange}
-      >
-        {allOptions.map((opt) => (
-          <option key={opt} value={opt}>{opt}</option>
-        ))}
-      </select>
-    </div>
+        options={allOptions.map((opt) => ({ value: opt, label: opt }))}
+        onValueChange={handleChange}
+      />
+    </FieldRow>
   );
 }

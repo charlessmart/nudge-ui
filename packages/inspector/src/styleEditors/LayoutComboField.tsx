@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { setStyle } from "./styleActions.ts";
+import { Select } from "../ui/Select.tsx";
+import { TextInput } from "../ui/TextInput.tsx";
 
 const CUSTOM_KEY = "__custom__";
 
@@ -41,8 +43,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     onAfterEdit?.();
   }
 
-  function handleSelectChange(e: React.ChangeEvent<HTMLSelectElement>): void {
-    const val = e.target.value;
+  function handleSelectChange(val: string): void {
     if (val === CUSTOM_KEY) {
       setShowCustom(true);
       setTimeout(() => customInputRef.current?.focus(), 0);
@@ -79,22 +80,21 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       data-test="layout-combo"
       data-property={property}
     >
-      <select
-        className="dt-layout-combo__select"
+      <Select
+        compact={compact}
         data-test={`layout-combo-select-${property}`}
         value={selectValue}
-        onChange={handleSelectChange}
-      >
-        {presets.map((p) => (
-          <option key={p} value={p}>{p}</option>
-        ))}
-        <option value={CUSTOM_KEY}>Custom…</option>
-      </select>
+        options={[
+          ...presets.map((p) => ({ value: p, label: p })),
+          { value: CUSTOM_KEY, label: "Custom…" },
+        ]}
+        onValueChange={handleSelectChange}
+      />
       {showCustom ? (
         <span className="dt-layout-combo__custom">
-          <input
+          <TextInput
             ref={customInputRef}
-            className="dt-layout-combo__input"
+            compact={compact}
             data-test={`layout-combo-input-${property}`}
             value={customValue}
             onChange={(e) => setCustomValue(e.target.value)}

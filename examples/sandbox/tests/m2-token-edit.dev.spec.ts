@@ -10,15 +10,14 @@ type RowInfo = {
 async function tokenRows(page: import("@playwright/test").Page): Promise<RowInfo[]> {
   return await page.evaluate(() => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const panel = sr?.querySelector('[data-test="tokens-panel"]') ?? null;
-    if (!panel) return [];
-    const rows = panel.querySelectorAll('[data-test="token-row"]');
+    const rows = sr?.querySelectorAll('[data-test="token-field"]') ?? [];
     const out: RowInfo[] = [];
     rows.forEach((row) => {
       const property = row.getAttribute("data-property") ?? "";
-      const token = row.getAttribute("data-token") ?? "";
-      const name = row.querySelector('[data-test="token-name"]')?.textContent ?? "";
-      const value = row.querySelector('[data-test="token-value"]')?.textContent ?? "";
+      const select = row.querySelector('[data-test="token-select"]') as HTMLSelectElement | null;
+      const token = select?.value ?? "";
+      const name = token;
+      const value = row.querySelector('[data-test="raw-input"]')?.getAttribute("value") ?? "";
       out.push({ property, token, name: name.trim(), value: value.trim() });
     });
     return out;
@@ -46,33 +45,11 @@ async function btnBackground(page: import("@playwright/test").Page): Promise<str
 }
 
 async function selectBackground(page: import("@playwright/test").Page, value: string): Promise<void> {
-  await page.evaluate((v) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const panel = sr?.querySelector('[data-test="tokens-panel"]');
-    if (!panel) return;
-    const rows = Array.from(panel.querySelectorAll('[data-test="token-row"]'));
-    const row = rows.find((r) => (r.getAttribute("data-property") ?? "") === "background");
-    const select = row?.querySelector('[data-test="token-select"]') as HTMLSelectElement | null;
-    if (!select) return;
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
-    setter.call(select, v);
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  }, value);
+  await page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-select"]').selectOption(value);
 }
 
 async function selectPromote(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
-  await page.evaluate(({ p, v }) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const panel = sr?.querySelector('[data-test="tokens-panel"]');
-    if (!panel) return;
-    const rows = Array.from(panel.querySelectorAll('[data-test="token-row"]'));
-    const row = rows.find((r) => (r.getAttribute("data-property") ?? "") === p);
-    const select = row?.querySelector('[data-test="token-promote-select"]') as HTMLSelectElement | null;
-    if (!select) return;
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
-    setter.call(select, v);
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  }, { p: property, v: value });
+  await page.locator(`[data-test="token-field"][data-property="${property}"] [data-test="token-promote-select"]`).selectOption(value);
 }
 
 test("dev: swapping a token writes a managed-stylesheet rule and changes background live", async ({ page }) => {
@@ -98,11 +75,15 @@ test("dev: replacing a hardcoded value with a token writes a rule to the sheet",
   await page.click("text=Save");
   await waitForRow(page);
 
-  await selectPromote(page, "cursor", "--space-1");
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    (sr?.querySelector('[data-test="token-field"][data-property="border-radius"] [data-test="delink-btn"]') as HTMLElement | null)?.click();
+  });
+  await selectPromote(page, "border-radius", "--space-2");
 
   await expect
     .poll(async () => sheetText(page), { timeout: 5000 })
-    .toContain("cursor: var(--space-1);");
+    .toContain("border-radius: var(--space-2);");
 });
 
 test("dev: edits survive a React re-render of the host app", async ({ page }) => {

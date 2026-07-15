@@ -75,9 +75,13 @@ export function restoreComputedStyle(): void {
 }
 
 export function setInputValue(input: HTMLInputElement, value: string): void {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-  setter.call(input, value);
-  input.dispatchEvent(new Event("change", { bubbles: true }));
+  act(() => {
+    input.focus();
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setter.call(input, value);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  act(() => input.blur());
 }
 
 export function setSelectValue(select: HTMLSelectElement, value: string): void {

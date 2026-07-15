@@ -47,6 +47,11 @@ describe("getAlternativeTokens", () => {
     expect(result.map((e) => e.name)).toEqual(["--radius-md"]);
   });
 
+  it("keeps a cross-category current token available for the selected field", () => {
+    const result = getAlternativeTokens(ENTRIES, { property: "border-radius", currentToken: "--space-1" });
+    expect(result.map((e) => e.name)).toEqual(["--space-1", "--radius-md"]);
+  });
+
   it("for font-size returns only typography tokens", () => {
     const result = getAlternativeTokens(ENTRIES, { property: "font-size", currentToken: null });
     expect(result.map((e) => e.name)).toEqual(["--font-size-base"]);

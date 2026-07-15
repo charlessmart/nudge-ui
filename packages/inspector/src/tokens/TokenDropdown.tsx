@@ -4,6 +4,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import { getTokenTable } from "./resolution.ts";
 import type { ResolvedProperty } from "./resolution.ts";
 import { swapToken, promoteToToken } from "./editActions.ts";
+import { Select } from "../ui/Select.tsx";
 
 export type TokenGroup = "color" | "spacing" | "radius" | "typography" | "generic";
 
@@ -90,8 +91,7 @@ export function getAlternativeTokens(
   const preferredGroup = groupOfProperty(opts.property);
   return entries.filter((entry) => {
     const group = classifyToken(entry.name);
-    if (group === preferredGroup) return true;
-    return false;
+    return group === preferredGroup || entry.name === opts.currentToken;
   });
 }
 
@@ -147,53 +147,34 @@ export function TokenDropdown(props: TokenDropdownProps): ReactElement {
 
   const hasToken = row.tokenName !== null;
   const selectValue = row.tokenName ?? "";
+  const groups = (hasToken ? grouped : allGrouped);
+  const selectGroups = orderedGroups.flatMap((group) => {
+    const list = groups.get(group);
+    if (!list || list.length === 0) return [];
+    return [{
+      label: GROUP_LABELS[group],
+      options: list.map((entry) => ({ value: entry.name, label: entry.name })),
+    }];
+  });
 
   return (
     <span className="dt-token-dropdown" data-test="token-dropdown">
       {hasToken ? (
-        <select
+        <Select
           data-test="token-select"
           value={selectValue}
-          onChange={(e) => handleSelect(e.target.value)}
-        >
-          {orderedGroups.map((group) => {
-            const list = grouped.get(group);
-            if (!list || list.length === 0) return null;
-            return (
-              <optgroup key={group} label={GROUP_LABELS[group]}>
-                {list.map((entry) => (
-                  <option key={entry.name} value={entry.name}>
-                    {entry.name}
-                  </option>
-                ))}
-              </optgroup>
-            );
-          })}
-        </select>
+          groups={selectGroups}
+          onValueChange={handleSelect}
+        />
       ) : (
         <span className="dt-token-promote" data-test="token-promote">
-          <select
+          <Select
             data-test="token-promote-select"
             value=""
-            onChange={(e) => handlePromote(e.target.value)}
-          >
-            <option value="" disabled>
-              Replace with token…
-            </option>
-            {orderedGroups.map((group) => {
-              const list = allGrouped.get(group);
-              if (!list || list.length === 0) return null;
-              return (
-                <optgroup key={group} label={GROUP_LABELS[group]}>
-                  {list.map((entry) => (
-                    <option key={entry.name} value={entry.name}>
-                      {entry.name}
-                    </option>
-                  ))}
-                </optgroup>
-              );
-            })}
-          </select>
+            placeholder="Replace with token…"
+            groups={selectGroups}
+            onValueChange={handlePromote}
+          />
         </span>
       )}
     </span>

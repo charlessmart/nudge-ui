@@ -144,10 +144,10 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
   return (
     <>
       {open && hoverRect ? (
-        <div className="dt-hover-outline" style={hoverStyle} />
+        <div className="dt-hover-outline" style={hoverStyle} aria-hidden="true" />
       ) : null}
       {open && selectedRect ? (
-        <div className="dt-selected-outline" style={selectedStyle} />
+        <div className="dt-selected-outline" style={selectedStyle} aria-hidden="true" />
       ) : null}
     </>
   );

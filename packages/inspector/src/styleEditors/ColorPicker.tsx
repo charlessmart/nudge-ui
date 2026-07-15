@@ -4,6 +4,8 @@ import { tokens } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
+import { FieldRow } from "../ui/FieldRow.tsx";
+import { ColorSwatch } from "../ui/ColorSwatch.tsx";
 
 export interface ColorPickerProps {
   element: SelectedElement;
@@ -27,17 +29,12 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
       <div className="dt-editor__title">Color · {property}</div>
       <div className="dt-color">
         <div className="dt-color__row">
-          <span
-            className="dt-color__swatch"
-            data-test="color-swatch"
-            style={{ background: computedValue || "transparent" }}
-          />
+          <ColorSwatch color={computedValue} data-test="color-swatch" />
           <span className="dt-color__computed" data-test="color-computed">
             {computedValue || "—"}
           </span>
         </div>
-        <div className="dt-field">
-          <span className="dt-field__label">value</span>
+        <FieldRow label="value">
           <TokenField
             property={property}
             tokenRow={tokenRow}
@@ -45,7 +42,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
-        </div>
+        </FieldRow>
       </div>
     </div>
   );

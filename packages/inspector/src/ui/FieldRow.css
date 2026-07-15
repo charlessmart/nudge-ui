@@ -1,0 +1,25 @@
+.dt-field-row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 4px;
+  align-items: center;
+}
+
+.dt-field-row__label {
+  color: var(--dt-text-muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.dt-field-row__control {
+  display: block;
+  min-width: 0;
+}
+
+.dt-field-row__hint {
+  display: block;
+  color: var(--dt-text-muted-subtle);
+  font-size: 10px;
+  line-height: 1.3;
+  margin-top: 2px;
+}
