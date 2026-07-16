@@ -14,6 +14,8 @@ export interface TokenContext {
 }
 
 export interface TokenDeclaration {
+  id?: string;
+  order?: number;
   value: string;
   source: string;
   important: boolean;

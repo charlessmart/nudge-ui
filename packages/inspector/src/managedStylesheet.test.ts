@@ -89,6 +89,20 @@ describe("applyRules", () => {
     expect(css).toContain(".a { color: red; }");
     expect(css).toContain(".b { margin: 0; }");
   });
+
+  it("preserves conditional context for global token rules", () => {
+    const css = rulesToCssText([{
+      selector: ':root[data-theme="dark"]',
+      declarations: { "--color-text": "#eeeeee" },
+      context: {
+        layer: "theme",
+        media: "(prefers-color-scheme: dark)",
+        supports: "(color: oklch(0 0 0))",
+        scope: "(.app)",
+      },
+    }]);
+    expect(css).toBe('@layer theme { @media (prefers-color-scheme: dark) { @supports (color: oklch(0 0 0)) { @scope (.app) { :root[data-theme="dark"] { --color-text: #eeeeee; } } } } }');
+  });
 });
 
 describe("escapeAttrValue", () => {
@@ -147,5 +161,10 @@ describe("verifyPreview", () => {
 
   it("reports a missing instance target without broadening", () => {
     expect(verifyPreview(null, "color", "red").reason).toBe("target-missing");
+  });
+
+  it("verifies a custom-property override on its real target", () => {
+    applyRules([{ selector: ":root", declarations: { "--brand": "blue" } }]);
+    expect(verifyPreview(document.documentElement, "--brand", "blue").status).toBe("applied");
   });
 });

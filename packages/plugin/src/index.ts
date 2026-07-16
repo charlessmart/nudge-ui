@@ -136,11 +136,17 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
           return `export const tokenCatalog = [];\nexport const tokens = [];\nexport default tokens;\n`;
         }
         const catalogByName = new Map<string, TokenDefinition>();
+        let declarationOrder = 0;
         for (const list of cssTokens.values()) {
           for (const definition of list) {
+            const declarations = definition.declarations.map((declaration) => ({
+              ...declaration,
+              id: `${definition.cssName}\u0000${declaration.source}\u0000${JSON.stringify(declaration.context)}\u0000${declarationOrder}`,
+              order: declarationOrder++,
+            }));
             const existing = catalogByName.get(definition.cssName);
-            if (existing) existing.declarations.push(...definition.declarations);
-            else catalogByName.set(definition.cssName, { ...definition, declarations: [...definition.declarations] });
+            if (existing) existing.declarations.push(...declarations);
+            else catalogByName.set(definition.cssName, { ...definition, declarations });
           }
         }
         const catalog = [...catalogByName.values()];

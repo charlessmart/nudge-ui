@@ -87,6 +87,10 @@ test("dev: changes log records token swap and font-size edit, single-change reve
   await waitForRow(page);
   await waitForEditors(page);
 
+  // Selection happens on pointer down; let the host button's hover transition
+  // settle before recording the baseline that revert should restore.
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(220);
   const originalBg = await btnBackground(page);
 
   await selectBackground(page, "--color-surface-sunken");

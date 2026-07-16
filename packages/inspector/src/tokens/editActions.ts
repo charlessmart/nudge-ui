@@ -4,7 +4,7 @@ import {
   appendChange,
   getPendingRules,
 } from "../changesLog.ts";
-import type { ChangeRecord } from "../changesLog.ts";
+import type { ChangeRecord, ElementChangeRecord } from "../changesLog.ts";
 import { getEditScope, getInstanceEvidence, selectorForElement, sourceSiteSelector } from "../editScope.ts";
 
 export type { ChangeRecord } from "../changesLog.ts";
@@ -24,7 +24,7 @@ export function swapToken(
   property: string,
   newToken: TokenEntry,
   oldToken: TokenEntry | null,
-): ChangeRecord | null {
+): ElementChangeRecord | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
   const selector = selectorForElement(el);
@@ -33,7 +33,7 @@ export function swapToken(
   const file = parsed ? parsed.file : src;
   const line = parsed ? parsed.line : 0;
 
-  const record: ChangeRecord = {
+  const record: ElementChangeRecord = {
     cid,
     file,
     line,
@@ -48,7 +48,7 @@ export function swapToken(
   return record;
 }
 
-export function setStyle(el: HTMLElement, property: string, value: string): ChangeRecord | null {
+export function setStyle(el: HTMLElement, property: string, value: string): ElementChangeRecord | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
   const selector = selectorForElement(el);
@@ -66,7 +66,7 @@ export function setStyle(el: HTMLElement, property: string, value: string): Chan
     }
   })();
 
-  const record: ChangeRecord = {
+  const record: ElementChangeRecord = {
     cid,
     file,
     line,
@@ -87,6 +87,6 @@ export function promoteToToken(
   el: HTMLElement,
   property: string,
   newToken: TokenEntry,
-): ChangeRecord | null {
+): ElementChangeRecord | null {
   return swapToken(el, property, newToken, null);
 }

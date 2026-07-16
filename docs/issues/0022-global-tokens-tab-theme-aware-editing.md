@@ -154,48 +154,48 @@ Existing ADRs remain immutable.
 
 ## Acceptance criteria
 
-- [ ] The inspector has `Inspect` and `Tokens` tabs; Inspect remains the default
+- [x] The inspector has `Inspect` and `Tokens` tabs; Inspect remains the default
       and Tokens works without an element selection
-- [ ] The Tokens tab lists only project-authored global catalog tokens and
+- [x] The Tokens tab lists only project-authored global catalog tokens and
       provides case-insensitive search
-- [ ] Tokens are grouped into Color, Spacing, Typography, Radius, Shadow and
+- [x] Tokens are grouped into Color, Spacing, Typography, Radius, Shadow and
       Other and sorted alphabetically within each group
-- [ ] Each token row shows name, active authored value, resolved value when
+- [x] Each token row shows name, active authored value, resolved value when
       different, source, and expandable read-only declaration variants
-- [ ] Active-declaration resolution respects selectors, media, supports,
+- [x] Active-declaration resolution respects selectors, media, supports,
       scopes, layers, importance and source order, and follows host theme changes
-- [ ] Tokens with no active declaration remain visible, are labelled inactive,
+- [x] Tokens with no active declaration remain visible, are labelled inactive,
       and cannot be edited
-- [ ] Editing affects only the active declaration context and updates all token
+- [x] Editing affects only the active declaration context and updates all token
       consumers live without leaking into inactive theme variants
-- [ ] The existing token field interaction is reused through a controlled
+- [x] The existing token field interaction is reused through a controlled
       contract for both element-property and global-token edits
-- [ ] Selecting a token creates an alias; unlinking enables free text; token
+- [x] Selecting a token creates an alias; unlinking enables free text; token
       autocomplete can promote free text back to an alias
-- [ ] Self-referential and transitively cyclic token aliases cannot be selected
-- [ ] Color fields always show a live swatch for token-backed and raw values;
+- [x] Self-referential and transitively cyclic token aliases cannot be selected
+- [x] Color fields always show a live swatch for token-backed and raw values;
       clicking it opens a native color control
-- [ ] Free-text commits on Enter/blur, cancels on Escape, and empty input is not
+- [x] Free-text commits on Enter/blur, cancels on Escape, and empty input is not
       committed
-- [ ] Global token edits are first-class canonical changes with correct
+- [x] Global token edits are first-class canonical changes with correct
       baseline deduplication, undo, redo, revert and clear behavior
-- [ ] The managed stylesheet remains the only preview write surface; token
+- [x] The managed stylesheet remains the only preview write surface; token
       rules preserve active contextual wrappers and no inline styles are used
-- [ ] Preview verification reports applied/conflict honestly and retains
+- [x] Preview verification reports applied/conflict honestly and retains
       conflicted requested changes for handoff
-- [ ] Changes and copied prompts identify global token, active context,
+- [x] Changes and copied prompts identify global token, active context,
       source location and authored before/after values with grep-ready fallback
-- [ ] A new ADR records the global-token exception to element identity selectors
+- [x] A new ADR records the global-token exception to element identity selectors
       and the ADR index is updated without modifying prior ADRs
-- [ ] Unit tests cover grouping/search, active/inactive context resolution,
+- [x] Unit tests cover grouping/search, active/inactive context resolution,
       aliases/cycles, controlled token-field behavior, color swatch/picker,
       managed contextual rules, canonical history and prompt output
-- [ ] Playwright coverage edits a light/dark token, verifies every consumer
+- [x] Playwright coverage edits a light/dark token, verifies every consumer
       updates, switches the host theme, and proves the inactive variant was not
       overwritten
-- [ ] `pnpm --filter sandbox build` succeeds and the production bundle contains
+- [x] `pnpm --filter sandbox build` succeeds and the production bundle contains
       no inspector UI, managed token overrides or token metadata
-- [ ] `pnpm lint`, `pnpm typecheck`, relevant Vitest suites and relevant
+- [x] `pnpm lint`, `pnpm typecheck`, relevant Vitest suites and relevant
       Playwright suites pass
 
 ## Out of scope

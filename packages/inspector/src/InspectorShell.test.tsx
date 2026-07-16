@@ -39,6 +39,19 @@ describe("InspectorShell", () => {
     expect(shadow.textContent).toContain("Inspector shell ready");
   });
 
+  it("switches to the Tokens tab without requiring a selection", () => {
+    act(() => {
+      mountInspector(host);
+    });
+    const shadow = host.shadowRoot!;
+    expect(shadow.querySelector('[data-test="tokens-panel"]')).toBeNull();
+    act(() => {
+      (shadow.querySelector('[data-test="tokens-tab"]') as HTMLButtonElement).click();
+    });
+    expect(shadow.querySelector('[data-test="tokens-panel"]')).not.toBeNull();
+    expect(shadow.querySelector('[data-test="tokens-tab"]')?.getAttribute("aria-selected")).toBe("true");
+  });
+
   it("unmountInspector clears the React tree from the shadow root", () => {
     act(() => {
       mountInspector(host);

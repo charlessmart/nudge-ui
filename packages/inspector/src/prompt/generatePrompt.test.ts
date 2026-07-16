@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generatePrompt } from "./generatePrompt.ts";
 import { detectFramework } from "./detectFramework.ts";
-import type { ChangeRecord } from "../changesLog.ts";
+import type { ChangeRecord, ElementChangeRecord } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 
 const SURFACE_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:1" };
@@ -9,8 +9,8 @@ const SURFACE_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5
 const SPACE_3: TokenEntry = { name: "--space-3", value: "12px", source: "styles.css:3" };
 
 function rec(
-  overrides: Partial<ChangeRecord> & { cid: string; file: string; property: string; line?: number },
-): ChangeRecord {
+  overrides: Partial<ElementChangeRecord> & { cid: string; file: string; property: string; line?: number },
+): ElementChangeRecord {
   return {
     line: 42,
     selector: `[data-cid="${overrides.cid}"][data-src*="${overrides.file}:${overrides.line ?? 42}"]`,
@@ -222,6 +222,27 @@ describe("generatePrompt", () => {
     });
     const out = generatePrompt([r], { framework: "React", stylingSystem: "vanilla-extract (sprinkles)" });
     expect(out).toContain("Framework: React + vanilla-extract (sprinkles)");
+  });
+
+  it("renders global token edits separately with source, context and fallback", () => {
+    const out = generatePrompt([{
+      kind: "token",
+      tokenName: "--color-text",
+      file: "src/theme.css",
+      line: 6,
+      selector: ':root[data-theme="dark"]',
+      property: "--color-text",
+      rawValue: "var(--color-neutral-100)",
+      oldRawValue: "#eeeeee",
+      context: {},
+      contextLabel: 'root[data-theme="dark"]',
+      source: { file: "src/theme.css", line: 6, component: "Global token" },
+    }]);
+    expect(out).toContain("## Global token changes");
+    expect(out).toContain('`--color-text` (root[data-theme="dark"], src/theme.css:6)');
+    expect(out).toContain('`#eeeeee` → `var(--color-neutral-100)`');
+    expect(out).toContain('`--color-text` in `:root[data-theme="dark"]`');
+    expect(out).not.toContain("### Global token");
   });
 });
 

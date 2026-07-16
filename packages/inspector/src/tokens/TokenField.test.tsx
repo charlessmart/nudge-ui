@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createElement } from "react";
-import { TokenField } from "./TokenField.tsx";
+import { TokenField, TokenValueField } from "./TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "./resolution.ts";
 import { resetPendingRules, getChangeRecords } from "./editActions.ts";
@@ -152,5 +152,30 @@ describe("TokenField", () => {
 
     expect(sheetText()).toContain("font-size: var(--font-size-base);");
     expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain("--font-size-base");
+  });
+
+  it("always renders a native picker for a raw color and commits its value", () => {
+    const onCommitRaw = vi.fn();
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenValueField, {
+      property: "--color-brand",
+      committedValue: "#112233",
+      resolvedValue: "#112233",
+      entries: [],
+      isColor: true,
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    const picker = handle.host.querySelector('[data-test="token-color-input"]') as HTMLInputElement;
+    expect(picker).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-color-swatch"]')).not.toBeNull();
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(picker, "#abcdef");
+      picker.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(onCommitRaw).toHaveBeenCalledWith("#abcdef");
+    selected.domElement.remove();
   });
 });

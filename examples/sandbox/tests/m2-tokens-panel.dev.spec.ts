@@ -5,6 +5,8 @@ async function fieldState(page: import("@playwright/test").Page): Promise<{
   backgroundToken: string;
   borderRadiusToken: string;
   paddingToken: string;
+  borderRadiusRaw: string;
+  paddingRaw: string;
 }> {
   return await page.evaluate(() => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
@@ -12,16 +14,22 @@ async function fieldState(page: import("@playwright/test").Page): Promise<{
       const field = sr?.querySelector(`[data-test="token-field"][data-property="${property}"]`);
       return field?.querySelector('[data-test="token-chip"]')?.textContent?.trim() ?? "";
     };
+    const rawValue = (property: string): string => {
+      const field = sr?.querySelector(`[data-test="token-field"][data-property="${property}"]`);
+      return (field?.querySelector('[data-test="raw-input"]') as HTMLInputElement | null)?.value ?? "";
+    };
     return {
       topTokenPanel: Boolean(sr?.querySelector('[data-test="tokens-panel"]')),
       backgroundToken: fieldValue("background-color"),
       borderRadiusToken: fieldValue("border-radius"),
       paddingToken: fieldValue("padding-top"),
+      borderRadiusRaw: rawValue("border-radius"),
+      paddingRaw: rawValue("padding-top"),
     };
   });
 }
 
-test("dev: style editors expose tokens in their relevant value fields", async ({ page }) => {
+test("dev: style editors expose token-backed and raw values in their relevant fields", async ({ page }) => {
   await page.goto("/");
 
   await page.click("text=Save");
@@ -31,8 +39,10 @@ test("dev: style editors expose tokens in their relevant value fields", async ({
     .toEqual({
       topTokenPanel: false,
       backgroundToken: "--color-surface-raised",
-      borderRadiusToken: "--space-1",
-      paddingToken: "--space-1",
+      borderRadiusToken: "",
+      paddingToken: "",
+      borderRadiusRaw: "999px",
+      paddingRaw: "0px",
     });
 });
 
@@ -42,21 +52,22 @@ test("dev: relevant value fields update when the selection steps up the hierarch
   await page.click("text=Save");
 
   await expect
-    .poll(async () => (await fieldState(page)).paddingToken, { timeout: 5000 })
-    .toBe("--space-1");
+    .poll(async () => (await fieldState(page)).borderRadiusRaw, { timeout: 5000 })
+    .toBe("999px");
 
   await page.keyboard.press("ArrowUp");
 
   await expect
-    .poll(async () => (await fieldState(page)).paddingToken, { timeout: 5000 })
-    .toBe("--space-2");
+    .poll(async () => (await fieldState(page)).borderRadiusRaw, { timeout: 5000 })
+    .toBe("0px");
 });
 
 test("dev: spacing token suggestions exclude color and typography tokens", async ({ page }) => {
   await page.goto("/");
   await page.click("text=Save");
 
-  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="token-chip"]').click();
+  const input = page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]');
+  await input.fill("");
 
   await expect
     .poll(async () => {

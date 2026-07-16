@@ -1,9 +1,10 @@
 import { useSyncExternalStore } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { applyRules, verifyPreview } from "./managedStylesheet.ts";
-import type { PreviewResult, StyleRule } from "./managedStylesheet.ts";
+import type { PreviewResult, StyleRule, StyleRuleContext } from "./managedStylesheet.ts";
 
-export interface ChangeRecord {
+export interface ElementChangeRecord {
+  kind?: "element";
   cid: string;
   file: string;
   line: number;
@@ -17,6 +18,32 @@ export interface ChangeRecord {
   scope?: "source-site" | "instance-preview";
   instanceEvidence?: { renderedIndex: number; props: string | null; text: string | null };
   previewResult?: PreviewResult;
+}
+
+export interface TokenChangeRecord {
+  kind: "token";
+  tokenName: string;
+  file: string;
+  line: number;
+  selector: string;
+  property: string;
+  rawValue: string;
+  oldRawValue: string;
+  context: StyleRuleContext;
+  contextLabel: string;
+  source: { file: string; line: number; component: string };
+  cid?: undefined;
+  oldToken?: null;
+  newToken?: null;
+  scope?: undefined;
+  instanceEvidence?: undefined;
+  previewResult?: PreviewResult;
+}
+
+export type ChangeRecord = ElementChangeRecord | TokenChangeRecord;
+
+export function isTokenChange(change: ChangeRecord): change is TokenChangeRecord {
+  return change.kind === "token";
 }
 
 let changes: ChangeRecord[] = [];
@@ -41,20 +68,26 @@ function notify(): void {
 }
 
 function recordValue(rec: ChangeRecord): string {
+  if (isTokenChange(rec)) return rec.rawValue;
   if (rec.newToken) return `var(${rec.newToken.name})`;
   if (rec.rawValue !== undefined) return rec.rawValue;
   return "";
 }
 
 function ruleKey(rec: ChangeRecord): string {
-  return `${rec.selector}\u0000${rec.property}`;
+  const context = isTokenChange(rec) ? JSON.stringify(rec.context) : "";
+  return `${rec.selector}\u0000${rec.property}\u0000${context}`;
 }
 
 function changeKey(rec: ChangeRecord): string {
+  if (isTokenChange(rec)) {
+    return ["token", rec.tokenName, rec.file, rec.line, rec.selector, JSON.stringify(rec.context)].join("\u0000");
+  }
   return [rec.cid, rec.file, rec.line, rec.selector, rec.scope ?? "source-site", rec.property].join("\u0000");
 }
 
 function baselineValue(rec: ChangeRecord): string {
+  if (isTokenChange(rec)) return rec.oldRawValue;
   if (rec.oldToken) return `var(${rec.oldToken.name})`;
   return rec.oldRawValue ?? "";
 }
@@ -75,7 +108,11 @@ export function getPendingRules(): StyleRule[] {
     if (existing) {
       existing.declarations[rec.property] = value;
     } else {
-      map.set(key, { selector: rec.selector, declarations: { [rec.property]: value } });
+      map.set(key, {
+        selector: rec.selector,
+        declarations: { [rec.property]: value },
+        context: isTokenChange(rec) ? rec.context : undefined,
+      });
     }
   }
   return Array.from(map.values());
@@ -85,7 +122,12 @@ function reapply(): void {
   applyRules(getPendingRules());
   changes = changes.map((change) => {
     const requestedValue = recordValue(change);
-    const targets = Array.from(document.querySelectorAll<HTMLElement>(change.selector));
+    let targets: HTMLElement[] = [];
+    try {
+      targets = Array.from(document.querySelectorAll<HTMLElement>(change.selector));
+    } catch {
+      targets = [];
+    }
     const results = targets.length === 0
       ? [verifyPreview(null, change.property, requestedValue)]
       : targets.map((target) => verifyPreview(target, change.property, requestedValue));
@@ -97,7 +139,13 @@ export function appendChange(change: ChangeRecord): void {
   const before = changes;
   const key = changeKey(change);
   const existing = changes.find((candidate) => changeKey(candidate) === key);
-  const canonical = existing ? { ...change, oldToken: existing.oldToken, oldRawValue: existing.oldRawValue } : change;
+  const canonical = existing
+    ? isTokenChange(change) && isTokenChange(existing)
+      ? { ...change, oldRawValue: existing.oldRawValue }
+      : !isTokenChange(change) && !isTokenChange(existing)
+        ? { ...change, oldToken: existing.oldToken, oldRawValue: existing.oldRawValue }
+        : change
+    : change;
   const next = changes.filter((candidate) => changeKey(candidate) !== key);
   const nextChanges = recordValue(canonical) !== baselineValue(canonical) ? [...next, canonical] : next;
   if (sameEffectiveChanges(before, nextChanges)) return;

@@ -569,6 +569,30 @@ export function getResolvedProperties(
 
   return result;
 }
+
+const TRANSIENT_SELECTOR = /:(?:hover|active|focus|focus-visible|focus-within|visited|target)(?:\b|\()/;
+
+/**
+ * Finds the authored token-backed declaration beneath a transient interaction
+ * state. This keeps an editor linked to its stable token when selection occurs
+ * while the element is hovered, while getResolvedProperties remains honest
+ * about the value currently painted by that transient rule.
+ */
+export function getStableTokenProperty(
+  el: HTMLElement,
+  properties: string[],
+  tokenTable: TokenTable,
+): ResolvedProperty | null {
+  const doc = el.ownerDocument ?? document;
+  const { rules } = collectRules(doc);
+  const stableRules = rules.filter((rule) => !TRANSIENT_SELECTOR.test(rule.selectorText));
+  const rows = resolvePropertiesFromRules(el, stableRules, tokenTable);
+  for (const property of properties) {
+    const row = rows.find((candidate) => candidate.property === property && candidate.tokenName);
+    if (row) return row;
+  }
+  return null;
+}
 import { useEffect, useState } from "react";
 import type { SelectedElement } from "../selectionStore.ts";
 

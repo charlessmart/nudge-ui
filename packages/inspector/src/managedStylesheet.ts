@@ -1,6 +1,14 @@
 export interface StyleRule {
   selector: string;
   declarations: Record<string, string>;
+  context?: StyleRuleContext;
+}
+
+export interface StyleRuleContext {
+  media?: string;
+  supports?: string;
+  scope?: string;
+  layer?: string;
 }
 
 export type PreviewConflictReason = "higher-specificity" | "inline-style" | "important" | "animation" | "transition" | "target-missing";
@@ -23,7 +31,18 @@ export function ensureManagedSheet(): CSSStyleSheet {
     el.setAttribute("data-design-tool", "managed");
     doc.head.appendChild(el);
   }
-  const sheet = el.sheet;
+  let sheet = el.sheet;
+  if (!sheet) {
+    // A browser may reject a newly-authored conditional rule (or a test DOM may
+    // not implement it). Recreate the managed element so later clear/revert
+    // operations can always recover instead of leaving history wedged.
+    el.remove();
+    el = doc.createElement("style");
+    el.id = SHEET_ID;
+    el.setAttribute("data-design-tool", "managed");
+    doc.head.appendChild(el);
+    sheet = el.sheet;
+  }
   if (!sheet) {
     throw new Error("design-tool managed stylesheet could not be initialised");
   }
@@ -48,7 +67,12 @@ function buildDeclarationsBody(declarations: Record<string, string>): string {
 function buildRuleText(rule: StyleRule): string {
   const body = buildDeclarationsBody(rule.declarations);
   if (!body) return "";
-  return `${rule.selector} { ${body} }`;
+  let text = `${rule.selector} { ${body} }`;
+  if (rule.context?.scope) text = `@scope ${rule.context.scope} { ${text} }`;
+  if (rule.context?.supports) text = `@supports ${rule.context.supports} { ${text} }`;
+  if (rule.context?.media) text = `@media ${rule.context.media} { ${text} }`;
+  if (rule.context?.layer) text = `@layer ${rule.context.layer} { ${text} }`;
+  return text;
 }
 
 export function rulesToCssText(rules: StyleRule[]): string {
@@ -93,13 +117,14 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
   }
   const computed = getComputedStyle(el);
   const computedValue = computed.getPropertyValue(property).trim();
-  const probe = document.createElement(el.tagName.toLowerCase());
+  const probe = document.createElement(property.startsWith("--") ? "span" : el.tagName.toLowerCase());
   probe.setAttribute("data-design-tool", "value-probe");
   probe.style.setProperty(property, requestedValue);
   probe.style.setProperty("position", "fixed", "important");
   probe.style.setProperty("visibility", "hidden", "important");
   probe.removeAttribute("id");
-  el.parentElement?.insertBefore(probe, el.nextSibling);
+  if (property.startsWith("--")) el.appendChild(probe);
+  else el.parentElement?.insertBefore(probe, el.nextSibling);
   if (!probe.isConnected) document.body.appendChild(probe);
   const expectedValue = getComputedStyle(probe).getPropertyValue(property).trim() || requestedValue.trim();
   probe.remove();

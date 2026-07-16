@@ -3,7 +3,6 @@
   position: fixed;
   pointer-events: none;
   outline-offset: -2px;
-  z-index: 2147483646;
 }
 
 .dt-hover-outline {

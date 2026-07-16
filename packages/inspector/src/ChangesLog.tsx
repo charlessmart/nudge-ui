@@ -1,13 +1,13 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
-import { useChanges, revertChange } from "./changesLog.ts";
+import { isTokenChange, useChanges, revertChange } from "./changesLog.ts";
 import type { ChangeRecord } from "./changesLog.ts";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { Button } from "./ui/Button.tsx";
 
 interface Group {
   key: string;
-  cid: string;
+  label: string;
   file: string;
   changes: ChangeRecord[];
 }
@@ -15,10 +15,17 @@ interface Group {
 function groupChanges(changes: ChangeRecord[]): Group[] {
   const map = new Map<string, Group>();
   for (const change of changes) {
-    const key = [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site"].join("\u0000");
+    const key = isTokenChange(change)
+      ? ["token", change.tokenName, change.file, change.line, change.contextLabel].join("\u0000")
+      : [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site"].join("\u0000");
     let group = map.get(key);
     if (!group) {
-      group = { key, cid: change.cid, file: change.file, changes: [] };
+      group = {
+        key,
+        label: isTokenChange(change) ? `Global token · ${change.tokenName}` : change.cid,
+        file: change.file,
+        changes: [],
+      };
       map.set(key, group);
     }
     group.changes.push(change);
@@ -27,12 +34,14 @@ function groupChanges(changes: ChangeRecord[]): Group[] {
 }
 
 function displayBefore(rec: ChangeRecord): string {
+  if (isTokenChange(rec)) return rec.oldRawValue;
   if (rec.oldToken) return rec.oldToken.name;
   if (rec.rawValue !== undefined && rec.newToken) return rec.rawValue;
   return "(original)";
 }
 
 function displayAfter(rec: ChangeRecord): string {
+  if (isTokenChange(rec)) return rec.rawValue;
   if (rec.newToken) return rec.newToken.name;
   if (rec.rawValue !== undefined) return rec.rawValue;
   return "";
@@ -52,13 +61,13 @@ export function ChangesLog(): ReactElement {
         </div>
       ) : (
         groups.map((group) => (
-          <div className="dt-changes__group" data-test="changes-group" key={group.key} data-cid={group.cid}>
+          <div className="dt-changes__group" data-test="changes-group" key={group.key} data-cid={group.label}>
             <div className="dt-changes__group-title">
-              {group.cid} <span className="dt-changes__group-file">{group.file}</span>
+              {group.label} <span className="dt-changes__group-file">{group.file}</span>
             </div>
             {group.changes.map((change, i) => (
               <div className="dt-changes__row" data-test="change-row" key={`${group.key}\u0000${change.property}\u0000${i}`} data-property={change.property}>
-                <span className="dt-changes__prop">{change.property}</span>
+                <span className="dt-changes__prop">{isTokenChange(change) ? change.contextLabel : change.property}</span>
                 <span className="dt-changes__before">{displayBefore(change)}</span>
                 <span className="dt-changes__arrow">→</span>
                 <span className="dt-changes__after">{displayAfter(change)}</span>

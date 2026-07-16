@@ -12,7 +12,7 @@ import {
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
-import { getTokenEntriesForElement, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
+import { getStableTokenProperty, getTokenEntriesForElement, getTokenTable, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
 import type { ResolvedProperty } from "./tokens/resolution.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
@@ -29,9 +29,22 @@ import { Button } from "./ui/Button.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { Breadcrumb } from "./ui/Breadcrumb.tsx";
 import { UI_STYLES } from "./ui/styles.ts";
+import { TokensPanel } from "./tokens/TokensPanel.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
+}
+
+function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
+  for (const property of properties) {
+    const row = findTokenRow(rows, property);
+    if (row?.tokenName) return row;
+  }
+  for (const property of properties) {
+    const row = findTokenRow(rows, property);
+    if (row) return row;
+  }
+  return null;
 }
 
 export { toggleInspector, setInspectorOpen };
@@ -64,6 +77,7 @@ export function InspectorShell(): ReactElement {
   const hierarchyIndex = useHierarchyIndex();
   const [scopeRevision, refreshScope] = useState(0);
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
+  const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
 
   useEffect(() => {
     setInstancePreviewLost(false);
@@ -80,7 +94,7 @@ export function InspectorShell(): ReactElement {
     function onKeydown(event: KeyboardEvent): void {
       const mod = event.metaKey || event.ctrlKey;
 
-      if (!isEditableTarget(event.target) && selected) {
+      if (!isEditableTarget(event.target)) {
         if (mod && !event.shiftKey && event.key.toLowerCase() === "z") {
           event.preventDefault();
           undo();
@@ -106,6 +120,13 @@ export function InspectorShell(): ReactElement {
   const ordered = [...hierarchy].reverse();
   const tokenRows = useResolvedPropertiesDebounced(selected);
   const tokenEntries: TokenEntry[] = selected ? getTokenEntriesForElement(selected.domElement) : tokens;
+  const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
+  const backgroundTokenRow = selected
+    ? paintedBackgroundRow?.tokenName
+      ? paintedBackgroundRow
+      : getStableTokenProperty(selected.domElement, ["background-color", "background"], getTokenTable())
+        ?? paintedBackgroundRow
+    : null;
 
   function refreshSelected(): void {
     if (!selected) return;
@@ -142,8 +163,34 @@ export function InspectorShell(): ReactElement {
           <span>Design Tool</span>
           <span className="dt-panel__state">{isOpen ? "open" : "closed"}</span>
         </div>
+        <div className="dt-panel__tabs" role="tablist" aria-label="Inspector view">
+          <Button
+            variant="quiet"
+            className="dt-panel__tab"
+            role="tab"
+            aria-selected={activeTab === "inspect"}
+            data-active={activeTab === "inspect" ? "true" : "false"}
+            data-test="inspect-tab"
+            onClick={() => setActiveTab("inspect")}
+          >
+            Inspect
+          </Button>
+          <Button
+            variant="quiet"
+            className="dt-panel__tab"
+            role="tab"
+            aria-selected={activeTab === "tokens"}
+            data-active={activeTab === "tokens" ? "true" : "false"}
+            data-test="tokens-tab"
+            onClick={() => setActiveTab("tokens")}
+          >
+            Tokens
+          </Button>
+        </div>
         <div className="dt-panel__body">
-          {selected ? (
+          {activeTab === "tokens" ? (
+            <TokensPanel />
+          ) : selected ? (
             <>
               <div className="dt-selection" data-test="selection">
                 {breadcrumbItems.length > 0 ? (
@@ -225,7 +272,7 @@ export function InspectorShell(): ReactElement {
                   element={selected}
                   property="background-color"
                   entries={tokenEntries}
-                  tokenRow={findTokenRow(tokenRows, "background-color") ?? findTokenRow(tokenRows, "background")}
+                  tokenRow={backgroundTokenRow}
                   onAfterEdit={refreshSelected}
                 />
                 <BorderEditor element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />

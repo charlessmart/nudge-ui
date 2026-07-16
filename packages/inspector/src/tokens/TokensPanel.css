@@ -1,0 +1,107 @@
+.dt-tokens-panel {
+  padding: 14px 0 0;
+}
+
+.dt-tokens-panel__tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--dt-border-subtle);
+}
+
+.dt-tokens-panel__count,
+.dt-token-group__heading span:last-child {
+  color: var(--dt-text-muted-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-token-group {
+  border-bottom: 1px solid var(--dt-border-subtle);
+}
+
+.dt-token-group__heading {
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 0 8px;
+  color: var(--dt-text-primary);
+  font-weight: 700;
+}
+
+.dt-token-row {
+  padding: 10px 0 12px;
+  border-top: 1px solid var(--dt-border-subtle);
+}
+
+.dt-token-group__heading + .dt-token-row {
+  border-top: 0;
+}
+
+.dt-token-row__header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.dt-token-row__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dt-text-primary);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dt-token-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 7px;
+  color: var(--dt-text-muted-subtle);
+  font-size: 10px;
+  word-break: break-all;
+}
+
+.dt-token-variants {
+  margin-top: 8px;
+}
+
+.dt-token-variants summary {
+  color: var(--dt-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.dt-token-variants__list {
+  margin-top: 7px;
+  padding-left: 10px;
+  border-left: 1px solid var(--dt-border-subtle);
+}
+
+.dt-token-variant {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  padding: 5px 0;
+  color: var(--dt-text-muted);
+  font-size: 10px;
+}
+
+.dt-token-variant__context {
+  color: var(--dt-text-secondary);
+}
+
+.dt-token-variant > span:last-child {
+  grid-column: 1 / -1;
+  color: var(--dt-text-muted-subtle);
+}
+
+.dt-tokens-panel__empty {
+  padding: 24px 0;
+  color: var(--dt-text-muted);
+  text-align: center;
+}

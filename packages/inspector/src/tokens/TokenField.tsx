@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { ChevronDown, Unlink2 } from "lucide-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "./resolution.ts";
-import { classifyToken, getAlternativeTokens } from "./TokenDropdown.tsx";
+import { classifyToken, getAlternativeTokens, groupOfProperty } from "./TokenDropdown.tsx";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
@@ -11,6 +11,21 @@ import { valuePolicyFor } from "../styleEditors/valuePolicy.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { ColorSwatch } from "../ui/ColorSwatch.tsx";
+
+export interface TokenValueFieldProps {
+  property: string;
+  committedValue: string;
+  resolvedValue?: string;
+  activeTokenName?: string | null;
+  entries: TokenEntry[];
+  allowedTokenNames?: ReadonlySet<string>;
+  isColor?: boolean;
+  disabled?: boolean;
+  formatRawValue?: (value: string) => string;
+  onCommitRaw(value: string): void;
+  onSelectToken(token: TokenEntry): void;
+  onUnlink(value: string): void;
+}
 
 export interface TokenFieldProps {
   property: string;
@@ -28,12 +43,76 @@ function computedRaw(el: HTMLElement, property: string): string {
   }
 }
 
-export function TokenField(props: TokenFieldProps): ReactElement {
-  const { property, tokenRow, domElement: el, entries, onAfterEdit } = props;
+function rgbToHex(value: string): string | null {
+  const match = value.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/i);
+  if (!match) return null;
+  return `#${[match[1], match[2], match[3]]
+    .map((part) => Math.max(0, Math.min(255, Math.round(Number(part)))).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
 
-  const [rawValue, setRawValue] = useState(
-    tokenRow?.resolvedValue ?? computedRaw(el, property),
+export function colorValueToHex(value: string): string | null {
+  const trimmed = value.trim();
+  const short = trimmed.match(/^#([\da-f])([\da-f])([\da-f])$/i);
+  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase();
+  if (/^#[\da-f]{6}$/i.test(trimmed)) return trimmed.toLowerCase();
+  const directRgb = rgbToHex(trimmed);
+  if (directRgb) return directRgb;
+  if (typeof document === "undefined") return null;
+
+  const probe = document.createElement("span");
+  probe.style.color = "";
+  probe.style.color = trimmed;
+  if (!probe.style.color) return null;
+  document.body.appendChild(probe);
+  const resolved = getComputedStyle(probe).color;
+  probe.remove();
+  return rgbToHex(resolved);
+}
+
+function NativeColorSwatch({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange(value: string): void;
+  disabled?: boolean;
+}): ReactElement {
+  const hex = colorValueToHex(value) ?? "#000000";
+  return (
+    <label className="dt-token-color-control" data-resolved={colorValueToHex(value) ? "true" : "false"}>
+      <ColorSwatch color={colorValueToHex(value) ? value : "transparent"} size="small" data-test="token-color-swatch" />
+      <input
+        className="dt-token-color-control__input"
+        data-test="token-color-input"
+        type="color"
+        value={hex}
+        disabled={disabled}
+        aria-label="Choose color"
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
   );
+}
+
+export function TokenValueField(props: TokenValueFieldProps): ReactElement {
+  const {
+    property,
+    committedValue,
+    resolvedValue = committedValue,
+    activeTokenName: controlledTokenName = null,
+    entries,
+    allowedTokenNames,
+    isColor = false,
+    disabled = false,
+    formatRawValue = (value) => value.trim(),
+    onCommitRaw,
+    onSelectToken,
+    onUnlink,
+  } = props;
+  const [rawValue, setRawValue] = useState(committedValue);
+  const [activeTokenName, setActiveTokenName] = useState<string | null>(controlledTokenName);
   const [isFocused, setIsFocused] = useState(false);
   const [isTokenPickerOpen, setTokenPickerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -41,55 +120,51 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   const cancelOnBlur = useRef(false);
   const isNavigatingSuggestions = useRef(false);
 
-  const rowTokenName = tokenRow?.tokenName ?? null;
-  const rowTokenValue = tokenRow?.resolvedValue ?? "";
-  const [activeToken, setActiveToken] = useState<TokenEntry | null>(() => tokenForRow(tokenRow, entries));
-
   useEffect(() => {
-    setRawValue(tokenRow?.resolvedValue ?? computedRaw(el, property));
-    setActiveToken(tokenForRow(tokenRow, entries));
-  }, [el, property, rowTokenName, rowTokenValue]);
+    setRawValue(committedValue);
+    setActiveTokenName(controlledTokenName);
+  }, [committedValue, controlledTokenName, property]);
 
-  const relevantTokens = useMemo(
-    () => getAlternativeTokens(entries, { property, currentToken: activeToken?.name ?? null }),
-    [activeToken?.name, entries, property],
-  );
-
+  const activeToken = activeTokenName
+    ? entries.find((entry) => entry.name === activeTokenName) ?? { name: activeTokenName, value: resolvedValue, source: "runtime" }
+    : null;
+  const relevantTokens = useMemo(() => {
+    const candidates = allowedTokenNames
+      ? entries.filter((entry) => allowedTokenNames.has(entry.name))
+      : getAlternativeTokens(entries, { property, currentToken: activeTokenName });
+    return candidates.filter((entry) => entry.name !== property);
+  }, [activeTokenName, allowedTokenNames, entries, property]);
   const filteredTokens = useMemo(() => {
     const target = rawValue.toLowerCase();
-    return relevantTokens.filter((entry) => {
-      if (!target) return true;
-      return entry.name.toLowerCase().includes(target) || entry.value.toLowerCase().includes(target);
-    });
+    return relevantTokens.filter((entry) => !target
+      || entry.name.toLowerCase().includes(target)
+      || entry.value.toLowerCase().includes(target));
   }, [rawValue, relevantTokens]);
 
+  function commitRawValue(value = rawValue): void {
+    const formatted = formatRawValue(value);
+    if (!formatted) {
+      setRawValue(committedValue);
+      return;
+    }
+    setRawValue(formatted);
+    setActiveTokenName(null);
+    onCommitRaw(formatted);
+  }
+
   function handleDelink(): void {
-    const value = activeToken?.value ?? tokenRow?.resolvedValue ?? computedRaw(el, property);
-    setStyle(el, property, value);
-    setActiveToken(null);
+    const value = activeToken?.value || resolvedValue || committedValue;
+    setActiveTokenName(null);
     setRawValue(value);
-    onAfterEdit?.();
+    onUnlink(value);
   }
 
   function handleSuggestionSelect(chosen: TokenEntry): void {
     selectedFromPopover.current = true;
     cancelOnBlur.current = false;
-    promoteToToken(el, property, chosen);
-    setActiveToken(chosen);
+    setActiveTokenName(chosen.name);
     setRawValue(chosen.value);
-    onAfterEdit?.();
-  }
-
-  function handleTokenSelect(chosen: TokenEntry): void {
-    swapToken(el, tokenRow?.property ?? property, chosen, activeToken);
-    setActiveToken(chosen);
-    setTokenPickerOpen(false);
-    onAfterEdit?.();
-  }
-
-  function handleRawChange(value: string): void {
-    isNavigatingSuggestions.current = false;
-    setRawValue(value);
+    onSelectToken(chosen);
   }
 
   function handleRawBlur(): void {
@@ -103,66 +178,65 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     setIsFocused(false);
   }
 
-  function handleRawKeyDown(e: React.KeyboardEvent): void {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+  function handleRawKeyDown(event: React.KeyboardEvent): void {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       isNavigatingSuggestions.current = true;
       return;
     }
-
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      setRawValue(tokenRow?.resolvedValue ?? computedRaw(el, property));
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      setRawValue(committedValue);
       cancelOnBlur.current = true;
       setIsFocused(false);
       inputRef.current?.blur();
-    } else if (e.key === "Enter" && !isNavigatingSuggestions.current) {
-      e.preventDefault();
-      e.stopPropagation();
+    } else if (event.key === "Enter" && !isNavigatingSuggestions.current) {
+      event.preventDefault();
+      event.stopPropagation();
       setIsFocused(false);
       inputRef.current?.blur();
     }
   }
 
-  function commitRawValue(): void {
-    const trimmed = rawValue.trim();
-    if (!trimmed) {
-      setRawValue(tokenRow?.resolvedValue ?? computedRaw(el, property));
-      return;
-    }
-    const value = completeCssValue(trimmed, valuePolicyFor(property));
-    if (setStyle(el, property, value)) onAfterEdit?.();
-  }
+  const colorPreview = activeToken ? resolvedValue || activeToken.value : rawValue || resolvedValue;
+  const colorControl = isColor ? (
+    <NativeColorSwatch
+      value={colorPreview}
+      disabled={disabled}
+      onChange={(value) => commitRawValue(value)}
+    />
+  ) : null;
 
   if (activeToken) {
     return (
       <span className="dt-token-field" data-test="token-field" data-property={property}>
+        {colorControl}
         <PopoverListbox
           query=""
           value={activeToken.name}
           open={isTokenPickerOpen}
-          trigger={
+          trigger={(
             <span className="dt-token-chip" data-group={classifyToken(activeToken.name)}>
-              {classifyToken(activeToken.name) === "color" ? <ColorSwatch color={activeToken.value} size="small" /> : null}
               <span className="dt-token-chip__name">{activeToken.name}</span>
               <ChevronDown size={13} strokeWidth={1.75} aria-hidden="true" />
             </span>
-          }
+          )}
           triggerClassName="dt-token-chip__trigger"
           triggerDataTest="token-chip"
           triggerAriaLabel={`Change ${property} token`}
-          items={relevantTokens.map((entry) => tokenSuggestion(entry))}
+          items={relevantTokens.map(tokenSuggestion)}
           onQueryChange={() => undefined}
           onOpenChange={setTokenPickerOpen}
           onSelect={(value) => {
             const chosen = relevantTokens.find((entry) => entry.name === value);
-            if (chosen) handleTokenSelect(chosen);
+            if (chosen) handleSuggestionSelect(chosen);
           }}
         />
         <IconButton
           label="Replace with raw value"
           className="dt-token-field__delink"
           data-test="delink-btn"
+          disabled={disabled}
           onClick={handleDelink}
         >
           <Unlink2 size={14} strokeWidth={1.75} aria-hidden="true" />
@@ -172,9 +246,9 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   }
 
   const showPopover = isFocused && filteredTokens.length > 0;
-
   return (
     <span className="dt-token-field dt-token-field--raw" data-test="token-field" data-property={property}>
+      {colorControl}
       <PopoverListbox
         query={rawValue}
         value={null}
@@ -185,10 +259,13 @@ export function TokenField(props: TokenFieldProps): ReactElement {
         inputOnBlur={handleRawBlur}
         inputOnKeyDown={handleRawKeyDown}
         items={filteredTokens.slice(0, 30).map(tokenSuggestion)}
-        onQueryChange={handleRawChange}
+        onQueryChange={(value) => {
+          isNavigatingSuggestions.current = false;
+          setRawValue(value);
+        }}
         onOpenChange={setIsFocused}
         onSelect={(value) => {
-          const chosen = entries.find((entry) => entry.name === value);
+          const chosen = relevantTokens.find((entry) => entry.name === value);
           if (chosen) handleSuggestionSelect(chosen);
         }}
       />
@@ -196,13 +273,37 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   );
 }
 
-function tokenForRow(tokenRow: ResolvedProperty | null | undefined, entries: TokenEntry[]): TokenEntry | null {
-  if (!tokenRow?.tokenName) return null;
-  return entries.find((entry) => entry.name === tokenRow.tokenName) ?? {
-    name: tokenRow.tokenName,
-    value: tokenRow.resolvedValue,
-    source: tokenRow.evidence.reason,
-  };
+export function TokenField(props: TokenFieldProps): ReactElement {
+  const { property, tokenRow, domElement: el, entries, onAfterEdit } = props;
+  const activeTokenName = tokenRow?.tokenName ?? null;
+  const committedValue = tokenRow?.resolvedValue ?? computedRaw(el, property);
+  const currentToken = activeTokenName
+    ? entries.find((entry) => entry.name === activeTokenName) ?? null
+    : null;
+
+  return (
+    <TokenValueField
+      property={property}
+      committedValue={committedValue}
+      resolvedValue={tokenRow?.resolvedValue ?? committedValue}
+      activeTokenName={activeTokenName}
+      entries={entries}
+      isColor={groupOfProperty(property) === "color"}
+      formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(property))}
+      onCommitRaw={(value) => {
+        if (setStyle(el, property, value)) onAfterEdit?.();
+      }}
+      onSelectToken={(chosen) => {
+        if (activeTokenName) swapToken(el, tokenRow?.property ?? property, chosen, currentToken);
+        else promoteToToken(el, property, chosen);
+        onAfterEdit?.();
+      }}
+      onUnlink={(value) => {
+        setStyle(el, property, value);
+        onAfterEdit?.();
+      }}
+    />
+  );
 }
 
 function tokenSuggestion(entry: TokenEntry) {

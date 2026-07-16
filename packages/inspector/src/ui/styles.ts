@@ -12,6 +12,7 @@ import inspectorShellStyles from "../InspectorShell.css?inline";
 import styleEditorStyles from "../styleEditors/StyleEditor.css?inline";
 import tokenFieldStyles from "../tokens/TokenField.css?inline";
 import tokenDropdownStyles from "../tokens/TokenDropdown.css?inline";
+import tokensPanelStyles from "../tokens/TokensPanel.css?inline";
 import changesLogStyles from "../ChangesLog.css?inline";
 import inspectorOverlayStyles from "../InspectorOverlay.css?inline";
 
@@ -30,6 +31,7 @@ export const UI_STYLES = [
   styleEditorStyles,
   tokenFieldStyles,
   tokenDropdownStyles,
+  tokensPanelStyles,
   changesLogStyles,
   inspectorOverlayStyles,
 ].join("\n");

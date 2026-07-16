@@ -96,7 +96,6 @@ test("dev: replacing a hardcoded spacing value with a token writes a rule to the
   await page.click("text=Save");
   await waitForRow(page);
 
-  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="delink-btn"]').click();
   await selectPromote(page, "padding-top", "--space-2");
 
   await expect
@@ -112,7 +111,6 @@ test("dev: typing a spacing value keeps its matching token suggestion visible", 
   await page.click("text=Save");
   await waitForRow(page);
 
-  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="delink-btn"]').click();
   await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]').fill("8px");
 
   await expect
@@ -129,7 +127,6 @@ test("dev: Enter applies a typed spacing value with no matching token", async ({
   await page.click("text=Save");
   await waitForRow(page);
 
-  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="delink-btn"]').click();
   const input = page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]');
   await input.fill("");
   await input.type("7px");
@@ -149,7 +146,6 @@ test("dev: Enter completes a bare spacing number with px", async ({ page }) => {
   await page.click("text=Save");
   await waitForRow(page);
 
-  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="delink-btn"]').click();
   const input = page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]');
   await input.fill("7");
   await input.press("Enter");
@@ -204,9 +200,7 @@ test("dev: edits survive a React re-render of the host app", async ({ page }) =>
     .poll(async () => sheetText(page), { timeout: 5000 })
     .toContain("--color-surface-sunken");
 
-  const stillSunkenBg = await page.evaluate(() => {
-    const btn = document.querySelector(".btn") as HTMLElement | null;
-    return btn ? getComputedStyle(btn).backgroundColor : "";
-  });
-  expect(stillSunkenBg).toMatch(/245, 245, 245/);
+  await expect
+    .poll(async () => btnBackground(page), { timeout: 5000 })
+    .toBe("rgb(244, 243, 240)");
 });

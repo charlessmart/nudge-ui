@@ -10,7 +10,7 @@ import {
   undo,
   redo,
 } from "./changesLog.ts";
-import type { ChangeRecord } from "./changesLog.ts";
+import type { ChangeRecord, ElementChangeRecord } from "./changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
@@ -22,7 +22,7 @@ function makeRecord(
   newToken: TokenEntry | null,
   oldToken: TokenEntry | null = null,
   rawValue?: string,
-): ChangeRecord {
+): ElementChangeRecord {
   return {
     cid: "Button",
     file: "src/Button.tsx",
@@ -277,5 +277,48 @@ describe("changesLog", () => {
     appendChange(makeRecord("color", null, null, "red"));
     clearChanges();
     expect(document.getElementById("design-tool-styles")?.textContent).toBe("");
+  });
+
+  it("stores global token changes without element identity and preserves their context", () => {
+    appendChange({
+      kind: "token",
+      tokenName: "--color-text",
+      file: "src/theme.css",
+      line: 6,
+      selector: ':root[data-theme="dark"]',
+      property: "--color-text",
+      rawValue: "#eeeeee",
+      oldRawValue: "#dddddd",
+      context: { media: "(prefers-color-scheme: dark)" },
+      contextLabel: 'root[data-theme="dark"]',
+      source: { file: "src/theme.css", line: 6, component: "Global token" },
+    });
+
+    expect(getChangesList()[0]).not.toHaveProperty("cid");
+    expect(getPendingRules()).toEqual([{
+      selector: ':root[data-theme="dark"]',
+      declarations: { "--color-text": "#eeeeee" },
+      context: { media: "(prefers-color-scheme: dark)" },
+    }]);
+  });
+
+  it("deduplicates global token edits against the first authored baseline", () => {
+    const base = {
+      kind: "token" as const,
+      tokenName: "--space-2",
+      file: "src/theme.css",
+      line: 3,
+      selector: ":root",
+      property: "--space-2",
+      context: {},
+      contextLabel: "Default",
+      source: { file: "src/theme.css", line: 3, component: "Global token" as const },
+    };
+    appendChange({ ...base, oldRawValue: "8px", rawValue: "10px" });
+    appendChange({ ...base, oldRawValue: "10px", rawValue: "12px" });
+    expect(getChangesList()).toHaveLength(1);
+    expect(getChangesList()[0]).toMatchObject({ oldRawValue: "8px", rawValue: "12px" });
+    appendChange({ ...base, oldRawValue: "12px", rawValue: "8px" });
+    expect(getChangesList()).toHaveLength(0);
   });
 });
