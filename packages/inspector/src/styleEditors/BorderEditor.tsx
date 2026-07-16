@@ -8,6 +8,7 @@ import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
+import { getStateStyleValue } from "../stateValue.ts";
 
 const BORDER_STYLES = ["none", "solid", "dashed", "dotted", "double", "groove", "ridge"];
 
@@ -39,9 +40,8 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
     ?? findTokenRow(tokenRows, "border");
 
   useEffect(() => {
-    const computed = getComputedStyle(el);
-    setStyleChoice(computed.getPropertyValue("border-top-style") || "solid");
-  }, [el]);
+    setStyleChoice(getStateStyleValue(el, "border-top-style", "solid"));
+  }, [el, tokenRows]);
 
   function handleStyle(s: string): void {
     setStyleChoice(s);

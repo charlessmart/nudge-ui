@@ -7,10 +7,12 @@ import { classifyToken, getAlternativeTokens, groupOfProperty } from "./TokenDro
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
+import { nudgeCssValue } from "../styleEditors/nudgeValue.ts";
 import { valuePolicyFor } from "../styleEditors/valuePolicy.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { ColorSwatch } from "../ui/ColorSwatch.tsx";
+import { getStateStyleValue } from "../stateValue.ts";
 
 export interface TokenValueFieldProps {
   property: string;
@@ -36,11 +38,27 @@ export interface TokenFieldProps {
 }
 
 function computedRaw(el: HTMLElement, property: string): string {
-  try {
-    return getComputedStyle(el).getPropertyValue(property).trim();
-  } catch {
-    return "";
-  }
+  const value = getStateStyleValue(el, property);
+  if (property !== "line-height") return value;
+  return lineHeightPercentage(value, getStateStyleValue(el, "font-size")) ?? value;
+}
+
+function lineHeightPercentage(lineHeight: string, fontSize: string): string | null {
+  const lineHeightPx = parsePixels(lineHeight);
+  const fontSizePx = parsePixels(fontSize);
+  if (lineHeightPx === null || fontSizePx === null || fontSizePx === 0) return null;
+  return `${formatNumber((lineHeightPx / fontSizePx) * 100)}%`;
+}
+
+function parsePixels(value: string): number | null {
+  const match = /^([+-]?(?:(?:\d+\.?\d*)|(?:\.\d+)))px$/i.exec(value.trim());
+  if (!match) return null;
+  const number = Number(match[1]);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatNumber(value: number): string {
+  return String(Number(value.toFixed(12)));
 }
 
 function rgbToHex(value: string): string | null {
@@ -179,6 +197,19 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   }
 
   function handleRawKeyDown(event: React.KeyboardEvent): void {
+    const direction = arrowDirection(event.key);
+    if (direction && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      const next = nudgeCssValue(property, rawValue, direction, event.shiftKey);
+      if (next) {
+        event.preventDefault();
+        event.stopPropagation();
+        isNavigatingSuggestions.current = false;
+        setRawValue(next);
+        setActiveTokenName(null);
+        onCommitRaw(next);
+        return;
+      }
+    }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       isNavigatingSuggestions.current = true;
       return;
@@ -271,6 +302,12 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       />
     </span>
   );
+}
+
+function arrowDirection(key: string): -1 | 1 | null {
+  if (key === "ArrowUp" || key === "ArrowRight") return 1;
+  if (key === "ArrowDown" || key === "ArrowLeft") return -1;
+  return null;
 }
 
 export function TokenField(props: TokenFieldProps): ReactElement {

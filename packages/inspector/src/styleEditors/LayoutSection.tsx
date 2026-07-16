@@ -5,6 +5,7 @@ import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { setStyle } from "./styleActions.ts";
 import { Button } from "../ui/Button.tsx";
+import { getStateStyleValue } from "../stateValue.ts";
 
 const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
@@ -359,9 +360,5 @@ function useComputedLayoutValue(
 }
 
 function readLayoutValue(domElement: HTMLElement, property: string, fallback: string): string {
-  try {
-    return getComputedStyle(domElement).getPropertyValue(property).trim() || fallback;
-  } catch {
-    return fallback;
-  }
+  return getStateStyleValue(domElement, property, fallback);
 }

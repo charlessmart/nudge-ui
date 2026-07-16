@@ -104,6 +104,67 @@ describe("TokenField", () => {
     expect(sheetText()).toContain(`${property}: ${expected};`);
   });
 
+  it("normalises a computed pixel line-height to the percentage editing default", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "line-height": "24px", "font-size": "16px" });
+    handle = mount(createElement(TokenField, {
+      property: "line-height",
+      domElement: selected.domElement,
+      entries: [],
+    }));
+
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("150%");
+  });
+
+  it("nudges a raw numeric field immediately and keeps one current style value", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "padding-top": "16px" });
+    handle = mount(createElement(TokenField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      entries: [],
+    }));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }));
+    });
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "ArrowDown",
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+
+    expect(input.value).toBe("9px");
+    expect(sheetText()).toContain("padding-top: 9px;");
+    expect(getChangeRecords()).toHaveLength(1);
+  });
+
+  it("nudges an active global line-height token through the shared raw field", () => {
+    const onCommitRaw = vi.fn();
+    handle = mount(createElement(TokenValueField, {
+      property: "--line-height-body",
+      committedValue: "1.5",
+      entries: [],
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }));
+    });
+
+    expect(input.value).toBe("160%");
+    expect(onCommitRaw).toHaveBeenCalledWith("160%");
+  });
+
   it("renders a token-backed value as an inline chip", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {

@@ -151,4 +151,31 @@ describe("LayoutComboField", () => {
 
     expect(sheetText()).toContain("row-gap: 12px;");
   });
+
+  it("nudges a custom layout value immediately", () => {
+    const { el } = makeSelected();
+    mockComputedStyle({ "row-gap": "12px" });
+    handle = mount(
+      createElement(LayoutComboField, {
+        property: "row-gap",
+        presets: ["0", "1rem"],
+        domElement: el,
+      }),
+    );
+    const select = handle.host.querySelector('[data-test="layout-combo-select-row-gap"]') as HTMLSelectElement;
+    setSelectValue(select, "__custom__");
+    const input = handle.host.querySelector('[data-test="layout-combo-input-row-gap"]') as HTMLInputElement;
+
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "ArrowUp",
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+
+    expect(input.value).toBe("20px");
+    expect(sheetText()).toContain("row-gap: 20px;");
+  });
 });

@@ -9,6 +9,7 @@ import {
   getChangeRecords,
 } from "./editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
+import { setActiveStyleState } from "../styleState.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");
@@ -48,11 +49,13 @@ describe("buildSelector", () => {
 
 describe("swapToken", () => {
   beforeEach(() => {
+    setActiveStyleState("base");
     resetPendingRules();
     document.body.innerHTML = "";
     document.getElementById("design-tool-styles")?.remove();
   });
   afterEach(() => {
+    setActiveStyleState("base");
     resetPendingRules();
     document.body.innerHTML = "";
     document.getElementById("design-tool-styles")?.remove();
@@ -66,6 +69,15 @@ describe("swapToken", () => {
     const text = sheet.textContent ?? "";
     expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(text).toContain("background: var(--color-blue);");
+  });
+
+  it("writes a state-qualified selector and preserves the state on the change", () => {
+    const btn = makeButton();
+    setActiveStyleState("hover");
+    const rec = swapToken(btn, "background", COLOR_BLUE, COLOR_RAISED);
+    expect(rec?.state).toBe("hover");
+    expect(rec?.selector).toContain(':hover');
+    expect(document.getElementById("design-tool-styles")?.textContent).toContain(':hover');
   });
 
   it("recorded change record carries cid, file, selector, property, old/new token", () => {

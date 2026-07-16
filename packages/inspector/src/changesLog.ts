@@ -18,6 +18,7 @@ export interface ElementChangeRecord {
   scope?: "source-site" | "instance-preview";
   instanceEvidence?: { renderedIndex: number; props: string | null; text: string | null };
   previewResult?: PreviewResult;
+  state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";
 }
 
 export interface TokenChangeRecord {
@@ -83,7 +84,7 @@ function changeKey(rec: ChangeRecord): string {
   if (isTokenChange(rec)) {
     return ["token", rec.tokenName, rec.file, rec.line, rec.selector, JSON.stringify(rec.context)].join("\u0000");
   }
-  return [rec.cid, rec.file, rec.line, rec.selector, rec.scope ?? "source-site", rec.property].join("\u0000");
+  return [rec.cid, rec.file, rec.line, rec.selector, rec.scope ?? "source-site", rec.state ?? "base", rec.property].join("\u0000");
 }
 
 function baselineValue(rec: ChangeRecord): string {

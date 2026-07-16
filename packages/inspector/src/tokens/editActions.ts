@@ -6,6 +6,8 @@ import {
 } from "../changesLog.ts";
 import type { ChangeRecord, ElementChangeRecord } from "../changesLog.ts";
 import { getEditScope, getInstanceEvidence, selectorForElement, sourceSiteSelector } from "../editScope.ts";
+import { getActiveStyleState, selectorForInteractionState } from "../styleState.ts";
+import { getStateStyleValue } from "../stateValue.ts";
 
 export type { ChangeRecord } from "../changesLog.ts";
 export { getPendingRules, getChangesList as getChangeRecords, clearChanges as resetPendingRules } from "../changesLog.ts";
@@ -19,6 +21,12 @@ function scopeFields(el: HTMLElement) {
   return { scope, instanceEvidence: scope === "instance-preview" ? getInstanceEvidence(el) : undefined };
 }
 
+function stateFields(el: HTMLElement) {
+  const state = getActiveStyleState();
+  const selector = selectorForElement(el);
+  return { state, selector: selector ? selectorForInteractionState(selector, state) : null };
+}
+
 export function swapToken(
   el: HTMLElement,
   property: string,
@@ -27,7 +35,7 @@ export function swapToken(
 ): ElementChangeRecord | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
-  const selector = selectorForElement(el);
+  const { selector, state } = stateFields(el);
   if (!selector) return null;
   const parsed = parseDataSrc(src);
   const file = parsed ? parsed.file : src;
@@ -42,6 +50,7 @@ export function swapToken(
     oldToken,
     newToken,
     source: { file, line, component: cid },
+    state,
     ...scopeFields(el),
   };
   appendChange(record);
@@ -51,20 +60,13 @@ export function swapToken(
 export function setStyle(el: HTMLElement, property: string, value: string): ElementChangeRecord | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
-  const selector = selectorForElement(el);
+  const { selector, state } = stateFields(el);
   if (!selector) return null;
   const parsed = parseDataSrc(src);
   const file = parsed ? parsed.file : src;
   const line = parsed ? parsed.line : 0;
 
-  const oldRawValue = (() => {
-    try {
-      const v = getComputedStyle(el).getPropertyValue(property);
-      return v.trim() || undefined;
-    } catch {
-      return undefined;
-    }
-  })();
+  const oldRawValue = getStateStyleValue(el, property) || undefined;
 
   const record: ElementChangeRecord = {
     cid,
@@ -77,6 +79,7 @@ export function setStyle(el: HTMLElement, property: string, value: string): Elem
     rawValue: value,
     oldRawValue,
     source: { file, line, component: cid },
+    state,
     ...scopeFields(el),
   };
   appendChange(record);

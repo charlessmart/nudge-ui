@@ -20,9 +20,11 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
   const el = element.domElement;
   const allEntries = entries ?? tokens;
 
-  const computedValue = typeof window !== "undefined"
+  // `tokenRow` is state-aware. Prefer it so selecting a hovered element still
+  // presents its Base value instead of the value currently painted by :hover.
+  const computedValue = tokenRow?.resolvedValue ?? (typeof window !== "undefined"
     ? getComputedStyle(el).getPropertyValue(property).trim()
-    : "";
+    : "");
 
   return (
     <div className="dt-editor" data-test="color-picker" data-property={property}>

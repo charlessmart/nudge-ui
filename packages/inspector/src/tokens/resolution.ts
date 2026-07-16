@@ -1,5 +1,7 @@
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokenCatalog, tokens } from "virtual:design-tokens";
+import { INTERACTION_STATES } from "../styleState.ts";
+import type { InteractionState } from "../styleState.ts";
 
 export interface ResolvedProperty {
   property: string;
@@ -570,6 +572,55 @@ export function getResolvedProperties(
   return result;
 }
 
+const INTERACTION_SELECTOR = /:(hover|active|focus-visible|focus|disabled)(?:\b|\()/g;
+
+function selectorForState(selector: string, state: InteractionState): string | null {
+  const states = new Set<string>();
+  INTERACTION_SELECTOR.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = INTERACTION_SELECTOR.exec(selector)) !== null) states.add(match[1]!);
+  if (state === "base") return states.size === 0 ? selector : null;
+  if (!states.has(state)) return states.size === 0 ? selector : null;
+  // CSSOM cannot ask the browser whether a hypothetical pseudo-class matches.
+  // Removing interaction pseudo-classes gives the authored rule a stable
+  // element match for inspection. The real rule remains untouched.
+  return selector.replace(INTERACTION_SELECTOR, "");
+}
+
+/**
+ * Resolve the authored cascade for a chosen interaction state without relying
+ * on the pointer's current location. This is intentionally attribution-first:
+ * values with no authored declaration still fall back to the browser's live
+ * computed value in the field layer.
+ */
+export function getResolvedPropertiesForState(
+  el: HTMLElement,
+  tokenTable: TokenTable,
+  state: InteractionState,
+): ResolvedProperty[] {
+  const doc = el.ownerDocument ?? document;
+  const { rules } = collectRules(doc);
+  const stateRules = rules.flatMap((rule) => {
+    const selectorText = selectorForState(rule.selectorText, state);
+    return selectorText ? [{ ...rule, selectorText }] : [];
+  });
+  return resolvePropertiesFromRules(el, stateRules, tokenTable);
+}
+
+export function getAvailableInteractionStates(el: HTMLElement): InteractionState[] {
+  const doc = el.ownerDocument ?? document;
+  const { rules } = collectRules(doc);
+  const available: InteractionState[] = ["base"];
+  for (const state of INTERACTION_STATES) {
+    const relevant = rules.some((rule) => {
+      const selector = selectorForState(rule.selectorText, state);
+      return selector !== null && rule.selectorText.includes(`:${state}`) && matchingSelectorBranch(el, selector) !== null;
+    });
+    if (relevant) available.push(state);
+  }
+  return available;
+}
+
 const TRANSIENT_SELECTOR = /:(?:hover|active|focus|focus-visible|focus-within|visited|target)(?:\b|\()/;
 
 /**
@@ -598,6 +649,7 @@ import type { SelectedElement } from "../selectionStore.ts";
 
 export function useResolvedPropertiesDebounced(
   selected: SelectedElement | null,
+  state: InteractionState = "base",
 ): ResolvedProperty[] {
   const [rows, setRows] = useState<ResolvedProperty[]>([]);
   useEffect(() => {
@@ -608,12 +660,12 @@ export function useResolvedPropertiesDebounced(
     let cancelled = false;
     const handle = setTimeout(() => {
       if (cancelled) return;
-      setRows(getResolvedProperties(selected.domElement, getTokenTable()));
+      setRows(getResolvedPropertiesForState(selected.domElement, getTokenTable(), state));
     }, 60);
     return () => {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [selected]);
+  }, [selected, state]);
   return rows;
 }

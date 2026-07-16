@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { setStyle } from "./styleActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
+import { nudgeCssValue } from "./nudgeValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 import { Select } from "../ui/Select.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
+import { getStateStyleValue } from "../stateValue.ts";
 
 const CUSTOM_KEY = "__custom__";
 
@@ -21,7 +23,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
   const { property, presets, domElement: el, compact, revision = 0, onAfterEdit } = props;
 
   const [currentValue, setCurrentValue] = useState(() =>
-    getComputedStyle(el).getPropertyValue(property).trim(),
+    getStateStyleValue(el, property),
   );
   const [customValue, setCustomValue] = useState(currentValue);
   const [showCustom, setShowCustom] = useState(false);
@@ -29,7 +31,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
 
   useEffect(() => {
     try {
-      const cv = getComputedStyle(el).getPropertyValue(property).trim();
+      const cv = getStateStyleValue(el, property);
       setCurrentValue(cv);
       setCustomValue(cv);
     } catch {
@@ -67,6 +69,16 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
   }
 
   function handleCustomKeyDown(e: React.KeyboardEvent): void {
+    const direction = arrowDirection(e.key);
+    if (direction && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      const next = nudgeCssValue(property, customValue, direction, e.shiftKey);
+      if (next) {
+        e.preventDefault();
+        e.stopPropagation();
+        commit(next);
+        return;
+      }
+    }
     if (e.key === "Enter") {
       handleCustomApply();
     } else if (e.key === "Escape") {
@@ -108,4 +120,10 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       ) : null}
     </span>
   );
+}
+
+function arrowDirection(key: string): -1 | 1 | null {
+  if (key === "ArrowUp" || key === "ArrowRight") return 1;
+  if (key === "ArrowDown" || key === "ArrowLeft") return -1;
+  return null;
 }

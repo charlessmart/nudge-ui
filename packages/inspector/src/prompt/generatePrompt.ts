@@ -27,7 +27,7 @@ function recordKey(change: ChangeRecord): string {
   if (isTokenChange(change)) {
     return ["token", change.tokenName, change.file, change.line, change.selector, JSON.stringify(change.context)].join("\u0000");
   }
-  return [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site", change.property].join("\u0000");
+  return [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site", change.state ?? "base", change.property].join("\u0000");
 }
 
 function deduplicateChanges(changes: ChangeRecord[]): ChangeRecord[] {
@@ -54,7 +54,7 @@ function deduplicateChanges(changes: ChangeRecord[]): ChangeRecord[] {
 function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
   const map = new Map<string, ElementGroup>();
   for (const change of changes) {
-    const key = [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site"].join("\u0000");
+    const key = [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site", change.state ?? "base"].join("\u0000");
     let group = map.get(key);
     if (!group) {
       group = {
@@ -124,7 +124,8 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
   if (elementGroups.length > 0) {
     lines.push("## Changes", "");
     for (const group of elementGroups) {
-      lines.push(`### ${group.cid} (${group.file}:${group.line})`);
+      const state = group.changes[0]?.state ?? "base";
+      lines.push(`### ${group.cid} (${group.file}:${group.line}) · ${state}`);
       for (const change of group.changes) {
         lines.push(elementChangeLine(change));
         if (change.scope === "instance-preview" && change.instanceEvidence) {

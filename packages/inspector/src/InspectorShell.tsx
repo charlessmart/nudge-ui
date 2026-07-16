@@ -12,7 +12,7 @@ import {
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
-import { getStableTokenProperty, getTokenEntriesForElement, getTokenTable, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
+import { getAvailableInteractionStates, getStableTokenProperty, getTokenEntriesForElement, getTokenTable, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
 import type { ResolvedProperty } from "./tokens/resolution.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
@@ -30,6 +30,9 @@ import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { Breadcrumb } from "./ui/Breadcrumb.tsx";
 import { UI_STYLES } from "./ui/styles.ts";
 import { TokensPanel } from "./tokens/TokensPanel.tsx";
+import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
+import type { InteractionState } from "./styleState.ts";
+import { isEditableTarget } from "./shortcuts.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -60,12 +63,6 @@ function resolveHost(): HTMLElement {
   return inspectorHost ?? document.getElementById("design-tool-root") ?? document.body;
 }
 
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
-}
-
 function sourceLabel(selected: SelectedElement): string {
   return `${selected.file}:${selected.line}:${selected.column}`;
 }
@@ -78,6 +75,14 @@ export function InspectorShell(): ReactElement {
   const [scopeRevision, refreshScope] = useState(0);
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
+  const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
+
+  useEffect(() => {
+    // A new selection should never inherit an incidental state from the
+    // previous element. Base is the inspector's deliberate default.
+    setActiveStyleState("base");
+    setStyleState("base");
+  }, [selected?.domElement]);
 
   useEffect(() => {
     setInstancePreviewLost(false);
@@ -118,14 +123,15 @@ export function InspectorShell(): ReactElement {
   }, [isOpen, selected]);
 
   const ordered = [...hierarchy].reverse();
-  const tokenRows = useResolvedPropertiesDebounced(selected);
+  const tokenRows = useResolvedPropertiesDebounced(selected, styleState);
   const tokenEntries: TokenEntry[] = selected ? getTokenEntriesForElement(selected.domElement) : tokens;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
   const backgroundTokenRow = selected
     ? paintedBackgroundRow?.tokenName
       ? paintedBackgroundRow
-      : getStableTokenProperty(selected.domElement, ["background-color", "background"], getTokenTable())
+      : styleState === "base" ? getStableTokenProperty(selected.domElement, ["background-color", "background"], getTokenTable())
         ?? paintedBackgroundRow
+        : paintedBackgroundRow
     : null;
 
   function refreshSelected(): void {
@@ -200,6 +206,28 @@ export function InspectorShell(): ReactElement {
                   <span className="dt-selection__label">cid</span>
                   <span className="dt-selection__value">{selected.cid}</span>
                 </div>
+                <div className="dt-style-state" data-test="style-state">
+                  <span className="dt-selection__label">state</span>
+                  <div className="dt-style-state__options" role="group" aria-label="Style state">
+                    {getAvailableInteractionStates(selected.domElement).map((state) => (
+                      <Button
+                        key={state}
+                        size="compact"
+                        variant={styleState === state ? "primary" : "quiet"}
+                        className="dt-style-state__option"
+                        data-test={`style-state-${state}`}
+                        data-active={styleState === state ? "true" : "false"}
+                        aria-pressed={styleState === state}
+                        onClick={() => {
+                          setActiveStyleState(state);
+                          setStyleState(state);
+                        }}
+                      >
+                        {state}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
                 <div className="dt-selection__row">
                   <span className="dt-selection__label">src</span>
                   <span className="dt-selection__value">{sourceLabel(selected)}</span>
@@ -258,10 +286,11 @@ export function InspectorShell(): ReactElement {
               </div>
 
               <div className="dt-style-editors" data-test="style-editors">
-                <LayoutSection element={selected} onAfterEdit={refreshSelected} />
-                <SpacingBox element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                <Typography element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                <LayoutSection key={`layout-${styleState}`} element={selected} onAfterEdit={refreshSelected} />
+                <SpacingBox key={`spacing-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                <Typography key={`type-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
                 <ColorPicker
+                  key={`color-${styleState}`}
                   element={selected}
                   property="color"
                   entries={tokenEntries}
@@ -269,17 +298,18 @@ export function InspectorShell(): ReactElement {
                   onAfterEdit={refreshSelected}
                 />
                 <ColorPicker
+                  key={`background-${styleState}`}
                   element={selected}
                   property="background-color"
                   entries={tokenEntries}
                   tokenRow={backgroundTokenRow}
                   onAfterEdit={refreshSelected}
                 />
-                <BorderEditor element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                <BorderEditor key={`border-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
               </div>
             </>
           ) : (
-            "Inspector shell ready (Alt+I to toggle)"
+            "Inspector shell ready (Shift+\\ or Alt+I to toggle)"
           )}
           <ChangesLog />
         </div>

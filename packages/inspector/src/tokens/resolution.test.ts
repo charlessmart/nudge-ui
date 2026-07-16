@@ -4,6 +4,8 @@ import {
   buildTokenTable,
   resolveTokenValue,
   resolvePropertiesFromRules,
+  getAvailableInteractionStates,
+  getResolvedPropertiesForState,
   computeSpecificity,
   type MatchedRule,
   type TokenTable,
@@ -90,6 +92,32 @@ describe("resolveTokenValue", () => {
     const res = resolveTokenValue("var(--a)", table);
     expect(res.tokenName).toBe("--a");
     expect(typeof res.resolvedValue).toBe("string");
+  });
+});
+
+describe("interaction-state resolution", () => {
+  beforeEach(() => {
+    document.head.innerHTML = "";
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    document.head.innerHTML = "";
+    document.body.innerHTML = "";
+  });
+
+  it("uses the base declaration even when a hover declaration exists", () => {
+    const style = document.createElement("style");
+    style.textContent = ".button { background: var(--surface); } .button:hover { background: #c4f36b; }";
+    document.head.appendChild(style);
+    const button = document.createElement("button");
+    button.className = "button";
+    document.body.appendChild(button);
+    const table = makeTable([{ name: "--surface", value: "#ffffff", source: "styles.css:1" }]);
+
+    expect(getAvailableInteractionStates(button)).toEqual(["base", "hover"]);
+    expect(getResolvedPropertiesForState(button, table, "base").find((row) => row.property === "background")?.resolvedValue).toBe("#ffffff");
+    expect(getResolvedPropertiesForState(button, table, "hover").find((row) => row.property === "background")?.resolvedValue).toBe("#c4f36b");
   });
 });
 

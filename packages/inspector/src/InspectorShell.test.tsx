@@ -6,8 +6,8 @@ import { mountInspector, unmountInspector } from "./index.ts";
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-function pressKey(key: string, altKey: boolean): void {
-  window.dispatchEvent(new KeyboardEvent("keydown", { key, altKey, bubbles: true }));
+function pressKey(init: KeyboardEventInit): void {
+  window.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
 }
 
 describe("InspectorShell", () => {
@@ -73,13 +73,13 @@ describe("InspectorShell", () => {
     const before = panel.getAttribute("data-open");
 
     act(() => {
-      pressKey("i", true);
+      pressKey({ key: "i", code: "KeyI", altKey: true });
     });
     const first = panel.getAttribute("data-open");
     expect(first).not.toBe(before);
 
     act(() => {
-      pressKey("i", true);
+      pressKey({ key: "i", code: "KeyI", altKey: true });
     });
     const second = panel.getAttribute("data-open");
     expect(second).toBe(before);
@@ -94,11 +94,42 @@ describe("InspectorShell", () => {
     const before = panel.getAttribute("data-open");
 
     act(() => {
-      pressKey("i", false);
-      pressKey("a", true);
-      pressKey("I", false);
+      pressKey({ key: "i", code: "KeyI" });
+      pressKey({ key: "a", code: "KeyA", altKey: true });
+      pressKey({ key: "I", code: "KeyI" });
     });
     expect(panel.getAttribute("data-open")).toBe(before);
+  });
+
+  it("Shift+Backslash toggles the panel but leaves editable fields alone", () => {
+    act(() => {
+      mountInspector(host);
+    });
+    const shadow = host.shadowRoot!;
+    const panel = shadow.querySelector(".dt-panel")!;
+    const before = panel.getAttribute("data-open");
+
+    act(() => {
+      pressKey({ key: "|", code: "Backslash", shiftKey: true });
+    });
+    expect(panel.getAttribute("data-open")).not.toBe(before);
+
+    act(() => {
+      (shadow.querySelector('[data-test="tokens-tab"]') as HTMLButtonElement).click();
+    });
+    const input = shadow.querySelector('[data-test="token-search"]') as HTMLInputElement;
+    act(() => {
+      input.focus();
+      input.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "|",
+        code: "Backslash",
+        shiftKey: true,
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+      }));
+    });
+    expect(panel.getAttribute("data-open")).not.toBe(before);
   });
 
   it("mountInspector is idempotent across remounts", () => {

@@ -91,6 +91,25 @@ test("dev: swapping a token writes a managed-stylesheet rule and changes backgro
     .not.toBe(before);
 });
 
+test("dev: selection defaults to Base and can target an authored hover state", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForRow(page);
+
+  await expect(page.locator('[data-test="style-state-base"]')).toHaveAttribute("data-active", "true");
+  await expect(page.locator('[data-test="style-state-hover"]')).toHaveCount(1);
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]'))
+    .toContainText("--color-surface-raised");
+
+  await page.locator('[data-test="style-state-hover"]').click();
+  const background = page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]');
+  await background.fill("#123456");
+  await background.press("Enter");
+
+  await expect.poll(() => sheetText(page), { timeout: 5000 })
+    .toContain(':hover { background-color: #123456; }');
+});
+
 test("dev: replacing a hardcoded spacing value with a token writes a rule to the sheet", async ({ page }) => {
   await page.goto("/");
   await page.click("text=Save");

@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { setStyle } from "./styleActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
+import { getStateStyleValue } from "../stateValue.ts";
 
 export interface LayoutDropdownProps {
   property: string;
@@ -16,12 +17,12 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
   const { property, options, domElement: el, revision = 0, onAfterEdit } = props;
 
   const [value, setValue] = useState(() =>
-    getComputedStyle(el).getPropertyValue(property).trim() || options[0],
+    getStateStyleValue(el, property, options[0]),
   );
 
   useEffect(() => {
     try {
-      setValue(getComputedStyle(el).getPropertyValue(property).trim() || options[0]);
+      setValue(getStateStyleValue(el, property, options[0]));
     } catch {
       // noop
     }

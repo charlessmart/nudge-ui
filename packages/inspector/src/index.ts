@@ -5,13 +5,14 @@ import { InspectorShell, toggleInspector, setInspectorOpen, setInspectorHost } f
 import { setSelectedElement } from "./selectionStore.ts";
 import { clearChanges } from "./changesLog.ts";
 import { removeManagedSheet } from "./managedStylesheet.ts";
+import { isInspectorToggleShortcut } from "./shortcuts.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
 let listenerAttached = false;
 
 function onKeydown(e: KeyboardEvent): void {
-  if (e.altKey && (e.key === "i" || e.key === "I" || e.code === "KeyI")) {
+  if (isInspectorToggleShortcut(e)) {
     toggleInspector();
     e.preventDefault();
   }
