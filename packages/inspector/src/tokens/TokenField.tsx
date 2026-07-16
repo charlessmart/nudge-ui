@@ -6,6 +6,8 @@ import type { ResolvedProperty } from "./resolution.ts";
 import { classifyToken, getAlternativeTokens } from "./TokenDropdown.tsx";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
+import { completeCssValue } from "../styleEditors/completeCssValue.ts";
+import { valuePolicyFor } from "../styleEditors/valuePolicy.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { ColorSwatch } from "../ui/ColorSwatch.tsx";
@@ -128,7 +130,8 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       setRawValue(tokenRow?.resolvedValue ?? computedRaw(el, property));
       return;
     }
-    if (setStyle(el, property, trimmed)) onAfterEdit?.();
+    const value = completeCssValue(trimmed, valuePolicyFor(property));
+    if (setStyle(el, property, value)) onAfterEdit?.();
   }
 
   if (activeToken) {

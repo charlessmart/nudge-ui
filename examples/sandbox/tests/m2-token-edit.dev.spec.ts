@@ -144,6 +144,21 @@ test("dev: Enter applies a typed spacing value with no matching token", async ({
     .not.toContain("padding-top: var(--space-");
 });
 
+test("dev: Enter completes a bare spacing number with px", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForRow(page);
+
+  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="delink-btn"]').click();
+  const input = page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]');
+  await input.fill("7");
+  await input.press("Enter");
+
+  await expect
+    .poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("padding-top: 7px;");
+});
+
 test("dev: Enter applies a typed hex colour with no matching token", async ({ page }) => {
   await page.goto("/");
   await page.click("text=Save");

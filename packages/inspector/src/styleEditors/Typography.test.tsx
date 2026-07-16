@@ -88,7 +88,7 @@ describe("Typography", () => {
     const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="line-height"]');
     const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
     setInputValue(raw, "1.6");
-    expect(sheetText()).toContain("line-height: 1.6;");
+    expect(sheetText()).toContain("line-height: 160%;");
   });
 
   it("writes letter-spacing via the raw input", () => {

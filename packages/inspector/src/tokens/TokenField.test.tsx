@@ -77,6 +77,33 @@ describe("TokenField", () => {
     expect(getChangeRecords()).toHaveLength(1);
   });
 
+  it.each([
+    ["padding-top", "8", "8px"],
+    ["font-size", "1", "1rem"],
+    ["line-height", "120", "120%"],
+    ["line-height", "1.6", "160%"],
+    ["letter-spacing", "0.04", "0.04em"],
+    ["font-weight", "500", "500"],
+  ])("completes a bare number for %s", (property, rawValue, expected) => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property,
+      domElement: selected.domElement,
+      entries: [],
+    }));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, rawValue);
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.blur();
+    });
+
+    expect(sheetText()).toContain(`${property}: ${expected};`);
+  });
+
   it("renders a token-backed value as an inline chip", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {

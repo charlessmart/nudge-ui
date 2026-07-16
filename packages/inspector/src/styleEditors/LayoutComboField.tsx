@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { setStyle } from "./styleActions.ts";
+import { completeCssValue } from "./completeCssValue.ts";
+import { valuePolicyFor } from "./valuePolicy.ts";
 import { Select } from "../ui/Select.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 
@@ -57,7 +59,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
   function handleCustomApply(): void {
     const trimmed = customValue.trim();
     if (trimmed) {
-      commit(trimmed);
+      commit(completeCssValue(trimmed, valuePolicyFor(property)));
     } else {
       setCustomValue(currentValue);
     }

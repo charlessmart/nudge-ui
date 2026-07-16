@@ -6,6 +6,7 @@ import { resetPendingRules } from "../tokens/editActions.ts";
 import {
   makeSelected,
   mount,
+  setInputValue,
   setSelectValue,
   mockComputedStyle,
   restoreComputedStyle,
@@ -130,5 +131,24 @@ describe("LayoutComboField", () => {
 
     act(() => input.blur());
     expect(sheetText()).toContain("flex-grow: 4;");
+  });
+
+  it("adds px to a bare custom gap value", () => {
+    const { el } = makeSelected();
+    mockComputedStyle({ "row-gap": "0px" });
+    handle = mount(
+      createElement(LayoutComboField, {
+        property: "row-gap",
+        presets: ["0", "1rem"],
+        domElement: el,
+      }),
+    );
+    const select = handle.host.querySelector('[data-test="layout-combo-select-row-gap"]') as HTMLSelectElement;
+    setSelectValue(select, "__custom__");
+    const input = handle.host.querySelector('[data-test="layout-combo-input-row-gap"]') as HTMLInputElement;
+
+    setInputValue(input, "12");
+
+    expect(sheetText()).toContain("row-gap: 12px;");
   });
 });
