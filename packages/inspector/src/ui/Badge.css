@@ -1,11 +1,11 @@
 .dt-badge {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--dt-radius-pill);
   color: var(--dt-text-muted);
-  font-size: 10px;
+  font-size: var(--dt-font-size);
   line-height: 1;
-  padding: 2px 5px;
+  padding: 5px 8px;
 }
 
 .dt-badge--accent {

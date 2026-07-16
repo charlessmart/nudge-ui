@@ -48,11 +48,25 @@ async function changesLogText(page: import("@playwright/test").Page): Promise<st
   });
 }
 
+async function elementLeft(page: import("@playwright/test").Page, testId: string): Promise<number> {
+  return await page.evaluate((t) => document.querySelector(`[data-test="${t}"]`)?.getBoundingClientRect().left ?? 0, testId);
+}
+
+async function revertChange(page: import("@playwright/test").Page, property: string): Promise<void> {
+  await page.evaluate((p) => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const row = Array.from(sr?.querySelectorAll('[data-test="change-row"]') ?? [])
+      .find((candidate) => candidate.getAttribute("data-property") === p);
+    (row?.querySelector('[data-test="change-revert"]') as HTMLElement | null)?.click();
+  }, property);
+}
+
 test("dev: layout section shows flex container controls and edits write to managed stylesheet", async ({ page }) => {
   await page.goto("/");
 
-  await page.click('[data-test="flex-container"]');
+  await page.evaluate(() => (document.querySelector('[data-test="flex-container"]') as HTMLElement | null)?.click());
   await waitForEditors(page);
+  await expect.poll(async () => shadowQueryExists(page, "layout-flex-container"), { timeout: 5000 }).toBe(true);
 
   // Layout section should be visible
   const layoutSection = await shadowQueryExists(page, "layout-section");
@@ -62,16 +76,19 @@ test("dev: layout section shows flex container controls and edits write to manag
   const flexContainer = await shadowQueryExists(page, "layout-flex-container");
   expect(flexContainer).toBe(true);
 
-  // Flex direction dropdown should be present and pre-selected to "row"
-  const fdValue = await page.evaluate(() => {
+  // The compact flex direction control should expose row as the active state.
+  const rowDirectionActive = await page.evaluate(() => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const select = sr?.querySelector('[data-test="layout-select-flex-direction"]') as HTMLSelectElement | null;
-    return select?.value ?? "";
+    const control = sr?.querySelector('[data-test="layout-direction-row"]');
+    return control?.getAttribute("aria-pressed") === "true";
   });
-  expect(fdValue).toBe("row");
+  expect(rowDirectionActive).toBe(true);
 
-  // Change flex-direction to column
-  await setSelect(page, "layout-select-flex-direction", "column");
+  // Change flex-direction to column.
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    (sr?.querySelector('[data-test="layout-direction-column"]') as HTMLButtonElement | null)?.click();
+  });
 
   // Computed style should update
   await expect
@@ -100,6 +117,7 @@ test("dev: layout section shows flex child controls when selecting a child of a 
 
   await page.click('[data-test="flex-child-a"]');
   await waitForEditors(page);
+  await expect.poll(async () => shadowQueryExists(page, "layout-flex-child"), { timeout: 5000 }).toBe(true);
 
   // Layout section should be visible
   expect(await shadowQueryExists(page, "layout-section")).toBe(true);
@@ -114,6 +132,20 @@ test("dev: layout section shows flex child controls when selecting a child of a 
   // Flex-grow combo field should be present
   const hasFlexGrow = await shadowQueryExists(page, "layout-combo-select-flex-grow");
   expect(hasFlexGrow).toBe(true);
+
+  const flexBasisOptions = await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return Array.from(
+      (sr?.querySelector('[data-test="layout-combo-select-flex-basis"]') as HTMLSelectElement | null)?.options ?? [],
+    ).map((option) => option.value);
+  });
+  expect(flexBasisOptions).toContain("auto");
+  await setSelect(page, "layout-combo-select-flex-basis", "auto");
+  await expect
+    .poll(async () => (await sheetText(page)).includes("flex-basis: auto"), { timeout: 5000 })
+    .toBe(true);
+
+  await page.mouse.move(0, 0);
 
   // Change flex-grow to 2
   await setSelect(page, "layout-combo-select-flex-grow", "2");
@@ -160,4 +192,29 @@ test("dev: layout section shows inset controls for a positioned element", async 
       return log.includes("top");
     }, { timeout: 5000 })
     .toBe(true);
+});
+
+test("dev: positioned layout edits move the element and revert cleanly", async ({ page }) => {
+  await page.goto("/");
+  await page.click('[data-test="positioned-box"]');
+  await waitForEditors(page);
+
+  const originalLeft = await elementLeft(page, "positioned-box");
+  await setSelect(page, "layout-combo-select-left", "50%");
+
+  await expect
+    .poll(async () => elementLeft(page, "positioned-box"), { timeout: 5000 })
+    .not.toBe(originalLeft);
+  await expect
+    .poll(async () => (await sheetText(page)).includes("left: 50%"), { timeout: 5000 })
+    .toBe(true);
+
+  await revertChange(page, "left");
+
+  await expect
+    .poll(async () => (await sheetText(page)).includes("left: 50%"), { timeout: 5000 })
+    .toBe(false);
+  await expect
+    .poll(async () => elementLeft(page, "positioned-box"), { timeout: 5000 })
+    .toBe(originalLeft);
 });

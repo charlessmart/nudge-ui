@@ -1,7 +1,7 @@
 .dt-token-field {
   position: relative;
   display: flex;
-  gap: 4px;
+  gap: 6px;
   align-items: center;
   width: 100%;
 }
@@ -12,15 +12,51 @@
   min-width: 0;
 }
 
-.dt-token-field--raw > .dt-token-dropdown {
-  flex: 0 1 118px;
-}
-
-.dt-token-field--raw > .dt-token-dropdown .dt-select {
+.dt-token-chip__trigger {
+  display: block;
   width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dt-radius-control);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
 }
 
-.dt-token-field__select {
-  flex: 1;
+.dt-token-chip__trigger:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 2px var(--dt-focus);
+}
+
+.dt-token-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
   min-width: 0;
+  height: var(--dt-control-height);
+  padding: 0 10px;
+  background: var(--dt-accent-surface);
+  border-radius: var(--dt-radius-control);
+  color: var(--dt-accent-strong);
+  font-size: var(--dt-font-size);
+  font-weight: 600;
+}
+
+.dt-token-chip:hover {
+  background: #d8efff;
+}
+
+.dt-token-chip__name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dt-token-chip svg {
+  flex-shrink: 0;
 }

@@ -45,6 +45,20 @@ describe("LayoutComboField", () => {
     expect(select.value).toBe("1");
   });
 
+  it("keeps flex-basis auto as an explicit preset", () => {
+    const { el } = makeSelected();
+    mockComputedStyle({ "flex-basis": "auto" });
+    handle = mount(
+      createElement(LayoutComboField, {
+        property: "flex-basis",
+        presets: ["auto", "0", "100%", "50%", "fit-content"],
+        domElement: el,
+      }),
+    );
+    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-basis"]') as HTMLSelectElement;
+    expect(select.value).toBe("auto");
+  });
+
   it('selects "Custom…" when current value is not a preset', () => {
     const { el } = makeSelected();
     mockComputedStyle({ "flex-grow": "5" });

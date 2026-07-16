@@ -2,22 +2,30 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  background: var(--dt-surface-control);
+  height: var(--dt-control-height);
+  padding: 0 12px;
+  background-color: var(--dt-surface-control);
   color: var(--dt-text-primary);
-  border: 1px solid var(--dt-border-subtle);
+  border: 0;
   border-radius: var(--dt-radius-control);
-  padding: 3px 5px;
+  outline: 0;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--dt-font-size);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 120ms ease, box-shadow 120ms ease;
 }
 
 .dt-select--compact {
-  padding: 2px 4px;
-  font-size: 10px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: var(--dt-font-size);
+}
+
+.dt-select:hover {
+  background-color: var(--dt-surface-control-hover);
 }
 
 .dt-select:focus-visible {
-  outline: 2px solid var(--dt-focus);
-  outline-offset: 1px;
-  border-color: var(--dt-focus);
+  box-shadow: inset 0 0 0 2px var(--dt-focus);
 }

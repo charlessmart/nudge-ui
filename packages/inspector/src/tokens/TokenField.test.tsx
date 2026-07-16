@@ -77,7 +77,22 @@ describe("TokenField", () => {
     expect(getChangeRecords()).toHaveLength(1);
   });
 
-  it("keeps the token dropdown available after disconnecting a token", () => {
+  it("renders a token-backed value as an inline chip", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: tokenRow(),
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+    }));
+
+    const chip = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
+    expect(chip).not.toBeNull();
+    expect(chip.textContent).toContain("--font-size-base");
+    expect(handle.host.querySelector('[data-test="token-select"]')).toBeNull();
+  });
+
+  it("returns to a raw input when a token chip is unlinked", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {
       property: "font-size",
@@ -91,8 +106,24 @@ describe("TokenField", () => {
     });
 
     expect(handle.host.querySelector('[data-test="raw-input"]')).not.toBeNull();
-    const promote = handle.host.querySelector('[data-test="token-promote-select"]') as HTMLSelectElement;
-    expect(promote).not.toBeNull();
-    expect(promote.querySelector('option[value="--font-size-base"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
+  });
+
+  it("promotes a matching raw-value suggestion into a token chip", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+    }));
+
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    act(() => input.focus());
+    const suggestion = document.querySelector('[data-test="suggestion-item"]') as HTMLElement;
+
+    act(() => suggestion.click());
+
+    expect(sheetText()).toContain("font-size: var(--font-size-base);");
+    expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain("--font-size-base");
   });
 });

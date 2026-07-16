@@ -8,14 +8,6 @@ function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty 
   return rows.find((r) => r.property === prop) ?? null;
 }
 
-function findSpacingTokenRow(
-  rows: ResolvedProperty[],
-  side: string,
-  shorthand: string,
-): ResolvedProperty | null {
-  return findTokenRow(rows, side) ?? findTokenRow(rows, shorthand);
-}
-
 export interface SpacingBoxProps {
   element: SelectedElement;
   entries?: TokenEntry[];
@@ -33,11 +25,11 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
       <div className="dt-editor__title">Spacing</div>
       <div className="dt-spacing">
         <div className="dt-spacing__group" data-test="spacing-padding">
-          <div className="dt-spacing__label">padding</div>
+          <div className="dt-spacing__label">Padding</div>
+          <div className="dt-spacing__grid">
           <SpacingField
             kind="top"
             property="padding-top"
-            shorthand="padding"
             domElement={el}
             entries={allEntries}
             tokenRows={tokenRows}
@@ -46,7 +38,6 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           <SpacingField
             kind="right"
             property="padding-right"
-            shorthand="padding"
             domElement={el}
             entries={allEntries}
             tokenRows={tokenRows}
@@ -55,7 +46,6 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           <SpacingField
             kind="bottom"
             property="padding-bottom"
-            shorthand="padding"
             domElement={el}
             entries={allEntries}
             tokenRows={tokenRows}
@@ -64,19 +54,19 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           <SpacingField
             kind="left"
             property="padding-left"
-            shorthand="padding"
             domElement={el}
             entries={allEntries}
             tokenRows={tokenRows}
             onAfterEdit={onAfterEdit}
           />
+          </div>
         </div>
         <div className="dt-spacing__group" data-test="spacing-margin">
-          <div className="dt-spacing__label">margin</div>
+          <div className="dt-spacing__label">Margin</div>
+          <div className="dt-spacing__grid">
           <SpacingField
             kind="top"
             property="margin-top"
-            shorthand="margin"
             domElement={el}
             entries={allEntries}
             tokenRows={tokenRows}
@@ -85,7 +75,6 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           <SpacingField
             kind="right"
             property="margin-right"
-            shorthand="margin"
             domElement={el}
             entries={allEntries}
             tokenRows={tokenRows}
@@ -94,7 +83,6 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           <SpacingField
             kind="bottom"
             property="margin-bottom"
-            shorthand="margin"
             domElement={el}
             entries={allEntries}
             tokenRows={tokenRows}
@@ -103,12 +91,12 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           <SpacingField
             kind="left"
             property="margin-left"
-            shorthand="margin"
             domElement={el}
             entries={allEntries}
             tokenRows={tokenRows}
             onAfterEdit={onAfterEdit}
           />
+          </div>
         </div>
       </div>
     </div>
@@ -118,7 +106,6 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
 interface SpacingFieldProps {
   kind: string;
   property: string;
-  shorthand: string;
   domElement: HTMLElement;
   entries: TokenEntry[];
   tokenRows: ResolvedProperty[];
@@ -126,8 +113,8 @@ interface SpacingFieldProps {
 }
 
 function SpacingField(props: SpacingFieldProps): ReactElement {
-  const { kind, property, shorthand, domElement, entries, tokenRows, onAfterEdit } = props;
-  const tokenRow = findSpacingTokenRow(tokenRows, property, shorthand);
+  const { kind, property, domElement, entries, tokenRows, onAfterEdit } = props;
+  const tokenRow = findTokenRow(tokenRows, property);
 
   return (
     <label className="dt-spacing__side">

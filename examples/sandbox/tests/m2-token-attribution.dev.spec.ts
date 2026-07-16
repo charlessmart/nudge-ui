@@ -15,7 +15,7 @@ test("dev: tokenized and raw values appear in their relevant editors", async ({ 
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
     return {
-      background: Boolean(root?.querySelector('[data-test="token-field"][data-property="background-color"] [data-test="token-select"]')),
+      background: Boolean(root?.querySelector('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]')),
       cursor: Boolean(root?.querySelector('[data-test="token-field"][data-property="cursor"]')),
     };
   })).toEqual({ background: true, cursor: false });

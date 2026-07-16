@@ -136,6 +136,23 @@ describe("TokenDropdown rendering", () => {
     btn.remove();
   });
 
+  it("limits a spacing promote select to spacing tokens", () => {
+    const btn = makeButton();
+    act(() => {
+      root.render(
+        createElement(TokenDropdown, {
+          row: makeRow("padding-top", null),
+          domElement: btn,
+          entries: ENTRIES,
+        }),
+      );
+    });
+    const select = host.querySelector('[data-test="token-promote-select"]') as HTMLSelectElement;
+    const values = Array.from(select.options).map((option) => option.value);
+    expect(values).toEqual(["", "--space-1", "--space-2"]);
+    btn.remove();
+  });
+
   it("promotes a hardcoded value to a token via the promote select onChange", () => {
     const btn = makeButton();
     act(() => {

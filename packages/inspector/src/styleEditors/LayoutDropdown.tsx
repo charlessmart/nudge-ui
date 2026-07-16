@@ -8,11 +8,12 @@ export interface LayoutDropdownProps {
   property: string;
   options: string[];
   domElement: HTMLElement;
+  revision?: number;
   onAfterEdit?: () => void;
 }
 
 export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
-  const { property, options, domElement: el, onAfterEdit } = props;
+  const { property, options, domElement: el, revision = 0, onAfterEdit } = props;
 
   const [value, setValue] = useState(() =>
     getComputedStyle(el).getPropertyValue(property).trim() || options[0],
@@ -24,7 +25,7 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
     } catch {
       // noop
     }
-  }, [el, property, options]);
+  }, [el, property, options, revision]);
 
   function handleChange(next: string): void {
     setValue(next);

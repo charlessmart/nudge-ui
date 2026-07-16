@@ -1,17 +1,17 @@
 .dt-color-swatch {
   display: inline-block;
   flex-shrink: 0;
+  width: 28px;
+  height: 28px;
   background: var(--dt-swatch-color);
-  border: 1px solid var(--dt-border-subtle);
-  border-radius: var(--dt-radius-small);
-}
-
-.dt-color-swatch--default {
-  width: 16px;
-  height: 16px;
+  border: 3px solid #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--dt-border-subtle);
 }
 
 .dt-color-swatch--small {
-  width: 10px;
-  height: 10px;
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  border-radius: 6px;
 }

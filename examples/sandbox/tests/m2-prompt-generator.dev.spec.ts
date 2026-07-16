@@ -23,17 +23,23 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
 }
 
 async function selectBackground(page: import("@playwright/test").Page, value: string): Promise<void> {
-  await page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-select"]').selectOption(value);
+  await page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]').click();
+  await expect
+    .poll(async () => page.evaluate((token) => {
+      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
+        .some((item) => item.textContent?.includes(token));
+    }, value), { timeout: 5000 })
+    .toBe(true);
+  await page.evaluate((token) => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
+      .find((item) => item.textContent?.includes(token))?.click();
+  }, value);
 }
 
 async function setBorderRadius(page: import("@playwright/test").Page, value: string): Promise<void> {
-  await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const field = sr?.querySelector(
-      '[data-test="token-field"][data-property="border-radius"]',
-    );
-    (field?.querySelector('[data-test="delink-btn"]') as HTMLButtonElement | null)?.click();
-  });
+  await page.locator('[data-test="token-field"][data-property="border-radius"] [data-test="delink-btn"]').click();
   await page.evaluate((v) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
     const raw = sr?.querySelector(

@@ -14,8 +14,8 @@ async function tokenRows(page: import("@playwright/test").Page): Promise<RowInfo
     const out: RowInfo[] = [];
     rows.forEach((row) => {
       const property = row.getAttribute("data-property") ?? "";
-      const select = row.querySelector('[data-test="token-select"]') as HTMLSelectElement | null;
-      const token = select?.value ?? "";
+      const chip = row.querySelector('[data-test="token-chip"]');
+      const token = chip?.textContent ?? "";
       const name = token;
       const value = row.querySelector('[data-test="raw-input"]')?.getAttribute("value") ?? "";
       out.push({ property, token, name: name.trim(), value: value.trim() });
@@ -44,12 +44,33 @@ async function btnBackground(page: import("@playwright/test").Page): Promise<str
   });
 }
 
+async function selectSuggestion(page: import("@playwright/test").Page, value: string): Promise<void> {
+  await expect
+    .poll(async () => page.evaluate((token) => {
+      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
+        .some((item) => item.textContent?.includes(token));
+    }, value), { timeout: 5000 })
+    .toBe(true);
+  await page.evaluate((token) => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
+      .find((item) => item.textContent?.includes(token))?.click();
+  }, value);
+}
+
+async function selectTokenFromChip(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
+  await page.locator(`[data-test="token-field"][data-property="${property}"] [data-test="token-chip"]`).click();
+  await selectSuggestion(page, value);
+}
+
 async function selectBackground(page: import("@playwright/test").Page, value: string): Promise<void> {
-  await page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-select"]').selectOption(value);
+  await selectTokenFromChip(page, "background-color", value);
 }
 
 async function selectPromote(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
-  await page.locator(`[data-test="token-field"][data-property="${property}"] [data-test="token-promote-select"]`).selectOption(value);
+  await page.locator(`[data-test="token-field"][data-property="${property}"] [data-test="raw-input"]`).fill("");
+  await selectSuggestion(page, value);
 }
 
 test("dev: swapping a token writes a managed-stylesheet rule and changes background live", async ({ page }) => {
@@ -70,20 +91,77 @@ test("dev: swapping a token writes a managed-stylesheet rule and changes backgro
     .not.toBe(before);
 });
 
-test("dev: replacing a hardcoded value with a token writes a rule to the sheet", async ({ page }) => {
+test("dev: replacing a hardcoded spacing value with a token writes a rule to the sheet", async ({ page }) => {
   await page.goto("/");
   await page.click("text=Save");
   await waitForRow(page);
 
-  await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    (sr?.querySelector('[data-test="token-field"][data-property="border-radius"] [data-test="delink-btn"]') as HTMLElement | null)?.click();
-  });
-  await selectPromote(page, "border-radius", "--space-2");
+  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="delink-btn"]').click();
+  await selectPromote(page, "padding-top", "--space-2");
 
   await expect
     .poll(async () => sheetText(page), { timeout: 5000 })
-    .toContain("border-radius: var(--space-2);");
+    .toContain("padding-top: var(--space-2);");
+  await expect
+    .poll(async () => tokenRows(page), { timeout: 5000 })
+    .toEqual(expect.arrayContaining([expect.objectContaining({ property: "padding-top", token: "--space-2" })]));
+});
+
+test("dev: typing a spacing value keeps its matching token suggestion visible", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForRow(page);
+
+  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="delink-btn"]').click();
+  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]').fill("8px");
+
+  await expect
+    .poll(async () => page.evaluate(() => {
+      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
+        .map((item) => item.textContent?.trim());
+    }), { timeout: 5000 })
+    .toEqual(expect.arrayContaining([expect.stringContaining("--space-2")]));
+});
+
+test("dev: Enter applies a typed spacing value with no matching token", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForRow(page);
+
+  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="delink-btn"]').click();
+  const input = page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]');
+  await input.fill("");
+  await input.type("7px");
+  await expect(input).toHaveValue("7px");
+  await input.press("Enter");
+
+  await expect
+    .poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("padding-top: 7px;");
+  await expect
+    .poll(async () => sheetText(page), { timeout: 5000 })
+    .not.toContain("padding-top: var(--space-");
+});
+
+test("dev: Enter applies a typed hex colour with no matching token", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForRow(page);
+
+  await page.locator('[data-test="token-field"][data-property="color"] [data-test="delink-btn"]').click();
+  const input = page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]');
+  await input.fill("");
+  await input.type("#123456");
+  await expect(input).toHaveValue("#123456");
+  await input.press("Enter");
+
+  await expect
+    .poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("color: #123456;");
+  await expect
+    .poll(async () => sheetText(page), { timeout: 5000 })
+    .not.toContain("color: var(--color-");
 });
 
 test("dev: edits survive a React re-render of the host app", async ({ page }) => {

@@ -56,13 +56,13 @@ describe("ColorPicker", () => {
     expect(field!.getAttribute("data-property")).toBe("color");
   });
 
-  it("shows a token dropdown when tokenRow is provided", () => {
+  it("shows a token chip when tokenRow is provided", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ color: "rgb(17, 17, 17)" });
     handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES, tokenRow: TOKEN_ROW }));
-    const select = handle.host.querySelector('[data-test="token-select"]') as HTMLSelectElement;
-    expect(select).toBeTruthy();
-    expect(select.value).toBe("--color-text-primary");
+    const chip = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
+    expect(chip).toBeTruthy();
+    expect(chip.textContent).toContain("--color-text-primary");
   });
 
   it("shows a raw input when no tokenRow is provided", () => {

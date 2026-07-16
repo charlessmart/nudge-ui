@@ -212,6 +212,8 @@ export function InspectorShell(): ReactElement {
 
               <div className="dt-style-editors" data-test="style-editors">
                 <LayoutSection element={selected} onAfterEdit={refreshSelected} />
+                <SpacingBox element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                <Typography element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
                 <ColorPicker
                   element={selected}
                   property="color"
@@ -226,8 +228,6 @@ export function InspectorShell(): ReactElement {
                   tokenRow={findTokenRow(tokenRows, "background-color") ?? findTokenRow(tokenRows, "background")}
                   onAfterEdit={refreshSelected}
                 />
-                <SpacingBox element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                <Typography element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
                 <BorderEditor element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
               </div>
             </>

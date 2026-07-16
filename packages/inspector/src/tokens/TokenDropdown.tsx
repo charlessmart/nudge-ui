@@ -124,7 +124,6 @@ export function TokenDropdown(props: TokenDropdownProps): ReactElement {
     [entries, row.property, row.tokenName],
   );
 
-  const allGrouped = useMemo(() => groupTokens(entries), [entries]);
   const grouped = useMemo(() => groupTokens(alternatives), [alternatives]);
   const orderedGroups: TokenGroup[] = ["color", "spacing", "radius", "typography", "generic"];
 
@@ -147,9 +146,8 @@ export function TokenDropdown(props: TokenDropdownProps): ReactElement {
 
   const hasToken = row.tokenName !== null;
   const selectValue = row.tokenName ?? "";
-  const groups = (hasToken ? grouped : allGrouped);
   const selectGroups = orderedGroups.flatMap((group) => {
-    const list = groups.get(group);
+    const list = grouped.get(group);
     if (!list || list.length === 0) return [];
     return [{
       label: GROUP_LABELS[group],

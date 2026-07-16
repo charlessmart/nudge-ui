@@ -1,14 +1,15 @@
 .dt-field-row {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: 4px;
+  grid-template-columns: var(--dt-label-column) minmax(0, 1fr);
+  gap: 10px;
   align-items: center;
+  min-height: var(--dt-control-height);
 }
 
 .dt-field-row__label {
-  color: var(--dt-text-muted);
-  font-size: 11px;
-  line-height: 1.3;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-font-size);
+  line-height: 1.25;
 }
 
 .dt-field-row__control {
@@ -18,8 +19,8 @@
 
 .dt-field-row__hint {
   display: block;
+  margin-top: 4px;
   color: var(--dt-text-muted-subtle);
-  font-size: 10px;
+  font-size: var(--dt-font-size);
   line-height: 1.3;
-  margin-top: 2px;
 }

@@ -63,26 +63,36 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   });
   const expectedRgb = hexToRgbString(tokenValue);
 
-  await page.evaluate((value) => {
+  const hasColorChip = await page.evaluate(() => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const select = sr?.querySelector(
-      '[data-test="token-field"][data-property="color"] [data-test="token-select"]',
-    ) as HTMLSelectElement | null;
-    if (select) {
-      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
-      setter.call(select, value);
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-      return;
-    }
+    return Boolean(sr?.querySelector('[data-test="token-field"][data-property="color"] [data-test="token-chip"]'));
+  });
+  if (hasColorChip) {
+    await page.locator('[data-test="token-field"][data-property="color"] [data-test="token-chip"]').click();
+  } else {
+    await page.evaluate((value) => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
     const raw = sr?.querySelector(
       '[data-test="token-field"][data-property="color"] [data-test="raw-input"]',
     ) as HTMLInputElement | null;
     if (!raw) throw new Error("Missing color editor");
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
     raw.focus();
-    setter.call(raw, `var(${value})`);
-    raw.dispatchEvent(new Event("change", { bubbles: true }));
-    raw.blur();
+    setter.call(raw, "");
+    raw.dispatchEvent(new Event("input", { bubbles: true }));
+  }, "--color-text-secondary");
+  }
+  await expect
+    .poll(async () => page.evaluate((token) => {
+      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
+        .some((item) => item.textContent?.includes(token));
+    }, "--color-text-secondary"), { timeout: 5000 })
+    .toBe(true);
+  await page.evaluate((token) => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
+      .find((item) => item.textContent?.includes(token))?.click();
   }, "--color-text-secondary");
   await expect
     .poll(async () => computedProp(page, "color"), { timeout: 5000 })
@@ -95,6 +105,38 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   expect(sheet).toContain("font-size: 18px");
   expect(sheet).toContain("border-radius: 12px");
   expect(sheet).toContain("color: var(--color-text-secondary);");
+});
+
+test("dev: style editors keep layout and spacing ahead of typography and color", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForEditors(page);
+
+  const editorOrder = await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="style-editors"] > .dt-editor') ?? [])
+      .map((editor) => editor.getAttribute("data-test"));
+  });
+
+  expect(editorOrder).toEqual([
+    "layout-section",
+    "spacing-box",
+    "typography",
+    "color-picker",
+    "color-picker",
+    "border-editor",
+  ]);
+});
+
+test("dev: spacing fields split a three-value margin shorthand by side", async ({ page }) => {
+  await page.goto("/");
+  await page.click(".hero h1");
+  await waitForEditors(page);
+
+  await expect(page.locator('[data-test="token-field"][data-property="margin-top"] [data-test="raw-input"]')).toHaveValue("26px");
+  await expect(page.locator('[data-test="token-field"][data-property="margin-right"] [data-test="raw-input"]')).toHaveValue("0px");
+  await expect(page.locator('[data-test="token-field"][data-property="margin-bottom"] [data-test="raw-input"]')).toHaveValue("22px");
+  await expect(page.locator('[data-test="token-field"][data-property="margin-left"] [data-test="raw-input"]')).toHaveValue("0px");
 });
 
 function hexToRgbString(raw: string): string | null {

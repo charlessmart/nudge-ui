@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
 import { SpacingBox } from "./SpacingBox.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
+import type { ResolvedProperty } from "../tokens/resolution.ts";
 import {
   makeSelected,
   mount,
@@ -131,5 +132,33 @@ describe("SpacingBox", () => {
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-right"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-bottom"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-left"]')).toBeTruthy();
+  });
+
+  it("does not reuse a shorthand margin row for every side", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "0px",
+      "padding-right": "0px",
+      "padding-bottom": "0px",
+      "padding-left": "0px",
+      "margin-top": "8px",
+      "margin-right": "16px",
+      "margin-bottom": "24px",
+      "margin-left": "16px",
+    });
+    const shorthandRow: ResolvedProperty = {
+      property: "margin",
+      tokenName: null,
+      declaredValue: "8px 16px 24px",
+      resolvedValue: "8px 16px 24px",
+      confidence: "unknown",
+      evidence: { reason: "test shorthand fixture" },
+    };
+    handle = mount(createElement(SpacingBox, { element: selected, tokenRows: [shorthandRow] }));
+
+    expect(rawInput("margin-top").value).toBe("8px");
+    expect(rawInput("margin-right").value).toBe("16px");
+    expect(rawInput("margin-bottom").value).toBe("24px");
+    expect(rawInput("margin-left").value).toBe("16px");
   });
 });

@@ -10,7 +10,7 @@ async function fieldState(page: import("@playwright/test").Page): Promise<{
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
     const fieldValue = (property: string): string => {
       const field = sr?.querySelector(`[data-test="token-field"][data-property="${property}"]`);
-      return (field?.querySelector('[data-test="token-select"]') as HTMLSelectElement | null)?.value ?? "";
+      return field?.querySelector('[data-test="token-chip"]')?.textContent?.trim() ?? "";
     };
     return {
       topTokenPanel: Boolean(sr?.querySelector('[data-test="tokens-panel"]')),
@@ -50,4 +50,21 @@ test("dev: relevant value fields update when the selection steps up the hierarch
   await expect
     .poll(async () => (await fieldState(page)).paddingToken, { timeout: 5000 })
     .toBe("--space-2");
+});
+
+test("dev: spacing token suggestions exclude color and typography tokens", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+
+  await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="token-chip"]').click();
+
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        const sr = document.getElementById("design-tool-root")?.shadowRoot;
+        return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
+          .map((item) => item.querySelector('.dt-popover-listbox__label')?.textContent ?? "");
+      });
+    }, { timeout: 5000 })
+    .toEqual(["--space-1", "--space-2", "--space-3"]);
 });

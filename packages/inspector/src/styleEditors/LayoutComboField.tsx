@@ -11,11 +11,12 @@ export interface LayoutComboFieldProps {
   presets: string[];
   domElement: HTMLElement;
   compact?: boolean;
+  revision?: number;
   onAfterEdit?: () => void;
 }
 
 export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
-  const { property, presets, domElement: el, compact, onAfterEdit } = props;
+  const { property, presets, domElement: el, compact, revision = 0, onAfterEdit } = props;
 
   const [currentValue, setCurrentValue] = useState(() =>
     getComputedStyle(el).getPropertyValue(property).trim(),
@@ -32,7 +33,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     } catch {
       // noop
     }
-  }, [el, property]);
+  }, [el, property, revision]);
 
   const inPresets = presets.includes(currentValue);
 

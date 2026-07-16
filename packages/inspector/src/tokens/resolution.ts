@@ -25,9 +25,15 @@ export interface TokenTable {
   [varName: string]: TokenEntry;
 }
 
+interface StyleDeclaration {
+  property: string;
+  value: string;
+  important?: boolean;
+}
+
 export interface MatchedRule {
   selectorText: string;
-  declarations: { property: string; value: string; important?: boolean }[];
+  declarations: StyleDeclaration[];
   specificity: number;
   sourceOrder?: number;
   layer?: string;
@@ -36,6 +42,10 @@ export interface MatchedRule {
 
 const MAX_PROPERTIES = 100;
 const VAR_REF = /var\(\s*(--[\w-]+)/g;
+const SPACING_SIDES: Record<string, readonly string[]> = {
+  margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
+  padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
+};
 
 export function buildTokenTable(entries: TokenEntry[]): TokenTable {
   const table: TokenTable = {};
@@ -127,6 +137,114 @@ export function resolveTokenValue(
   return resolveTokenValueInner(value, tokenTable, new Set());
 }
 
+function splitTopLevelWhitespace(value: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote: string | null = null;
+  let start = 0;
+
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i];
+    if (quote) {
+      if (char === quote && value[i - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === "(" || char === "[") {
+      depth++;
+    } else if (char === ")" || char === "]") {
+      depth = Math.max(0, depth - 1);
+    } else if (depth === 0 && /\s/.test(char ?? "")) {
+      if (i > start) parts.push(value.slice(start, i));
+      start = i + 1;
+    }
+  }
+
+  if (start < value.length) parts.push(value.slice(start));
+  return parts;
+}
+
+function expandFourValueShorthand<T>(values: readonly T[]): [T, T, T, T] | null {
+  if (values.length === 0 || values.length > 4) return null;
+  const top = values[0]!;
+  const right = values[1] ?? top;
+  const bottom = values[2] ?? top;
+  const left = values[3] ?? right;
+  if (values.length === 3) return [top, right, bottom, right];
+  if (values.length === 2) return [top, right, top, right];
+  return [top, right, bottom, left];
+}
+
+interface ResolvedDeclaration {
+  property: string;
+  declaredValue: string;
+  tokenName: string | null;
+  resolvedValue: string;
+  important?: boolean;
+}
+
+function resolveDeclaration(
+  declaration: StyleDeclaration,
+  tokenTable: TokenTable,
+): ResolvedDeclaration[] {
+  const sides = SPACING_SIDES[declaration.property.toLowerCase()];
+  if (!sides) {
+    const res = resolveTokenValue(declaration.value, tokenTable);
+    return [{
+      property: declaration.property,
+      declaredValue: declaration.value.trim(),
+      tokenName: res.tokenName,
+      resolvedValue: res.resolvedValue,
+      important: declaration.important,
+    }];
+  }
+
+  const rawValues = splitTopLevelWhitespace(declaration.value);
+  if (rawValues.length === 0 || rawValues.length > 4) {
+    const res = resolveTokenValue(declaration.value, tokenTable);
+    return [{
+      property: declaration.property,
+      declaredValue: declaration.value.trim(),
+      tokenName: res.tokenName,
+      resolvedValue: res.resolvedValue,
+      important: declaration.important,
+    }];
+  }
+
+  // A custom property can itself contain a shorthand value, for example
+  // `margin: var(--space-set)`. Expand that value before assigning sides.
+  const resolvedValues = rawValues.flatMap((rawValue) => {
+    const res = resolveTokenValue(rawValue, tokenTable);
+    const tokenValues = res.tokenName ? splitTopLevelWhitespace(res.resolvedValue) : [];
+    if (res.tokenName && /^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(rawValue) && tokenValues.length > 1) {
+      return tokenValues.map((resolvedValue) => ({
+        declaredValue: rawValue,
+        tokenName: res.tokenName,
+        resolvedValue,
+      }));
+    }
+    return [{ declaredValue: rawValue, tokenName: res.tokenName, resolvedValue: res.resolvedValue }];
+  });
+  const sideValues = expandFourValueShorthand(resolvedValues);
+  if (!sideValues) {
+    const res = resolveTokenValue(declaration.value, tokenTable);
+    return [{
+      property: declaration.property,
+      declaredValue: declaration.value.trim(),
+      tokenName: res.tokenName,
+      resolvedValue: res.resolvedValue,
+      important: declaration.important,
+    }];
+  }
+
+  return sides.map((property, index) => ({
+    property,
+    ...sideValues[index]!,
+    important: declaration.important,
+  }));
+}
+
 export function resolvePropertiesFromRules(
   el: HTMLElement,
   rules: MatchedRule[],
@@ -145,24 +263,25 @@ export function resolvePropertiesFromRules(
     if (!branch) continue;
     const specificity = computeSpecificity(branch);
     for (const decl of rule.declarations) {
-      const res = resolveTokenValue(decl.value, tokenTable);
-      const candidate: ResolvedProperty = {
-        property: decl.property,
-        tokenName: res.tokenName,
-        declaredValue: decl.value.trim(),
-        resolvedValue: res.resolvedValue,
-        confidence: res.tokenName ? "probable" : "unknown",
-        evidence: {
-          selector: branch,
-          sourceOrder: rule.sourceOrder,
-          specificity,
-          important: Boolean(decl.important),
-          layer: rule.layer,
-          reason: res.tokenName ? "authored declaration references a catalog token" : "no catalog token reference",
-        },
-      };
-      const previous = map.get(decl.property);
-      if (!previous || compareCandidate(candidate, previous) >= 0) map.set(decl.property, candidate);
+      for (const resolved of resolveDeclaration(decl, tokenTable)) {
+        const candidate: ResolvedProperty = {
+          property: resolved.property,
+          tokenName: resolved.tokenName,
+          declaredValue: resolved.declaredValue,
+          resolvedValue: resolved.resolvedValue,
+          confidence: resolved.tokenName ? "probable" : "unknown",
+          evidence: {
+            selector: branch,
+            sourceOrder: rule.sourceOrder,
+            specificity,
+            important: Boolean(resolved.important),
+            layer: rule.layer,
+            reason: resolved.tokenName ? "authored declaration references a catalog token" : "no catalog token reference",
+          },
+        };
+        const previous = map.get(resolved.property);
+        if (!previous || compareCandidate(candidate, previous) >= 0) map.set(resolved.property, candidate);
+      }
     }
   }
   return Array.from(map.values()).slice(0, MAX_PROPERTIES);
@@ -193,8 +312,8 @@ function compareCandidate(a: ResolvedProperty, b: ResolvedProperty): number {
   return (a.evidence.sourceOrder ?? 0) - (b.evidence.sourceOrder ?? 0);
 }
 
-function parseDeclarations(cssText: string): { property: string; value: string; important?: boolean }[] {
-  const out: { property: string; value: string; important?: boolean }[] = [];
+function parseDeclarations(cssText: string): StyleDeclaration[] {
+  const out: StyleDeclaration[] = [];
   for (const part of cssText.split(";")) {
     const idx = part.indexOf(":");
     if (idx === -1) continue;
@@ -398,19 +517,28 @@ export function getResolvedProperties(
   // but token attribution is only exact when the authored inline value uses a known token.
   for (const property of Array.from(el.style)) {
     const value = el.style.getPropertyValue(property);
-    const res = resolveTokenValue(value, tokenTable);
-    const painted = computed.getPropertyValue(property);
-    const row: ResolvedProperty = {
-      property, tokenName: res.tokenName, declaredValue: value.trim(), resolvedValue: painted,
-      confidence: "unknown",
-      evidence: { selector: "[style]", specificity: 100000000, important: el.style.getPropertyPriority(property) === "important", inaccessibleStylesheet: inaccessible || undefined, reason: res.tokenName ? "inline token declaration validated against computed style" : "inline declaration contains no catalog token" },
-    };
-    if (res.tokenName && candidateMatchesPainted(el, row, painted)) {
-      row.confidence = inaccessible ? "probable" : "exact";
-      row.evidence.reason = "inline token declaration validated against computed style";
+    const declarations = resolveDeclaration({
+      property,
+      value,
+      important: el.style.getPropertyPriority(property) === "important",
+    }, tokenTable);
+    for (const declaration of declarations) {
+      const painted = computed.getPropertyValue(declaration.property);
+      const row: ResolvedProperty = {
+        property: declaration.property,
+        tokenName: declaration.tokenName,
+        declaredValue: declaration.declaredValue,
+        resolvedValue: painted,
+        confidence: "unknown",
+        evidence: { selector: "[style]", specificity: 100000000, important: Boolean(declaration.important), inaccessibleStylesheet: inaccessible || undefined, reason: declaration.tokenName ? "inline token declaration validated against computed style" : "inline declaration contains no catalog token" },
+      };
+      if (declaration.tokenName && candidateMatchesPainted(el, row, painted)) {
+        row.confidence = inaccessible ? "probable" : "exact";
+        row.evidence.reason = "inline token declaration validated against computed style";
+      }
+      const index = result.findIndex((item) => item.property === declaration.property);
+      if (index >= 0) result[index] = row; else result.push(row);
     }
-    const index = result.findIndex((item) => item.property === property);
-    if (index >= 0) result[index] = row; else result.push(row);
   }
 
   // Walk ancestors to find inherited token values — when no rule directly

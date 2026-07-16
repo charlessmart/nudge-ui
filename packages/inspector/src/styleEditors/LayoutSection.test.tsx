@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { LayoutSection } from "./LayoutSection.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import {
@@ -45,12 +45,52 @@ describe("LayoutSection", () => {
     handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-select-flex-direction"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-direction-row"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-direction-column"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-direction-reverse"]')).toBeTruthy();
+    expect(handle.host.querySelectorAll('[data-test^="layout-align-"]')).toHaveLength(9);
     expect(handle.host.querySelector('[data-test="layout-select-justify-content"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-select-align-items"]')).toBeTruthy();
+    expect(
+      Array.from((handle.host.querySelector('[data-test="layout-select-justify-content"]') as HTMLSelectElement).options)
+        .map((option) => option.value),
+    ).toEqual(["flex-start", "flex-end", "center", "space-between", "space-around", "space-evenly"]);
+    expect(
+      Array.from((handle.host.querySelector('[data-test="layout-select-align-items"]') as HTMLSelectElement).options)
+        .map((option) => option.value),
+    ).toEqual(["stretch", "flex-start", "flex-end", "center", "baseline"]);
     expect(handle.host.querySelector('[data-test="layout-select-flex-wrap"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-select-align-content"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-gap"]')).toBeTruthy();
+  });
+
+  it("writes flex direction and alignment through the compact controls", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      display: "flex",
+      position: "static",
+      "flex-direction": "row",
+      "justify-content": "flex-start",
+      "align-items": "flex-start",
+    });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    (handle.host.querySelector('[data-test="layout-direction-column"]') as HTMLButtonElement).click();
+    (handle.host.querySelector('[data-test="layout-align-center-center"]') as HTMLButtonElement).click();
+
+    expect(sheetText()).toContain("flex-direction: column;");
+    expect(sheetText()).toContain("justify-content: center;");
+    expect(sheetText()).toContain("align-items: center;");
+  });
+
+  it("supports reverse flex directions through the compact control", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "flex", position: "static", "flex-direction": "row" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    (handle.host.querySelector('[data-test="layout-direction-reverse"]') as HTMLButtonElement).click();
+
+    expect(sheetText()).toContain("flex-direction: row-reverse;");
   });
 
   it("hides flex container properties when display is block", () => {
@@ -59,6 +99,50 @@ describe("LayoutSection", () => {
     handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeFalsy();
+  });
+
+  it("refreshes conditional sections after display and position edits", () => {
+    const { selected, el } = makeSelected();
+    let display = "block";
+    let position = "static";
+    let editCount = 0;
+    const original = window.getComputedStyle;
+    (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((target: Element) => {
+      const base = original(target);
+      const values = target === el ? { display, position } : {};
+      return new Proxy(base, {
+        get(source, key: string) {
+          if (key === "getPropertyValue") {
+            return (property: string) => values[property as "display" | "position"] ?? source.getPropertyValue(property);
+          }
+          if (key in values) return values[key as "display" | "position"];
+          const value = Reflect.get(source, key);
+          return typeof value === "function" ? value.bind(source) : value;
+        },
+      });
+    }) as typeof getComputedStyle;
+
+    handle = mount(createElement(LayoutSection, {
+      element: selected,
+      onAfterEdit: () => {
+        editCount += 1;
+        if (editCount === 1) display = "flex";
+        if (editCount === 2) position = "absolute";
+      },
+    }));
+
+    expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeFalsy();
+
+    act(() => {
+      setSelectValue(handle.host.querySelector('[data-test="layout-select-display"]') as HTMLSelectElement, "flex");
+    });
+    expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
+
+    act(() => {
+      setSelectValue(handle.host.querySelector('[data-test="layout-select-position"]') as HTMLSelectElement, "absolute");
+    });
+    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeTruthy();
   });
 
   it("shows flex container properties for inline-flex", () => {

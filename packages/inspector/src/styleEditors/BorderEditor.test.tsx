@@ -105,9 +105,9 @@ describe("BorderEditor", () => {
       entries: ENTRIES,
       tokenRows: [BORDER_COLOR_ROW],
     }));
-    const select = handle.host.querySelector('[data-test="token-select"]') as HTMLSelectElement;
-    expect(select).toBeTruthy();
-    expect(select.value).toBe("--color-text-secondary");
+    const chip = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
+    expect(chip).toBeTruthy();
+    expect(chip.textContent).toContain("--color-text-secondary");
   });
 
   it("raw border-color input exists and writes to the sheet", () => {

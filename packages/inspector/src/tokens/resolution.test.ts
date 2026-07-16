@@ -161,7 +161,11 @@ describe("resolvePropertiesFromRules", () => {
     const result = resolvePropertiesFromRules(btn, rules, table);
     const byProp = new Map(result.map((r) => [r.property, r]));
 
-    expect(result).toHaveLength(5);
+    expect(result).toHaveLength(8);
+    expect(byProp.get("padding-top")?.declaredValue).toBe("var(--space-1)");
+    expect(byProp.get("padding-right")?.declaredValue).toBe("var(--space-2)");
+    expect(byProp.get("padding-bottom")?.declaredValue).toBe("var(--space-1)");
+    expect(byProp.get("padding-left")?.declaredValue).toBe("var(--space-2)");
     expect(byProp.get("background")?.tokenName).toBe("--color-surface-raised");
     expect(byProp.get("background")?.declaredValue).toBe("var(--color-surface-raised)");
     expect(byProp.get("background")?.resolvedValue).toBe("#ffffff");
@@ -173,6 +177,46 @@ describe("resolvePropertiesFromRules", () => {
     expect(byProp.get("cursor")?.resolvedValue).toBe("pointer");
 
     expect(result.some((r) => r.property === "--space-1")).toBe(false);
+  });
+
+  it.each([
+    ["8px", ["8px", "8px", "8px", "8px"]],
+    ["8px 16px", ["8px", "16px", "8px", "16px"]],
+    ["8px 16px 24px", ["8px", "16px", "24px", "16px"]],
+    ["8px 16px 24px 32px", ["8px", "16px", "24px", "32px"]],
+  ] as const)("expands a %s margin shorthand into top/right/bottom/left", (value, expected) => {
+    const result = resolvePropertiesFromRules(btn, [
+      {
+        selectorText: ".btn",
+        specificity: 10000,
+        declarations: [{ property: "margin", value }],
+      },
+    ], makeTable([]));
+    const byProp = new Map(result.map((row) => [row.property, row]));
+
+    expect(["margin-top", "margin-right", "margin-bottom", "margin-left"].map((property) => byProp.get(property)?.resolvedValue))
+      .toEqual(expected);
+    expect(result.some((row) => row.property === "margin")).toBe(false);
+  });
+
+  it("keeps each side's token attribution when a padding shorthand uses multiple tokens", () => {
+    const result = resolvePropertiesFromRules(btn, [
+      {
+        selectorText: ".btn",
+        specificity: 10000,
+        declarations: [{ property: "padding", value: "var(--space-1) var(--space-2) var(--space-3)" }],
+      },
+    ], makeTable([
+      { name: "--space-1", value: "4px", source: "s:1" },
+      { name: "--space-2", value: "8px", source: "s:2" },
+      { name: "--space-3", value: "12px", source: "s:3" },
+    ]));
+    const byProp = new Map(result.map((row) => [row.property, row]));
+
+    expect(byProp.get("padding-top")?.tokenName).toBe("--space-1");
+    expect(byProp.get("padding-right")?.tokenName).toBe("--space-2");
+    expect(byProp.get("padding-bottom")?.tokenName).toBe("--space-3");
+    expect(byProp.get("padding-left")?.tokenName).toBe("--space-2");
   });
 
   it("skips rules whose selector does not match", () => {
@@ -207,9 +251,9 @@ describe("resolvePropertiesFromRules", () => {
       },
     ];
     const result = resolvePropertiesFromRules(btn, rules, table);
-    expect(result).toHaveLength(1);
-    expect(result[0]!.tokenName).toBe("--space-2");
-    expect(result[0]!.resolvedValue).toBe("8px");
+    expect(result).toHaveLength(4);
+    expect(result.find((row) => row.property === "padding-top")?.tokenName).toBe("--space-2");
+    expect(result.find((row) => row.property === "padding-top")?.resolvedValue).toBe("8px");
   });
 
   it("higher specificity beats a later lower-specificity rule", () => {
@@ -231,9 +275,9 @@ describe("resolvePropertiesFromRules", () => {
     ];
     // button.btn (spec 10100) beats * (spec 0) even though it comes first
     const result = resolvePropertiesFromRules(btn, rules, table);
-    expect(result).toHaveLength(1);
-    expect(result[0]!.tokenName).toBe("--space-1");
-    expect(result[0]!.resolvedValue).toBe("4px");
+    expect(result).toHaveLength(4);
+    expect(result.find((row) => row.property === "padding-top")?.tokenName).toBe("--space-1");
+    expect(result.find((row) => row.property === "padding-top")?.resolvedValue).toBe("4px");
   });
 
   it("caps the result to the maximum number of properties", () => {
