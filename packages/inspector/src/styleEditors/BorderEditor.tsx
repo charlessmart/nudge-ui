@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
@@ -29,6 +29,18 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const allEntries = entries ?? tokens;
 
   const [styleChoice, setStyleChoice] = useState("solid");
+  const [focusedSide, setFocusedSide] = useState<string | null>(null);
+
+  const sideValues = useMemo(() => ["top", "right", "bottom", "left"].map((side) => ({
+    side,
+    width: findTokenRow(tokenRows, `border-${side}-width`),
+    style: findTokenRow(tokenRows, `border-${side}-style`),
+    color: findTokenRow(tokenRows, `border-${side}-color`),
+  })), [tokenRows]);
+  const sidesLinked = sideValues.every((candidate) => candidate.width?.resolvedValue === sideValues[0]?.width?.resolvedValue
+    && candidate.style?.resolvedValue === sideValues[0]?.style?.resolvedValue
+    && candidate.color?.resolvedValue === sideValues[0]?.color?.resolvedValue);
+  const focusedProperty = (kind: "width" | "style" | "color"): string => focusedSide ? `border-${focusedSide}-${kind}` : `border-${kind}`;
 
   const borderColorRow = findTokenRow(tokenRows, "border-color")
     ?? findTokenRow(tokenRows, "border-top-color")
@@ -38,6 +50,8 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const borderWidthRow = findTokenRow(tokenRows, "border-width")
     ?? findTokenRow(tokenRows, "border-top-width")
     ?? findTokenRow(tokenRows, "border");
+  const focusedWidthRow = focusedSide ? findTokenRow(tokenRows, focusedProperty("width")) ?? borderWidthRow : borderWidthRow;
+  const focusedColorRow = focusedSide ? findTokenRow(tokenRows, focusedProperty("color")) ?? borderColorRow : borderColorRow;
 
   useEffect(() => {
     setStyleChoice(getStateStyleValue(el, "border-top-style", "solid"));
@@ -45,7 +59,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
 
   function handleStyle(s: string): void {
     setStyleChoice(s);
-    setStyle(el, "border-style", s);
+    setStyle(el, focusedProperty("style"), s);
     onAfterEdit?.();
   }
 
@@ -53,16 +67,24 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
     <div className="dt-editor" data-test="border-editor">
       <div className="dt-editor__title">Border · radius · shadow</div>
       <div className="dt-border">
-        <FieldRow label="border-width">
+        <div data-test="border-sides" data-linked={sidesLinked ? "true" : "false"}>
+          <span>effective sides</span>
+          {sideValues.map(({ side }) => (
+            <button type="button" key={side} data-test={`border-side-${side}`} aria-pressed={focusedSide === side} onClick={() => setFocusedSide(focusedSide === side ? null : side)}>
+              {side}
+            </button>
+          ))}
+        </div>
+        <FieldRow label={focusedSide ? `${focusedProperty("width")} · ${focusedSide}` : "border-width"}>
           <TokenField
-            property="border-width"
-            tokenRow={borderWidthRow}
+            property={focusedProperty("width")}
+            tokenRow={focusedWidthRow}
             domElement={el}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
-        <FieldRow label="border-style">
+        <FieldRow label={focusedSide ? `${focusedProperty("style")} · ${focusedSide}` : "border-style"}>
           <Select
             data-test="border-style"
             value={styleChoice}
@@ -70,10 +92,10 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             onValueChange={handleStyle}
           />
         </FieldRow>
-        <FieldRow label="border-color">
+        <FieldRow label={focusedSide ? `${focusedProperty("color")} · ${focusedSide}` : "border-color"}>
           <TokenField
-            property="border-color"
-            tokenRow={borderColorRow}
+            property={focusedProperty("color")}
+            tokenRow={focusedColorRow}
             domElement={el}
             entries={allEntries}
             onAfterEdit={onAfterEdit}

@@ -16,6 +16,7 @@ export interface ResolvedProperty {
   capability?: EditCapability;
   resolvedTokenValue?: string;
   diagnostic?: string;
+  structure?: BorderStructure;
   confidence: "exact" | "probable" | "unknown";
   evidence: AttributionEvidence;
 }
@@ -24,6 +25,14 @@ export type TokenOrigin = "project" | "framework" | "generated" | "runtime";
 export type EditCapability = "atomic" | "color" | "box-sides" | "structured" | "composite" | "raw";
 export interface TokenReference { name: string; origin: TokenOrigin }
 export interface ValueModifier { kind: "alpha" | "fallback" | "expression"; value: string }
+export interface BorderStructure {
+  kind: "border";
+  sourceProperty: "border" | "border-top" | "border-right" | "border-bottom" | "border-left";
+  width: string;
+  style: string;
+  color: string;
+  colorTokenName: string | null;
+}
 
 export interface AttributionEvidence {
   selector?: string;
@@ -301,6 +310,31 @@ function splitTopLevelWhitespace(value: string): string[] {
   return parts;
 }
 
+const BORDER_STYLES = new Set(["none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"]);
+const BORDER_WIDTHS = new Set(["thin", "medium", "thick"]);
+const COLOR_KEYWORDS = new Set(["transparent", "currentcolor", "black", "silver", "gray", "white", "maroon", "red", "purple", "fuchsia", "green", "lime", "olive", "yellow", "navy", "blue", "teal", "aqua", "orange"]);
+
+export function parseBorderShorthand(value: string, tokenTable: TokenTable): BorderStructure | null {
+  const parts = splitTopLevelWhitespace(value.trim());
+  if (parts.length !== 3) return null;
+  let width = "";
+  let style = "";
+  let color = "";
+  for (const part of parts) {
+    const lower = part.toLowerCase();
+    const varName = /^var\(\s*(--[\w-]+)/i.exec(part)?.[1];
+    const varValue = varName ? tokenTable[varName]?.value ?? "" : "";
+    if (!width && (BORDER_WIDTHS.has(lower) || /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(part) || (varName !== undefined && /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(varValue.trim())))) width = part;
+    else if (!style && BORDER_STYLES.has(lower)) style = part;
+    else if (!color && (COLOR_KEYWORDS.has(lower) || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|hwb\(|lab\(|lch\(|oklab\(|oklch\(|var\(\s*--)/i.test(part))) color = part;
+    else return null;
+  }
+  if (!width || !style || !color) return null;
+  const colorResult = resolveTokenValue(color, tokenTable);
+  if (color.startsWith("var(") && !colorResult.tokenName) return null;
+  return { kind: "border", sourceProperty: "border", width, style, color, colorTokenName: colorResult.tokenName };
+}
+
 function expandFourValueShorthand<T>(values: readonly T[]): [T, T, T, T] | null {
   if (values.length === 0 || values.length > 4) return null;
   const top = values[0]!;
@@ -323,6 +357,7 @@ interface ResolvedDeclaration {
   capability: EditCapability;
   resolvedTokenValue: string;
   diagnostic?: string;
+  structure?: BorderStructure;
 }
 
 function resolveDeclaration(
@@ -330,6 +365,42 @@ function resolveDeclaration(
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
 ): ResolvedDeclaration[] {
+  const borderProperty = declaration.property.toLowerCase();
+  if (borderProperty === "border" || /^border-(top|right|bottom|left)$/.test(borderProperty)) {
+    const structure = parseBorderShorthand(declaration.value, tokenTable);
+    if (structure) {
+      const sourceProperty = borderProperty as BorderStructure["sourceProperty"];
+      const sidePrefix = sourceProperty === "border" ? "" : `${sourceProperty}-`;
+      const scopedStructure = { ...structure, sourceProperty };
+      const colorResult = resolveTokenValue(structure.color, tokenTable, localAliases);
+      const authored = declaration.value.trim();
+      const base = [
+        ...(sidePrefix ? [[`${sidePrefix}width`, structure.width], [`${sidePrefix}style`, structure.style], [`${sidePrefix}color`, structure.color]] as const : [
+          ["border-width", structure.width], ["border-style", structure.style], ["border-color", structure.color],
+          ["border-top-width", structure.width], ["border-right-width", structure.width], ["border-bottom-width", structure.width], ["border-left-width", structure.width],
+          ["border-top-style", structure.style], ["border-right-style", structure.style], ["border-bottom-style", structure.style], ["border-left-style", structure.style],
+          ["border-top-color", structure.color], ["border-right-color", structure.color], ["border-bottom-color", structure.color], ["border-left-color", structure.color],
+        ]),
+      ] as const;
+      return base.map(([property, component]) => {
+        const isColor = property.endsWith("color");
+        const resolved = isColor ? colorResult : { tokenName: null, resolvedValue: component, tokens: [], modifiers: [], cycle: undefined };
+        return {
+          property,
+          declaredValue: authored,
+          tokenName: resolved.tokenName,
+          resolvedValue: resolved.resolvedValue,
+          important: declaration.important,
+          tokens: isColor ? colorResult.tokens : [],
+          modifiers: isColor ? colorResult.modifiers : [],
+          capability: "structured" as const,
+          resolvedTokenValue: resolved.resolvedValue,
+          diagnostic: colorResult.cycle ? `custom-property alias cycle includes ${colorResult.cycle}` : undefined,
+          structure: scopedStructure,
+        };
+      });
+    }
+  }
   const sides = SPACING_SIDES[declaration.property.toLowerCase()];
   if (!sides) {
     const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
@@ -341,7 +412,7 @@ function resolveDeclaration(
       important: declaration.important,
       tokens: res.tokens,
       modifiers: res.modifiers,
-      capability: capabilityFor(declaration.property, declaration.value),
+      capability: declaration.property.toLowerCase() === "border" ? "raw" : capabilityFor(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
       diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
     }];
@@ -494,6 +565,7 @@ export function resolvePropertiesFromRules(
           capability: resolved.capability,
           resolvedTokenValue: resolved.resolvedTokenValue,
           diagnostic: resolved.diagnostic,
+          structure: resolved.structure,
           confidence: resolved.tokenName ? "probable" : "unknown",
           evidence: {
             selector: branch,

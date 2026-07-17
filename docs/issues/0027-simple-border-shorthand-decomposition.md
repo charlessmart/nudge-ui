@@ -30,17 +30,17 @@ scope for this slice.
 
 ## Acceptance criteria
 
-- [ ] `border: <width> <style> <color>` decomposes into width, style, and color
+- [x] `border: <width> <style> <color>` decomposes into width, style, and color
       with independent token attribution where applicable.
-- [ ] A token-backed border color remains linked to its token rather than being
+- [x] A token-backed border color remains linked to its token rather than being
       replaced with a computed RGB string.
-- [ ] The border editor exposes linked effective sides and an independent-side
+- [x] The border editor exposes linked effective sides and an independent-side
       path when an authored side override exists.
-- [ ] Editing one structured border value updates only the intended managed
+- [x] Editing one structured border value updates only the intended managed
       stylesheet longhand and retains a coherent change-log/prompt record.
-- [ ] Unsupported/ambiguous border values render as raw CSS without false
+- [x] Unsupported/ambiguous border values render as raw CSS without false
       decomposition.
-- [ ] Unit cases cover shorthand order permutations, token colors, side
+- [x] Unit cases cover shorthand order permutations, token colors, side
       overrides, and fallbacks; browser fixtures verify preview and inspector
       behavior.
 - [ ] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and

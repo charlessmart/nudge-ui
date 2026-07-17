@@ -7,6 +7,7 @@ import {
   getAvailableInteractionStates,
   getResolvedPropertiesForState,
   computeSpecificity,
+  parseBorderShorthand,
   type MatchedRule,
   type TokenTable,
 } from "./resolution.ts";
@@ -274,7 +275,7 @@ describe("resolvePropertiesFromRules", () => {
     const result = resolvePropertiesFromRules(btn, rules, table);
     const byProp = new Map(result.map((r) => [r.property, r]));
 
-    expect(result).toHaveLength(8);
+    expect(result).toHaveLength(22);
     expect(byProp.get("padding-top")?.declaredValue).toBe("var(--space-1)");
     expect(byProp.get("padding-right")?.declaredValue).toBe("var(--space-2)");
     expect(byProp.get("padding-bottom")?.declaredValue).toBe("var(--space-1)");
@@ -291,6 +292,34 @@ describe("resolvePropertiesFromRules", () => {
 
     expect(result.some((r) => r.property === "--space-1")).toBe(false);
   });
+
+  it.each([
+    ["2px solid var(--color-border)", "2px", "solid", "var(--color-border)"],
+    ["var(--width) dashed #123456", "var(--width)", "dashed", "#123456"],
+    ["#123456 double 1px", "1px", "double", "#123456"],
+  ])("decomposes safe border shorthand %s", (value, width, style, color) => {
+    const table = makeTable([
+      { name: "--color-border", value: "#334455", source: "s:1" },
+      { name: "--width", value: "1px", source: "s:2" },
+    ]);
+    const structure = parseBorderShorthand(value, table);
+    expect(structure).toMatchObject({ width, style, color });
+    const rows = resolvePropertiesFromRules(btn, [{ selectorText: ".btn", specificity: 10000, declarations: [{ property: "border", value }] }], table);
+    expect(rows.find((row) => row.property === "border-width")?.resolvedValue).toBe(width);
+    expect(rows.find((row) => row.property === "border-style")?.resolvedValue).toBe(style);
+    expect(rows.find((row) => row.property === "border-color")?.tokenName).toBe(color.startsWith("var") ? "--color-border" : null);
+    expect(rows.find((row) => row.property === "border-top-width")?.authored).toBe(value);
+  });
+
+  it.each(["2px solid", "2px solid var(--unknown)", "2px solid red / 10%", "inherit", "2px solid red url(x)"])(
+    "keeps ambiguous border value %s raw",
+    (value) => {
+      expect(parseBorderShorthand(value, makeTable([]))).toBeNull();
+      const row = resolvePropertiesFromRules(btn, [{ selectorText: ".btn", specificity: 10000, declarations: [{ property: "border", value }] }], makeTable([])).find((candidate) => candidate.property === "border");
+      expect(row?.capability).toBe("raw");
+      expect(row?.authored).toBe(value);
+    },
+  );
 
   it("keeps authored expressions separate from computed and classifies them as raw", () => {
     const value = "calc(var(--space-1) * 2)";

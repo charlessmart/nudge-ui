@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { BorderEditor } from "./BorderEditor.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
@@ -121,5 +121,24 @@ describe("BorderEditor", () => {
     expect(borderColorField).toBeTruthy();
     const raw = borderColorField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
     expect(raw).toBeTruthy();
+  });
+
+  it("exposes linked sides and writes a focused side longhand when selected", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BorderEditor, {
+      element: selected,
+      entries: ENTRIES,
+      tokenRows: [
+        { ...BORDER_COLOR_ROW, property: "border-color" },
+        { ...BORDER_COLOR_ROW, property: "border-top-color" },
+        { ...BORDER_COLOR_ROW, property: "border-right-color" },
+        { ...BORDER_COLOR_ROW, property: "border-bottom-color" },
+        { ...BORDER_COLOR_ROW, property: "border-left-color" },
+      ],
+    }));
+    expect(handle.host.querySelector('[data-test="border-sides"]')?.getAttribute("data-linked")).toBe("true");
+    act(() => (handle.host.querySelector('[data-test="border-side-top"]') as HTMLButtonElement).click());
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-color"]')).not.toBeNull();
   });
 });
