@@ -30,17 +30,17 @@ transforms, backgrounds, fonts, transitions, animations, or grid templates.
 
 ## Acceptance criteria
 
-- [ ] A resolved inspection value retains authored text independently from its
+- [x] A resolved inspection value retains authored text independently from its
       computed browser value.
-- [ ] `var(--token, fallback)` exposes the token reference and fallback without
+- [x] `var(--token, fallback)` exposes the token reference and fallback without
       flattening either into the computed value.
-- [ ] Alias chains resolve to a known leaf when safe; cycles are reported
+- [x] Alias chains resolve to a known leaf when safe; cycles are reported
       without looping or inventing a value.
-- [ ] Token references within `calc()`, `min()`, `max()`, and `clamp()` are
+- [x] Token references within `calc()`, `min()`, `max()`, and `clamp()` are
       attributed while the original expression remains editable as raw CSS.
-- [ ] The resolver supplies a stable edit-capability classification to the
+- [x] The resolver supplies a stable edit-capability classification to the
       inspector; unsupported composite values use an explicit raw fallback.
-- [ ] Unit tests cover each supported function, fallback, alias cycle, and raw
+- [x] Unit tests cover each supported function, fallback, alias cycle, and raw
       fallback; conformance fixtures verify authored and computed facts
       separately in a browser.
 - [ ] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and

@@ -27,6 +27,7 @@ export interface TokenValueFieldProps {
   onCommitRaw(value: string): void;
   onSelectToken(token: TokenEntry): void;
   onUnlink(value: string): void;
+  attributionTokens?: string[];
 }
 
 export interface TokenFieldProps {
@@ -128,6 +129,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     onCommitRaw,
     onSelectToken,
     onUnlink,
+    attributionTokens = [],
   } = props;
   const [rawValue, setRawValue] = useState(committedValue);
   const [activeTokenName, setActiveTokenName] = useState<string | null>(controlledTokenName);
@@ -279,6 +281,11 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const showPopover = isFocused && filteredTokens.length > 0;
   return (
     <span className="dt-token-field dt-token-field--raw" data-test="token-field" data-property={property}>
+      {attributionTokens.length > 0 ? (
+        <span className="dt-token-field__attribution" data-test="token-attribution" title="Referenced tokens">
+          {attributionTokens.join(" · ")}
+        </span>
+      ) : null}
       {colorControl}
       <PopoverListbox
         query={rawValue}
@@ -312,8 +319,9 @@ function arrowDirection(key: string): -1 | 1 | null {
 
 export function TokenField(props: TokenFieldProps): ReactElement {
   const { property, tokenRow, domElement: el, entries, onAfterEdit } = props;
-  const activeTokenName = tokenRow?.tokenName ?? null;
-  const committedValue = tokenRow?.resolvedValue ?? computedRaw(el, property);
+  const expression = Boolean(tokenRow && ((tokenRow.modifiers?.length ?? 0) > 0 || tokenRow.capability === "raw" || tokenRow.capability === "composite"));
+  const activeTokenName = expression ? null : tokenRow?.tokenName ?? null;
+  const committedValue = expression ? tokenRow?.authored ?? tokenRow?.declaredValue ?? computedRaw(el, property) : tokenRow?.resolvedValue ?? computedRaw(el, property);
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null
     : null;
@@ -324,6 +332,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       committedValue={committedValue}
       resolvedValue={tokenRow?.resolvedValue ?? committedValue}
       activeTokenName={activeTokenName}
+      attributionTokens={expression ? tokenRow?.tokens?.map((token) => token.name) : undefined}
       entries={entries}
       isColor={groupOfProperty(property) === "color"}
       formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(property))}

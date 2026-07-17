@@ -8,9 +8,22 @@ export interface ResolvedProperty {
   tokenName: string | null;
   declaredValue: string;
   resolvedValue: string;
+  /** Product-contract aliases. `declaredValue`/`resolvedValue` remain for UI compatibility. */
+  authored?: string;
+  computed?: string;
+  tokens?: TokenReference[];
+  modifiers?: ValueModifier[];
+  capability?: EditCapability;
+  resolvedTokenValue?: string;
+  diagnostic?: string;
   confidence: "exact" | "probable" | "unknown";
   evidence: AttributionEvidence;
 }
+
+export type TokenOrigin = "project" | "framework" | "generated" | "runtime";
+export type EditCapability = "atomic" | "color" | "box-sides" | "structured" | "composite" | "raw";
+export interface TokenReference { name: string; origin: TokenOrigin }
+export interface ValueModifier { kind: "alpha" | "fallback" | "expression"; value: string }
 
 export interface AttributionEvidence {
   selector?: string;
@@ -52,8 +65,68 @@ const SPACING_SIDES: Record<string, readonly string[]> = {
 
 export function buildTokenTable(entries: TokenEntry[]): TokenTable {
   const table: TokenTable = {};
-  for (const entry of entries) table[entry.name] = entry;
+  for (const entry of entries) {
+    table[entry.name] = entry;
+    if (entry.cssName) table[entry.cssName] = entry;
+  }
   return table;
+}
+
+function tokenVariableName(entry: TokenEntry): string {
+  return entry.cssName ?? entry.name;
+}
+
+function tokenOrigin(entry: TokenEntry | undefined): TokenOrigin {
+  if (!entry) return "runtime";
+  if (entry.origin) return entry.origin;
+  if (entry.adapter === "tailwind-v3" || entry.adapter === "tailwind-v4") return "framework";
+  if (entry.adapter === "vanilla-extract") return "project";
+  return "project";
+}
+
+function extractVarCalls(value: string): Array<{ name: string; fallback?: string }> {
+  const calls: Array<{ name: string; fallback?: string }> = [];
+  let i = 0;
+  while (i < value.length) {
+    const start = value.indexOf("var(", i);
+    if (start < 0) break;
+    let depth = 1;
+    let j = start + 4;
+    let comma = -1;
+    while (j < value.length && depth > 0) {
+      const char = value[j];
+      if (char === "(") depth++;
+      else if (char === ")") depth--;
+      else if (char === "," && depth === 1 && comma < 0) comma = j;
+      j++;
+    }
+    const body = value.slice(start + 4, Math.max(start + 4, j - 1)).trim();
+    const name = (body.slice(0, comma < 0 ? body.length : comma - start - 4).trim().match(/^--[\w-]+/) ?? [])[0];
+    if (name) {
+      const fallback = comma >= 0 ? value.slice(comma + 1, Math.max(comma + 1, j - 1)).trim() : undefined;
+      calls.push({ name, fallback });
+    }
+    i = Math.max(j, start + 4);
+  }
+  return calls;
+}
+
+function capabilityFor(property: string, value: string): EditCapability {
+  const p = property.toLowerCase();
+  const v = value.trim().toLowerCase();
+  if (["margin", "padding", "inset", "inset-block", "inset-inline"].includes(p)
+    || p.startsWith("margin-") || p.startsWith("padding-") || p.startsWith("inset-")) return "box-sides";
+  if (p === "border" || p.endsWith("-border") || p === "border-color" || p.endsWith("-border-color")) return "structured";
+  if (p === "color" || /(^|-)color$/.test(p) || p === "background-color" || p === "fill" || p === "stroke") return "color";
+  if (/(gradient|shadow|transform|transition|animation|font|grid|background)/.test(p) || v.includes(",")) return "composite";
+  if (/\b(calc|min|max|clamp|color-mix)\s*\(/.test(v)) return "raw";
+  if (/^var\(\s*--[\w-]+\s*\)$/.test(v) || /^[+-]?(?:\d*\.)?\d+(?:[a-z%]+)?$/i.test(v)
+    || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|oklch\(|oklab\(|transparent|currentcolor)/.test(v)) return "atomic";
+  return "raw";
+}
+
+export function classifyValue(property: string, authored: string): EditCapability {
+  return capabilityFor(property, authored);
 }
 
 let tableCache: TokenTable | null = null;
@@ -100,13 +173,15 @@ function resolveRef(
   tokenTable: TokenTable,
   visited: Set<string>,
   localAliases: ReadonlyMap<string, string>,
-): { known: boolean; tokenName: string | null; resolvedValue: string } {
+): { known: boolean; tokenName: string | null; resolvedValue: string; leafTokenName: string | null; cycle?: string } {
   if (visited.has(ref)) {
     const entry = tokenTable[ref];
     return {
       known: entry !== undefined,
-      tokenName: entry ? ref : null,
+      tokenName: entry ? entry.name : null,
       resolvedValue: entry ? entry.value : `var(${ref})`,
+      leafTokenName: entry ? entry.name : null,
+      cycle: ref,
     };
   }
   const entry = tokenTable[ref];
@@ -114,20 +189,20 @@ function resolveRef(
     const nextVisited = new Set(visited);
     nextVisited.add(ref);
     const inner = resolveTokenValueInner(entry.value, tokenTable, nextVisited, localAliases);
-    return { known: true, tokenName: ref, resolvedValue: inner.resolvedValue };
+    return { known: true, tokenName: entry.name, resolvedValue: inner.resolvedValue, leafTokenName: inner.leafTokenName ?? entry.name, cycle: inner.cycle };
   }
 
   const localValue = localAliases.get(ref);
   if (localValue === undefined) {
-    return { known: false, tokenName: null, resolvedValue: `var(${ref})` };
+    return { known: false, tokenName: null, resolvedValue: `var(${ref})`, leafTokenName: null };
   }
 
   const nextVisited = new Set(visited);
   nextVisited.add(ref);
   const inner = resolveTokenValueInner(localValue, tokenTable, nextVisited, localAliases);
   return inner.tokenName
-    ? { known: true, tokenName: inner.tokenName, resolvedValue: inner.resolvedValue }
-    : { known: false, tokenName: null, resolvedValue: `var(${ref})` };
+    ? { known: true, tokenName: inner.tokenName, resolvedValue: inner.resolvedValue, leafTokenName: inner.leafTokenName ?? null, cycle: inner.cycle }
+    : { known: false, tokenName: null, resolvedValue: `var(${ref})`, leafTokenName: null, cycle: inner.cycle };
 }
 
 function resolveTokenValueInner(
@@ -135,29 +210,60 @@ function resolveTokenValueInner(
   tokenTable: TokenTable,
   visited: Set<string>,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
-): { tokenName: string | null; resolvedValue: string } {
+): { tokenName: string | null; resolvedValue: string; leafTokenName?: string | null; cycle?: string } {
   const trimmed = value.trim();
-  const refs: string[] = [];
-  let m: RegExpExecArray | null;
-  VAR_REF.lastIndex = 0;
-  while ((m = VAR_REF.exec(trimmed)) !== null) {
-    const name = m[1];
-    if (name) refs.push(name);
-  }
-  if (refs.length === 0) return { tokenName: null, resolvedValue: trimmed };
+  const refs = extractVarCalls(trimmed).map((call) => call.name);
+  if (refs.length === 0) return { tokenName: null, resolvedValue: trimmed, leafTokenName: null };
   for (const ref of refs) {
     const res = resolveRef(ref, tokenTable, visited, localAliases);
-    if (res.known) return { tokenName: res.tokenName, resolvedValue: res.resolvedValue };
+    if (res.known) return { tokenName: res.tokenName, resolvedValue: res.resolvedValue, leafTokenName: res.leafTokenName, cycle: res.cycle };
   }
-  return { tokenName: null, resolvedValue: trimmed };
+  return { tokenName: null, resolvedValue: trimmed, leafTokenName: null };
 }
 
 export function resolveTokenValue(
   value: string,
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
-): { tokenName: string | null; resolvedValue: string } {
-  return resolveTokenValueInner(value, tokenTable, new Set(), localAliases);
+): { tokenName: string | null; resolvedValue: string; tokens: TokenReference[]; modifiers: ValueModifier[]; leafTokenName: string | null; cycle?: string } {
+  const authored = value.trim();
+  const calls = extractVarCalls(authored);
+  const references: TokenReference[] = [];
+  let firstKnown: { tokenName: string; leafTokenName: string | null; resolvedValue: string; cycle?: string } | null = null;
+  for (const call of calls) {
+    const result = resolveRef(call.name, tokenTable, new Set(), localAliases);
+    if (result.known) {
+      if (!references.some((token) => token.name === result.tokenName)) {
+        references.push({ name: result.tokenName ?? call.name, origin: tokenOrigin(tokenTable[call.name] ?? tokenTable[result.tokenName ?? ""]!) });
+      }
+      if (!firstKnown) firstKnown = { tokenName: result.tokenName ?? call.name, leafTokenName: result.leafTokenName, resolvedValue: result.resolvedValue, cycle: result.cycle };
+    }
+    if (call.fallback) {
+      const fallback = call.fallback.trim();
+      if (fallback) {
+        const fallbackResult = resolveTokenValue(fallback, tokenTable, localAliases);
+        references.push(...fallbackResult.tokens.filter((token) => !references.some((seen) => seen.name === token.name)));
+        if (!firstKnown && fallbackResult.tokenName) {
+          firstKnown = {
+            tokenName: fallbackResult.tokenName,
+            leafTokenName: fallbackResult.leafTokenName,
+            resolvedValue: fallbackResult.resolvedValue,
+            cycle: fallbackResult.cycle,
+          };
+        }
+      }
+    }
+  }
+  const modifiers: ValueModifier[] = calls.flatMap((call) => call.fallback ? [{ kind: "fallback" as const, value: call.fallback }] : []);
+  const inner = resolveTokenValueInner(authored, tokenTable, new Set(), localAliases);
+  return {
+    tokenName: firstKnown?.tokenName ?? inner.tokenName,
+    resolvedValue: firstKnown?.resolvedValue ?? inner.resolvedValue,
+    tokens: references,
+    modifiers,
+    leafTokenName: firstKnown?.leafTokenName ?? firstKnown?.tokenName ?? null,
+    cycle: firstKnown?.cycle,
+  };
 }
 
 function splitTopLevelWhitespace(value: string): string[] {
@@ -205,6 +311,11 @@ interface ResolvedDeclaration {
   tokenName: string | null;
   resolvedValue: string;
   important?: boolean;
+  tokens: TokenReference[];
+  modifiers: ValueModifier[];
+  capability: EditCapability;
+  resolvedTokenValue: string;
+  diagnostic?: string;
 }
 
 function resolveDeclaration(
@@ -221,6 +332,11 @@ function resolveDeclaration(
       tokenName: res.tokenName,
       resolvedValue: res.resolvedValue,
       important: declaration.important,
+      tokens: res.tokens,
+      modifiers: res.modifiers,
+      capability: capabilityFor(declaration.property, declaration.value),
+      resolvedTokenValue: res.resolvedValue,
+      diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
     }];
   }
 
@@ -233,6 +349,11 @@ function resolveDeclaration(
       tokenName: res.tokenName,
       resolvedValue: res.resolvedValue,
       important: declaration.important,
+      tokens: res.tokens,
+      modifiers: res.modifiers,
+      capability: capabilityFor(declaration.property, declaration.value),
+      resolvedTokenValue: res.resolvedValue,
+      diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
     }];
   }
 
@@ -259,6 +380,11 @@ function resolveDeclaration(
       tokenName: res.tokenName,
       resolvedValue: res.resolvedValue,
       important: declaration.important,
+      tokens: res.tokens,
+      modifiers: res.modifiers,
+      capability: capabilityFor(declaration.property, declaration.value),
+      resolvedTokenValue: res.resolvedValue,
+      diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
     }];
   }
 
@@ -266,6 +392,10 @@ function resolveDeclaration(
     property,
     ...sideValues[index]!,
     important: declaration.important,
+    tokens: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).tokens,
+    modifiers: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).modifiers,
+    capability: "box-sides",
+    resolvedTokenValue: sideValues[index]!.resolvedValue,
   }));
 }
 
@@ -350,6 +480,13 @@ export function resolvePropertiesFromRules(
           tokenName: resolved.tokenName,
           declaredValue: resolved.declaredValue,
           resolvedValue: resolved.resolvedValue,
+          authored: resolved.declaredValue,
+          computed: "",
+          tokens: resolved.tokens,
+          modifiers: resolved.modifiers,
+          capability: resolved.capability,
+          resolvedTokenValue: resolved.resolvedTokenValue,
+          diagnostic: resolved.diagnostic,
           confidence: resolved.tokenName ? "probable" : "unknown",
           evidence: {
             selector: branch,
@@ -621,6 +758,7 @@ export function getResolvedProperties(
     const cv = computed.getPropertyValue(prop.property);
     if (cv) {
       prop.resolvedValue = cv;
+      prop.computed = cv;
       const validated = candidateMatchesPainted(el, prop, cv);
       prop.confidence = validated && !inaccessible && !prop.evidence.layer ? "exact" : prop.tokenName ? "probable" : "unknown";
       prop.evidence.inaccessibleStylesheet = inaccessible || undefined;
@@ -646,6 +784,13 @@ export function getResolvedProperties(
         tokenName: declaration.tokenName,
         declaredValue: declaration.declaredValue,
         resolvedValue: painted,
+        authored: declaration.declaredValue,
+        computed: painted,
+        tokens: declaration.tokens,
+        modifiers: declaration.modifiers,
+        capability: declaration.capability,
+        resolvedTokenValue: declaration.resolvedValue,
+        diagnostic: undefined,
         confidence: "unknown",
         evidence: { selector: "[style]", specificity: 100000000, important: Boolean(declaration.important), inaccessibleStylesheet: inaccessible || undefined, reason: declaration.tokenName ? "inline token declaration validated against computed style" : "inline declaration contains no catalog token" },
       };

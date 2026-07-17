@@ -3,6 +3,9 @@ export interface TokenEntry {
   value: string;
   source: string;
   adapter?: string;
+  cssName?: string;
+  origin?: "project" | "framework" | "generated" | "runtime";
+  editable?: boolean;
 }
 
 export interface TokenContext {
@@ -26,6 +29,9 @@ export interface TokenDefinition {
   cssName: string;
   name: string;
   declarations: TokenDeclaration[];
+  adapter?: string;
+  origin?: "project" | "framework" | "generated" | "runtime";
+  editable?: boolean;
 }
 
 export const tokenTable: Record<string, TokenEntry> = {};

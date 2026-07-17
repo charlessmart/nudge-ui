@@ -30,6 +30,23 @@ describe("buildTokenTable", () => {
 });
 
 describe("resolveTokenValue", () => {
+  it("preserves authored fallback references and exposes modifiers", () => {
+    const table = makeTable([{ name: "--space-4", value: "1rem", source: "s:1" }]);
+    const res = resolveTokenValue("var(--space-4, 16px)", table);
+    expect(res.tokenName).toBe("--space-4");
+    expect(res.tokens).toEqual([{ name: "--space-4", origin: "project" }]);
+    expect(res.modifiers).toEqual([{ kind: "fallback", value: "16px" }]);
+  });
+
+  it.each(["calc(var(--space-4) * 2)", "min(var(--space-4), 2rem)", "max(var(--space-4), 8px)", "clamp(8px, var(--space-4), 2rem)"])(
+    "attributes a token inside %s without flattening the expression",
+    (value) => {
+      const res = resolveTokenValue(value, makeTable([{ name: "--space-4", value: "1rem", source: "s:1" }]));
+      expect(res.tokenName).toBe("--space-4");
+      expect(res.tokens[0]?.name).toBe("--space-4");
+      expect(res.resolvedValue).toBe("1rem");
+    },
+  );
   it("resolves a known token to its leaf value", () => {
     const table = makeTable([
       { name: "--color-surface-raised", value: "#ffffff", source: "s:1" },
@@ -94,6 +111,14 @@ describe("resolveTokenValue", () => {
     expect(typeof res.resolvedValue).toBe("string");
   });
 
+  it("reports the cycle without looping", () => {
+    const table = makeTable([
+      { name: "--a", value: "var(--b)", source: "s:1" },
+      { name: "--b", value: "var(--a)", source: "s:2" },
+    ]);
+    expect(resolutionCycle("var(--a)", table)).toContain("--a");
+  });
+
   it("follows Tailwind's local --tw alias to the winning global token", () => {
     const table = makeTable([
       { name: "--leading-tight", value: "1.25", source: "tailwind.css:1" },
@@ -121,6 +146,10 @@ describe("resolveTokenValue", () => {
     expect(row?.resolvedValue).toBe("1.25");
   });
 });
+
+function resolutionCycle(value: string, table: TokenTable): string {
+  return resolveTokenValue(value, table).cycle ?? "";
+}
 
 describe("interaction-state resolution", () => {
   beforeEach(() => {
@@ -253,6 +282,17 @@ describe("resolvePropertiesFromRules", () => {
     expect(byProp.get("cursor")?.resolvedValue).toBe("pointer");
 
     expect(result.some((r) => r.property === "--space-1")).toBe(false);
+  });
+
+  it("keeps authored expressions separate from computed and classifies them as raw", () => {
+    const value = "calc(var(--space-1) * 2)";
+    const row = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [{ property: "width", value }],
+    }], makeTable([{ name: "--space-1", value: "4px", source: "s:1" }]))[0];
+    expect(row).toMatchObject({ authored: value, declaredValue: value, capability: "raw", computed: "" });
+    expect(row?.tokens?.map((token) => token.name)).toEqual(["--space-1"]);
   });
 
   it.each([

@@ -201,6 +201,30 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-select"]')).toBeNull();
   });
 
+  it("shows authored functional CSS and token attribution instead of computed pixels", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "width",
+      tokenRow: {
+        property: "width",
+        tokenName: "--space-4",
+        declaredValue: "calc(var(--space-4) * 2)",
+        authored: "calc(var(--space-4) * 2)",
+        resolvedValue: "32px",
+        computed: "32px",
+        tokens: [{ name: "--space-4", origin: "project" }],
+        capability: "raw",
+        confidence: "probable",
+        evidence: { reason: "test fixture" },
+      },
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+    }));
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("calc(var(--space-4) * 2)");
+    expect(handle.host.querySelector('[data-test="token-attribution"]')?.textContent).toContain("--space-4");
+    expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
+  });
+
   it("returns to a raw input when a token chip is unlinked", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {
