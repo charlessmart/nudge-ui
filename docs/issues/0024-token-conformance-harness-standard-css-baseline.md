@@ -41,15 +41,15 @@ fixture's authored values as separate expected facts.
 
 ## Acceptance criteria
 
-- [ ] A reusable fixture format and runner exist for token conformance tests;
+- [x] A reusable fixture format and runner exist for token conformance tests;
       new cases do not need bespoke Playwright control flow.
-- [ ] Each fixture can assert catalog entries, selected-element authored
+- [x] Each fixture can assert catalog entries, selected-element authored
       attribution, computed browser output, confidence/capability, and optional
       managed-preview output.
-- [ ] The standard-CSS baseline corpus covers every case listed above.
-- [ ] At least one fixture is exercised by both fast unit tests and a browser
+- [x] The standard-CSS baseline corpus covers every case listed above.
+- [x] At least one fixture is exercised by both fast unit tests and a browser
       Playwright test against the real inspector path.
-- [ ] A computed CSS value cannot satisfy an authored-value expectation by
+- [x] A computed CSS value cannot satisfy an authored-value expectation by
       itself.
 - [ ] Existing token extraction, contextual catalog, managed stylesheet, and
       production dev-only tests remain green.

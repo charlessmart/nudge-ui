@@ -1,0 +1,112 @@
+import type { TokenDefinition } from "virtual:design-tokens";
+import { buildTokenCatalogRows } from "../tokens/catalog.ts";
+import { getResolvedProperties } from "../tokens/resolution.ts";
+import type { EditCapability, ResolvedProperty, TokenOrigin } from "../tokens/resolution.ts";
+import { applyRules, verifyPreview } from "../managedStylesheet.ts";
+import type { PreviewResult } from "../managedStylesheet.ts";
+
+export interface ConformancePropertyExpectation {
+  authored: string;
+  tokens?: string[];
+  computed?: string;
+  capability: EditCapability;
+  confidence?: "exact" | "probable" | "unknown";
+}
+
+export interface ConformanceFixture {
+  id: string;
+  css: string;
+  markup: string;
+  selected: string;
+  catalog: TokenDefinition[];
+  expected: {
+    catalog: Array<{ name: string; value?: string; adapter?: string; origin?: TokenOrigin }>;
+    properties: Record<string, ConformancePropertyExpectation>;
+    preview?: { property: string; value: string; computed?: string };
+  };
+}
+
+export interface ConformanceResult {
+  fixture: string;
+  selected: HTMLElement;
+  catalog: ReturnType<typeof buildTokenCatalogRows>;
+  properties: ResolvedProperty[];
+  preview: PreviewResult | null;
+  cleanup(): void;
+}
+
+/**
+ * Mounts one data-led fixture and runs it through the same CSSOM resolver used
+ * by the inspector. The caller owns assertions; this module only owns setup,
+ * teardown, and the public inspection result.
+ */
+export function runConformanceFixture(
+  fixture: ConformanceFixture,
+  doc: Document = document,
+): ConformanceResult {
+  const style = doc.createElement("style");
+  style.dataset.conformanceFixture = fixture.id;
+  style.textContent = fixture.css;
+  doc.head.appendChild(style);
+
+  const mount = doc.createElement("div");
+  mount.dataset.conformanceFixture = fixture.id;
+  mount.innerHTML = fixture.markup;
+  doc.body.appendChild(mount);
+  const selected = mount.querySelector<HTMLElement>(fixture.selected);
+  if (!selected) throw new Error(`Conformance fixture ${fixture.id} selected no element: ${fixture.selected}`);
+
+  const rows = buildTokenCatalogRows(fixture.catalog, doc.documentElement);
+  const properties = getResolvedProperties(selected, Object.fromEntries(
+    fixture.catalog.flatMap((definition) => [
+      [definition.cssName, { name: definition.name, cssName: definition.cssName, value: definition.declarations[0]?.value ?? "", source: definition.declarations[0]?.source ?? "", adapter: definition.adapter, origin: definition.origin, editable: definition.editable }],
+      [definition.name, { name: definition.name, cssName: definition.cssName, value: definition.declarations[0]?.value ?? "", source: definition.declarations[0]?.source ?? "", adapter: definition.adapter, origin: definition.origin, editable: definition.editable }],
+    ]),
+  ));
+
+  let preview: PreviewResult | null = null;
+  if (fixture.expected.preview) {
+    applyRules([{ selector: fixture.selected, declarations: { [fixture.expected.preview.property]: fixture.expected.preview.value } }]);
+    preview = verifyPreview(selected, fixture.expected.preview.property, fixture.expected.preview.value);
+  }
+
+  return {
+    fixture: fixture.id,
+    selected,
+    catalog: rows,
+    properties,
+    preview,
+    cleanup() {
+      style.remove();
+      mount.remove();
+      if (doc.getElementById("design-tool-styles")) doc.getElementById("design-tool-styles")?.remove();
+    },
+  };
+}
+
+export function assertConformanceFixture(result: ConformanceResult, fixture: ConformanceFixture): string[] {
+  const failures: string[] = [];
+  for (const expected of fixture.expected.catalog) {
+    const row = result.catalog.find((candidate) => candidate.definition.name === expected.name || candidate.definition.cssName === expected.name);
+    if (!row) failures.push(`${fixture.id}: missing catalog entry ${expected.name}`);
+    if (row && expected.value !== undefined && row.authoredValue !== expected.value) failures.push(`${fixture.id}: catalog ${expected.name} authored value was ${row.authoredValue}, expected ${expected.value}`);
+    if (row && expected.adapter !== undefined && row.definition.adapter !== expected.adapter) failures.push(`${fixture.id}: catalog ${expected.name} adapter was ${row.definition.adapter}, expected ${expected.adapter}`);
+    if (row && expected.origin !== undefined && row.definition.origin !== expected.origin) failures.push(`${fixture.id}: catalog ${expected.name} origin was ${row.definition.origin}, expected ${expected.origin}`);
+  }
+  for (const [property, expected] of Object.entries(fixture.expected.properties)) {
+    const actual = result.properties.find((candidate) => candidate.property === property);
+    if (!actual) {
+    failures.push(`${fixture.id}: missing property ${property}`);
+      continue;
+    }
+    if (actual.authored !== expected.authored) failures.push(`${fixture.id}: ${property} authored value was ${actual.authored}, expected ${expected.authored}`);
+    const actualTokens = (actual.tokens ?? []).map((token) => token.name);
+    if (expected.tokens && JSON.stringify(actualTokens) !== JSON.stringify(expected.tokens)) failures.push(`${fixture.id}: ${property} tokens were ${actualTokens.join(", ")}, expected ${expected.tokens.join(", ")}`);
+    if (expected.computed !== undefined && actual.computed !== expected.computed) failures.push(`${fixture.id}: ${property} computed value was ${actual.computed}, expected ${expected.computed}`);
+    if (actual.capability !== expected.capability) failures.push(`${fixture.id}: ${property} capability was ${actual.capability}, expected ${expected.capability}`);
+    if (expected.confidence && actual.confidence !== expected.confidence) failures.push(`${fixture.id}: ${property} confidence was ${actual.confidence}, expected ${expected.confidence}`);
+  }
+  if (fixture.expected.preview && !result.preview) failures.push(`${fixture.id}: preview was not run`);
+  if (fixture.expected.preview?.computed !== undefined && result.preview?.computedValue !== fixture.expected.preview.computed) failures.push(`${fixture.id}: preview computed value was ${result.preview?.computedValue}, expected ${fixture.expected.preview.computed}`);
+  return failures;
+}

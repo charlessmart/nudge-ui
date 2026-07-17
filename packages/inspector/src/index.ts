@@ -52,3 +52,5 @@ export function unmountInspector(): void {
 
 export { toggleInspector, setInspectorOpen } from "./InspectorShell.tsx";
 export { InspectorShell } from "./InspectorShell.tsx";
+export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
+export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation } from "./conformance/fixture.ts";
