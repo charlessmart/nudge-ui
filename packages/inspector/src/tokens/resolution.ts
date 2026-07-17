@@ -134,6 +134,24 @@ function capabilityFor(property: string, value: string): EditCapability {
   return "raw";
 }
 
+function colorTuple(value: string): string | null {
+  const trimmed = value.trim().toLowerCase().replace(/\s*\/\s*var\([^)]*\)/, "");
+  const hex = /^#([\da-f]{3}|[\da-f]{6})$/.exec(trimmed);
+  if (hex) {
+    const raw = hex[1]!;
+    const expanded = raw.length === 3 ? raw.split("").map((part) => part + part).join("") : raw;
+    return [expanded.slice(0, 2), expanded.slice(2, 4), expanded.slice(4, 6)].map((part) => Number.parseInt(part, 16)).join(",");
+  }
+  const rgb = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(trimmed);
+  return rgb ? [rgb[1], rgb[2], rgb[3]].map((part) => String(Math.round(Number(part)))).join(",") : null;
+}
+
+function directFrameworkColor(value: string, tokenTable: TokenTable): TokenEntry | null {
+  const tuple = colorTuple(value);
+  if (!tuple) return null;
+  return Object.values(tokenTable).find((entry) => entry.adapter === "tailwind-v3" && colorTuple(entry.value) === tuple) ?? null;
+}
+
 export function classifyValue(property: string, authored: string): EditCapability {
   return capabilityFor(property, authored);
 }
@@ -243,6 +261,11 @@ export function resolveTokenValue(
   const calls = extractVarCalls(authored);
   const references: TokenReference[] = [];
   let firstKnown: { tokenName: string; leafTokenName: string | null; resolvedValue: string; cycle?: string } | null = null;
+  const directToken = calls.length === 0 ? directFrameworkColor(authored, tokenTable) : directFrameworkColor(authored, tokenTable);
+  if (directToken) {
+    firstKnown = { tokenName: directToken.name, leafTokenName: directToken.name, resolvedValue: directToken.value };
+    references.push({ name: directToken.name, origin: tokenOrigin(directToken) });
+  }
   for (const call of calls) {
     const result = resolveRef(call.name, tokenTable, new Set(), localAliases);
     if (result.known) {
@@ -271,6 +294,13 @@ export function resolveTokenValue(
   const alpha = authored.match(/(?:color-mix\([^,]+,\s*var\([^)]*\)\s+)(\d+(?:\.\d+)?%)/i)?.[1]
     ?? authored.match(/\/\s*(\d+(?:\.\d+)?%?)(?:\s*\)|\s*$)/)?.[1];
   if (alpha) modifiers.push({ kind: "alpha", value: alpha.includes("%") ? alpha : `${alpha}%` });
+  for (const call of calls) {
+    const localAlpha = localAliases.get(call.name);
+    if (localAlpha && /^--tw-(?:bg|text|border)-opacity$/.test(call.name)) {
+      const numeric = Number(localAlpha);
+      if (Number.isFinite(numeric)) modifiers.push({ kind: "alpha", value: `${numeric <= 1 ? numeric * 100 : numeric}%` });
+    }
+  }
   const inner = resolveTokenValueInner(authored, tokenTable, new Set(), localAliases);
   return {
     tokenName: firstKnown?.tokenName ?? inner.tokenName,

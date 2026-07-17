@@ -47,6 +47,18 @@ describe("resolveTokenValue", () => {
     expect(res.modifiers).toContainEqual({ kind: "alpha", value: "10%" });
   });
 
+  it("attributes Tailwind v3 direct RGB helpers to config tokens and opacity aliases", () => {
+    const element = document.createElement("div");
+    element.className = "bg-brand";
+    const table = makeTable([{ name: "theme.colors.brand", cssName: "--tw-v3-brand", value: "#123456", source: "tailwind.config.js:1", adapter: "tailwind-v3", origin: "project" }]);
+    const rows = resolvePropertiesFromRules(element, [
+      { selectorText: ".bg-brand", specificity: 10000, sourceOrder: 0, declarations: [{ property: "--tw-bg-opacity", value: "0.1" }] },
+      { selectorText: ".bg-brand", specificity: 10000, sourceOrder: 1, declarations: [{ property: "background-color", value: "rgb(18 52 86 / var(--tw-bg-opacity))" }] },
+    ], table);
+    expect(rows.find((row) => row.property === "background-color")).toMatchObject({ tokenName: "theme.colors.brand", authored: "rgb(18 52 86 / var(--tw-bg-opacity))" });
+    expect(rows.find((row) => row.property === "background-color")?.modifiers).toContainEqual({ kind: "alpha", value: "10%" });
+  });
+
   it.each(["calc(var(--space-4) * 2)", "min(var(--space-4), 2rem)", "max(var(--space-4), 8px)", "clamp(8px, var(--space-4), 2rem)"])(
     "attributes a token inside %s without flattening the expression",
     (value) => {

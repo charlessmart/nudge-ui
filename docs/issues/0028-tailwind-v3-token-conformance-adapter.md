@@ -26,17 +26,17 @@ lower-confidence results with an explicit diagnostic.
 
 ## Acceptance criteria
 
-- [ ] A minimal Tailwind v3 fixture compiles through Vite and is detected as
+- [x] A minimal Tailwind v3 fixture compiles through Vite and is detected as
       Tailwind v3 rather than v4.
-- [ ] A configured theme color resolves to a human-readable token/config path
+- [x] A configured theme color resolves to a human-readable token/config path
       from a generated utility class.
-- [ ] A v3 opacity helper is reported as a base color token plus alpha modifier
+- [x] A v3 opacity helper is reported as a base color token plus alpha modifier
       without flattening to a computed color string.
-- [ ] The inspector exposes source/provenance and editability accurately; a
+- [x] The inspector exposes source/provenance and editability accurately; a
       project config token is distinct from a framework default.
-- [ ] Dynamic config and unsupported plugin output fail safely with a raw or
+- [x] Dynamic config and unsupported plugin output fail safely with a raw or
       lower-confidence result, not a crash or invented mapping.
-- [ ] Unit tests and browser conformance tests cover detection, config token
+- [x] Unit tests and browser conformance tests cover detection, config token
       mapping, opacity, and unsupported fallback behavior.
 - [ ] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
       `pnpm --filter sandbox build` pass.
