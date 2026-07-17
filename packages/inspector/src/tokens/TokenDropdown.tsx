@@ -8,11 +8,15 @@ import { Select } from "../ui/Select.tsx";
 
 export type TokenGroup = "color" | "spacing" | "radius" | "typography" | "generic";
 
-export function classifyToken(name: string): TokenGroup {
+export function classifyToken(name: string, value = ""): TokenGroup {
   if (name.startsWith("--color-")) return "color";
   if (name.startsWith("--space-")) return "spacing";
   if (name.startsWith("--radius-")) return "radius";
   if (name.startsWith("--font-") || name.startsWith("--text-")) return "typography";
+  const humanPath = name.toLowerCase();
+  if (/(^|\.)(color|colors|surface|background|foreground)(\.|$)/.test(humanPath) || /^(?:#|rgb\(|hsl\(|oklch\(|oklab\(|transparent)/i.test(value.trim())) return "color";
+  if (/(^|\.)(space|spacing|size|gap)(\.|$)/.test(humanPath)) return "spacing";
+  if (/(^|\.)(font|typography|lineheight|letterspacing)(\.|$)/.test(humanPath)) return "typography";
   return "generic";
 }
 
@@ -90,7 +94,7 @@ export function getAlternativeTokens(
 ): TokenEntry[] {
   const preferredGroup = groupOfProperty(opts.property);
   return entries.filter((entry) => {
-    const group = classifyToken(entry.name);
+    const group = classifyToken(entry.name, entry.value);
     return group === preferredGroup || entry.name === opts.currentToken;
   });
 }
@@ -98,7 +102,7 @@ export function getAlternativeTokens(
 function groupTokens(entries: TokenEntry[]): Map<TokenGroup, TokenEntry[]> {
   const map = new Map<TokenGroup, TokenEntry[]>();
   for (const entry of entries) {
-    const group = classifyToken(entry.name);
+    const group = classifyToken(entry.name, entry.value);
     let list = map.get(group);
     if (!list) {
       list = [];

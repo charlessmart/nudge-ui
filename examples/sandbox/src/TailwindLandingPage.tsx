@@ -37,7 +37,7 @@ export function TailwindLandingPage() {
           </div>
 
           <div className="relative md:col-span-5" aria-label="Project planning activity preview">
-            <div className="absolute -inset-24 -z-0 rounded-full bg-lime-300/10 blur-3xl" />
+            <div className="pointer-events-none absolute -inset-24 -z-0 rounded-full bg-lime-300/10 blur-3xl" />
             <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-stone-900/80 p-5 shadow-2xl shadow-black/30 backdrop-blur">
             <div className="flex items-center justify-between border-b border-white/10 pb-4 text-[11px] text-stone-400">
                 <span>New Zealand launch</span>

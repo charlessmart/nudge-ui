@@ -319,7 +319,8 @@ function arrowDirection(key: string): -1 | 1 | null {
 
 export function TokenField(props: TokenFieldProps): ReactElement {
   const { property, tokenRow, domElement: el, entries, onAfterEdit } = props;
-  const expression = Boolean(tokenRow && ((tokenRow.modifiers?.length ?? 0) > 0 || tokenRow.capability === "raw" || tokenRow.capability === "composite"));
+  const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
+    || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const activeTokenName = expression ? null : tokenRow?.tokenName ?? null;
   const committedValue = expression ? tokenRow?.authored ?? tokenRow?.declaredValue ?? computedRaw(el, property) : tokenRow?.resolvedValue ?? computedRaw(el, property);
   const currentToken = activeTokenName
@@ -357,7 +358,7 @@ function tokenSuggestion(entry: TokenEntry) {
     value: entry.name,
     label: entry.name,
     "data-test": "suggestion-item",
-    leading: classifyToken(entry.name) === "color" ? <ColorSwatch color={entry.value} size="small" /> : undefined,
+    leading: classifyToken(entry.name, entry.value) === "color" ? <ColorSwatch color={entry.value} size="small" /> : undefined,
     trailing: <span>{entry.value}</span>,
   };
 }

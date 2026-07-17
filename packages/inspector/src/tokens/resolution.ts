@@ -127,9 +127,10 @@ function capabilityFor(property: string, value: string): EditCapability {
     || p.startsWith("margin-") || p.startsWith("padding-") || p.startsWith("inset-")) return "box-sides";
   if (p === "border" || p.endsWith("-border") || p === "border-color" || p.endsWith("-border-color")) return "structured";
   if (p === "color" || /(^|-)color$/.test(p) || p === "background-color" || p === "fill" || p === "stroke") return "color";
-  if (/(gradient|shadow|transform|transition|animation|font|grid|background)/.test(p) || v.includes(",")) return "composite";
+  if (/(gradient|shadow|transform|transition|animation|font|grid|background)/.test(p)
+    || (v.includes(",") && !/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v))) return "composite";
   if (/\b(calc|min|max|clamp|color-mix)\s*\(/.test(v)) return "raw";
-  if (/^var\(\s*--[\w-]+\s*\)$/.test(v) || /^[+-]?(?:\d*\.)?\d+(?:[a-z%]+)?$/i.test(v)
+  if (/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v) || /^[+-]?(?:\d*\.)?\d+(?:[a-z%]+)?$/i.test(v)
     || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|oklch\(|oklab\(|transparent|currentcolor)/.test(v)) return "atomic";
   return "raw";
 }
@@ -611,7 +612,9 @@ export function resolvePropertiesFromRules(
       }
     }
   }
-  return Array.from(map.values()).slice(0, MAX_PROPERTIES);
+  const rows = Array.from(map.values()).slice(0, MAX_PROPERTIES);
+  inferTailwindV4ColorOpacity(el, tokenTable, rows);
+  return rows;
 }
 
 function matchingSelectorBranch(el: Element, selectorText: string): string | null {
@@ -638,6 +641,36 @@ function compareCandidate(a: ResolvedProperty, b: ResolvedProperty): number {
       sourceOrder: b.evidence.sourceOrder ?? 0,
     },
   );
+}
+
+function inferTailwindV4ColorOpacity(
+  el: HTMLElement,
+  tokenTable: TokenTable,
+  rows: ResolvedProperty[],
+): void {
+  const row = rows.find((candidate) => candidate.property === "background-color" || candidate.property === "background");
+  if (!row || row.tokenName) return;
+
+  for (const className of Array.from(el.classList)) {
+    const match = /^bg-([\w-]+)\/(\d{1,3}%?)$/.exec(className);
+    if (!match) continue;
+    const baseName = `--color-${match[1]}`;
+    const entry = tokenTable[baseName];
+    if (!entry || entry.adapter !== "tailwind-v4") continue;
+    const rawAlpha = match[2]!;
+    const alpha = rawAlpha.endsWith("%") ? rawAlpha : `${rawAlpha}%`;
+    const authored = `color-mix(in oklab, var(${baseName}) ${alpha}, transparent)`;
+    row.tokenName = baseName;
+    row.declaredValue = authored;
+    row.authored = authored;
+    row.tokens = [{ name: baseName, origin: tokenOrigin(entry) }];
+    row.modifiers = [{ kind: "alpha", value: alpha }];
+    row.capability = "color";
+    row.resolvedTokenValue = entry.value;
+    row.evidence.reason = "Tailwind v4 opacity utility mapped to its base catalog token";
+    row.confidence = "probable";
+    return;
+  }
 }
 
 function parseDeclarations(cssText: string): StyleDeclaration[] {

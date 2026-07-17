@@ -44,7 +44,7 @@ composite/raw values.
       in the emitted color declaration.
 - [x] Unit and browser conformance tests protect Tailwind v4 token catalog,
       attribution, computed preview, and origin/editability behavior.
-- [ ] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
+- [x] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
       `pnpm --filter sandbox build` pass.
 
 ## Blocked by

@@ -43,7 +43,7 @@ transforms, backgrounds, fonts, transitions, animations, or grid templates.
 - [x] Unit tests cover each supported function, fallback, alias cycle, and raw
       fallback; conformance fixtures verify authored and computed facts
       separately in a browser.
-- [ ] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
+- [x] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
       `pnpm --filter sandbox build` pass.
 
 ## Blocked by

@@ -165,6 +165,7 @@ describe("resolveTokenValue", () => {
     const row = result.find((candidate) => candidate.property === "line-height");
     expect(row?.tokenName).toBe("--leading-tight");
     expect(row?.resolvedValue).toBe("1.25");
+    expect(row?.capability).toBe("atomic");
   });
 });
 
@@ -342,6 +343,22 @@ describe("resolvePropertiesFromRules", () => {
     }], makeTable([{ name: "--space-1", value: "4px", source: "s:1" }]))[0];
     expect(row).toMatchObject({ authored: value, declaredValue: value, capability: "raw", computed: "" });
     expect(row?.tokens?.map((token) => token.name)).toEqual(["--space-1"]);
+  });
+
+  it("recovers a Tailwind v4 opacity token when CSSOM has substituted its value", () => {
+    btn.className = "bg-red-500/10";
+    const rows = resolvePropertiesFromRules(btn, [{
+      selectorText: '[class~="bg-red-500/10"]',
+      specificity: 10000,
+      declarations: [{ property: "background-color", value: "color-mix(in srgb, oklch(63% .2 25) 10%, transparent)" }],
+    }], makeTable([{ name: "--color-red-500", value: "oklch(63% .2 25)", source: "tailwind.css:1", adapter: "tailwind-v4" }]));
+    const row = rows.find((candidate) => candidate.property === "background-color");
+    expect(row).toMatchObject({
+      tokenName: "--color-red-500",
+      authored: "color-mix(in oklab, var(--color-red-500) 10%, transparent)",
+      capability: "color",
+    });
+    expect(row?.modifiers).toEqual([{ kind: "alpha", value: "10%" }]);
   });
 
   it.each([

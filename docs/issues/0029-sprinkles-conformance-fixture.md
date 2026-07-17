@@ -34,7 +34,7 @@ custom-property name where a known contract path is available.
       safe human-readable mapping.
 - [ ] Existing work-codebase verification from issue 0013 remains part of the
       adapter's evidence; the fixture is not a substitute for it.
-- [ ] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
+- [x] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
       `pnpm --filter sandbox build` pass.
 
 ## Blocked by

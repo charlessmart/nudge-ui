@@ -51,9 +51,9 @@ fixture's authored values as separate expected facts.
       Playwright test against the real inspector path.
 - [x] A computed CSS value cannot satisfy an authored-value expectation by
       itself.
-- [ ] Existing token extraction, contextual catalog, managed stylesheet, and
+- [x] Existing token extraction, contextual catalog, managed stylesheet, and
       production dev-only tests remain green.
-- [ ] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
+- [x] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
       `pnpm --filter sandbox build` pass.
 
 ## Blocked by

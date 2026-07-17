@@ -33,11 +33,14 @@ These notes capture follow-up ideas found while implementing issues 0024–0029.
    never use computed serialization as the initial value for `calc()`, aliases,
    color-mix(), or opacity-helper fields.
 
-## Verification limitation
+## Verification status
 
-The repository-wide lint, typecheck, unit suite, and sandbox production build
-pass. Playwright dev-server checks could not start in this execution environment:
-the unbundled workspace `@design-tool/plugin` TypeScript entry is rejected by
-the Node loader when Vite starts the dev server. The browser test files are
-committed and ready to run in the normal workspace toolchain; their issue
-checklist items remain unchecked until that environment-level failure is fixed.
+The repository-wide lint, typecheck, unit suite, sandbox production build, and
+the nine new conformance Playwright tests pass. The sandbox Vite config loads
+the workspace plugin source directly so the dev server does not ask Node to
+execute the package's unbundled TypeScript entry during browser startup.
+
+The remaining evidence gap is the existing work-codebase verification from
+issue 0013; that external application is not part of this repository. The
+Sprinkles fixture deliberately covers the adapter contract without claiming to
+replace that check.

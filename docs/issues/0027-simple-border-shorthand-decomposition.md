@@ -43,7 +43,7 @@ scope for this slice.
 - [x] Unit cases cover shorthand order permutations, token colors, side
       overrides, and fallbacks; browser fixtures verify preview and inspector
       behavior.
-- [ ] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
+- [x] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
       `pnpm --filter sandbox build` pass.
 
 ## Blocked by

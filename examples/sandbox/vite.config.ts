@@ -1,7 +1,9 @@
 import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { designTool } from "@design-tool/plugin";
+// Load the workspace source directly so Vite's config bundler does not ask
+// Node to execute the package's unbundled .ts entry during Playwright startup.
+import { designTool } from "../../packages/plugin/src/index.ts";
 
 export default defineConfig({
   // @design-tool/plugin is a workspace package with Vite in its own dependency

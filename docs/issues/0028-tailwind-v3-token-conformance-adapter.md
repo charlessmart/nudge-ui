@@ -38,7 +38,7 @@ lower-confidence results with an explicit diagnostic.
       lower-confidence result, not a crash or invented mapping.
 - [x] Unit tests and browser conformance tests cover detection, config token
       mapping, opacity, and unsupported fallback behavior.
-- [ ] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
+- [x] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
       `pnpm --filter sandbox build` pass.
 
 ## Blocked by
