@@ -12,7 +12,7 @@ async function managedSheet(page: import("@playwright/test").Page): Promise<stri
   return page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? "");
 }
 
-test("dev: numeric fields nudge previews immediately and the inspector visibility shortcut preserves state", async ({ page }) => {
+test("dev: numeric fields nudge previews immediately and visibility shortcuts preserve state", async ({ page }) => {
   await page.goto("/");
   await page.locator(".hero-intro").click();
 
@@ -40,6 +40,24 @@ test("dev: numeric fields nudge previews immediately and the inspector visibilit
   await expect.poll(() => managedSheet(page)).toContain("line-height: 90%;");
 
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "\\",
+    code: "Backslash",
+    metaKey: true,
+    bubbles: true,
+    cancelable: true,
+  })));
+  expect(await panelOpen(page)).toBe(before);
+
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "\\",
+    code: "Backslash",
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true,
+  })));
+  expect(await panelOpen(page)).not.toBe(before);
+
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", {
     key: "|",
     code: "Backslash",
     shiftKey: true,
@@ -54,9 +72,9 @@ test("dev: numeric fields nudge previews immediately and the inspector visibilit
     const input = document.getElementById("design-tool-root")?.shadowRoot
       ?.querySelector('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]');
     input?.dispatchEvent(new KeyboardEvent("keydown", {
-      key: "|",
+      key: "\\",
       code: "Backslash",
-      shiftKey: true,
+      ctrlKey: true,
       bubbles: true,
       composed: true,
       cancelable: true,

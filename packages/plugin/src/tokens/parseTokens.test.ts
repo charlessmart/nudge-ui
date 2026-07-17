@@ -34,6 +34,20 @@ describe("parseTokens", () => {
     });
   });
 
+  it("extracts Tailwind theme custom properties from :root, :host", () => {
+    const css = `@layer theme {
+  :root, :host {
+    --color-lime-300: oklch(89.7% .196 126.665);
+  }
+}`;
+    const entries = parseTokens(css, "src/tailwind.css");
+    expect(entries).toEqual([{
+      name: "--color-lime-300",
+      value: "oklch(89.7% .196 126.665)",
+      source: "src/tailwind.css:3",
+    }]);
+  });
+
   it("extracts @layer nested :root custom properties", () => {
     const css = `@layer base {
   :root {

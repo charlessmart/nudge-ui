@@ -309,7 +309,7 @@ export function InspectorShell(): ReactElement {
               </div>
             </>
           ) : (
-            "Inspector shell ready (Shift+\\ or Alt+I to toggle)"
+            "Inspector shell ready (Cmd/Ctrl+\\, Shift+\\, or Alt+I to toggle)"
           )}
           <ChangesLog />
         </div>

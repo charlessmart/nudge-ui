@@ -54,7 +54,7 @@ select {
 .dt-panel {
   position: fixed;
   inset: 0 0 0 auto;
-  width: min(420px, 100vw);
+  width: min(300px, 100vw);
   height: 100dvh;
   overflow: hidden;
   background: var(--dt-surface-panel);

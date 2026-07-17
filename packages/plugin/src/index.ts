@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import type { Alias, Plugin, ResolvedConfig } from "vite";
+import type { Alias, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { injectIdentity } from "./transform/injectDataCid.ts";
 import { parseTokenCatalog } from "./tokens/parseTokens.ts";
 import type { TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
@@ -14,7 +14,7 @@ const VIRTUAL_TOKENS_ID = "virtual:design-tokens";
 const RESOLVED_TOKENS_ID = "\0" + VIRTUAL_TOKENS_ID;
 const VIRTUAL_INSPECTOR_ID = "virtual:design-tool-inspector";
 const RESOLVED_INSPECTOR_ID = "\0" + VIRTUAL_INSPECTOR_ID;
-const CSS_EXT = /\.css$/;
+const CSS_EXT = /\.css(?:$|[?#])/;
 
 const MOUNT_DIV = `<div id="design-tool-root"></div>`;
 const INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:design-tool-inspector"></script>`;
@@ -87,12 +87,34 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   const enabled = options.enabled ?? true;
   let root: string | undefined;
   let command: "serve" | "build" = "serve";
+  let devServer: ViteDevServer | undefined;
+  let postTransformPromise: Promise<void> | null = null;
   const cssTokens = new Map<string, TokenDefinition[]>();
 
   function cacheTokensForFile(id: string, code: string): void {
     if (!CSS_EXT.test(id)) return;
-    const rel = relativePath(id, root);
-    cssTokens.set(id, parseTokenCatalog(code, rel));
+    const fileId = id.split(/[?#]/, 1)[0] ?? id;
+    const rel = relativePath(fileId, root);
+    cssTokens.set(fileId, parseTokenCatalog(code, rel));
+  }
+
+  function ensurePostTransformCss(): Promise<void> {
+    if (!devServer || !root || command !== "serve") return Promise.resolve();
+    if (postTransformPromise) return postTransformPromise;
+
+    // The virtual module can be requested before the browser requests its CSS
+    // imports. Ask Vite to transform every authored stylesheet first so
+    // Tailwind's generated CSS (rather than just `@import "tailwindcss"`) has
+    // passed through the normal plugin pipeline and reached our transform hook.
+    postTransformPromise = Promise.all(scanCssFiles(root).map(async (cssPath) => {
+      try {
+        await devServer!.transformRequest(cssPath);
+      } catch {
+        // The regular source scan remains available when a stylesheet cannot
+        // be transformed yet (for example while it is being deleted).
+      }
+    })).then(() => undefined);
+    return postTransformPromise;
   }
 
   return {
@@ -108,6 +130,10 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     configResolved(config: ResolvedConfig) {
       root = config.root;
       command = config.command;
+    },
+    configureServer(server) {
+      if (!enabled || command !== "serve") return;
+      devServer = server;
     },
     buildStart() {
       // Eager scan so the token table is populated before the virtual module
@@ -129,12 +155,13 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       if (id === VIRTUAL_INSPECTOR_ID || id === RESOLVED_INSPECTOR_ID) return RESOLVED_INSPECTOR_ID;
       return null;
     },
-    load(id) {
+    async load(id) {
       if (id === RESOLVED_TOKENS_ID) {
         // ADR-0002: production builds receive an empty token table.
         if (command === "build") {
           return `export const tokenCatalog = [];\nexport const tokens = [];\nexport default tokens;\n`;
         }
+        await ensurePostTransformCss();
         const catalogByName = new Map<string, TokenDefinition>();
         let declarationOrder = 0;
         for (const list of cssTokens.values()) {
@@ -192,6 +219,16 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         cacheTokensForFile(ctx.file, code);
       } catch {
         cssTokens.set(ctx.file, []);
+      }
+
+      // ctx.read() returns authored source. Re-run the CSS through Vite so the
+      // transform hook can replace that snapshot with Tailwind's generated
+      // stylesheet before the virtual module is invalidated below.
+      postTransformPromise = null;
+      try {
+        await ctx.server.transformRequest(ctx.file);
+      } catch {
+        // Keep the authored snapshot if the post-transform request fails.
       }
 
       // Invalidate the virtual module and let Vite propagate HMR to importers

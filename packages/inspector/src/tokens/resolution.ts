@@ -44,6 +44,7 @@ export interface MatchedRule {
 
 const MAX_PROPERTIES = 100;
 const VAR_REF = /var\(\s*(--[\w-]+)/g;
+const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
 const SPACING_SIDES: Record<string, readonly string[]> = {
   margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
@@ -98,23 +99,42 @@ function resolveRef(
   ref: string,
   tokenTable: TokenTable,
   visited: Set<string>,
-): { known: boolean; resolvedValue: string } {
+  localAliases: ReadonlyMap<string, string>,
+): { known: boolean; tokenName: string | null; resolvedValue: string } {
   if (visited.has(ref)) {
     const entry = tokenTable[ref];
-    return { known: entry !== undefined, resolvedValue: entry ? entry.value : `var(${ref})` };
+    return {
+      known: entry !== undefined,
+      tokenName: entry ? ref : null,
+      resolvedValue: entry ? entry.value : `var(${ref})`,
+    };
   }
   const entry = tokenTable[ref];
-  if (!entry) return { known: false, resolvedValue: `var(${ref})` };
+  if (entry) {
+    const nextVisited = new Set(visited);
+    nextVisited.add(ref);
+    const inner = resolveTokenValueInner(entry.value, tokenTable, nextVisited, localAliases);
+    return { known: true, tokenName: ref, resolvedValue: inner.resolvedValue };
+  }
+
+  const localValue = localAliases.get(ref);
+  if (localValue === undefined) {
+    return { known: false, tokenName: null, resolvedValue: `var(${ref})` };
+  }
+
   const nextVisited = new Set(visited);
   nextVisited.add(ref);
-  const inner = resolveTokenValueInner(entry.value, tokenTable, nextVisited);
-  return { known: true, resolvedValue: inner.resolvedValue };
+  const inner = resolveTokenValueInner(localValue, tokenTable, nextVisited, localAliases);
+  return inner.tokenName
+    ? { known: true, tokenName: inner.tokenName, resolvedValue: inner.resolvedValue }
+    : { known: false, tokenName: null, resolvedValue: `var(${ref})` };
 }
 
 function resolveTokenValueInner(
   value: string,
   tokenTable: TokenTable,
   visited: Set<string>,
+  localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
 ): { tokenName: string | null; resolvedValue: string } {
   const trimmed = value.trim();
   const refs: string[] = [];
@@ -126,8 +146,8 @@ function resolveTokenValueInner(
   }
   if (refs.length === 0) return { tokenName: null, resolvedValue: trimmed };
   for (const ref of refs) {
-    const res = resolveRef(ref, tokenTable, visited);
-    if (res.known) return { tokenName: ref, resolvedValue: res.resolvedValue };
+    const res = resolveRef(ref, tokenTable, visited, localAliases);
+    if (res.known) return { tokenName: res.tokenName, resolvedValue: res.resolvedValue };
   }
   return { tokenName: null, resolvedValue: trimmed };
 }
@@ -135,8 +155,9 @@ function resolveTokenValueInner(
 export function resolveTokenValue(
   value: string,
   tokenTable: TokenTable,
+  localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
 ): { tokenName: string | null; resolvedValue: string } {
-  return resolveTokenValueInner(value, tokenTable, new Set());
+  return resolveTokenValueInner(value, tokenTable, new Set(), localAliases);
 }
 
 function splitTopLevelWhitespace(value: string): string[] {
@@ -189,10 +210,11 @@ interface ResolvedDeclaration {
 function resolveDeclaration(
   declaration: StyleDeclaration,
   tokenTable: TokenTable,
+  localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
 ): ResolvedDeclaration[] {
   const sides = SPACING_SIDES[declaration.property.toLowerCase()];
   if (!sides) {
-    const res = resolveTokenValue(declaration.value, tokenTable);
+    const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
     return [{
       property: declaration.property,
       declaredValue: declaration.value.trim(),
@@ -204,7 +226,7 @@ function resolveDeclaration(
 
   const rawValues = splitTopLevelWhitespace(declaration.value);
   if (rawValues.length === 0 || rawValues.length > 4) {
-    const res = resolveTokenValue(declaration.value, tokenTable);
+    const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
     return [{
       property: declaration.property,
       declaredValue: declaration.value.trim(),
@@ -217,7 +239,7 @@ function resolveDeclaration(
   // A custom property can itself contain a shorthand value, for example
   // `margin: var(--space-set)`. Expand that value before assigning sides.
   const resolvedValues = rawValues.flatMap((rawValue) => {
-    const res = resolveTokenValue(rawValue, tokenTable);
+    const res = resolveTokenValue(rawValue, tokenTable, localAliases);
     const tokenValues = res.tokenName ? splitTopLevelWhitespace(res.resolvedValue) : [];
     if (res.tokenName && /^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(rawValue) && tokenValues.length > 1) {
       return tokenValues.map((resolvedValue) => ({
@@ -230,7 +252,7 @@ function resolveDeclaration(
   });
   const sideValues = expandFourValueShorthand(resolvedValues);
   if (!sideValues) {
-    const res = resolveTokenValue(declaration.value, tokenTable);
+    const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
     return [{
       property: declaration.property,
       declaredValue: declaration.value.trim(),
@@ -247,12 +269,69 @@ function resolveDeclaration(
   }));
 }
 
+interface LocalAliasCandidate {
+  value: string;
+  important?: boolean;
+  layer?: string;
+  specificity: number;
+  sourceOrder: number;
+}
+
+function compareCascade(
+  a: { important?: boolean; layer?: string; specificity: number; sourceOrder: number },
+  b: { important?: boolean; layer?: string; specificity: number; sourceOrder: number },
+): number {
+  const ai = a.important ? 1 : 0;
+  const bi = b.important ? 1 : 0;
+  if (ai !== bi) return ai - bi;
+
+  // Unlayered author rules outrank layered author rules. This mirrors the
+  // declaration comparison below and is sufficient for the local aliases
+  // emitted by Tailwind's utility layers.
+  const al = a.layer ? 0 : 1;
+  const bl = b.layer ? 0 : 1;
+  if (al !== bl) return al - bl;
+  if (a.specificity !== b.specificity) return a.specificity - b.specificity;
+  return a.sourceOrder - b.sourceOrder;
+}
+
+function collectLocalAliases(
+  el: HTMLElement,
+  rules: MatchedRule[],
+): ReadonlyMap<string, string> {
+  const candidates = new Map<string, LocalAliasCandidate>();
+  rules.forEach((rule, index) => {
+    if (rule.active === false) return;
+    const branch = matchingSelectorBranch(el, rule.selectorText);
+    if (!branch) return;
+    const sourceOrder = rule.sourceOrder ?? index;
+    const specificity = computeSpecificity(branch);
+    for (const declaration of rule.declarations) {
+      if (!declaration.property.startsWith("--tw-")) continue;
+      const candidate: LocalAliasCandidate = {
+        value: declaration.value.trim(),
+        important: declaration.important,
+        layer: rule.layer,
+        specificity,
+        sourceOrder,
+      };
+      const previous = candidates.get(declaration.property);
+      if (!previous || compareCascade(candidate, previous) >= 0) {
+        candidates.set(declaration.property, candidate);
+      }
+    }
+  });
+
+  return new Map([...candidates].map(([name, candidate]) => [name, candidate.value]));
+}
+
 export function resolvePropertiesFromRules(
   el: HTMLElement,
   rules: MatchedRule[],
   tokenTable: TokenTable,
 ): ResolvedProperty[] {
   const map = new Map<string, ResolvedProperty>();
+  const localAliases = collectLocalAliases(el, rules);
 
   // Sort by specificity ascending so rules are processed lowest-first.
   // Map.set() naturally overwrites: higher specificity rules processed later win,
@@ -265,7 +344,7 @@ export function resolvePropertiesFromRules(
     if (!branch) continue;
     const specificity = computeSpecificity(branch);
     for (const decl of rule.declarations) {
-      for (const resolved of resolveDeclaration(decl, tokenTable)) {
+      for (const resolved of resolveDeclaration(decl, tokenTable, localAliases)) {
         const candidate: ResolvedProperty = {
           property: resolved.property,
           tokenName: resolved.tokenName,
@@ -299,19 +378,20 @@ function matchingSelectorBranch(el: Element, selectorText: string): string | nul
 }
 
 function compareCandidate(a: ResolvedProperty, b: ResolvedProperty): number {
-  const ai = a.evidence.important ? 1 : 0;
-  const bi = b.evidence.important ? 1 : 0;
-  if (ai !== bi) return ai - bi;
-  // Unlayered author rules outrank layered author rules. Layer ordering within
-  // named layers is represented by source order until a layer-order statement
-  // can be observed by CSSOM.
-  const al = a.evidence.layer ? 0 : 1;
-  const bl = b.evidence.layer ? 0 : 1;
-  if (al !== bl) return al - bl;
-  if ((a.evidence.specificity ?? 0) !== (b.evidence.specificity ?? 0)) {
-    return (a.evidence.specificity ?? 0) - (b.evidence.specificity ?? 0);
-  }
-  return (a.evidence.sourceOrder ?? 0) - (b.evidence.sourceOrder ?? 0);
+  return compareCascade(
+    {
+      important: a.evidence.important,
+      layer: a.evidence.layer,
+      specificity: a.evidence.specificity ?? 0,
+      sourceOrder: a.evidence.sourceOrder ?? 0,
+    },
+    {
+      important: b.evidence.important,
+      layer: b.evidence.layer,
+      specificity: b.evidence.specificity ?? 0,
+      sourceOrder: b.evidence.sourceOrder ?? 0,
+    },
+  );
 }
 
 function parseDeclarations(cssText: string): StyleDeclaration[] {
@@ -494,6 +574,41 @@ const INHERITED_PROPERTIES = new Set([
   "white-space", "word-spacing", "cursor",
 ]);
 
+function resolveInheritedProperties(
+  el: HTMLElement,
+  rules: MatchedRule[],
+  tokenTable: TokenTable,
+  result: ResolvedProperty[],
+  inaccessible: boolean,
+): ResolvedProperty[] {
+  const computed = getComputedStyle(el);
+  const seenProperties = new Set(result.map((p) => p.property));
+  const rulesSorted = [...rules].sort((a, b) => b.specificity - a.specificity);
+  let ancestor: HTMLElement | null = el.parentElement;
+  while (ancestor) {
+    const ancestorComputed = getComputedStyle(ancestor);
+    for (const candidate of resolvePropertiesFromRules(ancestor, rulesSorted, tokenTable)) {
+      if (seenProperties.has(candidate.property)) continue;
+      if (!INHERITED_PROPERTIES.has(candidate.property) && !candidate.property.startsWith("--")) continue;
+      if (!candidate.tokenName) continue;
+      const ancestorVal = ancestorComputed.getPropertyValue(candidate.property).trim();
+      const elVal = computed.getPropertyValue(candidate.property).trim();
+      if (ancestorVal && ancestorVal === elVal) {
+        result.push({
+          ...candidate,
+          resolvedValue: elVal,
+          confidence: candidateMatchesPainted(ancestor, candidate, ancestorVal) && !inaccessible && !candidate.evidence.layer ? "exact" : "probable",
+          evidence: { ...candidate.evidence, inheritedFrom: ancestor.tagName.toLowerCase(), inaccessibleStylesheet: inaccessible || undefined, reason: "inherited property traced through the ancestor cascade" },
+        });
+        seenProperties.add(candidate.property);
+      }
+    }
+    ancestor = ancestor.parentElement;
+  }
+
+  return result;
+}
+
 export function getResolvedProperties(
   el: HTMLElement,
   tokenTable: TokenTable,
@@ -543,33 +658,7 @@ export function getResolvedProperties(
     }
   }
 
-  // Walk ancestors to find inherited token values — when no rule directly
-  // targets the element but a parent/ancestor sets the property via var(--token)
-  const seenProperties = new Set(result.map((p) => p.property));
-  const rulesSorted = [...rules].sort((a, b) => b.specificity - a.specificity);
-  let ancestor: HTMLElement | null = el.parentElement;
-  while (ancestor) {
-    const ancestorComputed = getComputedStyle(ancestor);
-    for (const candidate of resolvePropertiesFromRules(ancestor, rulesSorted, tokenTable)) {
-        if (seenProperties.has(candidate.property)) continue;
-        if (!INHERITED_PROPERTIES.has(candidate.property) && !candidate.property.startsWith("--")) continue;
-        if (!candidate.tokenName) continue;
-        const ancestorVal = ancestorComputed.getPropertyValue(candidate.property);
-        const elVal = computed.getPropertyValue(candidate.property);
-        if (ancestorVal && ancestorVal === elVal) {
-          result.push({
-            ...candidate,
-            resolvedValue: elVal,
-            confidence: candidateMatchesPainted(ancestor, candidate, ancestorVal) && !inaccessible && !candidate.evidence.layer ? "exact" : "probable",
-            evidence: { ...candidate.evidence, inheritedFrom: ancestor.tagName.toLowerCase(), inaccessibleStylesheet: inaccessible || undefined, reason: "inherited property traced through the ancestor cascade" },
-          });
-          seenProperties.add(candidate.property);
-        }
-    }
-    ancestor = ancestor.parentElement;
-  }
-
-  return result;
+  return resolveInheritedProperties(el, rules, tokenTable, result, inaccessible);
 }
 
 const INTERACTION_SELECTOR = /:(hover|active|focus-visible|focus|disabled)(?:\b|\()/g;
@@ -604,7 +693,8 @@ export function getResolvedPropertiesForState(
     const selectorText = selectorForState(rule.selectorText, state);
     return selectorText ? [{ ...rule, selectorText }] : [];
   });
-  return resolvePropertiesFromRules(el, stateRules, tokenTable);
+  const result = resolvePropertiesFromRules(el, stateRules, tokenTable);
+  return resolveInheritedProperties(el, stateRules, tokenTable, result, false);
 }
 
 export function getAvailableInteractionStates(el: HTMLElement): InteractionState[] {

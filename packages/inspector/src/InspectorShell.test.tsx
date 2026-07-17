@@ -101,7 +101,7 @@ describe("InspectorShell", () => {
     expect(panel.getAttribute("data-open")).toBe(before);
   });
 
-  it("Shift+Backslash toggles the panel but leaves editable fields alone", () => {
+  it("Backslash visibility shortcuts toggle the panel but leave editable fields alone", () => {
     act(() => {
       mountInspector(host);
     });
@@ -115,15 +115,25 @@ describe("InspectorShell", () => {
     expect(panel.getAttribute("data-open")).not.toBe(before);
 
     act(() => {
+      pressKey({ key: "\\", code: "Backslash", metaKey: true });
+    });
+    expect(panel.getAttribute("data-open")).toBe(before);
+
+    act(() => {
+      pressKey({ key: "\\", code: "Backslash", ctrlKey: true });
+    });
+    expect(panel.getAttribute("data-open")).not.toBe(before);
+
+    act(() => {
       (shadow.querySelector('[data-test="tokens-tab"]') as HTMLButtonElement).click();
     });
     const input = shadow.querySelector('[data-test="token-search"]') as HTMLInputElement;
     act(() => {
       input.focus();
       input.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "|",
+        key: "\\",
         code: "Backslash",
-        shiftKey: true,
+        ctrlKey: true,
         bubbles: true,
         composed: true,
         cancelable: true,

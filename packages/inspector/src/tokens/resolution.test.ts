@@ -93,6 +93,33 @@ describe("resolveTokenValue", () => {
     expect(res.tokenName).toBe("--a");
     expect(typeof res.resolvedValue).toBe("string");
   });
+
+  it("follows Tailwind's local --tw alias to the winning global token", () => {
+    const table = makeTable([
+      { name: "--leading-tight", value: "1.25", source: "tailwind.css:1" },
+      { name: "--text-3xl--line-height", value: "1.2", source: "tailwind.css:2" },
+    ]);
+    const element = document.createElement("div");
+    element.className = "text-3xl leading-tight";
+    const result = resolvePropertiesFromRules(element, [
+      {
+        selectorText: ".leading-tight",
+        sourceOrder: 0,
+        specificity: 10000,
+        declarations: [{ property: "--tw-leading", value: "var(--leading-tight)" }],
+      },
+      {
+        selectorText: ".text-3xl",
+        sourceOrder: 1,
+        specificity: 10000,
+        declarations: [{ property: "line-height", value: "var(--tw-leading, var(--text-3xl--line-height))" }],
+      },
+    ], table);
+
+    const row = result.find((candidate) => candidate.property === "line-height");
+    expect(row?.tokenName).toBe("--leading-tight");
+    expect(row?.resolvedValue).toBe("1.25");
+  });
 });
 
 describe("interaction-state resolution", () => {
@@ -118,6 +145,27 @@ describe("interaction-state resolution", () => {
     expect(getAvailableInteractionStates(button)).toEqual(["base", "hover"]);
     expect(getResolvedPropertiesForState(button, table, "base").find((row) => row.property === "background")?.resolvedValue).toBe("#ffffff");
     expect(getResolvedPropertiesForState(button, table, "hover").find((row) => row.property === "background")?.resolvedValue).toBe("#c4f36b");
+  });
+
+  it("traces inherited token-backed properties from an ancestor", () => {
+    const style = document.createElement("style");
+    style.textContent = ".wrapper { color: var(--color-text-primary); }";
+    document.head.appendChild(style);
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "wrapper";
+    const heading = document.createElement("h1");
+    wrapper.appendChild(heading);
+    document.body.appendChild(wrapper);
+
+    const table = makeTable([{ name: "--color-text-primary", value: "#f5f5f4", source: "tailwind.css:1" }]);
+    const row = getResolvedPropertiesForState(heading, table, "base").find((candidate) => candidate.property === "color");
+
+    expect(row).toMatchObject({
+      tokenName: "--color-text-primary",
+      declaredValue: "var(--color-text-primary)",
+      evidence: { inheritedFrom: "div" },
+    });
   });
 });
 

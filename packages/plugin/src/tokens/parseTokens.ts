@@ -9,7 +9,10 @@ import type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from
 const GLOBAL_TOKEN_AT_RULES = new Set(["theme", "layer", "scope"]);
 
 function isRootSelectorPart(sel: string): boolean {
-  return sel === ":root" || /^:root[:.[]/.test(sel);
+  return sel === ":root"
+    || sel === ":host"
+    || /^:root[:.[]/.test(sel)
+    || /^:host[:.[]/.test(sel);
 }
 
 function isRootOnlySelector(rule: Rule): boolean {

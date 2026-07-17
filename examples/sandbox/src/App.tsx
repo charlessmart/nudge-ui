@@ -57,16 +57,16 @@ export function App() {
           <a href="#showcase">Components</a>
           <a href="#handoff">Handoff</a>
         </nav>
-        <a className="header-cta" href="#showcase">Open sandbox <span aria-hidden="true">↗</span></a>
+        <a className="header-cta" href="/tailwind">Tailwind example <span aria-hidden="true">↗</span></a>
       </header>
 
       <main id="top">
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero-copy">
             <p className="eyebrow"><span className="eyebrow-dot" /> Vite plugin · React first</p>
-            <h1 id="hero-title">Design at the speed of thought.</h1>
+            <h1 id="hero-title">Inspect the work<br />while it is still moving.</h1>
             <p className="hero-intro">
-              Design Tool brings a visual editing loop to your local dev server, so the jump from “what if?” to source code stays tiny.
+              A local visual editor for the small decisions that make a product feel finished.
             </p>
             <div className="hero-actions">
               <Button label="Save a change" variant="primary" onClick={() => setClicks((c) => c + 1)} />
@@ -86,7 +86,7 @@ export function App() {
                 <div className="visual-page-nav"><span className="mini-logo">✳</span><span /><span /><span /></div>
                 <div className="visual-page-content">
                   <div className="mini-kicker">SELECTED ELEMENT</div>
-                  <div className="mini-heading">Move ideas<br /><em>into view.</em></div>
+                  <div className="mini-heading">Move ideas<br /><span className="accent-word">into view.</span></div>
                   <div className="mini-line" /><div className="mini-line short" />
                   <div className="mini-button">Save a change <b>↗</b></div>
                 </div>
@@ -109,7 +109,7 @@ export function App() {
         <section className="feature-section" id="features" aria-labelledby="features-title">
           <div className="section-heading">
             <p className="eyebrow">The short version</p>
-            <h2 id="features-title">A better loop for the last 10%.</h2>
+            <h2 id="features-title">A calmer loop for the last 10%.</h2>
           </div>
           <div className="feature-list">
             {featureList.map((feature) => (
@@ -127,7 +127,7 @@ export function App() {
           <div className="showcase-heading">
             <div>
               <p className="eyebrow">A small component playground</p>
-              <h2 id="showcase-title">Everything here is<br /><em>selectable.</em></h2>
+              <h2 id="showcase-title">Everything here is<br /><span className="accent-word">selectable.</span></h2>
             </div>
             <p className="showcase-note">Click around. This section is deliberately made from common building blocks to make the inspector useful in context.</p>
           </div>
@@ -161,7 +161,7 @@ export function App() {
         <section className="type-section" aria-labelledby="type-title">
           <div className="type-intro">
             <p className="eyebrow">Tokens in context</p>
-            <h2 id="type-title">See the system,<br /><em>not just the screen.</em></h2>
+            <h2 id="type-title">See the system,<br /><span className="accent-word">not just the screen.</span></h2>
             <p>Typography, color, spacing, and layout are easier to tune when you can see the relationships between them.</p>
           </div>
           <div className="type-samples">
@@ -182,7 +182,7 @@ export function App() {
         <section className="handoff-section" id="handoff" aria-labelledby="handoff-title">
           <div className="handoff-copy">
             <p className="eyebrow">From canvas to code</p>
-            <h2 id="handoff-title">Make the change.<br /><em>Keep the context.</em></h2>
+            <h2 id="handoff-title">Make the change.<br /><span className="accent-word">Keep the context.</span></h2>
           </div>
           <div className="prompt-preview">
             <div className="prompt-bar"><span>design-changes.md</span><span>copied to clipboard</span></div>
