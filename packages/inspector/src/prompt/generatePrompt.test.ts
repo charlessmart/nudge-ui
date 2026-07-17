@@ -224,6 +224,19 @@ describe("generatePrompt", () => {
     expect(out).toContain("Framework: React + vanilla-extract (sprinkles)");
   });
 
+  it("uses a human-readable adapter token in the prompt while selectors keep implementation identity", () => {
+    const out = generatePrompt([rec({
+      cid: "SprinklesCard",
+      file: "src/Card.tsx",
+      property: "color",
+      oldToken: { name: "theme.color.brand", cssName: "--color-brand__hash", value: "#123456", source: "theme.ts", adapter: "vanilla-extract" },
+      newToken: { name: "theme.color.accent", cssName: "--color-accent__hash", value: "#abcdef", source: "theme.ts", adapter: "vanilla-extract" },
+    })], { framework: "React", stylingSystem: "vanilla-extract (sprinkles)" });
+    expect(out).toContain("theme.color.brand");
+    expect(out).toContain("theme.color.accent");
+    expect(out).not.toContain("--color-accent__hash");
+  });
+
   it("renders global token edits separately with source, context and fallback", () => {
     const out = generatePrompt([{
       kind: "token",

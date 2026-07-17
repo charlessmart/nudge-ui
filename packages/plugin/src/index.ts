@@ -8,11 +8,14 @@ import type { TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
 import { annotateTailwindV4Catalog, detectTailwindV4 } from "./adapters/tailwindV4.ts";
 import { extractTailwindV3Tokens } from "./adapters/tailwindV3.ts";
 import type { TailwindV3Config } from "./adapters/tailwindV3.ts";
+import { extractVanillaExtractTokens } from "./adapters/vanillaExtract.ts";
+import type { VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
 
 export interface DesignToolOptions {
   enabled?: boolean;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
   tailwindV3?: { config: TailwindV3Config };
+  vanillaExtract?: VanillaExtractAdapterOptions;
 }
 
 const VIRTUAL_TOKENS_ID = "virtual:design-tokens";
@@ -195,6 +198,19 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
             });
           }
         }
+        if (options.vanillaExtract) {
+          for (const entry of extractVanillaExtractTokens(options.vanillaExtract)) {
+            if (!entry.cssName) continue;
+            catalogByName.set(entry.cssName, {
+              cssName: entry.cssName,
+              name: entry.name,
+              adapter: entry.adapter,
+              origin: entry.origin,
+              editable: entry.editable,
+              declarations: [{ value: entry.value, source: entry.source, important: false, context: {} }],
+            });
+          }
+        }
         const catalog = [...catalogByName.values()];
         const all: TokenEntry[] = catalog.map((definition) => ({
           name: definition.name,
@@ -288,3 +304,7 @@ export { annotateTailwindV4Catalog, detectTailwindV4, entriesFromTailwindV4Catal
 export type { TailwindAlphaMapping } from "./adapters/tailwindV4.ts";
 export { detectTailwindV3Config, extractTailwindV3Tokens, resolveTailwindV3ClassName, tailwindV3ColorDeclaration } from "./adapters/tailwindV3.ts";
 export type { TailwindV3Config, TailwindV3Mapping } from "./adapters/tailwindV3.ts";
+export { createTokenAdapterRegistry } from "./adapters/registry.ts";
+export { createVanillaExtractAdapter, extractVanillaExtractTokens, resolveSprinklesClassName } from "./adapters/vanillaExtract.ts";
+export type { TokenAdapter, TokenMapping } from "./adapters/types.ts";
+export type { ThemeContract, SprinklesClassMap, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";

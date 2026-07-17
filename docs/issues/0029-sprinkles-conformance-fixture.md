@@ -24,13 +24,13 @@ custom-property name where a known contract path is available.
 
 ## Acceptance criteria
 
-- [ ] A minimal vanilla-extract/Sprinkles fixture is compiled and exercised by
+- [x] A minimal vanilla-extract/Sprinkles fixture is compiled and exercised by
       the common conformance runner.
-- [ ] An atomic consumer class resolves to its human-readable theme-contract
+- [x] An atomic consumer class resolves to its human-readable theme-contract
       path rather than only a generated CSS variable name.
-- [ ] The fixture asserts catalog provenance, attribution, browser-computed
+- [x] The fixture asserts catalog provenance, attribution, browser-computed
       value, managed token-swap preview, change log, and prompt output.
-- [ ] The same fixture proves graceful fallback for an atomic class with no
+- [x] The same fixture proves graceful fallback for an atomic class with no
       safe human-readable mapping.
 - [ ] Existing work-codebase verification from issue 0013 remains part of the
       adapter's evidence; the fixture is not a substitute for it.

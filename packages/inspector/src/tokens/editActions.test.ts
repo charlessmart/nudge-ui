@@ -23,6 +23,7 @@ const COLOR_BLUE: TokenEntry = { name: "--color-blue", value: "#0000ff", source:
 const COLOR_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5f5f5", source: "styles.css:2" };
 const COLOR_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:3" };
 const SPACE_2: TokenEntry = { name: "--space-2", value: "8px", source: "styles.css:7" };
+const SPRINKLES_BRAND: TokenEntry = { name: "theme.color.brand", cssName: "--color-brand__hash", value: "#123456", source: "theme-contract.ts:1", adapter: "vanilla-extract", origin: "project" };
 
 describe("buildSelector", () => {
   it("composes [data-cid=...][data-src*=...] from cid + file:line parsed from src", () => {
@@ -69,6 +70,13 @@ describe("swapToken", () => {
     const text = sheet.textContent ?? "";
     expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(text).toContain("background: var(--color-blue);");
+  });
+
+  it("writes the generated CSS variable while keeping the contract path in the change record", () => {
+    const btn = makeButton();
+    const rec = swapToken(btn, "color", SPRINKLES_BRAND, null);
+    expect(rec?.newToken?.name).toBe("theme.color.brand");
+    expect(document.getElementById("design-tool-styles")?.textContent).toContain("color: var(--color-brand__hash);");
   });
 
   it("writes a state-qualified selector and preserves the state on the change", () => {
