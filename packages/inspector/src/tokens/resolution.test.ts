@@ -38,6 +38,14 @@ describe("resolveTokenValue", () => {
     expect(res.modifiers).toEqual([{ kind: "fallback", value: "16px" }]);
   });
 
+  it("keeps a Tailwind color-mix alpha as a modifier", () => {
+    const table = makeTable([{ name: "--color-red-500", value: "oklch(63% .2 25)", source: "tailwind.css:1", adapter: "tailwind-v4", origin: "framework" }]);
+    const res = resolveTokenValue("color-mix(in oklab, var(--color-red-500) 10%, transparent)", table);
+    expect(res.tokenName).toBe("--color-red-500");
+    expect(res.tokens[0]).toMatchObject({ name: "--color-red-500", origin: "framework" });
+    expect(res.modifiers).toContainEqual({ kind: "alpha", value: "10%" });
+  });
+
   it.each(["calc(var(--space-4) * 2)", "min(var(--space-4), 2rem)", "max(var(--space-4), 8px)", "clamp(8px, var(--space-4), 2rem)"])(
     "attributes a token inside %s without flattening the expression",
     (value) => {

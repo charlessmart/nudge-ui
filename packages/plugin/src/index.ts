@@ -5,6 +5,7 @@ import type { Alias, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { injectIdentity } from "./transform/injectDataCid.ts";
 import { parseTokenCatalog } from "./tokens/parseTokens.ts";
 import type { TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
+import { annotateTailwindV4Catalog, detectTailwindV4 } from "./adapters/tailwindV4.ts";
 
 export interface DesignToolOptions {
   enabled?: boolean;
@@ -95,7 +96,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     const rel = relativePath(fileId, root);
-    cssTokens.set(fileId, parseTokenCatalog(code, rel));
+    const parsed = parseTokenCatalog(code, rel);
+    cssTokens.set(fileId, detectTailwindV4(code) ? annotateTailwindV4Catalog(parsed) : parsed);
   }
 
   function ensurePostTransformCss(): Promise<void> {
@@ -178,9 +180,13 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         }
         const catalog = [...catalogByName.values()];
         const all: TokenEntry[] = catalog.map((definition) => ({
-          name: definition.cssName,
+          name: definition.name,
+          cssName: definition.cssName,
           value: definition.declarations[0]?.value ?? "",
           source: definition.declarations[0]?.source ?? "",
+          adapter: definition.adapter,
+          origin: definition.origin,
+          editable: definition.editable,
         }));
         const body = JSON.stringify(all);
         return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${body};\nexport default tokens;\n`;
@@ -261,3 +267,5 @@ export { injectIdentity, injectDataCid } from "./transform/injectDataCid.ts";
 export type { InjectResult } from "./transform/injectDataCid.ts";
 export { parseTokens, parseTokenCatalog } from "./tokens/parseTokens.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
+export { annotateTailwindV4Catalog, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
+export type { TailwindAlphaMapping } from "./adapters/tailwindV4.ts";

@@ -39,7 +39,7 @@ export function TailwindLandingPage() {
           <div className="relative md:col-span-5" aria-label="Project planning activity preview">
             <div className="absolute -inset-24 -z-0 rounded-full bg-lime-300/10 blur-3xl" />
             <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-stone-900/80 p-5 shadow-2xl shadow-black/30 backdrop-blur">
-              <div className="flex items-center justify-between border-b border-white/10 pb-4 text-[11px] text-stone-400">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 text-[11px] text-stone-400">
                 <span>New Zealand launch</span>
                 <span className="font-mono text-lime-300">ON TRACK</span>
               </div>
@@ -56,6 +56,9 @@ export function TailwindLandingPage() {
                 <div className="rounded-lg bg-white/5 p-3"><span className="block text-stone-500">Open</span><strong className="mt-1 block text-lg">04</strong></div>
                 <div className="rounded-lg bg-white/5 p-3"><span className="block text-stone-500">Resolved</span><strong className="mt-1 block text-lg">28</strong></div>
               </div>
+            </div>
+            <div data-test="tailwind-alpha" className="mt-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-950">
+              Tailwind v4 color opacity fixture
             </div>
           </div>
         </section>

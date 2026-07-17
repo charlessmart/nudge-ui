@@ -31,18 +31,18 @@ composite/raw values.
 
 ## Acceptance criteria
 
-- [ ] A Tailwind v4 fixture covers a project theme token, a framework default
+- [x] A Tailwind v4 fixture covers a project theme token, a framework default
       color token, and a `/10` color-opacity utility.
-- [ ] Selecting the opacity utility attributes the base color token and 10%
+- [x] Selecting the opacity utility attributes the base color token and 10%
       alpha separately from its computed browser color.
-- [ ] The field does not replace the authored utility expression with an sRGB
+- [x] The field does not replace the authored utility expression with an sRGB
       serialization.
-- [ ] Any alpha edit that the UI offers round-trips through the managed
+- [x] Any alpha edit that the UI offers round-trips through the managed
       stylesheet, visible preview, change log, and prompt; unsupported forms
       remain explicit raw fallbacks.
-- [ ] The fixture covers Tailwind local alias composition when it participates
+- [x] The fixture covers Tailwind local alias composition when it participates
       in the emitted color declaration.
-- [ ] Unit and browser conformance tests protect Tailwind v4 token catalog,
+- [x] Unit and browser conformance tests protect Tailwind v4 token catalog,
       attribution, computed preview, and origin/editability behavior.
 - [ ] `pnpm lint`, `pnpm typecheck`, unit tests, relevant Playwright tests, and
       `pnpm --filter sandbox build` pass.

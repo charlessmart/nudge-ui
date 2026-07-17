@@ -142,11 +142,15 @@ export function getTokenTable(): TokenTable {
 export function getTokenEntriesForElement(el: HTMLElement): TokenEntry[] {
   const computed = getComputedStyle(el);
   return tokenCatalog.map((definition) => ({
-    name: definition.cssName,
+    name: definition.name,
+    cssName: definition.cssName,
     value: computed.getPropertyValue(definition.cssName).trim()
       || definition.declarations[0]?.value
       || "",
     source: definition.declarations[0]?.source ?? "",
+    adapter: definition.adapter,
+    origin: definition.origin,
+    editable: definition.editable,
   }));
 }
 
@@ -255,6 +259,9 @@ export function resolveTokenValue(
     }
   }
   const modifiers: ValueModifier[] = calls.flatMap((call) => call.fallback ? [{ kind: "fallback" as const, value: call.fallback }] : []);
+  const alpha = authored.match(/(?:color-mix\([^,]+,\s*var\([^)]*\)\s+)(\d+(?:\.\d+)?%)/i)?.[1]
+    ?? authored.match(/\/\s*(\d+(?:\.\d+)?%?)(?:\s*\)|\s*$)/)?.[1];
+  if (alpha) modifiers.push({ kind: "alpha", value: alpha.includes("%") ? alpha : `${alpha}%` });
   const inner = resolveTokenValueInner(authored, tokenTable, new Set(), localAliases);
   return {
     tokenName: firstKnown?.tokenName ?? inner.tokenName,
