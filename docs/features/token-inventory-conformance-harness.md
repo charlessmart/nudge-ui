@@ -64,10 +64,11 @@ The token engine and rendered-element identity vary independently.
 
 | Priority | Styling system | Why it is distinct |
 | --- | --- | --- |
-| 1 | Standard CSS and CSS Modules | CSS Modules retain normal CSS semantics but need module/source mapping and hashed-selector coverage. |
+| 1 | Standard CSS | Shared token and value semantics that every later adapter consumes. |
 | 2 | Tailwind v4 | `@theme`, generated CSS variables, `color-mix()`, and local `--tw-*` composition. |
 | 3 | Tailwind v3 | JavaScript config and generated utilities frequently differ from v4's theme-variable model. |
 | 4 | vanilla-extract / Sprinkles | Project tokens originate in TypeScript theme contracts and atomic classes. |
+| Deferred | CSS Modules | Normal CSS semantics, but module/source mapping and hashed-selector support need a separate readiness decision. |
 | Later | Runtime CSS-in-JS, Panda, UnoCSS | Runtime injection or alternative compilation contracts require a separate product decision. |
 
 ### Framework adapters
@@ -184,16 +185,16 @@ that does not match the rendered result.
 
 ## Milestone sequence
 
-1. Establish the shared fixture runner and authored-versus-computed assertion
-   model with ordinary CSS.
+1. Establish the shared fixture runner, the authored-versus-computed assertion
+   model, and the ordinary-CSS baseline corpus.
 2. Deliver Tailwind v4 color alpha attribution as the first adapter-backed
    behavior.
 3. Add value classification and simple border decomposition with raw fallback.
 4. Add Tailwind v3 as a separate adapter-backed fixture set.
 5. Integrate the vanilla-extract/Sprinkles contract work already planned in
    issues 0012 and 0013 into the conformance runner.
-6. Add CSS Modules and, later, framework adapter fixtures when those adapters
-   enter product scope.
+6. Add CSS Modules and, later, framework adapter fixtures only when those
+   adapters enter product scope.
 
 ## Non-goals
 
