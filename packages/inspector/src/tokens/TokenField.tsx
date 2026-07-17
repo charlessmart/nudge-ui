@@ -305,8 +305,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 }
 
 function arrowDirection(key: string): -1 | 1 | null {
-  if (key === "ArrowUp" || key === "ArrowRight") return 1;
-  if (key === "ArrowDown" || key === "ArrowLeft") return -1;
+  if (key === "ArrowUp") return 1;
+  if (key === "ArrowDown") return -1;
   return null;
 }
 

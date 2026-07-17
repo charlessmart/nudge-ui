@@ -33,6 +33,7 @@ import { TokensPanel } from "./tokens/TokensPanel.tsx";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
 import type { InteractionState } from "./styleState.ts";
 import { isEditableTarget } from "./shortcuts.ts";
+import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -76,6 +77,11 @@ export function InspectorShell(): ReactElement {
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
+
+  useEffect(() => {
+    setInspectorLayoutOpen(isOpen);
+    return clearInspectorLayout;
+  }, [isOpen]);
 
   useEffect(() => {
     // A new selection should never inherit an incidental state from the

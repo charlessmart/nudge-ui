@@ -85,6 +85,24 @@ describe("InspectorShell", () => {
     expect(second).toBe(before);
   });
 
+  it("reserves the panel width while open and releases it when hidden", () => {
+    act(() => {
+      mountInspector(host);
+    });
+    expect(document.documentElement.getAttribute("data-design-tool-panel")).toBe("open");
+    expect(document.getElementById("design-tool-panel-layout")).not.toBeNull();
+
+    act(() => {
+      pressKey({ key: "i", code: "KeyI", altKey: true });
+    });
+    expect(document.documentElement.hasAttribute("data-design-tool-panel")).toBe(false);
+
+    act(() => {
+      unmountInspector();
+    });
+    expect(document.getElementById("design-tool-panel-layout")).toBeNull();
+  });
+
   it("non-Alt+I keys do not toggle", () => {
     act(() => {
       mountInspector(host);

@@ -21,6 +21,7 @@
   --dt-danger: #df4b4b;
   --dt-danger-text: #bd3636;
   --dt-danger-surface: #fff0f0;
+  --dt-panel-width: min(320px, 100vw);
   --dt-radius-small: 7px;
   --dt-radius-control: 10px;
   --dt-radius-pill: 999px;
@@ -54,7 +55,7 @@ select {
 .dt-panel {
   position: fixed;
   inset: 0 0 0 auto;
-  width: min(300px, 100vw);
+  width: var(--dt-panel-width);
   height: 100dvh;
   overflow: hidden;
   background: var(--dt-surface-panel);

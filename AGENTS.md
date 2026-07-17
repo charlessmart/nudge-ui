@@ -65,6 +65,21 @@ The active build order lives in `docs/issues/` (Milestones 1-3 are in scope now,
 - Update the issue's acceptance criteria checkboxes by editing the file when
  Criteria are met.
 
+## Agent skills
+
+### Issue tracker
+
+Local Markdown issues live in `docs/issues/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the repository's local triage-label vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Product scope lives in `PLAN.md`, decisions in `docs/adr/`, and larger feature
+plans in `docs/features/`. See `docs/agents/domain.md`.
+
 ## ADRs
 
 ADRs in `docs/adr/` are immutable. To change a decision, write a new ADR that

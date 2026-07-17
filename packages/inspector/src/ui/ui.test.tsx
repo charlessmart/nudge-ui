@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
@@ -111,5 +111,27 @@ describe("shared inspector UI", () => {
 
     expect(host.querySelector('[data-test="query"]')).not.toBeNull();
     expect(document.body.querySelector('[data-test="suggestion"]')).not.toBeNull();
+  });
+
+  it("selects a trigger combobox item with a pointer click", () => {
+    const onSelect = vi.fn();
+    act(() => {
+      root.render(createElement(PopoverListbox, {
+        query: "",
+        open: true,
+        trigger: createElement("span", null, "Current token"),
+        items: [{ value: "--color-next", label: "--color-next", "data-test": "clickable-suggestion" }],
+        onQueryChange: () => undefined,
+        onOpenChange: () => undefined,
+        onSelect,
+      }));
+    });
+
+    act(() => {
+      (document.body.querySelector('[data-test="clickable-suggestion"]') as HTMLElement).click();
+    });
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith("--color-next");
   });
 });

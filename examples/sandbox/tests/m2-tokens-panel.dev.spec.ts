@@ -79,3 +79,38 @@ test("dev: spacing token suggestions exclude color and typography tokens", async
     }, { timeout: 5000 })
     .toEqual(["--space-1", "--space-2", "--space-3"]);
 });
+
+test("dev: token picker keeps pointer selection and scroll inside a bounded menu", async ({ page }) => {
+  await page.goto("/tailwind");
+  await page.locator("#tailwind-title").click();
+
+  const field = page.locator('[data-test="token-field"][data-property="font-size"]');
+  const chip = field.locator('[data-test="token-chip"]');
+  await expect(chip).toBeVisible();
+
+  const currentToken = (await chip.textContent())?.trim() ?? "";
+  await chip.click();
+
+  const popup = page.locator(".dt-popover-listbox__popup");
+  await expect(popup).toBeVisible();
+  const dimensions = await popup.evaluate((element) => ({
+    width: element.getBoundingClientRect().width,
+    scrollHeight: element.scrollHeight,
+    clientHeight: element.clientHeight,
+  }));
+  expect(dimensions.width).toBeLessThanOrEqual(420);
+  expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+
+  const panelBody = page.locator(".dt-panel__body");
+  const panelScrollTop = await panelBody.evaluate((element) => element.scrollTop);
+  await popup.hover();
+  await page.mouse.wheel(0, 500);
+  await expect
+    .poll(async () => popup.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
+  expect(await panelBody.evaluate((element) => element.scrollTop)).toBe(panelScrollTop);
+
+  const option = popup.locator('[data-test="suggestion-item"]').filter({ hasNotText: currentToken }).first();
+  await option.click();
+  await expect(chip).not.toHaveText(currentToken);
+});

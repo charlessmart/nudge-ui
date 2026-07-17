@@ -30,11 +30,24 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
     );
 
   const before = await getOpen();
+  const reservedWidth = await page.evaluate(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    return {
+      layoutOpen: root.getAttribute("data-design-tool-panel"),
+      bodyMarginRight: getComputedStyle(body).marginRight,
+    };
+  });
+  expect(reservedWidth.layoutOpen).toBe("open");
+  expect(reservedWidth.bodyMarginRight).not.toBe("0px");
+
   await page.keyboard.press("Alt+i");
   const afterToggle = await getOpen();
   expect(afterToggle).not.toBe(before);
+  await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute("data-design-tool-panel"))).toBe(false);
 
   await page.keyboard.press("Alt+i");
   const afterSecond = await getOpen();
   expect(afterSecond).toBe(before);
+  await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-design-tool-panel"))).toBe("open");
 });

@@ -6,6 +6,7 @@ import { setSelectedElement } from "./selectionStore.ts";
 import { clearChanges } from "./changesLog.ts";
 import { removeManagedSheet } from "./managedStylesheet.ts";
 import { isInspectorToggleShortcut } from "./shortcuts.ts";
+import { clearInspectorLayout } from "./panelLayout.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -45,6 +46,7 @@ export function unmountInspector(): void {
   }
   clearChanges();
   removeManagedSheet();
+  clearInspectorLayout();
   hostElement = null;
 }
 

@@ -144,6 +144,27 @@ describe("TokenField", () => {
     expect(getChangeRecords()).toHaveLength(1);
   });
 
+  it("keeps horizontal arrows available for text navigation", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "padding-top": "16px" });
+    handle = mount(createElement(TokenField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      entries: [],
+    }));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    act(() => {
+      input.focus();
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true, cancelable: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+    });
+
+    expect(input.value).toBe("16px");
+    expect(sheetText()).toBe("");
+    expect(getChangeRecords()).toHaveLength(0);
+  });
+
   it("nudges an active global line-height token through the shared raw field", () => {
     const onCommitRaw = vi.fn();
     handle = mount(createElement(TokenValueField, {
