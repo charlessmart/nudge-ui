@@ -14,6 +14,7 @@ import { Badge } from "./Badge.tsx";
 import { Breadcrumb } from "./Breadcrumb.tsx";
 import { ColorSwatch } from "./ColorSwatch.tsx";
 import { PopoverListbox } from "./PopoverListbox.tsx";
+import { SideValuesField, SIDE_NAMES } from "./SideValuesField.tsx";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -133,5 +134,25 @@ describe("shared inspector UI", () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith("--color-next");
+  });
+
+  it("keeps four side values linked until the individual sides action is used", () => {
+    act(() => {
+      root.render(createElement(SideValuesField, {
+        label: "padding",
+        "data-test": "side-values",
+        linkedControl: createElement("span", { "data-test": "linked-control" }, "shared"),
+        sides: SIDE_NAMES.map((side) => ({
+          side,
+          control: createElement("span", { "data-test": `control-${side}` }, side),
+        })),
+      }));
+    });
+
+    expect(host.querySelector('[data-test="linked-control"]')).not.toBeNull();
+    expect(host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
+    act(() => (host.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click());
+    expect(host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
+    expect(host.querySelector('[data-side="top"] svg')).not.toBeNull();
   });
 });

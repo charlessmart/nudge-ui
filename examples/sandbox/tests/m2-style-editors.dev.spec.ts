@@ -15,6 +15,12 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
     .toBe(true);
 }
 
+async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
+  await expect
+    .poll(async () => page.evaluate(() => Boolean(document.getElementById("design-tool-root")?.shadowRoot?.querySelector('[data-test="inspect-tab"]'))), { timeout: 5000 })
+    .toBe(true);
+}
+
 async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
   await page.evaluate(({ p, v }) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
@@ -34,6 +40,12 @@ async function computedProp(page: import("@playwright/test").Page, prop: string)
   return await page.evaluate((p) => {
     const btn = document.querySelector(".btn") as HTMLElement | null;
     return btn ? getComputedStyle(btn).getPropertyValue(p) : "";
+  }, prop);
+}
+
+async function computedFixtureProp(page: import("@playwright/test").Page, fixture: string, prop: string): Promise<string> {
+  return await page.locator(`[data-test="${fixture}"]`).evaluate((element, property) => {
+    return getComputedStyle(element).getPropertyValue(property);
   }, prop);
 }
 
@@ -105,6 +117,102 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   expect(sheet).toContain("font-size: 18px");
   expect(sheet).toContain("border-radius: 12px");
   expect(sheet).toContain("color: var(--color-text-secondary);");
+});
+
+test("dev: linked border values expand into icon-labelled individual side fields", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForEditors(page);
+
+  const borderSides = page.locator('[data-test="border-sides"]');
+  await expect(borderSides).toHaveAttribute("data-linked", "true");
+  await expect(borderSides.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(1);
+
+  await borderSides.locator('[data-test="individual-sides"]').click();
+  await expect(borderSides).toHaveAttribute("data-linked", "false");
+  await expect(borderSides.locator('[data-side="top"] svg')).toHaveCount(1);
+  await expect(borderSides.locator('[data-test="token-field"][data-property="border-top-width"]')).toHaveCount(1);
+
+  await setInput(page, "border-top-width", "2px");
+  await expect
+    .poll(async () => computedProp(page, "border-top-width"), { timeout: 5000 })
+    .toBe("2px");
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("border-top-width: 2px");
+});
+
+test("dev: authored CSS border fixtures parse width, style, and color per side", async ({ page }) => {
+  await page.goto("/");
+  await waitForInspector(page);
+  const fixture = page.locator('[data-test="css-border-mixed"]');
+  await fixture.evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+  });
+  await waitForEditors(page);
+
+  await expect(page.locator('[data-test="border-sides"]')).toHaveAttribute("data-linked", "false");
+  await expect(page.locator('[data-test="border-style-sides"]')).toHaveAttribute("data-linked", "false");
+  await expect(page.locator('[data-test="border-color-sides"]')).toHaveAttribute("data-linked", "false");
+  await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("2px");
+  await expect(page.locator('[data-test="token-field"][data-property="border-bottom-width"] [data-test="raw-input"]')).toHaveValue("4px");
+  await expect(page.locator('[data-test="border-style-top"]')).toHaveValue("dashed");
+  await expect(page.locator('[data-test="border-style-bottom"]')).toHaveValue("double");
+  await expect(page.locator('[data-test="token-field"][data-property="border-top-color"] [data-test="token-chip"]')).toContainText("--color-accent");
+
+  await setInput(page, "border-right-width", "5px");
+  await expect
+    .poll(async () => computedFixtureProp(page, "css-border-mixed", "border-right-width"), { timeout: 5000 })
+    .toBe("5px");
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("border-right-width: 5px");
+});
+
+test("dev: individual side focus ring belongs to the whole side field", async ({ page }) => {
+  await page.goto("/");
+  await waitForInspector(page);
+  await page.locator('[data-test="css-border-mixed"]').evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+  });
+  await waitForEditors(page);
+
+  const input = page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]');
+  await input.focus();
+  const readFocusStyles = () => page.evaluate(() => {
+    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const raw = shadow?.querySelector('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]') as HTMLElement | null;
+    const side = raw?.closest('[data-test^="side-value-"]') as HTMLElement | null;
+    return {
+      sideBoxShadow: side ? getComputedStyle(side).boxShadow : "",
+      inputBoxShadow: raw ? getComputedStyle(raw).boxShadow : "",
+    };
+  });
+  await expect.poll(readFocusStyles, { timeout: 5000 }).toMatchObject({ inputBoxShadow: "none" });
+  const focusStyles = await readFocusStyles();
+
+  expect(focusStyles.sideBoxShadow).not.toBe("none");
+});
+
+test("dev: linking divergent border widths applies one value and survives reselection", async ({ page }) => {
+  await page.goto("/");
+  await waitForInspector(page);
+  const fixture = page.locator('[data-test="css-border-mixed"]');
+  await fixture.evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+  });
+  await waitForEditors(page);
+
+  const borderSides = page.locator('[data-test="border-sides"]');
+  await expect(borderSides).toHaveAttribute("data-linked", "false");
+  await borderSides.locator('[data-test="individual-sides"]').click();
+  await expect(borderSides).toHaveAttribute("data-linked", "true");
+  await expect
+    .poll(async () => Promise.all(["top", "right", "bottom", "left"].map((side) => computedFixtureProp(page, "css-border-mixed", `border-${side}-width`))), { timeout: 5000 })
+    .toEqual(["2px", "2px", "2px", "2px"]);
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("border-width: 2px");
+
+  await fixture.evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+  });
+  await waitForEditors(page);
+  await expect(page.locator('[data-test="border-sides"]')).toHaveAttribute("data-linked", "true");
 });
 
 test("dev: style editors keep layout and spacing ahead of typography and color", async ({ page }) => {

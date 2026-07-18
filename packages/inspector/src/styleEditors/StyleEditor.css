@@ -156,41 +156,6 @@
   display: flex;
 }
 
-.dt-spacing__group {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 6px;
-  align-items: start;
-}
-
-.dt-spacing__label {
-  align-self: center;
-  padding-left: 0;
-  color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size);
-}
-
-.dt-spacing__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.dt-spacing__side {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.dt-spacing__side-label {
-  color: var(--dt-text-muted-subtle);
-  font-size: var(--dt-font-size);
-  font-weight: 600;
-  text-align: center;
-  text-transform: uppercase;
-}
-
 .dt-color__row {
   display: flex;
   align-items: center;

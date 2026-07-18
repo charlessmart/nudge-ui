@@ -33,6 +33,48 @@ const typeSamples = [
   { label: "Mono", className: "type-mono", value: "--space-3 · 16px · var(--color-text-primary)" },
 ];
 
+const cssBorderFixtureIds = {
+  accent: import.meta.env.DEV ? { "data-test": "css-border-accent" } : {},
+  mixed: import.meta.env.DEV ? { "data-test": "css-border-mixed" } : {},
+  override: import.meta.env.DEV ? { "data-test": "css-border-override" } : {},
+};
+
+function CssBorderExamples() {
+  return (
+    <section className="border-fixtures" aria-labelledby="border-fixtures-title">
+      <div className="border-fixtures__header">
+        <div>
+          <p className="eyebrow">Edge cases worth inspecting</p>
+          <h2 id="border-fixtures-title">One box, four border decisions.</h2>
+        </div>
+        <p className="border-fixtures__intro">
+          These examples use ordinary CSS side longhands. Select one to see whether width, color, and style stay linked or fan out by side.
+        </p>
+      </div>
+      <div className="border-fixtures__grid">
+        <article className="border-fixture border-fixture--accent" {...cssBorderFixtureIds.accent}>
+          <div className="border-fixture__meta"><span>01</span><span>Common</span></div>
+          <h3>Accent edge</h3>
+          <p>A shared border with one stronger left edge for hierarchy.</p>
+          <code>border-left: 4px solid accent</code>
+        </article>
+        <article className="border-fixture border-fixture--mixed" {...cssBorderFixtureIds.mixed}>
+          <div className="border-fixture__meta"><span>02</span><span>Mixed</span></div>
+          <h3>Mixed treatment</h3>
+          <p>Every side has its own width, color, and line style.</p>
+          <code>top dashed · right solid · bottom double · left dotted</code>
+        </article>
+        <article className="border-fixture border-fixture--override" {...cssBorderFixtureIds.override}>
+          <div className="border-fixture__meta"><span>03</span><span>Override</span></div>
+          <h3>One-side override</h3>
+          <p>A normal shared border with a deliberate bottom emphasis.</p>
+          <code>border-bottom: 2px solid accent</code>
+        </article>
+      </div>
+    </section>
+  );
+}
+
 export function App() {
   const [clicks, setClicks] = useState(0);
 
@@ -189,6 +231,8 @@ export function App() {
             <pre>{`# Design changes for Hero.tsx\n\n### Hero (src/Hero.tsx:42)\n- font-size: 56px → 64px\n- color: text.secondary → text.primary\n\n## Selectors (fallback)\n[data-cid="Hero"][data-src*="Hero.tsx"]`}</pre>
           </div>
         </section>
+
+        <CssBorderExamples />
 
         {import.meta.env.DEV ? (
           <section className="token-reference" data-test="tokens" aria-labelledby="token-title">
