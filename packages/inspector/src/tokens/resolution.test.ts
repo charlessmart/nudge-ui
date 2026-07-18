@@ -401,6 +401,85 @@ describe("resolvePropertiesFromRules", () => {
     expect(byProp.get("padding-left")?.tokenName).toBe("--space-2");
   });
 
+  it("projects logical spacing declarations onto physical sides above a reset", () => {
+    btn.className = "btn";
+    const table = makeTable([
+      { name: "--space-inline", value: "16px", source: "fixture.css:1" },
+      { name: "--space-block", value: "8px", source: "fixture.css:2" },
+    ]);
+    const rows = resolvePropertiesFromRules(btn, [
+      {
+        selectorText: "*",
+        specificity: 0,
+        layer: "base",
+        sourceOrder: 0,
+        declarations: [
+          { property: "padding", value: "0" },
+          { property: "margin", value: "0" },
+        ],
+      },
+      {
+        selectorText: ".btn",
+        specificity: 10000,
+        sourceOrder: 1,
+        declarations: [
+          { property: "padding-inline", value: "var(--space-inline)" },
+          { property: "margin-block", value: "var(--space-block) 0" },
+        ],
+      },
+    ], table);
+    const byProperty = new Map(rows.map((row) => [row.property, row]));
+
+    expect(byProperty.get("padding-left")).toMatchObject({
+      authored: "var(--space-inline)",
+      tokenName: "--space-inline",
+      sourceProperty: "padding-inline",
+    });
+    expect(byProperty.get("padding-right")).toMatchObject({
+      authored: "var(--space-inline)",
+      tokenName: "--space-inline",
+      sourceProperty: "padding-inline",
+    });
+    expect(byProperty.get("margin-top")).toMatchObject({
+      authored: "var(--space-block)",
+      tokenName: "--space-block",
+      sourceProperty: "margin-block",
+    });
+    expect(byProperty.get("margin-bottom")).toMatchObject({
+      authored: "0",
+      tokenName: null,
+      sourceProperty: "margin-block",
+    });
+  });
+
+  it("maps logical start sides through direction and writing mode", () => {
+    const table = makeTable([{ name: "--space", value: "8px", source: "fixture.css:1" }]);
+    btn.style.direction = "rtl";
+    let rows = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [{ property: "padding-inline-start", value: "var(--space)" }],
+    }], table);
+    expect(rows.find((row) => row.property === "padding-right")).toMatchObject({ tokenName: "--space", sourceProperty: "padding-inline-start" });
+    expect(rows.some((row) => row.property === "padding-left")).toBe(false);
+
+    rows = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [{ property: "inset-inline-start", value: "var(--space)" }],
+    }], table);
+    expect(rows.find((row) => row.property === "right")).toMatchObject({ tokenName: "--space", sourceProperty: "inset-inline-start" });
+
+    btn.style.direction = "ltr";
+    btn.style.writingMode = "vertical-rl";
+    rows = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [{ property: "margin-block-start", value: "var(--space)" }],
+    }], table);
+    expect(rows.find((row) => row.property === "margin-right")).toMatchObject({ tokenName: "--space", sourceProperty: "margin-block-start" });
+  });
+
   it("skips rules whose selector does not match", () => {
     const table = makeTable([
       { name: "--color-surface-raised", value: "#ffffff", source: "s:2" },

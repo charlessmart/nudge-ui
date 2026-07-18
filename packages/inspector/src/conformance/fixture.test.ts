@@ -32,6 +32,17 @@ const fixture: ConformanceFixture = {
       color: { authored: "var(--surface, hotpink)", tokens: ["--surface"], capability: "color" },
       "box-shadow": { authored: "0 2px 4px rgb(0 0 0 / .15)", tokens: [], capability: "composite" },
     },
+    projection: {
+      spacing: {
+        padding: {
+          linked: true,
+          fields: {
+            top: { authoredValue: "var(--space-4)", value: "1rem", tokenName: "--space-4" },
+            right: { authoredValue: "var(--space-4)", value: "1rem", tokenName: "--space-4" },
+          },
+        },
+      },
+    },
   },
 };
 

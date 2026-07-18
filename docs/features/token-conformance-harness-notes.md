@@ -33,6 +33,25 @@ These notes capture follow-up ideas found while implementing issues 0024–0029.
    never use computed serialization as the initial value for `calc()`, aliases,
    color-mix(), or opacity-helper fields.
 
+## Fixture projection contract
+
+Fixtures can now assert two related contracts:
+
+- `expected.properties` describes resolver facts such as authored value,
+  token references, capability, and computed value.
+- `expected.projection` describes the inspector-facing physical controls,
+  including linked/unlinked side state, displayed values, token names, and the
+  logical source property that produced each side.
+
+The browser fixtures should still select the real element and query the
+inspector shadow DOM. The projection contract makes the mapping reusable in
+fast tests; the browser assertion proves React renders those projected values
+through the actual controls.
+
+Logical spacing declarations are normalized to physical sides using the
+selected element's direction and writing mode. This prevents framework reset
+rules such as `padding: 0` from hiding authored `padding-inline` values.
+
 ## Verification status
 
 The repository-wide lint, typecheck, unit suite, sandbox production build, and

@@ -4,19 +4,11 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
 import { SideValuesField, SIDE_NAMES, type SideValueSlot } from "../ui/SideValuesField.tsx";
-import { getStateStyleValue } from "../stateValue.ts";
 import { setStyle } from "./styleActions.ts";
+import { projectInspectorValues } from "../conformance/projection.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
-}
-
-function sideValueForLink(el: HTMLElement, rows: ResolvedProperty[], property: string): string {
-  const row = findTokenRow(rows, property);
-  return row?.authored
-    || row?.declaredValue
-    || row?.resolvedValue
-    || getStateStyleValue(el, property);
 }
 
 function linkedTokenRow(
@@ -30,20 +22,6 @@ function linkedTokenRow(
   return first ? { ...first, property: shorthand } : null;
 }
 
-function valuesAreLinked(
-  el: HTMLElement,
-  rows: ResolvedProperty[],
-  sideProperties: readonly string[],
-): boolean {
-  const signatures = sideProperties.map((property) => {
-    const row = findTokenRow(rows, property);
-    const authored = row?.authored ?? row?.declaredValue ?? "";
-    const resolved = row?.resolvedValue ?? getStateStyleValue(el, property);
-    return `${authored}|${row?.tokenName ?? ""}|${resolved}`;
-  });
-  return new Set(signatures).size === 1;
-}
-
 export interface SpacingBoxProps {
   element: SelectedElement;
   entries?: TokenEntry[];
@@ -55,6 +33,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
   const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
   const allEntries = entries ?? [];
+  const projection = projectInspectorValues(el, tokenRows);
   const spacingGroups = [
     { label: "padding", property: "padding" },
     { label: "margin", property: "margin" },
@@ -66,6 +45,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
       <div className="dt-spacing">
         {spacingGroups.map(({ label, property }) => {
           const sideProperties = SIDE_NAMES.map((side) => `${property}-${side}`);
+          const groupProjection = projection.spacing[property];
           const sideSlots: SideValueSlot[] = SIDE_NAMES.map((side) => ({
             side,
             control: (
@@ -86,10 +66,10 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
               data-test={`spacing-${property}`}
               data-property={property}
               resetKey={el}
-              defaultLinked={valuesAreLinked(el, tokenRows, sideProperties)}
+              defaultLinked={groupProjection.linked}
               onLinkedChange={(linked) => {
                 if (!linked) return;
-                const sharedValue = sideValueForLink(el, tokenRows, sideProperties[0]!);
+                const sharedValue = groupProjection.fields[SIDE_NAMES[0]!].authoredValue;
                 if (!sharedValue) return;
                 setStyle(el, property, sharedValue);
                 onAfterEdit?.();

@@ -10,6 +10,7 @@ export interface ResolvedProperty {
   resolvedValue: string;
   /** Product-contract aliases. `declaredValue`/`resolvedValue` remain for UI compatibility. */
   authored?: string;
+  sourceProperty?: string;
   computed?: string;
   tokens?: TokenReference[];
   modifiers?: ValueModifier[];
@@ -70,6 +71,7 @@ const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
 const SPACING_SIDES: Record<string, readonly string[]> = {
   margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
+  inset: ["top", "right", "bottom", "left"],
 };
 
 export function buildTokenTable(entries: TokenEntry[]): TokenTable {
@@ -377,9 +379,42 @@ function expandFourValueShorthand<T>(values: readonly T[]): [T, T, T, T] | null 
   return [top, right, bottom, left];
 }
 
+function expandTwoValueShorthand<T>(values: readonly T[]): [T, T] | null {
+  if (values.length === 0 || values.length > 2) return null;
+  return values.length === 1 ? [values[0]!, values[0]!] : [values[0]!, values[1]!];
+}
+
+function logicalPhysicalSides(property: string, el?: HTMLElement): string[] | null {
+  const match = /^(margin|padding|inset)-(inline|block)(?:-(start|end))?$/.exec(property.toLowerCase());
+  if (!match) return null;
+
+  const [family, axis, edge] = [match[1]!, match[2]!, match[3]];
+  const physicalPrefix = family === "inset" ? "" : `${family}-`;
+  const computed = el ? getComputedStyle(el) : null;
+  const direction = computed?.direction || el?.dir || "ltr";
+  const writingMode = computed?.getPropertyValue("writing-mode").trim() || "horizontal-tb";
+  const vertical = writingMode.startsWith("vertical") || writingMode.startsWith("sideways");
+  let sides: [string, string];
+
+  if (!vertical) {
+    sides = axis === "inline"
+      ? direction === "rtl" ? [`${physicalPrefix}right`, `${physicalPrefix}left`] : [`${physicalPrefix}left`, `${physicalPrefix}right`]
+      : [`${physicalPrefix}top`, `${physicalPrefix}bottom`];
+  } else if (axis === "block") {
+    sides = writingMode.includes("-rl")
+      ? [`${physicalPrefix}right`, `${physicalPrefix}left`]
+      : [`${physicalPrefix}left`, `${physicalPrefix}right`];
+  } else {
+    sides = direction === "rtl" ? [`${physicalPrefix}bottom`, `${physicalPrefix}top`] : [`${physicalPrefix}top`, `${physicalPrefix}bottom`];
+  }
+
+  return edge ? [edge === "start" ? sides[0] : sides[1]] : sides;
+}
+
 interface ResolvedDeclaration {
   property: string;
   declaredValue: string;
+  sourceProperty?: string;
   tokenName: string | null;
   resolvedValue: string;
   important?: boolean;
@@ -395,7 +430,35 @@ function resolveDeclaration(
   declaration: StyleDeclaration,
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
+  el?: HTMLElement,
 ): ResolvedDeclaration[] {
+  const logicalSides = logicalPhysicalSides(declaration.property, el);
+  if (logicalSides) {
+    const rawValues = splitTopLevelWhitespace(declaration.value);
+    const values = logicalSides.length === 1
+      ? rawValues.length === 1 ? [rawValues[0]!] : null
+      : expandTwoValueShorthand(rawValues);
+    if (values) {
+      return logicalSides.map((property, index) => {
+        const declaredValue = values[index]!;
+        const resolved = resolveTokenValue(declaredValue, tokenTable, localAliases);
+        return {
+          property,
+          declaredValue,
+          sourceProperty: declaration.property,
+          tokenName: resolved.tokenName,
+          resolvedValue: resolved.resolvedValue,
+          important: declaration.important,
+          tokens: resolved.tokens,
+          modifiers: resolved.modifiers,
+          capability: "box-sides" as const,
+          resolvedTokenValue: resolved.resolvedValue,
+          diagnostic: resolved.cycle ? `custom-property alias cycle includes ${resolved.cycle}` : undefined,
+        };
+      });
+    }
+  }
+
   const borderProperty = declaration.property.toLowerCase();
   if (borderProperty === "border" || /^border-(top|right|bottom|left)$/.test(borderProperty)) {
     const structure = parseBorderShorthand(declaration.value, tokenTable);
@@ -583,11 +646,12 @@ export function resolvePropertiesFromRules(
     if (!branch) continue;
     const specificity = computeSpecificity(branch);
     for (const decl of rule.declarations) {
-      for (const resolved of resolveDeclaration(decl, tokenTable, localAliases)) {
+      for (const resolved of resolveDeclaration(decl, tokenTable, localAliases, el)) {
         const candidate: ResolvedProperty = {
           property: resolved.property,
           tokenName: resolved.tokenName,
           declaredValue: resolved.declaredValue,
+          sourceProperty: resolved.sourceProperty,
           resolvedValue: resolved.resolvedValue,
           authored: resolved.declaredValue,
           computed: "",
@@ -918,13 +982,14 @@ export function getResolvedProperties(
       property,
       value,
       important: el.style.getPropertyPriority(property) === "important",
-    }, tokenTable);
+    }, tokenTable, EMPTY_LOCAL_ALIASES, el);
     for (const declaration of declarations) {
       const painted = computed.getPropertyValue(declaration.property);
       const row: ResolvedProperty = {
         property: declaration.property,
         tokenName: declaration.tokenName,
         declaredValue: declaration.declaredValue,
+        sourceProperty: declaration.sourceProperty,
         resolvedValue: painted,
         authored: declaration.declaredValue,
         computed: painted,

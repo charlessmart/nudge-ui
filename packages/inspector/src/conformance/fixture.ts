@@ -4,6 +4,7 @@ import { getResolvedProperties } from "../tokens/resolution.ts";
 import type { EditCapability, ResolvedProperty, TokenOrigin } from "../tokens/resolution.ts";
 import { applyRules, verifyPreview } from "../managedStylesheet.ts";
 import type { PreviewResult } from "../managedStylesheet.ts";
+import { projectInspectorValues, type InspectorProjection, type ProjectionGroup, type ProjectionSide } from "./projection.ts";
 
 export interface ConformancePropertyExpectation {
   authored: string;
@@ -11,6 +12,20 @@ export interface ConformancePropertyExpectation {
   computed?: string;
   capability: EditCapability;
   confidence?: "exact" | "probable" | "unknown";
+}
+
+export interface ConformanceProjectionFieldExpectation {
+  authoredValue?: string;
+  value: string;
+  tokenName?: string | null;
+  sourceProperty?: string;
+}
+
+export interface ConformanceProjectionExpectation {
+  spacing: Partial<Record<ProjectionGroup, {
+    linked?: boolean;
+    fields: Partial<Record<ProjectionSide, ConformanceProjectionFieldExpectation>>;
+  }>>;
 }
 
 export interface ConformanceFixture {
@@ -22,6 +37,7 @@ export interface ConformanceFixture {
   expected: {
     catalog: Array<{ name: string; value?: string; adapter?: string; origin?: TokenOrigin }>;
     properties: Record<string, ConformancePropertyExpectation>;
+    projection?: ConformanceProjectionExpectation;
     preview?: { property: string; value: string; computed?: string };
   };
 }
@@ -31,6 +47,7 @@ export interface ConformanceResult {
   selected: HTMLElement;
   catalog: ReturnType<typeof buildTokenCatalogRows>;
   properties: ResolvedProperty[];
+  projection: InspectorProjection;
   preview: PreviewResult | null;
   cleanup(): void;
 }
@@ -63,6 +80,7 @@ export function runConformanceFixture(
       [definition.name, { name: definition.name, cssName: definition.cssName, value: definition.declarations[0]?.value ?? "", source: definition.declarations[0]?.source ?? "", adapter: definition.adapter, origin: definition.origin, editable: definition.editable }],
     ]),
   ));
+  const projection = projectInspectorValues(selected, properties);
 
   let preview: PreviewResult | null = null;
   if (fixture.expected.preview) {
@@ -75,6 +93,7 @@ export function runConformanceFixture(
     selected,
     catalog: rows,
     properties,
+    projection,
     preview,
     cleanup() {
       style.remove();
@@ -105,6 +124,27 @@ export function assertConformanceFixture(result: ConformanceResult, fixture: Con
     if (expected.computed !== undefined && actual.computed !== expected.computed) failures.push(`${fixture.id}: ${property} computed value was ${actual.computed}, expected ${expected.computed}`);
     if (actual.capability !== expected.capability) failures.push(`${fixture.id}: ${property} capability was ${actual.capability}, expected ${expected.capability}`);
     if (expected.confidence && actual.confidence !== expected.confidence) failures.push(`${fixture.id}: ${property} confidence was ${actual.confidence}, expected ${expected.confidence}`);
+  }
+  for (const [group, expectedGroup] of Object.entries(fixture.expected.projection?.spacing ?? {})) {
+    const actualGroup = result.projection.spacing[group as ProjectionGroup];
+    if (!actualGroup) {
+      failures.push(`${fixture.id}: missing ${group} inspector projection`);
+      continue;
+    }
+    if (expectedGroup.linked !== undefined && actualGroup.linked !== expectedGroup.linked) {
+      failures.push(`${fixture.id}: ${group} linked state was ${actualGroup.linked}, expected ${expectedGroup.linked}`);
+    }
+    for (const [side, expectedField] of Object.entries(expectedGroup.fields)) {
+      const actualField = actualGroup.fields[side as ProjectionSide];
+      if (!actualField) {
+        failures.push(`${fixture.id}: missing ${group}-${side} inspector field`);
+        continue;
+      }
+      if (actualField.value !== expectedField.value) failures.push(`${fixture.id}: ${group}-${side} value was ${actualField.value}, expected ${expectedField.value}`);
+      if (expectedField.authoredValue !== undefined && actualField.authoredValue !== expectedField.authoredValue) failures.push(`${fixture.id}: ${group}-${side} authored value was ${actualField.authoredValue}, expected ${expectedField.authoredValue}`);
+      if (expectedField.tokenName !== undefined && actualField.tokenName !== expectedField.tokenName) failures.push(`${fixture.id}: ${group}-${side} token was ${actualField.tokenName}, expected ${expectedField.tokenName}`);
+      if (expectedField.sourceProperty !== undefined && actualField.sourceProperty !== expectedField.sourceProperty) failures.push(`${fixture.id}: ${group}-${side} source property was ${actualField.sourceProperty}, expected ${expectedField.sourceProperty}`);
+    }
   }
   if (fixture.expected.preview && !result.preview) failures.push(`${fixture.id}: preview was not run`);
   if (fixture.expected.preview?.computed !== undefined && result.preview?.computedValue !== fixture.expected.preview.computed) failures.push(`${fixture.id}: preview computed value was ${result.preview?.computedValue}, expected ${fixture.expected.preview.computed}`);

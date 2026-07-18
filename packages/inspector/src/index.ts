@@ -53,4 +53,6 @@ export function unmountInspector(): void {
 export { toggleInspector, setInspectorOpen } from "./InspectorShell.tsx";
 export { InspectorShell } from "./InspectorShell.tsx";
 export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
-export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation } from "./conformance/fixture.ts";
+export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation, ConformanceProjectionExpectation, ConformanceProjectionFieldExpectation } from "./conformance/fixture.ts";
+export { projectInspectorValues } from "./conformance/projection.ts";
+export type { InspectorFieldProjection, InspectorProjection, InspectorSpacingProjection, ProjectionGroup, ProjectionSide } from "./conformance/projection.ts";

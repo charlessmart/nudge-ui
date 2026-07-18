@@ -23,3 +23,31 @@ test("dev: standard CSS conformance fixture keeps authored attribution separate 
     return root?.querySelector('[data-test="selection"]')?.textContent ?? "";
   })).toContain("ConformanceCard");
 });
+
+test("dev: logical spacing projects onto physical inspector side controls", async ({ page }) => {
+  await page.goto("/conformance");
+  await page.locator(".conformance-copy").click();
+
+  await expect.poll(async () => page.evaluate(() => {
+    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    if (!root) return null;
+    const field = (property: string) => {
+      const element = root.querySelector<HTMLElement>(`[data-test="token-field"][data-property="${property}"]`);
+      return {
+        token: element?.querySelector('[data-test="token-chip"]')?.textContent?.trim() ?? null,
+        value: element?.querySelector("input")?.value ?? null,
+      };
+    };
+    return {
+      paddingLeft: field("padding-left"),
+      paddingRight: field("padding-right"),
+      marginTop: field("margin-top"),
+      marginBottom: field("margin-bottom"),
+    };
+  })).toEqual({
+    paddingLeft: { token: "--conformance-space", value: "--conformance-space" },
+    paddingRight: { token: "--conformance-space", value: "--conformance-space" },
+    marginTop: { token: null, value: "1rem" },
+    marginBottom: { token: null, value: "0px" },
+  });
+});
