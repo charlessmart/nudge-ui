@@ -22,6 +22,7 @@ test("dev: Sprinkles fixture exposes contract path, managed swap, and prompt voc
 test("dev: unknown atomic class remains inspectable without invented mapping", async ({ page }) => {
   await page.goto("/sprinkles");
   await page.locator('[data-test="sprinkles-raw"]').click();
+  await page.locator('[data-test="spacing-padding"] [data-test="individual-sides"]').click();
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
     return root?.querySelector('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]') !== null;

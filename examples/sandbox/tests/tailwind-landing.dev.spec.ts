@@ -53,7 +53,7 @@ test("dev: Tailwind local aliases resolve to global tokens in the inspector", as
 
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
-    return root?.querySelector('[data-test="token-field"][data-property="line-height"] [data-test="token-attribution"]')?.textContent?.trim() ?? null;
+    return root?.querySelector('[data-test="token-field"][data-property="line-height"] [data-test="token-chip"]')?.textContent?.trim() ?? null;
   })).toContain("--leading-tight");
 });
 
