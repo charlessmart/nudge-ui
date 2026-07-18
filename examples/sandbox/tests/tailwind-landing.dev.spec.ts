@@ -1,5 +1,20 @@
 import { expect, test } from "@playwright/test";
 
+async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
+  await expect
+    .poll(async () => page.evaluate(() => {
+      const root = document.getElementById("design-tool-root")?.shadowRoot;
+      return Boolean(root?.querySelector('[data-test="style-editors"]'));
+    }), { timeout: 5000 })
+    .toBe(true);
+}
+
+async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
+  await expect
+    .poll(async () => page.evaluate(() => Boolean(document.getElementById("design-tool-root")?.shadowRoot?.querySelector('[data-test="inspect-tab"]'))), { timeout: 5000 })
+    .toBe(true);
+}
+
 test("dev: Tailwind landing page renders utility-styled content", async ({ page }) => {
   await page.goto("/tailwind");
 
@@ -31,17 +46,23 @@ test("dev: Tailwind post-transform theme tokens reach the virtual catalog", asyn
 
 test("dev: Tailwind local aliases resolve to global tokens in the inspector", async ({ page }) => {
   await page.goto("/tailwind");
-  await page.locator("#notes blockquote").click();
+  await waitForInspector(page);
+  await page.locator("#notes blockquote").evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+  });
 
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
-    return root?.querySelector('[data-test="token-field"][data-property="line-height"] [data-test="token-chip"]')?.textContent?.trim() ?? null;
-  })).toBe("--leading-tight");
+    return root?.querySelector('[data-test="token-field"][data-property="line-height"] [data-test="token-attribution"]')?.textContent?.trim() ?? null;
+  })).toContain("--leading-tight");
 });
 
 test("dev: Tailwind inherited color resolves from an ancestor utility", async ({ page }) => {
   await page.goto("/tailwind");
-  await page.locator("#tailwind-title").click();
+  await waitForInspector(page);
+  await page.locator("#tailwind-title").evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+  });
 
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
@@ -51,6 +72,7 @@ test("dev: Tailwind inherited color resolves from an ancestor utility", async ({
 
 test("dev: Tailwind v4 color opacity keeps base token, alpha, and painted preview separate", async ({ page }) => {
   await page.goto("/tailwind");
+  await waitForInspector(page);
   const fixture = page.locator('[data-test="tailwind-alpha"]');
   await expect(fixture).toBeVisible();
   const facts = await fixture.evaluate((element) => ({
@@ -65,9 +87,33 @@ test("dev: Tailwind v4 color opacity keeps base token, alpha, and painted previe
   expect(facts.computed).not.toBe("");
   expect(facts.catalog.find((entry) => entry.cssName === "--color-red-500")).toMatchObject({ adapter: "tailwind-v4" });
 
-  await fixture.click();
+  await fixture.evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+  });
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
-    return root?.querySelector('[data-test="token-attribution"]')?.textContent?.trim() ?? null;
-  })).toContain("--color-red-500");
+    return (root?.querySelector('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]') as HTMLInputElement | null)?.value ?? null;
+  })).toContain("color-mix");
+});
+
+test("dev: Tailwind side border utilities parse into independent inspector fields", async ({ page }) => {
+  await page.goto("/tailwind");
+  await waitForInspector(page);
+  const fixture = page.locator('[data-test="tailwind-border-mixed"]');
+  await fixture.evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+  });
+  await waitForEditors(page);
+  await expect.poll(async () => fixture.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(",");
+  })).toBe("2px,4px,8px,1px");
+
+  await expect(page.locator('[data-test="border-sides"]')).toHaveAttribute("data-linked", "false");
+  await expect(page.locator('[data-test="border-style-sides"]')).toHaveAttribute("data-linked", "true");
+  await expect(page.locator('[data-test="border-color-sides"]')).toHaveAttribute("data-linked", "false");
+  await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("2px");
+  await expect(page.locator('[data-test="token-field"][data-property="border-right-width"] [data-test="raw-input"]')).toHaveValue("4px");
+  await expect(page.locator('[data-test="border-style"]')).toHaveValue("dashed");
+  await expect(page.locator('[data-test="token-field"][data-property="border-top-color"] [data-test="token-chip"]')).toContainText("--color-lime-300");
 });

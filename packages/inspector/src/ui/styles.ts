@@ -8,6 +8,7 @@ import badgeStyles from "./Badge.css?inline";
 import breadcrumbStyles from "./Breadcrumb.css?inline";
 import colorSwatchStyles from "./ColorSwatch.css?inline";
 import popoverListboxStyles from "./PopoverListbox.css?inline";
+import sideValuesFieldStyles from "./SideValuesField.css?inline";
 import inspectorShellStyles from "../InspectorShell.css?inline";
 import styleEditorStyles from "../styleEditors/StyleEditor.css?inline";
 import tokenFieldStyles from "../tokens/TokenField.css?inline";
@@ -27,6 +28,7 @@ export const UI_STYLES = [
   breadcrumbStyles,
   colorSwatchStyles,
   popoverListboxStyles,
+  sideValuesFieldStyles,
   inspectorShellStyles,
   styleEditorStyles,
   tokenFieldStyles,

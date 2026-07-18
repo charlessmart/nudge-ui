@@ -3,9 +3,45 @@ import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
+import { SideValuesField, SIDE_NAMES, type SideValueSlot } from "../ui/SideValuesField.tsx";
+import { getStateStyleValue } from "../stateValue.ts";
+import { setStyle } from "./styleActions.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
+}
+
+function sideValueForLink(el: HTMLElement, rows: ResolvedProperty[], property: string): string {
+  const row = findTokenRow(rows, property);
+  return row?.authored
+    || row?.declaredValue
+    || row?.resolvedValue
+    || getStateStyleValue(el, property);
+}
+
+function linkedTokenRow(
+  rows: ResolvedProperty[],
+  shorthand: string,
+  sideProperties: readonly string[],
+): ResolvedProperty | null {
+  const direct = findTokenRow(rows, shorthand);
+  if (direct) return direct;
+  const first = findTokenRow(rows, sideProperties[0]!);
+  return first ? { ...first, property: shorthand } : null;
+}
+
+function valuesAreLinked(
+  el: HTMLElement,
+  rows: ResolvedProperty[],
+  sideProperties: readonly string[],
+): boolean {
+  const signatures = sideProperties.map((property) => {
+    const row = findTokenRow(rows, property);
+    const authored = row?.authored ?? row?.declaredValue ?? "";
+    const resolved = row?.resolvedValue ?? getStateStyleValue(el, property);
+    return `${authored}|${row?.tokenName ?? ""}|${resolved}`;
+  });
+  return new Set(signatures).size === 1;
 }
 
 export interface SpacingBoxProps {
@@ -19,113 +55,59 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
   const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
   const allEntries = entries ?? [];
+  const spacingGroups = [
+    { label: "padding", property: "padding" },
+    { label: "margin", property: "margin" },
+  ] as const;
 
   return (
     <div className="dt-editor" data-test="spacing-box">
       <div className="dt-editor__title">Spacing</div>
       <div className="dt-spacing">
-        <div className="dt-spacing__group" data-test="spacing-padding">
-          <div className="dt-spacing__label">Padding</div>
-          <div className="dt-spacing__grid">
-          <SpacingField
-            kind="top"
-            property="padding-top"
-            domElement={el}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-          />
-          <SpacingField
-            kind="right"
-            property="padding-right"
-            domElement={el}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-          />
-          <SpacingField
-            kind="bottom"
-            property="padding-bottom"
-            domElement={el}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-          />
-          <SpacingField
-            kind="left"
-            property="padding-left"
-            domElement={el}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-          />
-          </div>
-        </div>
-        <div className="dt-spacing__group" data-test="spacing-margin">
-          <div className="dt-spacing__label">Margin</div>
-          <div className="dt-spacing__grid">
-          <SpacingField
-            kind="top"
-            property="margin-top"
-            domElement={el}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-          />
-          <SpacingField
-            kind="right"
-            property="margin-right"
-            domElement={el}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-          />
-          <SpacingField
-            kind="bottom"
-            property="margin-bottom"
-            domElement={el}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-          />
-          <SpacingField
-            kind="left"
-            property="margin-left"
-            domElement={el}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-          />
-          </div>
-        </div>
+        {spacingGroups.map(({ label, property }) => {
+          const sideProperties = SIDE_NAMES.map((side) => `${property}-${side}`);
+          const sideSlots: SideValueSlot[] = SIDE_NAMES.map((side) => ({
+            side,
+            control: (
+              <TokenField
+                property={`${property}-${side}`}
+                tokenRow={findTokenRow(tokenRows, `${property}-${side}`)}
+                domElement={el}
+                entries={allEntries}
+                onAfterEdit={onAfterEdit}
+              />
+            ),
+          }));
+
+          return (
+            <SideValuesField
+              key={property}
+              label={label}
+              data-test={`spacing-${property}`}
+              data-property={property}
+              resetKey={el}
+              defaultLinked={valuesAreLinked(el, tokenRows, sideProperties)}
+              onLinkedChange={(linked) => {
+                if (!linked) return;
+                const sharedValue = sideValueForLink(el, tokenRows, sideProperties[0]!);
+                if (!sharedValue) return;
+                setStyle(el, property, sharedValue);
+                onAfterEdit?.();
+              }}
+              linkedControl={(
+                <TokenField
+                  property={property}
+                  tokenRow={linkedTokenRow(tokenRows, property, sideProperties)}
+                  domElement={el}
+                  entries={allEntries}
+                  onAfterEdit={onAfterEdit}
+                />
+              )}
+              sides={sideSlots}
+            />
+          );
+        })}
       </div>
     </div>
-  );
-}
-
-interface SpacingFieldProps {
-  kind: string;
-  property: string;
-  domElement: HTMLElement;
-  entries: TokenEntry[];
-  tokenRows: ResolvedProperty[];
-  onAfterEdit?: () => void;
-}
-
-function SpacingField(props: SpacingFieldProps): ReactElement {
-  const { kind, property, domElement, entries, tokenRows, onAfterEdit } = props;
-  const tokenRow = findTokenRow(tokenRows, property);
-
-  return (
-    <label className="dt-spacing__side">
-      <span className="dt-spacing__side-label">{kind}</span>
-      <TokenField
-        property={property}
-        tokenRow={tokenRow}
-        domElement={domElement}
-        entries={entries}
-        onAfterEdit={onAfterEdit}
-      />
-    </label>
   );
 }

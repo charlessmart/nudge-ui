@@ -1,5 +1,49 @@
 const signalBars = [42, 63, 51, 78, 68, 88, 73, 96, 84, 100, 90, 112];
 
+const tailwindBorderFixtureIds = {
+  accent: import.meta.env.DEV ? { "data-test": "tailwind-border-accent" } : {},
+  mixed: import.meta.env.DEV ? { "data-test": "tailwind-border-mixed" } : {},
+  override: import.meta.env.DEV ? { "data-test": "tailwind-border-override" } : {},
+};
+
+function TailwindBorderExamples() {
+  return (
+    <section id="border-lab" className="border-t border-white/10 py-20 md:py-24" aria-labelledby="border-lab-title">
+      <div className="grid gap-8 md:grid-cols-12 md:gap-12">
+        <div className="md:col-span-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-lime-300">Edges worth inspecting</p>
+          <h2 id="border-lab-title" className="mt-5 max-w-sm text-4xl font-medium leading-none tracking-[-0.05em] text-white sm:text-5xl">
+            One box, four border decisions.
+          </h2>
+          <p className="mt-6 max-w-sm text-sm leading-6 text-stone-400">
+            The same side-specific CSS idea expressed through Tailwind utilities. Select a fixture to inspect each generated longhand.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3 md:col-span-8">
+          <article className="border-fixture flex min-h-60 flex-col rounded-xl border border-stone-700 border-l-4 border-l-lime-300 bg-stone-900/70 p-5 transition hover:-translate-y-1" {...tailwindBorderFixtureIds.accent}>
+            <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-lime-300"><span>01</span><span className="text-stone-500">Common</span></div>
+            <h3 className="mt-12 text-xl font-medium tracking-[-0.04em] text-white">Accent edge</h3>
+            <p className="mt-3 text-sm leading-6 text-stone-400">A shared border with one stronger left edge.</p>
+            <code className="mt-auto pt-8 font-mono text-[10px] leading-5 text-lime-300">border-l-4 border-l-lime-300</code>
+          </article>
+          <article className="border-fixture flex min-h-60 flex-col rounded-xl border-t-2 border-dashed border-t-lime-300 border-r-4 border-r-rose-400 border-b-8 border-b-amber-300 border-l border-l-sky-300 bg-stone-900/70 p-5 transition hover:-translate-y-1" {...tailwindBorderFixtureIds.mixed}>
+            <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-lime-300"><span>02</span><span className="text-stone-500">Mixed</span></div>
+            <h3 className="mt-12 text-xl font-medium tracking-[-0.04em] text-white">Mixed treatment</h3>
+            <p className="mt-3 text-sm leading-6 text-stone-400">Each utility changes a different side value.</p>
+            <code className="mt-auto pt-8 font-mono text-[10px] leading-5 text-lime-300">all dashed · top 2 · right 4 · bottom 8</code>
+          </article>
+          <article className="border-fixture flex min-h-60 flex-col rounded-xl border-2 border-stone-700 border-b-4 border-b-lime-300 bg-stone-900/70 p-5 transition hover:-translate-y-1" {...tailwindBorderFixtureIds.override}>
+            <div className="flex justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-lime-300"><span>03</span><span className="text-stone-500">Override</span></div>
+            <h3 className="mt-12 text-xl font-medium tracking-[-0.04em] text-white">One-side override</h3>
+            <p className="mt-3 text-sm leading-6 text-stone-400">A shared border with a deliberate bottom emphasis.</p>
+            <code className="mt-auto pt-8 font-mono text-[10px] leading-5 text-lime-300">border-2 border-b-4</code>
+          </article>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function TailwindLandingPage() {
   return (
     <main className="min-h-screen overflow-hidden bg-stone-950 font-sans text-stone-100 selection:bg-lime-300 selection:text-stone-950">
@@ -92,6 +136,8 @@ export function TailwindLandingPage() {
           <div><p className="text-sm text-stone-400">A focused workspace for teams doing consequential work.</p><p className="mt-2 text-2xl font-medium tracking-[-0.04em]">Start with the next decision.</p></div>
           <a className="w-fit rounded-full border border-lime-300 px-5 py-3 text-sm font-semibold text-lime-300 transition hover:bg-lime-300 hover:text-stone-950" href="mailto:hello@example.com">Request access <span aria-hidden="true">↗</span></a>
         </section>
+
+        <TailwindBorderExamples />
       </div>
     </main>
   );

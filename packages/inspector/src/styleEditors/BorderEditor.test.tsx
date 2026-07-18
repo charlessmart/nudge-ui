@@ -50,11 +50,22 @@ describe("BorderEditor", () => {
   function defaultComputed(): Record<string, string> {
     return {
       "border-top-width": "1px",
+      "border-right-width": "1px",
+      "border-bottom-width": "1px",
+      "border-left-width": "1px",
       "border-top-style": "solid",
+      "border-right-style": "solid",
+      "border-bottom-style": "solid",
+      "border-left-style": "solid",
       "border-top-color": "rgb(102, 102, 102)",
+      "border-right-color": "rgb(102, 102, 102)",
+      "border-bottom-color": "rgb(102, 102, 102)",
+      "border-left-color": "rgb(102, 102, 102)",
       "border-radius": "4px",
       "box-shadow": "none",
       "border-width": "1px",
+      "border-style": "solid",
+      "border-color": "rgb(102, 102, 102)",
     };
   }
 
@@ -123,7 +134,7 @@ describe("BorderEditor", () => {
     expect(raw).toBeTruthy();
   });
 
-  it("exposes linked sides and writes a focused side longhand when selected", () => {
+  it("starts linked and reveals side-specific border fields on demand", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderEditor, {
@@ -138,7 +149,49 @@ describe("BorderEditor", () => {
       ],
     }));
     expect(handle.host.querySelector('[data-test="border-sides"]')?.getAttribute("data-linked")).toBe("true");
-    act(() => (handle.host.querySelector('[data-test="border-side-top"]') as HTMLButtonElement).click());
+    act(() => (handle.host.querySelector('[data-test="border-sides"] [data-test="individual-sides"]') as HTMLButtonElement).click());
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-width"]')).not.toBeNull();
+  });
+
+  it("writes a focused border color side without changing the linked shorthand", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
+    act(() => (handle.host.querySelector('[data-test="border-color-sides"] [data-test="individual-sides"]') as HTMLButtonElement).click());
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-color"]')).not.toBeNull();
+    const raw = handle.host.querySelector('[data-test="token-field"][data-property="border-top-color"] [data-test="raw-input"]') as HTMLInputElement;
+    setInputValue(raw, "#123456");
+    expect(sheetText()).toContain("border-top-color: #123456;");
+  });
+
+  it("links divergent border groups to their top side values", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      ...defaultComputed(),
+      "border-top-width": "2px",
+      "border-right-width": "4px",
+      "border-bottom-width": "8px",
+      "border-left-width": "1px",
+      "border-top-style": "dashed",
+      "border-right-style": "solid",
+      "border-bottom-style": "double",
+      "border-left-style": "dotted",
+      "border-top-color": "rgb(18, 52, 86)",
+      "border-right-color": "rgb(102, 102, 102)",
+      "border-bottom-color": "rgb(18, 52, 86)",
+      "border-left-color": "rgb(102, 102, 102)",
+    });
+    handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
+
+    for (const testId of ["border-sides", "border-style-sides", "border-color-sides"]) {
+      const group = handle.host.querySelector(`[data-test="${testId}"]`) as HTMLElement;
+      expect(group.getAttribute("data-linked")).toBe("false");
+      act(() => (group.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click());
+      expect(group.getAttribute("data-linked")).toBe("true");
+    }
+
+    expect(sheetText()).toContain("border-width: 2px;");
+    expect(sheetText()).toContain("border-style: dashed;");
+    expect(sheetText()).toContain("border-color: rgb(18, 52, 86);");
   });
 });
