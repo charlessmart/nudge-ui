@@ -4,7 +4,7 @@ import { getResolvedProperties } from "../tokens/resolution.ts";
 import type { EditCapability, ResolvedProperty, TokenOrigin } from "../tokens/resolution.ts";
 import { applyRules, verifyPreview } from "../managedStylesheet.ts";
 import type { PreviewResult } from "../managedStylesheet.ts";
-import { projectInspectorValues, type InspectorProjection, type ProjectionGroup, type ProjectionSide } from "./projection.ts";
+import { projectInspectorValues, type InspectorProjection, type ProjectionAxis, type ProjectionGroup, type ProjectionSide, type ProjectionState } from "../spacing/projection.ts";
 
 export interface ConformancePropertyExpectation {
   authored: string;
@@ -24,6 +24,7 @@ export interface ConformanceProjectionFieldExpectation {
 export interface ConformanceProjectionExpectation {
   spacing: Partial<Record<ProjectionGroup, {
     linked?: boolean;
+    axes?: Partial<Record<ProjectionAxis, { state: ProjectionState }>>;
     fields: Partial<Record<ProjectionSide, ConformanceProjectionFieldExpectation>>;
   }>>;
 }
@@ -133,6 +134,16 @@ export function assertConformanceFixture(result: ConformanceResult, fixture: Con
     }
     if (expectedGroup.linked !== undefined && actualGroup.linked !== expectedGroup.linked) {
       failures.push(`${fixture.id}: ${group} linked state was ${actualGroup.linked}, expected ${expectedGroup.linked}`);
+    }
+    for (const [axis, expectedAxis] of Object.entries(expectedGroup.axes ?? {})) {
+      const actualAxis = actualGroup.axes[axis as ProjectionAxis];
+      if (!actualAxis) {
+        failures.push(`${fixture.id}: missing ${group}-${axis} inspector axis`);
+        continue;
+      }
+      if (actualAxis.state !== expectedAxis.state) {
+        failures.push(`${fixture.id}: ${group}-${axis} state was ${actualAxis.state}, expected ${expectedAxis.state}`);
+      }
     }
     for (const [side, expectedField] of Object.entries(expectedGroup.fields)) {
       const actualField = actualGroup.fields[side as ProjectionSide];

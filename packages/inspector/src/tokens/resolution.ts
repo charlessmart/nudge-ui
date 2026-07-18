@@ -125,6 +125,10 @@ function extractVarCalls(value: string): Array<{ name: string; fallback?: string
 function capabilityFor(property: string, value: string): EditCapability {
   const p = property.toLowerCase();
   const v = value.trim().toLowerCase();
+  // Functions whose authored expression cannot be represented faithfully by
+  // a numeric side control remain raw even when the property itself is a
+  // spacing property. The computed value is still available as a preview.
+  if (/\b(?:calc|min|max|clamp|env|anchor-size)\s*\(/.test(v)) return "raw";
   if (["margin", "padding", "inset", "inset-block", "inset-inline"].includes(p)
     || p.startsWith("margin-") || p.startsWith("padding-") || p.startsWith("inset-")) return "box-sides";
   if (p === "border" || p.endsWith("-border") || p === "border-color" || p.endsWith("-border-color")) return "structured";
@@ -451,7 +455,7 @@ function resolveDeclaration(
           important: declaration.important,
           tokens: resolved.tokens,
           modifiers: resolved.modifiers,
-          capability: "box-sides" as const,
+          capability: capabilityFor(property, declaredValue),
           resolvedTokenValue: resolved.resolvedValue,
           diagnostic: resolved.cycle ? `custom-property alias cycle includes ${resolved.cycle}` : undefined,
         };
@@ -501,6 +505,7 @@ function resolveDeclaration(
     return [{
       property: declaration.property,
       declaredValue: declaration.value.trim(),
+      sourceProperty: declaration.property,
       tokenName: res.tokenName,
       resolvedValue: res.resolvedValue,
       important: declaration.important,
@@ -563,10 +568,11 @@ function resolveDeclaration(
   return sides.map((property, index) => ({
     property,
     ...sideValues[index]!,
+    sourceProperty: declaration.property,
     important: declaration.important,
     tokens: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).tokens,
     modifiers: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).modifiers,
-    capability: "box-sides",
+    capability: capabilityFor(property, sideValues[index]!.declaredValue),
     resolvedTokenValue: sideValues[index]!.resolvedValue,
   }));
 }

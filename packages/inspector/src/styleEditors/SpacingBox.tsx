@@ -4,10 +4,10 @@ import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
 import { SideValuesField, SIDE_NAMES, type SideValuePairSlot, type SideValueSlot } from "../ui/SideValuesField.tsx";
-import { getStateStyleValue } from "../stateValue.ts";
 import { promoteToToken, setStyle, swapToken } from "../tokens/editActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
+import { projectInspectorValues, type InspectorAxisProjection } from "../spacing/projection.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
@@ -24,6 +24,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
   const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
   const allEntries = entries ?? [];
+  const projection = projectInspectorValues(el, tokenRows);
   const spacingGroups = [
     { label: "padding", property: "padding" },
     { label: "margin", property: "margin" },
@@ -46,12 +47,14 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
                 tokenRow={findTokenRow(tokenRows, `${property}-${side}`)}
                 domElement={el}
                 entries={allEntries}
+                editMetadata={metadataFor(findTokenRow(tokenRows, `${property}-${side}`))}
                 onAfterEdit={onAfterEdit}
               />
             ),
           }));
-          const forceExpanded = pairDefinitions.some(({ sideProperties }) => (
-            pairIsAsymmetric(el, sideProperties)
+          const spacingProjection = projection.spacing[property];
+          const forceExpanded = pairDefinitions.some(({ axis }) => (
+            spacingProjection.axes[axis].fields[0].value !== spacingProjection.axes[axis].fields[1].value
           ));
           const pairSlots: SideValuePairSlot[] = pairDefinitions.map(({ axis, sideProperties }) => ({
             axis,
@@ -60,7 +63,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
                 displayProperty={`${property}-${axis}`}
                 sideProperties={sideProperties}
                 domElement={el}
-                rows={tokenRows}
+                axisProjection={spacingProjection.axes[axis]}
                 entries={allEntries}
                 onAfterEdit={onAfterEdit}
               />
@@ -90,7 +93,7 @@ interface PairedTokenFieldProps {
   displayProperty: string;
   sideProperties: readonly [string, string];
   domElement: HTMLElement;
-  rows: ResolvedProperty[];
+  axisProjection: InspectorAxisProjection;
   entries: TokenEntry[];
   onAfterEdit?: () => void;
 }
@@ -99,11 +102,11 @@ function PairedTokenField({
   displayProperty,
   sideProperties,
   domElement: el,
-  rows,
+  axisProjection,
   entries,
   onAfterEdit,
 }: PairedTokenFieldProps): ReactElement {
-  const row = pairTokenRow(el, rows, displayProperty, sideProperties);
+  const row = pairTokenRow(displayProperty, axisProjection);
   const expression = Boolean(row && (row.capability === "raw" || row.capability === "composite"
     || row.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const activeTokenName = expression ? null : row.tokenName;
@@ -111,9 +114,10 @@ function PairedTokenField({
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null
     : null;
+  const editMetadata = metadataFor(row);
 
   function commitOnBothSides(value: string): void {
-    const records = sideProperties.map((property) => setStyle(el, property, value));
+    const records = sideProperties.map((property) => setStyle(el, property, value, editMetadata));
     if (records.some(Boolean)) onAfterEdit?.();
   }
 
@@ -128,8 +132,8 @@ function PairedTokenField({
       onCommitRaw={commitOnBothSides}
       onSelectToken={(chosen) => {
         const edit = activeTokenName
-          ? (property: string) => swapToken(el, property, chosen, currentToken)
-          : (property: string) => promoteToToken(el, property, chosen);
+          ? (property: string) => swapToken(el, property, chosen, currentToken, editMetadata)
+          : (property: string) => promoteToToken(el, property, chosen, editMetadata);
         const records = sideProperties.map(edit);
         if (records.some(Boolean)) onAfterEdit?.();
       }}
@@ -138,55 +142,29 @@ function PairedTokenField({
   );
 }
 
+function metadataFor(row: ResolvedProperty | null | undefined) {
+  return row?.sourceProperty
+    ? { sourceProperty: row.sourceProperty, sourceAuthoredValue: row.authored ?? row.declaredValue }
+    : undefined;
+}
+
 function pairTokenRow(
-  el: HTMLElement,
-  rows: ResolvedProperty[],
   displayProperty: string,
-  sideProperties: readonly [string, string],
+  axisProjection: InspectorAxisProjection,
 ): ResolvedProperty {
-  const { sideRows, authoredValues, resolvedValues } = getPairValueState(el, rows, sideProperties);
-  const valuesMatch = authoredValues[0] === authoredValues[1] && resolvedValues[0] === resolvedValues[1];
-  const tokensMatch = sideRows[0]?.tokenName === sideRows[1]?.tokenName;
-  const first = sideRows[0];
+  const firstField = axisProjection.fields[0];
+  const first = firstField.row;
+  const valuesMatch = axisProjection.state === "shared";
 
   return {
     ...(first ?? {}),
     property: displayProperty,
-    tokenName: valuesMatch && tokensMatch ? first?.tokenName ?? null : null,
-    declaredValue: authoredValues[0] ?? "",
-    authored: authoredValues[0] ?? "",
-    resolvedValue: resolvedValues[0] ?? authoredValues[0] ?? "",
+    tokenName: valuesMatch ? firstField.tokenName : null,
+    declaredValue: firstField.authoredValue,
+    authored: firstField.authoredValue,
+    resolvedValue: firstField.value,
     capability: first?.capability ?? "box-sides",
     confidence: valuesMatch ? first?.confidence ?? "unknown" : "unknown",
     evidence: first?.evidence ?? { reason: "paired physical side values" },
   };
-}
-
-function pairIsAsymmetric(
-  el: HTMLElement,
-  sideProperties: readonly [string, string],
-): boolean {
-  const resolvedValues = sideProperties.map((property) => getStateStyleValue(el, property));
-  return resolvedValues[0] !== resolvedValues[1];
-}
-
-function getPairValueState(
-  el: HTMLElement,
-  rows: ResolvedProperty[],
-  sideProperties: readonly [string, string],
-): {
-  sideRows: [ResolvedProperty | null, ResolvedProperty | null];
-  authoredValues: [string, string];
-  resolvedValues: [string, string];
-} {
-  const sideRows = sideProperties.map((property) => findTokenRow(rows, property)) as [ResolvedProperty | null, ResolvedProperty | null];
-  const authoredValues = sideProperties.map((property, index) => {
-    const row = sideRows[index];
-    return row?.authored || row?.declaredValue || row?.resolvedValue || getStateStyleValue(el, property);
-  }) as [string, string];
-  const resolvedValues = sideProperties.map((property, index) => {
-    const row = sideRows[index];
-    return row?.resolvedValue || getStateStyleValue(el, property);
-  }) as [string, string];
-  return { sideRows, authoredValues, resolvedValues };
 }

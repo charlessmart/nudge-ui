@@ -345,6 +345,19 @@ describe("resolvePropertiesFromRules", () => {
     expect(row?.tokens?.map((token) => token.name)).toEqual(["--space-1"]);
   });
 
+  it("keeps functional spacing expressions raw while preserving side attribution", () => {
+    const value = "clamp(8px, var(--space-1), 24px)";
+    const rows = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [{ property: "padding", value }],
+    }], makeTable([{ name: "--space-1", value: "16px", source: "s:1" }]));
+
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toMatchObject({ authored: value, capability: "raw", tokenName: "--space-1" });
+    expect(rows.every((row) => row.authored === value && row.capability === "raw")).toBe(true);
+  });
+
   it("recovers a Tailwind v4 opacity token when CSSOM has substituted its value", () => {
     btn.className = "bg-red-500/10";
     const rows = resolvePropertiesFromRules(btn, [{
@@ -378,6 +391,7 @@ describe("resolvePropertiesFromRules", () => {
 
     expect(["margin-top", "margin-right", "margin-bottom", "margin-left"].map((property) => byProp.get(property)?.resolvedValue))
       .toEqual(expected);
+    expect(byProp.get("margin-top")?.sourceProperty).toBe("margin");
     expect(result.some((row) => row.property === "margin")).toBe(false);
   });
 

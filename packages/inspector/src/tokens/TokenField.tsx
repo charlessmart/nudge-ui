@@ -13,6 +13,7 @@ import { IconButton } from "../ui/IconButton.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { ColorSwatch } from "../ui/ColorSwatch.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
+import type { StyleEditMetadata } from "./editActions.ts";
 
 export interface TokenValueFieldProps {
   property: string;
@@ -36,6 +37,7 @@ export interface TokenFieldProps {
   domElement: HTMLElement;
   entries: TokenEntry[];
   onAfterEdit?: () => void;
+  editMetadata?: StyleEditMetadata;
 }
 
 function computedRaw(el: HTMLElement, property: string): string {
@@ -318,7 +320,7 @@ function arrowDirection(key: string): -1 | 1 | null {
 }
 
 export function TokenField(props: TokenFieldProps): ReactElement {
-  const { property, tokenRow, domElement: el, entries, onAfterEdit } = props;
+  const { property, tokenRow, domElement: el, entries, onAfterEdit, editMetadata } = props;
   const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
     || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const activeTokenName = expression ? null : tokenRow?.tokenName ?? null;
@@ -338,15 +340,15 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       isColor={groupOfProperty(property) === "color"}
       formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(property))}
       onCommitRaw={(value) => {
-        if (setStyle(el, property, value)) onAfterEdit?.();
+        if (setStyle(el, property, value, editMetadata)) onAfterEdit?.();
       }}
       onSelectToken={(chosen) => {
-        if (activeTokenName) swapToken(el, tokenRow?.property ?? property, chosen, currentToken);
-        else promoteToToken(el, property, chosen);
+        if (activeTokenName) swapToken(el, tokenRow?.property ?? property, chosen, currentToken, editMetadata);
+        else promoteToToken(el, property, chosen, editMetadata);
         onAfterEdit?.();
       }}
       onUnlink={(value) => {
-        setStyle(el, property, value);
+        setStyle(el, property, value, editMetadata);
         onAfterEdit?.();
       }}
     />

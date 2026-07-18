@@ -59,6 +59,20 @@ describe("generatePrompt", () => {
     expect(out).toContain("- `padding`: `4px` → `16px` (not a token — consider adding one)");
   });
 
+  it("preserves logical source intent when the preview edit is physical", () => {
+    const out = generatePrompt([rec({
+      cid: "Card",
+      file: "src/Card.tsx",
+      property: "padding-left",
+      oldRawValue: "16px",
+      rawValue: "24px",
+      sourceProperty: "padding-inline",
+      sourceAuthoredValue: "var(--space-4)",
+    })]);
+    expect(out).toContain("Preserve existing tokens, logical properties, and CSS intent");
+    expect(out).toContain("Source declaration: `padding-inline: var(--space-4)`; preview edit uses physical `padding-left`");
+  });
+
   it("renders a raw value edit with only the new value when no old value is recorded", () => {
     const r = rec({
       cid: "Button",

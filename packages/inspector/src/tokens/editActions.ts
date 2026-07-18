@@ -12,6 +12,11 @@ import { getStateStyleValue } from "../stateValue.ts";
 export type { ChangeRecord } from "../changesLog.ts";
 export { getPendingRules, getChangesList as getChangeRecords, clearChanges as resetPendingRules } from "../changesLog.ts";
 
+export interface StyleEditMetadata {
+  sourceProperty?: string;
+  sourceAuthoredValue?: string;
+}
+
 export function buildSelector(cid: string, src: string): string | null {
   return sourceSiteSelector(cid, src);
 }
@@ -32,6 +37,7 @@ export function swapToken(
   property: string,
   newToken: TokenEntry,
   oldToken: TokenEntry | null,
+  metadata?: StyleEditMetadata,
 ): ElementChangeRecord | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
@@ -47,6 +53,7 @@ export function swapToken(
     line,
     selector,
     property,
+    ...metadata,
     oldToken,
     newToken,
     source: { file, line, component: cid },
@@ -57,7 +64,7 @@ export function swapToken(
   return record;
 }
 
-export function setStyle(el: HTMLElement, property: string, value: string): ElementChangeRecord | null {
+export function setStyle(el: HTMLElement, property: string, value: string, metadata?: StyleEditMetadata): ElementChangeRecord | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
   const { selector, state } = stateFields(el);
@@ -74,6 +81,7 @@ export function setStyle(el: HTMLElement, property: string, value: string): Elem
     line,
     selector,
     property,
+    ...metadata,
     oldToken: null,
     newToken: null,
     rawValue: value,
@@ -90,6 +98,7 @@ export function promoteToToken(
   el: HTMLElement,
   property: string,
   newToken: TokenEntry,
+  metadata?: StyleEditMetadata,
 ): ElementChangeRecord | null {
-  return swapToken(el, property, newToken, null);
+  return swapToken(el, property, newToken, null, metadata);
 }

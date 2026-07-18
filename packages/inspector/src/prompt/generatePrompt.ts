@@ -93,6 +93,12 @@ function elementChangeLine(rec: ElementChangeRecord): string {
   return `- \`${rec.property}\`: (no value)`;
 }
 
+function sourceIntentLine(rec: ElementChangeRecord): string | null {
+  if (!rec.sourceProperty || rec.sourceProperty === rec.property) return null;
+  const authored = rec.sourceAuthoredValue ? `: ${rec.sourceAuthoredValue}` : "";
+  return `  - Source declaration: \`${rec.sourceProperty}${authored}\`; preview edit uses physical \`${rec.property}\``;
+}
+
 function tokenChangeLine(rec: TokenChangeRecord): string {
   return `- \`${rec.tokenName}\` (${rec.contextLabel}, ${rec.file}:${rec.line}): \`${rec.oldRawValue}\` → \`${rec.rawValue}\`${conflictSuffix(rec)}`;
 }
@@ -113,6 +119,8 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
     "",
     `Framework: ${framework} + ${stylingSystem}`,
     "",
+    "Implementation guidance: Preserve existing tokens, logical properties, and CSS intent while applying these rendered changes.",
+    "",
   ];
 
   if (tokenChanges.length > 0) {
@@ -128,6 +136,8 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
       lines.push(`### ${group.cid} (${group.file}:${group.line}) · ${state}`);
       for (const change of group.changes) {
         lines.push(elementChangeLine(change));
+        const intent = sourceIntentLine(change);
+        if (intent) lines.push(intent);
         if (change.scope === "instance-preview" && change.instanceEvidence) {
           const evidence = change.instanceEvidence;
           lines.push(`  - Scope: one rendered instance (index ${evidence.renderedIndex}); implement a data-driven conditional at the source site.`);

@@ -39,15 +39,34 @@ test("dev: logical spacing projects onto physical inspector side controls", asyn
       };
     };
     return {
-      paddingLeft: field("padding-left"),
-      paddingRight: field("padding-right"),
+      paddingHorizontal: field("padding-horizontal"),
+      paddingVertical: field("padding-vertical"),
       marginTop: field("margin-top"),
       marginBottom: field("margin-bottom"),
     };
   })).toEqual({
-    paddingLeft: { token: "--conformance-space", value: "--conformance-space" },
-    paddingRight: { token: "--conformance-space", value: "--conformance-space" },
+    paddingHorizontal: { token: "--conformance-space", value: "--conformance-space" },
+    paddingVertical: { token: null, value: "0px" },
     marginTop: { token: null, value: "1rem" },
     marginBottom: { token: null, value: "0px" },
+  });
+
+  await page.evaluate(() => {
+    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    (root?.querySelector('[data-test="spacing-padding"] [data-test="individual-sides"]') as HTMLButtonElement | null)?.click();
+  });
+  await expect.poll(async () => page.evaluate(() => {
+    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const field = (property: string) => {
+      const element = root?.querySelector<HTMLElement>(`[data-test="token-field"][data-property="${property}"]`);
+      return {
+        token: element?.querySelector('[data-test="token-chip"]')?.textContent?.trim() ?? null,
+        value: element?.querySelector("input")?.value ?? null,
+      };
+    };
+    return { paddingLeft: field("padding-left"), paddingRight: field("padding-right") };
+  })).toEqual({
+    paddingLeft: { token: "--conformance-space", value: "--conformance-space" },
+    paddingRight: { token: "--conformance-space", value: "--conformance-space" },
   });
 });

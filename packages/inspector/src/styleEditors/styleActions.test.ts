@@ -47,6 +47,17 @@ describe("setStyle", () => {
     expect(rec!.oldToken).toBeNull();
   });
 
+  it("records the authored source declaration for a physical preview edit", () => {
+    const btn = makeButton();
+    const rec = setStyle(btn, "padding-left", "24px", {
+      sourceProperty: "padding-inline",
+      sourceAuthoredValue: "var(--space-4)",
+    });
+    expect(rec?.property).toBe("padding-left");
+    expect(rec?.sourceProperty).toBe("padding-inline");
+    expect(rec?.sourceAuthoredValue).toBe("var(--space-4)");
+  });
+
   it("called twice for the same element+property overwrites (one rule, latest value wins)", () => {
     const btn = makeButton();
     setStyle(btn, "padding", "10px");

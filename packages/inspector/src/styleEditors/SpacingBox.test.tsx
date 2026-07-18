@@ -261,6 +261,7 @@ describe("SpacingBox", () => {
         tokenName: null,
         declaredValue: "16px",
         resolvedValue: "16px",
+        computed: "16px",
         confidence: "unknown",
         evidence: { reason: "stale selected element fixture" },
       },
@@ -269,6 +270,7 @@ describe("SpacingBox", () => {
         tokenName: null,
         declaredValue: "0px",
         resolvedValue: "0px",
+        computed: "0px",
         confidence: "unknown",
         evidence: { reason: "stale selected element fixture" },
       },
@@ -278,5 +280,71 @@ describe("SpacingBox", () => {
     const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
     expect(padding.getAttribute("data-expanded")).toBe("false");
     expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
+  });
+
+  it("keeps equal computed sides grouped when authored token intent differs", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "16px",
+      "padding-right": "16px",
+      "padding-bottom": "16px",
+      "padding-left": "16px",
+      "margin-top": "0px",
+      "margin-right": "0px",
+      "margin-bottom": "0px",
+      "margin-left": "0px",
+    });
+    const tokenRow = (property: string, authored: string, tokenName: string | null): ResolvedProperty => ({
+      property,
+      tokenName,
+      declaredValue: authored,
+      authored,
+      resolvedValue: "16px",
+      confidence: tokenName ? "probable" : "unknown",
+      evidence: { reason: "authored intent fixture" },
+    });
+    handle = mount(createElement(SpacingBox, {
+      element: selected,
+      tokenRows: [
+        tokenRow("padding-top", "16px", null),
+        tokenRow("padding-right", "16px", null),
+        tokenRow("padding-bottom", "16px", null),
+        tokenRow("padding-left", "var(--space-4)", "--space-4"),
+      ],
+    }));
+
+    const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
+    expect(padding.getAttribute("data-expanded")).toBe("false");
+    expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
+  });
+
+  it("keeps functional spacing expressions authored in the grouped raw field", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "12px",
+      "padding-right": "12px",
+      "padding-bottom": "12px",
+      "padding-left": "12px",
+      "margin-top": "0px",
+      "margin-right": "0px",
+      "margin-bottom": "0px",
+      "margin-left": "0px",
+    });
+    const rawRow = (property: string): ResolvedProperty => ({
+      property,
+      tokenName: null,
+      declaredValue: "clamp(8px, 2vw, 24px)",
+      authored: "clamp(8px, 2vw, 24px)",
+      resolvedValue: "12px",
+      capability: "raw",
+      confidence: "unknown",
+      evidence: { reason: "functional spacing fixture" },
+    });
+    handle = mount(createElement(SpacingBox, {
+      element: selected,
+      tokenRows: ["padding-top", "padding-right", "padding-bottom", "padding-left"].map(rawRow),
+    }));
+
+    expect(rawInput("padding-horizontal").value).toBe("clamp(8px, 2vw, 24px)");
   });
 });

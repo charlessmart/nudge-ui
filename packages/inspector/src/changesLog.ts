@@ -10,6 +10,9 @@ export interface ElementChangeRecord {
   line: number;
   selector: string;
   property: string;
+  /** Authored declaration that the inspector projection came from. */
+  sourceProperty?: string;
+  sourceAuthoredValue?: string;
   oldToken: TokenEntry | null;
   newToken: TokenEntry | null;
   rawValue?: string;
