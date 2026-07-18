@@ -99,6 +99,7 @@ export function valuePolicyFor(property: string): ValuePolicy {
   if (property === "letter-spacing") return LETTER_SPACING;
   if (property === "flex-basis") return FLEX_BASIS;
   if (/^border(?:-(?:top|right|bottom|left))?-width$/.test(property)) return BORDER_WIDTH;
+  if (/^(?:margin|padding)-(?:horizontal|vertical)$/.test(property)) return PIXEL_LENGTH;
   if (PIXEL_LENGTH_PROPERTIES.has(property)) return PIXEL_LENGTH;
   return RAW_VALUE;
 }

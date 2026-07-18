@@ -44,7 +44,7 @@ describe("SpacingBox", () => {
     });
   }
 
-  it("renders a TokenField per padding side with computed values on mount", () => {
+  it("renders horizontal and vertical padding controls by default", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "padding-top": "8px",
@@ -57,12 +57,12 @@ describe("SpacingBox", () => {
       "margin-left": "0px",
     });
     handle = mount(createElement(SpacingBox, { element: selected }));
-    expect(handle.host.querySelector('[data-test="token-field"][data-property="padding-top"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="token-field"][data-property="padding-right"]')).toBeTruthy();
-    const pt = rawInput("padding-top");
-    const pr = rawInput("padding-right");
-    expect(pt.value).toBe("8px");
-    expect(pr.value).toBe("12px");
+    const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
+    expect(padding.getAttribute("data-expanded")).toBe("false");
+    expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
+    expect(padding.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
+    expect(rawInput("padding-horizontal").value).toBe("12px");
+    expect(rawInput("padding-vertical").value).toBe("8px");
   });
 
   it("writes padding-top longhand on change", () => {
@@ -118,6 +118,7 @@ describe("SpacingBox", () => {
       "margin-left": "0px",
     });
     handle = mount(createElement(SpacingBox, { element: selected }));
+    showIndividualSides("padding");
     expect(rawInput("padding-top").value).toBe("auto");
     expect(rawInput("padding-right").value).toBe("1rem");
     expect(rawInput("padding-left").value).toBe("8px");
@@ -136,8 +137,9 @@ describe("SpacingBox", () => {
       "margin-left": "0px",
     });
     handle = mount(createElement(SpacingBox, { element: selected }));
-    expect(handle.host.querySelector('[data-test="spacing-margin"][data-linked="true"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="token-field"][data-property="margin"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="spacing-margin"][data-expanded="false"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-horizontal"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-vertical"]')).toBeTruthy();
     showIndividualSides("margin");
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-top"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-right"]')).toBeTruthy();
@@ -167,13 +169,14 @@ describe("SpacingBox", () => {
     };
     handle = mount(createElement(SpacingBox, { element: selected, tokenRows: [shorthandRow] }));
 
+    showIndividualSides("margin");
     expect(rawInput("margin-top").value).toBe("8px");
     expect(rawInput("margin-right").value).toBe("16px");
     expect(rawInput("margin-bottom").value).toBe("24px");
     expect(rawInput("margin-left").value).toBe("16px");
   });
 
-  it("writes a linked shorthand when all four sides share one value", () => {
+  it("writes both physical sides when a grouped control changes", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "padding-top": "8px",
@@ -188,12 +191,12 @@ describe("SpacingBox", () => {
       margin: "0px",
     });
     handle = mount(createElement(SpacingBox, { element: selected }));
-    expect(handle.host.querySelector('[data-test="spacing-padding"][data-linked="true"]')).toBeTruthy();
-    setInputValue(rawInput("padding"), "24px");
-    expect(sheetText()).toContain("padding: 24px;");
+    setInputValue(rawInput("padding-horizontal"), "24px");
+    expect(sheetText()).toContain("padding-left: 24px;");
+    expect(sheetText()).toContain("padding-right: 24px;");
   });
 
-  it("links divergent padding sides to the top side value", () => {
+  it("forces four-side mode when pair values are asymmetric", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "padding-top": "8px",
@@ -208,10 +211,72 @@ describe("SpacingBox", () => {
     handle = mount(createElement(SpacingBox, { element: selected }));
 
     const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
-    expect(padding.getAttribute("data-linked")).toBe("false");
-    act(() => (padding.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click());
+    expect(padding.getAttribute("data-expanded")).toBe("true");
+    expect(rawInput("padding-top").value).toBe("8px");
+    expect(rawInput("padding-bottom").value).toBe("24px");
+    expect((padding.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).disabled).toBe(true);
+  });
 
-    expect(padding.getAttribute("data-linked")).toBe("true");
-    expect(sheetText()).toContain("padding: 8px;");
+  it("forces four-side mode when only one physical spacing side is set", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "16px",
+      "padding-right": "0px",
+      "padding-bottom": "0px",
+      "padding-left": "0px",
+      "margin-top": "0px",
+      "margin-right": "0px",
+      "margin-bottom": "12px",
+      "margin-left": "0px",
+    });
+    handle = mount(createElement(SpacingBox, { element: selected }));
+
+    const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
+    expect(padding.getAttribute("data-expanded")).toBe("true");
+    expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(0);
+    expect(rawInput("padding-top").value).toBe("16px");
+    expect(rawInput("padding-bottom").value).toBe("0px");
+    expect((padding.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).disabled).toBe(true);
+
+    const margin = handle.host.querySelector('[data-test="spacing-margin"]') as HTMLElement;
+    expect(margin.getAttribute("data-expanded")).toBe("true");
+    expect(rawInput("margin-bottom").value).toBe("12px");
+  });
+
+  it("uses the selected element values instead of stale token rows for grouping", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "8px",
+      "padding-right": "8px",
+      "padding-bottom": "8px",
+      "padding-left": "8px",
+      "margin-top": "0px",
+      "margin-right": "0px",
+      "margin-bottom": "0px",
+      "margin-left": "0px",
+    });
+    const staleRows: ResolvedProperty[] = [
+      {
+        property: "padding-top",
+        tokenName: null,
+        declaredValue: "16px",
+        resolvedValue: "16px",
+        confidence: "unknown",
+        evidence: { reason: "stale selected element fixture" },
+      },
+      {
+        property: "padding-bottom",
+        tokenName: null,
+        declaredValue: "0px",
+        resolvedValue: "0px",
+        confidence: "unknown",
+        evidence: { reason: "stale selected element fixture" },
+      },
+    ];
+    handle = mount(createElement(SpacingBox, { element: selected, tokenRows: staleRows }));
+
+    const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
+    expect(padding.getAttribute("data-expanded")).toBe("false");
+    expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
   });
 });

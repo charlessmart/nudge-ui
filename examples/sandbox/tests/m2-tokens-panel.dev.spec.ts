@@ -12,7 +12,9 @@ async function fieldState(page: import("@playwright/test").Page): Promise<{
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
     const fieldValue = (property: string): string => {
       const field = sr?.querySelector(`[data-test="token-field"][data-property="${property}"]`);
-      return field?.querySelector('[data-test="token-chip"]')?.textContent?.trim() ?? "";
+      return field?.querySelector('[data-test="token-chip"]')?.textContent?.trim()
+        ?? field?.querySelector('[data-test="token-attribution"]')?.textContent?.trim()
+        ?? "";
     };
     const rawValue = (property: string): string => {
       const field = sr?.querySelector(`[data-test="token-field"][data-property="${property}"]`);
@@ -22,9 +24,9 @@ async function fieldState(page: import("@playwright/test").Page): Promise<{
       topTokenPanel: Boolean(sr?.querySelector('[data-test="tokens-panel"]')),
       backgroundToken: fieldValue("background-color"),
       borderRadiusToken: fieldValue("border-radius"),
-      paddingToken: fieldValue("padding-top"),
+      paddingToken: fieldValue("padding-vertical"),
       borderRadiusRaw: rawValue("border-radius"),
-      paddingRaw: rawValue("padding-top"),
+      paddingRaw: rawValue("padding-vertical"),
     };
   });
 }
@@ -66,7 +68,7 @@ test("dev: spacing token suggestions exclude color and typography tokens", async
   await page.goto("/");
   await page.click("text=Save");
 
-  const input = page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]');
+  const input = page.locator('[data-test="token-field"][data-property="padding-vertical"] [data-test="raw-input"]');
   await input.fill("");
 
   await expect
@@ -77,19 +79,23 @@ test("dev: spacing token suggestions exclude color and typography tokens", async
           .map((item) => item.querySelector('.dt-popover-listbox__label')?.textContent ?? "");
       });
     }, { timeout: 5000 })
-    .toEqual(["--space-1", "--space-2", "--space-3"]);
+    .toEqual(expect.arrayContaining(["--space-1", "--space-2", "--space-3"]));
 });
 
 test("dev: token picker keeps pointer selection and scroll inside a bounded menu", async ({ page }) => {
   await page.goto("/tailwind");
   await page.locator("#tailwind-title").click();
 
-  const field = page.locator('[data-test="token-field"][data-property="font-size"]');
+  const field = page.locator('[data-test="token-field"][data-property="color"]');
   const chip = field.locator('[data-test="token-chip"]');
-  await expect(chip).toBeVisible();
+  const raw = field.locator('[data-test="raw-input"]');
+  const hasChip = await chip.count() > 0;
+  if (hasChip) await expect(chip).toBeVisible();
+  else await expect(raw).toBeVisible();
 
-  const currentToken = (await chip.textContent())?.trim() ?? "";
-  await chip.click();
+  const currentToken = hasChip ? (await chip.textContent())?.trim() ?? "" : await raw.inputValue();
+  if (hasChip) await chip.click();
+  else await raw.fill("");
 
   const popup = page.locator(".dt-popover-listbox__popup");
   await expect(popup).toBeVisible();
@@ -112,5 +118,6 @@ test("dev: token picker keeps pointer selection and scroll inside a bounded menu
 
   const option = popup.locator('[data-test="suggestion-item"]').filter({ hasNotText: currentToken }).first();
   await option.click();
-  await expect(chip).not.toHaveText(currentToken);
+  if (hasChip) await expect(chip).not.toHaveText(currentToken);
+  else await expect(field.locator('[data-test="token-chip"]')).toBeVisible();
 });

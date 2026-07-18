@@ -155,4 +155,88 @@ describe("shared inspector UI", () => {
     expect(host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
     expect(host.querySelector('[data-side="top"] svg')).not.toBeNull();
   });
+
+  it("renders grouped side values and expands back to four sides", () => {
+    act(() => {
+      root.render(createElement(SideValuesField, {
+        label: "padding",
+        "data-test": "grouped-side-values",
+        pairedControls: [
+          { axis: "horizontal", control: createElement("span", { "data-test": "horizontal-control" }, "12px") },
+          { axis: "vertical", control: createElement("span", { "data-test": "vertical-control" }, "8px") },
+        ],
+        sides: SIDE_NAMES.map((side) => ({
+          side,
+          control: createElement("span", { "data-test": `expanded-${side}` }, side),
+        })),
+      }));
+    });
+
+    const field = host.querySelector('[data-test="grouped-side-values"]') as HTMLElement;
+    expect(field.getAttribute("data-expanded")).toBe("false");
+    expect(field.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
+    expect(field.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
+    expect(field.querySelector('[data-test="individual-sides"]')?.getAttribute("aria-label")).toBe("Expand padding sides");
+
+    act(() => (field.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click());
+    expect(field.getAttribute("data-expanded")).toBe("true");
+    expect(field.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
+    expect(field.querySelector('[data-side="top"] svg')).not.toBeNull();
+
+    act(() => (field.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click());
+    expect(field.getAttribute("data-expanded")).toBe("false");
+    expect(field.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
+  });
+
+  it("keeps grouped side values open when expansion is forced", () => {
+    act(() => {
+      root.render(createElement(SideValuesField, {
+        label: "padding",
+        "data-test": "forced-grouped-side-values",
+        forceExpanded: true,
+        pairedControls: [
+          { axis: "horizontal", control: createElement("span", null, "0px") },
+          { axis: "vertical", control: createElement("span", null, "16px / 0px") },
+        ],
+        sides: SIDE_NAMES.map((side) => ({
+          side,
+          control: createElement("span", null, side),
+        })),
+      }));
+    });
+
+    const field = host.querySelector('[data-test="forced-grouped-side-values"]') as HTMLElement;
+    const toggle = field.querySelector('[data-test="individual-sides"]') as HTMLButtonElement;
+    expect(field.getAttribute("data-expanded")).toBe("true");
+    expect(field.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
+    expect(toggle.disabled).toBe(true);
+    act(() => toggle.click());
+    expect(field.getAttribute("data-expanded")).toBe("true");
+  });
+
+  it("resets grouped mode immediately when the reset key changes", () => {
+    const renderField = (resetKey: string, forceExpanded: boolean) => root.render(createElement(SideValuesField, {
+      label: "padding",
+      "data-test": "resettable-grouped-side-values",
+      resetKey,
+      defaultExpanded: forceExpanded,
+      forceExpanded,
+      pairedControls: [
+        { axis: "horizontal", control: createElement("span", null, "0px") },
+        { axis: "vertical", control: createElement("span", null, "16px / 0px") },
+      ],
+      sides: SIDE_NAMES.map((side) => ({
+        side,
+        control: createElement("span", null, side),
+      })),
+    }));
+
+    act(() => renderField("asymmetric", true));
+    expect(host.querySelector('[data-test="resettable-grouped-side-values"]')?.getAttribute("data-expanded")).toBe("true");
+
+    act(() => renderField("symmetric", false));
+    const field = host.querySelector('[data-test="resettable-grouped-side-values"]') as HTMLElement;
+    expect(field.getAttribute("data-expanded")).toBe("false");
+    expect(field.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
+  });
 });

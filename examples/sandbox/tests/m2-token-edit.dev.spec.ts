@@ -28,9 +28,15 @@ async function waitForRow(page: import("@playwright/test").Page): Promise<void> 
   await expect
     .poll(async () => {
       const rows = await tokenRows(page);
-      return rows.length > 0 ? rows : null;
+      return rows.some((row) => row.property === "background-color") ? rows : null;
     }, { timeout: 5000 })
     .toBeTruthy();
+}
+
+async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
+  const spacing = page.locator('[data-test="spacing-padding"]');
+  await spacing.locator('[data-test="individual-sides"]').click();
+  await expect(spacing).toHaveAttribute("data-expanded", "true");
 }
 
 async function sheetText(page: import("@playwright/test").Page): Promise<string> {
@@ -60,7 +66,13 @@ async function selectSuggestion(page: import("@playwright/test").Page, value: st
 }
 
 async function selectTokenFromChip(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
-  await page.locator(`[data-test="token-field"][data-property="${property}"] [data-test="token-chip"]`).click();
+  const field = page.locator(`[data-test="token-field"][data-property="${property}"]`);
+  const chip = field.locator('[data-test="token-chip"]');
+  if (await chip.count() > 0) {
+    await chip.click();
+  } else {
+    await field.locator('[data-test="raw-input"]').fill("");
+  }
   await selectSuggestion(page, value);
 }
 
@@ -98,7 +110,7 @@ test("dev: selection defaults to Base and can target an authored hover state", a
 
   await expect(page.locator('[data-test="style-state-base"]')).toHaveAttribute("data-active", "true");
   await expect(page.locator('[data-test="style-state-hover"]')).toHaveCount(1);
-  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]'))
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"]'))
     .toContainText("--color-surface-raised");
 
   await page.locator('[data-test="style-state-hover"]').click();
@@ -114,6 +126,7 @@ test("dev: replacing a hardcoded spacing value with a token writes a rule to the
   await page.goto("/");
   await page.click("text=Save");
   await waitForRow(page);
+  await expandSpacing(page);
 
   await selectPromote(page, "padding-top", "--space-2");
 
@@ -129,6 +142,7 @@ test("dev: typing a spacing value keeps its matching token suggestion visible", 
   await page.goto("/");
   await page.click("text=Save");
   await waitForRow(page);
+  await expandSpacing(page);
 
   await page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]').fill("8px");
 
@@ -145,6 +159,7 @@ test("dev: Enter applies a typed spacing value with no matching token", async ({
   await page.goto("/");
   await page.click("text=Save");
   await waitForRow(page);
+  await expandSpacing(page);
 
   const input = page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]');
   await input.fill("");
@@ -164,6 +179,7 @@ test("dev: Enter completes a bare spacing number with px", async ({ page }) => {
   await page.goto("/");
   await page.click("text=Save");
   await waitForRow(page);
+  await expandSpacing(page);
 
   const input = page.locator('[data-test="token-field"][data-property="padding-top"] [data-test="raw-input"]');
   await input.fill("7");

@@ -4,6 +4,8 @@ import { valuePolicyFor } from "./valuePolicy.ts";
 describe("valuePolicyFor", () => {
   it.each([
     ["padding-top", "unit", "px"],
+    ["padding-horizontal", "unit", "px"],
+    ["margin-vertical", "unit", "px"],
     ["border-top-width", "unit", "px"],
     ["row-gap", "unit", "px"],
     ["top", "unit", "px"],

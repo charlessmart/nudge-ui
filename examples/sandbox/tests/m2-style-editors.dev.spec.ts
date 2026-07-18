@@ -21,6 +21,12 @@ async function waitForInspector(page: import("@playwright/test").Page): Promise<
     .toBe(true);
 }
 
+async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
+  const spacing = page.locator('[data-test="spacing-padding"]');
+  await spacing.locator('[data-test="individual-sides"]').click();
+  await expect(spacing).toHaveAttribute("data-expanded", "true");
+}
+
 async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
   await page.evaluate(({ p, v }) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
@@ -53,6 +59,7 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   await page.goto("/");
   await page.click("text=Save");
   await waitForEditors(page);
+  await expandSpacing(page);
 
   await setInput(page, "padding-top", "24px");
   await expect
@@ -190,6 +197,31 @@ test("dev: individual side focus ring belongs to the whole side field", async ({
   expect(focusStyles.sideBoxShadow).not.toBe("none");
 });
 
+test("dev: spacing starts grouped and toggles between pair and four-side views", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForEditors(page);
+
+  const spacing = page.locator('[data-test="spacing-padding"]');
+  await expect(spacing).toHaveAttribute("data-expanded", "false");
+  await expect(spacing.locator('[data-test^="pair-value-"]')).toHaveCount(2);
+  await expect(spacing.locator('[data-test^="side-value-"]')).toHaveCount(0);
+
+  await setInput(page, "padding-horizontal", "20px");
+  await expect.poll(() => computedProp(page, "padding-left"), { timeout: 5000 }).toBe("20px");
+  await expect.poll(() => computedProp(page, "padding-right"), { timeout: 5000 }).toBe("20px");
+  await expect.poll(() => sheetText(page), { timeout: 5000 }).toContain("padding-left: 20px");
+  await expect.poll(() => sheetText(page), { timeout: 5000 }).toContain("padding-right: 20px");
+
+  await spacing.locator('[data-test="individual-sides"]').click();
+  await expect(spacing).toHaveAttribute("data-expanded", "true");
+  await expect(spacing.locator('[data-test^="side-value-"]')).toHaveCount(4);
+
+  await spacing.locator('[data-test="individual-sides"]').click();
+  await expect(spacing).toHaveAttribute("data-expanded", "false");
+  await expect(spacing.locator('[data-test^="pair-value-"]')).toHaveCount(2);
+});
+
 test("dev: linking divergent border widths applies one value and survives reselection", async ({ page }) => {
   await page.goto("/");
   await waitForInspector(page);
@@ -240,11 +272,24 @@ test("dev: spacing fields split a three-value margin shorthand by side", async (
   await page.goto("/");
   await page.click(".hero h1");
   await waitForEditors(page);
+  await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "true");
+  await expect(page.locator('[data-test="spacing-margin"] [data-test="individual-sides"]')).toBeDisabled();
 
   await expect(page.locator('[data-test="token-field"][data-property="margin-top"] [data-test="raw-input"]')).toHaveValue("26px");
   await expect(page.locator('[data-test="token-field"][data-property="margin-right"] [data-test="raw-input"]')).toHaveValue("0px");
   await expect(page.locator('[data-test="token-field"][data-property="margin-bottom"] [data-test="raw-input"]')).toHaveValue("22px");
   await expect(page.locator('[data-test="token-field"][data-property="margin-left"] [data-test="raw-input"]')).toHaveValue("0px");
+});
+
+test("dev: spacing expansion resets when selecting a symmetric element", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".hero h1").click();
+  await waitForEditors(page);
+  await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "true");
+
+  await page.locator(".btn").first().click();
+  await expect(page.locator('[data-test="spacing-padding"]')).toHaveAttribute("data-expanded", "false");
+  await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "false");
 });
 
 function hexToRgbString(raw: string): string | null {
