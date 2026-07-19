@@ -9,7 +9,6 @@ import { isInspectorToggleShortcut } from "./shortcuts.ts";
 import { clearInspectorLayout } from "./panelLayout.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import { bootstrapRenderer } from "./canvas/rendererBootstrap.ts";
-import { CanvasWorkspace } from "./canvas/CanvasWorkspace.tsx";
 import {
   hydrateSession,
   enableAutoSave,
@@ -21,6 +20,7 @@ import { subscribe as subscribeCanvas } from "./canvas/canvasStore.ts";
 import { acquireLease, hasWriteLease, releaseLease } from "./canvas/workspaceLease.ts";
 import { startStaleDetection } from "./canvas/staleChangeDetector.ts";
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
+import { AppShell } from "./AppShell.tsx";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -62,14 +62,6 @@ export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
 
   mountInspector(inspectorHost);
 
-  let canvasHost = document.getElementById("design-tool-canvas-host");
-  if (!canvasHost) {
-    canvasHost = document.createElement("div");
-    canvasHost.id = "design-tool-canvas-host";
-    document.body.appendChild(canvasHost);
-  }
-  mountCanvasWorkspace(canvasHost);
-
   enableAutoSave();
   subscribeChanges(() => scheduleAutoSave());
   subscribeCanvas(() => scheduleAutoSave());
@@ -85,16 +77,6 @@ function mountLockedNotice(host: HTMLElement): void {
   }
 }
 
-let canvasRoot: Root | null = null;
-
-function mountCanvasWorkspace(host: HTMLElement): void {
-  const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
-  if (!canvasRoot) {
-    canvasRoot = createRoot(shadow);
-    canvasRoot.render(createElement(CanvasWorkspace));
-  }
-}
-
 export function mountInspector(host: HTMLElement): void {
   if (!hasWriteLease()) return;
   if (!hostElement) hostElement = host;
@@ -102,7 +84,7 @@ export function mountInspector(host: HTMLElement): void {
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
     setInspectorHost(host);
-    reactRoot.render(createElement(InspectorShell));
+    reactRoot.render(createElement(AppShell));
   }
   setInspectorOpen(true);
   if (!listenerAttached) {

@@ -5,7 +5,8 @@ export type DesignToolRole = "controller" | "renderer";
 export function detectRole(): DesignToolRole {
   try {
     const frameEl = window.frameElement;
-    if (frameEl instanceof HTMLElement && frameEl.hasAttribute(CANVAS_RENDERER_ATTR)) {
+    if (!frameEl) return "controller";
+    if (frameEl.hasAttribute?.(CANVAS_RENDERER_ATTR)) {
       return "renderer";
     }
   } catch {

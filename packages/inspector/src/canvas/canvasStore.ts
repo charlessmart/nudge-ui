@@ -37,7 +37,7 @@ let mode: CanvasMode = "inspect";
 let cards: CanvasCard[] = [];
 let focusedCardId: string | null = null;
 let cardIdCounter = 0;
-let boardCamera: CanvasCamera = { ...DEFAULT_CAMERA };
+let cachedBoardCamera: CanvasCamera = { ...DEFAULT_CAMERA };
 let lastUsedCardSize: { width: number; height: number } | null = null;
 let fitAllRan = false;
 const listeners = new Set<() => void>();
@@ -94,7 +94,7 @@ export function enterCanvas(): void {
     };
     cards = [card];
     lastUsedCardSize = { width: size.width, height: size.height };
-    boardCamera = { ...DEFAULT_CAMERA };
+    cachedBoardCamera = { ...DEFAULT_CAMERA };
     fitAllRan = false;
   }
   notify();
@@ -169,11 +169,11 @@ export function resizeCard(id: string, width: number, height: number): void {
 }
 
 export function getBoardCamera(): CanvasCamera {
-  return { ...boardCamera };
+  return cachedBoardCamera;
 }
 
 export function setBoardCamera(camera: CanvasCamera): void {
-  boardCamera = {
+  cachedBoardCamera = {
     x: camera.x,
     y: camera.y,
     zoom: Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, camera.zoom)),
@@ -182,11 +182,11 @@ export function setBoardCamera(camera: CanvasCamera): void {
 }
 
 export function updateBoardCamera(partial: Partial<CanvasCamera>): void {
-  const next: CanvasCamera = { ...boardCamera, ...partial };
+  const next: CanvasCamera = { ...cachedBoardCamera, ...partial };
   if (partial.zoom !== undefined) {
     next.zoom = Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, partial.zoom));
   }
-  boardCamera = next;
+  cachedBoardCamera = next;
   notify();
 }
 
@@ -209,7 +209,7 @@ export function fitAllCards(): void {
   const contentH = maxY - minY;
 
   if (contentW <= 0 || contentH <= 0) {
-    boardCamera = { ...DEFAULT_CAMERA };
+    cachedBoardCamera = { ...DEFAULT_CAMERA };
     fitAllRan = true;
     notify();
     return;
@@ -225,7 +225,7 @@ export function fitAllCards(): void {
   const contentCenterX = minX + contentW / 2;
   const contentCenterY = minY + contentH / 2;
 
-  boardCamera = {
+  cachedBoardCamera = {
     x: -(contentCenterX * zoom) + window.innerWidth / 2,
     y: -(contentCenterY * zoom) + window.innerHeight / 2,
     zoom,
@@ -274,7 +274,7 @@ export function hydrateCanvasStore(
   mode = newMode;
   cards = [...newCards];
   focusedCardId = null;
-  boardCamera = { ...newCamera };
+  cachedBoardCamera = { ...newCamera };
   if (newCards.length > 0) {
     let maxNum = 0;
     for (const c of newCards) {
