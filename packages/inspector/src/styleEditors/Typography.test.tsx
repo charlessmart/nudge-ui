@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createElement } from "react";
 import { Typography } from "./Typography.tsx";
-import { resetPendingRules } from "../tokens/editActions.ts";
+import { getChangeRecords, resetPendingRules } from "../tokens/editActions.ts";
 import {
   makeSelected,
   mount,
@@ -119,5 +119,31 @@ describe("Typography", () => {
     for (const prop of ["font-size", "font-weight", "line-height", "letter-spacing", "font-family"]) {
       expect(handle.host.querySelector(`[data-test="token-field"][data-property="${prop}"]`)).toBeTruthy();
     }
+  });
+
+  it("records font shorthand provenance when a decomposed longhand is edited", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "font-size": "20px" });
+    handle = mount(createElement(Typography, {
+      element: selected,
+      tokenRows: [{
+        property: "font-size",
+        tokenName: null,
+        declaredValue: "1.25rem",
+        authored: "1.25rem",
+        sourceProperty: "font",
+        resolvedValue: "20px",
+        computed: "20px",
+        capability: "atomic",
+        confidence: "unknown",
+        evidence: { reason: "font shorthand test fixture" },
+      }],
+    }));
+    const raw = handle.host.querySelector('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]') as HTMLInputElement;
+    expect(raw.value).toBe("1.25rem");
+    setInputValue(raw, "24px");
+
+    expect(sheetText()).toContain("font-size: 24px;");
+    expect(getChangeRecords().at(-1)).toMatchObject({ sourceProperty: "font", sourceAuthoredValue: "1.25rem" });
   });
 });

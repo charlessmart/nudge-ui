@@ -51,3 +51,19 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   expect(afterSecond).toBe(before);
   await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-design-tool-panel"))).toBe("open");
 });
+
+test("dev: inspector can collapse and reopen from its icon controls on a mobile viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  const panel = page.locator(".dt-panel");
+  await expect(panel).toHaveAttribute("data-open", "true");
+  await page.locator('[data-test="collapse-inspector"]').click();
+  await expect(panel).toHaveAttribute("data-open", "false");
+  await expect(page.locator('[data-test="show-inspector"]')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute("data-design-tool-panel"))).toBe(false);
+
+  await page.locator('[data-test="show-inspector"]').click();
+  await expect(panel).toHaveAttribute("data-open", "true");
+  await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-design-tool-panel"))).toBe("open");
+});

@@ -14,6 +14,9 @@ import "./tailwind.css";
 const DevSpacingConformancePage = import.meta.env.DEV
   ? lazy(() => import("./SpacingConformancePage").then(({ SpacingConformancePage }) => ({ default: SpacingConformancePage })))
   : null;
+const DevTypographyConformancePage = import.meta.env.DEV
+  ? lazy(() => import("./TypographyConformancePage").then(({ TypographyConformancePage }) => ({ default: TypographyConformancePage })))
+  : null;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root not found");
@@ -23,6 +26,13 @@ function Route() {
     return DevSpacingConformancePage ? (
       <Suspense fallback={<main className="spacing-conformance-loading">Loading spacing corpus…</main>}>
         <DevSpacingConformancePage />
+      </Suspense>
+    ) : <App />;
+  }
+  if (import.meta.env.DEV && window.location.pathname === "/typography-conformance") {
+    return DevTypographyConformancePage ? (
+      <Suspense fallback={<main className="spacing-conformance-loading">Loading typography corpus…</main>}>
+        <DevTypographyConformancePage />
       </Suspense>
     ) : <App />;
   }

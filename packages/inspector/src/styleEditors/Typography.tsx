@@ -31,6 +31,7 @@ export function Typography(props: TypographyProps): ReactElement {
             tokenRow={findTokenRow(tokenRows, "font-size")}
             domElement={el}
             entries={allEntries}
+            editMetadata={metadataFor(findTokenRow(tokenRows, "font-size"))}
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
@@ -40,6 +41,7 @@ export function Typography(props: TypographyProps): ReactElement {
             tokenRow={findTokenRow(tokenRows, "font-weight")}
             domElement={el}
             entries={allEntries}
+            editMetadata={metadataFor(findTokenRow(tokenRows, "font-weight"))}
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
@@ -49,6 +51,7 @@ export function Typography(props: TypographyProps): ReactElement {
             tokenRow={findTokenRow(tokenRows, "line-height")}
             domElement={el}
             entries={allEntries}
+            editMetadata={metadataFor(findTokenRow(tokenRows, "line-height"))}
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
@@ -58,6 +61,7 @@ export function Typography(props: TypographyProps): ReactElement {
             tokenRow={findTokenRow(tokenRows, "letter-spacing")}
             domElement={el}
             entries={allEntries}
+            editMetadata={metadataFor(findTokenRow(tokenRows, "letter-spacing"))}
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
@@ -67,10 +71,17 @@ export function Typography(props: TypographyProps): ReactElement {
             tokenRow={findTokenRow(tokenRows, "font-family")}
             domElement={el}
             entries={allEntries}
+            editMetadata={metadataFor(findTokenRow(tokenRows, "font-family"))}
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
       </div>
     </div>
   );
+}
+
+function metadataFor(row: ResolvedProperty | null | undefined) {
+  return row?.sourceProperty
+    ? { sourceProperty: row.sourceProperty, sourceAuthoredValue: row.authored ?? row.declaredValue }
+    : undefined;
 }

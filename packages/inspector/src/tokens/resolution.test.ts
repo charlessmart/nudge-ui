@@ -218,6 +218,44 @@ describe("interaction-state resolution", () => {
       evidence: { inheritedFrom: "div" },
     });
   });
+
+  it("traces inherited hardcoded typography without replacing authored CSS with computed output", () => {
+    const style = document.createElement("style");
+    style.textContent = '.wrapper { font-family: "Aster Display", Georgia, serif; font-size: 1.125rem; line-height: 1.45; }';
+    document.head.appendChild(style);
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "wrapper";
+    const paragraph = document.createElement("p");
+    paragraph.textContent = "Inherited type remains attributable.";
+    wrapper.appendChild(paragraph);
+    document.body.appendChild(wrapper);
+
+    const original = window.getComputedStyle.bind(window);
+    const inherited = { "font-family": '"Aster Display", Georgia, serif', "font-size": "1.125rem", "line-height": "1.45" };
+    (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((element: Element) => {
+      const base = original(element);
+      return new Proxy(base, {
+        get(target, key: string) {
+          if (key === "getPropertyValue") return (property: string) => inherited[property as keyof typeof inherited] ?? base.getPropertyValue(property);
+          return Reflect.get(target, key);
+        },
+      });
+    }) as typeof getComputedStyle;
+    try {
+      const rows = getResolvedPropertiesForState(paragraph, makeTable([]), "base");
+      expect(rows.find((row) => row.property === "font-size")).toMatchObject({
+        authored: "1.125rem",
+        evidence: { inheritedFrom: "div" },
+      });
+      expect(rows.find((row) => row.property === "line-height")).toMatchObject({
+        authored: "1.45",
+        evidence: { inheritedFrom: "div" },
+      });
+    } finally {
+      (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = original;
+    }
+  });
 });
 
 describe("computeSpecificity", () => {
@@ -257,6 +295,41 @@ describe("resolvePropertiesFromRules", () => {
 
   afterEach(() => {
     document.body.innerHTML = "";
+  });
+
+  it("decomposes an unambiguous font shorthand while retaining font provenance", () => {
+    const rows = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [{ property: "font", value: 'italic 700 1.25rem / 1.4 "Aster Display", Georgia, serif' }],
+    }], makeTable([]));
+
+    expect(rows.find((row) => row.property === "font-size")).toMatchObject({
+      authored: "1.25rem",
+      sourceProperty: "font",
+    });
+    expect(rows.find((row) => row.property === "font-weight")).toMatchObject({
+      authored: "700",
+      sourceProperty: "font",
+    });
+    expect(rows.find((row) => row.property === "line-height")).toMatchObject({
+      authored: "1.4",
+      sourceProperty: "font",
+    });
+    expect(rows.find((row) => row.property === "font-family")).toMatchObject({
+      authored: '"Aster Display", Georgia, serif',
+      sourceProperty: "font",
+    });
+  });
+
+  it("leaves system font shorthands raw instead of inventing longhands", () => {
+    const rows = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [{ property: "font", value: "menu" }],
+    }], makeTable([]));
+
+    expect(rows).toEqual([expect.objectContaining({ property: "font", authored: "menu", capability: "composite" })]);
   });
 
   it("collects var() declarations, resolving tokens vs hardcoded values", () => {

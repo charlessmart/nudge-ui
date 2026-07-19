@@ -103,6 +103,26 @@ describe("InspectorShell", () => {
     expect(document.getElementById("design-tool-panel-layout")).toBeNull();
   });
 
+  it("collapses from the header and restores through the floating icon button", () => {
+    act(() => {
+      mountInspector(host);
+    });
+    const shadow = host.shadowRoot!;
+    const panel = shadow.querySelector(".dt-panel")!;
+    const collapse = shadow.querySelector('[data-test="collapse-inspector"]') as HTMLButtonElement;
+    expect(collapse.getAttribute("aria-label")).toBe("Collapse inspector");
+
+    act(() => collapse.click());
+    expect(panel.getAttribute("data-open")).toBe("false");
+    expect(document.documentElement.hasAttribute("data-design-tool-panel")).toBe(false);
+
+    const show = shadow.querySelector('[data-test="show-inspector"]') as HTMLButtonElement;
+    expect(show.getAttribute("aria-label")).toBe("Show inspector");
+    act(() => show.click());
+    expect(panel.getAttribute("data-open")).toBe("true");
+    expect(document.documentElement.getAttribute("data-design-tool-panel")).toBe("open");
+  });
+
   it("non-Alt+I keys do not toggle", () => {
     act(() => {
       mountInspector(host);
