@@ -1,7 +1,6 @@
 import { useEffect, useState, type CSSProperties, type ReactElement } from "react";
 import { PROTOCOL_VERSION, type ElementHoverMessage, type ElementClickMessage } from "./frameProtocol.ts";
 import { getRegisteredFrames } from "./projection.ts";
-import { useSelectedCardId } from "./canvasStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
 import overlayStyles from "./CanvasElementOverlay.css?inline";
 
@@ -15,7 +14,6 @@ interface HoverState {
 
 export function CanvasElementOverlay(): ReactElement | null {
   const [hover, setHover] = useState<HoverState | null>(null);
-  const selectedCardId = useSelectedCardId();
 
   useEffect(() => {
     function onMessage(event: MessageEvent): void {
@@ -58,7 +56,7 @@ export function CanvasElementOverlay(): ReactElement | null {
       } else if (event.data.type === "element-click") {
         const msg = event.data as ElementClickMessage;
         if (!msg.cid) return;
-        handleElementClick(msg, sourceIframe);
+        handleElementClick(msg, sourceIframe, sourceCardId);
       }
     }
 
@@ -66,7 +64,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  if (!hover || hover.cardId !== selectedCardId) return null;
+  if (!hover) return null;
 
   const style: CSSProperties = {
     position: "fixed",
