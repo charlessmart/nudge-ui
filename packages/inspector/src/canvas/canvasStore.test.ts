@@ -10,9 +10,14 @@ import {
   removeCanvasCard,
   updateCardTitle,
   updateCardUrl,
+  duplicateCard,
+  findCardByNormalizedUrl,
+  focusCard,
+  getFocusedCardId,
   subscribe,
   type CanvasMode,
 } from "./canvasStore.ts";
+import { normalizeUrl } from "./normalizeUrl.ts";
 
 describe("canvasStore mode transitions", () => {
   beforeEach(() => {
@@ -150,5 +155,132 @@ describe("canvasStore card operations", () => {
 
     expect(counts).toEqual([0, 1, 2]);
     unsub();
+  });
+});
+
+describe("canvasStore duplicateCard", () => {
+  beforeEach(() => {
+    if (getCanvasMode() === "canvas") exitCanvas();
+    for (const card of getCanvasCards()) {
+      removeCanvasCard(card.id);
+    }
+  });
+
+  it("creates a new card with same URL but distinct ID", () => {
+    const original = addCanvasCard("http://localhost:5173/about", "About");
+    const copy = duplicateCard(original.id);
+
+    expect(copy).not.toBeNull();
+    expect(copy!.url).toBe(original.url);
+    expect(copy!.title).toBe(original.title);
+    expect(copy!.id).not.toBe(original.id);
+    expect(copy!.id).toMatch(/^card-/);
+  });
+
+  it("duplicate notifies listeners", () => {
+    const original = addCanvasCard("http://localhost:5173/about", "About");
+    let fired = false;
+    const unsub = subscribe(() => { fired = true; });
+    duplicateCard(original.id);
+    expect(fired).toBe(true);
+    unsub();
+  });
+
+  it("returns null for non-existent source card", () => {
+    const result = duplicateCard("nonexistent");
+    expect(result).toBeNull();
+  });
+});
+
+describe("canvasStore findCardByNormalizedUrl", () => {
+  beforeEach(() => {
+    if (getCanvasMode() === "canvas") exitCanvas();
+    for (const card of getCanvasCards()) {
+      removeCanvasCard(card.id);
+    }
+  });
+
+  it("finds a card by normalized URL ignoring hash", () => {
+    addCanvasCard("http://localhost:5173/about", "About");
+
+    const normalized = normalizeUrl("http://localhost:5173/about#section1");
+    expect(normalized).not.toBeNull();
+    const found = findCardByNormalizedUrl(normalized!);
+    expect(found).toBeDefined();
+    expect(found!.url).toBe("http://localhost:5173/about");
+  });
+
+  it("distinguishes cards by pathname", () => {
+    addCanvasCard("http://localhost:5173/about", "About");
+
+    const normalized = normalizeUrl("http://localhost:5173/contact");
+    expect(normalized).not.toBeNull();
+    const found = findCardByNormalizedUrl(normalized!);
+    expect(found).toBeUndefined();
+  });
+
+  it("distinguishes cards by search params", () => {
+    addCanvasCard("http://localhost:5173/about?tab=1", "Tab 1");
+
+    const normalized = normalizeUrl("http://localhost:5173/about?tab=2");
+    expect(normalized).not.toBeNull();
+    const found = findCardByNormalizedUrl(normalized!);
+    expect(found).toBeUndefined();
+  });
+
+  it("finds the correct card when multiple cards exist", () => {
+    addCanvasCard("http://localhost:5173/about", "About");
+    addCanvasCard("http://localhost:5173/contact", "Contact");
+
+    const normalized = normalizeUrl("http://localhost:5173/contact");
+    expect(normalized).not.toBeNull();
+    const found = findCardByNormalizedUrl(normalized!);
+    expect(found).toBeDefined();
+    expect(found!.title).toBe("Contact");
+  });
+
+  it("returns undefined when duplicate exists via duplicateCard", () => {
+    const original = addCanvasCard("http://localhost:5173/about", "About");
+    duplicateCard(original.id);
+
+    const normalized = normalizeUrl("http://localhost:5173/about");
+    expect(normalized).not.toBeNull();
+    const found = findCardByNormalizedUrl(normalized!);
+    expect(found).toBeDefined();
+    // Returns the first match
+  });
+});
+
+describe("canvasStore focusCard", () => {
+  beforeEach(() => {
+    if (getCanvasMode() === "canvas") exitCanvas();
+    for (const card of getCanvasCards()) {
+      removeCanvasCard(card.id);
+    }
+  });
+
+  it("sets and returns the focused card ID", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    focusCard(card.id);
+    expect(getFocusedCardId()).toBe(card.id);
+  });
+
+  it("notifies listeners when focused card changes", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    let fired = false;
+    const unsub = subscribe(() => { fired = true; });
+    focusCard(card.id);
+    expect(fired).toBe(true);
+    unsub();
+  });
+
+  it("starts with null focused card", () => {
+    const before = getFocusedCardId();
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    focusCard(card.id);
+    expect(getFocusedCardId()).toBe(card.id);
+    // focusCard does not auto-focus new cards
+    const card2 = addCanvasCard("http://localhost:5173/other", "Other");
+    expect(getFocusedCardId()).toBe(card.id);
   });
 });

@@ -1,6 +1,7 @@
 import { PROTOCOL_VERSION, sendToParent, type ParentReadyMessage } from "./frameProtocol.ts";
-import type { FrameReadyMessage, FrameMetadataMessage } from "./frameProtocol.ts";
+import type { FrameReadyMessage, FrameMetadataMessage, NavigationIntentMessage } from "./frameProtocol.ts";
 import { handleReplaceStyles } from "./rendererStylesheet.ts";
+import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
 
 let rendererBootstrapped = false;
 let rendererProjectId: string | null = null;
@@ -48,6 +49,26 @@ export function bootstrapRenderer(): void {
 
   sendFrameReady();
   observeFrameMetadata();
+
+  document.addEventListener(
+    "click",
+    (event: MouseEvent) => {
+      const anchor = findClosestAnchor(event.target);
+      if (!anchor) return;
+      if (!isEligibleNavigation(anchor, event)) return;
+      if (!hasDifferentRoute(anchor)) return;
+
+      event.preventDefault();
+
+      const msg: NavigationIntentMessage = {
+        type: "navigation-intent",
+        protocolVersion: PROTOCOL_VERSION,
+        url: anchor.href,
+      };
+      sendToParent(msg);
+    },
+    true,
+  );
 
   window.addEventListener("message", (event) => {
     if (event.origin !== window.location.origin) return;

@@ -1,9 +1,18 @@
 import { useEffect, type ReactElement } from "react";
-import { useCanvasCards, exitCanvas, type CanvasCard as CanvasCardData } from "./canvasStore.ts";
+import {
+  useCanvasCards,
+  exitCanvas,
+  addCanvasCard,
+  findCardByNormalizedUrl,
+  focusCard,
+  type CanvasCard as CanvasCardData,
+} from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { setCanvasMode, useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changesLog.ts";
 import { projectToAllReadyCards } from "./projection.ts";
+import { normalizeUrl } from "./normalizeUrl.ts";
+import { PROTOCOL_VERSION, type NavigationIntentMessage } from "./frameProtocol.ts";
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
 
@@ -17,6 +26,29 @@ export function CanvasWorkspace(): ReactElement | null {
     return subscribeChanges(() => {
       projectToAllReadyCards();
     });
+  }, []);
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent): void {
+      if (event.origin !== window.location.origin) return;
+      if (!event.data || typeof event.data !== "object") return;
+      if (event.data.type !== "navigation-intent") return;
+      if (event.data.protocolVersion !== PROTOCOL_VERSION) return;
+
+      const msg = event.data as NavigationIntentMessage;
+      const normalized = normalizeUrl(msg.url);
+      if (!normalized) return;
+
+      const existing = findCardByNormalizedUrl(normalized);
+      if (existing) {
+        focusCard(existing.id);
+      } else {
+        addCanvasCard(msg.url);
+      }
+    }
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
   }, []);
 
   if (mode !== "canvas" || cards.length === 0) return null;

@@ -38,12 +38,18 @@ export interface ReplaceStylesMessage extends FrameMessage {
   revision: number;
 }
 
+export interface NavigationIntentMessage extends FrameMessage {
+  type: "navigation-intent";
+  url: string;
+}
+
 export type FrameProtocolMessage =
   | ParentReadyMessage
   | FrameReadyMessage
   | FrameMetadataMessage
   | FrameLoadError
-  | ReplaceStylesMessage;
+  | ReplaceStylesMessage
+  | NavigationIntentMessage;
 
 export function sendToParent(msg: FrameProtocolMessage): void {
   window.parent.postMessage(msg, window.location.origin);

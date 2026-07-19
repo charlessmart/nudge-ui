@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
-import { removeCanvasCard, updateCardTitle, updateCardUrl, type CanvasCard } from "./canvasStore.ts";
-import { RefreshCw, Trash2, Pencil } from "lucide-react";
+import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, type CanvasCard } from "./canvasStore.ts";
+import { RefreshCw, Trash2, Pencil, Copy } from "lucide-react";
 import { PROTOCOL_VERSION, type FrameReadyMessage, type FrameMetadataMessage, type FrameLoadError } from "./frameProtocol.ts";
 import { registerCardFrame, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 
@@ -31,6 +31,10 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
 
   function handleEdit(): void {
     onEdit?.(card);
+  }
+
+  function handleDuplicate(): void {
+    duplicateCard(card.id);
   }
 
   useEffect(() => {
@@ -110,6 +114,15 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
           {card.title || card.url}
         </span>
         <div className="dt-canvas-card__actions">
+          <button
+            type="button"
+            className="dt-canvas-card__action"
+            aria-label="Duplicate card"
+            data-test={`canvas-card-duplicate-${card.id}`}
+            onClick={handleDuplicate}
+          >
+            <Copy size={14} strokeWidth={1.8} aria-hidden="true" />
+          </button>
           <button
             type="button"
             className="dt-canvas-card__action"

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { normalizeUrl, normalizedUrlKey, type NormalizedUrl } from "./normalizeUrl.ts";
 
 export type CanvasMode = "inspect" | "canvas";
 
@@ -10,6 +11,7 @@ export interface CanvasCard {
 
 let mode: CanvasMode = "inspect";
 let cards: CanvasCard[] = [];
+let focusedCardId: string | null = null;
 let cardIdCounter = 0;
 const listeners = new Set<() => void>();
 
@@ -85,6 +87,38 @@ export function updateCardTitle(id: string, title: string): void {
 export function updateCardUrl(id: string, url: string): void {
   cards = cards.map((c) => (c.id === id ? { ...c, url } : c));
   notify();
+}
+
+export function duplicateCard(sourceId: string): CanvasCard | null {
+  const source = cards.find((c) => c.id === sourceId);
+  if (!source) return null;
+  const card: CanvasCard = {
+    id: `card-${++cardIdCounter}`,
+    url: source.url,
+    title: source.title,
+  };
+  cards = [...cards, card];
+  notify();
+  return card;
+}
+
+export function findCardByNormalizedUrl(
+  normalized: NormalizedUrl,
+): CanvasCard | undefined {
+  return cards.find((c) => {
+    const n = normalizeUrl(c.url);
+    if (!n) return false;
+    return normalizedUrlKey(n) === normalizedUrlKey(normalized);
+  });
+}
+
+export function focusCard(id: string): void {
+  focusedCardId = id;
+  notify();
+}
+
+export function getFocusedCardId(): string | null {
+  return focusedCardId;
 }
 
 export { subscribe, getMode, getCards, getMode as getCanvasMode, getCards as getCanvasCards };
