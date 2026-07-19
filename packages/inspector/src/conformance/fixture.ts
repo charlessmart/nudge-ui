@@ -12,6 +12,7 @@ export interface ConformancePropertyExpectation {
   computed?: string;
   capability: EditCapability;
   confidence?: "exact" | "probable" | "unknown";
+  structure?: Partial<Pick<NonNullable<ResolvedProperty["structure"]>, "width" | "style" | "color">>;
 }
 
 export interface ConformanceProjectionFieldExpectation {
@@ -125,6 +126,17 @@ export function assertConformanceFixture(result: ConformanceResult, fixture: Con
     if (expected.computed !== undefined && actual.computed !== expected.computed) failures.push(`${fixture.id}: ${property} computed value was ${actual.computed}, expected ${expected.computed}`);
     if (actual.capability !== expected.capability) failures.push(`${fixture.id}: ${property} capability was ${actual.capability}, expected ${expected.capability}`);
     if (expected.confidence && actual.confidence !== expected.confidence) failures.push(`${fixture.id}: ${property} confidence was ${actual.confidence}, expected ${expected.confidence}`);
+    if (expected.structure) {
+      if (!actual.structure) {
+        failures.push(`${fixture.id}: ${property} was missing structured border values`);
+      } else {
+        for (const [component, value] of Object.entries(expected.structure)) {
+          if (actual.structure[component as "width" | "style" | "color"] !== value) {
+            failures.push(`${fixture.id}: ${property} ${component} was ${actual.structure[component as "width" | "style" | "color"]}, expected ${value}`);
+          }
+        }
+      }
+    }
   }
   for (const [group, expectedGroup] of Object.entries(fixture.expected.projection?.spacing ?? {})) {
     const actualGroup = result.projection.spacing[group as ProjectionGroup];

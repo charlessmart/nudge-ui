@@ -190,7 +190,7 @@ export function InspectorShell(): ReactElement {
             <TokensPanel />
           ) : selected ? (
             <>
-              <div className="dt-selection" data-test="selection">
+              <div className="dt-selection" data-test="selection" data-selected-cid={selected.cid}>
                 {showInteractionState ? (
                   <div className="dt-style-state" data-test="style-state">
                     <span className="dt-selection__label">State</span>

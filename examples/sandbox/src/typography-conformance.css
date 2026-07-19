@@ -121,10 +121,9 @@
   cursor: pointer;
   outline: 1px solid transparent;
   outline-offset: 10px;
-  transition: outline-color 160ms ease, transform 160ms ease;
 }
 
-.typography-specimen:hover { outline-color: #5c7970; transform: translateX(4px); }
+
 
 .typography-case__evidence { display: grid; gap: 18px; }
 .typography-case__evidence p { color: #668278; }

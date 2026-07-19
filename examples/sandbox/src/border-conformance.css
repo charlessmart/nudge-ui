@@ -1,24 +1,32 @@
-.spacing-conformance-page {
+:root {
+  --color-border: #334455;
+  --color-accent: #ee1166;
+  --border-size: 2px;
+  --border-line: solid;
+  --space-3: 12px;
+}
+
+.border-conformance-page {
   min-height: 100vh;
   padding: 64px clamp(20px, 5vw, 80px) 96px;
   background: #f1f2ef;
   color: #252823;
 }
 
-.spacing-conformance-hero,
-.spacing-case-list {
+.border-conformance-hero,
+.border-case-list {
   width: min(1120px, 100%);
   margin: 0 auto;
 }
 
-.spacing-conformance-hero {
+.border-conformance-hero {
   padding: 18px 0 48px;
 }
 
-.spacing-conformance-eyebrow,
-.spacing-case-card__index,
-.spacing-case-card__label,
-.spacing-target-label {
+.border-conformance-eyebrow,
+.border-case-card__index,
+.border-case-card__label,
+.border-target-label {
   margin: 0;
   color: #54718e;
   font-family: "SFMono-Regular", Consolas, monospace;
@@ -29,14 +37,14 @@
   text-transform: uppercase;
 }
 
-.spacing-conformance-hero h1 {
+.border-conformance-hero h1 {
   margin: 14px 0 12px;
   font-size: clamp(38px, 6vw, 68px);
   letter-spacing: -.065em;
   line-height: .95;
 }
 
-.spacing-conformance-hero > p:not(.spacing-conformance-eyebrow) {
+.border-conformance-hero > p:not(.border-conformance-eyebrow) {
   max-width: 690px;
   margin: 0;
   color: #686d65;
@@ -44,7 +52,7 @@
   line-height: 1.55;
 }
 
-.spacing-conformance-meta {
+.border-conformance-meta {
   display: flex;
   gap: 9px;
   margin-top: 18px;
@@ -53,12 +61,12 @@
   font-size: 11px;
 }
 
-.spacing-case-list {
+.border-case-list {
   display: grid;
   gap: 20px;
 }
 
-.spacing-case-card {
+.border-case-card {
   overflow: hidden;
   border: 1px solid #d9ddd5;
   border-radius: 16px;
@@ -66,7 +74,7 @@
   box-shadow: 0 8px 28px rgb(38 43 37 / 6%);
 }
 
-.spacing-case-card__header {
+.border-case-card__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -75,7 +83,7 @@
   border-bottom: 1px solid #ebede9;
 }
 
-.spacing-case-card h2 {
+.border-case-card h2 {
   margin: 6px 0 0;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 15px;
@@ -83,7 +91,23 @@
   letter-spacing: -.02em;
 }
 
-.spacing-case-card__status {
+.border-case-card__note {
+  max-width: 52ch;
+  margin: 8px 0 0;
+  color: #686d65;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.45;
+}
+
+.border-conformance-hero code,
+.border-case-card__details code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: .92em;
+}
+
+.border-case-card__status {
   flex: none;
   padding: 5px 8px;
   border-radius: 999px;
@@ -94,14 +118,14 @@
   text-transform: uppercase;
 }
 
-.spacing-case-card__body {
+.border-case-card__body {
   display: grid;
   grid-template-columns: minmax(240px, .85fr) minmax(0, 1.15fr);
   gap: 24px;
   padding: 24px;
 }
 
-.spacing-case-card__stage {
+.border-case-card__stage {
   display: flex;
   min-height: 220px;
   flex-direction: column;
@@ -115,14 +139,13 @@
   text-align: center;
 }
 
-.spacing-target {
+.border-target {
   display: flex;
   min-width: 175px;
   min-height: 90px;
   flex-direction: column;
   justify-content: center;
   gap: 6px;
-  border: 1px solid #54718e;
   border-radius: 8px;
   background: #e8eef3;
   color: #304252;
@@ -133,19 +156,19 @@
 
 
 
-.spacing-target span {
+.border-target span {
   color: #667c8d;
   font-size: 10px;
 }
 
-.spacing-case-card__details {
+.border-case-card__details {
   display: grid;
   align-content: center;
   gap: 20px;
 }
 
-.spacing-case-card__details pre,
-.spacing-case-card__details ul {
+.border-case-card__details pre,
+.border-case-card__details ul {
   margin: 8px 0 0;
   padding: 11px 13px;
   border-radius: 8px;
@@ -158,21 +181,21 @@
   overflow-wrap: anywhere;
 }
 
-.spacing-case-card__details ul {
+.border-case-card__details ul {
   padding-left: 28px;
 }
 
-.spacing-case-card__details li + li {
+.border-case-card__details li + li {
   margin-top: 3px;
 }
 
-.spacing-conformance-loading {
+.border-conformance-loading {
   padding: 48px;
   font-family: "SFMono-Regular", Consolas, monospace;
 }
 
 @media (max-width: 760px) {
-  .spacing-conformance-page { padding-inline: 16px; }
-  .spacing-case-card__body { grid-template-columns: 1fr; }
-  .spacing-case-card__stage { min-height: 180px; }
+  .border-conformance-page { padding-inline: 16px; }
+  .border-case-card__body { grid-template-columns: 1fr; }
+  .border-case-card__stage { min-height: 180px; }
 }

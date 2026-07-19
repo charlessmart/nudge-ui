@@ -79,6 +79,43 @@ describe("BorderEditor", () => {
     expect(sheetText()).toContain("border-width: 2px;");
   });
 
+  it("uses the decomposed border component in a structured field", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      ...defaultComputed(),
+      "border-width": "2px",
+      "border-style": "solid",
+      "border-color": "rgb(51, 68, 85)",
+    });
+    handle = mount(createElement(BorderEditor, {
+      element: selected,
+      entries: ENTRIES,
+      tokenRows: [
+        {
+          property: "border-width",
+          tokenName: null,
+          declaredValue: "2px solid #334455",
+          authored: "2px solid #334455",
+          resolvedValue: "2px",
+          capability: "structured",
+          structure: {
+            kind: "border",
+            sourceProperty: "border",
+            width: "2px",
+            style: "solid",
+            color: "#334455",
+            colorTokenName: null,
+          },
+          confidence: "unknown",
+          evidence: { reason: "test fixture" },
+        },
+      ],
+    }));
+
+    const raw = handle.host.querySelector('[data-test="token-field"][data-property="border-width"] [data-test="raw-input"]') as HTMLInputElement;
+    expect(raw.value).toBe("2px");
+  });
+
   it("changes border-style via the style select", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
@@ -86,6 +123,328 @@ describe("BorderEditor", () => {
     const styleSelect = handle.host.querySelector('[data-test="border-style"]') as HTMLElement;
     setSelectValue(styleSelect, "dashed");
     expect(sheetText()).toContain("border-style: dashed;");
+  });
+
+  it("shows an add button instead of border fields when there is no drawn border", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      ...defaultComputed(),
+      "border-top-style": "none",
+      "border-right-style": "none",
+      "border-bottom-style": "none",
+      "border-left-style": "none",
+      "border-style": "none",
+      "border-top-width": "0px",
+      "border-right-width": "0px",
+      "border-bottom-width": "0px",
+      "border-left-width": "0px",
+      "border-width": "0px",
+    });
+    handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES, tokenRows: [] }));
+
+    expect(handle.host.querySelector('[data-test="add-border"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).toBeNull();
+  });
+
+  it("treats Tailwind-style border: 0 solid preflight as no border", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      ...defaultComputed(),
+      "border-top-style": "solid",
+      "border-right-style": "solid",
+      "border-bottom-style": "solid",
+      "border-left-style": "solid",
+      "border-style": "solid",
+      "border-top-width": "0px",
+      "border-right-width": "0px",
+      "border-bottom-width": "0px",
+      "border-left-width": "0px",
+      "border-width": "0px",
+      "border-top-color": "rgb(0, 0, 0)",
+      "border-right-color": "rgb(0, 0, 0)",
+      "border-bottom-color": "rgb(0, 0, 0)",
+      "border-left-color": "rgb(0, 0, 0)",
+      "border-color": "rgb(0, 0, 0)",
+    });
+    const structure = {
+      kind: "border" as const,
+      sourceProperty: "border" as const,
+      width: "0",
+      style: "solid",
+      color: "currentcolor",
+      colorTokenName: null,
+    };
+    handle = mount(createElement(BorderEditor, {
+      element: selected,
+      entries: ENTRIES,
+      tokenRows: [
+        {
+          property: "border-width",
+          tokenName: null,
+          declaredValue: "0 solid",
+          authored: "0 solid",
+          resolvedValue: "0px",
+          capability: "structured",
+          structure,
+          confidence: "unknown",
+          evidence: { reason: "tailwind preflight", selector: "*" },
+        },
+        {
+          property: "border-style",
+          tokenName: null,
+          declaredValue: "0 solid",
+          authored: "0 solid",
+          resolvedValue: "solid",
+          capability: "structured",
+          structure,
+          confidence: "unknown",
+          evidence: { reason: "tailwind preflight", selector: "*" },
+        },
+        {
+          property: "border-color",
+          tokenName: null,
+          declaredValue: "0 solid",
+          authored: "0 solid",
+          resolvedValue: "currentcolor",
+          capability: "structured",
+          structure,
+          confidence: "unknown",
+          evidence: { reason: "tailwind preflight", selector: "*" },
+        },
+      ],
+    }));
+
+    expect(handle.host.querySelector('[data-test="add-border"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style"]')).toBeNull();
+  });
+
+  it("adds a default border when the add button is clicked", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      ...defaultComputed(),
+      "border-top-style": "none",
+      "border-right-style": "none",
+      "border-bottom-style": "none",
+      "border-left-style": "none",
+      "border-style": "none",
+      "border-top-width": "0px",
+      "border-right-width": "0px",
+      "border-bottom-width": "0px",
+      "border-left-width": "0px",
+      "border-width": "0px",
+    });
+    handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES, tokenRows: [] }));
+    act(() => (handle.host.querySelector('[data-test="add-border"]') as HTMLButtonElement).click());
+    expect(sheetText()).toContain("border: 1px solid;");
+  });
+
+  it("keeps border fields open after the user zeros width during an edit session", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    const structure = {
+      kind: "border" as const,
+      sourceProperty: "border" as const,
+      width: "2px",
+      style: "solid",
+      color: "#334455",
+      colorTokenName: null,
+    };
+    const drawnRows: ResolvedProperty[] = [
+      {
+        property: "border-width",
+        tokenName: null,
+        declaredValue: "2px solid #334455",
+        authored: "2px solid #334455",
+        resolvedValue: "2px",
+        capability: "structured",
+        structure,
+        confidence: "unknown",
+        evidence: { reason: "test fixture" },
+      },
+      {
+        property: "border-style",
+        tokenName: null,
+        declaredValue: "2px solid #334455",
+        authored: "2px solid #334455",
+        resolvedValue: "solid",
+        capability: "structured",
+        structure,
+        confidence: "unknown",
+        evidence: { reason: "test fixture" },
+      },
+      {
+        property: "border-color",
+        tokenName: null,
+        declaredValue: "2px solid #334455",
+        authored: "2px solid #334455",
+        resolvedValue: "#334455",
+        capability: "structured",
+        structure,
+        confidence: "unknown",
+        evidence: { reason: "test fixture" },
+      },
+    ];
+    handle = mount(createElement(BorderEditor, {
+      element: selected,
+      entries: ENTRIES,
+      tokenRows: drawnRows,
+    }));
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).not.toBeNull();
+
+    // Re-render as if cascade now reports zero width after the user edit.
+    const zeroStructure = { ...structure, width: "0px" };
+    mockComputedStyle({
+      ...defaultComputed(),
+      "border-top-width": "0px",
+      "border-right-width": "0px",
+      "border-bottom-width": "0px",
+      "border-left-width": "0px",
+      "border-width": "0px",
+    });
+    act(() => {
+      handle.root.render(createElement(BorderEditor, {
+        element: selected,
+        entries: ENTRIES,
+        tokenRows: drawnRows.map((row) => ({
+          ...row,
+          structure: zeroStructure,
+          resolvedValue: row.property === "border-width" ? "0px" : row.resolvedValue,
+        })),
+      }));
+    });
+
+    expect(handle.host.querySelector('[data-test="add-border"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style"]')).not.toBeNull();
+  });
+
+  it("shows style for authored none borders and hides width/color until a drawn style is chosen", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      ...defaultComputed(),
+      "border-top-style": "none",
+      "border-right-style": "none",
+      "border-bottom-style": "none",
+      "border-left-style": "none",
+      "border-style": "none",
+      "border-top-width": "0px",
+      "border-right-width": "0px",
+      "border-bottom-width": "0px",
+      "border-left-width": "0px",
+      "border-width": "0px",
+    });
+    const structure = {
+      kind: "border" as const,
+      sourceProperty: "border" as const,
+      width: "medium",
+      style: "none",
+      color: "currentcolor",
+      colorTokenName: null,
+    };
+    handle = mount(createElement(BorderEditor, {
+      element: selected,
+      entries: ENTRIES,
+      tokenRows: [
+        {
+          property: "border-style",
+          tokenName: null,
+          declaredValue: "none",
+          authored: "none",
+          resolvedValue: "none",
+          capability: "structured",
+          structure,
+          confidence: "unknown",
+          evidence: { reason: "test fixture" },
+        },
+        {
+          property: "border-width",
+          tokenName: null,
+          declaredValue: "none",
+          authored: "none",
+          resolvedValue: "medium",
+          capability: "structured",
+          structure,
+          confidence: "unknown",
+          evidence: { reason: "test fixture" },
+        },
+        {
+          property: "border-color",
+          tokenName: null,
+          declaredValue: "none",
+          authored: "none",
+          resolvedValue: "currentcolor",
+          capability: "structured",
+          structure,
+          confidence: "unknown",
+          evidence: { reason: "test fixture" },
+        },
+      ],
+    }));
+
+    // Authored `border: none` is still a border declaration — show style, hide width/color.
+    expect(handle.host.querySelector('[data-test="add-border"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-color"]')).toBeNull();
+
+    setSelectValue(handle.host.querySelector('[data-test="border-style"]') as HTMLElement, "solid");
+    expect(sheetText()).toContain("border-style: solid;");
+  });
+
+  it("expands individual sides by default when side borders differ", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      ...defaultComputed(),
+      "border-top-width": "1px",
+      "border-right-width": "2px",
+      "border-bottom-width": "3px",
+      "border-left-width": "4px",
+      "border-top-style": "solid",
+      "border-right-style": "dotted",
+      "border-bottom-style": "dashed",
+      "border-left-style": "double",
+      "border-top-color": "rgb(255, 0, 0)",
+      "border-right-color": "rgb(0, 128, 0)",
+      "border-bottom-color": "rgb(0, 0, 255)",
+      "border-left-color": "rgb(0, 0, 0)",
+    });
+    const side = (source: "border-top" | "border-right" | "border-bottom" | "border-left", width: string, style: string, color: string, property: string): ResolvedProperty => ({
+      property,
+      tokenName: null,
+      declaredValue: `${width} ${style} ${color}`,
+      authored: `${width} ${style} ${color}`,
+      resolvedValue: property.endsWith("-width") ? width : property.endsWith("-style") ? style : color,
+      capability: "structured",
+      structure: { kind: "border", sourceProperty: source, width, style, color, colorTokenName: null },
+      confidence: "unknown",
+      evidence: { reason: "test fixture" },
+    });
+    handle = mount(createElement(BorderEditor, {
+      element: selected,
+      entries: ENTRIES,
+      tokenRows: [
+        side("border-top", "1px", "solid", "red", "border-top-width"),
+        side("border-top", "1px", "solid", "red", "border-top-style"),
+        side("border-top", "1px", "solid", "red", "border-top-color"),
+        side("border-right", "2px", "dotted", "green", "border-right-width"),
+        side("border-right", "2px", "dotted", "green", "border-right-style"),
+        side("border-right", "2px", "dotted", "green", "border-right-color"),
+        side("border-bottom", "3px", "dashed", "blue", "border-bottom-width"),
+        side("border-bottom", "3px", "dashed", "blue", "border-bottom-style"),
+        side("border-bottom", "3px", "dashed", "blue", "border-bottom-color"),
+        side("border-left", "4px", "double", "black", "border-left-width"),
+        side("border-left", "4px", "double", "black", "border-left-style"),
+        side("border-left", "4px", "double", "black", "border-left-color"),
+      ],
+    }));
+
+    expect(handle.host.querySelector('[data-test="border-sides"]')?.getAttribute("data-linked")).toBe("false");
+    expect(handle.host.querySelector('[data-test="border-style-sides"]')?.getAttribute("data-linked")).toBe("false");
+    expect(handle.host.querySelector('[data-test="border-color-sides"]')?.getAttribute("data-linked")).toBe("false");
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-width"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-left-width"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style-right"]')).not.toBeNull();
   });
 
   it("writes border-radius via the raw input", () => {

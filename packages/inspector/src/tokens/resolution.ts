@@ -352,26 +352,58 @@ function splitTopLevelWhitespace(value: string): string[] {
 const BORDER_STYLES = new Set(["none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"]);
 const BORDER_WIDTHS = new Set(["thin", "medium", "thick"]);
 const COLOR_KEYWORDS = new Set(["transparent", "currentcolor", "black", "silver", "gray", "white", "maroon", "red", "purple", "fuchsia", "green", "lime", "olive", "yellow", "navy", "blue", "teal", "aqua", "orange"]);
+const BORDER_CSS_WIDE = new Set(["inherit", "initial", "unset", "revert", "revert-layer"]);
+/** CSS initial values for omitted `border` / `border-*` shorthand components. */
+const BORDER_INITIAL = { width: "medium", style: "none", color: "currentcolor" } as const;
 
 export function parseBorderShorthand(value: string, tokenTable: TokenTable): BorderStructure | null {
-  const parts = splitTopLevelWhitespace(value.trim());
-  if (parts.length !== 3) return null;
+  const trimmed = value.trim();
+  if (!trimmed || BORDER_CSS_WIDE.has(trimmed.toLowerCase())) return null;
+
+  const parts = splitTopLevelWhitespace(trimmed);
+  // One to three components in any order; more is multi-value / junk.
+  if (parts.length === 0 || parts.length > 3) return null;
+
   let width = "";
   let style = "";
   let color = "";
   for (const part of parts) {
     const lower = part.toLowerCase();
+    // Reject image layers and non-token slash forms (e.g. `red / 10%`).
+    if (/^(?:url|image|cross-fade|element|image-set|linear-gradient|radial-gradient|conic-gradient|repeating-linear-gradient|repeating-radial-gradient|repeating-conic-gradient)\(/i.test(part)) {
+      return null;
+    }
+    if (part.includes("/") && !/^var\(/i.test(part)) return null;
+
     const varName = /^var\(\s*(--[\w-]+)/i.exec(part)?.[1];
     const varValue = varName ? tokenTable[varName]?.value ?? "" : "";
-    if (!width && (BORDER_WIDTHS.has(lower) || /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(part) || (varName !== undefined && /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(varValue.trim())))) width = part;
-    else if (!style && BORDER_STYLES.has(lower)) style = part;
-    else if (!color && (COLOR_KEYWORDS.has(lower) || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|hwb\(|lab\(|lch\(|oklab\(|oklch\(|var\(\s*--)/i.test(part))) color = part;
+    const isWidth = BORDER_WIDTHS.has(lower)
+      || /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(part)
+      || (varName !== undefined && /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(varValue.trim()));
+    const isStyle = BORDER_STYLES.has(lower);
+    const isColor = COLOR_KEYWORDS.has(lower)
+      || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|hwb\(|lab\(|lch\(|oklab\(|oklch\(|var\(\s*--)/i.test(part);
+
+    if (!width && isWidth) width = part;
+    else if (!style && isStyle) style = part;
+    else if (!color && isColor) color = part;
     else return null;
   }
-  if (!width || !style || !color) return null;
+
+  // Omitted components take the CSS initial for that longhand (not inherited).
+  if (!width) width = BORDER_INITIAL.width;
+  if (!style) style = BORDER_INITIAL.style;
+  if (!color) color = BORDER_INITIAL.color;
+
   const colorResult = resolveTokenValue(color, tokenTable);
-  if (color.startsWith("var(") && !colorResult.tokenName) return null;
-  return { kind: "border", sourceProperty: "border", width, style, color, colorTokenName: colorResult.tokenName };
+  return {
+    kind: "border",
+    sourceProperty: "border",
+    width,
+    style,
+    color,
+    colorTokenName: colorResult.tokenName,
+  };
 }
 
 function expandFourValueShorthand<T>(values: readonly T[]): [T, T, T, T] | null {
@@ -593,6 +625,7 @@ function resolveDeclaration(
         return {
           property,
           declaredValue: authored,
+          sourceProperty: declaration.property,
           tokenName: resolved.tokenName,
           resolvedValue: resolved.resolvedValue,
           important: declaration.important,
@@ -1169,6 +1202,7 @@ export function getResolvedProperties(
         capability: declaration.capability,
         resolvedTokenValue: declaration.resolvedValue,
         diagnostic: undefined,
+        structure: declaration.structure,
         confidence: "unknown",
         evidence: { selector: "[style]", specificity: 100000000, important: Boolean(declaration.important), inaccessibleStylesheet: inaccessible || undefined, reason: declaration.tokenName ? "inline token declaration validated against computed style" : "inline declaration contains no catalog token" },
       };

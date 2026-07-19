@@ -381,8 +381,15 @@ describe("resolvePropertiesFromRules", () => {
 
   it.each([
     ["2px solid var(--color-border)", "2px", "solid", "var(--color-border)"],
-    ["var(--width) dashed #123456", "var(--width)", "dashed", "#123456"],
-    ["#123456 double 1px", "1px", "double", "#123456"],
+    ["var(--width) dashed #9b4dca", "var(--width)", "dashed", "#9b4dca"],
+    ["#9b4dca double 1px", "1px", "double", "#9b4dca"],
+    ["2px solid", "2px", "solid", "currentcolor"],
+    ["none", "medium", "none", "currentcolor"],
+    ["hidden", "medium", "hidden", "currentcolor"],
+    ["solid", "medium", "solid", "currentcolor"],
+    ["2px", "2px", "none", "currentcolor"],
+    ["thin dashed red", "thin", "dashed", "red"],
+    ["2px solid var(--unknown)", "2px", "solid", "var(--unknown)"],
   ])("decomposes safe border shorthand %s", (value, width, style, color) => {
     const table = makeTable([
       { name: "--color-border", value: "#334455", source: "s:1" },
@@ -393,11 +400,13 @@ describe("resolvePropertiesFromRules", () => {
     const rows = resolvePropertiesFromRules(btn, [{ selectorText: ".btn", specificity: 10000, declarations: [{ property: "border", value }] }], table);
     expect(rows.find((row) => row.property === "border-width")?.resolvedValue).toBe(width);
     expect(rows.find((row) => row.property === "border-style")?.resolvedValue).toBe(style);
-    expect(rows.find((row) => row.property === "border-color")?.tokenName).toBe(color.startsWith("var") ? "--color-border" : null);
+    expect(rows.find((row) => row.property === "border-color")?.tokenName).toBe(
+      color === "var(--color-border)" ? "--color-border" : null,
+    );
     expect(rows.find((row) => row.property === "border-top-width")?.authored).toBe(value);
   });
 
-  it.each(["2px solid", "2px solid var(--unknown)", "2px solid red / 10%", "inherit", "2px solid red url(x)"])(
+  it.each(["2px solid red / 10%", "inherit", "2px solid red url(x)"])(
     "keeps ambiguous border value %s raw",
     (value) => {
       expect(parseBorderShorthand(value, makeTable([]))).toBeNull();

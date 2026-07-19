@@ -47,6 +47,15 @@ function computedRaw(el: HTMLElement, property: string): string {
   return lineHeightPercentage(value, getStateStyleValue(el, "font-size")) ?? value;
 }
 
+function structuredBorderValue(property: string, row: ResolvedProperty | null | undefined): string | null {
+  const structure = row?.structure;
+  if (!structure) return null;
+  if (property.endsWith("-width")) return structure.width;
+  if (property.endsWith("-style")) return structure.style;
+  if (property.endsWith("-color")) return structure.color;
+  return null;
+}
+
 function lineHeightPercentage(lineHeight: string, fontSize: string): string | null {
   const lineHeightPx = parsePixels(lineHeight);
   const fontSizePx = parsePixels(fontSize);
@@ -349,11 +358,13 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
     || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const activeTokenName = expression ? null : tokenRow?.tokenName ?? null;
-  const fallbackValue = initialValue ?? computedRaw(el, property);
+  const fallbackValue = initialValue ?? structuredBorderValue(property, tokenRow) ?? computedRaw(el, property);
   // Keep authored CSS as the editable source of truth while allowing the UI
   // polish branch to supply an explicit empty initial value for blank fields.
+  // Structured shorthands retain the full authored declaration on the row for
+  // attribution, but their individual controls must edit the parsed component.
   const authoredOrComputed = expression || !activeTokenName
-    ? tokenRow?.authored ?? tokenRow?.declaredValue ?? fallbackValue
+    ? structuredBorderValue(property, tokenRow) ?? tokenRow?.authored ?? tokenRow?.declaredValue ?? fallbackValue
     : tokenRow?.resolvedValue ?? fallbackValue;
   const committedValue = property === "font-family" && !activeTokenName
     ? primaryFontFamily(authoredOrComputed)

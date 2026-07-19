@@ -17,6 +17,12 @@ const DevSpacingConformancePage = import.meta.env.DEV
 const DevTypographyConformancePage = import.meta.env.DEV
   ? lazy(() => import("./TypographyConformancePage").then(({ TypographyConformancePage }) => ({ default: TypographyConformancePage })))
   : null;
+const DevColorConformancePage = import.meta.env.DEV
+  ? lazy(() => import("./ColorConformancePage").then(({ ColorConformancePage }) => ({ default: ColorConformancePage })))
+  : null;
+const DevBorderConformancePage = import.meta.env.DEV
+  ? lazy(() => import("./BorderConformancePage").then(({ BorderConformancePage }) => ({ default: BorderConformancePage })))
+  : null;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root not found");
@@ -33,6 +39,20 @@ function Route() {
     return DevTypographyConformancePage ? (
       <Suspense fallback={<main className="spacing-conformance-loading">Loading typography corpus…</main>}>
         <DevTypographyConformancePage />
+      </Suspense>
+    ) : <App />;
+  }
+  if (import.meta.env.DEV && window.location.pathname === "/color-conformance") {
+    return DevColorConformancePage ? (
+      <Suspense fallback={<main className="spacing-conformance-loading">Loading color corpus…</main>}>
+        <DevColorConformancePage />
+      </Suspense>
+    ) : <App />;
+  }
+  if (import.meta.env.DEV && window.location.pathname === "/border-conformance") {
+    return DevBorderConformancePage ? (
+      <Suspense fallback={<main className="border-conformance-loading">Loading border corpus…</main>}>
+        <DevBorderConformancePage />
       </Suspense>
     ) : <App />;
   }
