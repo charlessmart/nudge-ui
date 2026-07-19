@@ -6,8 +6,6 @@
   border-radius: var(--dt-radius-control, 10px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   overflow: hidden;
-  min-width: 360px;
-  max-width: calc(100vw - 80px);
 }
 
 .dt-canvas-card__toolbar {
@@ -19,6 +17,7 @@
   padding: 6px 10px 6px 14px;
   background: var(--dt-surface-panel, #ffffff);
   border-bottom: 1px solid var(--dt-border-subtle, #e7e7e7);
+  flex-shrink: 0;
 }
 
 .dt-canvas-card__title {
@@ -64,12 +63,17 @@
   color: var(--dt-danger, #df4b4b);
 }
 
+.dt-canvas-card__action:focus-visible {
+  outline: 2px solid var(--dt-focus, #0d99ff);
+  outline-offset: 1px;
+}
+
 .dt-canvas-card__frame {
   position: relative;
-  aspect-ratio: 16 / 10;
+  flex: 1;
   background: #f9f9fb;
   overflow: hidden;
-  min-height: 240px;
+  min-height: 60px;
 }
 
 .dt-canvas-card__iframe {
@@ -129,4 +133,36 @@
 
 .dt-canvas-card__error-actions button:hover {
   background: var(--dt-surface-control-hover, #ececec);
+}
+
+.dt-canvas-card__resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 4px;
+  cursor: nwse-resize;
+  color: var(--dt-text-muted, #777777);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  touch-action: none;
+}
+
+.dt-canvas-card:hover .dt-canvas-card__resize-handle,
+.dt-canvas-card:focus-within .dt-canvas-card__resize-handle {
+  opacity: 1;
+}
+
+.dt-canvas-card__resize-handle:hover {
+  color: var(--dt-accent, #0d99ff);
+}
+
+.dt-canvas-card__resize-handle:focus-visible {
+  outline: 2px solid var(--dt-focus, #0d99ff);
+  outline-offset: 1px;
+  opacity: 1;
 }

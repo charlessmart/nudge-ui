@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
-import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, type CanvasCard } from "./canvasStore.ts";
+import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
 import { RefreshCw, Trash2, Pencil, Copy } from "lucide-react";
 import { PROTOCOL_VERSION, type FrameReadyMessage, type FrameMetadataMessage, type FrameLoadError } from "./frameProtocol.ts";
 import { registerCardFrame, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
@@ -12,10 +12,14 @@ interface CanvasCardProps {
 
 type CardLoadState = "loading" | "ready" | "error";
 
+const MIN_CARD_WIDTH = 200;
+const MIN_CARD_HEIGHT = 150;
+
 export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loadState, setLoadState] = useState<CardLoadState>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const camera = useBoardCamera();
 
   function handleReload(): void {
     if (iframeRef.current) {
@@ -107,8 +111,50 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     return () => iframe.removeEventListener("load", onLoad);
   }, [card.id]);
 
+  const handleResizeStart = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = card.width;
+    const startHeight = card.height;
+
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    function onMove(ev: PointerEvent): void {
+      const dx = (ev.clientX - startX) / camera.zoom;
+      const dy = (ev.clientY - startY) / camera.zoom;
+
+      const newWidth = Math.max(MIN_CARD_WIDTH, startWidth + dx);
+      const newHeight = Math.max(MIN_CARD_HEIGHT, startHeight + dy);
+
+      resizeCard(card.id, newWidth, newHeight);
+    }
+
+    function onUp(): void {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [card.id, card.width, card.height, camera.zoom]);
+
   return (
-    <div className="dt-canvas-card" data-card-id={card.id}>
+    <div
+      className="dt-canvas-card"
+      data-card-id={card.id}
+      style={{
+        position: "absolute",
+        left: card.x,
+        top: card.y,
+        width: card.width,
+        height: card.height,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       <div className="dt-canvas-card__toolbar">
         <span className="dt-canvas-card__title" title={card.url}>
           {card.title || card.url}
@@ -175,6 +221,20 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           data-test={`canvas-card-iframe-${card.id}`}
         />
+      </div>
+      <div
+        className="dt-canvas-card__resize-handle"
+        data-test={`canvas-card-resize-${card.id}`}
+        onPointerDown={handleResizeStart}
+        role="button"
+        aria-label="Resize card"
+        tabIndex={0}
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M11 1L1 11" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M11 6L6 11" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M11 11H1" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
       </div>
     </div>
   );
