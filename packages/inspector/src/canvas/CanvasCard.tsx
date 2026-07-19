@@ -3,6 +3,7 @@ import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import { removeCanvasCard, updateCardTitle, updateCardUrl, type CanvasCard } from "./canvasStore.ts";
 import { RefreshCw, Trash2, Pencil } from "lucide-react";
 import { PROTOCOL_VERSION, type FrameReadyMessage, type FrameMetadataMessage, type FrameLoadError } from "./frameProtocol.ts";
+import { registerCardFrame, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -48,6 +49,10 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
         setErrorMessage(null);
         if (ready.title) updateCardTitle(card.id, ready.title);
         if (ready.url) updateCardUrl(card.id, ready.url);
+        if (iframeRef.current) {
+          registerCardFrame(card.id, iframeRef.current);
+          sendProjectionToCard(card, iframeRef.current);
+        }
         return;
       }
 
@@ -67,15 +72,17 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     }
 
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [card.id, card.url]);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      unregisterCardFrame(card.id);
+    };
+  }, [card.id]);
 
   useEffect(() => {
+    if (loadState !== "loading") return;
     const timeout = setTimeout(() => {
-      if (loadState === "loading") {
-        setLoadState("error");
-        setErrorMessage("Frame load timed out");
-      }
+      setLoadState("error");
+      setErrorMessage("Frame load timed out");
     }, 15000);
     return () => clearTimeout(timeout);
   }, [loadState]);
@@ -84,16 +91,17 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     const iframe = iframeRef.current;
     if (!iframe) return;
     function onLoad(): void {
-      iframeRef.current?.contentWindow?.postMessage({ type: "parent-ready" }, window.location.origin);
+      iframeRef.current?.contentWindow?.postMessage({
+        type: "parent-ready",
+        protocolVersion: PROTOCOL_VERSION,
+        projectId: PROJECT_ID,
+        workspaceId: WORKSPACE_ID,
+        cardId: card.id,
+      }, window.location.origin);
     }
     iframe.addEventListener("load", onLoad);
     return () => iframe.removeEventListener("load", onLoad);
-  }, []);
-
-  useEffect(() => {
-    setLoadState("loading");
-    setErrorMessage(null);
-  }, [card.url]);
+  }, [card.id]);
 
   return (
     <div className="dt-canvas-card" data-card-id={card.id}>

@@ -14,5 +14,6 @@ declare module "virtual:design-tokens" {
   export interface TokenDefinition { cssName: string; name: string; declarations: TokenDeclaration[]; cssValue?: string; adapter?: string; origin?: "project" | "framework" | "generated" | "runtime"; editable?: boolean }
   export const tokens: TokenEntry[];
   export const tokenCatalog: TokenDefinition[];
+  export const designToolProjectId: string;
   export default tokens;
 }

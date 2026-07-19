@@ -174,7 +174,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       if (id === RESOLVED_TOKENS_ID) {
         // ADR-0002: production builds receive an empty token table.
         if (command === "build") {
-          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport default tokens;\n`;
+          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const designToolProjectId = "";\nexport default tokens;\n`;
         }
         await ensurePostTransformCss();
         const catalogByName = new Map<string, TokenDefinition>();
@@ -218,7 +218,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
           editable: definition.editable,
         }));
         const body = JSON.stringify(all);
-        return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${body};\nexport default tokens;\n`;
+        const projectId = JSON.stringify(root ?? process.cwd());
+        return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${body};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {
         // ADR-0002: no inspector bootstrap in production builds.

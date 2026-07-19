@@ -14,4 +14,5 @@ export interface TokenDefinition { cssName: string; name: string; declarations: 
 
 export const tokens: TokenEntry[] = [];
 export const tokenCatalog: TokenDefinition[] = [];
+export const designToolProjectId = "/stub/project";
 export default tokens;

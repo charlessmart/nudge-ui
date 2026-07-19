@@ -1,7 +1,9 @@
-import type { ReactElement } from "react";
+import { useEffect, type ReactElement } from "react";
 import { useCanvasCards, exitCanvas, type CanvasCard as CanvasCardData } from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { setCanvasMode, useCanvasMode } from "./canvasStore.ts";
+import { subscribeChanges } from "../changesLog.ts";
+import { projectToAllReadyCards } from "./projection.ts";
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
 
@@ -10,6 +12,12 @@ const WORKSPACE_STYLES = [canvasWorkspaceStyles, canvasCardStyles].join("\n");
 export function CanvasWorkspace(): ReactElement | null {
   const mode = useCanvasMode();
   const cards = useCanvasCards();
+
+  useEffect(() => {
+    return subscribeChanges(() => {
+      projectToAllReadyCards();
+    });
+  }, []);
 
   if (mode !== "canvas" || cards.length === 0) return null;
 

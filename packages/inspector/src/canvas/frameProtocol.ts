@@ -5,6 +5,13 @@ export interface FrameMessage {
   protocolVersion: number;
 }
 
+export interface ParentReadyMessage extends FrameMessage {
+  type: "parent-ready";
+  projectId: string;
+  workspaceId: string;
+  cardId: string;
+}
+
 export interface FrameReadyMessage extends FrameMessage {
   type: "frame-ready";
   url: string;
@@ -24,11 +31,15 @@ export interface FrameLoadError extends FrameMessage {
 
 export interface ReplaceStylesMessage extends FrameMessage {
   type: "replace-styles";
+  projectId: string;
+  workspaceId: string;
+  cardId: string;
   css: string;
   revision: number;
 }
 
 export type FrameProtocolMessage =
+  | ParentReadyMessage
   | FrameReadyMessage
   | FrameMetadataMessage
   | FrameLoadError
