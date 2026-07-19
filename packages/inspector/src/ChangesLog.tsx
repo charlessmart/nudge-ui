@@ -5,6 +5,7 @@ import type { ChangeRecord } from "./changesLog.ts";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { Button } from "./ui/Button.tsx";
 import { formatInspectorLabel } from "./ui/labels.ts";
+import { StaleChangeIndicator } from "./canvas/StaleChangeIndicator.tsx";
 
 interface Group {
   key: string;
@@ -72,11 +73,7 @@ export function ChangesLog(): ReactElement {
                 <span className="dt-changes__before">{displayBefore(change)}</span>
                 <span className="dt-changes__arrow">→</span>
                 <span className="dt-changes__after">{displayAfter(change)}</span>
-                {change.previewResult?.status === "conflict" ? (
-                  <span className="dt-changes__conflict" data-test="preview-conflict" title={`Computed: ${change.previewResult.computedValue}`}>
-                  Preview Blocked ({change.previewResult.reason ? formatInspectorLabel(change.previewResult.reason) : "Unknown"})
-                  </span>
-                ) : null}
+                <StaleChangeIndicator change={change} />
                 <Button
                   size="compact"
                   className="dt-changes__revert"

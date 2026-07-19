@@ -11,7 +11,7 @@ export interface StyleRuleContext {
   layer?: string;
 }
 
-export type PreviewConflictReason = "higher-specificity" | "inline-style" | "important" | "animation" | "transition" | "target-missing";
+export type PreviewConflictReason = "higher-specificity" | "inline-style" | "important" | "animation" | "transition" | "target-missing" | "token-drift";
 
 export interface PreviewResult {
   requestedValue: string;

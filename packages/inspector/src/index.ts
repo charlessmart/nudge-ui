@@ -16,8 +16,11 @@ import {
   scheduleAutoSave,
   setRestoreCount,
 } from "./canvas/sessionStore.ts";
-import { subscribeChanges } from "./changesLog.ts";
+import { subscribeChanges, getChangesList } from "./changesLog.ts";
 import { subscribe as subscribeCanvas } from "./canvas/canvasStore.ts";
+import { acquireLease, hasWriteLease, releaseLease } from "./canvas/workspaceLease.ts";
+import { startStaleDetection } from "./canvas/staleChangeDetector.ts";
+import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -38,9 +41,23 @@ export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
     return;
   }
 
+  const leaseGranted = acquireLease();
+  if (!leaseGranted) {
+    mountLockedNotice(inspectorHost);
+    return;
+  }
+
+  window.addEventListener("beforeunload", () => {
+    releaseLease();
+  });
+
   const result = hydrateSession();
   if (result.restored) {
     setRestoreCount(result.changeCount);
+    const restored = getChangesList();
+    if (restored.length > 0) {
+      startStaleDetection(restored);
+    }
   }
 
   mountInspector(inspectorHost);
@@ -58,6 +75,16 @@ export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
   subscribeCanvas(() => scheduleAutoSave());
 }
 
+let lockedRoot: Root | null = null;
+
+function mountLockedNotice(host: HTMLElement): void {
+  const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+  if (!lockedRoot) {
+    lockedRoot = createRoot(shadow);
+    lockedRoot.render(createElement(LockedWorkspaceNotice));
+  }
+}
+
 let canvasRoot: Root | null = null;
 
 function mountCanvasWorkspace(host: HTMLElement): void {
@@ -69,6 +96,7 @@ function mountCanvasWorkspace(host: HTMLElement): void {
 }
 
 export function mountInspector(host: HTMLElement): void {
+  if (!hasWriteLease()) return;
   if (!hostElement) hostElement = host;
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   if (!reactRoot) {

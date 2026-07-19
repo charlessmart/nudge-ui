@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import { mountInspector, unmountInspector } from "./index.ts";
+import { acquireLease, releaseLease } from "./canvas/workspaceLease.ts";
 
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -17,10 +18,12 @@ describe("InspectorShell", () => {
     host = document.createElement("div");
     host.id = "design-tool-root";
     document.body.appendChild(host);
+    acquireLease();
   });
 
   afterEach(() => {
     unmountInspector();
+    releaseLease();
     host.remove();
   });
 

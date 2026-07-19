@@ -56,10 +56,31 @@ const frameRegistry = new Map<string, HTMLIFrameElement>();
 
 export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): void {
   frameRegistry.set(cardId, iframe);
+  notifyFrameRegistryListeners();
 }
 
 export function unregisterCardFrame(cardId: string): void {
   frameRegistry.delete(cardId);
+  notifyFrameRegistryListeners();
+}
+
+export function getRegisteredFrames(): ReadonlyMap<string, HTMLIFrameElement> {
+  return frameRegistry;
+}
+
+const frameRegistryListeners = new Set<() => void>();
+
+export function subscribeFrameRegistry(listener: () => void): () => void {
+  frameRegistryListeners.add(listener);
+  return () => {
+    frameRegistryListeners.delete(listener);
+  };
+}
+
+function notifyFrameRegistryListeners(): void {
+  for (const listener of frameRegistryListeners) {
+    try { listener(); } catch { /* ignore */ }
+  }
 }
 
 export function projectToAllReadyCards(): void {
