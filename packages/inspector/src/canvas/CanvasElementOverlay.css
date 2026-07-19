@@ -1,0 +1,8 @@
+.dt-canvas-element-overlay {
+  position: fixed;
+  pointer-events: none;
+  z-index: 3;
+  background: rgb(59 130 246 / 10%);
+  outline: 1.5px solid #3b82f6;
+  outline-offset: -1px;
+}

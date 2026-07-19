@@ -2,6 +2,7 @@ import { PROTOCOL_VERSION, sendToParent, type ParentReadyMessage } from "./frame
 import type { FrameReadyMessage, FrameMetadataMessage, NavigationIntentMessage } from "./frameProtocol.ts";
 import { handleReplaceStyles } from "./rendererStylesheet.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
+import { installRendererElementSelector } from "./rendererElementSelector.ts";
 
 let rendererBootstrapped = false;
 let rendererProjectId: string | null = null;
@@ -49,6 +50,7 @@ export function bootstrapRenderer(): void {
 
   sendFrameReady();
   observeFrameMetadata();
+  installRendererElementSelector();
 
   document.addEventListener(
     "click",

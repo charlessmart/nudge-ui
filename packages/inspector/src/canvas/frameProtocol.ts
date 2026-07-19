@@ -43,13 +43,31 @@ export interface NavigationIntentMessage extends FrameMessage {
   url: string;
 }
 
+export interface ElementHoverMessage extends FrameMessage {
+  type: "element-hover";
+  cid: string;
+  selector: string;
+  rect: { left: number; top: number; width: number; height: number } | null;
+}
+
+export interface ElementClickMessage extends FrameMessage {
+  type: "element-click";
+  cid: string;
+  selector: string;
+  file: string;
+  line: number;
+  component: string;
+}
+
 export type FrameProtocolMessage =
   | ParentReadyMessage
   | FrameReadyMessage
   | FrameMetadataMessage
   | FrameLoadError
   | ReplaceStylesMessage
-  | NavigationIntentMessage;
+  | NavigationIntentMessage
+  | ElementHoverMessage
+  | ElementClickMessage;
 
 export function sendToParent(msg: FrameProtocolMessage): void {
   window.parent.postMessage(msg, window.location.origin);
