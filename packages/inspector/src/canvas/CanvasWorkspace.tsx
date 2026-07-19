@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import {
   useCanvasCards,
   exitCanvas,
@@ -6,6 +6,7 @@ import {
   findCardByNormalizedUrl,
   focusCard,
   setBoardCamera,
+  getBoardCamera,
   fitAllCards,
   hasFitAllRan,
   resetFitAllFlag,
@@ -23,6 +24,7 @@ import { PROTOCOL_VERSION, type NavigationIntentMessage } from "./frameProtocol.
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
 import { Maximize } from "lucide-react";
+import { Button } from "../ui/Button.tsx";
 
 const WORKSPACE_STYLES = [canvasWorkspaceStyles, canvasCardStyles].join("\n");
 
@@ -40,6 +42,8 @@ export function CanvasWorkspace(): ReactElement | null {
   const cameraAtPanStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const spaceHeldRef = useRef(false);
   const fitAllScheduledRef = useRef(false);
+
+  const [boardCursorClass, setBoardCursorClass] = useState("");
 
   useEffect(() => {
     return subscribeChanges(() => {
@@ -89,12 +93,18 @@ export function CanvasWorkspace(): ReactElement | null {
         const target = e.target as HTMLElement;
         if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
         spaceHeldRef.current = true;
+        if (!panningRef.current) {
+          setBoardCursorClass("is-grabbable");
+        }
       }
     }
 
     function onKeyUp(e: KeyboardEvent): void {
       if (e.code === "Space") {
         spaceHeldRef.current = false;
+        if (!panningRef.current) {
+          setBoardCursorClass("");
+        }
       }
     }
 
@@ -114,8 +124,8 @@ export function CanvasWorkspace(): ReactElement | null {
     e.preventDefault();
     e.stopPropagation();
     panningRef.current = true;
+    setBoardCursorClass("is-grabbing");
     panOriginRef.current = { x: e.clientX, y: e.clientY };
-    const currentCamera = getCanvasMode() === "canvas" ? { ...cameraAtPanStartRef.current } : { x: 0, y: 0 };
     cameraAtPanStartRef.current = {
       x: camera.x,
       y: camera.y,
@@ -136,6 +146,7 @@ export function CanvasWorkspace(): ReactElement | null {
 
     function onUp(): void {
       panningRef.current = false;
+      setBoardCursorClass(spaceHeldRef.current ? "is-grabbable" : "");
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     }
@@ -144,30 +155,39 @@ export function CanvasWorkspace(): ReactElement | null {
     window.addEventListener("pointerup", onUp);
   }, [camera.zoom, camera.x, camera.y]);
 
-  const handleBoardWheel = useCallback((e: React.WheelEvent) => {
-    if (!e.ctrlKey && !e.metaKey) return;
+  useEffect(() => {
+    if (mode !== "canvas") return;
 
-    e.preventDefault();
-    e.stopPropagation();
+    function handleGlobalWheel(e: WheelEvent): void {
+      if (!e.ctrlKey && !e.metaKey) return;
 
-    const boardEl = boardRef.current;
-    if (!boardEl) return;
+      e.preventDefault();
+      e.stopPropagation();
 
-    const rect = boardEl.getBoundingClientRect();
-    const pointerX = e.clientX - rect.left;
-    const pointerY = e.clientY - rect.top;
+      const boardEl = boardRef.current;
+      if (!boardEl) return;
 
-    const worldX = (pointerX - camera.x) / camera.zoom;
-    const worldY = (pointerY - camera.y) / camera.zoom;
+      const rect = boardEl.getBoundingClientRect();
+      const pointerX = e.clientX - rect.left;
+      const pointerY = e.clientY - rect.top;
 
-    const factor = e.deltaY < 0 ? ZOOM_WHEEL_FACTOR : 1 / ZOOM_WHEEL_FACTOR;
-    const newZoom = Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, camera.zoom * factor));
+      const cam = getCanvasMode() === "canvas" ? getBoardCamera() : { x: 0, y: 0, zoom: 1 };
 
-    const newX = pointerX - worldX * newZoom;
-    const newY = pointerY - worldY * newZoom;
+      const worldX = (pointerX - cam.x) / cam.zoom;
+      const worldY = (pointerY - cam.y) / cam.zoom;
 
-    setBoardCamera({ x: newX, y: newY, zoom: newZoom });
-  }, [camera.x, camera.y, camera.zoom]);
+      const factor = e.deltaY < 0 ? ZOOM_WHEEL_FACTOR : 1 / ZOOM_WHEEL_FACTOR;
+      const newZoom = Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, cam.zoom * factor));
+
+      const newX = pointerX - worldX * newZoom;
+      const newY = pointerY - worldY * newZoom;
+
+      setBoardCamera({ x: newX, y: newY, zoom: newZoom });
+    }
+
+    window.addEventListener("wheel", handleGlobalWheel, { capture: true });
+    return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
+  }, [mode]);
 
   const handleFitAll = useCallback(() => {
     fitAllCards();
@@ -190,33 +210,32 @@ export function CanvasWorkspace(): ReactElement | null {
         <div className="dt-canvas-workspace__header">
           <span className="dt-canvas-workspace__title">Canvas</span>
           <div className="dt-canvas-workspace__header-actions">
-            <button
-              type="button"
-              className="dt-canvas-workspace__fit-all"
+            <Button
+              variant="secondary"
+              size="compact"
               aria-label="Fit all cards"
               data-test="canvas-fit-all"
               onClick={handleFitAll}
             >
               <Maximize size={14} strokeWidth={1.8} aria-hidden="true" />
               Fit All
-            </button>
-            <button
-              type="button"
-              className="dt-canvas-workspace__exit"
+            </Button>
+            <Button
+              variant="secondary"
+              size="compact"
               aria-label="Exit Canvas"
               data-test="canvas-exit"
               onClick={() => exitCanvas()}
             >
               Exit Canvas
-            </button>
+            </Button>
           </div>
         </div>
         <div
-          className="dt-canvas-workspace__board"
+          className={`dt-canvas-workspace__board ${boardCursorClass}`.trim()}
           data-test="canvas-board"
           ref={boardRef}
           onPointerDown={handleBoardPointerDown}
-          onWheel={handleBoardWheel}
         >
           <div
             className="dt-canvas-workspace__board-content"

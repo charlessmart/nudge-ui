@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
-import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
+import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
 import { RefreshCw, Trash2, Pencil, Copy } from "lucide-react";
 import { PROTOCOL_VERSION, type FrameReadyMessage, type FrameMetadataMessage, type FrameLoadError } from "./frameProtocol.ts";
 import { registerCardFrame, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
+import { IconButton } from "../ui/IconButton.tsx";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -111,6 +112,42 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     return () => iframe.removeEventListener("load", onLoad);
   }, [card.id]);
 
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({ startX: 0, startY: 0, cardX: 0, cardY: 0 });
+
+  const handleToolbarPointerDown = useCallback((e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("button")) return;
+
+    e.stopPropagation();
+    e.preventDefault();
+
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      cardX: card.x,
+      cardY: card.y,
+    };
+    setIsDragging(true);
+
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    function onMove(ev: PointerEvent): void {
+      const dx = (ev.clientX - dragRef.current.startX) / camera.zoom;
+      const dy = (ev.clientY - dragRef.current.startY) / camera.zoom;
+      setCardPosition(card.id, dragRef.current.cardX + dx, dragRef.current.cardY + dy);
+    }
+
+    function onUp(): void {
+      setIsDragging(false);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [card.id, card.x, card.y, camera.zoom]);
+
   const handleResizeStart = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -143,7 +180,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
 
   return (
     <div
-      className="dt-canvas-card"
+      className={`dt-canvas-card${isDragging ? " is-dragging" : ""}`}
       data-card-id={card.id}
       style={{
         position: "absolute",
@@ -155,47 +192,47 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
         flexDirection: "column",
       }}
     >
-      <div className="dt-canvas-card__toolbar">
+      <div className="dt-canvas-card__toolbar" onPointerDown={handleToolbarPointerDown}>
         <span className="dt-canvas-card__title" title={card.url}>
           {card.title || card.url}
         </span>
         <div className="dt-canvas-card__actions">
-          <button
-            type="button"
-            className="dt-canvas-card__action"
-            aria-label="Duplicate card"
+          <IconButton
+            label="Duplicate card"
+            variant="quiet"
+            size="compact"
             data-test={`canvas-card-duplicate-${card.id}`}
             onClick={handleDuplicate}
           >
             <Copy size={14} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="dt-canvas-card__action"
-            aria-label="Edit this route"
+          </IconButton>
+          <IconButton
+            label="Edit this route"
+            variant="quiet"
+            size="compact"
             data-test={`canvas-card-edit-${card.id}`}
             onClick={handleEdit}
           >
             <Pencil size={14} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="dt-canvas-card__action"
-            aria-label="Reload card"
+          </IconButton>
+          <IconButton
+            label="Reload card"
+            variant="quiet"
+            size="compact"
             data-test={`canvas-card-reload-${card.id}`}
             onClick={handleReload}
           >
             <RefreshCw size={14} strokeWidth={1.8} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="dt-canvas-card__action dt-canvas-card__action--danger"
-            aria-label="Remove card"
+          </IconButton>
+          <IconButton
+            label="Remove card"
+            variant="danger"
+            size="compact"
             data-test={`canvas-card-remove-${card.id}`}
             onClick={handleRemove}
           >
             <Trash2 size={14} strokeWidth={1.8} aria-hidden="true" />
-          </button>
+          </IconButton>
         </div>
       </div>
       <div className="dt-canvas-card__frame">

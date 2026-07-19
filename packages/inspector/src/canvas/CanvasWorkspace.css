@@ -76,61 +76,19 @@ button {
   gap: 8px;
 }
 
-.dt-canvas-workspace__fit-all {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--dt-border-strong);
-  border-radius: var(--dt-radius-control);
-  background: var(--dt-surface-control);
-  color: var(--dt-text-primary);
-  font-size: var(--dt-font-size);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 100ms ease;
-}
-
-.dt-canvas-workspace__fit-all:hover {
-  background: var(--dt-surface-control-hover);
-}
-
-.dt-canvas-workspace__fit-all:focus-visible {
-  outline: 2px solid var(--dt-focus);
-  outline-offset: 1px;
-}
-
-.dt-canvas-workspace__exit {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 30px;
-  padding: 0 12px;
-  border: 1px solid var(--dt-border-strong);
-  border-radius: var(--dt-radius-control);
-  background: var(--dt-surface-control);
-  color: var(--dt-text-primary);
-  font-size: var(--dt-font-size);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 100ms ease;
-}
-
-.dt-canvas-workspace__exit:hover {
-  background: var(--dt-surface-control-hover);
-}
-
-.dt-canvas-workspace__exit:focus-visible {
-  outline: 2px solid var(--dt-focus);
-  outline-offset: 1px;
-}
-
 .dt-canvas-workspace__board {
   flex: 1;
   overflow: hidden;
   position: relative;
   background: #e8e8ed;
+}
+
+.dt-canvas-workspace__board.is-grabbable {
+  cursor: grab;
+}
+
+.dt-canvas-workspace__board.is-grabbing {
+  cursor: grabbing;
 }
 
 .dt-canvas-workspace__board-content {

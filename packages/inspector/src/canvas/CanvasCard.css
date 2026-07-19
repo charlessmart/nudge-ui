@@ -18,6 +18,11 @@
   background: var(--dt-surface-panel, #ffffff);
   border-bottom: 1px solid var(--dt-border-subtle, #e7e7e7);
   flex-shrink: 0;
+  cursor: grab;
+}
+
+.dt-canvas-card.is-dragging .dt-canvas-card__toolbar {
+  cursor: grabbing;
 }
 
 .dt-canvas-card__title {
@@ -36,36 +41,6 @@
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-}
-
-.dt-canvas-card__action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: var(--dt-radius-small, 7px);
-  background: transparent;
-  color: var(--dt-text-muted, #777777);
-  cursor: pointer;
-  transition: background 100ms ease, color 100ms ease;
-}
-
-.dt-canvas-card__action:hover {
-  background: var(--dt-surface-control-hover, #ececec);
-  color: var(--dt-text-primary, #242424);
-}
-
-.dt-canvas-card__action--danger:hover {
-  background: var(--dt-danger-surface, #fff0f0);
-  color: var(--dt-danger, #df4b4b);
-}
-
-.dt-canvas-card__action:focus-visible {
-  outline: 2px solid var(--dt-focus, #0d99ff);
-  outline-offset: 1px;
 }
 
 .dt-canvas-card__frame {
