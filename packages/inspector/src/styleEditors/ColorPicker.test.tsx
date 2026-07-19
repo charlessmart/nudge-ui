@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createElement } from "react";
-import { ColorPicker } from "./ColorPicker.tsx";
+import { act, createElement } from "react";
+import { ColorPicker, isEmptyColorValue } from "./ColorPicker.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
@@ -54,15 +54,20 @@ describe("ColorPicker", () => {
     const field = handle.host.querySelector('[data-test="token-field"]');
     expect(field).toBeTruthy();
     expect(field!.getAttribute("data-property")).toBe("color");
+    expect(handle.host.querySelector(".dt-editor__title")?.textContent).toBe("Color");
+    expect(handle.host.querySelector('[data-test="color-swatch"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="color-computed"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="color-picker"]')?.textContent).not.toContain("Value");
   });
 
-  it("shows a token chip when tokenRow is provided", () => {
+  it("shows a token value in the unified color field when tokenRow is provided", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ color: "rgb(17, 17, 17)" });
     handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES, tokenRow: TOKEN_ROW }));
     const chip = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
     expect(chip).toBeTruthy();
     expect(chip.textContent).toContain("--color-text-primary");
+    expect(handle.host.querySelector('[data-test="token-field"]')?.classList.contains("dt-token-field--color")).toBe(true);
   });
 
   it("shows a raw input when no tokenRow is provided", () => {
@@ -71,5 +76,52 @@ describe("ColorPicker", () => {
     handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
     const raw = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
     expect(raw).toBeTruthy();
+  });
+
+  it("uses a readable title for the background color section", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-color": "rgba(0, 0, 0, 0)" });
+    handle = mount(createElement(ColorPicker, {
+      element: selected,
+      property: "background-color",
+      entries: ENTRIES,
+    }));
+
+    expect(handle.host.querySelector(".dt-editor__title")?.textContent).toBe("Background Color");
+    expect(handle.host.querySelector('[data-test="color-swatch"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="color-computed"]')).toBeNull();
+  });
+
+  it.each(["none", "transparent", "rgba(0, 0, 0, 0)", "rgb(0 0 0 / 0)", "#00000000"])(
+    "treats %s as an empty color value",
+    (value) => {
+      expect(isEmptyColorValue(value)).toBe(true);
+    },
+  );
+
+  it("shows an add button instead of the token field for an empty color", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-color": "rgba(0, 0, 0, 0)" });
+    handle = mount(createElement(ColorPicker, {
+      element: selected,
+      property: "background-color",
+      entries: ENTRIES,
+    }));
+
+    expect(handle.host.querySelector('[data-test="token-field"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="add-color"]')).toBeTruthy();
+  });
+
+  it("reveals an empty token field after adding an empty color", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ color: "transparent" });
+    handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
+
+    act(() => {
+      (handle.host.querySelector('[data-test="add-color"]') as HTMLButtonElement).click();
+    });
+
+    expect(handle.host.querySelector('[data-test="token-field"]')).toBeTruthy();
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("");
   });
 });

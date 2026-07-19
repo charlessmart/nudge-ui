@@ -114,6 +114,6 @@ test("dev: Tailwind side border utilities parse into independent inspector field
   await expect(page.locator('[data-test="border-color-sides"]')).toHaveAttribute("data-linked", "false");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("2px");
   await expect(page.locator('[data-test="token-field"][data-property="border-right-width"] [data-test="raw-input"]')).toHaveValue("4px");
-  await expect(page.locator('[data-test="border-style"]')).toHaveValue("dashed");
+  await expect(page.locator('[data-test="border-style"]')).toContainText("Dashed");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-color"] [data-test="token-chip"]')).toContainText("--color-lime-300");
 });

@@ -18,7 +18,10 @@ test("dev: Tokens tab edits only the active theme token and updates every consum
 
   const row = page.locator('[data-test="global-token-row"][data-token-name="--color-surface-raised"]');
   await expect(row).toBeVisible();
-  await expect(row.locator('[data-test="token-context"]')).toContainText("dark");
+  await expect(row.locator('.dt-token-row__inline .dt-token-row__name')).toContainText("--color-surface-raised");
+  await expect(row.locator('.dt-token-row__inline [data-test="token-field"]')).toBeVisible();
+  await expect(row.locator('[data-test="token-context"]')).toHaveCount(0);
+  await expect(row.locator('[data-test="token-source"]')).toHaveCount(0);
   await expect(row.locator('[data-test="token-color-swatch"]')).toBeVisible();
   await expect(row.locator('[data-test="token-color-input"]')).toHaveAttribute("type", "color");
 
@@ -31,7 +34,7 @@ test("dev: Tokens tab edits only the active theme token and updates every consum
   await expect.poll(() => consumerBackgrounds(page)).toEqual(["rgb(18, 52, 86)", "rgb(18, 52, 86)"]);
 
   await page.evaluate(() => document.documentElement.removeAttribute("data-theme"));
-  await expect(row.locator('[data-test="token-context"]')).toContainText("Default");
+  await expect(row.locator('[data-test="token-context"]')).toHaveCount(0);
   await expect.poll(() => consumerBackgrounds(page)).toEqual(["rgb(255, 255, 255)", "rgb(255, 255, 255)"]);
 });
 

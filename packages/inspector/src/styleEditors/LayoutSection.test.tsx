@@ -7,6 +7,7 @@ import {
   makeSelected,
   mount,
   setSelectValue,
+  selectOptionValues,
   mockComputedStyle,
   restoreComputedStyle,
   sheetText,
@@ -52,12 +53,10 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-select-justify-content"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-select-align-items"]')).toBeTruthy();
     expect(
-      Array.from((handle.host.querySelector('[data-test="layout-select-justify-content"]') as HTMLSelectElement).options)
-        .map((option) => option.value),
+      selectOptionValues(handle.host.querySelector('[data-test="layout-select-justify-content"]') as HTMLElement),
     ).toEqual(["flex-start", "flex-end", "center", "space-between", "space-around", "space-evenly"]);
     expect(
-      Array.from((handle.host.querySelector('[data-test="layout-select-align-items"]') as HTMLSelectElement).options)
-        .map((option) => option.value),
+      selectOptionValues(handle.host.querySelector('[data-test="layout-select-align-items"]') as HTMLElement),
     ).toEqual(["stretch", "flex-start", "flex-end", "center", "baseline"]);
     expect(handle.host.querySelector('[data-test="layout-select-flex-wrap"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-select-align-content"]')).toBeTruthy();
@@ -134,14 +133,10 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeFalsy();
     expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeFalsy();
 
-    act(() => {
-      setSelectValue(handle.host.querySelector('[data-test="layout-select-display"]') as HTMLSelectElement, "flex");
-    });
+    setSelectValue(handle.host.querySelector('[data-test="layout-select-display"]') as HTMLElement, "flex");
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
 
-    act(() => {
-      setSelectValue(handle.host.querySelector('[data-test="layout-select-position"]') as HTMLSelectElement, "absolute");
-    });
+    setSelectValue(handle.host.querySelector('[data-test="layout-select-position"]') as HTMLElement, "absolute");
     expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeTruthy();
   });
 
@@ -249,7 +244,7 @@ describe("LayoutSection", () => {
     mockComputedStyle({ display: "block", position: "static" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    const select = handle.host.querySelector('[data-test="layout-select-display"]') as HTMLSelectElement;
+    const select = handle.host.querySelector('[data-test="layout-select-display"]') as HTMLElement;
     setSelectValue(select, "flex");
 
     expect(sheetText()).toContain("display: flex;");
@@ -260,7 +255,7 @@ describe("LayoutSection", () => {
     mockComputedStyle({ display: "flex", position: "absolute", "top": "0px" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    const select = handle.host.querySelector('[data-test="layout-combo-select-top"]') as HTMLSelectElement;
+    const select = handle.host.querySelector('[data-test="layout-combo-select-top"]') as HTMLElement;
     setSelectValue(select, "50%");
 
     expect(sheetText()).toContain("top: 50%;");

@@ -15,6 +15,7 @@ import { Breadcrumb } from "./Breadcrumb.tsx";
 import { ColorSwatch } from "./ColorSwatch.tsx";
 import { PopoverListbox } from "./PopoverListbox.tsx";
 import { SideValuesField, SIDE_NAMES } from "./SideValuesField.tsx";
+import { formatInspectorLabel } from "./labels.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -42,12 +43,18 @@ describe("shared inspector UI", () => {
     });
 
     const label = host.querySelector("label");
-    expect(label?.textContent).toContain("Font size");
+    expect(label?.textContent).toContain("Font Size");
     expect(label?.querySelector('[data-test="font-size"]')).not.toBeNull();
   });
 
-  it("keeps select behavior native while exposing a shared styling seam", () => {
-    const onValueChange = (value: string) => value;
+  it("formats CSS property labels as title case words", () => {
+    expect(formatInspectorLabel("font-size")).toBe("Font Size");
+    expect(formatInspectorLabel("focus-visible")).toBe("Focus Visible");
+    expect(formatInspectorLabel("border_radius")).toBe("Border Radius");
+  });
+
+  it("renders a Base UI select with a shared styling seam", () => {
+    const onValueChange = vi.fn<(value: string) => void>();
     act(() => {
       root.render(createElement(Select, {
         value: "two",
@@ -60,9 +67,19 @@ describe("shared inspector UI", () => {
       }));
     });
 
-    const select = host.querySelector('[data-test="shared-select"]') as HTMLSelectElement;
-    expect(select.value).toBe("two");
+    const select = host.querySelector('[data-test="shared-select"]') as HTMLElement;
+    expect(select.tagName).toBe("BUTTON");
+    expect(select.getAttribute("role")).toBe("combobox");
+    expect(select.textContent).toContain("Two");
     expect(select.className).toContain("dt-select");
+
+    act(() => select.click());
+    act(() => {
+      const option = document.body.querySelector('[data-value="one"]') as HTMLElement;
+      option.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      option.click();
+    });
+    expect(onValueChange).toHaveBeenCalledWith("one");
   });
 
   it("gives actions and statuses semantic attributes", () => {
@@ -70,6 +87,7 @@ describe("shared inspector UI", () => {
       root.render(createElement("div", null,
         createElement(Button, { "data-test": "button" }, "Save"),
         createElement(IconButton, { label: "Close", "data-test": "icon" }, "×"),
+        createElement(StatusCallout, { tone: "accent", "data-test": "accent-status" }, "Affects 3 rendered components/elements"),
         createElement(StatusCallout, { tone: "warning", "data-test": "status" }, "Preview blocked"),
         createElement(Badge, { tone: "accent", "data-test": "badge" }, "exact"),
       ));
@@ -78,7 +96,37 @@ describe("shared inspector UI", () => {
     expect(host.querySelector('[data-test="button"]')?.tagName).toBe("BUTTON");
     expect(host.querySelector('[data-test="icon"]')?.getAttribute("aria-label")).toBe("Close");
     expect(host.querySelector('[data-test="status"]')?.className).toContain("warning");
+    expect(host.querySelector('[data-test="accent-status"]')?.className).toContain("accent");
     expect(host.querySelector('[data-test="badge"]')?.className).toContain("accent");
+  });
+
+  it("shares variants and sizing semantics between text and icon buttons", () => {
+    act(() => {
+      root.render(createElement("div", null,
+        createElement(Button, { variant: "primary", size: "compact", "data-test": "text-primary" }, "Save"),
+        createElement(IconButton, { variant: "primary", size: "compact", label: "Save", "data-test": "icon-primary" }, "✓"),
+        createElement(IconButton, { variant: "quiet", label: "More", "data-test": "icon-quiet" }, "⋯"),
+      ));
+    });
+
+    expect(host.querySelector('[data-test="text-primary"]')?.className).toContain("dt-button--primary");
+    expect(host.querySelector('[data-test="icon-primary"]')?.className).toContain("dt-icon-button--primary");
+    expect(host.querySelector('[data-test="icon-primary"]')?.className).toContain("dt-icon-button--compact");
+    expect(host.querySelector('[data-test="icon-quiet"]')?.className).toContain("dt-icon-button--quiet");
+  });
+
+  it("provides a neutral disabled button variant", () => {
+    act(() => {
+      root.render(createElement(Button, {
+        variant: "disabled",
+        disabled: true,
+        "data-test": "disabled-button",
+      }, "No changes"));
+    });
+
+    const button = host.querySelector('[data-test="disabled-button"]') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.className).toContain("dt-button--disabled");
   });
 
   it("renders an accessible breadcrumb and color swatch", () => {
@@ -176,7 +224,8 @@ describe("shared inspector UI", () => {
     expect(field.getAttribute("data-expanded")).toBe("false");
     expect(field.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
     expect(field.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
-    expect(field.querySelector('[data-test="individual-sides"]')?.getAttribute("aria-label")).toBe("Expand padding sides");
+    expect(field.querySelector('[data-test="individual-sides"]')?.className).toContain("dt-icon-button");
+    expect(field.querySelector('[data-test="individual-sides"]')?.getAttribute("aria-label")).toBe("Expand Padding Sides");
 
     act(() => (field.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click());
     expect(field.getAttribute("data-expanded")).toBe("true");

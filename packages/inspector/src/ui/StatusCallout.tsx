@@ -2,7 +2,7 @@ import type { ReactNode, ReactElement } from "react";
 
 export interface StatusCalloutProps {
   children?: ReactNode;
-  tone?: "neutral" | "warning" | "danger";
+  tone?: "neutral" | "accent" | "warning" | "danger";
   className?: string;
   "data-test"?: string;
   "data-lost"?: string;

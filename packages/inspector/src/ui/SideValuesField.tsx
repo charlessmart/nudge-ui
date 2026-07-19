@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Expand, Minimize2, SlidersHorizontal } from "lucide-react";
-import { Button } from "./Button.tsx";
+import { Expand, Minimize2 } from "lucide-react";
+import { IconButton } from "./IconButton.tsx";
+import { formatInspectorLabel } from "./labels.ts";
 
 export const SIDE_NAMES = ["top", "right", "bottom", "left"] as const;
 export type SideName = (typeof SIDE_NAMES)[number];
@@ -68,6 +69,8 @@ export function SideValuesField({
     ? defaultExpanded
     : controlledExpanded ?? uncontrolledExpanded);
   const hasPairedControls = Boolean(pairedControls && pairedControls.length > 0);
+  const labelText = typeof label === "string" ? formatInspectorLabel(label) : String(label);
+  const displayLabel = typeof label === "string" ? labelText : label;
 
   useEffect(() => {
     // `defaultLinked` describes the newly selected element, not the current
@@ -105,20 +108,20 @@ export function SideValuesField({
       {hasPairedControls ? (
         <>
           <div className="dt-side-values__header">
-            <span className="dt-side-values__label">{label}</span>
+            <span className="dt-side-values__label">{displayLabel}</span>
           </div>
           <div className="dt-side-values__value-row">
             {isExpanded ? (
               <SideControls label={label} sides={sides} />
             ) : (
-              <div className="dt-side-values__pairs" role="group" aria-label={`${String(label)} grouped sides`}>
+              <div className="dt-side-values__pairs" role="group" aria-label={`${labelText} Grouped Sides`}>
                 {pairedControls!.map(({ axis, control }) => (
                   <div
                     className="dt-side-values__side"
                     data-test={`pair-value-${axis}`}
                     data-axis={axis}
-                    aria-label={`${String(label)} ${axis === "horizontal" ? "left and right" : "top and bottom"}`}
-                    title={`${String(label)} ${axis === "horizontal" ? "left and right" : "top and bottom"}`}
+                    aria-label={`${labelText} ${axis === "horizontal" ? "Left And Right" : "Top And Bottom"}`}
+                    title={`${labelText} ${axis === "horizontal" ? "Left And Right" : "Top And Bottom"}`}
                     key={axis}
                   >
                     <AxisIndicator axis={axis} />
@@ -127,60 +130,60 @@ export function SideValuesField({
                 ))}
               </div>
             )}
-            <Button
-              variant="quiet"
-              size="compact"
+            <IconButton
+              variant="secondary"
+              size="default"
               className="dt-side-values__toggle dt-side-values__expand"
               data-test="individual-sides"
               aria-expanded={isExpanded}
-              aria-label={forceExpanded
-                ? `${String(label)} sides are expanded because values differ`
-                : isExpanded ? `Collapse ${String(label)} sides` : `Expand ${String(label)} sides`}
+              label={forceExpanded
+                ? `${labelText} Sides Are Expanded Because Values Differ`
+                : isExpanded ? `Collapse ${labelText} Sides` : `Expand ${labelText} Sides`}
               title={forceExpanded
-                ? "Individual sides stay open while values differ"
-                : isExpanded ? "Collapse to grouped sides" : "Expand to individual sides"}
+                ? "Individual Sides Stay Open While Values Differ"
+                : isExpanded ? "Collapse To Grouped Sides" : "Expand To Individual Sides"}
               disabled={forceExpanded}
               onClick={toggleExpanded}
             >
               {isExpanded ? <Minimize2 size={16} strokeWidth={1.8} aria-hidden="true" /> : <Expand size={16} strokeWidth={1.8} aria-hidden="true" />}
-            </Button>
+            </IconButton>
           </div>
         </>
       ) : isLinked ? (
-        <>
-          <div className="dt-side-values__header">
-            <span className="dt-side-values__label">{label}</span>
-            <Button
-              variant="quiet"
-              size="compact"
-              className="dt-side-values__toggle"
-              data-test="individual-sides"
-              aria-expanded={!isLinked}
-              aria-label={`Edit individual ${String(label)} sides`}
-              onClick={toggleLinked}
-            >
-              <SlidersHorizontal size={13} strokeWidth={1.8} aria-hidden="true" />
-              Individual sides
-            </Button>
-          </div>
+        <div className="dt-side-values__value-row dt-side-values__linked-row">
+          <span className="dt-side-values__label">{displayLabel}</span>
           <div className="dt-side-values__linked">{linkedControl}</div>
-        </>
+          <IconButton
+            variant="secondary"
+            size="default"
+            className="dt-side-values__toggle dt-side-values__expand"
+            data-test="individual-sides"
+            aria-expanded={!isLinked}
+            aria-label={`Edit Individual ${labelText} Sides`}
+            label={`Edit Individual ${labelText} Sides`}
+            title={`Edit Individual ${labelText} Sides`}
+            onClick={toggleLinked}
+          >
+            <Expand size={16} strokeWidth={1.8} aria-hidden="true" />
+          </IconButton>
+        </div>
       ) : (
         <>
           <div className="dt-side-values__header">
-            <span className="dt-side-values__label">{label}</span>
-            <Button
-              variant="quiet"
-              size="compact"
-              className="dt-side-values__toggle"
+            <span className="dt-side-values__label">{displayLabel}</span>
+            <IconButton
+              variant="secondary"
+              size="default"
+              className="dt-side-values__toggle dt-side-values__expand"
               data-test="individual-sides"
               aria-expanded={!isLinked}
-              aria-label={`Link ${String(label)} sides`}
+              aria-label={`Link ${labelText} Sides`}
+              label={`Link ${labelText} Sides`}
+              title={`Link ${labelText} Sides`}
               onClick={toggleLinked}
             >
-              <SlidersHorizontal size={13} strokeWidth={1.8} aria-hidden="true" />
-              Link sides
-            </Button>
+              <Minimize2 size={16} strokeWidth={1.8} aria-hidden="true" />
+            </IconButton>
           </div>
           <SideControls label={label} sides={sides} />
         </>
@@ -197,13 +200,13 @@ function SideControls({
   sides: readonly SideValueSlot[];
 }): ReactElement {
   return (
-    <div className="dt-side-values__grid" role="group" aria-label={`${String(label)} individual sides`}>
+    <div className="dt-side-values__grid" role="group" aria-label={`${typeof label === "string" ? formatInspectorLabel(label) : String(label)} Individual Sides`}>
       {sides.map(({ side, control }) => (
         <div
           className="dt-side-values__side"
           data-test={`side-value-${side}`}
           data-side={side}
-          aria-label={`${String(label)} ${side}`}
+          aria-label={`${typeof label === "string" ? formatInspectorLabel(label) : String(label)} ${formatInspectorLabel(side)}`}
           key={side}
         >
           <SideIndicator side={side} />

@@ -41,9 +41,9 @@ describe("LayoutComboField", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLSelectElement;
+    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLElement;
     expect(select).toBeTruthy();
-    expect(select.value).toBe("1");
+    expect(select.textContent).toContain("1");
   });
 
   it("keeps flex-basis auto as an explicit preset", () => {
@@ -56,8 +56,8 @@ describe("LayoutComboField", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-basis"]') as HTMLSelectElement;
-    expect(select.value).toBe("auto");
+    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-basis"]') as HTMLElement;
+    expect(select.textContent).toContain("Auto");
   });
 
   it('selects "Custom…" when current value is not a preset', () => {
@@ -70,8 +70,8 @@ describe("LayoutComboField", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLSelectElement;
-    expect(select.value).toBe("__custom__");
+    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLElement;
+    expect(select.textContent).toContain("Custom…");
   });
 
   it("writes preset value to managed stylesheet on select change", () => {
@@ -84,7 +84,7 @@ describe("LayoutComboField", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLSelectElement;
+    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLElement;
     setSelectValue(select, "2");
 
     expect(sheetText()).toContain("flex-grow: 2;");
@@ -100,7 +100,7 @@ describe("LayoutComboField", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLSelectElement;
+    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLElement;
     setSelectValue(select, "__custom__");
 
     const input = handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]') as HTMLInputElement;
@@ -117,7 +117,7 @@ describe("LayoutComboField", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLSelectElement;
+    const select = handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]') as HTMLElement;
     setSelectValue(select, "__custom__");
     const input = handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]') as HTMLInputElement;
 
@@ -143,7 +143,7 @@ describe("LayoutComboField", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-combo-select-row-gap"]') as HTMLSelectElement;
+    const select = handle.host.querySelector('[data-test="layout-combo-select-row-gap"]') as HTMLElement;
     setSelectValue(select, "__custom__");
     const input = handle.host.querySelector('[data-test="layout-combo-input-row-gap"]') as HTMLInputElement;
 
@@ -162,7 +162,7 @@ describe("LayoutComboField", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-combo-select-row-gap"]') as HTMLSelectElement;
+    const select = handle.host.querySelector('[data-test="layout-combo-select-row-gap"]') as HTMLElement;
     setSelectValue(select, "__custom__");
     const input = handle.host.querySelector('[data-test="layout-combo-input-row-gap"]') as HTMLInputElement;
 

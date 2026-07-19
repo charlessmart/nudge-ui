@@ -3,7 +3,6 @@ import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokenCatalog } from "virtual:design-tokens";
 import { isTokenChange, useChanges } from "../changesLog.ts";
-import { Badge } from "../ui/Badge.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { TokenValueField } from "./TokenField.tsx";
 import {
@@ -135,35 +134,24 @@ function TokenCatalogItem({
       data-token-name={row.definition.cssName}
       data-active={row.activeDeclaration ? "true" : "false"}
     >
-      <div className="dt-token-row__header">
+      <div className="dt-token-row__inline">
         <code className="dt-token-row__name">{row.definition.name || row.definition.cssName}</code>
-        <Badge tone={row.activeDeclaration ? "neutral" : "warning"} data-test="token-context">
-          {row.contextLabel}
-        </Badge>
-      </div>
-
-      {row.activeDeclaration ? (
-        <TokenValueField
-          property={row.definition.cssName}
-          committedValue={committedValue}
-          resolvedValue={row.resolvedValue || committedValue}
-          activeTokenName={activeAlias}
-          entries={entries}
-          allowedTokenNames={allowed}
-          isColor={row.group === "color"}
-          onCommitRaw={(value) => setGlobalTokenValue(row, value)}
-          onSelectToken={(token) => setGlobalTokenValue(row, `var(${token.name})`)}
-          onUnlink={(value) => setGlobalTokenValue(row, value)}
-        />
-      ) : (
-        <TextInput disabled value="Inactive in current theme" aria-label={`${row.definition.cssName} inactive`} />
-      )}
-
-      <div className="dt-token-row__meta">
-        <span data-test="token-source">{row.file}:{row.line}</span>
-        {row.resolvedValue && row.resolvedValue !== committedValue ? (
-          <span data-test="token-resolved">Resolved: {row.resolvedValue}</span>
-        ) : null}
+        {row.activeDeclaration ? (
+          <TokenValueField
+            property={row.definition.cssName}
+            committedValue={committedValue}
+            resolvedValue={row.resolvedValue || committedValue}
+            activeTokenName={activeAlias}
+            entries={entries}
+            allowedTokenNames={allowed}
+            isColor={row.group === "color"}
+            onCommitRaw={(value) => setGlobalTokenValue(row, value)}
+            onSelectToken={(token) => setGlobalTokenValue(row, `var(${token.name})`)}
+            onUnlink={(value) => setGlobalTokenValue(row, value)}
+          />
+        ) : (
+          <TextInput disabled value="Inactive in current theme" aria-label={`${row.definition.cssName} inactive`} />
+        )}
       </div>
 
       {variants.length > 0 ? (

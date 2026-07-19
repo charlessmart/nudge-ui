@@ -4,9 +4,6 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
-  useHierarchy,
-  useHierarchyIndex,
-  setHierarchyIndex,
   setSelectedElement,
   stepUp,
   stepDown,
@@ -28,7 +25,6 @@ import { discardChangesForSelector, undo, redo } from "./changesLog.ts";
 import { countSourceSiteMatches, getEditScope, relinkElement, selectorForElement, unlinkElement } from "./editScope.ts";
 import { Button } from "./ui/Button.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
-import { Breadcrumb } from "./ui/Breadcrumb.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
 import { UI_STYLES } from "./ui/styles.ts";
 import { TokensPanel } from "./tokens/TokensPanel.tsx";
@@ -36,6 +32,7 @@ import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
 import type { InteractionState } from "./styleState.ts";
 import { isEditableTarget } from "./shortcuts.ts";
 import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
+import { formatInspectorLabel } from "./ui/labels.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -66,15 +63,9 @@ function resolveHost(): HTMLElement {
   return inspectorHost ?? document.getElementById("design-tool-root") ?? document.body;
 }
 
-function sourceLabel(selected: SelectedElement): string {
-  return `${selected.file}:${selected.line}:${selected.column}`;
-}
-
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const selected = useSelectedElement();
-  const hierarchy = useHierarchy();
-  const hierarchyIndex = useHierarchyIndex();
   const [scopeRevision, refreshScope] = useState(0);
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
@@ -130,9 +121,10 @@ export function InspectorShell(): ReactElement {
     return () => window.removeEventListener("keydown", onKeydown);
   }, [isOpen, selected]);
 
-  const ordered = [...hierarchy].reverse();
   const tokenRows = useResolvedPropertiesDebounced(selected, styleState);
   const tokenEntries: TokenEntry[] = selected ? getTokenEntriesForElement(selected.domElement) : tokens;
+  const availableInteractionStates = selected ? getAvailableInteractionStates(selected.domElement) : [];
+  const showInteractionState = availableInteractionStates.length > 2;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
   const backgroundTokenRow = selected
     ? paintedBackgroundRow?.tokenName
@@ -152,22 +144,6 @@ export function InspectorShell(): ReactElement {
     refreshScope((revision) => revision + 1);
   }
 
-  const breadcrumbItems = selected
-    ? ordered.map((node, index) => {
-        const realIndex = chainIndex(hierarchy.length, index);
-        const cid = node.getAttribute("data-cid") ?? "?";
-        return {
-          id: `${realIndex}-${cid}`,
-          label: cid,
-          active: realIndex === hierarchyIndex,
-          onSelect: () => setHierarchyIndex(realIndex),
-          "data-test": "breadcrumb-step",
-          "data-index": realIndex,
-          "data-cid": cid,
-        };
-      })
-    : [];
-
   return (
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
@@ -176,7 +152,6 @@ export function InspectorShell(): ReactElement {
         <div className="dt-panel__header">
           <span>Design Tool</span>
           <div className="dt-panel__header-actions">
-            <span className="dt-panel__state">{isOpen ? "open" : "closed"}</span>
             <IconButton
               label="Collapse inspector"
               data-test="collapse-inspector"
@@ -188,7 +163,7 @@ export function InspectorShell(): ReactElement {
         </div>
         <div className="dt-panel__tabs" role="tablist" aria-label="Inspector view">
           <Button
-            variant="quiet"
+            variant={activeTab === "inspect" ? "secondary" : "quiet"}
             className="dt-panel__tab"
             role="tab"
             aria-selected={activeTab === "inspect"}
@@ -199,7 +174,7 @@ export function InspectorShell(): ReactElement {
             Inspect
           </Button>
           <Button
-            variant="quiet"
+            variant={activeTab === "tokens" ? "secondary" : "quiet"}
             className="dt-panel__tab"
             role="tab"
             aria-selected={activeTab === "tokens"}
@@ -216,45 +191,34 @@ export function InspectorShell(): ReactElement {
           ) : selected ? (
             <>
               <div className="dt-selection" data-test="selection">
-                {breadcrumbItems.length > 0 ? (
-                  <Breadcrumb items={breadcrumbItems} data-test="breadcrumb" />
-                ) : null}
-                <div className="dt-selection__row">
-                  <span className="dt-selection__label">cid</span>
-                  <span className="dt-selection__value">{selected.cid}</span>
-                </div>
-                <div className="dt-style-state" data-test="style-state">
-                  <span className="dt-selection__label">state</span>
-                  <div className="dt-style-state__options" role="group" aria-label="Style state">
-                    {getAvailableInteractionStates(selected.domElement).map((state) => (
-                      <Button
-                        key={state}
-                        size="compact"
-                        variant={styleState === state ? "primary" : "quiet"}
-                        className="dt-style-state__option"
-                        data-test={`style-state-${state}`}
-                        data-active={styleState === state ? "true" : "false"}
-                        aria-pressed={styleState === state}
-                        onClick={() => {
-                          setActiveStyleState(state);
-                          setStyleState(state);
-                        }}
-                      >
-                        {state}
-                      </Button>
-                    ))}
+                {showInteractionState ? (
+                  <div className="dt-style-state" data-test="style-state">
+                    <span className="dt-selection__label">State</span>
+                    <div className="dt-style-state__options" role="group" aria-label="Style State">
+                      {availableInteractionStates.map((state) => (
+                        <Button
+                          key={state}
+                          size="compact"
+                          variant={styleState === state ? "primary" : "quiet"}
+                          className="dt-style-state__option"
+                          data-test={`style-state-${state}`}
+                          data-active={styleState === state ? "true" : "false"}
+                          aria-pressed={styleState === state}
+                          onClick={() => {
+                            setActiveStyleState(state);
+                            setStyleState(state);
+                          }}
+                        >
+                          {formatInspectorLabel(state)}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div className="dt-selection__row">
-                  <span className="dt-selection__label">src</span>
-                  <span className="dt-selection__value">{sourceLabel(selected)}</span>
-                </div>
-                <div className="dt-selection__row">
-                  <span className="dt-selection__label">props</span>
-                  <span className="dt-selection__value">{selected.cprops ?? "No props"}</span>
-                </div>
+                ) : null}
                 <StatusCallout
-                  tone={instancePreviewLost ? "warning" : "neutral"}
+                  tone={instancePreviewLost
+                    ? "warning"
+                    : getEditScope(selected.domElement) === "instance-preview" ? "neutral" : "accent"}
                   data-test="edit-scope"
                   data-lost={instancePreviewLost ? "true" : "false"}
                 >
@@ -275,7 +239,7 @@ export function InspectorShell(): ReactElement {
                           refreshScopeState();
                         }}
                       >
-                        Re-link to source
+                        Relink To Source
                       </Button>
                     </>
                   ) : (
@@ -286,6 +250,7 @@ export function InspectorShell(): ReactElement {
                           <br />
                           <Button
                             size="compact"
+                            variant="secondary"
                             className="dt-scope__action"
                             data-test="unlink-element"
                             onClick={() => {
@@ -325,9 +290,7 @@ export function InspectorShell(): ReactElement {
                 <BorderEditor key={`border-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
               </div>
             </>
-          ) : (
-            "Inspector shell ready (Cmd/Ctrl+\\, Shift+\\, or Alt+I to toggle)"
-          )}
+          ) : null}
           <ChangesLog />
         </div>
       </div>
@@ -343,8 +306,4 @@ export function InspectorShell(): ReactElement {
       ) : null}
     </>
   );
-}
-
-function chainIndex(length: number, reversedIndex: number): number {
-  return length - 1 - reversedIndex;
 }

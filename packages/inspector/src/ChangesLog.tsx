@@ -4,6 +4,7 @@ import { isTokenChange, useChanges, revertChange } from "./changesLog.ts";
 import type { ChangeRecord } from "./changesLog.ts";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { Button } from "./ui/Button.tsx";
+import { formatInspectorLabel } from "./ui/labels.ts";
 
 interface Group {
   key: string;
@@ -67,13 +68,13 @@ export function ChangesLog(): ReactElement {
             </div>
             {group.changes.map((change, i) => (
               <div className="dt-changes__row" data-test="change-row" key={`${group.key}\u0000${change.property}\u0000${i}`} data-property={change.property}>
-                <span className="dt-changes__prop">{isTokenChange(change) ? change.contextLabel : change.property}</span>
+                <span className="dt-changes__prop">{isTokenChange(change) ? change.contextLabel : formatInspectorLabel(change.property)}</span>
                 <span className="dt-changes__before">{displayBefore(change)}</span>
                 <span className="dt-changes__arrow">→</span>
                 <span className="dt-changes__after">{displayAfter(change)}</span>
                 {change.previewResult?.status === "conflict" ? (
                   <span className="dt-changes__conflict" data-test="preview-conflict" title={`Computed: ${change.previewResult.computedValue}`}>
-                    Preview blocked ({change.previewResult.reason})
+                  Preview Blocked ({change.previewResult.reason ? formatInspectorLabel(change.previewResult.reason) : "Unknown"})
                   </span>
                 ) : null}
                 <Button

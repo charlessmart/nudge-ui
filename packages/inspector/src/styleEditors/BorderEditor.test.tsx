@@ -83,7 +83,7 @@ describe("BorderEditor", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
-    const styleSelect = handle.host.querySelector('[data-test="border-style"]') as HTMLSelectElement;
+    const styleSelect = handle.host.querySelector('[data-test="border-style"]') as HTMLElement;
     setSelectValue(styleSelect, "dashed");
     expect(sheetText()).toContain("border-style: dashed;");
   });
@@ -149,6 +149,11 @@ describe("BorderEditor", () => {
       ],
     }));
     expect(handle.host.querySelector('[data-test="border-sides"]')?.getAttribute("data-linked")).toBe("true");
+    const borderWidth = handle.host.querySelector('[data-test="border-sides"]') as HTMLElement;
+    expect(borderWidth.querySelector(".dt-side-values__linked-row .dt-side-values__label")?.textContent).toBe("Border Width");
+    expect(borderWidth.querySelector('.dt-side-values__linked-row [data-test="token-field"]')).not.toBeNull();
+    expect(borderWidth.querySelector('.dt-side-values__linked-row [data-test="individual-sides"]')?.className).toContain("dt-icon-button");
+    expect(borderWidth.querySelector('.dt-side-values__linked-row [data-test="individual-sides"] svg')).not.toBeNull();
     act(() => (handle.host.querySelector('[data-test="border-sides"] [data-test="individual-sides"]') as HTMLButtonElement).click());
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-width"]')).not.toBeNull();
   });

@@ -105,6 +105,7 @@ test("dev: swapping a token writes a managed-stylesheet rule and changes backgro
 
 test("dev: selection defaults to Base and can target an authored hover state", async ({ page }) => {
   await page.goto("/");
+  await page.addStyleTag({ content: ".btn:focus { outline-color: transparent; } .btn:active { transform: none; }" });
   await page.click("text=Save");
   await waitForRow(page);
 

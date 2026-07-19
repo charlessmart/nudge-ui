@@ -25,7 +25,7 @@ export function Typography(props: TypographyProps): ReactElement {
     <div className="dt-editor" data-test="typography">
       <div className="dt-editor__title">Typography</div>
       <div className="dt-typography">
-        <FieldRow label="font-size">
+        <FieldRow label="Font Size">
           <TokenField
             property="font-size"
             tokenRow={findTokenRow(tokenRows, "font-size")}
@@ -35,7 +35,7 @@ export function Typography(props: TypographyProps): ReactElement {
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
-        <FieldRow label="font-weight">
+        <FieldRow label="Font Weight">
           <TokenField
             property="font-weight"
             tokenRow={findTokenRow(tokenRows, "font-weight")}
@@ -45,7 +45,7 @@ export function Typography(props: TypographyProps): ReactElement {
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
-        <FieldRow label="line-height">
+        <FieldRow label="Line Height">
           <TokenField
             property="line-height"
             tokenRow={findTokenRow(tokenRows, "line-height")}
@@ -55,7 +55,7 @@ export function Typography(props: TypographyProps): ReactElement {
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
-        <FieldRow label="letter-spacing">
+        <FieldRow label="Letter Spacing">
           <TokenField
             property="letter-spacing"
             tokenRow={findTokenRow(tokenRows, "letter-spacing")}
@@ -65,7 +65,7 @@ export function Typography(props: TypographyProps): ReactElement {
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
-        <FieldRow label="font-family">
+        <FieldRow label="Font Family">
           <TokenField
             property="font-family"
             tokenRow={findTokenRow(tokenRows, "font-family")}

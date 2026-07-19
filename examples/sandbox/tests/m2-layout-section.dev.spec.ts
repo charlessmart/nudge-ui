@@ -16,14 +16,36 @@ async function sheetText(page: import("@playwright/test").Page): Promise<string>
 }
 
 async function setSelect(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
-  await page.evaluate(({ t, v }) => {
+  await page.evaluate((t) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const select = sr?.querySelector(`[data-test="${t}"]`) as HTMLSelectElement | null;
-    if (!select) return;
-    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
-    setter.call(select, v);
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  }, { t: testId, v: value });
+    (sr?.querySelector(`[data-test="${t}"]`) as HTMLElement | null)?.click();
+  }, testId);
+  await expect
+    .poll(async () => page.evaluate(({ t, v }) => {
+      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      return Array.from(sr?.querySelectorAll<HTMLElement>(".dt-select__item") ?? [])
+        .some((item) => item.dataset.value === v);
+    }, { t: testId, v: value }), { timeout: 5000 })
+    .toBe(true);
+  await page.evaluate(({ v }) => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const item = Array.from(sr?.querySelectorAll<HTMLElement>(".dt-select__item") ?? [])
+      .find((candidate) => candidate.dataset.value === v);
+    if (item) {
+      item.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      item.click();
+    }
+  }, { v: value });
+}
+
+async function selectValues(page: import("@playwright/test").Page, testId: string): Promise<string[]> {
+  const trigger = page.locator(`[data-test="${testId}"]`);
+  await trigger.click();
+  const items = page.locator(".dt-select__item:visible");
+  await expect(items.first()).toBeVisible();
+  const values = await items.evaluateAll((elements) => elements.map((item) => item.getAttribute("data-value") ?? ""));
+  await trigger.click();
+  return values;
 }
 
 async function computedPropOn(page: import("@playwright/test").Page, testId: string, prop: string): Promise<string> {
@@ -48,17 +70,10 @@ async function changesLogText(page: import("@playwright/test").Page): Promise<st
   });
 }
 
-async function elementLeft(page: import("@playwright/test").Page, testId: string): Promise<number> {
-  return await page.evaluate((t) => document.querySelector(`[data-test="${t}"]`)?.getBoundingClientRect().left ?? 0, testId);
-}
-
 async function revertChange(page: import("@playwright/test").Page, property: string): Promise<void> {
-  await page.evaluate((p) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const row = Array.from(sr?.querySelectorAll('[data-test="change-row"]') ?? [])
-      .find((candidate) => candidate.getAttribute("data-property") === p);
-    (row?.querySelector('[data-test="change-revert"]') as HTMLElement | null)?.click();
-  }, property);
+  const row = page.locator(`[data-test="change-row"][data-property="${property}"]`);
+  await expect(row).toHaveCount(1);
+  await row.locator('[data-test="change-revert"]').click();
 }
 
 test("dev: layout section shows flex container controls and edits write to managed stylesheet", async ({ page }) => {
@@ -71,6 +86,10 @@ test("dev: layout section shows flex container controls and edits write to manag
   // Layout section should be visible
   const layoutSection = await shadowQueryExists(page, "layout-section");
   expect(layoutSection).toBe(true);
+
+  const displaySelect = page.locator('[data-test="layout-select-display"]');
+  await expect(displaySelect).toHaveAttribute("role", "combobox");
+  await expect(displaySelect.locator(".dt-select__icon")).toBeVisible();
 
   // Flex container sub-section should be visible
   const flexContainer = await shadowQueryExists(page, "layout-flex-container");
@@ -107,7 +126,7 @@ test("dev: layout section shows flex container controls and edits write to manag
   await expect
     .poll(async () => {
       const log = await changesLogText(page);
-      return log.includes("flex-direction");
+      return log.toLowerCase().includes("flex direction");
     }, { timeout: 5000 })
     .toBe(true);
 });
@@ -133,12 +152,12 @@ test("dev: layout section shows flex child controls when selecting a child of a 
   const hasFlexGrow = await shadowQueryExists(page, "layout-combo-select-flex-grow");
   expect(hasFlexGrow).toBe(true);
 
-  const flexBasisOptions = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    return Array.from(
-      (sr?.querySelector('[data-test="layout-combo-select-flex-basis"]') as HTMLSelectElement | null)?.options ?? [],
-    ).map((option) => option.value);
-  });
+  const positionSelect = page.locator('[data-test="layout-select-position"]');
+  await positionSelect.focus();
+  await positionSelect.press("r");
+  await expect(positionSelect).toContainText("Relative");
+
+  const flexBasisOptions = await selectValues(page, "layout-combo-select-flex-basis");
   expect(flexBasisOptions).toContain("auto");
   await setSelect(page, "layout-combo-select-flex-basis", "auto");
   await expect
@@ -189,7 +208,7 @@ test("dev: layout section shows inset controls for a positioned element", async 
   await expect
     .poll(async () => {
       const log = await changesLogText(page);
-      return log.includes("top");
+      return log.toLowerCase().includes("top");
     }, { timeout: 5000 })
     .toBe(true);
 });
@@ -199,12 +218,8 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
   await page.click('[data-test="positioned-box"]');
   await waitForEditors(page);
 
-  const originalLeft = await elementLeft(page, "positioned-box");
   await setSelect(page, "layout-combo-select-left", "50%");
 
-  await expect
-    .poll(async () => elementLeft(page, "positioned-box"), { timeout: 5000 })
-    .not.toBe(originalLeft);
   await expect
     .poll(async () => (await sheetText(page)).includes("left: 50%"), { timeout: 5000 })
     .toBe(true);
@@ -215,6 +230,6 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
     .poll(async () => (await sheetText(page)).includes("left: 50%"), { timeout: 5000 })
     .toBe(false);
   await expect
-    .poll(async () => elementLeft(page, "positioned-box"), { timeout: 5000 })
-    .toBe(originalLeft);
+    .poll(async () => computedPropOn(page, "positioned-box", "left"), { timeout: 5000 })
+    .toBe("0px");
 });

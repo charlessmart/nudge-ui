@@ -10,5 +10,24 @@
 }
 
 .dt-selected-outline {
-  outline: 2px solid #ef4444;
+  outline: 2px solid #3b82f6;
+}
+
+.dt-hover-margin-fill {
+  background: rgb(59 130 246 / 14%);
+}
+
+.dt-hover-margin {
+  border-color: rgb(59 130 246 / 52%);
+  border-style: dotted;
+  border-width: 0;
+  opacity: 0.72;
+}
+
+.dt-hover-margin[data-axis="horizontal"] {
+  border-top-width: 1px;
+}
+
+.dt-hover-margin[data-axis="vertical"] {
+  border-left-width: 1px;
 }

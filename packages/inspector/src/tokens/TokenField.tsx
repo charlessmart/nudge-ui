@@ -34,6 +34,7 @@ export interface TokenValueFieldProps {
 export interface TokenFieldProps {
   property: string;
   tokenRow?: ResolvedProperty | null;
+  initialValue?: string;
   domElement: HTMLElement;
   entries: TokenEntry[];
   onAfterEdit?: () => void;
@@ -266,7 +267,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   if (activeToken) {
     return (
-      <span className="dt-token-field" data-test="token-field" data-property={property}>
+      <span className={`dt-token-field${isColor ? " dt-token-field--color" : ""}`} data-test="token-field" data-property={property}>
         {colorControl}
         <PopoverListbox
           query=""
@@ -290,6 +291,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           }}
         />
         <IconButton
+          variant="quiet"
+          size="compact"
           label="Replace with raw value"
           className="dt-token-field__delink"
           data-test="delink-btn"
@@ -304,7 +307,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   const showPopover = isFocused && filteredTokens.length > 0;
   return (
-    <span className="dt-token-field dt-token-field--raw" data-test="token-field" data-property={property}>
+    <span className={`dt-token-field dt-token-field--raw${isColor ? " dt-token-field--color" : ""}`} data-test="token-field" data-property={property}>
       {attributionTokens.length > 0 ? (
         <span className="dt-token-field__attribution" data-test="token-attribution" title="Referenced tokens">
           {attributionTokens.join(" · ")}
@@ -342,16 +345,16 @@ function arrowDirection(key: string): -1 | 1 | null {
 }
 
 export function TokenField(props: TokenFieldProps): ReactElement {
-  const { property, tokenRow, domElement: el, entries, onAfterEdit, editMetadata } = props;
+  const { property, tokenRow, initialValue, domElement: el, entries, onAfterEdit, editMetadata } = props;
   const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
     || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const activeTokenName = expression ? null : tokenRow?.tokenName ?? null;
-  // An authored declaration is the editable source of truth. Computed CSS is
-  // still supplied for preview, but must not turn `1rem`, `normal`, or a
-  // quoted family stack into the browser's serialised value in the raw field.
+  const fallbackValue = initialValue ?? computedRaw(el, property);
+  // Keep authored CSS as the editable source of truth while allowing the UI
+  // polish branch to supply an explicit empty initial value for blank fields.
   const authoredOrComputed = expression || !activeTokenName
-    ? tokenRow?.authored ?? tokenRow?.declaredValue ?? computedRaw(el, property)
-    : tokenRow?.resolvedValue ?? computedRaw(el, property);
+    ? tokenRow?.authored ?? tokenRow?.declaredValue ?? fallbackValue
+    : tokenRow?.resolvedValue ?? fallbackValue;
   const committedValue = property === "font-family" && !activeTokenName
     ? primaryFontFamily(authoredOrComputed)
     : authoredOrComputed;
