@@ -24,6 +24,7 @@ const COLOR_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5f5
 const COLOR_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:3" };
 const SPACE_2: TokenEntry = { name: "--space-2", value: "8px", source: "styles.css:7" };
 const SPRINKLES_BRAND: TokenEntry = { name: "theme.color.brand", cssName: "--color-brand__hash", value: "#123456", source: "theme-contract.ts:1", adapter: "vanilla-extract", origin: "project" };
+const TAILWIND_V3_SPACE: TokenEntry = { name: "theme.spacing.3", value: "0.75rem", cssValue: "0.75rem", source: "tailwind.config.js:1", adapter: "tailwind-v3", origin: "project" };
 
 describe("buildSelector", () => {
   it("composes [data-cid=...][data-src*=...] from cid + file:line parsed from src", () => {
@@ -77,6 +78,13 @@ describe("swapToken", () => {
     const rec = swapToken(btn, "color", SPRINKLES_BRAND, null);
     expect(rec?.newToken?.name).toBe("theme.color.brand");
     expect(document.getElementById("design-tool-styles")?.textContent).toContain("color: var(--color-brand__hash);");
+  });
+
+  it("uses a config token's literal CSS value when Tailwind v3 has no emitted custom property", () => {
+    const btn = makeButton();
+    const rec = swapToken(btn, "padding-top", TAILWIND_V3_SPACE, null);
+    expect(rec?.newToken?.name).toBe("theme.spacing.3");
+    expect(document.getElementById("design-tool-styles")?.textContent).toContain("padding-top: 0.75rem;");
   });
 
   it("writes a state-qualified selector and preserves the state on the change", () => {

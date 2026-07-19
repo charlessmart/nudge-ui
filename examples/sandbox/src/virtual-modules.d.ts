@@ -3,6 +3,7 @@ declare module "virtual:design-tokens" {
     name: string;
     value: string;
     source: string;
+    cssValue?: string;
     adapter?: string;
     cssName?: string;
     origin?: "project" | "framework" | "generated" | "runtime";
@@ -14,6 +15,7 @@ declare module "virtual:design-tokens" {
     cssName: string;
     name: string;
     declarations: TokenDeclaration[];
+    cssValue?: string;
     adapter?: string;
     origin?: "project" | "framework" | "generated" | "runtime";
     editable?: boolean;

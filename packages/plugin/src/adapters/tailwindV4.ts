@@ -1,4 +1,5 @@
 import type { TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
+import type { TokenAdapter } from "./types.ts";
 
 export interface TailwindAlphaMapping {
   utility: string;
@@ -25,6 +26,7 @@ export function entriesFromTailwindV4Catalog(catalog: TokenDefinition[]): TokenE
     cssName: definition.cssName,
     value: definition.declarations[0]?.value ?? "",
     source: definition.declarations[0]?.source ?? "",
+    cssValue: definition.cssValue,
     adapter: definition.adapter ?? "tailwind-v4",
     origin: definition.origin ?? "framework",
     editable: definition.editable,
@@ -44,4 +46,16 @@ export function mapTailwindV4ColorOpacity(utility: string): TailwindAlphaMapping
 
 export function tailwindV4ColorExpression(baseCssName: string, alpha: string): string {
   return `color-mix(in oklab, var(${baseCssName}) ${alpha}, transparent)`;
+}
+
+/**
+ * Tailwind v4's tokens already exist in emitted CSS, so this adapter only
+ * enriches parser rows; it intentionally contributes no duplicate rows.
+ */
+export function createTailwindV4Adapter(css: string): TokenAdapter {
+  return {
+    name: "tailwind-v4",
+    detect: () => detectTailwindV4(css),
+    extractTokens: () => [],
+  };
 }

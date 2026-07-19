@@ -5,11 +5,12 @@ import type { Alias, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { injectIdentity } from "./transform/injectDataCid.ts";
 import { parseTokenCatalog } from "./tokens/parseTokens.ts";
 import type { TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
-import { annotateTailwindV4Catalog, detectTailwindV4 } from "./adapters/tailwindV4.ts";
-import { extractTailwindV3Tokens } from "./adapters/tailwindV3.ts";
+import { annotateTailwindV4Catalog, createTailwindV4Adapter } from "./adapters/tailwindV4.ts";
+import { createTailwindV3Adapter } from "./adapters/tailwindV3.ts";
 import type { TailwindV3Config } from "./adapters/tailwindV3.ts";
-import { extractVanillaExtractTokens } from "./adapters/vanillaExtract.ts";
+import { createSprinklesAdapter } from "./adapters/vanillaExtract.ts";
 import type { VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
+import { createTokenAdapterRegistry } from "./adapters/registry.ts";
 
 export interface DesignToolOptions {
   enabled?: boolean;
@@ -98,13 +99,18 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   let devServer: ViteDevServer | undefined;
   let postTransformPromise: Promise<void> | null = null;
   const cssTokens = new Map<string, TokenDefinition[]>();
+  const adapterRegistry = createTokenAdapterRegistry([
+    ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config)] : []),
+    ...(options.vanillaExtract ? [createSprinklesAdapter(options.vanillaExtract)] : []),
+  ]);
 
   function cacheTokensForFile(id: string, code: string): void {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     const rel = relativePath(fileId, root);
     const parsed = parseTokenCatalog(code, rel);
-    cssTokens.set(fileId, detectTailwindV4(code) ? annotateTailwindV4Catalog(parsed) : parsed);
+    const tailwindV4 = createTailwindV4Adapter(code);
+    cssTokens.set(fileId, tailwindV4.detect() ? annotateTailwindV4Catalog(parsed) : parsed);
   }
 
   function ensurePostTransformCss(): Promise<void> {
@@ -185,31 +191,20 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
             else catalogByName.set(definition.cssName, { ...definition, declarations });
           }
         }
-        if (options.tailwindV3) {
-          for (const entry of extractTailwindV3Tokens(options.tailwindV3.config)) {
-            if (!entry.cssName) continue;
-            catalogByName.set(entry.cssName, {
-              cssName: entry.cssName,
-              name: entry.name,
-              adapter: entry.adapter,
-              origin: entry.origin,
-              editable: entry.editable,
-              declarations: [{ value: entry.value, source: entry.source, important: false, context: {} }],
-            });
-          }
-        }
-        if (options.vanillaExtract) {
-          for (const entry of extractVanillaExtractTokens(options.vanillaExtract)) {
-            if (!entry.cssName) continue;
-            catalogByName.set(entry.cssName, {
-              cssName: entry.cssName,
-              name: entry.name,
-              adapter: entry.adapter,
-              origin: entry.origin,
-              editable: entry.editable,
-              declarations: [{ value: entry.value, source: entry.source, important: false, context: {} }],
-            });
-          }
+        for (const entry of adapterRegistry.extractTokens()) {
+          // CSS-variable adapters use their emitted custom property as the
+          // identity key. Literal-token adapters (Tailwind v3) use their human
+          // path, because no CSS variable exists to index by.
+          const key = entry.cssName ?? entry.name;
+          catalogByName.set(key, {
+            cssName: key,
+            name: entry.name,
+            cssValue: entry.cssValue,
+            adapter: entry.adapter,
+            origin: entry.origin,
+            editable: entry.editable,
+            declarations: [{ value: entry.value, source: entry.source, important: false, context: {} }],
+          });
         }
         const catalog = [...catalogByName.values()];
         const all: TokenEntry[] = catalog.map((definition) => ({
@@ -217,6 +212,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
           cssName: definition.cssName,
           value: definition.declarations[0]?.value ?? "",
           source: definition.declarations[0]?.source ?? "",
+          cssValue: definition.cssValue,
           adapter: definition.adapter,
           origin: definition.origin,
           editable: definition.editable,
@@ -300,11 +296,11 @@ export { injectIdentity, injectDataCid } from "./transform/injectDataCid.ts";
 export type { InjectResult } from "./transform/injectDataCid.ts";
 export { parseTokens, parseTokenCatalog } from "./tokens/parseTokens.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
-export { annotateTailwindV4Catalog, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
+export { annotateTailwindV4Catalog, createTailwindV4Adapter, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
 export type { TailwindAlphaMapping } from "./adapters/tailwindV4.ts";
-export { detectTailwindV3Config, extractTailwindV3Tokens, resolveTailwindV3ClassName, tailwindV3ColorDeclaration } from "./adapters/tailwindV3.ts";
+export { createTailwindV3Adapter, detectTailwindV3Config, extractTailwindV3Tokens, resolveTailwindV3ClassName, tailwindV3ColorDeclaration } from "./adapters/tailwindV3.ts";
 export type { TailwindV3Config, TailwindV3Mapping } from "./adapters/tailwindV3.ts";
 export { createTokenAdapterRegistry } from "./adapters/registry.ts";
-export { createVanillaExtractAdapter, extractVanillaExtractTokens, resolveSprinklesClassName } from "./adapters/vanillaExtract.ts";
+export { createSprinklesAdapter, createVanillaExtractAdapter, extractVanillaExtractTokens, resolveSprinklesClassName } from "./adapters/vanillaExtract.ts";
 export type { TokenAdapter, TokenMapping } from "./adapters/types.ts";
 export type { ThemeContract, SprinklesClassMap, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";

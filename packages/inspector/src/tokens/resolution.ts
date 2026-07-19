@@ -183,6 +183,7 @@ export function getTokenEntriesForElement(el: HTMLElement): TokenEntry[] {
       || definition.declarations[0]?.value
       || "",
     source: definition.declarations[0]?.source ?? "",
+    cssValue: definition.cssValue,
     adapter: definition.adapter,
     origin: definition.origin,
     editable: definition.editable,

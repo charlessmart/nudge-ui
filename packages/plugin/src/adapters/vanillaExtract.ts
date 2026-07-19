@@ -63,3 +63,6 @@ export function createVanillaExtractAdapter(options: VanillaExtractAdapterOption
     resolveClassName: (className) => resolveSprinklesClassName(className, options),
   };
 }
+
+/** Alias the adapter by the public styling primitive most callers recognise. */
+export const createSprinklesAdapter = createVanillaExtractAdapter;

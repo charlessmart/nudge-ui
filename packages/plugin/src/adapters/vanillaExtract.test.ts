@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createVanillaExtractAdapter, extractVanillaExtractTokens, resolveSprinklesClassName } from "./vanillaExtract.ts";
+import { createSprinklesAdapter, createVanillaExtractAdapter, extractVanillaExtractTokens, resolveSprinklesClassName } from "./vanillaExtract.ts";
 import { createTokenAdapterRegistry } from "./registry.ts";
 
 const options = {
@@ -27,5 +27,9 @@ describe("vanilla-extract/Sprinkles adapter", () => {
     expect(registry.detect().map((candidate) => candidate.name)).toEqual(["vanilla-extract"]);
     expect(registry.extractTokens()).toHaveLength(3);
     expect(registry.resolveClassName("missing-class")).toBeNull();
+  });
+
+  it("exposes a Sprinkles-named constructor for plugin configuration", () => {
+    expect(createSprinklesAdapter(options).name).toBe("vanilla-extract");
   });
 });

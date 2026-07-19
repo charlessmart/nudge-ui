@@ -8,7 +8,9 @@ test("dev: virtual:design-tokens module renders populated token table", async ({
 
   // styles.css declares a semantic color, spacing, radius, and elevation foundation.
   const items = tokensSection.locator("li");
-  await expect(items).toHaveCount(23);
+  // Framework-generated Tailwind v4 variables vary with the installed
+  // Tailwind release. Project tokens plus the v3 adapter must all be present.
+  expect(await items.count()).toBeGreaterThanOrEqual(24);
 
   await expect(tokensSection).toContainText("--color-surface-raised");
   await expect(tokensSection).toContainText("--color-border-subtle");

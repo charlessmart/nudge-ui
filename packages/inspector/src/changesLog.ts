@@ -73,7 +73,7 @@ function notify(): void {
 
 function recordValue(rec: ChangeRecord): string {
   if (isTokenChange(rec)) return rec.rawValue;
-  if (rec.newToken) return `var(${rec.newToken.cssName ?? rec.newToken.name})`;
+  if (rec.newToken) return tokenReference(rec.newToken);
   if (rec.rawValue !== undefined) return rec.rawValue;
   return "";
 }
@@ -92,8 +92,12 @@ function changeKey(rec: ChangeRecord): string {
 
 function baselineValue(rec: ChangeRecord): string {
   if (isTokenChange(rec)) return rec.oldRawValue;
-  if (rec.oldToken) return `var(${rec.oldToken.cssName ?? rec.oldToken.name})`;
+  if (rec.oldToken) return tokenReference(rec.oldToken);
   return rec.oldRawValue ?? "";
+}
+
+function tokenReference(token: TokenEntry): string {
+  return token.cssValue ?? `var(${token.cssName ?? token.name})`;
 }
 
 function sameEffectiveChanges(a: ChangeRecord[], b: ChangeRecord[]): boolean {
