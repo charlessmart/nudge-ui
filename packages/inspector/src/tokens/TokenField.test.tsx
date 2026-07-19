@@ -282,6 +282,7 @@ describe("TokenField", () => {
       picker.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(onCommitRaw).toHaveBeenCalledWith("#abcdef");
+    expect(handle.host.querySelector('[data-test="token-field"]')?.classList.contains("dt-token-field--color")).toBe(true);
     selected.domElement.remove();
   });
 });

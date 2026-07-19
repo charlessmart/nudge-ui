@@ -1,4 +1,6 @@
-import type { ChangeEventHandler, ReactElement, SelectHTMLAttributes } from "react";
+import { Select as BaseSelect } from "@base-ui/react/select";
+import { Check, ChevronDown } from "lucide-react";
+import type { ButtonHTMLAttributes, ReactElement } from "react";
 
 export interface SelectOption {
   value: string;
@@ -11,14 +13,13 @@ export interface SelectGroup {
   options: SelectOption[];
 }
 
-export type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "onChange" | "value"> & {
+export type SelectProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange" | "value"> & {
   value?: string;
   options?: SelectOption[];
   groups?: SelectGroup[];
   placeholder?: string;
   compact?: boolean;
   onValueChange?: (value: string) => void;
-  onChange?: ChangeEventHandler<HTMLSelectElement>;
   "data-test"?: string;
 };
 
@@ -29,35 +30,78 @@ export function Select({
   placeholder,
   compact,
   className,
-  onValueChange,
-  onChange,
+  disabled,
+  children,
   ...props
 }: SelectProps): ReactElement {
+  const allOptions = [...options, ...groups.flatMap((group) => group.options)];
+  const selectedOption = allOptions.find((option) => option.value === value);
+  const portalContainer = typeof document !== "undefined"
+    ? document.getElementById("design-tool-root")?.shadowRoot ?? document.body
+    : null;
+
+  function handleValueChange(next: string | null): void {
+    if (typeof next === "string") props.onValueChange?.(next);
+  }
+
+  const { onValueChange: _onValueChange, ...triggerProps } = props;
+
   return (
-    <select
-      {...props}
-      value={value ?? ""}
-      className={`dt-select${compact ? " dt-select--compact" : ""}${className ? ` ${className}` : ""}`}
-      onChange={(event) => {
-        onValueChange?.(event.target.value);
-        onChange?.(event);
-      }}
+    <BaseSelect.Root
+      value={value || null}
+      disabled={disabled}
+      items={allOptions.map((option) => ({ value: option.value, label: option.label }))}
+      onValueChange={handleValueChange}
     >
-      {placeholder ? <option value="" disabled>{placeholder}</option> : null}
-      {options.map((option) => (
-        <option key={option.value} value={option.value} disabled={option.disabled}>
-          {option.label}
-        </option>
-      ))}
-      {groups.map((group) => (
-        <optgroup key={group.label} label={group.label}>
-          {group.options.map((option) => (
-            <option key={option.value} value={option.value} disabled={option.disabled}>
-              {option.label}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
+      <BaseSelect.Trigger
+        {...triggerProps}
+        disabled={disabled}
+        className={`dt-select${compact ? " dt-select--compact" : ""}${className ? ` ${className}` : ""}`}
+      >
+        <BaseSelect.Value className="dt-select__value" placeholder={placeholder}>
+          {selectedOption?.label ?? (value || undefined)}
+        </BaseSelect.Value>
+        <BaseSelect.Icon className="dt-select__icon">
+          <ChevronDown size={15} strokeWidth={1.8} aria-hidden="true" />
+        </BaseSelect.Icon>
+        {children}
+      </BaseSelect.Trigger>
+      <BaseSelect.Portal container={portalContainer}>
+        <BaseSelect.Positioner className="dt-select__positioner" sideOffset={4}>
+          <BaseSelect.Popup className="dt-select__popup">
+            <BaseSelect.List className="dt-select__list">
+              {options.map((option) => <SelectItem key={option.value} option={option} />)}
+              {groups.map((group) => (
+                <BaseSelect.Group className="dt-select__group" key={group.label}>
+                  <BaseSelect.GroupLabel className="dt-select__group-label">
+                    {group.label}
+                  </BaseSelect.GroupLabel>
+                  {group.options.map((option) => <SelectItem key={`${group.label}-${option.value}`} option={option} />)}
+                </BaseSelect.Group>
+              ))}
+            </BaseSelect.List>
+          </BaseSelect.Popup>
+        </BaseSelect.Positioner>
+      </BaseSelect.Portal>
+    </BaseSelect.Root>
+  );
+}
+
+function SelectItem({ option }: { option: SelectOption }): ReactElement {
+  return (
+    <BaseSelect.Item
+      className="dt-select__item"
+      value={option.value}
+      label={option.label}
+      disabled={option.disabled}
+      data-value={option.value}
+    >
+      <BaseSelect.ItemIndicator className="dt-select__item-indicator">
+        <Check size={15} strokeWidth={2.4} aria-hidden="true" />
+      </BaseSelect.ItemIndicator>
+      <BaseSelect.ItemText className="dt-select__item-text">
+        {option.label}
+      </BaseSelect.ItemText>
+    </BaseSelect.Item>
   );
 }

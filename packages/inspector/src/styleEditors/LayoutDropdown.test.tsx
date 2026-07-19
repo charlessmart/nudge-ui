@@ -7,6 +7,7 @@ import {
   makeSelected,
   mount,
   setSelectValue,
+  selectOptionValues,
   mockComputedStyle,
   restoreComputedStyle,
   sheetText,
@@ -40,10 +41,10 @@ describe("LayoutDropdown", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-select-flex-direction"]') as HTMLSelectElement;
+    const select = handle.host.querySelector('[data-test="layout-select-flex-direction"]') as HTMLElement;
     expect(select).toBeTruthy();
-    expect(select.value).toBe("row");
-    expect(select.options.length).toBe(4);
+    expect(select.textContent).toContain("Row");
+    expect(selectOptionValues(select)).toEqual(["row", "row-reverse", "column", "column-reverse"]);
   });
 
   it("pre-selects the computed value", () => {
@@ -56,8 +57,8 @@ describe("LayoutDropdown", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-select-flex-direction"]') as HTMLSelectElement;
-    expect(select.value).toBe("column");
+    const select = handle.host.querySelector('[data-test="layout-select-flex-direction"]') as HTMLElement;
+    expect(select.textContent).toContain("Column");
   });
 
   it("writes to managed stylesheet on select change", () => {
@@ -70,7 +71,7 @@ describe("LayoutDropdown", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-select-flex-direction"]') as HTMLSelectElement;
+    const select = handle.host.querySelector('[data-test="layout-select-flex-direction"]') as HTMLElement;
     setSelectValue(select, "column");
 
     expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
@@ -87,9 +88,9 @@ describe("LayoutDropdown", () => {
         domElement: el,
       }),
     );
-    const select = handle.host.querySelector('[data-test="layout-select-flex-direction"]') as HTMLSelectElement;
-    expect(select.value).toBe("custom-value");
-    const optionValues = Array.from(select.options).map((o) => o.value);
+    const select = handle.host.querySelector('[data-test="layout-select-flex-direction"]') as HTMLElement;
+    expect(select.textContent).toContain("Custom Value");
+    const optionValues = selectOptionValues(select);
     expect(optionValues).toContain("custom-value");
   });
 });

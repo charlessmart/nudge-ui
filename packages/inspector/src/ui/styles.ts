@@ -5,7 +5,6 @@ import buttonStyles from "./Button.css?inline";
 import iconButtonStyles from "./IconButton.css?inline";
 import statusCalloutStyles from "./StatusCallout.css?inline";
 import badgeStyles from "./Badge.css?inline";
-import breadcrumbStyles from "./Breadcrumb.css?inline";
 import colorSwatchStyles from "./ColorSwatch.css?inline";
 import popoverListboxStyles from "./PopoverListbox.css?inline";
 import sideValuesFieldStyles from "./SideValuesField.css?inline";
@@ -25,7 +24,6 @@ export const UI_STYLES = [
   iconButtonStyles,
   statusCalloutStyles,
   badgeStyles,
-  breadcrumbStyles,
   colorSwatchStyles,
   popoverListboxStyles,
   sideValuesFieldStyles,

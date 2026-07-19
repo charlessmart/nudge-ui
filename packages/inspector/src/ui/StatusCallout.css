@@ -13,6 +13,11 @@
   color: var(--dt-warning-text);
 }
 
+.dt-status-callout--accent {
+  background: var(--dt-accent-surface);
+  color: var(--dt-accent-strong);
+}
+
 .dt-status-callout--danger {
   background: var(--dt-danger-surface);
   color: var(--dt-danger-text);

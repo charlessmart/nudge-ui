@@ -18,7 +18,13 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
     return sr?.textContent ?? "";
   });
-  expect(hasShellText).toContain("Inspector shell ready");
+  expect(hasShellText).not.toContain("Inspector shell ready");
+  await expect(page.locator('[data-test="copy-prompt"]')).toBeDisabled();
+  await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/dt-button--disabled/);
+  await expect(page.locator('[data-test="copy-prompt"]')).toHaveCSS("background-color", "rgb(243, 243, 243)");
+  await expect(page.locator('[data-test="copy-prompt"]')).toHaveCSS("color", "rgb(161, 161, 161)");
+  await expect(page.locator('[data-test="inspect-tab"]')).toHaveClass(/dt-button--secondary/);
+  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/dt-button--quiet/);
 
   const getOpen = () =>
     page.evaluate(
@@ -50,4 +56,8 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   const afterSecond = await getOpen();
   expect(afterSecond).toBe(before);
   await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-design-tool-panel"))).toBe("open");
+
+  await page.locator('[data-test="tokens-tab"]').click();
+  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/dt-button--secondary/);
+  await expect(page.locator('[data-test="inspect-tab"]')).toHaveClass(/dt-button--quiet/);
 });

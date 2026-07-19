@@ -6,6 +6,7 @@ import { LayoutComboField } from "./LayoutComboField.tsx";
 import { setStyle } from "./styleActions.ts";
 import { Button } from "../ui/Button.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
+import { formatInspectorLabel } from "../ui/labels.ts";
 
 const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
@@ -269,7 +270,7 @@ function FlexDirectionControl({ domElement, revision = 0, onAfterEdit }: FlexCon
         className="dt-layout__direction-button"
         data-active={orientation === "row"}
         data-test="layout-direction-row"
-        aria-label="Set flex direction to row"
+        aria-label="Set Flex Direction To Row"
         aria-pressed={orientation === "row"}
         onClick={() => selectDirection(`row${reverse ? "-reverse" : ""}`)}
       >
@@ -282,7 +283,7 @@ function FlexDirectionControl({ domElement, revision = 0, onAfterEdit }: FlexCon
         className="dt-layout__direction-button"
         data-active={orientation === "column"}
         data-test="layout-direction-column"
-        aria-label="Set flex direction to column"
+        aria-label="Set Flex Direction To Column"
         aria-pressed={orientation === "column"}
         onClick={() => selectDirection(`column${reverse ? "-reverse" : ""}`)}
       >
@@ -296,7 +297,7 @@ function FlexDirectionControl({ domElement, revision = 0, onAfterEdit }: FlexCon
         className="dt-layout__reverse-button"
         data-active={reverse}
         data-test="layout-direction-reverse"
-        aria-label="Toggle reverse flex direction"
+        aria-label="Toggle Reverse Flex Direction"
         aria-pressed={reverse}
         onClick={() => selectDirection(`${orientation}${reverse ? "" : "-reverse"}`)}
       >
@@ -331,7 +332,7 @@ function FlexAlignmentGrid({ domElement, revision = 0, onAfterEdit }: FlexContro
               className="dt-layout__alignment-button"
               data-active={active}
               data-test={`layout-align-${alignValue}-${justifyValue}`}
-              aria-label={`Align ${alignValue.replace("flex-", "")} and distribute ${justifyValue.replace("flex-", "")}`}
+              aria-label={formatInspectorLabel(`Align ${alignValue.replace("flex-", "")} And Distribute ${justifyValue.replace("flex-", "")}`)}
               aria-pressed={active}
               onClick={() => selectAlignment(justifyValue, alignValue)}
             >

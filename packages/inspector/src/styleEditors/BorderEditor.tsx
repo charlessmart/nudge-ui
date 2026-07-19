@@ -9,6 +9,7 @@ import { setStyle } from "./styleActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { SideValuesField, SIDE_NAMES } from "../ui/SideValuesField.tsx";
+import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 
 const BORDER_STYLES = ["none", "solid", "dashed", "dotted", "double", "groove", "ridge"];
@@ -98,10 +99,10 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
 
   return (
     <div className="dt-editor" data-test="border-editor">
-      <div className="dt-editor__title">Border · radius · shadow</div>
+      <div className="dt-editor__title">Border · Radius · Shadow</div>
       <div className="dt-border">
         <SideValuesField
-          label="border width"
+          label="Border Width"
           data-test="border-sides"
           data-property="border-width"
           resetKey={el}
@@ -132,7 +133,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           }))}
         />
         <SideValuesField
-          label="border style"
+          label="Border Style"
           data-test="border-style-sides"
           data-property="border-style"
           resetKey={el}
@@ -147,7 +148,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           }))}
         />
         <SideValuesField
-          label="border color"
+          label="Border Color"
           data-test="border-color-sides"
           data-property="border-color"
           resetKey={el}
@@ -177,7 +178,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             ),
           }))}
         />
-        <FieldRow label="border-radius">
+        <FieldRow label="Border Radius">
           <TokenField
             property="border-radius"
             tokenRow={borderRadiusRow}
@@ -186,7 +187,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             onAfterEdit={onAfterEdit}
           />
         </FieldRow>
-        <FieldRow label="box-shadow">
+        <FieldRow label="Box Shadow">
           <TokenField
             property="box-shadow"
             tokenRow={boxShadowRow}
@@ -223,7 +224,7 @@ function BorderStyleControl({ property, domElement: el, onAfterEdit }: BorderSty
     <Select
       data-test={property === "border-style" ? "border-style" : `border-style-${property.slice("border-".length, -"-style".length)}`}
       value={value}
-      options={BORDER_STYLES.map((style) => ({ value: style, label: style }))}
+      options={BORDER_STYLES.map((style) => ({ value: style, label: formatInspectorLabel(style) }))}
       onValueChange={handleChange}
     />
   );

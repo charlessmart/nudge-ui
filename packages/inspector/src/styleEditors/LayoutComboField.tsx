@@ -7,6 +7,7 @@ import { valuePolicyFor } from "./valuePolicy.ts";
 import { Select } from "../ui/Select.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
+import { formatInspectorLabel } from "../ui/labels.ts";
 
 const CUSTOM_KEY = "__custom__";
 
@@ -100,7 +101,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
         data-test={`layout-combo-select-${property}`}
         value={selectValue}
         options={[
-          ...presets.map((p) => ({ value: p, label: p })),
+          ...presets.map((p) => ({ value: p, label: formatInspectorLabel(p) })),
           { value: CUSTOM_KEY, label: "Custom…" },
         ]}
         onValueChange={handleSelectChange}

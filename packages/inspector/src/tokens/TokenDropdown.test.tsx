@@ -8,6 +8,7 @@ import { classifyToken, getAlternativeTokens, TokenDropdown } from "./TokenDropd
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "./resolution.ts";
 import { resetPendingRules } from "./editActions.ts";
+import { selectOptionValues, setSelectValue } from "../styleEditors/_testUtils.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -110,10 +111,13 @@ describe("TokenDropdown rendering", () => {
         }),
       );
     });
-    const select = host.querySelector('[data-test="token-select"]') as HTMLSelectElement | null;
+    const select = host.querySelector('[data-test="token-select"]') as HTMLElement | null;
     expect(select).not.toBeNull();
-    expect(select!.value).toBe("--color-surface-raised");
-    expect(select!.querySelectorAll("option").length).toBe(2);
+    expect(select!.textContent).toContain("--color-surface-raised");
+    expect(selectOptionValues(select!)).toEqual([
+      "--color-surface-raised",
+      "--color-surface-sunken",
+    ]);
     btn.remove();
   });
 
@@ -128,11 +132,10 @@ describe("TokenDropdown rendering", () => {
         }),
       );
     });
-    const select = host.querySelector('[data-test="token-promote-select"]') as HTMLSelectElement | null;
+    const select = host.querySelector('[data-test="token-promote-select"]') as HTMLElement | null;
     expect(select).not.toBeNull();
-    const placeholder = select!.querySelector('option[value=""]') as HTMLOptionElement | null;
-    expect(placeholder).not.toBeNull();
-    expect(placeholder!.disabled).toBe(true);
+    expect(select!.textContent).toContain("Replace with token");
+    expect(select!.getAttribute("aria-haspopup")).toBe("listbox");
     btn.remove();
   });
 
@@ -147,9 +150,9 @@ describe("TokenDropdown rendering", () => {
         }),
       );
     });
-    const select = host.querySelector('[data-test="token-promote-select"]') as HTMLSelectElement;
-    const values = Array.from(select.options).map((option) => option.value);
-    expect(values).toEqual(["", "--space-1", "--space-2"]);
+    const select = host.querySelector('[data-test="token-promote-select"]') as HTMLElement;
+    const values = selectOptionValues(select);
+    expect(values).toEqual(["--space-1", "--space-2"]);
     btn.remove();
   });
 
@@ -164,13 +167,8 @@ describe("TokenDropdown rendering", () => {
         }),
       );
     });
-    const select = host.querySelector('[data-test="token-promote-select"]') as HTMLSelectElement;
-    const nativeSetter = Object.getOwnPropertyDescriptor(
-      HTMLSelectElement.prototype,
-      "value",
-    )!.set;
-    nativeSetter!.call(select, "--radius-md");
-    select.dispatchEvent(new Event("change", { bubbles: true }));
+    const select = host.querySelector('[data-test="token-promote-select"]') as HTMLElement;
+    setSelectValue(select, "--radius-md");
     const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
     expect(sheet.textContent).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
     expect(sheet.textContent).toContain("border-radius: var(--radius-md);");
@@ -188,13 +186,8 @@ describe("TokenDropdown rendering", () => {
         }),
       );
     });
-    const select = host.querySelector('[data-test="token-select"]') as HTMLSelectElement;
-    const nativeSetter = Object.getOwnPropertyDescriptor(
-      HTMLSelectElement.prototype,
-      "value",
-    )!.set;
-    nativeSetter!.call(select, "--color-surface-sunken");
-    select.dispatchEvent(new Event("change", { bubbles: true }));
+    const select = host.querySelector('[data-test="token-select"]') as HTMLElement;
+    setSelectValue(select, "--color-surface-sunken");
     const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
     expect(sheet.textContent).toContain("background: var(--color-surface-sunken);");
     btn.remove();

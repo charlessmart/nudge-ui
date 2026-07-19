@@ -23,7 +23,7 @@ export function CopyPromptButton(): ReactElement {
 
   return (
     <Button
-      variant="primary"
+      variant={disabled ? "disabled" : "primary"}
       className="dt-changes__copy"
       data-test="copy-prompt"
       disabled={disabled}

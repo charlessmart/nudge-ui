@@ -31,12 +31,13 @@ describe("InspectorShell", () => {
     expect(host.shadowRoot).not.toBeNull();
   });
 
-  it("renders the shell text inside the shadow root", () => {
+  it("renders the shell without placeholder copy", () => {
     act(() => {
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
-    expect(shadow.textContent).toContain("Inspector shell ready");
+    expect(shadow.textContent).not.toContain("Inspector shell ready");
+    expect(shadow.querySelector(".dt-panel__state")).toBeNull();
   });
 
   it("switches to the Tokens tab without requiring a selection", () => {
@@ -50,6 +51,8 @@ describe("InspectorShell", () => {
     });
     expect(shadow.querySelector('[data-test="tokens-panel"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="tokens-tab"]')?.getAttribute("aria-selected")).toBe("true");
+    expect(shadow.querySelector('[data-test="tokens-tab"]')?.className).toContain("dt-button--secondary");
+    expect(shadow.querySelector('[data-test="inspect-tab"]')?.className).toContain("dt-button--quiet");
   });
 
   it("unmountInspector clears the React tree from the shadow root", () => {
@@ -57,7 +60,7 @@ describe("InspectorShell", () => {
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
-    expect(shadow.textContent).toContain("Inspector shell ready");
+    expect(shadow.textContent).not.toContain("Inspector shell ready");
     act(() => {
       unmountInspector();
     });
@@ -174,7 +177,7 @@ describe("InspectorShell", () => {
       mountInspector(host2);
     });
     expect(host2.shadowRoot).not.toBeNull();
-    expect(host2.shadowRoot!.textContent).toContain("Inspector shell ready");
+    expect(host2.shadowRoot!.textContent).not.toContain("Inspector shell ready");
     host2.remove();
   });
 });

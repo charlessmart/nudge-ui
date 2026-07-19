@@ -84,10 +84,31 @@ export function setInputValue(input: HTMLInputElement, value: string): void {
   act(() => input.blur());
 }
 
-export function setSelectValue(select: HTMLSelectElement, value: string): void {
-  const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
-  setter.call(select, value);
-  select.dispatchEvent(new Event("change", { bubbles: true }));
+export function setSelectValue(select: HTMLElement, value: string): void {
+  act(() => {
+    select.focus();
+    select.click();
+  });
+
+  const option = Array.from(document.querySelectorAll<HTMLElement>(".dt-select__item"))
+    .find((item) => item.dataset.value === value);
+  if (!option) {
+    throw new Error(`Could not find select option ${value}`);
+  }
+
+  act(() => {
+    option.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    option.click();
+  });
+}
+
+export function selectOptionValues(select: HTMLElement): string[] {
+  act(() => select.click());
+  const values = Array.from(document.querySelectorAll<HTMLElement>(".dt-select__item"))
+    .map((item) => item.dataset.value)
+    .filter((value): value is string => value !== undefined);
+  act(() => select.click());
+  return values;
 }
 
 export function sheetText(): string {

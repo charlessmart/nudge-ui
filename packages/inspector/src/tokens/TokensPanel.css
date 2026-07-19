@@ -38,12 +38,11 @@
   border-top: 0;
 }
 
-.dt-token-row__header {
-  display: flex;
+.dt-token-row__inline {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
   gap: 8px;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
 }
 
 .dt-token-row__name {
@@ -54,16 +53,6 @@
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.dt-token-row__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  margin-top: 7px;
-  color: var(--dt-text-muted-subtle);
-  font-size: 10px;
-  word-break: break-all;
 }
 
 .dt-token-variants {

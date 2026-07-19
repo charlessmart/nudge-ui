@@ -1,4 +1,5 @@
 import type { ReactNode, ReactElement } from "react";
+import { formatInspectorLabel } from "./labels.ts";
 
 export interface FieldRowProps {
   label: ReactNode;
@@ -9,10 +10,12 @@ export interface FieldRowProps {
 }
 
 export function FieldRow({ label, children, hint, className, "data-test": dataTest }: FieldRowProps): ReactElement {
+  const displayLabel = typeof label === "string" ? formatInspectorLabel(label) : label;
+
   return (
     <label className={`dt-field-row${className ? ` ${className}` : ""}`} data-test={dataTest}>
       <span className="dt-field-row__label">
-        {label}
+        {displayLabel}
       </span>
       <span className="dt-field-row__control">
         {children}

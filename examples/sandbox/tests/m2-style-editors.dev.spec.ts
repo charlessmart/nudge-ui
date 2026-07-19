@@ -134,6 +134,10 @@ test("dev: linked border values expand into icon-labelled individual side fields
   const borderSides = page.locator('[data-test="border-sides"]');
   await expect(borderSides).toHaveAttribute("data-linked", "true");
   await expect(borderSides.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(1);
+  await expect(borderSides.locator('[data-test="individual-sides"]')).toHaveClass(/dt-icon-button/);
+  await expect(borderSides.locator('.dt-side-values__linked-row')).toHaveCount(1);
+  await expect(borderSides.locator('.dt-side-values__linked-row > .dt-side-values__label')).toHaveText("Border Width");
+  await expect(borderSides.locator('.dt-side-values__linked-row .dt-side-values__linked [data-test="token-field"]')).toHaveCount(1);
 
   await borderSides.locator('[data-test="individual-sides"]').click();
   await expect(borderSides).toHaveAttribute("data-linked", "false");
@@ -161,8 +165,8 @@ test("dev: authored CSS border fixtures parse width, style, and color per side",
   await expect(page.locator('[data-test="border-color-sides"]')).toHaveAttribute("data-linked", "false");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("2px");
   await expect(page.locator('[data-test="token-field"][data-property="border-bottom-width"] [data-test="raw-input"]')).toHaveValue("4px");
-  await expect(page.locator('[data-test="border-style-top"]')).toHaveValue("dashed");
-  await expect(page.locator('[data-test="border-style-bottom"]')).toHaveValue("double");
+  await expect(page.locator('[data-test="border-style-top"]')).toContainText("Dashed");
+  await expect(page.locator('[data-test="border-style-bottom"]')).toContainText("Double");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-color"] [data-test="token-chip"]')).toContainText("--color-accent");
 
   await setInput(page, "border-right-width", "5px");
@@ -266,6 +270,23 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
     "color-picker",
     "border-editor",
   ]);
+
+  const colorEditors = page.locator('[data-test="color-picker"]');
+  await expect(colorEditors.nth(0).locator(".dt-editor__title")).toHaveText("Color");
+  await expect(colorEditors.nth(1).locator(".dt-editor__title")).toHaveText("Background Color");
+  await expect(colorEditors.locator('[data-test="color-swatch"]')).toHaveCount(0);
+  await expect(colorEditors.locator('[data-test="color-computed"]')).toHaveCount(0);
+  await expect(colorEditors.nth(0)).not.toContainText("Value");
+  await expect(colorEditors.nth(0).locator('[data-test="token-field"]')).toHaveClass(/dt-token-field--color/);
+
+  await page.locator(".hero h1").click();
+  await waitForEditors(page);
+  const emptyBackground = page.locator('[data-test="color-picker"][data-property="background-color"]');
+  await expect(emptyBackground.locator('[data-test="token-field"]')).toHaveCount(0);
+  await expect(emptyBackground.locator('.dt-editor__title-row [data-test="add-color"]')).toBeVisible();
+  await emptyBackground.locator('[data-test="add-color"]').click();
+  await expect(emptyBackground.locator('[data-test="token-field"]')).toBeVisible();
+  await expect(emptyBackground.locator('[data-test="raw-input"]')).toHaveValue("");
 });
 
 test("dev: spacing fields split a three-value margin shorthand by side", async ({ page }) => {

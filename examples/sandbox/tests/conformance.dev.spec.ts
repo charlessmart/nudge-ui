@@ -20,13 +20,18 @@ test("dev: standard CSS conformance fixture keeps authored attribution separate 
   await card.click();
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
-    return root?.querySelector('[data-test="selection"]')?.textContent ?? "";
-  })).toContain("ConformanceCard");
+    return root?.querySelector('[data-test="style-editors"]') !== null;
+  })).toBe(true);
 });
 
 test("dev: logical spacing projects onto physical inspector side controls", async ({ page }) => {
   await page.goto("/conformance");
   await page.locator(".conformance-copy").click();
+  const expandButton = page.locator('[data-test="spacing-padding"] [data-test="individual-sides"]');
+  await expect(expandButton).toHaveClass(/dt-icon-button/);
+  await expect(expandButton).toHaveClass(/dt-icon-button--default/);
+  await expect.poll(async () => expandButton.boundingBox()).toEqual({ x: expect.any(Number), y: expect.any(Number), width: 32, height: 32 });
+  await expandButton.click();
 
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;

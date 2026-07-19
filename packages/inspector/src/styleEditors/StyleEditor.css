@@ -155,17 +155,3 @@
 .dt-layout-combo__custom {
   display: flex;
 }
-
-.dt-color__row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 2px;
-}
-
-.dt-color__computed {
-  min-width: 0;
-  color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size);
-  word-break: break-all;
-}

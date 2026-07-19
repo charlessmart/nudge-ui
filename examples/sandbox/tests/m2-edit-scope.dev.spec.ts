@@ -23,7 +23,9 @@ test("dev: non-forwarding repeated component defaults to source scope and can un
   await page.goto("/");
   await page.click("text=Repeated 3");
 
-  await expect.poll(() => page.evaluate(() => document.getElementById("design-tool-root")?.shadowRoot?.textContent ?? "")).toContain("Affects 6 rendered components/elements");
+  await expect(page.locator('[data-test="edit-scope"]')).toHaveClass(/dt-status-callout--accent/);
+  await expect(page.locator('[data-test="edit-scope"]')).toContainText("Affects 6 rendered components/elements");
+  await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/dt-button--secondary/);
   await setRaw(page, "font-size", "18px");
   await expect.poll(() => page.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(Array(6).fill("18px"));
   await shadowClick(page, "unlink-element");

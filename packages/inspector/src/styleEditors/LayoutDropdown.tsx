@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { setStyle } from "./styleActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
+import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 
 export interface LayoutDropdownProps {
@@ -41,7 +42,7 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
       <Select
         data-test={`layout-select-${property}`}
         value={value}
-        options={allOptions.map((opt) => ({ value: opt, label: opt }))}
+        options={allOptions.map((opt) => ({ value: opt, label: formatInspectorLabel(opt) }))}
         onValueChange={handleChange}
       />
     </FieldRow>
