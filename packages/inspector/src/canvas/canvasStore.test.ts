@@ -14,6 +14,10 @@ import {
   findCardByNormalizedUrl,
   focusCard,
   getFocusedCardId,
+  selectCard,
+  deselectCard,
+  getSelectedCardId,
+  hydrateCanvasStore,
   resizeCard,
   getBoardCamera,
   setBoardCamera,
@@ -600,7 +604,83 @@ describe("canvasStore pointer-centered zoom", () => {
     const worldAfterX = (pointerScreenX - updated.x) / updated.zoom;
     const worldAfterY = (pointerScreenY - updated.y) / updated.zoom;
 
-    expect(worldAfterX).toBeCloseTo(worldX, 5);
-    expect(worldAfterY).toBeCloseTo(worldY, 5);
+      expect(worldAfterX).toBeCloseTo(worldX, 5);
+      expect(worldAfterY).toBeCloseTo(worldY, 5);
+  });
+});
+
+describe("canvasStore card selection", () => {
+  beforeEach(resetAllCards);
+
+  it("starts with no selected card", () => {
+    expect(getSelectedCardId()).toBeNull();
+  });
+
+  it("selectCard sets the selected card ID", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    selectCard(card.id);
+    expect(getSelectedCardId()).toBe(card.id);
+  });
+
+  it("deselectCard clears the selected card ID", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    selectCard(card.id);
+    deselectCard();
+    expect(getSelectedCardId()).toBeNull();
+  });
+
+  it("selectCard notifies listeners", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    let fired = false;
+    const unsub = subscribe(() => { fired = true; });
+    selectCard(card.id);
+    expect(fired).toBe(true);
+    unsub();
+  });
+
+  it("deselectCard notifies listeners", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    selectCard(card.id);
+    let fired = false;
+    const unsub = subscribe(() => { fired = true; });
+    deselectCard();
+    expect(fired).toBe(true);
+    unsub();
+  });
+
+  it("selectCard does not navigate when URL matches current page", () => {
+    const card = addCanvasCard(window.location.href, "Home");
+    selectCard(card.id);
+    expect(getSelectedCardId()).toBe(card.id);
+  });
+
+  it("removes selection when selected card is removed", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    selectCard(card.id);
+    removeCanvasCard(card.id);
+    expect(getSelectedCardId()).toBeNull();
+  });
+
+  it("maintains selection when non-selected card is removed", () => {
+    const cardA = addCanvasCard("http://localhost:5173/about", "About");
+    const cardB = addCanvasCard("http://localhost:5173/contact", "Contact");
+    selectCard(cardA.id);
+    removeCanvasCard(cardB.id);
+    expect(getSelectedCardId()).toBe(cardA.id);
+  });
+
+  it("selecting a different card replaces the selection", () => {
+    const cardA = addCanvasCard("http://localhost:5173/about", "About");
+    const cardB = addCanvasCard("http://localhost:5173/contact", "Contact");
+    selectCard(cardA.id);
+    selectCard(cardB.id);
+    expect(getSelectedCardId()).toBe(cardB.id);
+  });
+
+  it("hydrateCanvasStore clears selection", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    selectCard(card.id);
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    expect(getSelectedCardId()).toBeNull();
   });
 });

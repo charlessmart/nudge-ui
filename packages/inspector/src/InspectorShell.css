@@ -55,6 +55,7 @@ select {
 .dt-panel {
   position: fixed;
   inset: 0 0 0 auto;
+  z-index: 2;
   width: var(--dt-panel-width);
   height: 100dvh;
   overflow: hidden;

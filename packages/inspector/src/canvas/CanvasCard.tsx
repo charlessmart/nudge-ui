@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
-import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
+import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, useSelectedCardId, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
 import { RefreshCw, Trash2, Pencil, Copy } from "lucide-react";
 import { PROTOCOL_VERSION, type FrameReadyMessage, type FrameMetadataMessage, type FrameLoadError } from "./frameProtocol.ts";
 import { registerCardFrame, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
@@ -21,6 +21,8 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
   const [loadState, setLoadState] = useState<CardLoadState>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const camera = useBoardCamera();
+  const selectedCardId = useSelectedCardId();
+  const isSelected = selectedCardId === card.id;
 
   function handleReload(): void {
     if (iframeRef.current) {
@@ -119,6 +121,8 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     const target = e.target as HTMLElement;
     if (target.closest("button")) return;
 
+    selectCard(card.id);
+
     e.stopPropagation();
     e.preventDefault();
 
@@ -180,7 +184,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
 
   return (
     <div
-      className={`dt-canvas-card${isDragging ? " is-dragging" : ""}`}
+      className={`dt-canvas-card${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}`}
       data-card-id={card.id}
       style={{
         position: "absolute",

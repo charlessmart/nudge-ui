@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { normalizeUrl, normalizedUrlKey, type NormalizedUrl } from "./normalizeUrl.ts";
+import { persistSession } from "./sessionStore.ts";
 
 export type CanvasMode = "inspect" | "canvas";
 
@@ -36,6 +37,7 @@ function defaultViewportSize(): { width: number; height: number } {
 let mode: CanvasMode = "inspect";
 let cards: CanvasCard[] = [];
 let focusedCardId: string | null = null;
+let selectedCardId: string | null = null;
 let cardIdCounter = 0;
 let cachedBoardCamera: CanvasCamera = { ...DEFAULT_CAMERA };
 let lastUsedCardSize: { width: number; height: number } | null = null;
@@ -126,6 +128,9 @@ export function addCanvasCard(url: string, title?: string): CanvasCard {
 
 export function removeCanvasCard(id: string): void {
   cards = cards.filter((c) => c.id !== id);
+  if (selectedCardId === id) {
+    selectedCardId = null;
+  }
   if (cards.length === 0 && mode === "canvas") {
     mode = "inspect";
   }
@@ -261,6 +266,29 @@ export function getFocusedCardId(): string | null {
   return focusedCardId;
 }
 
+export function selectCard(id: string): void {
+  selectedCardId = id;
+  const card = cards.find((c) => c.id === id);
+  if (card && card.url !== window.location.href) {
+    persistSession();
+    window.location.href = card.url;
+  }
+  notify();
+}
+
+export function deselectCard(): void {
+  selectedCardId = null;
+  notify();
+}
+
+export function getSelectedCardId(): string | null {
+  return selectedCardId;
+}
+
+export function useSelectedCardId(): string | null {
+  return useSyncExternalStore(subscribe, getSelectedCardId, getSelectedCardId);
+}
+
 export function setCardPosition(id: string, x: number, y: number): void {
   cards = cards.map((c) => (c.id === id ? { ...c, x, y } : c));
   notify();
@@ -274,6 +302,7 @@ export function hydrateCanvasStore(
   mode = newMode;
   cards = [...newCards];
   focusedCardId = null;
+  selectedCardId = null;
   cachedBoardCamera = { ...newCamera };
   if (newCards.length > 0) {
     let maxNum = 0;
