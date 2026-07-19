@@ -97,6 +97,37 @@ select {
   text-transform: lowercase;
 }
 
+.dt-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dt-panel__header-actions .dt-icon-button {
+  width: 32px;
+  height: 32px;
+}
+
+.dt-panel__restore.dt-icon-button {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: calc(var(--dt-z-index) + 1);
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--dt-border-strong);
+  border-radius: 12px;
+  background: var(--dt-surface-raised);
+  box-shadow: var(--dt-shadow-popup);
+  pointer-events: auto;
+  animation: dt-panel-restore-in 160ms ease-out;
+}
+
+@keyframes dt-panel-restore-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 .dt-panel__tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;

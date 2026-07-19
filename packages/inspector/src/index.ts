@@ -54,5 +54,6 @@ export { toggleInspector, setInspectorOpen } from "./InspectorShell.tsx";
 export { InspectorShell } from "./InspectorShell.tsx";
 export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
 export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation, ConformanceProjectionExpectation, ConformanceProjectionFieldExpectation } from "./conformance/fixture.ts";
+export { TYPOGRAPHY_CASES } from "./conformance/typographyCases.ts";
 export { projectInspectorValues, projectionSides } from "./spacing/projection.ts";
 export type { InspectorAxisProjection, InspectorFieldProjection, InspectorProjection, InspectorSpacingProjection, ProjectionAxis, ProjectionGroup, ProjectionSide, ProjectionState } from "./spacing/projection.ts";

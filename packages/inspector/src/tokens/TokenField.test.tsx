@@ -116,6 +116,68 @@ describe("TokenField", () => {
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("150%");
   });
 
+  it("shows an authored literal instead of the browser's computed serialization", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "font-size": "16px" });
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: {
+        property: "font-size",
+        tokenName: null,
+        declaredValue: "1rem",
+        authored: "1rem",
+        resolvedValue: "16px",
+        computed: "16px",
+        capability: "atomic",
+        confidence: "unknown",
+        evidence: { reason: "test fixture" },
+      },
+      domElement: selected.domElement,
+      entries: [],
+    }));
+
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("1rem");
+  });
+
+  it("shows only the first direct font family and leaves a token fallback as a token chip", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-family",
+      tokenRow: {
+        property: "font-family",
+        tokenName: null,
+        declaredValue: '"Aster Display", Georgia, serif',
+        authored: '"Aster Display", Georgia, serif',
+        resolvedValue: '"Aster Display", Georgia, serif',
+        capability: "composite",
+        confidence: "unknown",
+        evidence: { reason: "test fixture" },
+      },
+      domElement: selected.domElement,
+      entries: [],
+    }));
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe('"Aster Display"');
+
+    handle.unmount();
+    handle = mount(createElement(TokenField, {
+      property: "font-family",
+      tokenRow: {
+        property: "font-family",
+        tokenName: "--type-family-body",
+        declaredValue: "var(--type-family-body, Georgia, serif)",
+        authored: "var(--type-family-body, Georgia, serif)",
+        resolvedValue: "Inter, ui-sans-serif, system-ui, sans-serif",
+        capability: "atomic",
+        confidence: "exact",
+        evidence: { reason: "test fixture" },
+      },
+      domElement: selected.domElement,
+      entries: [{ name: "--type-family-body", value: "Inter, ui-sans-serif, system-ui, sans-serif", source: "fixture.css:1" }],
+    }));
+    expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain("--type-family-body");
+    expect(handle.host.querySelector('[data-test="raw-input"]')).toBeNull();
+  });
+
   it("nudges a raw numeric field immediately and keeps one current style value", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "padding-top": "16px" });

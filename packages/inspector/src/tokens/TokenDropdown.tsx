@@ -12,7 +12,8 @@ export function classifyToken(name: string, value = ""): TokenGroup {
   if (name.startsWith("--color-")) return "color";
   if (name.startsWith("--space-")) return "spacing";
   if (name.startsWith("--radius-")) return "radius";
-  if (name.startsWith("--font-") || name.startsWith("--text-")) return "typography";
+  if (name.startsWith("--font-") || name.startsWith("--text-") || name.startsWith("--type-")
+    || name.startsWith("--leading-") || name.startsWith("--tracking-")) return "typography";
   const humanPath = name.toLowerCase();
   if (/(^|\.)(color|colors|surface|background|foreground)(\.|$)/.test(humanPath) || /^(?:#|rgb\(|hsl\(|oklch\(|oklab\(|transparent)/i.test(value.trim())) return "color";
   if (/(^|\.)(space|spacing|size|gap)(\.|$)/.test(humanPath)) return "spacing";

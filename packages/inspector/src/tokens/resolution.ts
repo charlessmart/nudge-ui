@@ -133,10 +133,11 @@ function capabilityFor(property: string, value: string): EditCapability {
     || p.startsWith("margin-") || p.startsWith("padding-") || p.startsWith("inset-")) return "box-sides";
   if (p === "border" || p.endsWith("-border") || p === "border-color" || p.endsWith("-border-color")) return "structured";
   if (p === "color" || /(^|-)color$/.test(p) || p === "background-color" || p === "fill" || p === "stroke") return "color";
-  if (/(gradient|shadow|transform|transition|animation|font|grid|background)/.test(p)
+  if (/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v)) return "atomic";
+  if (p === "font" || /(gradient|shadow|transform|transition|animation|grid|background)/.test(p)
     || (v.includes(",") && !/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v))) return "composite";
   if (/\b(calc|min|max|clamp|color-mix)\s*\(/.test(v)) return "raw";
-  if (/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v) || /^[+-]?(?:\d*\.)?\d+(?:[a-z%]+)?$/i.test(v)
+  if (/^[+-]?(?:\d*\.)?\d+(?:[a-z%]+)?$/i.test(v)
     || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|oklch\(|oklab\(|transparent|currentcolor)/.test(v)) return "atomic";
   return "raw";
 }
@@ -388,6 +389,111 @@ function expandTwoValueShorthand<T>(values: readonly T[]): [T, T] | null {
   return values.length === 1 ? [values[0]!, values[0]!] : [values[0]!, values[1]!];
 }
 
+const FONT_SYSTEM_KEYWORDS = new Set([
+  "caption", "icon", "menu", "message-box", "small-caption", "status-bar",
+]);
+const FONT_SIZE_KEYWORDS = new Set([
+  "xx-small", "x-small", "small", "medium", "large", "x-large", "xx-large", "xxx-large",
+  "larger", "smaller",
+]);
+const FONT_WEIGHT_KEYWORDS = new Set(["normal", "bold", "bolder", "lighter"]);
+
+interface FontShorthandParts {
+  "font-family": string;
+  "font-size": string;
+  "font-weight"?: string;
+  "line-height"?: string;
+}
+
+/**
+ * Splits a font shorthand without losing quoted family names or functions.
+ * The slash is a token only at top level, which lets us distinguish the
+ * optional `font-size / line-height` portion from a slash in a URL/function.
+ */
+function splitFontShorthand(value: string): string[] {
+  const parts: string[] = [];
+  let start = -1;
+  let depth = 0;
+  let quote: "'" | '"' | null = null;
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index]!;
+    if (quote) {
+      if (char === "\\") index++;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      if (start < 0) start = index;
+      continue;
+    }
+    if (char === "(") {
+      depth++;
+      if (start < 0) start = index;
+      continue;
+    }
+    if (char === ")") {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (depth === 0 && (char === "/" || /\s/.test(char))) {
+      if (start >= 0) {
+        parts.push(value.slice(start, index));
+        start = -1;
+      }
+      if (char === "/") parts.push(char);
+      continue;
+    }
+    if (start < 0) start = index;
+  }
+  if (start >= 0) parts.push(value.slice(start));
+  return parts;
+}
+
+function isFontSize(value: string): boolean {
+  const lower = value.toLowerCase();
+  return FONT_SIZE_KEYWORDS.has(lower)
+    || /^(?:[+-]?(?:\d*\.)?\d+(?:[a-z]+|%)|(?:var|calc|min|max|clamp|env)\()/i.test(value);
+}
+
+/**
+ * Returns only the typography longhands that are explicitly present in an
+ * unambiguous `font` shorthand. System-font shorthands and percentage-sized
+ * variants are deliberately left raw: their individual intent cannot be
+ * recovered without changing the author's meaning.
+ */
+function parseFontShorthand(value: string): FontShorthandParts | null {
+  const source = value.trim();
+  if (!source || FONT_SYSTEM_KEYWORDS.has(source.toLowerCase())) return null;
+  const parts = splitFontShorthand(source);
+  const sizeIndex = parts.findIndex(isFontSize);
+  if (sizeIndex < 0) return null;
+  const fontSize = parts[sizeIndex]!;
+  // Percentages may be a preceding font-stretch component or the required
+  // size. Keep this uncommon form raw rather than choose arbitrarily.
+  if (/^[+-]?(?:\d*\.)?\d+%$/.test(fontSize) && sizeIndex > 0) return null;
+
+  let cursor = sizeIndex + 1;
+  let lineHeight: string | undefined;
+  if (parts[cursor] === "/") {
+    lineHeight = parts[cursor + 1];
+    if (!lineHeight) return null;
+    cursor += 2;
+  }
+  const family = parts.slice(cursor).join(" ").trim();
+  if (!family) return null;
+
+  const weight = parts.slice(0, sizeIndex).find((part) => (
+    FONT_WEIGHT_KEYWORDS.has(part.toLowerCase()) || /^(?:[1-9]\d{0,2}|1000)$/.test(part)
+  ));
+  return {
+    "font-family": family,
+    "font-size": fontSize,
+    ...(weight ? { "font-weight": weight } : {}),
+    ...(lineHeight ? { "line-height": lineHeight } : {}),
+  };
+}
+
 function logicalPhysicalSides(property: string, el?: HTMLElement): string[] | null {
   const match = /^(margin|padding|inset)-(inline|block)(?:-(start|end))?$/.exec(property.toLowerCase());
   if (!match) return null;
@@ -495,6 +601,27 @@ function resolveDeclaration(
           resolvedTokenValue: resolved.resolvedValue,
           diagnostic: colorResult.cycle ? `custom-property alias cycle includes ${colorResult.cycle}` : undefined,
           structure: scopedStructure,
+        };
+      });
+    }
+  }
+  if (borderProperty === "font") {
+    const parts = parseFontShorthand(declaration.value);
+    if (parts) {
+      return Object.entries(parts).map(([property, declaredValue]) => {
+        const resolved = resolveTokenValue(declaredValue, tokenTable, localAliases);
+        return {
+          property,
+          declaredValue,
+          sourceProperty: "font",
+          tokenName: resolved.tokenName,
+          resolvedValue: resolved.resolvedValue,
+          important: declaration.important,
+          tokens: resolved.tokens,
+          modifiers: resolved.modifiers,
+          capability: capabilityFor(property, declaredValue),
+          resolvedTokenValue: resolved.resolvedValue,
+          diagnostic: resolved.cycle ? `custom-property alias cycle includes ${resolved.cycle}` : undefined,
         };
       });
     }
@@ -757,6 +884,38 @@ function parseDeclarations(cssText: string): StyleDeclaration[] {
   return out;
 }
 
+function selectorKey(selector: string): string {
+  return selector.trim()
+    .replace(/\s+/g, " ")
+    .replace(/\s*([>+~,])\s*/g, "$1");
+}
+
+/**
+ * CSSOM is allowed to canonicalise values (`.875rem` → `0.875rem`, and it can
+ * reorder a `calc()` sum). For in-document style elements we can recover the
+ * author text safely enough to present it back to the inspector. Linked or
+ * inaccessible stylesheets continue through the CSSOM fallback below.
+ */
+function rawDeclarationsBySelector(sheet: CSSStyleSheet): Map<string, StyleDeclaration[][]> {
+  const owner = sheet.ownerNode;
+  if (!(owner instanceof HTMLStyleElement) || !owner.textContent) return new Map();
+
+  const declarations = new Map<string, StyleDeclaration[][]>();
+  const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
+  let match: RegExpExecArray | null;
+  while ((match = rulePattern.exec(owner.textContent)) !== null) {
+    const selector = match[1]!.trim();
+    if (!selector || selector.startsWith("@")) continue;
+    const parsed = parseDeclarations(match[2]!);
+    if (parsed.length === 0) continue;
+    const key = selectorKey(selector);
+    const entries = declarations.get(key) ?? [];
+    entries.push(parsed);
+    declarations.set(key, entries);
+  }
+  return declarations;
+}
+
 function extractParenContent(s: string, openIdx: number): { content: string; end: number } {
   let depth = 0;
   let i = openIdx;
@@ -874,7 +1033,12 @@ function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: bool
   const out: MatchedRule[] = [];
   let inaccessible = false;
   let sourceOrder = 0;
-  const walkRules = (rules: CSSRuleList, active = true, layer?: string): void => {
+  const walkRules = (
+    rules: CSSRuleList,
+    rawDeclarations: Map<string, StyleDeclaration[][]>,
+    active = true,
+    layer?: string,
+  ): void => {
     for (const rule of Array.from(rules)) {
       if (rule instanceof CSSStyleRule) {
         let cssText: string;
@@ -883,10 +1047,11 @@ function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: bool
         } catch {
           continue;
         }
+        const raw = rawDeclarations.get(selectorKey(rule.selectorText))?.shift();
         out.push({
           selectorText: rule.selectorText,
           specificity: computeSpecificity(rule.selectorText),
-          declarations: parseDeclarations(cssText),
+          declarations: raw ?? parseDeclarations(cssText),
           sourceOrder: sourceOrder++,
           active,
           layer,
@@ -900,7 +1065,7 @@ function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: bool
           else if (cssText.startsWith("@supports") && record.conditionText) childActive = active && (doc.defaultView?.CSS?.supports(record.conditionText) ?? false);
           else if (cssText.startsWith("@container")) childActive = false; // CSSOM cannot reliably evaluate the queried container.
           const childLayer = cssText.startsWith("@layer") ? record.name ?? cssText.slice(6, cssText.indexOf("{")).trim() : layer;
-          walkRules(record.cssRules, childActive, childLayer);
+          walkRules(record.cssRules, rawDeclarations, childActive, childLayer);
         } catch {
           continue;
         }
@@ -909,7 +1074,7 @@ function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: bool
   };
   for (const sheet of Array.from(doc.styleSheets)) {
     try {
-      walkRules(sheet.cssRules);
+      walkRules(sheet.cssRules, rawDeclarationsBySelector(sheet));
     } catch {
       inaccessible = true;
     }
@@ -939,14 +1104,13 @@ function resolveInheritedProperties(
     for (const candidate of resolvePropertiesFromRules(ancestor, rulesSorted, tokenTable)) {
       if (seenProperties.has(candidate.property)) continue;
       if (!INHERITED_PROPERTIES.has(candidate.property) && !candidate.property.startsWith("--")) continue;
-      if (!candidate.tokenName) continue;
       const ancestorVal = ancestorComputed.getPropertyValue(candidate.property).trim();
       const elVal = computed.getPropertyValue(candidate.property).trim();
       if (ancestorVal && ancestorVal === elVal) {
         result.push({
           ...candidate,
           resolvedValue: elVal,
-          confidence: candidateMatchesPainted(ancestor, candidate, ancestorVal) && !inaccessible && !candidate.evidence.layer ? "exact" : "probable",
+          confidence: candidate.tokenName && candidateMatchesPainted(ancestor, candidate, ancestorVal) && !inaccessible && !candidate.evidence.layer ? "exact" : candidate.tokenName ? "probable" : "unknown",
           evidence: { ...candidate.evidence, inheritedFrom: ancestor.tagName.toLowerCase(), inaccessibleStylesheet: inaccessible || undefined, reason: "inherited property traced through the ancestor cascade" },
         });
         seenProperties.add(candidate.property);

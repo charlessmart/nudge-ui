@@ -1,0 +1,154 @@
+:root {
+  /* Registered globally so the dev token inventory can drive the fixture UI. */
+  --type-size-body: 1rem;
+  --type-weight-strong: 650;
+  --type-leading-body: 1.5;
+  --type-tracking-tight: -0.018em;
+  --type-family-body: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.typography-conformance-page {
+  --type-ink: #19221d;
+  --type-muted: #6e7a72;
+  --type-line: #d8ded7;
+  min-height: 100vh;
+  padding: clamp(28px, 5vw, 76px);
+  background: #f4f5f1;
+  color: var(--type-ink);
+}
+
+.typography-conformance-hero,
+.typography-case-list {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.typography-conformance-hero {
+  display: grid;
+  min-height: min(58vw, 590px);
+  align-content: end;
+  padding: 8vw 0 clamp(54px, 8vw, 112px);
+  border-bottom: 1px solid var(--type-ink);
+}
+
+.typography-conformance-hero > p,
+.typography-case__header span,
+.typography-case__evidence p,
+.typography-specimen-frame__label {
+  margin: 0;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.typography-conformance-hero > p { color: #5c7970; }
+
+.typography-conformance-hero h1 {
+  max-width: 850px;
+  margin: 16px 0 28px;
+  font-size: clamp(64px, 12vw, 168px);
+  font-weight: 650;
+  letter-spacing: -.09em;
+  line-height: .78;
+}
+
+.typography-conformance-hero__support {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  color: var(--type-muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.typography-case-list { padding-bottom: 96px; }
+
+.typography-case {
+  padding: 28px 0 34px;
+  border-bottom: 1px solid var(--type-line);
+}
+
+.typography-case__header {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: baseline;
+  margin-bottom: 26px;
+}
+
+.typography-case__header span { color: #668278; }
+.typography-case__header h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -.025em; }
+.typography-case__hint { color: #9aa49d !important; }
+
+.typography-case__body {
+  display: grid;
+  grid-template-columns: minmax(310px, 1.1fr) minmax(320px, .9fr);
+  gap: clamp(28px, 5vw, 80px);
+  align-items: center;
+}
+
+.typography-specimen-frame {
+  position: relative;
+  display: grid;
+  min-height: 230px;
+  place-items: center start;
+  padding: 42px clamp(22px, 4vw, 56px) 30px;
+  background: #e7ece6;
+  overflow: hidden;
+}
+
+.typography-specimen-frame::after {
+  position: absolute;
+  right: -4%;
+  bottom: -38%;
+  width: 45%;
+  aspect-ratio: 1;
+  border: 1px solid #bdcac2;
+  border-radius: 50%;
+  content: "";
+}
+
+.typography-specimen-frame__label { position: absolute; top: 15px; left: 17px; color: #668278; }
+
+.typography-specimen {
+  position: relative;
+  z-index: 1;
+  max-width: 620px;
+  color: var(--type-ink);
+  cursor: pointer;
+  outline: 1px solid transparent;
+  outline-offset: 10px;
+  transition: outline-color 160ms ease, transform 160ms ease;
+}
+
+.typography-specimen:hover { outline-color: #5c7970; transform: translateX(4px); }
+
+.typography-case__evidence { display: grid; gap: 18px; }
+.typography-case__evidence p { color: #668278; }
+
+.typography-case__evidence pre,
+.typography-case__evidence ul {
+  margin: 8px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--type-line);
+  color: #566159;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.typography-case__evidence ul { padding-left: 17px; }
+
+@media (max-width: 720px) {
+  .typography-conformance-page { padding: 22px 18px; }
+  .typography-conformance-hero { min-height: 420px; padding-bottom: 54px; }
+  .typography-conformance-hero h1 { font-size: clamp(58px, 19vw, 92px); }
+  .typography-case__header { grid-template-columns: 1fr auto; gap: 7px 12px; }
+  .typography-case__header h2 { grid-column: 1 / -1; grid-row: 2; }
+  .typography-case__body { grid-template-columns: 1fr; }
+}

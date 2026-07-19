@@ -56,6 +56,12 @@ describe("getAlternativeTokens", () => {
     const result = getAlternativeTokens(ENTRIES, { property: "font-size", currentToken: null });
     expect(result.map((e) => e.name)).toEqual(["--font-size-base"]);
   });
+
+  it("classifies type, leading, and tracking aliases as typography", () => {
+    expect(classifyToken("--type-size-body")).toBe("typography");
+    expect(classifyToken("--leading-body")).toBe("typography");
+    expect(classifyToken("--tracking-tight")).toBe("typography");
+  });
 });
 
 describe("TokenDropdown rendering", () => {

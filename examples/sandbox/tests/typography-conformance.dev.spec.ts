@@ -1,0 +1,75 @@
+import { expect, test } from "@playwright/test";
+
+async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
+  await expect.poll(async () => page.evaluate(() => Boolean(
+    document.getElementById("design-tool-root")?.shadowRoot?.querySelector('[data-test="style-editors"]'),
+  ))).toBe(true);
+}
+
+async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
+  await page.evaluate(({ p, v }) => {
+    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const input = root?.querySelector(
+      `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
+    ) as HTMLInputElement | null;
+    if (!input) throw new Error(`Missing typography input: ${p}`);
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    input.focus();
+    setter.call(input, v);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.blur();
+  }, { p: property, v: value });
+}
+
+test("dev: typography conformance gallery renders every shared case and exposes authored values", async ({ page }) => {
+  await page.goto("/typography-conformance");
+
+  await expect(page.locator(".typography-case")).toHaveCount(6);
+  await expect(page.locator(".typography-conformance-hero__support")).toContainText("6 shared cases");
+
+  await page.locator('[data-test="typography-case-type-direct-literals"]').click();
+  await waitForEditors(page);
+  await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]')).toHaveValue(".875rem");
+  await expect(page.locator('[data-test="token-field"][data-property="font-weight"] [data-test="raw-input"]')).toHaveValue("650");
+  await expect(page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]')).toHaveValue("1.45");
+  await expect(page.locator('[data-test="token-field"][data-property="letter-spacing"] [data-test="raw-input"]')).toHaveValue("-.0125em");
+  await expect(page.locator('[data-test="token-field"][data-property="font-family"] [data-test="raw-input"]')).toHaveValue('"Aster Display"');
+});
+
+test("dev: typography fixture tokens render as chips with type suggestions", async ({ page }) => {
+  await page.goto("/typography-conformance");
+  await page.locator('[data-test="typography-case-type-tokenized-longhands"]').click();
+  await waitForEditors(page);
+
+  const size = page.locator('[data-test="token-field"][data-property="font-size"]');
+  await expect(size.locator('[data-test="token-chip"]')).toContainText("--type-size-body");
+  await size.locator('[data-test="token-chip"]').click();
+  await expect(page.getByRole("option", { name: /--type-weight-strong/ })).toBeVisible();
+
+  await page.locator('[data-test="typography-case-type-var-fallback-family"]').click();
+  const family = page.locator('[data-test="token-field"][data-property="font-family"]');
+  await expect(family.locator('[data-test="token-chip"]')).toContainText("--type-family-body");
+  await expect(family.locator('[data-test="raw-input"]')).toHaveCount(0);
+});
+
+test("dev: typography raw expressions and shorthand edits round-trip through the managed stylesheet", async ({ page }) => {
+  await page.goto("/typography-conformance");
+
+  const functional = page.locator('[data-test="typography-case-type-functional-raw"]');
+  await functional.click();
+  await waitForEditors(page);
+  await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]'))
+    .toHaveValue("clamp(1rem, 1vw + .78rem, 1.35rem)");
+  await expect(page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]'))
+    .toHaveValue("calc(1em + .5rem)");
+
+  const shorthand = page.locator('[data-test="typography-case-type-font-shorthand"]');
+  await shorthand.click();
+  await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]')).toHaveValue("1.25rem");
+  await setInput(page, "font-size", "24px");
+
+  await expect.poll(async () => shorthand.evaluate((element) => getComputedStyle(element).fontSize)).toBe("24px");
+  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+    .toContain("font-size: 24px;");
+  await expect(shorthand).not.toHaveAttribute("style", /.*/);
+});

@@ -64,6 +64,28 @@ function formatNumber(value: number): string {
   return String(Number(value.toFixed(12)));
 }
 
+/** Returns the first family in a CSS family list without splitting var() fallbacks. */
+function primaryFontFamily(value: string): string {
+  let depth = 0;
+  let quote: "'" | '"' | null = null;
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index]!;
+    if (quote) {
+      if (char === "\\") index++;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === "(") depth++;
+    else if (char === ")") depth = Math.max(0, depth - 1);
+    else if (char === "," && depth === 0) return value.slice(0, index).trim();
+  }
+  return value.trim();
+}
+
 function rgbToHex(value: string): string | null {
   const match = value.match(/^rgba?\(\s*(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/i);
   if (!match) return null;
@@ -324,7 +346,15 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
     || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const activeTokenName = expression ? null : tokenRow?.tokenName ?? null;
-  const committedValue = expression ? tokenRow?.authored ?? tokenRow?.declaredValue ?? computedRaw(el, property) : tokenRow?.resolvedValue ?? computedRaw(el, property);
+  // An authored declaration is the editable source of truth. Computed CSS is
+  // still supplied for preview, but must not turn `1rem`, `normal`, or a
+  // quoted family stack into the browser's serialised value in the raw field.
+  const authoredOrComputed = expression || !activeTokenName
+    ? tokenRow?.authored ?? tokenRow?.declaredValue ?? computedRaw(el, property)
+    : tokenRow?.resolvedValue ?? computedRaw(el, property);
+  const committedValue = property === "font-family" && !activeTokenName
+    ? primaryFontFamily(authoredOrComputed)
+    : authoredOrComputed;
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null
     : null;

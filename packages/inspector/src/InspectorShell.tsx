@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
+import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -28,6 +29,7 @@ import { countSourceSiteMatches, getEditScope, relinkElement, selectorForElement
 import { Button } from "./ui/Button.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { Breadcrumb } from "./ui/Breadcrumb.tsx";
+import { IconButton } from "./ui/IconButton.tsx";
 import { UI_STYLES } from "./ui/styles.ts";
 import { TokensPanel } from "./tokens/TokensPanel.tsx";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
@@ -173,7 +175,16 @@ export function InspectorShell(): ReactElement {
       <div className="dt-panel" data-open={isOpen ? "true" : "false"}>
         <div className="dt-panel__header">
           <span>Design Tool</span>
-          <span className="dt-panel__state">{isOpen ? "open" : "closed"}</span>
+          <div className="dt-panel__header-actions">
+            <span className="dt-panel__state">{isOpen ? "open" : "closed"}</span>
+            <IconButton
+              label="Collapse inspector"
+              data-test="collapse-inspector"
+              onClick={() => setInspectorOpen(false)}
+            >
+              <PanelRightClose size={16} strokeWidth={1.8} aria-hidden="true" />
+            </IconButton>
+          </div>
         </div>
         <div className="dt-panel__tabs" role="tablist" aria-label="Inspector view">
           <Button
@@ -320,6 +331,16 @@ export function InspectorShell(): ReactElement {
           <ChangesLog />
         </div>
       </div>
+      {!isOpen ? (
+        <IconButton
+          label="Show inspector"
+          className="dt-panel__restore"
+          data-test="show-inspector"
+          onClick={() => setInspectorOpen(true)}
+        >
+          <PanelRightOpen size={18} strokeWidth={1.8} aria-hidden="true" />
+        </IconButton>
+      ) : null}
     </>
   );
 }
