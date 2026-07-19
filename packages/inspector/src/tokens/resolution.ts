@@ -176,12 +176,16 @@ export function getTokenTable(): TokenTable {
 
 export function getTokenEntriesForElement(el: HTMLElement): TokenEntry[] {
   const computed = getComputedStyle(el);
+  const table = getTokenTable();
   return tokenCatalog.map((definition) => ({
     name: definition.name,
     cssName: definition.cssName,
-    value: computed.getPropertyValue(definition.cssName).trim()
+    value: resolveTokenValue(
+      computed.getPropertyValue(definition.cssName).trim()
       || definition.declarations[0]?.value
       || "",
+      table,
+    ).resolvedValue,
     source: definition.declarations[0]?.source ?? "",
     cssValue: definition.cssValue,
     adapter: definition.adapter,
@@ -240,9 +244,22 @@ function resolveRef(
   const nextVisited = new Set(visited);
   nextVisited.add(ref);
   const inner = resolveTokenValueInner(localValue, tokenTable, nextVisited, localAliases);
-  return inner.tokenName
-    ? { known: true, tokenName: inner.tokenName, resolvedValue: inner.resolvedValue, leafTokenName: inner.leafTokenName ?? null, cycle: inner.cycle }
-    : { known: false, tokenName: null, resolvedValue: `var(${ref})`, leafTokenName: null, cycle: inner.cycle };
+  // Tailwind's generated --tw-* properties are implementation aliases. Keep
+  // attributing those to the catalog token they point at. Other local custom
+  // properties are authored tokens in the selected element's scope, even when
+  // their leaf value is a literal and therefore has no catalog entry.
+  if (ref.startsWith("--tw-")) {
+    return inner.tokenName
+      ? { known: true, tokenName: inner.tokenName, resolvedValue: inner.resolvedValue, leafTokenName: inner.leafTokenName ?? null, cycle: inner.cycle }
+      : { known: false, tokenName: null, resolvedValue: `var(${ref})`, leafTokenName: null, cycle: inner.cycle };
+  }
+  return {
+    known: true,
+    tokenName: ref,
+    resolvedValue: inner.resolvedValue,
+    leafTokenName: inner.leafTokenName ?? ref,
+    cycle: inner.cycle,
+  };
 }
 
 function resolveTokenValueInner(
@@ -768,30 +785,60 @@ function collectLocalAliases(
   el: HTMLElement,
   rules: MatchedRule[],
 ): ReadonlyMap<string, string> {
-  const candidates = new Map<string, LocalAliasCandidate>();
-  rules.forEach((rule, index) => {
-    if (rule.active === false) return;
-    const branch = matchingSelectorBranch(el, rule.selectorText);
-    if (!branch) return;
-    const sourceOrder = rule.sourceOrder ?? index;
-    const specificity = computeSpecificity(branch);
-    for (const declaration of rule.declarations) {
-      if (!declaration.property.startsWith("--tw-")) continue;
-      const candidate: LocalAliasCandidate = {
-        value: declaration.value.trim(),
-        important: declaration.important,
-        layer: rule.layer,
-        specificity,
-        sourceOrder,
-      };
-      const previous = candidates.get(declaration.property);
-      if (!previous || compareCascade(candidate, previous) >= 0) {
-        candidates.set(declaration.property, candidate);
-      }
-    }
-  });
+  // Custom properties inherit independently of the property being resolved.
+  // Resolve the winning declaration separately for each element in the
+  // ancestor chain, then let the nearest declaration override inherited ones.
+  // This covers local aliases such as --color-error and inherited page tokens
+  // such as --color-ink without widening the build-time global catalog.
+  const lineage: HTMLElement[] = [];
+  let current: HTMLElement | null = el;
+  while (current) {
+    lineage.push(current);
+    current = current.parentElement;
+  }
 
-  return new Map([...candidates].map(([name, candidate]) => [name, candidate.value]));
+  const aliases = new Map<string, string>();
+  for (const element of lineage.reverse()) {
+    const candidates = new Map<string, LocalAliasCandidate>();
+    rules.forEach((rule, index) => {
+      if (rule.active === false) return;
+      const branch = matchingSelectorBranch(element, rule.selectorText);
+      if (!branch) return;
+      const sourceOrder = rule.sourceOrder ?? index;
+      const specificity = computeSpecificity(branch);
+      for (const declaration of rule.declarations) {
+        if (!declaration.property.startsWith("--") || declaration.property.startsWith("--dt-")) continue;
+        const candidate: LocalAliasCandidate = {
+          value: declaration.value.trim(),
+          important: declaration.important,
+          layer: rule.layer,
+          specificity,
+          sourceOrder,
+        };
+        const previous = candidates.get(declaration.property);
+        if (!previous || compareCascade(candidate, previous) >= 0) {
+          candidates.set(declaration.property, candidate);
+        }
+      }
+    });
+
+    // Inline custom properties are also inherited by descendants. They are
+    // explicit cascade winners for their element, so include them at inline
+    // specificity without changing the managed-style rule contract.
+    for (const property of Array.from(element.style)) {
+      if (!property.startsWith("--") || property.startsWith("--dt-")) continue;
+      candidates.set(property, {
+        value: element.style.getPropertyValue(property).trim(),
+        important: element.style.getPropertyPriority(property) === "important",
+        specificity: 100000000,
+        sourceOrder: Number.MAX_SAFE_INTEGER,
+      });
+    }
+
+    for (const [name, candidate] of candidates) aliases.set(name, candidate.value);
+  }
+
+  return aliases;
 }
 
 export function resolvePropertiesFromRules(

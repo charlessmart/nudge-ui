@@ -87,6 +87,26 @@ describe("resolveTokenValue", () => {
     expect(res.resolvedValue).toBe("red");
   });
 
+  it("resolves local custom-property aliases to their concrete leaf value", () => {
+    const element = document.createElement("div");
+    element.className = "subject";
+    const rows = resolvePropertiesFromRules(element, [{
+      selectorText: ".subject",
+      specificity: 10000,
+      sourceOrder: 0,
+      declarations: [
+        { property: "--color-error", value: "var(--color-danger)" },
+        { property: "color", value: "var(--color-error)" },
+      ],
+    }], makeTable([{ name: "--color-danger", value: "#dc2626", source: "s:1" }]));
+
+    expect(rows.find((row) => row.property === "color")).toMatchObject({
+      tokenName: "--color-error",
+      resolvedValue: "#dc2626",
+      tokens: [{ name: "--color-error", origin: "runtime" }],
+    });
+  });
+
   it("returns null tokenName and raw value for an unknown custom property", () => {
     const table = makeTable([]);
     const res = resolveTokenValue("var(--unknown)", table);
@@ -215,6 +235,27 @@ describe("interaction-state resolution", () => {
     expect(row).toMatchObject({
       tokenName: "--color-text-primary",
       declaredValue: "var(--color-text-primary)",
+      evidence: { inheritedFrom: "div" },
+    });
+  });
+
+  it("traces inherited local custom-property tokens from an ancestor", () => {
+    const style = document.createElement("style");
+    style.textContent = ".wrapper { --color-ink: #1a1a2e; color: var(--color-ink); }";
+    document.head.appendChild(style);
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "wrapper";
+    const paragraph = document.createElement("p");
+    wrapper.appendChild(paragraph);
+    document.body.appendChild(wrapper);
+
+    const row = getResolvedPropertiesForState(paragraph, makeTable([]), "base")
+      .find((candidate) => candidate.property === "color");
+
+    expect(row).toMatchObject({
+      tokenName: "--color-ink",
+      declaredValue: "var(--color-ink)",
       evidence: { inheritedFrom: "div" },
     });
   });

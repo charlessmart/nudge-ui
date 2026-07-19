@@ -29,6 +29,16 @@
   min-width: 0;
 }
 
+.dt-token-field__attribution {
+  flex: 0 1 34%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dt-text-muted);
+  font-size: var(--dt-font-size);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dt-token-color-control {
   position: relative;
   display: inline-flex;

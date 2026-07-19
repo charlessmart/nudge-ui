@@ -16,26 +16,10 @@ async function sheetText(page: import("@playwright/test").Page): Promise<string>
 }
 
 async function setSelect(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
-  await page.evaluate((t) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    (sr?.querySelector(`[data-test="${t}"]`) as HTMLElement | null)?.click();
-  }, testId);
-  await expect
-    .poll(async () => page.evaluate(({ t, v }) => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
-      return Array.from(sr?.querySelectorAll<HTMLElement>(".dt-select__item") ?? [])
-        .some((item) => item.dataset.value === v);
-    }, { t: testId, v: value }), { timeout: 5000 })
-    .toBe(true);
-  await page.evaluate(({ v }) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const item = Array.from(sr?.querySelectorAll<HTMLElement>(".dt-select__item") ?? [])
-      .find((candidate) => candidate.dataset.value === v);
-    if (item) {
-      item.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-      item.click();
-    }
-  }, { v: value });
+  await page.locator(`[data-test="${testId}"]`).click();
+  const option = page.locator(`.dt-select__item:visible[data-value="${value}"]`);
+  await expect(option).toBeVisible();
+  await option.click();
 }
 
 async function selectValues(page: import("@playwright/test").Page, testId: string): Promise<string[]> {

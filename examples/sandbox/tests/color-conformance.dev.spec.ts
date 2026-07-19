@@ -128,10 +128,17 @@ test("dev: color-mix expressions preserve full authored value with tokens", asyn
   await page.locator('[data-test="color-case-color-mix-token"]').click();
   await waitForEditors(page);
 
-  await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
+  const fg = page.locator('[data-test="token-field"][data-property="color"]');
+  await expect(fg.locator('[data-test="raw-input"]'))
     .toHaveValue("color-mix(in oklab, var(--color-primary) 50%, transparent)");
+  await expect(fg.locator('[data-test="token-attribution"]')).toContainText("--color-primary");
+  await expect(fg.locator('[data-test="token-chip"]')).toHaveCount(0);
+
   const bg = page.locator('[data-test="token-field"][data-property="background-color"]');
-  await expect(bg.locator('[data-test="token-chip"]')).toContainText("--color-primary");
+  await expect(bg.locator('[data-test="raw-input"]'))
+    .toHaveValue("color-mix(in srgb, var(--color-primary) 10%, white)");
+  await expect(bg.locator('[data-test="token-attribution"]')).toContainText("--color-primary");
+  await expect(bg.locator('[data-test="token-chip"]')).toHaveCount(0);
 });
 
 test("dev: color swatches are present on color-capable fields", async ({ page }) => {
@@ -145,6 +152,16 @@ test("dev: color swatches are present on color-capable fields", async ({ page })
 
   const bg = page.locator('[data-test="token-field"][data-property="background-color"]');
   await expect(bg.locator('[data-test="token-color-swatch"]')).toHaveCount(1);
+});
+
+test("dev: browser-supported oklch values render in color swatches", async ({ page }) => {
+  await page.goto("/color-conformance");
+  await page.locator('[data-test="color-case-color-oklch"]').click();
+  await waitForEditors(page);
+
+  const swatch = page.locator('[data-test="token-field"][data-property="color"] [data-test="token-color-swatch"]');
+  await expect(swatch.locator("..")).toHaveAttribute("data-resolved", "true");
+  await expect(swatch).toHaveCSS("background-image", "none");
 });
 
 test("dev: fill and stroke fields render as color-capable", async ({ page }) => {
@@ -180,6 +197,17 @@ test("dev: token alias chain resolves correctly", async ({ page }) => {
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-error");
+  await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveAttribute("style", /--dt-swatch-color:\s*#dc2626/);
   await fg.locator('[data-test="token-chip"]').click();
   await expect(page.getByRole("option", { name: /--color-danger/ })).toBeVisible();
+});
+
+test("dev: inherited local color tokens remain attributable", async ({ page }) => {
+  await page.goto("/color-conformance");
+  await page.locator('[data-test="color-case-color-token-bg-only"]').click();
+  await waitForEditors(page);
+
+  const fg = page.locator('[data-test="token-field"][data-property="color"]');
+  await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-ink");
+  await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveAttribute("style", /--dt-swatch-color:\s*#1a1a2e/);
 });

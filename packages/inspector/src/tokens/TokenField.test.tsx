@@ -282,8 +282,11 @@ describe("TokenField", () => {
       domElement: selected.domElement,
       entries: [FONT_SIZE],
     }));
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("calc(var(--space-4) * 2)");
-    expect(handle.host.querySelector('[data-test="token-attribution"]')?.textContent).toContain("--space-4");
+    const rawInput = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    const attribution = handle.host.querySelector('[data-test="token-attribution"]') as HTMLElement;
+    expect(rawInput.value).toBe("calc(var(--space-4) * 2)");
+    expect(attribution.textContent).toContain("--space-4");
+    expect(rawInput.compareDocumentPosition(attribution) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
   });
 
@@ -345,6 +348,45 @@ describe("TokenField", () => {
     });
     expect(onCommitRaw).toHaveBeenCalledWith("#abcdef");
     expect(handle.host.querySelector('[data-test="token-field"]')?.classList.contains("dt-token-field--color")).toBe(true);
+    selected.domElement.remove();
+  });
+
+  it("uses the resolved hex for a token swatch instead of its authored alias", () => {
+    const onCommitRaw = vi.fn();
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenValueField, {
+      property: "color",
+      committedValue: "var(--color-error)",
+      resolvedValue: "rgb(220, 38, 38)",
+      activeTokenName: "--color-error",
+      entries: [{ name: "--color-error", value: "var(--color-danger)", source: "fixture.css:1" }],
+      isColor: true,
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+
+    expect(handle.host.querySelector('[data-test="token-color-swatch"]')?.getAttribute("style"))
+      .toContain("--dt-swatch-color: #dc2626");
+    selected.domElement.remove();
+  });
+
+  it("renders browser-supported oklch values instead of the unresolved fallback", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenValueField, {
+      property: "color",
+      committedValue: "oklch(63% .2 25)",
+      resolvedValue: "oklch(63% .2 25)",
+      entries: [],
+      isColor: true,
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+
+    expect(handle.host.querySelector(".dt-token-color-control")?.getAttribute("data-resolved")).toBe("true");
+    expect(handle.host.querySelector('[data-test="token-color-swatch"]')?.getAttribute("style"))
+      .toContain("oklch(63% .2 25)");
     selected.domElement.remove();
   });
 });

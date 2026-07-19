@@ -65,23 +65,30 @@
 .dt-select__positioner {
   z-index: var(--dt-z-index);
   min-width: var(--anchor-width);
+  pointer-events: auto;
 }
 
 .dt-select__popup {
-  min-width: var(--anchor-width);
-  max-height: min(320px, var(--available-height));
-  overflow: auto;
-  padding: 4px;
-  background: var(--dt-surface-raised);
+  box-sizing: border-box;
+  width: min(420px, max(var(--anchor-width, 0px), 260px));
+  min-width: 0;
+  max-width: calc(100vw - 24px);
+  max-height: min(320px, calc(100dvh - 24px), var(--available-height, 100dvh));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  background: var(--dt-surface-panel);
   color: var(--dt-text-primary);
-  border: 1px solid var(--dt-border-strong);
-  border-radius: var(--dt-radius-control);
+  border: 1px solid var(--dt-border-subtle);
+  border-radius: 12px;
   box-shadow: var(--dt-shadow-popup);
-  outline: 0;
   transform-origin: var(--transform-origin);
 }
 
 .dt-select__list {
+  min-width: 0;
+  padding: 6px;
   outline: 0;
 }
 
@@ -102,20 +109,20 @@
 
 .dt-select__item {
   display: flex;
-  min-height: 30px;
   align-items: center;
-  gap: 7px;
-  padding: 4px 8px;
-  border-radius: var(--dt-radius-small);
+  gap: 8px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 9px;
+  border-radius: 8px;
   color: var(--dt-text-primary);
   outline: 0;
-  font: inherit;
+  font-size: var(--dt-font-size);
   cursor: pointer;
 }
 
 .dt-select__item[data-highlighted] {
-  background: var(--dt-accent);
-  color: #ffffff;
+  background: var(--dt-surface-control);
 }
 
 .dt-select__item[data-disabled] {
@@ -133,6 +140,7 @@
 
 .dt-select__item-text {
   min-width: 0;
+  flex: 1 1 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

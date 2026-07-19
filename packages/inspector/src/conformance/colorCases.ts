@@ -396,12 +396,13 @@ export const COLOR_CASES: ConformanceFixture[] = [
     id: "color-hex-comparison",
     css: `.subject {
   color: #dc2626;
+  background-color: #fef2f2;
 }
 .subject-two {
   color: #dc2626;
   background-color: #fef2f2;
 }`,
-    markup: '<div class="subject" data-cid="ColorCase" data-src="fixtures/color.tsx:21:1">A single-property element.</div><div class="subject-two" data-cid="ColorCase" data-src="fixtures/color.tsx:21:2">A companion element with both foreground and background.</div>',
+    markup: '<div class="subject" data-cid="ColorCase" data-src="fixtures/color.tsx:21:1">A companion element with both foreground and background.</div><div class="subject-two" data-cid="ColorCase" data-src="fixtures/color.tsx:21:2">A companion element with both foreground and background.</div>',
     selected: ".subject-two",
     catalog: [],
     expected: {

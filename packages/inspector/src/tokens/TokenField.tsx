@@ -123,6 +123,15 @@ export function colorValueToHex(value: string): string | null {
   return rgbToHex(resolved);
 }
 
+function browserRecognizesColor(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || /var\(/i.test(trimmed) || typeof document === "undefined") return false;
+  const probe = document.createElement("span");
+  probe.style.color = "";
+  probe.style.color = trimmed;
+  return probe.style.color !== "";
+}
+
 function NativeColorSwatch({
   value,
   onChange,
@@ -132,10 +141,15 @@ function NativeColorSwatch({
   onChange(value: string): void;
   disabled?: boolean;
 }): ReactElement {
-  const hex = colorValueToHex(value) ?? "#000000";
+  const resolvedHex = colorValueToHex(value);
+  const hex = resolvedHex ?? "#000000";
+  const hasRenderableColor = resolvedHex !== null || browserRecognizesColor(value);
   return (
-    <label className="dt-token-color-control" data-resolved={colorValueToHex(value) ? "true" : "false"}>
-      <ColorSwatch color={colorValueToHex(value) ? value : "transparent"} size="small" data-test="token-color-swatch" />
+    <label className="dt-token-color-control" data-resolved={hasRenderableColor ? "true" : "false"}>
+      {/* Use the concrete color for aliases; an authored var() may not inherit
+          the selected element's local custom properties inside the inspector's
+          shadow root. Preserve other valid CSS color syntaxes as-authored. */}
+      <ColorSwatch color={resolvedHex ?? (value.trim() || "transparent")} size="small" data-test="token-color-swatch" />
       <input
         className="dt-token-color-control__input"
         data-test="token-color-input"
@@ -317,11 +331,6 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const showPopover = isFocused && filteredTokens.length > 0;
   return (
     <span className={`dt-token-field dt-token-field--raw${isColor ? " dt-token-field--color" : ""}`} data-test="token-field" data-property={property}>
-      {attributionTokens.length > 0 ? (
-        <span className="dt-token-field__attribution" data-test="token-attribution" title="Referenced tokens">
-          {attributionTokens.join(" · ")}
-        </span>
-      ) : null}
       {colorControl}
       <PopoverListbox
         query={rawValue}
@@ -343,6 +352,11 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           if (chosen) handleSuggestionSelect(chosen);
         }}
       />
+      {attributionTokens.length > 0 ? (
+        <span className="dt-token-field__attribution" data-test="token-attribution" title="Referenced tokens">
+          {attributionTokens.join(" · ")}
+        </span>
+      ) : null}
     </span>
   );
 }
