@@ -208,6 +208,14 @@ export function redo(): boolean {
   return true;
 }
 
+export function loadChanges(incoming: ChangeRecord[]): void {
+  changes = [...incoming];
+  undoStack = [];
+  redoStack = [];
+  applyRules(getPendingRules());
+  notify();
+}
+
 export function clearChanges(): void {
   changes = [];
   undoStack = [];

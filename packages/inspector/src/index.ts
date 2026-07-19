@@ -10,6 +10,14 @@ import { clearInspectorLayout } from "./panelLayout.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import { bootstrapRenderer } from "./canvas/rendererBootstrap.ts";
 import { CanvasWorkspace } from "./canvas/CanvasWorkspace.tsx";
+import {
+  hydrateSession,
+  enableAutoSave,
+  scheduleAutoSave,
+  setRestoreCount,
+} from "./canvas/sessionStore.ts";
+import { subscribeChanges } from "./changesLog.ts";
+import { subscribe as subscribeCanvas } from "./canvas/canvasStore.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -30,6 +38,11 @@ export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
     return;
   }
 
+  const result = hydrateSession();
+  if (result.restored) {
+    setRestoreCount(result.changeCount);
+  }
+
   mountInspector(inspectorHost);
 
   let canvasHost = document.getElementById("design-tool-canvas-host");
@@ -39,6 +52,10 @@ export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
     document.body.appendChild(canvasHost);
   }
   mountCanvasWorkspace(canvasHost);
+
+  enableAutoSave();
+  subscribeChanges(() => scheduleAutoSave());
+  subscribeCanvas(() => scheduleAutoSave());
 }
 
 let canvasRoot: Root | null = null;

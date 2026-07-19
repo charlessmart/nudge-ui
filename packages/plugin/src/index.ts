@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { Alias, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { injectIdentity } from "./transform/injectDataCid.ts";
 import { parseTokenCatalog } from "./tokens/parseTokens.ts";
@@ -14,6 +14,8 @@ import { createTokenAdapterRegistry } from "./adapters/registry.ts";
 
 export interface DesignToolOptions {
   enabled?: boolean;
+  /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
+  projectId?: string;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
   tailwindV3?: { config: TailwindV3Config };
   vanillaExtract?: VanillaExtractAdapterOptions;
@@ -218,7 +220,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
           editable: definition.editable,
         }));
         const body = JSON.stringify(all);
-        const projectId = JSON.stringify(root ?? process.cwd());
+        const projectId = JSON.stringify(options.projectId ?? (root ? basename(root) : ""));
         return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${body};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {

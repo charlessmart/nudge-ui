@@ -1,0 +1,441 @@
+import { designToolProjectId } from "virtual:design-tokens";
+import type { ChangeRecord } from "../changesLog.ts";
+import {
+  getChangesList,
+  loadChanges,
+  isTokenChange,
+  type ElementChangeRecord,
+  type TokenChangeRecord,
+} from "../changesLog.ts";
+import {
+  getCanvasMode,
+  setCanvasMode,
+  getCanvasCards,
+  getBoardCamera,
+  setBoardCamera,
+  hydrateCanvasStore,
+  removeCanvasCard,
+  type CanvasCamera,
+  type CanvasMode,
+} from "./canvasStore.ts";
+import { applyRules } from "../managedStylesheet.ts";
+import { clearChanges as clearChangesLog } from "../changesLog.ts";
+import { removeManagedSheet } from "../managedStylesheet.ts";
+import { clearInspectorLayout } from "../panelLayout.ts";
+import { setSelectedElement } from "../selectionStore.ts";
+import type { TokenEntry } from "virtual:design-tokens";
+
+const SCHEMA_VERSION = 1;
+const STORAGE_PREFIX = "design-tool";
+
+function storageKey(projectId: string): string {
+  return `${STORAGE_PREFIX}:${projectId}:v${SCHEMA_VERSION}`;
+}
+
+interface SerializableTokenRef {
+  name: string;
+  value: string;
+  source: string;
+  cssValue?: string;
+  cssName?: string;
+  adapter?: string;
+  origin?: string;
+}
+
+export interface SerializableCard {
+  id: string;
+  url: string;
+  title: string | null;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface SerializableElementChange {
+  kind?: "element";
+  cid: string;
+  file: string;
+  line: number;
+  selector: string;
+  property: string;
+  sourceProperty?: string;
+  sourceAuthoredValue?: string;
+  oldToken: SerializableTokenRef | null;
+  newToken: SerializableTokenRef | null;
+  rawValue?: string;
+  oldRawValue?: string;
+  source: { file: string; line: number; component: string };
+  scope?: "source-site";
+  state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";
+}
+
+export interface SerializableTokenChange {
+  kind: "token";
+  tokenName: string;
+  file: string;
+  line: number;
+  selector: string;
+  property: string;
+  rawValue: string;
+  oldRawValue: string;
+  context: Record<string, string>;
+  contextLabel: string;
+  source: { file: string; line: number; component: string };
+}
+
+export type SerializableChange = SerializableElementChange | SerializableTokenChange;
+
+export interface DurableSession {
+  schemaVersion: typeof SCHEMA_VERSION;
+  projectId: string;
+  mode: CanvasMode;
+  inspectUrl: string;
+  cards: SerializableCard[];
+  camera: { x: number; y: number; zoom: number };
+  changes: SerializableChange[];
+}
+
+function serializeTokenRef(token: TokenEntry | null): SerializableTokenRef | null {
+  if (!token) return null;
+  return {
+    name: token.name,
+    value: token.value ?? "",
+    source: token.source ?? "",
+    cssValue: token.cssValue,
+    cssName: token.cssName,
+    adapter: token.adapter,
+    origin: token.origin,
+  };
+}
+
+function serializeElementChange(change: ElementChangeRecord): SerializableElementChange | null {
+  if (change.scope === "instance-preview") return null;
+  return {
+    kind: change.kind,
+    cid: change.cid,
+    file: change.file,
+    line: change.line,
+    selector: change.selector,
+    property: change.property,
+    sourceProperty: change.sourceProperty,
+    sourceAuthoredValue: change.sourceAuthoredValue,
+    oldToken: serializeTokenRef(change.oldToken),
+    newToken: serializeTokenRef(change.newToken),
+    rawValue: change.rawValue,
+    oldRawValue: change.oldRawValue,
+    source: change.source,
+    scope: change.scope ?? "source-site",
+    state: change.state,
+  };
+}
+
+function serializeTokenChange(change: TokenChangeRecord): SerializableTokenChange {
+  return {
+    kind: "token",
+    tokenName: change.tokenName,
+    file: change.file,
+    line: change.line,
+    selector: change.selector,
+    property: change.property,
+    rawValue: change.rawValue,
+    oldRawValue: change.oldRawValue,
+    context: change.context ? { ...change.context } : {},
+    contextLabel: change.contextLabel ?? "",
+    source: change.source,
+  };
+}
+
+function serializeChange(change: ChangeRecord): SerializableChange | null {
+  if (isTokenChange(change)) return serializeTokenChange(change);
+  return serializeElementChange(change);
+}
+
+function deserializeTokenRef(serialized: SerializableTokenRef | null): TokenEntry | null {
+  if (!serialized) return null;
+  return {
+    name: serialized.name,
+    value: serialized.value,
+    source: serialized.source,
+    cssValue: serialized.cssValue,
+    cssName: serialized.cssName,
+    adapter: serialized.adapter,
+    origin: serialized.origin as TokenEntry["origin"],
+  };
+}
+
+function deserializeElementChange(s: SerializableElementChange): ElementChangeRecord {
+  return {
+    kind: s.kind,
+    cid: s.cid,
+    file: s.file,
+    line: s.line,
+    selector: s.selector,
+    property: s.property,
+    sourceProperty: s.sourceProperty,
+    sourceAuthoredValue: s.sourceAuthoredValue,
+    oldToken: deserializeTokenRef(s.oldToken),
+    newToken: deserializeTokenRef(s.newToken),
+    rawValue: s.rawValue,
+    oldRawValue: s.oldRawValue,
+    source: s.source,
+    scope: s.scope ?? "source-site",
+    state: s.state,
+  };
+}
+
+function deserializeTokenChange(s: SerializableTokenChange): TokenChangeRecord {
+  return {
+    kind: "token",
+    tokenName: s.tokenName,
+    file: s.file,
+    line: s.line,
+    selector: s.selector,
+    property: s.property,
+    rawValue: s.rawValue,
+    oldRawValue: s.oldRawValue,
+    context: s.context ?? {},
+    contextLabel: s.contextLabel ?? "",
+    source: s.source,
+  };
+}
+
+function deserializeChange(s: SerializableChange): ChangeRecord {
+  if (s.kind === "token") return deserializeTokenChange(s);
+  return deserializeElementChange(s);
+}
+
+export interface HydrationResult {
+  restored: boolean;
+  changeCount: number;
+}
+
+function buildSession(): DurableSession {
+  const changes = getChangesList();
+  const serializableChanges: SerializableChange[] = [];
+  for (const change of changes) {
+    const serialized = serializeChange(change);
+    if (serialized) serializableChanges.push(serialized);
+  }
+
+  const cards = getCanvasCards();
+  const camera = getBoardCamera();
+  const mode = getCanvasMode();
+
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    projectId: designToolProjectId,
+    mode,
+    inspectUrl: window.location.href,
+    cards: cards.map((c) => ({
+      id: c.id,
+      url: c.url,
+      title: c.title,
+      x: c.x,
+      y: c.y,
+      width: c.width,
+      height: c.height,
+    })),
+    camera: { x: camera.x, y: camera.y, zoom: camera.zoom },
+    changes: serializableChanges,
+  };
+}
+
+export function serializeSession(): DurableSession {
+  return buildSession();
+}
+
+export function persistSession(): void {
+  if (!designToolProjectId) return;
+  try {
+    const session = buildSession();
+    localStorage.setItem(storageKey(designToolProjectId), JSON.stringify(session));
+  } catch {
+    // Storage unavailable or quota exceeded — silently ignore
+  }
+}
+
+export function hydrateSession(): HydrationResult {
+  if (!designToolProjectId) return { restored: false, changeCount: 0 };
+
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(storageKey(designToolProjectId));
+  } catch {
+    return { restored: false, changeCount: 0 };
+  }
+
+  if (!raw) return { restored: false, changeCount: 0 };
+
+  let session: unknown;
+  try {
+    session = JSON.parse(raw);
+  } catch {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
+
+  if (!session || typeof session !== "object") {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
+
+  const s = session as Record<string, unknown>;
+
+  if (typeof s.schemaVersion !== "number" || s.schemaVersion !== SCHEMA_VERSION) {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
+
+  if (typeof s.projectId !== "string" || s.projectId !== designToolProjectId) {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
+
+  if (typeof s.mode !== "string" || (s.mode !== "inspect" && s.mode !== "canvas")) {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
+
+  const cards = Array.isArray(s.cards) ? (s.cards as unknown[]) : null;
+  if (!cards) {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
+
+  const serializableCards: SerializableCard[] = [];
+  for (const card of cards) {
+    if (
+      !card || typeof card !== "object" ||
+      typeof (card as Record<string, unknown>).id !== "string" ||
+      typeof (card as Record<string, unknown>).url !== "string" ||
+      typeof (card as Record<string, unknown>).x !== "number" ||
+      typeof (card as Record<string, unknown>).y !== "number" ||
+      typeof (card as Record<string, unknown>).width !== "number" ||
+      typeof (card as Record<string, unknown>).height !== "number"
+    ) {
+      safeDiscard();
+      return { restored: false, changeCount: 0 };
+    }
+    const c = card as Record<string, unknown>;
+    serializableCards.push({
+      id: c.id as string,
+      url: c.url as string,
+      title: typeof c.title === "string" ? c.title as string : null,
+      x: c.x as number,
+      y: c.y as number,
+      width: c.width as number,
+      height: c.height as number,
+    });
+  }
+
+  const cameraRaw = s.camera;
+  if (
+    !cameraRaw || typeof cameraRaw !== "object" ||
+    typeof (cameraRaw as Record<string, unknown>).x !== "number" ||
+    typeof (cameraRaw as Record<string, unknown>).y !== "number" ||
+    typeof (cameraRaw as Record<string, unknown>).zoom !== "number"
+  ) {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
+
+  const changesRaw = Array.isArray(s.changes) ? s.changes : [];
+  const deserializedChanges: ChangeRecord[] = [];
+  for (const c of changesRaw) {
+    if (!c || typeof c !== "object") {
+      safeDiscard();
+      return { restored: false, changeCount: 0 };
+    }
+    const sc = c as Record<string, unknown>;
+    if (
+      typeof sc.selector !== "string" ||
+      typeof sc.property !== "string" ||
+      typeof sc.source !== "object"
+    ) {
+      safeDiscard();
+      return { restored: false, changeCount: 0 };
+    }
+    try {
+      deserializedChanges.push(deserializeChange(sc as unknown as SerializableChange));
+    } catch {
+      safeDiscard();
+      return { restored: false, changeCount: 0 };
+    }
+  }
+
+  const camera: CanvasCamera = {
+    x: (cameraRaw as Record<string, unknown>).x as number,
+    y: (cameraRaw as Record<string, unknown>).y as number,
+    zoom: (cameraRaw as Record<string, unknown>).zoom as number,
+  };
+
+  hydrateCanvasStore(s.mode as CanvasMode, serializableCards, camera);
+  if (deserializedChanges.length > 0) {
+    loadChanges(deserializedChanges);
+  }
+
+  return { restored: true, changeCount: deserializedChanges.length };
+}
+
+function safeDiscard(): void {
+  try {
+    localStorage.removeItem(storageKey(designToolProjectId));
+  } catch {
+    // ignore
+  }
+}
+
+export function clearSession(): void {
+  try {
+    localStorage.removeItem(storageKey(designToolProjectId));
+  } catch {
+    // ignore
+  }
+
+  clearChangesLog();
+  removeManagedSheet();
+  setSelectedElement(null);
+  clearInspectorLayout();
+
+  for (const card of getCanvasCards()) {
+    removeCanvasCard(card.id);
+  }
+  setBoardCamera({ x: 0, y: 0, zoom: 1 });
+
+  applyRules([]);
+}
+
+let autoSaveEnabled = false;
+
+export function enableAutoSave(): void {
+  if (autoSaveEnabled) return;
+  autoSaveEnabled = true;
+  window.addEventListener("beforeunload", persistSession);
+}
+
+export function scheduleAutoSave(): void {
+  if (!autoSaveEnabled) return;
+  persistSession();
+}
+
+let restoreCount = 0;
+
+export function getRestoreCount(): number {
+  return restoreCount;
+}
+
+export function setRestoreCount(count: number): void {
+  restoreCount = count;
+}
+
+export function clearRestoreCount(): void {
+  restoreCount = 0;
+}
+
+export function resetAutoSave(): void {
+  autoSaveEnabled = false;
+  window.removeEventListener("beforeunload", persistSession);
+}
+
+export { storageKey, SCHEMA_VERSION, type SerializableCard as HydratedCard };

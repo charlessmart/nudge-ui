@@ -157,6 +157,24 @@ select {
   to { opacity: 1; transform: translateX(0); }
 }
 
+.dt-panel__restore-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 20px;
+  background: var(--dt-accent-surface);
+  border-bottom: 1px solid var(--dt-border-subtle);
+  font-size: var(--dt-font-size);
+  color: var(--dt-accent-text);
+  font-weight: 600;
+}
+
+.dt-scope__warning {
+  color: var(--dt-warning-text);
+  font-weight: 500;
+}
+
 .dt-panel__tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -35,6 +35,7 @@ import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "./ui/labels.ts";
 import { useCanvasMode } from "./canvas/canvasStore.ts";
 import { ModeToggle } from "./canvas/ModeToggle.tsx";
+import { getRestoreCount, clearRestoreCount, clearSession } from "./canvas/sessionStore.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -73,6 +74,7 @@ export function InspectorShell(): ReactElement {
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
+  const [restoreCount, setShowRestore] = useState<number>(getRestoreCount());
 
   useEffect(() => {
     setInspectorLayoutOpen(isOpen);
@@ -189,6 +191,23 @@ export function InspectorShell(): ReactElement {
             Tokens
           </Button>
         </div>
+        {restoreCount > 0 ? (
+          <div className="dt-panel__restore-banner" data-test="restore-notice">
+            <span>Restored {restoreCount} change{restoreCount === 1 ? "" : "s"}</span>
+            <Button
+              size="compact"
+              variant="secondary"
+              data-test="clear-session"
+              onClick={() => {
+                clearSession();
+                clearRestoreCount();
+                setShowRestore(0);
+              }}
+            >
+              Clear Session
+            </Button>
+          </div>
+        ) : null}
         <div className="dt-panel__body">
           {activeTab === "tokens" ? (
             <TokensPanel />
@@ -231,6 +250,10 @@ export function InspectorShell(): ReactElement {
                   ) : getEditScope(selected.domElement) === "instance-preview" ? (
                     <>
                       <span>Editing only this unlinked rendered element.</span>
+                      <br />
+                      <span className="dt-scope__warning">
+                        This edit is active only for the current document and will not survive refresh.
+                      </span>
                       <br />
                       <Button
                         size="compact"

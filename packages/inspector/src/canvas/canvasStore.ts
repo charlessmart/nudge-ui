@@ -261,6 +261,35 @@ export function getFocusedCardId(): string | null {
   return focusedCardId;
 }
 
+export function setCardPosition(id: string, x: number, y: number): void {
+  cards = cards.map((c) => (c.id === id ? { ...c, x, y } : c));
+  notify();
+}
+
+export function hydrateCanvasStore(
+  newMode: CanvasMode,
+  newCards: CanvasCard[],
+  newCamera: CanvasCamera,
+): void {
+  mode = newMode;
+  cards = [...newCards];
+  focusedCardId = null;
+  boardCamera = { ...newCamera };
+  if (newCards.length > 0) {
+    let maxNum = 0;
+    for (const c of newCards) {
+      const match = /^card-(\d+)$/.exec(c.id);
+      if (match) {
+        const n = Number(match[1]);
+        if (n > maxNum) maxNum = n;
+      }
+    }
+    cardIdCounter = Math.max(cardIdCounter, maxNum);
+  }
+  fitAllRan = true;
+  notify();
+}
+
 export { subscribe, getMode, getCards, getMode as getCanvasMode, getCards as getCanvasCards };
 
 export function useCanvasMode(): CanvasMode {
