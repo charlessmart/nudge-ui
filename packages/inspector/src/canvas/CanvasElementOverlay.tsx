@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactElement } from "react";
 import { PROTOCOL_VERSION, type ElementHoverMessage, type ElementClickMessage } from "./frameProtocol.ts";
 import { getRegisteredFrames } from "./projection.ts";
+import { getBoardCamera } from "./canvasStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
 import overlayStyles from "./CanvasElementOverlay.css?inline";
 
@@ -46,11 +47,12 @@ export function CanvasElementOverlay(): ReactElement | null {
         }
 
         const iframeRect = sourceIframe.getBoundingClientRect();
+        const zoom = getBoardCamera().zoom;
         setHover({
-          left: iframeRect.left + msg.rect.left,
-          top: iframeRect.top + msg.rect.top,
-          width: msg.rect.width,
-          height: msg.rect.height,
+          left: iframeRect.left + msg.rect.left * zoom,
+          top: iframeRect.top + msg.rect.top * zoom,
+          width: msg.rect.width * zoom,
+          height: msg.rect.height * zoom,
           cardId: sourceCardId,
         });
       } else if (event.data.type === "element-click") {
