@@ -99,6 +99,44 @@ select {
   height: 32px;
 }
 
+.dt-canvas-mode-toggle {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--dt-border-strong);
+  border-radius: var(--dt-radius-control);
+  overflow: hidden;
+  margin-right: 6px;
+}
+
+.dt-canvas-mode-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: var(--dt-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 80ms ease, color 80ms ease;
+}
+
+.dt-canvas-mode-toggle__btn:first-child {
+  border-right: 1px solid var(--dt-border-strong);
+}
+
+.dt-canvas-mode-toggle__btn--active {
+  background: var(--dt-accent);
+  color: #ffffff;
+}
+
+.dt-canvas-mode-toggle__btn:not(.dt-canvas-mode-toggle__btn--active):hover {
+  background: var(--dt-surface-control-hover);
+  color: var(--dt-text-primary);
+}
+
 .dt-panel__restore.dt-icon-button {
   position: fixed;
   top: max(12px, env(safe-area-inset-top));

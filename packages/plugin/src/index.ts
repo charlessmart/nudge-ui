@@ -225,7 +225,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         if (command === "build") {
           return `export {};\n`;
         }
-        return `import { mountInspector } from "@design-tool/inspector";\nconst __dt_root = document.getElementById("design-tool-root");\nif (__dt_root) mountInspector(__dt_root);\n`;
+        return `import { bootstrapDesignTool } from "@design-tool/inspector";\nconst __dt_root = document.getElementById("design-tool-root");\nif (__dt_root) bootstrapDesignTool(__dt_root);\n`;
       }
       return null;
     },

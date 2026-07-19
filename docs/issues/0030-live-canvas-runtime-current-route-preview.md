@@ -33,21 +33,21 @@ absence of confusing nested Inspector UI.
 
 ## Acceptance criteria
 
-- [ ] A top-level Inspect/Canvas control is available in dev mode and Inspect remains the default for a new session
-- [ ] Entering Canvas creates or focuses one live card for the current origin, pathname, search and hash
-- [ ] Canvas is a fixed Shadow DOM preview workspace and does not mutate the host application's layout
-- [ ] Returning to Inspect on the same route reveals the original still-mounted host document
-- [ ] Inspect remains the only surface that permits Design Tool selection and editing
-- [ ] Only an iframe explicitly marked by the Canvas controller enters renderer mode
-- [ ] A Canvas renderer mounts no Inspector, selection overlay, panel layout, persistence owner, or duplicate shortcut handlers
-- [ ] The renderer reports ready state, current URL and title to its owning card
-- [ ] Frame or CSP failures produce recoverable card-level feedback rather than a screenshot fallback
-- [ ] A new ADR records the live-frame controller/renderer decision and the ADR index is updated without modifying existing ADRs
-- [ ] `PLAN.md` no longer specifies Canvas v1 as an html2canvas snapshot gallery and links to the detailed feature plan
-- [ ] Unit tests cover runtime-role detection and mode transitions
-- [ ] Playwright proves one live current-route card, no nested Inspector, and lossless toggle back to Inspect
-- [ ] Production output contains no Canvas UI, frame marker, runtime protocol, or other inspector state
-- [ ] `pnpm lint`, `pnpm typecheck`, relevant Vitest/Playwright suites and `pnpm --filter sandbox build` pass
+- [x] A top-level Inspect/Canvas control is available in dev mode and Inspect remains the default for a new session
+- [x] Entering Canvas creates or focuses one live card for the current origin, pathname, search and hash
+- [x] Canvas is a fixed Shadow DOM preview workspace and does not mutate the host application's layout
+- [x] Returning to Inspect on the same route reveals the original still-mounted host document
+- [x] Inspect remains the only surface that permits Design Tool selection and editing
+- [x] Only an iframe explicitly marked by the Canvas controller enters renderer mode
+- [x] A Canvas renderer mounts no Inspector, selection overlay, panel layout, persistence owner, or duplicate shortcut handlers
+- [x] The renderer reports ready state, current URL and title to its owning card
+- [x] Frame or CSP failures produce recoverable card-level feedback rather than a screenshot fallback
+- [x] A new ADR records the live-frame controller/renderer decision and the ADR index is updated without modifying existing ADRs
+- [x] `PLAN.md` no longer specifies Canvas v1 as an html2canvas snapshot gallery and links to the detailed feature plan
+- [x] Unit tests cover runtime-role detection and mode transitions
+- [x] Playwright proves one live current-route card, no nested Inspector, and lossless toggle back to Inspect
+- [x] Production output contains no Canvas UI, frame marker, runtime protocol, or other inspector state
+- [x] `pnpm lint`, `pnpm typecheck`, relevant Vitest/Playwright suites and `pnpm --filter sandbox build` pass
 
 ## Blocked by
 

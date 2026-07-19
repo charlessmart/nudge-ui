@@ -33,6 +33,8 @@ import type { InteractionState } from "./styleState.ts";
 import { isEditableTarget } from "./shortcuts.ts";
 import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "./ui/labels.ts";
+import { useCanvasMode } from "./canvas/canvasStore.ts";
+import { ModeToggle } from "./canvas/ModeToggle.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -65,6 +67,7 @@ function resolveHost(): HTMLElement {
 
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
+  const canvasMode = useCanvasMode();
   const selected = useSelectedElement();
   const [scopeRevision, refreshScope] = useState(0);
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
@@ -148,10 +151,11 @@ export function InspectorShell(): ReactElement {
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
       <InspectorOverlay host={resolveHost()} />
-      <div className="dt-panel" data-open={isOpen ? "true" : "false"}>
+      <div className="dt-panel" data-open={isOpen && canvasMode === "inspect" ? "true" : "false"}>
         <div className="dt-panel__header">
           <span>Design Tool</span>
           <div className="dt-panel__header-actions">
+            <ModeToggle />
             <IconButton
               label="Collapse inspector"
               data-test="collapse-inspector"
@@ -294,7 +298,7 @@ export function InspectorShell(): ReactElement {
           <ChangesLog />
         </div>
       </div>
-      {!isOpen ? (
+      {!isOpen && canvasMode === "inspect" ? (
         <IconButton
           label="Show inspector"
           className="dt-panel__restore"

@@ -9,3 +9,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0003: Managed stylesheet; never inline styles](./0003-managed-stylesheet-no-inline.md)
 - [ADR-0004: Single React instance via Vite aliasing](./0004-single-react-instance-via-vite-aliasing.md)
 - [ADR-0005: Contextual selectors for global token previews](./0005-contextual-selectors-for-global-token-previews.md)
+- [ADR-0006: Live Canvas controller/renderer via same-origin iframes](./0006-live-canvas-controller-renderer.md)

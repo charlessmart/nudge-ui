@@ -7,6 +7,9 @@ import { clearChanges } from "./changesLog.ts";
 import { removeManagedSheet } from "./managedStylesheet.ts";
 import { isInspectorToggleShortcut } from "./shortcuts.ts";
 import { clearInspectorLayout } from "./panelLayout.ts";
+import { isCanvasRenderer } from "./canvas/roleDetection.ts";
+import { bootstrapRenderer } from "./canvas/rendererBootstrap.ts";
+import { CanvasWorkspace } from "./canvas/CanvasWorkspace.tsx";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -16,6 +19,35 @@ function onKeydown(e: KeyboardEvent): void {
   if (isInspectorToggleShortcut(e)) {
     toggleInspector();
     e.preventDefault();
+  }
+}
+
+export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
+  if (!import.meta.env.DEV) return;
+
+  if (isCanvasRenderer()) {
+    bootstrapRenderer();
+    return;
+  }
+
+  mountInspector(inspectorHost);
+
+  let canvasHost = document.getElementById("design-tool-canvas-host");
+  if (!canvasHost) {
+    canvasHost = document.createElement("div");
+    canvasHost.id = "design-tool-canvas-host";
+    document.body.appendChild(canvasHost);
+  }
+  mountCanvasWorkspace(canvasHost);
+}
+
+let canvasRoot: Root | null = null;
+
+function mountCanvasWorkspace(host: HTMLElement): void {
+  const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+  if (!canvasRoot) {
+    canvasRoot = createRoot(shadow);
+    canvasRoot.render(createElement(CanvasWorkspace));
   }
 }
 
