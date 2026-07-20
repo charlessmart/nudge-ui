@@ -312,6 +312,10 @@ describe("resolvePropertiesFromRules", () => {
       authored: "700",
       sourceProperty: "font",
     });
+    expect(rows.find((row) => row.property === "font-style")).toMatchObject({
+      authored: "italic",
+      sourceProperty: "font",
+    });
     expect(rows.find((row) => row.property === "line-height")).toMatchObject({
       authored: "1.4",
       sourceProperty: "font",

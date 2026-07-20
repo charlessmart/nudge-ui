@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
+import type { TokenEntry } from "virtual:design-tokens";
+import { tokens } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
+import type { ResolvedProperty } from "../tokens/resolution.ts";
+import { TokenField } from "../tokens/TokenField.tsx";
+import { SIDE_NAMES, SideControls, type SideValueSlot } from "../ui/SideValuesField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { setStyle } from "./styleActions.ts";
@@ -22,17 +27,19 @@ const FLEX_SHRINK_PRESETS = ["0", "1"];
 const FLEX_BASIS_PRESETS = ["auto", "0", "100%", "50%", "fit-content"];
 const ORDER_PRESETS = ["-1", "0", "1", "2", "3"];
 const GAP_PRESETS = ["0", "0.25rem", "0.5rem", "0.75rem", "1rem", "1.5rem", "2rem", "3rem"];
-const INSET_PRESETS = ["auto", "0", "50%", "100%"];
 const FLEX_ALIGNMENT_OPTIONS = ["flex-start", "center", "flex-end"];
 
 export interface LayoutSectionProps {
   element: SelectedElement;
+  entries?: TokenEntry[];
+  tokenRows?: ResolvedProperty[];
   onAfterEdit?: () => void;
 }
 
 export function LayoutSection(props: LayoutSectionProps): ReactElement {
-  const { element, onAfterEdit } = props;
+  const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
+  const allEntries = entries ?? tokens;
 
   const [isFlexContainer, setIsFlexContainer] = useState(false);
   const [isFlexChild, setIsFlexChild] = useState(false);
@@ -200,44 +207,18 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
         {isPositioned ? (
           <div className="dt-layout__group" data-test="layout-inset">
             <div className="dt-layout__group-title">Inset</div>
-            <div className="dt-layout__inset-grid">
-              <span className="dt-layout__inset-label">T</span>
-              <LayoutComboField
-                property="top"
-                presets={INSET_PRESETS}
-                domElement={el}
-                compact
-                revision={layoutRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
-              <span className="dt-layout__inset-label">R</span>
-              <LayoutComboField
-                property="right"
-                presets={INSET_PRESETS}
-                domElement={el}
-                compact
-                revision={layoutRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
-              <span className="dt-layout__inset-label">B</span>
-              <LayoutComboField
-                property="bottom"
-                presets={INSET_PRESETS}
-                domElement={el}
-                compact
-                revision={layoutRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
-              <span className="dt-layout__inset-label">L</span>
-              <LayoutComboField
-                property="left"
-                presets={INSET_PRESETS}
-                domElement={el}
-                compact
-                revision={layoutRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
-            </div>
+            <SideControls label="Inset" sides={SIDE_NAMES.map((side): SideValueSlot => ({
+              side,
+              control: (
+                <TokenField
+                  property={side}
+                  tokenRow={tokenRows.find((row) => row.property === side) ?? null}
+                  domElement={el}
+                  entries={allEntries}
+                  onAfterEdit={notifyAfterEdit}
+                />
+              ),
+            }))} />
           </div>
         ) : null}
       </div>

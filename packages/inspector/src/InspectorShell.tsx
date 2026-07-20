@@ -19,6 +19,8 @@ import { SpacingBox } from "./styleEditors/SpacingBox.tsx";
 import { Typography } from "./styleEditors/Typography.tsx";
 import { ColorPicker } from "./styleEditors/ColorPicker.tsx";
 import { BorderEditor } from "./styleEditors/BorderEditor.tsx";
+import { BorderRadiusEditor } from "./styleEditors/BorderRadiusEditor.tsx";
+import { BoxShadowEditor } from "./styleEditors/BoxShadowEditor.tsx";
 import { LayoutSection } from "./styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
 import { discardChangesForSelector, undo, redo } from "./changesLog.ts";
@@ -268,7 +270,7 @@ export function InspectorShell(): ReactElement {
               </div>
 
               <div className="dt-style-editors" data-test="style-editors">
-                <LayoutSection key={`layout-${styleState}`} element={selected} onAfterEdit={refreshSelected} />
+                <LayoutSection key={`layout-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
                 <SpacingBox key={`spacing-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
                 <Typography key={`type-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
                 <ColorPicker
@@ -288,6 +290,8 @@ export function InspectorShell(): ReactElement {
                   onAfterEdit={refreshSelected}
                 />
                 <BorderEditor key={`border-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                <BorderRadiusEditor key={`border-radius-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
               </div>
             </>
           ) : null}

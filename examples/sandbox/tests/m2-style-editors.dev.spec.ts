@@ -269,7 +269,13 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
     "color-picker",
     "color-picker",
     "border-editor",
+    "border-radius-editor",
+    "box-shadow-editor",
   ]);
+
+  await expect(page.locator('[data-test="border-editor"] .dt-editor__title')).toHaveText("Border");
+  await expect(page.locator('[data-test="border-radius-editor"] .dt-editor__title')).toHaveText("Border Radius");
+  await expect(page.locator('[data-test="box-shadow-editor"] .dt-editor__title')).toHaveText("Box Shadow");
 
   const colorEditors = page.locator('[data-test="color-picker"]');
   await expect(colorEditors.nth(0).locator(".dt-editor__title")).toHaveText("Color");
@@ -283,7 +289,7 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   await waitForEditors(page);
   const emptyBackground = page.locator('[data-test="color-picker"][data-property="background-color"]');
   await expect(emptyBackground.locator('[data-test="token-field"]')).toHaveCount(0);
-  await expect(emptyBackground.locator('.dt-editor__title-row [data-test="add-color"]')).toBeVisible();
+  await expect(emptyBackground.locator('.dt-editor__title-row [data-test="add-color"]')).toHaveClass(/dt-icon-button--quiet/);
   await emptyBackground.locator('[data-test="add-color"]').click();
   await expect(emptyBackground.locator('[data-test="token-field"]')).toBeVisible();
   await expect(emptyBackground.locator('[data-test="raw-input"]')).toHaveValue("");

@@ -2,6 +2,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, createElement } from "react";
 import { BorderEditor } from "./BorderEditor.tsx";
+import { BorderRadiusEditor } from "./BorderRadiusEditor.tsx";
+import { BoxShadowEditor } from "./BoxShadowEditor.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
@@ -142,7 +144,7 @@ describe("BorderEditor", () => {
     });
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES, tokenRows: [] }));
 
-    expect(handle.host.querySelector('[data-test="add-border"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="add-border"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
     expect(handle.host.querySelector('[data-test="border-style"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).toBeNull();
   });
@@ -215,7 +217,7 @@ describe("BorderEditor", () => {
       ],
     }));
 
-    expect(handle.host.querySelector('[data-test="add-border"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="add-border"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
     expect(handle.host.querySelector('[data-test="border-style"]')).toBeNull();
   });
 
@@ -450,7 +452,7 @@ describe("BorderEditor", () => {
   it("writes border-radius via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
-    handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
+    handle = mount(createElement(BorderRadiusEditor, { element: selected, entries: ENTRIES }));
     const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="border-radius"]');
     const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
     setInputValue(raw, "12px");
@@ -460,7 +462,7 @@ describe("BorderEditor", () => {
   it("writes box-shadow via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
-    handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
+    handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
     const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="box-shadow"]');
     const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
     setInputValue(raw, "0 2px 4px rgba(0,0,0,0.2)");

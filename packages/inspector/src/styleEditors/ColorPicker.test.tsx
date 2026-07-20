@@ -109,7 +109,7 @@ describe("ColorPicker", () => {
     }));
 
     expect(handle.host.querySelector('[data-test="token-field"]')).toBeNull();
-    expect(handle.host.querySelector('[data-test="add-color"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="add-color"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
   });
 
   it("reveals an empty token field after adding an empty color", () => {

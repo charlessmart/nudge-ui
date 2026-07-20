@@ -47,16 +47,6 @@
   gap: 6px;
 }
 
-.dt-side-values__expand.dt-icon-button {
-  width: var(--dt-control-height);
-  height: var(--dt-control-height);
-  color: var(--dt-accent-text);
-}
-
-.dt-side-values__expand.dt-icon-button:hover:not(:disabled) {
-  color: var(--dt-accent-strong);
-}
-
 .dt-side-values__grid {
   display: grid;
   min-width: 0;

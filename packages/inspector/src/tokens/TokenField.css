@@ -6,6 +6,22 @@
   width: 100%;
 }
 
+.dt-token-field__leading,
+.dt-token-field__trailing {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--dt-text-muted);
+}
+
+.dt-token-field__leading {
+  justify-content: center;
+}
+
+.dt-token-field__trailing {
+  justify-content: flex-end;
+}
+
 .dt-token-field--color {
   min-height: var(--dt-control-height);
   gap: 4px;
