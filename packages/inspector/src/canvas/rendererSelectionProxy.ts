@@ -12,9 +12,15 @@ export function handleElementClick(msg: ElementClickMessage, iframe: HTMLIFrameE
     for (const candidate of candidates) {
       if (candidate instanceof HTMLElement) {
         const src = candidate.getAttribute("data-src") ?? "";
-        if (src.startsWith(`${msg.file}:${msg.line}:`)) {
-          el = candidate;
-          break;
+        // data-src uses relative paths (e.g. "src/App.tsx:110:6") while
+        // renderer fiber data gives absolute paths. Match by suffix.
+        const relativeFile = src.split(":")[0] ?? "";
+        if (relativeFile && (msg.file.endsWith(relativeFile) || msg.file.endsWith("/" + relativeFile))) {
+          const srcLine = Number(src.split(":")[1]);
+          if (!isNaN(srcLine) && srcLine === msg.line) {
+            el = candidate;
+            break;
+          }
         }
       }
     }
