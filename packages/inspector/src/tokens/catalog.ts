@@ -4,6 +4,7 @@ import type {
   TokenDefinition,
 } from "virtual:design-tokens";
 import type { StyleRuleContext } from "../managedStylesheet.ts";
+import { getElementComputedStyle, getElementWindow } from "../domRealm.ts";
 
 export type TokenCatalogGroup = "color" | "spacing" | "typography" | "radius" | "shadow" | "other";
 
@@ -48,11 +49,16 @@ export interface TokenRuntime {
 }
 
 function defaultRuntime(root: HTMLElement): TokenRuntime {
+  const ownerWindow = getElementWindow(root);
+  const ownerDocument = root.ownerDocument;
+  const ownerCss = (ownerWindow as unknown as {
+    CSS?: { supports?(condition: string): boolean };
+  }).CSS;
   return {
     root,
-    mediaMatches: (query) => typeof window.matchMedia === "function" ? window.matchMedia(query).matches : false,
-    supports: (condition) => typeof CSS !== "undefined" && typeof CSS.supports === "function" ? CSS.supports(condition) : false,
-    computedToken: (name) => getComputedStyle(root).getPropertyValue(name).trim(),
+    mediaMatches: (query) => typeof ownerWindow.matchMedia === "function" ? ownerWindow.matchMedia(query).matches : false,
+    supports: (condition) => typeof ownerCss?.supports === "function" ? ownerCss.supports(condition) : false,
+    computedToken: (name) => getElementComputedStyle(root).getPropertyValue(name).trim(),
     selectorMatches: (selector) => selector
       .split(",")
       .map((part) => part.trim())
@@ -64,7 +70,7 @@ function defaultRuntime(root: HTMLElement): TokenRuntime {
       const start = scope.match(/^\s*\((.+)\)/)?.[1]?.trim();
       if (!start) return true;
       try {
-        return root.matches(start) || root.closest(start) !== null || document.querySelector(start) !== null;
+        return root.matches(start) || root.closest(start) !== null || ownerDocument.querySelector(start) !== null;
       } catch {
         return false;
       }

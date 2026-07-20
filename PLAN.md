@@ -170,12 +170,13 @@ interface TokenAdapter {
 - "Copy prompt" button → generates the agent prompt from all changes
 
 **E. Canvas (live previews)**
-- Mode toggle between Inspect (editing) and Canvas (preview) in the Design Tool header
+- Mode toggle between Inspect (single-page editing) and Canvas (multi-route inspection/editing) in the Design Tool header
 - Canvas renders as a fixed Shadow DOM workspace above the still-mounted host page
 - Each card is a same-origin iframe showing a live route with current canonical changes projected
 - Cards support Reload, Edit (handoff to Inspect), and Remove
 - Route-link navigation within cards discovers new cards or focuses existing ones
-- Controller owns all edit authority; renderers are display-only
+- Tracked elements inside cards can be selected and edited through the top-level Inspector
+- Controller owns all selection/edit authority; renderers only report element intents and display canonical projections
 
 **F. Prompt output**
 - Structured markdown format, optimised for agent consumption
@@ -273,13 +274,14 @@ Each milestone is independently shippable and demoable.
 - Inspector/Canvas mode toggle in the Design Tool UI; Inspect remains the default
 - Fixed Shadow DOM Canvas workspace with live cards for current-route(s)
 - Renderers announce readiness, current URL, and title; no nested Inspector
+- Renderer element intents populate the controller-owned Inspector without giving frames edit authority
 - Shared edit projection via versioned postMessage (feature plan #0031)
 - Link-discovered route cards and edit handoff (#0032)
 - Responsive spatial Canvas board with pan/zoom (#0033)
 - Durable Canvas and stable edit restoration (#0034)
 - Restore safety and single-workspace ownership (#0035)
 
-**Demo:** Switch to Canvas and see the current route as a live preview. Navigate within a card to create new route cards. Return to Inspect — the same host page is still editable. Apply a design change, switch back to Canvas, and see it projected into every live card.
+**Demo:** Switch to Canvas, select a tracked element in any live card, and edit it from the top-level Inspector. Navigate within a card to create new route cards and see the canonical change projected into every live card. Return to Inspect — the same host page is still editable.
 
 ### Milestone 5 — Drag *(optional / v1.5)*
 **Record-and-replay DOM drag with snap-back detection**

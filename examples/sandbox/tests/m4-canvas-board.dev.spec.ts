@@ -68,10 +68,9 @@ test.describe("Canvas spatial board", () => {
     expect(Number(opacityDefault)).toBeLessThanOrEqual(0.1);
 
     await card.hover();
-    const opacityHover = await resizeHandle.evaluate((el: HTMLElement) =>
+    await expect.poll(async () => Number(await resizeHandle.evaluate((el: HTMLElement) =>
       getComputedStyle(el).opacity,
-    );
-    expect(Number(opacityHover)).toBeGreaterThan(0.1);
+    ))).toBeGreaterThan(0.1);
   });
 
   test("dev: card iframe receives actual width/height from card dimensions", async ({ page }) => {
@@ -168,9 +167,10 @@ test.describe("Canvas board gesture handling", () => {
 
   test("dev: unmodified iframe interaction remains usable (click inside iframe)", async ({ page }) => {
     const frame = page.frameLocator(".dt-canvas-card__iframe").first();
-    const link = frame.locator('a[href="/tailwind"]').first();
-    const linkVisible = await link.isVisible({ timeout: 10000 }).catch(() => false);
-    expect(linkVisible).toBeTruthy();
+    const button = frame.locator("button.btn").first();
+    await expect(button).toBeVisible({ timeout: 10000 });
+    await button.click();
+    await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
   });
 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties, type ReactElement } from "react";
 import { PROTOCOL_VERSION, type ElementHoverMessage, type ElementClickMessage } from "./frameProtocol.ts";
-import { getRegisteredFrames } from "./projection.ts";
+import { findCanvasFrameBySource } from "./projection.ts";
 import { getBoardCamera } from "./canvasStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
 import overlayStyles from "./CanvasElementOverlay.css?inline";
@@ -22,17 +22,9 @@ export function CanvasElementOverlay(): ReactElement | null {
       if (!event.data || typeof event.data !== "object") return;
       if (typeof event.data.protocolVersion !== "number" || event.data.protocolVersion !== PROTOCOL_VERSION) return;
 
-      const frames = getRegisteredFrames();
-      let sourceCardId: string | null = null;
-      let sourceIframe: HTMLIFrameElement | null = null;
-      for (const [cardId, iframe] of frames) {
-        if (iframe.contentWindow === event.source) {
-          sourceCardId = cardId;
-          sourceIframe = iframe;
-          break;
-        }
-      }
-      if (!sourceCardId || !sourceIframe) return;
+      const sourceFrame = findCanvasFrameBySource(event.source);
+      if (!sourceFrame) return;
+      const { cardId: sourceCardId, iframe: sourceIframe } = sourceFrame;
 
       if (event.data.type === "element-hover") {
         const msg = event.data as ElementHoverMessage;

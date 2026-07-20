@@ -77,4 +77,18 @@ describe("computeHierarchy", () => {
     shadow.appendChild(shadowEl);
     expect(computeHierarchy(shadowEl)).toEqual([]);
   });
+
+  it("builds hierarchy within an iframe document", () => {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    const frameDocument = iframe.contentDocument!;
+    const parent = frameDocument.createElement("section");
+    parent.dataset.cid = "Card";
+    const child = frameDocument.createElement("button");
+    child.dataset.cid = "Button";
+    parent.appendChild(child);
+    frameDocument.body.appendChild(parent);
+
+    expect(computeHierarchy(child)).toEqual([child, parent]);
+  });
 });

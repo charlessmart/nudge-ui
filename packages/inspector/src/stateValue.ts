@@ -1,5 +1,6 @@
 import { getActiveStyleState } from "./styleState.ts";
 import { getResolvedPropertiesForState, getTokenTable } from "./tokens/resolution.ts";
+import { getElementComputedStyle } from "./domRealm.ts";
 
 /** Read an inspector value from the selected authored state, falling back to
  * the browser only when CSSOM has no declaration to attribute. */
@@ -13,13 +14,13 @@ export function getStateStyleValue(el: HTMLElement, property: string, fallback =
       try { return el.matches(selector); } catch { return false; }
     });
     if (state === "base" && !hasLiveInteraction) {
-      return getComputedStyle(el).getPropertyValue(property).trim() || fallback;
+      return getElementComputedStyle(el).getPropertyValue(property).trim() || fallback;
     }
     const rows = getResolvedPropertiesForState(el, getTokenTable(), state);
     const row = rows.find((candidate) => candidate.property === property)
       ?? (property === "background-color" ? rows.find((candidate) => candidate.property === "background") : undefined);
     if (row?.resolvedValue) return row.resolvedValue;
-    return getComputedStyle(el).getPropertyValue(property).trim() || fallback;
+    return getElementComputedStyle(el).getPropertyValue(property).trim() || fallback;
   } catch {
     return fallback;
   }

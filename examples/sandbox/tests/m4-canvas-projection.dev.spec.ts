@@ -54,6 +54,12 @@ async function setInput(
   );
 }
 
+async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
+  const spacing = page.locator('[data-test="spacing-padding"]');
+  await spacing.locator('[data-test="individual-sides"]').click();
+  await expect(spacing).toHaveAttribute("data-expanded", "true");
+}
+
 test("dev: element edits project into canvas renderer frame", async ({ page }) => {
   await page.goto("/");
 
@@ -61,6 +67,7 @@ test("dev: element edits project into canvas renderer frame", async ({ page }) =
   await waitForInspector(page);
 
   // Make an element edit in Inspect mode
+  await expandSpacing(page);
   await setInput(page, "padding-top", "32px");
 
   // Verify the edit is reflected in the host page
@@ -124,6 +131,7 @@ test("dev: frame reload converges on latest projection", async ({ page }) => {
   await waitForInspector(page);
 
   // Make a source-site element edit
+  await expandSpacing(page);
   await setInput(page, "padding-top", "48px");
 
   // Switch to Canvas
@@ -154,13 +162,14 @@ test("dev: frame reload converges on latest projection", async ({ page }) => {
     .toContain("padding-top: 48px;");
 });
 
-test("dev: clearChanges projects empty CSS to canvas frame", async ({ page }) => {
+test("dev: reverting the final change projects empty CSS to canvas frame", async ({ page }) => {
   await page.goto("/");
 
   await page.click("text=Save");
   await waitForInspector(page);
 
   // Make an edit
+  await expandSpacing(page);
   await setInput(page, "padding-top", "60px");
 
   await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 60px;");
@@ -182,11 +191,9 @@ test("dev: clearChanges projects empty CSS to canvas frame", async ({ page }) =>
   await page.locator('[data-test="canvas-exit"]').click();
   await waitForInspector(page);
 
-  // Click the "Clear All" / discard button in the changes log
-  const discardBtn = page.locator('[data-test="discard-all-changes"]');
-  if (await discardBtn.isVisible()) {
-    await discardBtn.click();
-  }
+  await page.locator(
+    '[data-test="change-revert"][data-property="padding-top"]',
+  ).click();
 
   // Verify host sheet is cleared
   await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 60px;");

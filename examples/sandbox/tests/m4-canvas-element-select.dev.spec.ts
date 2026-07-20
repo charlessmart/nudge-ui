@@ -30,6 +30,26 @@ async function waitForIframeReady(page: import("@playwright/test").Page, index =
   await expect(frame.locator("body")).toBeVisible({ timeout: 20000 });
 }
 
+async function setInspectorInput(
+  page: import("@playwright/test").Page,
+  property: string,
+  value: string,
+): Promise<void> {
+  await page.evaluate(({ property, value }) => {
+    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const input = shadow?.querySelector(
+      `[data-test="token-field"][data-property="${property}"] [data-test="raw-input"]`,
+    ) as HTMLInputElement | null;
+    if (!input) throw new Error(`Missing inspector input for ${property}`);
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    if (!setter) throw new Error("Missing native input value setter");
+    input.focus();
+    setter.call(input, value);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.blur();
+  }, { property, value });
+}
+
 test("dev: clicking a tracked non-anchor element inside an iframe selects it in the inspector", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
@@ -61,6 +81,39 @@ test("dev: clicking a Button component tracked element shows the Button componen
 
   await expect(page.locator('[data-test="selection"]')).toBeVisible({ timeout: 5000 });
   await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", "Button");
+  await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
+});
+
+test("dev: editing a selected canvas element updates that element inside the iframe", async ({ page }) => {
+  await waitForIframeReady(page, 0);
+
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const button = frame.locator("button.btn").first();
+  await button.click();
+  await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", "Button");
+
+  const padding = page.locator('[data-test="spacing-padding"]');
+  await padding.locator('[data-test="individual-sides"]').click();
+  await expect(padding).toHaveAttribute("data-expanded", "true");
+  await setInspectorInput(page, "padding-top", "31px");
+
+  await expect.poll(
+    () => button.evaluate((element) => getComputedStyle(element).paddingTop),
+    { timeout: 5000 },
+  ).toBe("31px");
+});
+
+test("dev: reloading the selected card clears its stale element selection", async ({ page }) => {
+  await waitForIframeReady(page, 0);
+
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  await frame.locator("button.btn").first().click();
+  await expect(page.locator('[data-test="selection"]')).toBeVisible();
+
+  await page.locator('[data-test^="canvas-card-reload-"]').first().click();
+
+  await expect(page.locator('[data-test="selection"]')).not.toBeAttached();
+  await waitForIframeReady(page, 0);
 });
 
 test("dev: clicking a navigable same-origin anchor inside a tracked tree still spawns a new card", async ({ page }) => {
@@ -68,20 +121,11 @@ test("dev: clicking a navigable same-origin anchor inside a tracked tree still s
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
 
-  // The Tailwind anchor in the sandbox header carries `data-cid="App"` — a
-  // regression previously caused the element-click handler to swallow the
-  // click via stopImmediatePropagation, preventing the navigation-intent
-  // listener from running. We dispatch a real bubbling MouseEvent here rather
-  // than Playwright's locator.click(), because Playwright's bounding-box
-  // calculation mis-handles elements inside a CSS-transform-scaled iframe
-  // (the iframe is inside the canvas board-content `transform: scale(zoom)`).
-  const childFrame = page.frames().find((f) => f !== page.mainFrame());
-  expect(childFrame).toBeDefined();
-  await childFrame!.evaluate(() => {
-    const anchor = document.querySelector<HTMLAnchorElement>('a[href="/tailwind"]');
-    if (!anchor) throw new Error("Tailwind link not found in iframe");
-    anchor.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-  });
+  // The Tailwind anchor carries `data-cid="App"`; its click must reach the
+  // navigation listener instead of being swallowed by element selection.
+  await page.frameLocator(".dt-canvas-card__iframe").first()
+    .locator('a[href="/tailwind"]')
+    .click();
 
   await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
 });
@@ -94,8 +138,10 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
   // navigation-intent message from inside the first card. Using postMessage
   // here avoids relying on the (just-fixed) anchor navigation path; the goal
   // of this test is the regression around `selectCard` navigating the host.
-  await page.evaluate((url) => {
-    window.postMessage({
+  const firstFrame = page.frames().find((frame) => frame !== page.mainFrame());
+  expect(firstFrame).toBeDefined();
+  await firstFrame!.evaluate((url) => {
+    window.parent.postMessage({
       type: "navigation-intent",
       protocolVersion: 1,
       url,

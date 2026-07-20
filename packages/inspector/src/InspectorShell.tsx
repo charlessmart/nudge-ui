@@ -36,6 +36,7 @@ import { formatInspectorLabel } from "./ui/labels.ts";
 import { useCanvasMode } from "./canvas/canvasStore.ts";
 import { ModeToggle } from "./canvas/ModeToggle.tsx";
 import { getRestoreCount, clearRestoreCount, clearSession } from "./canvas/sessionStore.ts";
+import { getElementWindow } from "./domRealm.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -90,13 +91,19 @@ export function InspectorShell(): ReactElement {
 
   useEffect(() => {
     setInstancePreviewLost(false);
-    if (!selected || getEditScope(selected.domElement) !== "instance-preview") return;
+    if (!selected) return;
+    const instancePreview = getEditScope(selected.domElement) === "instance-preview";
     // The selected element can live inside a card iframe (canvas mode); observe
     // its own ownerDocument rather than the parent app's document, otherwise
     // removal inside the iframe would never be noticed.
     const ownerRoot = selected.domElement.ownerDocument?.documentElement ?? document.documentElement;
-    const observer = new MutationObserver(() => {
-      if (!selected.domElement.isConnected) setInstancePreviewLost(true);
+    const OwnerMutationObserver = (getElementWindow(selected.domElement) as unknown as {
+      MutationObserver: typeof MutationObserver;
+    }).MutationObserver;
+    const observer = new OwnerMutationObserver(() => {
+      if (selected.domElement.isConnected) return;
+      if (instancePreview) setInstancePreviewLost(true);
+      else setSelectedElement(null);
     });
     observer.observe(ownerRoot, { childList: true, subtree: true });
     return () => observer.disconnect();

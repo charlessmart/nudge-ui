@@ -442,6 +442,19 @@ describe("canvasStore fitAllCards", () => {
     expect(camera.zoom).toBeLessThanOrEqual(MAX_CAMERA_ZOOM);
   });
 
+  it("fits within an explicit board viewport and keeps zoom in range", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    resizeCard(card.id, 1200, 800);
+
+    fitAllCards({ width: 640, height: 480 });
+
+    const camera = getBoardCamera();
+    expect(camera.zoom).toBeGreaterThanOrEqual(MIN_CAMERA_ZOOM);
+    expect(camera.zoom).toBeLessThanOrEqual(MAX_CAMERA_ZOOM);
+    expect(camera.x).toBeCloseTo(320 - 600 * camera.zoom);
+    expect(camera.y).toBeCloseTo(240 - 400 * camera.zoom);
+  });
+
   it("no-ops when no cards exist", () => {
     fitAllCards();
     const camera = getBoardCamera();

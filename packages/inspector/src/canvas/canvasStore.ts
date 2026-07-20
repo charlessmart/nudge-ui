@@ -194,7 +194,7 @@ export function updateBoardCamera(partial: Partial<CanvasCamera>): void {
   notify();
 }
 
-export function fitAllCards(): void {
+export function fitAllCards(viewport?: { width: number; height: number }): void {
   if (cards.length === 0) return;
 
   let minX = Infinity;
@@ -219,19 +219,19 @@ export function fitAllCards(): void {
     return;
   }
 
-  const viewW = window.innerWidth - FIT_ALL_PADDING * 2;
-  const viewH = window.innerHeight - FIT_ALL_PADDING * 2;
+  const viewW = Math.max(1, (viewport?.width ?? window.innerWidth) - FIT_ALL_PADDING * 2);
+  const viewH = Math.max(1, (viewport?.height ?? window.innerHeight) - FIT_ALL_PADDING * 2);
 
   const zoomX = viewW / contentW;
   const zoomY = viewH / contentH;
-  const zoom = Math.min(zoomX, zoomY, MAX_CAMERA_ZOOM);
+  const zoom = Math.max(MIN_CAMERA_ZOOM, Math.min(zoomX, zoomY, MAX_CAMERA_ZOOM));
 
   const contentCenterX = minX + contentW / 2;
   const contentCenterY = minY + contentH / 2;
 
   cachedBoardCamera = {
-    x: -(contentCenterX * zoom) + window.innerWidth / 2,
-    y: -(contentCenterY * zoom) + window.innerHeight / 2,
+    x: -(contentCenterX * zoom) + (viewport?.width ?? window.innerWidth) / 2,
+    y: -(contentCenterY * zoom) + (viewport?.height ?? window.innerHeight) / 2,
     zoom,
   };
   fitAllRan = true;

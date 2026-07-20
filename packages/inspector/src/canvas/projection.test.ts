@@ -4,7 +4,10 @@ import {
   computeProjection,
   resetProjectionRevision,
   registerCardFrame,
+  registerCardFrameSource,
   unregisterCardFrame,
+  findCanvasFrameBySource,
+  getRegisteredFrames,
   projectToAllReadyCards,
   PROJECT_ID,
   WORKSPACE_ID,
@@ -154,8 +157,16 @@ describe("projection", () => {
     const iframe = document.createElement("iframe");
     document.body.appendChild(iframe);
 
+    registerCardFrameSource("card-1", iframe);
+    expect(findCanvasFrameBySource(iframe.contentWindow)).toEqual({
+      cardId: "card-1",
+      iframe,
+    });
+    expect(getRegisteredFrames().has("card-1")).toBe(false);
     registerCardFrame("card-1", iframe);
-    expect(iframe).toBeDefined();
+    expect(getRegisteredFrames().has("card-1")).toBe(true);
+    expect(findCanvasFrameBySource(window)).toBeNull();
+    unregisterCardFrame("card-1");
   });
 
   describe("revision ordering", () => {

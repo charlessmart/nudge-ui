@@ -18,13 +18,14 @@ import {
 import { CanvasCard } from "./CanvasCard.tsx";
 import { getCanvasMode, setCanvasMode, useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changesLog.ts";
-import { projectToAllReadyCards } from "./projection.ts";
+import { findCanvasFrameBySource, projectToAllReadyCards } from "./projection.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
 import { PROTOCOL_VERSION, type NavigationIntentMessage } from "./frameProtocol.ts";
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
 import { Maximize } from "lucide-react";
 import { Button } from "../ui/Button.tsx";
+import { useInspectorOpen } from "../openStore.ts";
 
 const WORKSPACE_STYLES = [canvasWorkspaceStyles, canvasCardStyles].join("\n");
 
@@ -33,6 +34,7 @@ const ZOOM_WHEEL_FACTOR = 1.08;
 
 export function CanvasWorkspace(): ReactElement | null {
   const mode = useCanvasMode();
+  const inspectorOpen = useInspectorOpen();
   const cards = useCanvasCards();
   const camera = useBoardCamera();
 
@@ -44,6 +46,11 @@ export function CanvasWorkspace(): ReactElement | null {
   const fitAllScheduledRef = useRef(false);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
+
+  const fitCanvasToBoard = useCallback(() => {
+    const board = boardRef.current;
+    fitAllCards(board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
+  }, []);
 
   useEffect(() => {
     return subscribeChanges(() => {
@@ -57,6 +64,7 @@ export function CanvasWorkspace(): ReactElement | null {
       if (!event.data || typeof event.data !== "object") return;
       if (event.data.type !== "navigation-intent") return;
       if (event.data.protocolVersion !== PROTOCOL_VERSION) return;
+      if (!findCanvasFrameBySource(event.source)) return;
 
       const msg = event.data as NavigationIntentMessage;
       const normalized = normalizeUrl(msg.url);
@@ -79,12 +87,12 @@ export function CanvasWorkspace(): ReactElement | null {
       if (!fitAllScheduledRef.current) {
         fitAllScheduledRef.current = true;
         requestAnimationFrame(() => {
-          fitAllCards();
+          fitCanvasToBoard();
           fitAllScheduledRef.current = false;
         });
       }
     }
-  }, [mode, cards.length]);
+  }, [mode, cards.length, inspectorOpen, fitCanvasToBoard]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
@@ -190,8 +198,8 @@ export function CanvasWorkspace(): ReactElement | null {
   }, [mode]);
 
   const handleFitAll = useCallback(() => {
-    fitAllCards();
-  }, []);
+    fitCanvasToBoard();
+  }, [fitCanvasToBoard]);
 
   function handleEdit(card: CanvasCardData): void {
     setCanvasMode("inspect");
@@ -206,7 +214,11 @@ export function CanvasWorkspace(): ReactElement | null {
   return (
     <>
       <style data-test="canvas-styles">{WORKSPACE_STYLES}</style>
-      <div className="dt-canvas-workspace" data-test="canvas-workspace">
+      <div
+        className="dt-canvas-workspace"
+        data-test="canvas-workspace"
+        style={{ right: inspectorOpen ? "min(320px, 100vw)" : 0 }}
+      >
         <div className="dt-canvas-workspace__header">
           <span className="dt-canvas-workspace__title">Canvas</span>
           <div className="dt-canvas-workspace__header-actions">

@@ -37,7 +37,7 @@ absence of confusing nested Inspector UI.
 - [x] Entering Canvas creates or focuses one live card for the current origin, pathname, search and hash
 - [x] Canvas is a fixed Shadow DOM preview workspace and does not mutate the host application's layout
 - [x] Returning to Inspect on the same route reveals the original still-mounted host document
-- [x] Inspect remains the only surface that permits Design Tool selection and editing
+- [x] The top-level controller remains the only selection/edit authority; Canvas renderers may report element intents to its Inspector
 - [x] Only an iframe explicitly marked by the Canvas controller enters renderer mode
 - [x] A Canvas renderer mounts no Inspector, selection overlay, panel layout, persistence owner, or duplicate shortcut handlers
 - [x] The renderer reports ready state, current URL and title to its owning card
@@ -52,4 +52,3 @@ absence of confusing nested Inspector UI.
 ## Blocked by
 
 - #0021 — Canonical change set and edit history
-

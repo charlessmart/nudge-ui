@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
-import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, useSelectedCardId, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
+import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
 import { RefreshCw, Trash2, Pencil, Copy } from "lucide-react";
 import { PROTOCOL_VERSION, type FrameReadyMessage, type FrameMetadataMessage, type FrameLoadError } from "./frameProtocol.ts";
-import { registerCardFrame, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
+import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { IconButton } from "../ui/IconButton.tsx";
+import { setSelectedElement } from "../selectionStore.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -24,8 +25,16 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
   const selectedCardId = useSelectedCardId();
   const isSelected = selectedCardId === card.id;
 
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    registerCardFrameSource(card.id, iframe);
+    return () => unregisterCardFrame(card.id);
+  }, [card.id]);
+
   function handleReload(): void {
     if (iframeRef.current) {
+      if (getSelectedCardId() === card.id) setSelectedElement(null);
       setLoadState("loading");
       setErrorMessage(null);
       iframeRef.current.src = iframeRef.current.src;
@@ -33,6 +42,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
   }
 
   function handleRemove(): void {
+    if (getSelectedCardId() === card.id) setSelectedElement(null);
     removeCanvasCard(card.id);
   }
 
@@ -85,7 +95,6 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     window.addEventListener("message", onMessage);
     return () => {
       window.removeEventListener("message", onMessage);
-      unregisterCardFrame(card.id);
     };
   }, [card.id]);
 
@@ -102,6 +111,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     const iframe = iframeRef.current;
     if (!iframe) return;
     function onLoad(): void {
+      if (getSelectedCardId() === card.id) setSelectedElement(null);
       iframeRef.current?.contentWindow?.postMessage({
         type: "parent-ready",
         protocolVersion: PROTOCOL_VERSION,
@@ -121,6 +131,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     const target = e.target as HTMLElement;
     if (target.closest("button")) return;
 
+    if (getSelectedCardId() !== card.id) setSelectedElement(null);
     selectCard(card.id);
 
     e.stopPropagation();

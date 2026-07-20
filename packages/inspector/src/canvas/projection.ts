@@ -53,19 +53,35 @@ export function sendProjectionToCard(
 }
 
 const frameRegistry = new Map<string, HTMLIFrameElement>();
+const frameSourceRegistry = new Map<string, HTMLIFrameElement>();
+
+export function registerCardFrameSource(cardId: string, iframe: HTMLIFrameElement): void {
+  frameSourceRegistry.set(cardId, iframe);
+}
 
 export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): void {
+  frameSourceRegistry.set(cardId, iframe);
   frameRegistry.set(cardId, iframe);
   notifyFrameRegistryListeners();
 }
 
 export function unregisterCardFrame(cardId: string): void {
+  frameSourceRegistry.delete(cardId);
   frameRegistry.delete(cardId);
   notifyFrameRegistryListeners();
 }
 
 export function getRegisteredFrames(): ReadonlyMap<string, HTMLIFrameElement> {
   return frameRegistry;
+}
+
+export function findCanvasFrameBySource(
+  source: MessageEventSource | null,
+): { cardId: string; iframe: HTMLIFrameElement } | null {
+  for (const [cardId, iframe] of frameSourceRegistry) {
+    if (iframe.contentWindow === source) return { cardId, iframe };
+  }
+  return null;
 }
 
 const frameRegistryListeners = new Set<() => void>();

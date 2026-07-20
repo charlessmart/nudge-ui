@@ -22,7 +22,7 @@ export function sourceSiteSelector(cid: string, src: string): string | null {
 export function countSourceSiteMatches(el: HTMLElement): number {
   const selector = sourceSiteSelector(el.getAttribute("data-cid") ?? "", el.getAttribute("data-src") ?? "");
   if (!selector) return 0;
-  try { return document.querySelectorAll(selector).length; } catch { return 0; }
+  try { return el.ownerDocument.querySelectorAll(selector).length; } catch { return 0; }
 }
 
 export function unlinkElement(el: HTMLElement): string {
@@ -56,7 +56,7 @@ export function selectorForElement(el: HTMLElement): string | null {
 
 export function getInstanceEvidence(el: HTMLElement): InstanceEvidence {
   const selector = sourceSiteSelector(el.getAttribute("data-cid") ?? "", el.getAttribute("data-src") ?? "");
-  const matches = selector ? Array.from(document.querySelectorAll(selector)) : [];
+  const matches = selector ? Array.from(el.ownerDocument.querySelectorAll(selector)) : [];
   const renderedIndex = Math.max(0, matches.indexOf(el));
   const text = el.textContent?.replace(/\s+/g, " ").trim().slice(0, 120) || null;
   return { renderedIndex, props: el.getAttribute("data-cprops"), text };

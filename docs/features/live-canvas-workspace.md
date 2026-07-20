@@ -6,9 +6,10 @@
 
 ## Summary
 
-Canvas is a preview mode for comparing multiple live routes from the same local
-Vite project. Inspect mode continues to own all selection and editing. Canvas
-shows those edits across a board of usable, same-origin iframe previews.
+Canvas is a workspace for comparing and editing multiple live routes from the
+same local Vite project. The top-level controller continues to own all
+selection and editing; Canvas renderers report element intents and display the
+canonical changes across a board of same-origin iframe previews.
 
 This plan replaces the snapshot-gallery direction in `PLAN.md`. Canvas v1 does
 not use `html2canvas`, store PNG captures, or provide before/after snapshots.
@@ -19,8 +20,8 @@ before the implementation becomes authoritative.
 
 - Inspect and Canvas are separate top-level modes.
 - Inspect mode contains one normal, full-page, editable route.
-- Canvas mode contains live but non-editable route previews. The applications
-  inside them remain scrollable and interactive.
+- Canvas mode contains live route previews whose tracked elements can populate
+  the top-level Inspector and receive canonical edits.
 - Choosing **Edit** on a card exits Canvas and makes that route the single
   editable page. The board remains available on the next Canvas toggle.
 - Entering Canvas adds the current Inspect route if it is not already present.
@@ -62,6 +63,16 @@ before the implementation becomes authoritative.
    canonical changes into its managed stylesheet.
 4. The user edits this one page. Returning to Canvas reuses the saved board and
    updates every preview with the latest canonical projection.
+
+### Edit directly from Canvas
+
+1. The user selects a tracked non-navigation element inside any card.
+2. The renderer reports its exact `data-cid` + `data-src` identity to the
+   controller without creating local edit state.
+3. The controller resolves the element in that card document and populates the
+   top-level Inspector.
+4. Inspector changes enter the canonical change set and project into every
+   ready card, including the selected card.
 
 ### Compare responsive and application states
 
@@ -121,6 +132,7 @@ An embedded renderer:
 - installs one managed stylesheet in its own document;
 - replaces that stylesheet from versioned controller messages;
 - captures eligible route-link navigation intents; and
+- reports tracked-element hover and selection intents; and
 - reports full reloads and programmatic same-card navigation.
 
 The renderer does not own canonical changes and does not persist edit state.
@@ -158,6 +170,7 @@ version, project ID, workspace ID, card ID, and payload. Initial message types:
 - `replace-styles` — full CSS text plus canonical revision;
 - `navigation-intent` — eligible route link requested a new card;
 - `frame-metadata` — current URL and document title changed; and
+- `element-hover` / `element-click` — tracked element intent for controller-owned selection; and
 - `frame-diagnostic` — optional load, match, or rendering problem.
 
 The controller sends with an explicit current-origin `targetOrigin` and accepts
@@ -171,6 +184,12 @@ may use `storage` events or a narrowly scoped channel only to coordinate
 ownership and takeover.
 
 ## Route and interaction semantics
+
+A primary activation of a tracked non-navigation element reports a selection
+intent to the controller without cancelling the application's event. Buttons,
+inputs, menus, and same-document hash links therefore remain interactive while
+also populating the top-level Inspector. If an application action removes the
+selected source-site node, the controller clears that stale selection.
 
 ### Link discovery
 
@@ -380,4 +399,3 @@ milestone, coverage must prove:
 | #0033 | Responsive spatial Canvas board | HITL | #0032 |
 | #0034 | Durable Canvas and stable edit restoration | AFK | #0033 |
 | #0035 | Restore safety and single-workspace ownership | HITL | #0034 |
-

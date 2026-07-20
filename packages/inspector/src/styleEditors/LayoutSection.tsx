@@ -7,6 +7,7 @@ import { setStyle } from "./styleActions.ts";
 import { Button } from "../ui/Button.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
+import { getElementComputedStyle } from "../domRealm.ts";
 
 const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
@@ -46,7 +47,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
 
   useEffect(() => {
     try {
-      const cs = getComputedStyle(el);
+      const cs = getElementComputedStyle(el);
       const display = cs.display;
       setIsFlexContainer(display === "flex" || display === "inline-flex");
       setIsPositioned(
@@ -67,7 +68,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
         setIsFlexChild(false);
         return;
       }
-      const pDisplay = getComputedStyle(parentEl).display;
+      const pDisplay = getElementComputedStyle(parentEl).display;
       setIsFlexChild(pDisplay === "flex" || pDisplay === "inline-flex");
     } catch {
       setIsFlexChild(false);

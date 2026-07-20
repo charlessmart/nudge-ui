@@ -158,9 +158,6 @@ export function installRendererElementSelector(): void {
       const el = target.closest("[data-cid]");
       if (!(el instanceof HTMLElement)) return;
 
-      event.preventDefault();
-      event.stopImmediatePropagation();
-
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);
       const { file, line, component, src } = getFiberInfo(el);

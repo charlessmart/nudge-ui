@@ -3,6 +3,11 @@ import { setSelectedElement } from "../selectionStore.ts";
 import type { ElementClickMessage } from "./frameProtocol.ts";
 import { selectCard } from "./canvasStore.ts";
 
+function isHtmlElementInDocument(node: Element | null, doc: Document): node is HTMLElement {
+  const frameWindow = doc.defaultView;
+  return frameWindow !== null && node instanceof frameWindow.HTMLElement;
+}
+
 /**
  * Resolve the exact DOM element inside a card's iframe that matches an
  * element-click message. The renderer (running inside the iframe) tells us
@@ -16,8 +21,8 @@ import { selectCard } from "./canvasStore.ts";
  * `data-cid`-only would silently return the first matching element, which
  * could be the wrong one.
  *
- * Returns the iframe's `<body>` as a last-resort fallback so downstream
- * consumers never receive the parent's body when no match is found.
+ * If an exact source-bearing element no longer exists, fail closed instead of
+ * binding the copied component metadata to an unrelated DOM node.
  */
 function findClickedElement(
   doc: Document | null | undefined,
@@ -26,44 +31,36 @@ function findClickedElement(
 ): HTMLElement | null {
   if (!doc) return null;
 
-  // Exact (cid, src) match wins. CSS.escape keeps attribute selectors safe
-  // for cids that contain colons, brackets, or other selector metacharacters.
+  const cidMatches = Array.from(doc.querySelectorAll("[data-cid]"))
+    .filter((candidate): candidate is HTMLElement => (
+      isHtmlElementInDocument(candidate, doc) && candidate.getAttribute("data-cid") === cid
+    ));
+
   if (src) {
-    const cidAttr = CSS.escape(cid);
-    const srcAttr = CSS.escape(src);
-    const exact = doc.querySelector(
-      `[data-cid="${cidAttr}"][data-src="${srcAttr}"]`,
-    );
-    if (exact instanceof HTMLElement) return exact;
+    return cidMatches.find((candidate) => candidate.getAttribute("data-src") === src) ?? null;
   }
 
-  // Fall back to the renderer's stated line if we have it but no exact src.
-  // This preserves behaviour for stray elements that may have lost their
-  // data-src during an HMR pass.
-  const cidAttr = CSS.escape(cid);
-  const cidMatches = doc.querySelectorAll(`[data-cid="${cidAttr}"]`);
-  for (const candidate of cidMatches) {
-    if (candidate instanceof HTMLElement) return candidate;
-  }
-  return null;
+  return cidMatches.length === 1 ? cidMatches[0] ?? null : null;
 }
 
 export function handleElementClick(msg: ElementClickMessage, iframe: HTMLIFrameElement, cardId: string): void {
   const doc = iframe.contentDocument;
   const el = findClickedElement(doc, msg.cid, msg.src);
 
-  const domElement: HTMLElement = el instanceof HTMLElement
-    ? el
-    : (doc?.body ?? document.body);
+  if (!el) {
+    setSelectedElement(null);
+    selectCard(cardId);
+    return;
+  }
 
   const selected: SelectedElement = {
     cid: msg.cid,
-    src: el instanceof HTMLElement ? (el.getAttribute("data-src") ?? msg.src ?? "") : (msg.src ?? ""),
-    cprops: el instanceof HTMLElement ? el.getAttribute("data-cprops") : null,
+    src: el.getAttribute("data-src") ?? msg.src,
+    cprops: el.getAttribute("data-cprops"),
     file: msg.file,
     line: msg.line,
     column: 0,
-    domElement,
+    domElement: el,
   };
 
   // setSelectedElement must run before any side effect that could reload the
