@@ -133,7 +133,6 @@ export function SideValuesField({
             <IconButton
               variant="secondary"
               size="default"
-              className="dt-side-values__toggle dt-side-values__expand"
               data-test="individual-sides"
               aria-expanded={isExpanded}
               label={forceExpanded
@@ -156,7 +155,6 @@ export function SideValuesField({
           <IconButton
             variant="secondary"
             size="default"
-            className="dt-side-values__toggle dt-side-values__expand"
             data-test="individual-sides"
             aria-expanded={!isLinked}
             aria-label={`Edit Individual ${labelText} Sides`}
@@ -174,7 +172,6 @@ export function SideValuesField({
             <IconButton
               variant="secondary"
               size="default"
-              className="dt-side-values__toggle dt-side-values__expand"
               data-test="individual-sides"
               aria-expanded={!isLinked}
               aria-label={`Link ${labelText} Sides`}
@@ -192,7 +189,7 @@ export function SideValuesField({
   );
 }
 
-function SideControls({
+export function SideControls({
   label,
   sides,
 }: {

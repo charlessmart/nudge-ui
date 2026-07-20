@@ -6,6 +6,7 @@ import { resetPendingRules } from "../tokens/editActions.ts";
 import {
   makeSelected,
   mount,
+  setInputValue,
   setSelectValue,
   selectOptionValues,
   mockComputedStyle,
@@ -190,6 +191,8 @@ describe("LayoutSection", () => {
     handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeTruthy();
+    expect(handle.host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
+    expect(handle.host.querySelectorAll('.dt-side-values__side .dt-side-values__icon')).toHaveLength(4);
   });
 
   it("shows inset grid when position is relative", () => {
@@ -255,8 +258,9 @@ describe("LayoutSection", () => {
     mockComputedStyle({ display: "flex", position: "absolute", "top": "0px" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    const select = handle.host.querySelector('[data-test="layout-combo-select-top"]') as HTMLElement;
-    setSelectValue(select, "50%");
+    const input = handle.host.querySelector('[data-test="token-field"][data-property="top"] [data-test="raw-input"]') as HTMLInputElement;
+    expect(handle.host.querySelector('[data-test="layout-combo-select-top"]')).toBeNull();
+    setInputValue(input, "50%");
 
     expect(sheetText()).toContain("top: 50%;");
   });

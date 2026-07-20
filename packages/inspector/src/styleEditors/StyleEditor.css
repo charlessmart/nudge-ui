@@ -2,11 +2,112 @@
 .dt-spacing,
 .dt-typography,
 .dt-border,
+.dt-property,
 .dt-color {
   display: flex;
   flex-direction: column;
   gap: 6px;
   background: var(--dt-surface-panel);
+}
+
+.dt-typography {
+  gap: 6px;
+}
+
+.dt-typography__field {
+  position: relative;
+  min-width: 0;
+  height: var(--dt-control-height);
+  align-items: center;
+  background: var(--dt-surface-control);
+  border-radius: var(--dt-radius-control);
+  color: var(--dt-text-primary);
+}
+
+.dt-typography__field.dt-token-field {
+  gap: 6px;
+  padding: 0 8px;
+}
+
+.dt-typography__field-icon {
+  position: absolute;
+  z-index: 1;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--dt-text-muted);
+  pointer-events: none;
+}
+
+.dt-typography__field > .dt-select {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.dt-typography__field .dt-popover-listbox,
+.dt-typography__field .dt-popover-listbox__trigger,
+.dt-typography__field .dt-text-input,
+.dt-typography__field .dt-select {
+  height: 100%;
+}
+
+.dt-typography__field .dt-select {
+  padding-left: 34px;
+  font-size: var(--dt-font-size);
+}
+
+.dt-typography__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.dt-typography__field .dt-token-field__leading svg {
+  width: 16px;
+  height: 16px;
+}
+
+.dt-typography__field--font-family .dt-token-field__leading svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dt-typography__alignment {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 6px;
+}
+
+.dt-typography__segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  min-width: 0;
+  padding: 2px;
+  background: var(--dt-surface-control);
+  border-radius: var(--dt-radius-control);
+}
+
+.dt-typography__alignment-button.dt-button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--dt-text-muted);
+  border-radius: 8px;
+}
+
+.dt-typography__alignment-button.dt-button[data-active="true"] {
+  background: var(--dt-surface-raised);
+  color: var(--dt-text-primary);
+  box-shadow: inset 0 0 0 1px var(--dt-border-strong), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.dt-typography__alignment-button.dt-button:hover:not(:disabled) {
+  background: var(--dt-surface-raised);
 }
 
 .dt-layout__group {
@@ -23,20 +124,6 @@
   font-weight: 650;
   letter-spacing: -0.01em;
   text-transform: none;
-}
-
-.dt-layout__inset-grid {
-  display: grid;
-  grid-template-columns: 24px repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  align-items: center;
-}
-
-.dt-layout__inset-label {
-  color: var(--dt-text-muted-subtle);
-  font-size: var(--dt-font-size);
-  font-weight: 600;
-  text-align: center;
 }
 
 .dt-layout__flex-toolbar {

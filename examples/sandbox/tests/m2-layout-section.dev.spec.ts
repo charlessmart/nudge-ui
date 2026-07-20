@@ -22,6 +22,21 @@ async function setSelect(page: import("@playwright/test").Page, testId: string, 
   await option.click();
 }
 
+async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
+  await page.evaluate(({ p, v }) => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const input = sr?.querySelector(
+      `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
+    ) as HTMLInputElement | null;
+    if (!input) throw new Error(`Missing raw input for ${p}`);
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    input.focus();
+    setter.call(input, v);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.blur();
+  }, { p: property, v: value });
+}
+
 async function selectValues(page: import("@playwright/test").Page, testId: string): Promise<string[]> {
   const trigger = page.locator(`[data-test="${testId}"]`);
   await trigger.click();
@@ -176,12 +191,12 @@ test("dev: layout section shows inset controls for a positioned element", async 
   // Inset sub-section should be visible (position is relative)
   expect(await shadowQueryExists(page, "layout-inset")).toBe(true);
 
-  // Top inset combo field should be present
-  const hasTop = await shadowQueryExists(page, "layout-combo-select-top");
-  expect(hasTop).toBe(true);
+  // Top inset should use the regular token/raw input.
+  await expect(page.locator('[data-test="token-field"][data-property="top"] [data-test="raw-input"]')).toBeVisible();
+  expect(await shadowQueryExists(page, "layout-combo-select-top")).toBe(false);
 
-  // Change top from "0" (preset) to "auto"
-  await setSelect(page, "layout-combo-select-top", "auto");
+  // Change top from "0" to "auto"
+  await setInput(page, "top", "auto");
 
   // Managed stylesheet should have the rule
   await expect
@@ -202,7 +217,7 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
   await page.click('[data-test="positioned-box"]');
   await waitForEditors(page);
 
-  await setSelect(page, "layout-combo-select-left", "50%");
+  await setInput(page, "left", "50%");
 
   await expect
     .poll(async () => (await sheetText(page)).includes("left: 50%"), { timeout: 5000 })

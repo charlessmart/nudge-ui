@@ -447,10 +447,12 @@ const FONT_SIZE_KEYWORDS = new Set([
   "larger", "smaller",
 ]);
 const FONT_WEIGHT_KEYWORDS = new Set(["normal", "bold", "bolder", "lighter"]);
+const FONT_STYLE_KEYWORDS = new Set(["normal", "italic", "oblique"]);
 
 interface FontShorthandParts {
   "font-family": string;
   "font-size": string;
+  "font-style"?: string;
   "font-weight"?: string;
   "line-height"?: string;
 }
@@ -536,9 +538,11 @@ function parseFontShorthand(value: string): FontShorthandParts | null {
   const weight = parts.slice(0, sizeIndex).find((part) => (
     FONT_WEIGHT_KEYWORDS.has(part.toLowerCase()) || /^(?:[1-9]\d{0,2}|1000)$/.test(part)
   ));
+  const style = parts.slice(0, sizeIndex).find((part) => FONT_STYLE_KEYWORDS.has(part.toLowerCase()));
   return {
     "font-family": family,
     "font-size": fontSize,
+    ...(style ? { "font-style": style } : {}),
     ...(weight ? { "font-weight": weight } : {}),
     ...(lineHeight ? { "line-height": lineHeight } : {}),
   };

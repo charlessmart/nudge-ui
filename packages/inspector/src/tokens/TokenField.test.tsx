@@ -77,6 +77,23 @@ describe("TokenField", () => {
     expect(getChangeRecords()).toHaveLength(1);
   });
 
+  it("supports shared leading and trailing adornments", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      domElement: selected.domElement,
+      entries: [],
+      leading: createElement("span", { "data-test": "leading-adornment" }, "A"),
+      trailing: createElement("span", { "data-test": "trailing-adornment" }, "⌄"),
+      label: "Font size",
+    }));
+
+    const field = handle.host.querySelector('[data-test="token-field"]') as HTMLElement;
+    expect(field.querySelector('[data-test="leading-adornment"]')).not.toBeNull();
+    expect(field.querySelector('[data-test="trailing-adornment"]')).not.toBeNull();
+    expect(field.getAttribute("aria-label")).toBe("Font size");
+  });
+
   it.each([
     ["padding-top", "8", "8px"],
     ["font-size", "1", "1rem"],

@@ -6,6 +6,7 @@ import { getChangeRecords, resetPendingRules } from "../tokens/editActions.ts";
 import {
   makeSelected,
   mount,
+  setSelectValue,
   setInputValue,
   mockComputedStyle,
   restoreComputedStyle,
@@ -61,18 +62,19 @@ describe("Typography", () => {
     expect(sheetText()).toContain("font-size: 18px;");
   });
 
-  it("writes font-weight via the raw input", () => {
+  it("writes font style presets as font-style and font-weight", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "font-size": "16px",
       "font-weight": "400",
+      "font-style": "normal",
       "line-height": "1.5",
       "letter-spacing": "0px",
     });
     handle = mount(createElement(Typography, { element: selected }));
-    const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="font-weight"]');
-    const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
-    setInputValue(raw, "700");
+    const select = handle.host.querySelector('[data-test="font-style-field"]') as HTMLElement;
+    setSelectValue(select, "700-italic");
+    expect(sheetText()).toContain("font-style: italic;");
     expect(sheetText()).toContain("font-weight: 700;");
   });
 
@@ -107,7 +109,7 @@ describe("Typography", () => {
     expect(sheetText()).toContain("letter-spacing: 1em;");
   });
 
-  it("renders a TokenField for each typographic property", () => {
+  it("renders the compact typography field groups", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "font-size": "16px",
@@ -116,9 +118,20 @@ describe("Typography", () => {
       "letter-spacing": "0px",
     });
     handle = mount(createElement(Typography, { element: selected }));
-    for (const prop of ["font-size", "font-weight", "line-height", "letter-spacing", "font-family"]) {
+    for (const prop of ["font-size", "line-height", "letter-spacing", "font-family"]) {
       expect(handle.host.querySelector(`[data-test="token-field"][data-property="${prop}"]`)).toBeTruthy();
     }
+    expect(handle.host.querySelector('[data-test="font-style-field"]')).toBeTruthy();
+    expect(handle.host.querySelectorAll('[data-test="typography-align-text-align-left"], [data-test="typography-align-vertical-align-top"]')).toHaveLength(2);
+  });
+
+  it("writes text alignment through the icon control", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "text-align": "left", "vertical-align": "baseline" });
+    handle = mount(createElement(Typography, { element: selected }));
+    const center = handle.host.querySelector('[data-test="typography-align-text-align-center"]') as HTMLButtonElement;
+    center.click();
+    expect(sheetText()).toContain("text-align: center;");
   });
 
   it("records font shorthand provenance when a decomposed longhand is edited", () => {

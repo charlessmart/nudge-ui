@@ -1,5 +1,4 @@
-.dt-button,
-.dt-icon-button {
+.dt-button {
   appearance: none;
   background: var(--dt-surface-control);
   border: 0;
@@ -23,54 +22,45 @@
   font-size: var(--dt-font-size);
 }
 
-.dt-button--primary,
-.dt-icon-button--primary {
+.dt-button--primary {
   background: var(--dt-accent);
   color: #ffffff;
 }
 
-.dt-button--secondary,
-.dt-icon-button--secondary {
+.dt-button--secondary {
   background: var(--dt-surface-control);
 }
 
-.dt-button--quiet,
-.dt-icon-button--quiet {
+.dt-button--quiet {
   background: transparent;
   color: var(--dt-text-muted);
 }
 
-.dt-button--danger,
-.dt-icon-button--danger {
+.dt-button--danger {
   background: var(--dt-danger-surface);
   color: var(--dt-danger-text);
 }
 
-.dt-button--disabled,
-.dt-icon-button--disabled {
+.dt-button--disabled {
   background: var(--dt-surface-control);
   color: var(--dt-text-muted-subtle);
   cursor: not-allowed;
 }
 
-.dt-button:hover:not(:disabled),
-.dt-icon-button:hover:not(:disabled) {
+.dt-button:hover:not(:disabled) {
   background: var(--dt-surface-control-hover);
 }
 
-.dt-button--primary:hover:not(:disabled),
-.dt-icon-button--primary:hover:not(:disabled) {
+.dt-button--primary:hover:not(:disabled) {
   background: var(--dt-accent-strong);
 }
 
-.dt-button:focus-visible,
-.dt-icon-button:focus-visible {
+.dt-button:focus-visible {
   outline: 0;
   box-shadow: inset 0 0 0 2px var(--dt-focus);
 }
 
-.dt-button:disabled,
-.dt-icon-button:disabled {
+.dt-button:disabled {
   background: var(--dt-surface-control);
   color: var(--dt-text-muted-subtle);
   cursor: not-allowed;

@@ -67,7 +67,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
         <div className="dt-editor__title">{colorSectionTitle(property)}</div>
         {!showTokenField ? (
           <IconButton
-            variant="secondary"
+            variant="quiet"
             label={`Add ${colorSectionTitle(property)}`}
             data-test="add-color"
             className="dt-color__add"

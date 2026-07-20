@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { ChevronDown, Unlink2 } from "lucide-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "./resolution.ts";
@@ -29,6 +29,10 @@ export interface TokenValueFieldProps {
   onSelectToken(token: TokenEntry): void;
   onUnlink(value: string): void;
   attributionTokens?: string[];
+  leading?: ReactNode;
+  trailing?: ReactNode;
+  className?: string;
+  label?: string;
 }
 
 export interface TokenFieldProps {
@@ -39,6 +43,10 @@ export interface TokenFieldProps {
   entries: TokenEntry[];
   onAfterEdit?: () => void;
   editMetadata?: StyleEditMetadata;
+  leading?: ReactNode;
+  trailing?: ReactNode;
+  className?: string;
+  label?: string;
 }
 
 function computedRaw(el: HTMLElement, property: string): string {
@@ -178,6 +186,10 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     onSelectToken,
     onUnlink,
     attributionTokens = [],
+    leading,
+    trailing,
+    className,
+    label,
   } = props;
   const [rawValue, setRawValue] = useState(committedValue);
   const [activeTokenName, setActiveTokenName] = useState<string | null>(controlledTokenName);
@@ -290,7 +302,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   if (activeToken) {
     return (
-      <span className={`dt-token-field${isColor ? " dt-token-field--color" : ""}`} data-test="token-field" data-property={property}>
+      <span className={`dt-token-field${isColor ? " dt-token-field--color" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
+        {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
         {colorControl}
         <PopoverListbox
           query=""
@@ -324,13 +337,15 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         >
           <Unlink2 size={14} strokeWidth={1.75} aria-hidden="true" />
         </IconButton>
+        {trailing ? <span className="dt-token-field__trailing">{trailing}</span> : null}
       </span>
     );
   }
 
   const showPopover = isFocused && filteredTokens.length > 0;
   return (
-    <span className={`dt-token-field dt-token-field--raw${isColor ? " dt-token-field--color" : ""}`} data-test="token-field" data-property={property}>
+    <span className={`dt-token-field dt-token-field--raw${isColor ? " dt-token-field--color" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
+      {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
       {colorControl}
       <PopoverListbox
         query={rawValue}
@@ -357,6 +372,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           {attributionTokens.join(" · ")}
         </span>
       ) : null}
+      {trailing ? <span className="dt-token-field__trailing">{trailing}</span> : null}
     </span>
   );
 }
@@ -368,7 +384,7 @@ function arrowDirection(key: string): -1 | 1 | null {
 }
 
 export function TokenField(props: TokenFieldProps): ReactElement {
-  const { property, tokenRow, initialValue, domElement: el, entries, onAfterEdit, editMetadata } = props;
+  const { property, tokenRow, initialValue, domElement: el, entries, onAfterEdit, editMetadata, leading, trailing, className, label } = props;
   const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
     || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const activeTokenName = expression ? null : tokenRow?.tokenName ?? null;
@@ -409,6 +425,10 @@ export function TokenField(props: TokenFieldProps): ReactElement {
         setStyle(el, property, value, editMetadata);
         onAfterEdit?.();
       }}
+      leading={leading}
+      trailing={trailing}
+      className={className}
+      label={label}
     />
   );
 }

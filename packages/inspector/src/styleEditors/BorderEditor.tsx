@@ -249,8 +249,6 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const [borderStyleLinked, setBorderStyleLinked] = useBorderLinkedState(borderStyleDataLinked, el);
   const [borderColorLinked, setBorderColorLinked] = useBorderLinkedState(borderColorDataLinked, el);
 
-  const borderRadiusRow = findTokenRow(tokenRows, "border-radius");
-  const boxShadowRow = findTokenRow(tokenRows, "box-shadow");
   const borderRow = findTokenRow(tokenRows, "border");
   const hasStructuredBorderRows = tokenRows.some((row) => Boolean(row.structure));
   // Raw only when the shorthand could not be decomposed at all.
@@ -279,10 +277,10 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   return (
     <div className="dt-editor" data-test="border-editor">
       <div className="dt-editor__title-row">
-        <div className="dt-editor__title">Border · Radius · Shadow</div>
+        <div className="dt-editor__title">Border</div>
         {!showBorderControls ? (
           <IconButton
-            variant="secondary"
+            variant="quiet"
             label="Add Border"
             data-test="add-border"
             className="dt-border__add"
@@ -407,24 +405,6 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             </>
           )
         ) : null}
-        <FieldRow label="Border Radius">
-          <TokenField
-            property="border-radius"
-            tokenRow={borderRadiusRow}
-            domElement={el}
-            entries={allEntries}
-            onAfterEdit={onAfterEdit}
-          />
-        </FieldRow>
-        <FieldRow label="Box Shadow">
-          <TokenField
-            property="box-shadow"
-            tokenRow={boxShadowRow}
-            domElement={el}
-            entries={allEntries}
-            onAfterEdit={onAfterEdit}
-          />
-        </FieldRow>
       </div>
     </div>
   );
