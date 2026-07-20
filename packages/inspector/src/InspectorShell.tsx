@@ -91,10 +91,14 @@ export function InspectorShell(): ReactElement {
   useEffect(() => {
     setInstancePreviewLost(false);
     if (!selected || getEditScope(selected.domElement) !== "instance-preview") return;
+    // The selected element can live inside a card iframe (canvas mode); observe
+    // its own ownerDocument rather than the parent app's document, otherwise
+    // removal inside the iframe would never be noticed.
+    const ownerRoot = selected.domElement.ownerDocument?.documentElement ?? document.documentElement;
     const observer = new MutationObserver(() => {
       if (!selected.domElement.isConnected) setInstancePreviewLost(true);
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer.observe(ownerRoot, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [selected, scopeRevision]);
 

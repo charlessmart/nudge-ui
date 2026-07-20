@@ -54,6 +54,7 @@ export interface ElementClickMessage extends FrameMessage {
   type: "element-click";
   cid: string;
   selector: string;
+  src: string;
   file: string;
   line: number;
   component: string;

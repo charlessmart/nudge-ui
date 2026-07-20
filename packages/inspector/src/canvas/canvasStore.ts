@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
 import { normalizeUrl, normalizedUrlKey, type NormalizedUrl } from "./normalizeUrl.ts";
-import { persistSession } from "./sessionStore.ts";
 
 export type CanvasMode = "inspect" | "canvas";
 
@@ -268,11 +267,6 @@ export function getFocusedCardId(): string | null {
 
 export function selectCard(id: string): void {
   selectedCardId = id;
-  const card = cards.find((c) => c.id === id);
-  if (card && card.url !== window.location.href) {
-    persistSession();
-    window.location.href = card.url;
-  }
   notify();
 }
 

@@ -1,4 +1,5 @@
 import { PROTOCOL_VERSION, sendToParent, type ElementHoverMessage, type ElementClickMessage } from "./frameProtocol.ts";
+import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -13,8 +14,9 @@ function findFiber(el: HTMLElement): unknown {
   return undefined;
 }
 
-function getFiberInfo(el: HTMLElement): { file: string; line: number; component: string } {
+function getFiberInfo(el: HTMLElement): { file: string; line: number; component: string; src: string } {
   const fiber = findFiber(el) as Record<string, unknown> | undefined;
+  const src = el.getAttribute("data-src") ?? "";
 
   let file = "";
   let line = 0;
@@ -50,7 +52,6 @@ function getFiberInfo(el: HTMLElement): { file: string; line: number; component:
   }
 
   if (!file) {
-    const src = el.getAttribute("data-src") ?? "";
     const match = /^(.*):(\d+):(\d+)$/.exec(src);
     if (match) {
       file = match[1] ?? "";
@@ -58,7 +59,7 @@ function getFiberInfo(el: HTMLElement): { file: string; line: number; component:
     }
   }
 
-  return { file, line, component };
+  return { file, line, component, src };
 }
 
 function buildSelector(el: HTMLElement): string {
@@ -141,6 +142,19 @@ export function installRendererElementSelector(): void {
     (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
+
+      // Defer to navigation-intent when the user clicked a navigable same-origin
+      // anchor that points to a different route. In canvas mode, anchor clicks
+      // should create (or focus) a sibling card rather than selecting the anchor
+      // itself. The navigation-intent listener is registered AFTER this one, so
+      // we must NOT stop propagation here. Left to its own default the click would
+      // perform a full-frame navigation inside the iframe; the navigation-intent
+      // handler calls preventDefault once it has gathered the anchor href.
+      const anchor = findClosestAnchor(target);
+      if (anchor && isEligibleNavigation(anchor, event) && hasDifferentRoute(anchor)) {
+        return;
+      }
+
       const el = target.closest("[data-cid]");
       if (!(el instanceof HTMLElement)) return;
 
@@ -149,13 +163,14 @@ export function installRendererElementSelector(): void {
 
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);
-      const { file, line, component } = getFiberInfo(el);
+      const { file, line, component, src } = getFiberInfo(el);
 
       const msg: ElementClickMessage = {
         type: "element-click",
         protocolVersion: PROTOCOL_VERSION,
         cid,
         selector,
+        src,
         file,
         line,
         component,
