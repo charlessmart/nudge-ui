@@ -5,7 +5,25 @@ import { selectCard } from "./canvasStore.ts";
 
 export function handleElementClick(msg: ElementClickMessage, iframe: HTMLIFrameElement, cardId: string): void {
   const doc = iframe.contentDocument;
-  const el = doc ? doc.querySelector(`[data-cid="${CSS.escape(msg.cid)}"]`) : null;
+  let el: HTMLElement | null = null;
+
+  if (doc && msg.file && msg.line > 0) {
+    const candidates = doc.querySelectorAll(`[data-cid="${CSS.escape(msg.cid)}"]`);
+    for (const candidate of candidates) {
+      if (candidate instanceof HTMLElement) {
+        const src = candidate.getAttribute("data-src") ?? "";
+        if (src.startsWith(`${msg.file}:${msg.line}:`)) {
+          el = candidate;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!el && doc) {
+    el = doc.querySelector(`[data-cid="${CSS.escape(msg.cid)}"]`);
+  }
+
   const src = el instanceof HTMLElement ? (el.getAttribute("data-src") ?? "") : "";
   const cprops = el instanceof HTMLElement ? el.getAttribute("data-cprops") : null;
 
