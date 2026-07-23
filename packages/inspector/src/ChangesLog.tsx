@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { ChevronDown } from "lucide-react";
 import { isTokenChange, useChanges, revertChange } from "./changesLog.ts";
 import type { ChangeRecord } from "./changesLog.ts";
+import { StaleChangeIndicator } from "./canvas/StaleChangeIndicator.tsx";
 import { Button } from "./ui/Button.tsx";
 import { formatInspectorLabel } from "./ui/labels.ts";
 
@@ -79,11 +80,7 @@ export function ChangesLog(): ReactElement {
                     <span className="dt-changes__arrow">→</span>
                     <span className="dt-changes__after">{displayAfter(change)}</span>
                   </span>
-                  {change.previewResult?.status === "conflict" ? (
-                    <span className="dt-changes__conflict" data-test="preview-conflict" title={`Computed: ${change.previewResult.computedValue}`}>
-                    Preview Blocked ({change.previewResult.reason ? formatInspectorLabel(change.previewResult.reason) : "Unknown"})
-                    </span>
-                  ) : null}
+                  <StaleChangeIndicator change={change} />
                   <Button
                     size="compact"
                     className="dt-changes__revert"

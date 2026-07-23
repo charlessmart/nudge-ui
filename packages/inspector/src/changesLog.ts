@@ -2,6 +2,8 @@ import { useSyncExternalStore } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { applyRules, verifyPreview } from "./managedStylesheet.ts";
 import type { PreviewResult, StyleRule, StyleRuleContext } from "./managedStylesheet.ts";
+import { canWriteWorkspace } from "./canvas/workspaceLease.ts";
+import { getSelectedElement } from "./selectionStore.ts";
 
 export interface ElementChangeRecord {
   kind?: "element";
@@ -128,8 +130,19 @@ export function getPendingRules(): StyleRule[] {
 
 function reapply(): void {
   applyRules(getPendingRules());
+  const selected = getSelectedElement();
   changes = changes.map((change) => {
     const requestedValue = recordValue(change);
+    // A Canvas-only selection belongs to an iframe. The controller stylesheet
+    // cannot verify it synchronously; leave its result unknown until the frame
+    // has received the canonical projection rather than claiming it is stale.
+    if (
+      selected
+      && selected.domElement.ownerDocument !== document
+      && selected.domElement.matches(change.selector)
+    ) {
+      return { ...change, previewResult: undefined };
+    }
     let targets: HTMLElement[] = [];
     try {
       targets = Array.from(document.querySelectorAll<HTMLElement>(change.selector));
@@ -144,6 +157,7 @@ function reapply(): void {
 }
 
 export function appendChange(change: ChangeRecord): void {
+  if (!canWriteWorkspace()) return;
   const before = changes;
   const key = changeKey(change);
   const existing = changes.find((candidate) => changeKey(candidate) === key);
@@ -165,6 +179,7 @@ export function appendChange(change: ChangeRecord): void {
 }
 
 export function revertChange(change: ChangeRecord): void {
+  if (!canWriteWorkspace()) return;
   const before = changes;
   const key = changeKey(change);
   const next = changes.filter((c) => changeKey(c) !== key);
@@ -177,6 +192,7 @@ export function revertChange(change: ChangeRecord): void {
 }
 
 export function discardChangesForSelector(selector: string): void {
+  if (!canWriteWorkspace()) return;
   const before = changes;
   changes = changes.filter((change) => change.selector !== selector);
   if (changes.length === before.length) return;
@@ -187,6 +203,7 @@ export function discardChangesForSelector(selector: string): void {
 }
 
 export function undo(): boolean {
+  if (!canWriteWorkspace()) return false;
   const entry = undoStack.at(-1);
   if (!entry) return false;
   undoStack = undoStack.slice(0, -1);
@@ -198,6 +215,7 @@ export function undo(): boolean {
 }
 
 export function redo(): boolean {
+  if (!canWriteWorkspace()) return false;
   const entry = redoStack.at(-1);
   if (!entry) return false;
   redoStack = redoStack.slice(0, -1);
@@ -206,6 +224,14 @@ export function redo(): boolean {
   undoStack = [...undoStack, entry];
   notify();
   return true;
+}
+
+export function loadChanges(incoming: ChangeRecord[]): void {
+  changes = [...incoming];
+  undoStack = [];
+  redoStack = [];
+  applyRules(getPendingRules());
+  notify();
 }
 
 export function clearChanges(): void {

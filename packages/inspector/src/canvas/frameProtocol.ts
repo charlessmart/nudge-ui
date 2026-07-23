@@ -1,0 +1,128 @@
+export const PROTOCOL_VERSION = 1;
+
+export interface FrameMessage {
+  type: string;
+  protocolVersion: number;
+}
+
+export interface FrameIdentity {
+  projectId: string;
+  workspaceId: string;
+  cardId: string;
+}
+
+export interface ParentReadyMessage extends FrameMessage {
+  type: "parent-ready";
+  projectId: string;
+  workspaceId: string;
+  cardId: string;
+}
+
+export interface RendererMessage extends FrameMessage, FrameIdentity {}
+
+export interface FrameReadyMessage extends RendererMessage {
+  type: "frame-ready";
+  url: string;
+  title: string;
+}
+
+export interface FrameMetadataMessage extends RendererMessage {
+  type: "frame-metadata";
+  url?: string;
+  title?: string;
+}
+
+export interface FrameLoadError extends RendererMessage {
+  type: "frame-error";
+  message: string;
+}
+
+export interface ReplaceStylesMessage extends FrameMessage {
+  type: "replace-styles";
+  projectId: string;
+  workspaceId: string;
+  cardId: string;
+  css: string;
+  revision: number;
+}
+
+export interface NavigationIntentMessage extends RendererMessage {
+  type: "navigation-intent";
+  url: string;
+}
+
+export interface ElementHoverMessage extends RendererMessage {
+  type: "element-hover";
+  cid: string;
+  selector: string;
+  rect: { left: number; top: number; width: number; height: number } | null;
+}
+
+export interface ElementClickMessage extends RendererMessage {
+  type: "element-click";
+  cid: string;
+  selector: string;
+  src: string;
+  file: string;
+  line: number;
+  component: string;
+}
+
+export interface ExternalNavigationMessage extends RendererMessage {
+  type: "external-navigation";
+  url: string;
+}
+
+export interface PanStartMessage extends RendererMessage {
+  type: "pan-start";
+  point: { x: number; y: number };
+}
+
+export interface PanMoveMessage extends RendererMessage {
+  type: "pan-move";
+  point: { x: number; y: number };
+}
+
+export interface PanEndMessage extends RendererMessage {
+  type: "pan-end";
+}
+
+export type FrameProtocolMessage =
+  | ParentReadyMessage
+  | FrameReadyMessage
+  | FrameMetadataMessage
+  | FrameLoadError
+  | ReplaceStylesMessage
+  | NavigationIntentMessage
+  | ElementHoverMessage
+  | ElementClickMessage
+  | ExternalNavigationMessage
+  | PanStartMessage
+  | PanMoveMessage
+  | PanEndMessage;
+
+let rendererIdentity: FrameIdentity | null = null;
+
+export function setRendererIdentity(identity: FrameIdentity): void {
+  rendererIdentity = identity;
+}
+
+export function getRendererIdentity(): FrameIdentity | null {
+  return rendererIdentity;
+}
+
+export function isRendererMessageFor(
+  value: unknown,
+  identity: FrameIdentity,
+): value is RendererMessage {
+  if (!value || typeof value !== "object") return false;
+  const message = value as Partial<RendererMessage>;
+  return message.protocolVersion === PROTOCOL_VERSION
+    && message.projectId === identity.projectId
+    && message.workspaceId === identity.workspaceId
+    && message.cardId === identity.cardId;
+}
+
+export function sendToParent(msg: FrameProtocolMessage): void {
+  window.parent.postMessage(msg, window.location.origin);
+}

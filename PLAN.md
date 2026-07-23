@@ -23,7 +23,7 @@ The current agent loop is slow: describe a change in chat → agent writes code 
 | Style application | Managed `<style>` sheet keyed by stable element identity | Never inline styles (React clobbers them on re-render). External stylesheet survives re-renders naturally. Hard rule, same as Design Mode's CONTRIBUTING.md. |
 | Token extraction | Universal CSS-var core + adapter pattern | Core works on any project using CSS custom properties (most modern design systems). Adapters add enrichment for specific frameworks. No adapter = still useful. |
 | DOM mutations (drag) | Record-and-replay, no live reconciliation | React re-renders clobber DOM moves. We record structured change records and detect snap-back, with clear UX messaging. Not a live Figma-feel drag — honest about the limitation. |
-| Canvas | Snapshot gallery via html2canvas, view-only | Capture full-tab screenshots, arrange on a board, re-capture after edits to compare before/after. No live iframes, no cross-tab sync. |
+| Canvas | Live same-origin iframe previews, controller/renderer architecture | Real application renders inside iframes with current canonical changes projected in. No screenshots in v1 — every card is a live interactive preview. See `docs/features/live-canvas-workspace.md`. |
 | Agent handoff | Clipboard-paste prompt (v1), MCP server (v2) | v1: structured text prompt with file:line, component, token name, before→after. v2: live MCP bridge where agent calls into the browser. |
 | UI isolation | Shadow DOM React portal | Host app CSS can't leak in or out. Use host's React instance via Vite aliasing if possible; fall back to bundled React (~40KB) for version safety. |
 | Cross-tab sync | **Out of scope for v1** | Canvas re-capture shows the effect of token changes across pages. Sync via BroadcastChannel is a possible v2 but not needed for the core value prop. |
@@ -169,14 +169,14 @@ interface TokenAdapter {
 - Single-change revert
 - "Copy prompt" button → generates the agent prompt from all changes
 
-**E. Canvas (snapshot gallery)**
-- "Capture" button: takes a screenshot of the current viewport via `html2canvas` (or `modern-screenshot`)
-- Thumbnail lands on a canvas board (pannable, zoomable surface in the Shadow DOM)
-- Multiple captures can be arranged side by side
-- Manual "re-capture" button per thumbnail to refresh after edits
-- Purpose: visual before/after comparison across different pages or states
-- No live editing in the canvas — it's a reference/comparison view
-- Canvas is view-only; all editing happens in the full-page inspector
+**E. Canvas (live previews)**
+- Mode toggle between Inspect (single-page editing) and Canvas (multi-route inspection/editing) in the Design Tool header
+- Canvas renders as a fixed Shadow DOM workspace above the still-mounted host page
+- Each card is a same-origin iframe showing a live route with current canonical changes projected
+- Cards support Reload, Edit (handoff to Inspect), and Remove
+- Route-link navigation within cards discovers new cards or focuses existing ones
+- Tracked elements inside cards can be selected and edited through the top-level Inspector
+- Controller owns all selection/edit authority; renderers only report element intents and display canonical projections
 
 **F. Prompt output**
 - Structured markdown format, optimised for agent consumption
@@ -268,16 +268,20 @@ Each milestone is independently shippable and demoable.
 **Demo:** Click an element in the work app → see `theme.color.brand` instead of `--color-brand__1g5vs1s0` → edit → prompt references `theme.color.brand` (the thing an agent can grep for).
 
 ### Milestone 4 — Canvas
-**Snapshot gallery, view-only, side-by-side compare**
+**Live same-origin iframe previews; controller/renderer separation**
 
-- html2canvas (or modern-screenshot) integration: capture viewport to PNG
-- Canvas surface: pannable, zoomable board in the Shadow DOM
-- Thumbnail placement: drag to position, click to zoom
-- Manual re-capture button per thumbnail
-- Multi-capture: navigate to another page/state, capture again, compare side by side
-- Before/after: capture before an edit, make the edit, re-capture, see both
+- Split dev bootstrap into top-level controller and embedded renderer roles (ADR-0006)
+- Inspector/Canvas mode toggle in the Design Tool UI; Inspect remains the default
+- Fixed Shadow DOM Canvas workspace with live cards for current-route(s)
+- Renderers announce readiness, current URL, and title; no nested Inspector
+- Renderer element intents populate the controller-owned Inspector without giving frames edit authority
+- Shared edit projection via versioned postMessage (feature plan #0031)
+- Link-discovered route cards and edit handoff (#0032)
+- Responsive spatial Canvas board with pan/zoom (#0033)
+- Durable Canvas and stable edit restoration (#0034)
+- Restore safety and single-workspace ownership (#0035)
 
-**Demo:** Capture the homepage → edit a token → re-capture → see before/after side by side on the canvas. Navigate to another page, capture, compare the two pages.
+**Demo:** Switch to Canvas, select a tracked element in any live card, and edit it from the top-level Inspector. Navigate within a card to create new route cards and see the canonical change projected into every live card. Return to Inspect — the same host page is still editable.
 
 ### Milestone 5 — Drag *(optional / v1.5)*
 **Record-and-replay DOM drag with snap-back detection**

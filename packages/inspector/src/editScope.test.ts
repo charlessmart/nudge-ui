@@ -27,4 +27,20 @@ describe("edit scope", () => {
     add("one"); const second = add("two");
     expect(getInstanceEvidence(second)).toEqual({ renderedIndex: 1, props: null, text: "two" });
   });
+  it("counts and indexes matches in an iframe element's own document", () => {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    const frameDocument = iframe.contentDocument!;
+    const elements = ["one", "two"].map((text) => {
+      const el = frameDocument.createElement("button");
+      el.dataset.cid = "Item";
+      el.dataset.src = "src/Item.tsx:4:3";
+      el.textContent = text;
+      frameDocument.body.appendChild(el);
+      return el;
+    });
+
+    expect(countSourceSiteMatches(elements[0]!)).toBe(2);
+    expect(getInstanceEvidence(elements[1]!)).toMatchObject({ renderedIndex: 1, text: "two" });
+  });
 });

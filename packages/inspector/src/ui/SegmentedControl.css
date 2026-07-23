@@ -1,0 +1,37 @@
+.dt-segmented-control {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--dt-border-strong);
+  border-radius: var(--dt-radius-control);
+}
+
+.dt-segmented-control__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--dt-border-strong);
+  background: transparent;
+  color: var(--dt-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 80ms ease, color 80ms ease;
+}
+
+.dt-segmented-control__button:last-child {
+  border-right: 0;
+}
+
+.dt-segmented-control__button--selected {
+  background: var(--dt-accent);
+  color: #ffffff;
+}
+
+.dt-segmented-control__button:not(.dt-segmented-control__button--selected):hover {
+  background: var(--dt-surface-control-hover);
+  color: var(--dt-text-primary);
+}

@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { Alias, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { injectIdentity } from "./transform/injectDataCid.ts";
 import { parseTokenCatalog } from "./tokens/parseTokens.ts";
@@ -14,6 +14,8 @@ import { createTokenAdapterRegistry } from "./adapters/registry.ts";
 
 export interface DesignToolOptions {
   enabled?: boolean;
+  /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
+  projectId?: string;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
   tailwindV3?: { config: TailwindV3Config };
   vanillaExtract?: VanillaExtractAdapterOptions;
@@ -174,7 +176,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       if (id === RESOLVED_TOKENS_ID) {
         // ADR-0002: production builds receive an empty token table.
         if (command === "build") {
-          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport default tokens;\n`;
+          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const designToolProjectId = "";\nexport default tokens;\n`;
         }
         await ensurePostTransformCss();
         const catalogByName = new Map<string, TokenDefinition>();
@@ -218,14 +220,15 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
           editable: definition.editable,
         }));
         const body = JSON.stringify(all);
-        return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${body};\nexport default tokens;\n`;
+        const projectId = JSON.stringify(options.projectId ?? (root ? basename(root) : ""));
+        return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${body};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {
         // ADR-0002: no inspector bootstrap in production builds.
         if (command === "build") {
           return `export {};\n`;
         }
-        return `import { mountInspector } from "@design-tool/inspector";\nconst __dt_root = document.getElementById("design-tool-root");\nif (__dt_root) mountInspector(__dt_root);\n`;
+        return `import { bootstrapDesignTool } from "@design-tool/inspector";\nconst __dt_root = document.getElementById("design-tool-root");\nif (__dt_root) bootstrapDesignTool(__dt_root);\n`;
       }
       return null;
     },

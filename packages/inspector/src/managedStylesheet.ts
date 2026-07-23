@@ -1,3 +1,5 @@
+import { getElementComputedStyle } from "./domRealm.ts";
+
 export interface StyleRule {
   selector: string;
   declarations: Record<string, string>;
@@ -11,7 +13,7 @@ export interface StyleRuleContext {
   layer?: string;
 }
 
-export type PreviewConflictReason = "higher-specificity" | "inline-style" | "important" | "animation" | "transition" | "target-missing";
+export type PreviewConflictReason = "higher-specificity" | "inline-style" | "important" | "animation" | "transition" | "target-missing" | "token-drift";
 
 export interface PreviewResult {
   requestedValue: string;
@@ -97,7 +99,7 @@ function commaListIncludes(value: string, property: string): boolean {
 }
 
 function hasImportantAuthorRule(el: HTMLElement, property: string): boolean {
-  for (const sheet of Array.from(document.styleSheets)) {
+  for (const sheet of Array.from(el.ownerDocument.styleSheets)) {
     let rules: CSSRuleList;
     try { rules = sheet.cssRules; } catch { continue; }
     for (const rule of Array.from(rules)) {
@@ -115,9 +117,10 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
   if (!el || !el.isConnected) {
     return { requestedValue, computedValue: "", status: "conflict", reason: "target-missing" };
   }
-  const computed = getComputedStyle(el);
+  const computed = getElementComputedStyle(el);
   const computedValue = computed.getPropertyValue(property).trim();
-  const probe = document.createElement(property.startsWith("--") ? "span" : el.tagName.toLowerCase());
+  const doc = el.ownerDocument;
+  const probe = doc.createElement(property.startsWith("--") ? "span" : el.tagName.toLowerCase());
   probe.setAttribute("data-design-tool", "value-probe");
   probe.style.setProperty(property, requestedValue);
   probe.style.setProperty("position", "fixed", "important");
@@ -125,8 +128,8 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
   probe.removeAttribute("id");
   if (property.startsWith("--")) el.appendChild(probe);
   else el.parentElement?.insertBefore(probe, el.nextSibling);
-  if (!probe.isConnected) document.body.appendChild(probe);
-  const expectedValue = getComputedStyle(probe).getPropertyValue(property).trim() || requestedValue.trim();
+  if (!probe.isConnected) doc.body.appendChild(probe);
+  const expectedValue = getElementComputedStyle(probe).getPropertyValue(property).trim() || requestedValue.trim();
   probe.remove();
   if (computedValue === expectedValue) return { requestedValue, computedValue, status: "applied" };
 

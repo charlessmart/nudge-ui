@@ -1,0 +1,317 @@
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { ChangeRecord, ElementChangeRecord, TokenChangeRecord } from "../changesLog.ts";
+import { startStaleDetection, cancelStaleDetection, isVerificationPending } from "./staleChangeDetector.ts";
+import { clearChanges, loadChanges, getChangesList } from "../changesLog.ts";
+import { getRegisteredFrames } from "./projection.ts";
+import { addCanvasCard, removeCanvasCard as removeCanvasCardStore, getCanvasCards } from "./canvasStore.ts";
+import type { TokenEntry } from "virtual:design-tokens";
+
+const TOKEN_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
+const TOKEN_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
+
+function makeElementChange(overrides: Partial<ElementChangeRecord> = {}): ElementChangeRecord {
+  return {
+    cid: "Button",
+    file: "src/Button.tsx",
+    line: 1,
+    selector: '[data-cid="Button"][data-src*="src/Button.tsx:1"]',
+    property: "background",
+    oldToken: TOKEN_A,
+    newToken: TOKEN_B,
+    source: { file: "src/Button.tsx", line: 1, component: "Button" },
+    ...overrides,
+  };
+}
+
+function makeTokenChange(overrides: Partial<TokenChangeRecord> = {}): TokenChangeRecord {
+  return {
+    kind: "token",
+    tokenName: "--color-surface-raised",
+    file: "src/theme.css",
+    line: 6,
+    selector: ':root[data-theme="dark"]',
+    property: "--color-surface-raised",
+    rawValue: "#abcdef",
+    oldRawValue: "#00ff00",
+    context: {},
+    contextLabel: 'root[data-theme="dark"]',
+    source: { file: "src/theme.css", line: 6, component: "Global token" },
+    ...overrides,
+  };
+}
+
+function setupMockElements(...selectors: string[]): void {
+  for (const sel of selectors) {
+    const el = document.createElement("div");
+    const attrs = sel.match(/\[([^\]]+)\]/g);
+    if (attrs) {
+      for (const attr of attrs) {
+        const attrMatch = attr.match(/^\[([a-zA-Z][a-zA-Z0-9-]*)(?:[*^$~|]?=)"([^"]*)"\]$/);
+        if (attrMatch) {
+          el.setAttribute(attrMatch[1]!, attrMatch[2]!);
+        }
+      }
+    }
+    document.body.appendChild(el);
+  }
+}
+
+function createMockFrame(): HTMLIFrameElement {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("data-design-tool-canvas-renderer", "true");
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentDocument!;
+  doc.open();
+  doc.write("<!DOCTYPE html><html><head></head><body></body></html>");
+  doc.close();
+
+  return iframe;
+}
+
+function addElementToFrame(iframe: HTMLIFrameElement, selector: string): void {
+  const doc = iframe.contentDocument!;
+  const el = doc.createElement("div");
+  const attrs = selector.match(/\[([^\]]+)\]/g);
+  if (attrs) {
+    for (const attr of attrs) {
+      const attrMatch = attr.match(/^\[([a-zA-Z][a-zA-Z0-9-]*)(?:[*^$~|]?=)"([^"]*)"\]$/);
+      if (attrMatch) {
+        el.setAttribute(attrMatch[1]!, attrMatch[2]!);
+      }
+    }
+  }
+  doc.body.appendChild(el);
+}
+
+describe("staleChangeDetector", () => {
+  beforeEach(() => {
+    cancelStaleDetection();
+    clearChanges();
+  });
+
+  afterEach(() => {
+    cancelStaleDetection();
+    clearChanges();
+  });
+
+  describe("element change verification", () => {
+    it("marks restored element changes as unverified on start", () => {
+      const change = makeElementChange({
+        previewResult: { status: "applied", requestedValue: "var(--color-b)", computedValue: "#bbbbbb" },
+      });
+      loadChanges([change]);
+
+      const changes = getChangesList();
+      expect(changes[0]!.previewResult?.status).toBe("applied");
+
+      startStaleDetection(changes);
+      expect(changes[0]!.previewResult).toBeUndefined();
+    });
+
+    it("marks an unmatched edit as stale after timeout", async () => {
+      vi.useFakeTimers();
+      const change = makeElementChange({
+        selector: '[data-cid="Missing"][data-src*="Missing.tsx:1"]',
+      });
+      loadChanges([change]);
+
+      startStaleDetection(getChangesList());
+
+      vi.advanceTimersByTime(6000);
+
+      const updated = getChangesList();
+      expect(updated[0]!.previewResult?.status).toBe("conflict");
+      expect(updated[0]!.previewResult?.reason).toBe("target-missing");
+
+      vi.useRealTimers();
+    });
+
+    it("does NOT mark a matched edit in the editable page as stale", async () => {
+      vi.useFakeTimers();
+      setupMockElements('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+
+      const change = makeElementChange();
+      loadChanges([change]);
+
+      startStaleDetection(getChangesList());
+
+      vi.advanceTimersByTime(6000);
+
+      const updated = getChangesList();
+      expect(updated[0]!.previewResult).toBeUndefined();
+
+      vi.useRealTimers();
+      document.body.innerHTML = "";
+    });
+
+    it("matches when element exists in a canvas frame but not the editable page", async () => {
+      vi.useFakeTimers();
+      const iframe = createMockFrame();
+      const selector = '[data-cid="Sidebar"][data-src*="Sidebar.tsx:42"]';
+      addElementToFrame(iframe, selector);
+
+      const frameMap = getRegisteredFrames() as Map<string, HTMLIFrameElement>;
+
+      const card = addCanvasCard("http://localhost:5173/about");
+      frameMap.set(card.id, iframe);
+
+      const change = makeElementChange({ selector, cid: "Sidebar", file: "src/Sidebar.tsx", line: 42 });
+      loadChanges([change]);
+
+      startStaleDetection(getChangesList());
+
+      vi.advanceTimersByTime(6000);
+
+      const updated = getChangesList();
+      expect(updated[0]!.previewResult).toBeUndefined();
+
+      frameMap.delete(card.id);
+      vi.useRealTimers();
+      document.body.innerHTML = "";
+      for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
+    });
+
+    it("marks edit as stale when unmatched across ALL documents", async () => {
+      vi.useFakeTimers();
+      const iframe = createMockFrame();
+
+      const frameMap = getRegisteredFrames() as Map<string, HTMLIFrameElement>;
+      const card = addCanvasCard("http://localhost:5173/about");
+      frameMap.set(card.id, iframe);
+
+      const missingSelector = '[data-cid="Deleted"][data-src*="Deleted.tsx:1"]';
+      const change = makeElementChange({
+        selector: missingSelector,
+        cid: "Deleted",
+        file: "src/Deleted.tsx",
+        line: 1,
+      });
+      loadChanges([change]);
+
+      startStaleDetection(getChangesList());
+
+      vi.advanceTimersByTime(6000);
+
+      const updated = getChangesList();
+      expect(updated[0]!.previewResult?.status).toBe("conflict");
+      expect(updated[0]!.previewResult?.reason).toBe("target-missing");
+
+      frameMap.delete(card.id);
+      vi.useRealTimers();
+      document.body.innerHTML = "";
+      for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
+    });
+
+    it("a source present on one route but absent on another is NOT stale", async () => {
+      vi.useFakeTimers();
+      const selector = '[data-cid="Header"][data-src*="Header.tsx:10"]';
+
+      setupMockElements(selector);
+
+      const change = makeElementChange({ selector, cid: "Header", file: "src/Header.tsx", line: 10 });
+      loadChanges([change]);
+
+      startStaleDetection(getChangesList());
+
+      vi.advanceTimersByTime(6000);
+
+      const updated = getChangesList();
+      expect(updated[0]!.previewResult).toBeUndefined();
+
+      vi.useRealTimers();
+      document.body.innerHTML = "";
+    });
+
+    it("retains exact selector and source data on stale changes", async () => {
+      vi.useFakeTimers();
+      const selector = '[data-cid="Widget"][data-src*="Widget.tsx:5"]';
+      const change = makeElementChange({
+        selector,
+        cid: "Widget",
+        file: "src/Widget.tsx",
+        line: 5,
+        property: "margin",
+        rawValue: "16px",
+      });
+      loadChanges([change]);
+
+      startStaleDetection(getChangesList());
+
+      vi.advanceTimersByTime(6000);
+
+      const updated = getChangesList();
+      const stale = updated[0]!;
+      expect(stale.selector).toBe(selector);
+      expect(stale.cid).toBe("Widget");
+      expect(stale.file).toBe("src/Widget.tsx");
+      expect(stale.line).toBe(5);
+      expect(stale.property).toBe("margin");
+      expect(stale.previewResult?.status).toBe("conflict");
+      expect(stale.previewResult?.reason).toBe("target-missing");
+
+      vi.useRealTimers();
+    });
+  });
+
+  describe("token change drift detection", () => {
+    it("token changes are checked against current catalog", async () => {
+      vi.useFakeTimers();
+      const tokenChange = makeTokenChange({
+        tokenName: "--color-surface-raised",
+        oldRawValue: "#00ff00",
+        rawValue: "#abcdef",
+      });
+      loadChanges([tokenChange]);
+
+      startStaleDetection(getChangesList());
+
+      vi.advanceTimersByTime(6000);
+
+      const updated = getChangesList();
+      expect(updated[0]!.kind).toBe("token");
+
+      vi.useRealTimers();
+    });
+
+    it("does NOT falsely claim a stale edit is applied", async () => {
+      vi.useFakeTimers();
+      const change = makeElementChange({
+        selector: '[data-cid="Gone"][data-src*="Gone.tsx:1"]',
+      });
+      loadChanges([change]);
+
+      startStaleDetection(getChangesList());
+
+      vi.advanceTimersByTime(6000);
+
+      const updated = getChangesList();
+      expect(updated[0]!.previewResult?.status).not.toBe("applied");
+      expect(updated[0]!.previewResult?.status).toBe("conflict");
+
+      vi.useRealTimers();
+    });
+  });
+
+  describe("cancelStaleDetection", () => {
+    it("cancels the verification timer", () => {
+      vi.useFakeTimers();
+      const change = makeElementChange();
+      loadChanges([change]);
+
+      startStaleDetection(getChangesList());
+      expect(isVerificationPending()).toBe(true);
+
+      cancelStaleDetection();
+      expect(isVerificationPending()).toBe(false);
+
+      vi.advanceTimersByTime(6000);
+
+      const updated = getChangesList();
+      expect(updated[0]!.previewResult).toBeUndefined();
+
+      vi.useRealTimers();
+    });
+  });
+});

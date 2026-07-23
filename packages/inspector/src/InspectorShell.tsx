@@ -35,6 +35,10 @@ import { isEditableTarget } from "./shortcuts.ts";
 import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "./ui/labels.ts";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
+import { useCanvasMode } from "./canvas/canvasStore.ts";
+import { ModeToggle } from "./canvas/ModeToggle.tsx";
+import { getRestoreCount, clearRestoreCount, clearSession } from "./canvas/sessionStore.ts";
+import { getElementWindow } from "./domRealm.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -67,11 +71,13 @@ function resolveHost(): HTMLElement {
 
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
+  const canvasMode = useCanvasMode();
   const selected = useSelectedElement();
   const [scopeRevision, refreshScope] = useState(0);
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
+  const [restoreCount, setShowRestore] = useState<number>(getRestoreCount());
 
   useEffect(() => {
     setInspectorLayoutOpen(isOpen);
@@ -87,11 +93,21 @@ export function InspectorShell(): ReactElement {
 
   useEffect(() => {
     setInstancePreviewLost(false);
-    if (!selected || getEditScope(selected.domElement) !== "instance-preview") return;
-    const observer = new MutationObserver(() => {
-      if (!selected.domElement.isConnected) setInstancePreviewLost(true);
+    if (!selected) return;
+    const instancePreview = getEditScope(selected.domElement) === "instance-preview";
+    // The selected element can live inside a card iframe (canvas mode); observe
+    // its own ownerDocument rather than the parent app's document, otherwise
+    // removal inside the iframe would never be noticed.
+    const ownerRoot = selected.domElement.ownerDocument?.documentElement ?? document.documentElement;
+    const OwnerMutationObserver = (getElementWindow(selected.domElement) as unknown as {
+      MutationObserver: typeof MutationObserver;
+    }).MutationObserver;
+    const observer = new OwnerMutationObserver(() => {
+      if (selected.domElement.isConnected) return;
+      if (instancePreview) setInstancePreviewLost(true);
+      else setSelectedElement(null);
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer.observe(ownerRoot, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [selected, scopeRevision]);
 
@@ -149,7 +165,7 @@ export function InspectorShell(): ReactElement {
   return (
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
-      <InspectorOverlay host={resolveHost()} />
+      {canvasMode === "inspect" && <InspectorOverlay host={resolveHost()} />}
       <div className="dt-panel" data-open={isOpen ? "true" : "false"}>
         <div className="dt-panel__header">
           <IconButton
@@ -160,6 +176,7 @@ export function InspectorShell(): ReactElement {
             <PanelRightClose size={16} strokeWidth={1.8} aria-hidden="true" />
           </IconButton>
           <div className="dt-panel__header-actions">
+            <ModeToggle />
             <CopyPromptButton />
           </div>
         </div>
@@ -187,6 +204,23 @@ export function InspectorShell(): ReactElement {
             Tokens
           </Button>
         </div>
+        {restoreCount > 0 ? (
+          <div className="dt-panel__restore-banner" data-test="restore-notice">
+            <span>Restored {restoreCount} change{restoreCount === 1 ? "" : "s"}</span>
+            <Button
+              size="compact"
+              variant="secondary"
+              data-test="clear-session"
+              onClick={() => {
+                clearSession();
+                clearRestoreCount();
+                setShowRestore(0);
+              }}
+            >
+              Clear Session
+            </Button>
+          </div>
+        ) : null}
         <div className="dt-panel__body">
           {activeTab === "tokens" ? (
             <TokensPanel />
@@ -229,6 +263,10 @@ export function InspectorShell(): ReactElement {
                   ) : getEditScope(selected.domElement) === "instance-preview" ? (
                     <>
                       <span>Editing only this unlinked rendered element.</span>
+                      <br />
+                      <span className="dt-scope__warning">
+                        This edit is active only for the current document and will not survive refresh.
+                      </span>
                       <br />
                       <Button
                         size="compact"

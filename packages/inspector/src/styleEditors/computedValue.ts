@@ -1,5 +1,7 @@
+import { getElementComputedStyle } from "../domRealm.ts";
+
 export function getComputedValue(el: HTMLElement, prop: string): string {
-  const value = getComputedStyle(el).getPropertyValue(prop);
+  const value = getElementComputedStyle(el).getPropertyValue(prop);
   return value.trim();
 }
 

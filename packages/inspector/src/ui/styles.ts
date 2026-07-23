@@ -1,7 +1,9 @@
 import fieldRowStyles from "./FieldRow.css?inline";
+import foundationStyles from "./Foundation.css?inline";
 import textInputStyles from "./TextInput.css?inline";
 import selectStyles from "./Select.css?inline";
 import buttonStyles from "./Button.css?inline";
+import segmentedControlStyles from "./SegmentedControl.css?inline";
 import iconButtonStyles from "./IconButton.css?inline";
 import statusCalloutStyles from "./StatusCallout.css?inline";
 import badgeStyles from "./Badge.css?inline";
@@ -17,10 +19,12 @@ import changesLogStyles from "../ChangesLog.css?inline";
 import inspectorOverlayStyles from "../InspectorOverlay.css?inline";
 
 export const UI_STYLES = [
+  foundationStyles,
   fieldRowStyles,
   textInputStyles,
   selectStyles,
   buttonStyles,
+  segmentedControlStyles,
   iconButtonStyles,
   statusCalloutStyles,
   badgeStyles,

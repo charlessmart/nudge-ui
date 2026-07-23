@@ -2,6 +2,7 @@ import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 import { tokenCatalog, tokens } from "virtual:design-tokens";
 import { INTERACTION_STATES } from "../styleState.ts";
 import type { InteractionState } from "../styleState.ts";
+import { getElementComputedStyle } from "../domRealm.ts";
 
 export interface ResolvedProperty {
   property: string;
@@ -209,7 +210,7 @@ export function getAvailableTokenEntriesForElement(
   el: HTMLElement,
   definitions: TokenDefinition[] = tokenCatalog,
 ): TokenEntry[] {
-  const computed = getComputedStyle(el);
+  const computed = getElementComputedStyle(el);
   const available = definitions.flatMap((definition) => {
     if (!isCustomPropertyToken(definition)) {
       // Literal adapters (for example Tailwind v3) do not have a browser
@@ -272,7 +273,7 @@ export function getAvailableTokenCatalog(
   root: HTMLElement = document.documentElement,
   definitions: TokenDefinition[] = tokenCatalog,
 ): TokenDefinition[] {
-  const computed = getComputedStyle(root);
+  const computed = getElementComputedStyle(root);
   const loadedSources = loadedStylesheetSources(root.ownerDocument ?? document);
   return definitions.flatMap((definition) => {
     if (!isCustomPropertyToken(definition)) return [definition];
@@ -284,14 +285,15 @@ export function getAvailableTokenCatalog(
 }
 
 function normalizeInElementContext(el: HTMLElement, property: string, value: string): string {
-  const probe = document.createElement(el.tagName.toLowerCase());
+  const doc = el.ownerDocument;
+  const probe = doc.createElement(el.tagName.toLowerCase());
   probe.setAttribute("data-design-tool", "attribution-probe");
   probe.style.setProperty(property, value, "important");
   probe.style.setProperty("position", "fixed", "important");
   probe.style.setProperty("visibility", "hidden", "important");
   el.parentElement?.insertBefore(probe, el.nextSibling);
-  if (!probe.isConnected) document.body.appendChild(probe);
-  const normalized = getComputedStyle(probe).getPropertyValue(property).trim();
+  if (!probe.isConnected) doc.body.appendChild(probe);
+  const normalized = getElementComputedStyle(probe).getPropertyValue(property).trim();
   probe.remove();
   return normalized;
 }
@@ -857,7 +859,7 @@ function logicalPhysicalSides(property: string, el?: HTMLElement): string[] | nu
 
   const [family, axis, edge] = [match[1]!, match[2]!, match[3]];
   const physicalPrefix = family === "inset" ? "" : `${family}-`;
-  const computed = el ? getComputedStyle(el) : null;
+  const computed = el ? getElementComputedStyle(el) : null;
   const direction = computed?.direction || el?.dir || "ltr";
   const writingMode = computed?.getPropertyValue("writing-mode").trim() || "horizontal-tb";
   const vertical = writingMode.startsWith("vertical") || writingMode.startsWith("sideways");
@@ -1493,12 +1495,12 @@ function resolveInheritedProperties(
   result: ResolvedProperty[],
   inaccessible: boolean,
 ): ResolvedProperty[] {
-  const computed = getComputedStyle(el);
+  const computed = getElementComputedStyle(el);
   const seenProperties = new Set(result.map((p) => p.property));
   const rulesSorted = [...rules].sort((a, b) => b.specificity - a.specificity);
   let ancestor: HTMLElement | null = el.parentElement;
   while (ancestor) {
-    const ancestorComputed = getComputedStyle(ancestor);
+    const ancestorComputed = getElementComputedStyle(ancestor);
     for (const candidate of resolvePropertiesFromRules(ancestor, rulesSorted, tokenTable)) {
       if (seenProperties.has(candidate.property)) continue;
       if (!INHERITED_PROPERTIES.has(candidate.property) && !candidate.property.startsWith("--")) continue;
@@ -1527,7 +1529,7 @@ export function getResolvedProperties(
   const doc = el.ownerDocument ?? document;
   const { rules, inaccessible } = collectRules(doc);
   const result = resolvePropertiesFromRules(el, rules, tokenTable);
-  const computed = getComputedStyle(el);
+  const computed = getElementComputedStyle(el);
   for (const prop of result) {
     const cv = computed.getPropertyValue(prop.property);
     if (cv) {

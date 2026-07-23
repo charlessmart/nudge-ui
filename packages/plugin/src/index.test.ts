@@ -55,14 +55,14 @@ describe("designTool plugin virtual inspector module", () => {
     );
   });
 
-  it("load emits a bootstrap that calls mountInspector (default command is serve)", async () => {
+  it("load emits a bootstrap that calls bootstrapDesignTool (default command is serve)", async () => {
     const plugin = designTool() as unknown as {
       load?: (id: string) => string | null | Promise<string | null>;
     };
     const code = await plugin.load!("\0virtual:design-tool-inspector");
     expect(code).not.toBeNull();
     expect(code!).toContain('from "@design-tool/inspector"');
-    expect(code!).toContain("mountInspector");
+    expect(code!).toContain("bootstrapDesignTool");
     expect(code!).toContain('getElementById("design-tool-root")');
   });
 });
