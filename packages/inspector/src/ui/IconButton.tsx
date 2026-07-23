@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, ReactElement } from "react";
+import { forwardRef } from "react";
+import type { ButtonHTMLAttributes } from "react";
 import type { ButtonSize, ButtonVariant } from "./Button.tsx";
 
 export type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -8,13 +9,17 @@ export type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   "data-test"?: string;
 };
 
-export function IconButton({ label, variant = "secondary", size = "default", className, ...props }: IconButtonProps): ReactElement {
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
+  { label, variant = "secondary", size = "default", className, ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       {...props}
       type={props.type ?? "button"}
       aria-label={label}
       className={`dt-icon-button dt-icon-button--${variant} dt-icon-button--${size}${className ? ` ${className}` : ""}`}
     />
   );
-}
+});

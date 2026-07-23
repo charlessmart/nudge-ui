@@ -152,6 +152,27 @@ describe("LayoutComboField", () => {
     expect(sheetText()).toContain("row-gap: 12px;");
   });
 
+  it("renders a gap as a direct text input when inputOnly is enabled", () => {
+    const { el } = makeSelected();
+    mockComputedStyle({ "column-gap": "8px" });
+    handle = mount(
+      createElement(LayoutComboField, {
+        property: "column-gap",
+        presets: ["0", "1rem"],
+        domElement: el,
+        inputOnly: true,
+      }),
+    );
+
+    expect(handle.host.querySelector('[data-test="layout-combo-select-column-gap"]')).toBeFalsy();
+    const input = handle.host.querySelector('[data-test="layout-combo-input-column-gap"]') as HTMLInputElement;
+    expect(input.value).toBe("8px");
+
+    setInputValue(input, "12");
+
+    expect(sheetText()).toContain("column-gap: 12px;");
+  });
+
   it("nudges a custom layout value immediately", () => {
     const { el } = makeSelected();
     mockComputedStyle({ "row-gap": "12px" });

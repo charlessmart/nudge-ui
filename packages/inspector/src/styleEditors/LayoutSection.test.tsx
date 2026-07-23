@@ -49,7 +49,8 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-direction-row"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-direction-column"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-direction-reverse"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-flex-settings"]')).toBeTruthy();
     expect(handle.host.querySelectorAll('[data-test^="layout-align-"]')).toHaveLength(9);
     expect(handle.host.querySelector('[data-test="layout-select-justify-content"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-select-align-items"]')).toBeTruthy();
@@ -59,9 +60,25 @@ describe("LayoutSection", () => {
     expect(
       selectOptionValues(handle.host.querySelector('[data-test="layout-select-align-items"]') as HTMLElement),
     ).toEqual(["stretch", "flex-start", "flex-end", "center", "baseline"]);
-    expect(handle.host.querySelector('[data-test="layout-select-flex-wrap"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-select-align-content"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-select-flex-wrap"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="layout-select-align-content"]')).toBeFalsy();
     expect(handle.host.querySelector('[data-test="layout-gap"]')).toBeTruthy();
+  });
+
+  it("shows only the relevant gap axis when flex items do not wrap", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      display: "flex",
+      position: "static",
+      "flex-direction": "row",
+      "flex-wrap": "nowrap",
+      "row-gap": "0px",
+      "column-gap": "8px",
+    });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect(handle.host.querySelector('[data-test="layout-combo"][data-property="row-gap"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="layout-combo"][data-property="column-gap"]')).toBeTruthy();
   });
 
   it("writes flex direction and alignment through the compact controls", () => {
@@ -77,18 +94,70 @@ describe("LayoutSection", () => {
 
     (handle.host.querySelector('[data-test="layout-direction-column"]') as HTMLButtonElement).click();
     (handle.host.querySelector('[data-test="layout-align-center-center"]') as HTMLButtonElement).click();
+    (handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]') as HTMLButtonElement).click();
 
     expect(sheetText()).toContain("flex-direction: column;");
     expect(sheetText()).toContain("justify-content: center;");
     expect(sheetText()).toContain("align-items: center;");
+    expect(sheetText()).toContain("flex-wrap: wrap;");
   });
 
-  it("supports reverse flex directions through the compact control", () => {
+  it("offers space-between as a selectable settings suggestion", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      display: "flex",
+      position: "static",
+      "justify-content": "flex-start",
+    });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement).click();
+    });
+    const suggestion = document.body.querySelector(
+      '[data-test="layout-flex-setting-justify-space-between"]',
+    ) as HTMLElement;
+    expect(suggestion).toBeTruthy();
+    expect(suggestion.textContent).toContain("space-between");
+
+    act(() => suggestion.click());
+
+    expect(sheetText()).toContain("justify-content: space-between;");
+  });
+
+  it("rotates the alignment grid axes for column directions", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      display: "flex",
+      position: "static",
+      "flex-direction": "column",
+      "justify-content": "center",
+      "align-items": "flex-start",
+    });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    // In a column layout, the top row controls the main axis and the
+    // columns control the cross axis. The top-middle cell is therefore
+    // justify-content: flex-start + align-items: center.
+    (handle.host.querySelector('[data-test="layout-align-center-flex-start"]') as HTMLButtonElement).click();
+
+    expect(sheetText()).toContain("justify-content: flex-start;");
+    expect(sheetText()).toContain("align-items: center;");
+  });
+
+  it("supports reverse flex directions through the settings menu", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ display: "flex", position: "static", "flex-direction": "row" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    (handle.host.querySelector('[data-test="layout-direction-reverse"]') as HTMLButtonElement).click();
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement).click();
+    });
+    const reverseOption = document.body.querySelector(
+      '[data-test="layout-flex-setting-direction-reverse"]',
+    ) as HTMLElement;
+    expect(reverseOption).toBeTruthy();
+    act(() => reverseOption.click());
 
     expect(sheetText()).toContain("flex-direction: row-reverse;");
   });

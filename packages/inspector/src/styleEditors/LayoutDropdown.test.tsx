@@ -61,6 +61,21 @@ describe("LayoutDropdown", () => {
     expect(select.textContent).toContain("Column");
   });
 
+  it("supports stacked fields for paired layout controls", () => {
+    const { el } = makeSelected();
+    mockComputedStyle({ "justify-content": "center" });
+    handle = mount(
+      createElement(LayoutDropdown, {
+        property: "justify-content",
+        options: ["flex-start", "center", "flex-end"],
+        domElement: el,
+        stacked: true,
+      }),
+    );
+
+    expect(handle.host.querySelector('[data-test="layout-dropdown"]')?.className).toContain("dt-field-row--stacked");
+  });
+
   it("writes to managed stylesheet on select change", () => {
     const { el } = makeSelected();
     mockComputedStyle({ "flex-direction": "row" });

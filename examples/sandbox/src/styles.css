@@ -539,6 +539,7 @@ a {
 .type-section,
 .handoff-section,
 .border-fixtures,
+.conformance-links,
 .token-reference {
   width: min(var(--content-width), calc(100% - 64px));
   margin: 0 auto;
@@ -1035,6 +1036,78 @@ h2 {
   line-height: 1.7;
 }
 
+.conformance-links {
+  padding: 82px 0 104px;
+  border-top: 1px solid var(--color-border-strong);
+}
+
+.conformance-links__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 40px;
+  margin-bottom: 48px;
+}
+
+.conformance-links__header h2 {
+  font-size: 34px;
+}
+
+.conformance-links__header > p {
+  max-width: 300px;
+  margin: 0 0 3px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.conformance-links__list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.conformance-link {
+  display: flex;
+  flex-direction: column;
+  min-height: 148px;
+  padding: 20px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  background: var(--color-surface-raised);
+  position: relative;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.conformance-link:hover {
+  border-color: var(--color-accent);
+  box-shadow: 5px 5px 0 var(--color-accent-subtle);
+  transform: translateY(-2px);
+}
+
+.conformance-link__label {
+  color: var(--color-text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.conformance-link__copy {
+  max-width: 190px;
+  margin-top: 10px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.conformance-link__arrow {
+  align-self: flex-end;
+  margin-top: auto;
+  color: var(--color-accent);
+  font-family: monospace;
+  font-size: 18px;
+}
+
 .token-reference {
   display: grid;
   grid-template-columns: 0.65fr 1.35fr;
@@ -1143,6 +1216,7 @@ h2 {
   .type-section,
   .handoff-section,
   .border-fixtures,
+  .conformance-links,
   .token-reference,
   .footer {
     width: min(100% - 36px, 1180px);
@@ -1163,7 +1237,8 @@ h2 {
   .feature-section,
   .showcase-section,
   .type-section,
-  .border-fixtures { padding-bottom: 90px; }
+  .border-fixtures,
+  .conformance-links { padding-bottom: 90px; }
   .feature-section { padding-top: 90px; }
   .feature-list,
   .demo-grid,
@@ -1174,6 +1249,8 @@ h2 {
   .demo-panel { min-height: 350px; padding: 23px 20px; }
   .border-fixtures__header { align-items: flex-start; flex-direction: column; gap: 25px; }
   .border-fixtures__grid { grid-template-columns: 1fr; }
+  .conformance-links__header { align-items: flex-start; flex-direction: column; gap: 25px; }
+  .conformance-links__list { grid-template-columns: 1fr; }
   .layout-title { margin-top: 55px; }
   .type-section { gap: 40px; }
   .type-sample { grid-template-columns: 55px 1fr; }

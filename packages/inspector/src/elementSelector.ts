@@ -6,6 +6,7 @@ import { resolveSelectionFromEvent } from "./resolveSelection.ts";
 export function installElementSelector(inspectorHost: HTMLElement): () => void {
   function onClick(e: MouseEvent): void {
     if (!getOpen()) return;
+    if (e.target instanceof Element && e.target.closest("a[data-design-tool-navigation]")) return;
     const sel = resolveSelectionFromEvent(e, inspectorHost) as SelectedElement | null;
     if (sel) {
       e.preventDefault();

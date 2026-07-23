@@ -16,12 +16,13 @@ export interface LayoutComboFieldProps {
   presets: string[];
   domElement: HTMLElement;
   compact?: boolean;
+  inputOnly?: boolean;
   revision?: number;
   onAfterEdit?: () => void;
 }
 
 export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
-  const { property, presets, domElement: el, compact, revision = 0, onAfterEdit } = props;
+  const { property, presets, domElement: el, compact, inputOnly, revision = 0, onAfterEdit } = props;
 
   const [currentValue, setCurrentValue] = useState(() =>
     getStateStyleValue(el, property),
@@ -89,6 +90,19 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
   }
 
   const selectValue = inPresets ? currentValue : CUSTOM_KEY;
+  const customInput = (
+    <TextInput
+      ref={customInputRef}
+      compact={compact}
+      inputMode="decimal"
+      placeholder="0"
+      data-test={`layout-combo-input-${property}`}
+      value={customValue}
+      onChange={(e) => setCustomValue(e.target.value)}
+      onBlur={handleCustomApply}
+      onKeyDown={handleCustomKeyDown}
+    />
+  );
 
   return (
     <span
@@ -96,29 +110,23 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       data-test="layout-combo"
       data-property={property}
     >
-      <Select
-        compact={compact}
-        data-test={`layout-combo-select-${property}`}
-        value={selectValue}
-        options={[
-          ...presets.map((p) => ({ value: p, label: formatInspectorLabel(p) })),
-          { value: CUSTOM_KEY, label: "Custom…" },
-        ]}
-        onValueChange={handleSelectChange}
-      />
-      {showCustom ? (
-        <span className="dt-layout-combo__custom">
-          <TextInput
-            ref={customInputRef}
+      {inputOnly ? customInput : (
+        <>
+          <Select
             compact={compact}
-            data-test={`layout-combo-input-${property}`}
-            value={customValue}
-            onChange={(e) => setCustomValue(e.target.value)}
-            onBlur={handleCustomApply}
-            onKeyDown={handleCustomKeyDown}
+            data-test={`layout-combo-select-${property}`}
+            value={selectValue}
+            options={[
+              ...presets.map((p) => ({ value: p, label: formatInspectorLabel(p) })),
+              { value: CUSTOM_KEY, label: "Custom…" },
+            ]}
+            onValueChange={handleSelectChange}
           />
-        </span>
-      ) : null}
+          {showCustom ? (
+            <span className="dt-layout-combo__custom">{customInput}</span>
+          ) : null}
+        </>
+      )}
     </span>
   );
 }

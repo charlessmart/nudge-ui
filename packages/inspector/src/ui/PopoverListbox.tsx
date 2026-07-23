@@ -16,6 +16,7 @@ export interface PopoverListboxProps {
   items: PopoverListboxItem[];
   open: boolean;
   trigger?: ReactNode;
+  triggerElement?: ReactElement;
   triggerClassName?: string;
   triggerDataTest?: string;
   triggerAriaLabel?: string;
@@ -37,6 +38,7 @@ export function PopoverListbox({
   items,
   open,
   trigger,
+  triggerElement,
   triggerClassName,
   triggerDataTest,
   triggerAriaLabel,
@@ -57,7 +59,7 @@ export function PopoverListbox({
 
   return (
     <div className={`dt-popover-listbox${className ? ` ${className}` : ""}`}>
-      {trigger ? (
+      {trigger || triggerElement ? (
         <Combobox.Root
           value={value}
           inputValue={query}
@@ -71,13 +73,22 @@ export function PopoverListbox({
             if (typeof next === "string") onSelect(next);
           }}
         >
-          <Combobox.Trigger
-            className={`dt-popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
-            data-test={triggerDataTest}
-            aria-label={triggerAriaLabel}
-          >
-            {trigger}
-          </Combobox.Trigger>
+          {triggerElement ? (
+            <Combobox.Trigger
+              render={triggerElement}
+              className={`dt-popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
+              data-test={triggerDataTest}
+              aria-label={triggerAriaLabel}
+            />
+          ) : (
+            <Combobox.Trigger
+              className={`dt-popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
+              data-test={triggerDataTest}
+              aria-label={triggerAriaLabel}
+            >
+              {trigger}
+            </Combobox.Trigger>
+          )}
           <Combobox.Portal container={portalContainer}>
             <Combobox.Positioner className="dt-popover-listbox__positioner">
               <Combobox.Popup className="dt-popover-listbox__popup">

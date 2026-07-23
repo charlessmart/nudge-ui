@@ -33,6 +33,16 @@ const typeSamples = [
   { label: "Mono", className: "type-mono", value: "--space-3 · 16px · var(--color-text-primary)" },
 ];
 
+const conformancePages = [
+  { href: "/conformance", label: "Core CSS", copy: "Authored values, aliases, and computed previews." },
+  { href: "/spacing-conformance", label: "Spacing", copy: "Logical properties and physical side projection." },
+  { href: "/typography-conformance", label: "Typography", copy: "Text properties across the shared fixture corpus." },
+  { href: "/color-conformance", label: "Color", copy: "Formats, opacity, aliases, and painted values." },
+  { href: "/border-conformance", label: "Border", copy: "Shorthand structure and side-specific edits." },
+  { href: "/tailwind-v3", label: "Tailwind v3", copy: "Utility-class token attribution and editing." },
+  { href: "/sprinkles", label: "Sprinkles", copy: "Generated style props and source mapping." },
+];
+
 const cssBorderFixtureIds = {
   accent: import.meta.env.DEV ? { "data-test": "css-border-accent" } : {},
   mixed: import.meta.env.DEV ? { "data-test": "css-border-mixed" } : {},
@@ -233,6 +243,34 @@ export function App() {
         </section>
 
         <CssBorderExamples />
+
+        {import.meta.env.DEV ? (
+          <section className="conformance-links" data-test="conformance-links" aria-labelledby="conformance-links-title">
+            <div className="conformance-links__header">
+              <div>
+                <p className="eyebrow">Dev mode reference</p>
+                <h2 id="conformance-links-title">Test every surface.</h2>
+              </div>
+              <p>Open a focused fixture, select an element, and inspect how the authored CSS survives the browser.</p>
+            </div>
+            <nav className="conformance-links__list" aria-label="Conformance pages">
+              {conformancePages.map((page) => (
+                <a
+                  className="conformance-link"
+                  data-conformance-route={page.href}
+                  data-design-tool-navigation="true"
+                  data-test="conformance-link"
+                  href={page.href}
+                  key={page.href}
+                >
+                  <span className="conformance-link__label">{page.label}</span>
+                  <span className="conformance-link__copy">{page.copy}</span>
+                  <span className="conformance-link__arrow" aria-hidden="true">↗</span>
+                </a>
+              ))}
+            </nav>
+          </section>
+        ) : null}
 
         {import.meta.env.DEV ? (
           <section className="token-reference" data-test="tokens" aria-labelledby="token-title">

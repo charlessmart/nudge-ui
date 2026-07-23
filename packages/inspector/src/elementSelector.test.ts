@@ -223,4 +223,25 @@ describe("installElementSelector", () => {
     expect(prevent).toHaveBeenCalled();
     expect(stop).toHaveBeenCalled();
   });
+
+  it("lets explicitly marked navigation links follow their route", () => {
+    const link = document.createElement("a");
+    link.href = "/conformance";
+    link.dataset.designToolNavigation = "true";
+    link.setAttribute("data-cid", "RouteLink");
+    link.setAttribute("data-src", "App.tsx:1:1");
+    document.body.appendChild(link);
+
+    const event = new MouseEvent("click", {
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, "target", { value: link });
+    const prevent = vi.spyOn(event, "preventDefault");
+    document.dispatchEvent(event);
+
+    expect(getSelectedElement()).toBeNull();
+    expect(prevent).not.toHaveBeenCalled();
+  });
 });

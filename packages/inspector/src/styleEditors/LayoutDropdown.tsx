@@ -10,12 +10,13 @@ export interface LayoutDropdownProps {
   property: string;
   options: string[];
   domElement: HTMLElement;
+  stacked?: boolean;
   revision?: number;
   onAfterEdit?: () => void;
 }
 
 export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
-  const { property, options, domElement: el, revision = 0, onAfterEdit } = props;
+  const { property, options, domElement: el, stacked, revision = 0, onAfterEdit } = props;
 
   const [value, setValue] = useState(() =>
     getStateStyleValue(el, property, options[0]),
@@ -38,7 +39,11 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
   const allOptions = value && !options.includes(value) ? [...options, value] : options;
 
   return (
-    <FieldRow label={property} data-test="layout-dropdown">
+    <FieldRow
+      label={property}
+      className={stacked ? "dt-field-row--stacked" : undefined}
+      data-test="layout-dropdown"
+    >
       <Select
         data-test={`layout-select-${property}`}
         value={value}

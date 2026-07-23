@@ -102,6 +102,46 @@ test("dev: layout section shows flex container controls and edits write to manag
   });
   expect(rowDirectionActive).toBe(true);
 
+  const initialGapProperties = await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return Array.from(sr?.querySelectorAll('[data-test="layout-gap"] [data-test="layout-combo"]') ?? [])
+      .map((field) => field.getAttribute("data-property"));
+  });
+  expect(initialGapProperties).toEqual(["column-gap"]);
+
+  const columnGapInput = page.locator('[data-test="layout-gap"] [data-test="layout-combo-input-column-gap"]');
+  await expect(columnGapInput).toBeVisible();
+  await expect(page.locator('[data-test="layout-gap"] [data-test="layout-combo-select-column-gap"]')).toHaveCount(0);
+  await columnGapInput.fill("12");
+  await columnGapInput.blur();
+  await expect
+    .poll(async () => (await sheetText(page)).includes("column-gap: 12px"), { timeout: 5000 })
+    .toBe(true);
+
+  const alignmentGridSize = await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const grid = sr?.querySelector('[data-test^="layout-align-"]')?.parentElement;
+    if (!grid) return null;
+    const rect = grid.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  });
+  expect(alignmentGridSize).not.toBeNull();
+  expect(Math.abs((alignmentGridSize?.width ?? 0) - (alignmentGridSize?.height ?? 0))).toBeLessThan(2);
+
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    (sr?.querySelector('[data-test="layout-flex-wrap-toggle"]') as HTMLButtonElement | null)?.click();
+  });
+  await expect
+    .poll(async () => computedPropOn(page, "flex-container", "flex-wrap"), { timeout: 5000 })
+    .toBe("wrap");
+  await expect.poll(async () => page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return Array.from(sr?.querySelectorAll('[data-test="layout-gap"] [data-test="layout-combo"]') ?? [])
+      .map((field) => field.getAttribute("data-property"))
+      .sort();
+  }), { timeout: 5000 }).toEqual(["column-gap", "row-gap"]);
+
   // Change flex-direction to column.
   await page.evaluate(() => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
@@ -112,6 +152,53 @@ test("dev: layout section shows flex container controls and edits write to manag
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "flex-direction"), { timeout: 5000 })
     .toBe("column");
+
+  // In a column layout, the grid's top-right cell means top + right:
+  // justify-content: flex-start and align-items: flex-end.
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    (sr?.querySelector('[data-test="layout-align-flex-end-flex-start"]') as HTMLButtonElement | null)?.click();
+  });
+  await expect
+    .poll(async () => computedPropOn(page, "flex-container", "justify-content"), { timeout: 5000 })
+    .toBe("flex-start");
+  await expect
+    .poll(async () => computedPropOn(page, "flex-container", "align-items"), { timeout: 5000 })
+    .toBe("flex-end");
+
+  // Lower-frequency flex settings live behind the settings icon.
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
+  });
+  await expect.poll(async () => page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return !!sr?.querySelector('[data-test="layout-flex-setting-align-content-center"]');
+  }), { timeout: 5000 }).toBe(true);
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const item = sr?.querySelector('[data-test="layout-flex-setting-justify-space-between"]');
+    (item as HTMLElement | null)?.click();
+  });
+  await expect
+    .poll(async () => computedPropOn(page, "flex-container", "justify-content"), { timeout: 5000 })
+    .toBe("space-between");
+
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
+  });
+  await expect.poll(async () => page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return !!sr?.querySelector('[data-test="layout-flex-setting-align-content-center"]');
+  }), { timeout: 5000 }).toBe(true);
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    (sr?.querySelector('[data-test="layout-flex-setting-align-content-center"]') as HTMLElement | null)?.click();
+  });
+  await expect
+    .poll(async () => computedPropOn(page, "flex-container", "align-content"), { timeout: 5000 })
+    .toBe("center");
 
   // Managed stylesheet should have the rule
   await expect

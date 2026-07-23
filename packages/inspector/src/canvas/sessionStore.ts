@@ -362,10 +362,7 @@ export function hydrateSession(): HydrationResult {
     return { restored: false, changeCount: 0 };
   }
 
-  if (s.mode === "inspect" && s.inspectUrl !== window.location.href) {
-    window.location.replace(s.inspectUrl);
-    return { restored: false, changeCount: 0 };
-  }
+  const inspectRouteChanged = s.mode === "inspect" && s.inspectUrl !== window.location.href;
 
   const cards = Array.isArray(s.cards) ? (s.cards as unknown[]) : null;
   if (!cards) {
@@ -443,6 +440,11 @@ export function hydrateSession(): HydrationResult {
   if (deserializedChanges.length > 0) {
     loadChanges(deserializedChanges);
   }
+  // A different URL means the user intentionally navigated while Inspect was
+  // active. Keep the durable edits, but adopt the new route instead of
+  // sending the user back to the previous page. On refresh, the URLs already
+  // match and restoration remains unchanged.
+  if (inspectRouteChanged) persistSession();
 
   return { restored: true, changeCount: deserializedChanges.length };
 }
