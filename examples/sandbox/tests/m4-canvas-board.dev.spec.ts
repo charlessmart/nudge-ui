@@ -172,6 +172,29 @@ test.describe("Canvas board gesture handling", () => {
     await button.click();
     await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
   });
+
+  test("dev: Space-drag inside an iframe pans the board", async ({ page }) => {
+    const boardContent = page.locator('[data-test="canvas-board-content"]');
+    const transformBefore = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
+    const iframe = page.locator(".dt-canvas-card__iframe").first();
+    await expect(iframe).toBeVisible();
+    const box = await iframe.boundingBox();
+    expect(box).not.toBeNull();
+
+    // Focus the document inside the card so Space is handled by the renderer.
+    await page.frameLocator(".dt-canvas-card__iframe").first().locator("body").click({
+      position: { x: 40, y: 40 },
+    });
+    await page.keyboard.down("Space");
+    await page.mouse.move(box!.x + 80, box!.y + 80);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + 180, box!.y + 130, { steps: 3 });
+    await page.mouse.up();
+    await page.keyboard.up("Space");
+
+    await expect.poll(() => boardContent.evaluate((el: HTMLElement) => el.style.transform))
+      .not.toBe(transformBefore);
+  });
 });
 
 test.describe("Canvas board — iframe content remains interactive", () => {

@@ -66,6 +66,7 @@ export function isLeaseExpired(lease: WorkspaceLease, now: number = Date.now()):
 let currentOwnerId: string | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let ownsLease = false;
+let writeGuardEnabled = false;
 const ownershipListeners = new Set<(hasLease: boolean) => void>();
 
 function notifyOwnershipListeners(): void {
@@ -157,8 +158,23 @@ export function requestTakeover(): boolean {
   writeLease(lease);
   ownsLease = true;
   startHeartbeat();
+  window.addEventListener("storage", handleStorageEvent);
   notifyOwnershipListeners();
   return true;
+}
+
+/** Enable lease checks for state-changing controller actions in this document. */
+export function enableWriteGuard(): void {
+  writeGuardEnabled = true;
+}
+
+/**
+ * Unit-level modules are also used without the browser controller bootstrap.
+ * Once the controller enables the guard, only the current lease owner may
+ * mutate or persist its canonical workspace state.
+ */
+export function canWriteWorkspace(): boolean {
+  return !writeGuardEnabled || hasWriteLease();
 }
 
 export function releaseLease(): void {

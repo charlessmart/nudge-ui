@@ -97,6 +97,16 @@ export function enterCanvas(): void {
     lastUsedCardSize = { width: size.width, height: size.height };
     cachedBoardCamera = { ...DEFAULT_CAMERA };
     fitAllRan = false;
+  } else {
+    const currentRoute = normalizeUrl(window.location.href);
+    const existing = currentRoute ? findCardByNormalizedUrl(currentRoute) : undefined;
+    if (existing) {
+      focusCard(existing.id);
+    } else {
+      const added = addCanvasCard(window.location.href, document.title);
+      focusCard(added.id);
+      fitAllRan = false;
+    }
   }
   notify();
 }
@@ -258,6 +268,7 @@ export function findCardByNormalizedUrl(
 
 export function focusCard(id: string): void {
   focusedCardId = id;
+  selectedCardId = id;
   notify();
 }
 
@@ -281,6 +292,10 @@ export function getSelectedCardId(): string | null {
 
 export function useSelectedCardId(): string | null {
   return useSyncExternalStore(subscribe, getSelectedCardId, getSelectedCardId);
+}
+
+export function useFocusedCardId(): string | null {
+  return useSyncExternalStore(subscribe, getFocusedCardId, getFocusedCardId);
 }
 
 export function setCardPosition(id: string, x: number, y: number): void {

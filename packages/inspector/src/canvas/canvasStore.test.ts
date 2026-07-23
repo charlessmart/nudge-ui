@@ -76,6 +76,22 @@ describe("canvasStore mode transitions", () => {
     expect(getCanvasCards().length).toBe(cards.length);
   });
 
+  it("adds and focuses the current Inspect route when reopening an existing board", () => {
+    const originalUrl = window.location.href;
+    const otherRoute = new URL("/already-open", originalUrl).href;
+    const activeRoute = new URL("/current-inspect-route", originalUrl).href;
+    addCanvasCard(otherRoute, "Already open");
+    window.history.replaceState({}, "", activeRoute);
+
+    enterCanvas();
+
+    const activeCard = findCardByNormalizedUrl(new URL(activeRoute));
+    expect(activeCard?.url).toBe(activeRoute);
+    expect(getFocusedCardId()).toBe(activeCard?.id);
+    expect(getCanvasCards()).toHaveLength(2);
+    window.history.replaceState({}, "", originalUrl);
+  });
+
   it("exitCanvas is idempotent for mode", () => {
     enterCanvas();
     exitCanvas();

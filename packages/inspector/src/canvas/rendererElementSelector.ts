@@ -1,4 +1,10 @@
-import { PROTOCOL_VERSION, sendToParent, type ElementHoverMessage, type ElementClickMessage } from "./frameProtocol.ts";
+import {
+  PROTOCOL_VERSION,
+  getRendererIdentity,
+  sendToParent,
+  type ElementClickMessage,
+  type ElementHoverMessage,
+} from "./frameProtocol.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
@@ -89,6 +95,8 @@ export function installRendererElementSelector(): void {
       const rect = el.getBoundingClientRect();
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);
+      const identity = getRendererIdentity();
+      if (!identity) return;
 
       const msg: ElementHoverMessage = {
         type: "element-hover",
@@ -101,6 +109,7 @@ export function installRendererElementSelector(): void {
           width: rect.width,
           height: rect.height,
         },
+        ...identity,
       };
 
       sendToParent(msg);
@@ -123,6 +132,8 @@ export function installRendererElementSelector(): void {
 
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);
+      const identity = getRendererIdentity();
+      if (!identity) return;
 
       const msg: ElementHoverMessage = {
         type: "element-hover",
@@ -130,6 +141,7 @@ export function installRendererElementSelector(): void {
         cid,
         selector,
         rect: null,
+        ...identity,
       };
 
       sendToParent(msg);
@@ -161,6 +173,8 @@ export function installRendererElementSelector(): void {
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);
       const { file, line, component, src } = getFiberInfo(el);
+      const identity = getRendererIdentity();
+      if (!identity) return;
 
       const msg: ElementClickMessage = {
         type: "element-click",
@@ -171,6 +185,7 @@ export function installRendererElementSelector(): void {
         file,
         line,
         component,
+        ...identity,
       };
 
       sendToParent(msg);

@@ -134,19 +134,12 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
   await waitForIframeReady(page, 0);
   const parentUrlBefore = page.url();
 
-  // Create a sibling card with a different URL by simulating a
-  // navigation-intent message from inside the first card. Using postMessage
-  // here avoids relying on the (just-fixed) anchor navigation path; the goal
-  // of this test is the regression around `selectCard` navigating the host.
-  const firstFrame = page.frames().find((frame) => frame !== page.mainFrame());
-  expect(firstFrame).toBeDefined();
-  await firstFrame!.evaluate((url) => {
-    window.parent.postMessage({
-      type: "navigation-intent",
-      protocolVersion: 1,
-      url,
-    }, window.location.origin);
-  }, parentUrlBefore.replace(/\/$/, "") + "/tailwind");
+  // Create a sibling through the renderer's normal, identity-bound navigation
+  // protocol. The regression under test is that selecting in that sibling must
+  // not navigate the parent away from Canvas.
+  await page.frameLocator(".dt-canvas-card__iframe").first()
+    .locator('a[href="/tailwind"]')
+    .click();
 
   await expect(page.locator(".dt-canvas-card")).toHaveCount(2);
   await waitForIframeReady(page, 1);

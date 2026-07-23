@@ -20,6 +20,9 @@ function clickMessage(overrides: Partial<ElementClickMessage> = {}): ElementClic
     file: "/src/Button.tsx",
     line: 32,
     component: "Button",
+    projectId: "test-project",
+    workspaceId: "test-workspace",
+    cardId: "card-1",
     ...overrides,
   };
 }

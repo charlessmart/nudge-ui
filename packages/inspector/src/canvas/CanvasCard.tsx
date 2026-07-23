@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
-import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
+import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
 import { RefreshCw, Trash2, Pencil, Copy } from "lucide-react";
-import { PROTOCOL_VERSION, type FrameReadyMessage, type FrameMetadataMessage, type FrameLoadError } from "./frameProtocol.ts";
+import {
+  PROTOCOL_VERSION,
+  isRendererMessageFor,
+  type FrameLoadError,
+  type FrameMetadataMessage,
+  type FrameReadyMessage,
+} from "./frameProtocol.ts";
 import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { IconButton } from "../ui/IconButton.tsx";
+import { Button } from "../ui/Button.tsx";
 import { setSelectedElement } from "../selectionStore.ts";
 
 interface CanvasCardProps {
@@ -23,7 +30,9 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const camera = useBoardCamera();
   const selectedCardId = useSelectedCardId();
+  const focusedCardId = useFocusedCardId();
   const isSelected = selectedCardId === card.id;
+  const isFocused = focusedCardId === card.id;
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -62,7 +71,11 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
       const msg = event.data;
       if (!msg || typeof msg !== "object") return;
 
-      if (typeof msg.protocolVersion !== "number" || msg.protocolVersion !== PROTOCOL_VERSION) return;
+      if (!isRendererMessageFor(msg, {
+        projectId: PROJECT_ID,
+        workspaceId: WORKSPACE_ID,
+        cardId: card.id,
+      })) return;
 
       if (msg.type === "frame-ready") {
         const ready = msg as FrameReadyMessage;
@@ -193,9 +206,19 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     window.addEventListener("pointerup", onUp);
   }, [card.id, card.width, card.height, camera.zoom]);
 
+  function handleResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    const step = event.shiftKey ? 40 : 20;
+    if (event.key === "ArrowRight") resizeCard(card.id, card.width + step, card.height);
+    else if (event.key === "ArrowLeft") resizeCard(card.id, Math.max(MIN_CARD_WIDTH, card.width - step), card.height);
+    else if (event.key === "ArrowDown") resizeCard(card.id, card.width, card.height + step);
+    else if (event.key === "ArrowUp") resizeCard(card.id, card.width, Math.max(MIN_CARD_HEIGHT, card.height - step));
+    else return;
+    event.preventDefault();
+  }
+
   return (
     <div
-      className={`dt-canvas-card${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}`}
+      className={`dt-canvas-card${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}`}
       data-card-id={card.id}
       style={{
         position: "absolute",
@@ -259,8 +282,8 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
           <div className="dt-canvas-card__error" data-test={`canvas-card-error-${card.id}`}>
             <p>{errorMessage || "Frame could not be loaded"}</p>
             <div className="dt-canvas-card__error-actions">
-              <button type="button" onClick={handleReload}>Retry</button>
-              <button type="button" onClick={handleRemove}>Remove</button>
+              <Button size="compact" variant="secondary" onClick={handleReload}>Retry</Button>
+              <Button size="compact" variant="danger" onClick={handleRemove}>Remove</Button>
             </div>
           </div>
         ) : null}
@@ -278,6 +301,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
         className="dt-canvas-card__resize-handle"
         data-test={`canvas-card-resize-${card.id}`}
         onPointerDown={handleResizeStart}
+        onKeyDown={handleResizeKeyDown}
         role="button"
         aria-label="Resize card"
         tabIndex={0}

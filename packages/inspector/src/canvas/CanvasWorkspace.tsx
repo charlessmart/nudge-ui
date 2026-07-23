@@ -18,16 +18,29 @@ import {
 import { CanvasCard } from "./CanvasCard.tsx";
 import { getCanvasMode, setCanvasMode, useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changesLog.ts";
-import { findCanvasFrameBySource, projectToAllReadyCards } from "./projection.ts";
+import {
+  findCanvasFrameBySource,
+  PROJECT_ID,
+  projectToAllReadyCards,
+  WORKSPACE_ID,
+} from "./projection.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
-import { PROTOCOL_VERSION, type NavigationIntentMessage } from "./frameProtocol.ts";
+import {
+  isRendererMessageFor,
+  type ExternalNavigationMessage,
+  type NavigationIntentMessage,
+  type PanEndMessage,
+  type PanMoveMessage,
+  type PanStartMessage,
+} from "./frameProtocol.ts";
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
+import foundationStyles from "../ui/Foundation.css?inline";
 import { Maximize } from "lucide-react";
 import { Button } from "../ui/Button.tsx";
 import { useInspectorOpen } from "../openStore.ts";
 
-const WORKSPACE_STYLES = [canvasWorkspaceStyles, canvasCardStyles].join("\n");
+const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");
 
 const ZOOM_STEP = 0.1;
 const ZOOM_WHEEL_FACTOR = 1.08;
@@ -42,6 +55,7 @@ export function CanvasWorkspace(): ReactElement | null {
   const panningRef = useRef(false);
   const panOriginRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const cameraAtPanStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const framePanContextRef = useRef<{ left: number; top: number; zoom: number } | null>(null);
   const spaceHeldRef = useRef(false);
   const fitAllScheduledRef = useRef(false);
 
@@ -50,6 +64,32 @@ export function CanvasWorkspace(): ReactElement | null {
   const fitCanvasToBoard = useCallback(() => {
     const board = boardRef.current;
     fitAllCards(board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
+  }, []);
+
+  const startPanning = useCallback((point: { x: number; y: number }) => {
+    if (panningRef.current) return;
+    panningRef.current = true;
+    setBoardCursorClass("is-grabbing");
+    panOriginRef.current = point;
+    const current = getBoardCamera();
+    cameraAtPanStartRef.current = { x: current.x, y: current.y };
+  }, []);
+
+  const movePanning = useCallback((point: { x: number; y: number }) => {
+    if (!panningRef.current) return;
+    const cameraAtStart = cameraAtPanStartRef.current;
+    const current = getBoardCamera();
+    setBoardCamera({
+      x: cameraAtStart.x + point.x - panOriginRef.current.x,
+      y: cameraAtStart.y + point.y - panOriginRef.current.y,
+      zoom: current.zoom,
+    });
+  }, []);
+
+  const endPanning = useCallback(() => {
+    if (!panningRef.current) return;
+    panningRef.current = false;
+    setBoardCursorClass(spaceHeldRef.current ? "is-grabbable" : "");
   }, []);
 
   useEffect(() => {
@@ -62,13 +102,54 @@ export function CanvasWorkspace(): ReactElement | null {
     function onMessage(event: MessageEvent): void {
       if (event.origin !== window.location.origin) return;
       if (!event.data || typeof event.data !== "object") return;
-      if (event.data.type !== "navigation-intent") return;
-      if (event.data.protocolVersion !== PROTOCOL_VERSION) return;
-      if (!findCanvasFrameBySource(event.source)) return;
+      const frame = findCanvasFrameBySource(event.source);
+      if (!frame) return;
+      if (!isRendererMessageFor(event.data, {
+        projectId: PROJECT_ID,
+        workspaceId: WORKSPACE_ID,
+        cardId: frame.cardId,
+      })) return;
 
-      const msg = event.data as NavigationIntentMessage;
+      const msg = event.data as NavigationIntentMessage | ExternalNavigationMessage | PanStartMessage | PanMoveMessage | PanEndMessage;
+      const pointInBoard = (point: { x: number; y: number }) => {
+        const context = framePanContextRef.current;
+        if (!context) return null;
+        return {
+          x: context.left + point.x * context.zoom,
+          y: context.top + point.y * context.zoom,
+        };
+      };
+      if (msg.type === "pan-start") {
+        const iframeRect = frame.iframe.getBoundingClientRect();
+        framePanContextRef.current = {
+          left: iframeRect.left,
+          top: iframeRect.top,
+          zoom: getBoardCamera().zoom,
+        };
+        const point = pointInBoard(msg.point);
+        if (point) startPanning(point);
+        return;
+      }
+      if (msg.type === "pan-move") {
+        const point = pointInBoard(msg.point);
+        if (point) movePanning(point);
+        return;
+      }
+      if (msg.type === "pan-end") {
+        framePanContextRef.current = null;
+        endPanning();
+        return;
+      }
+      if (msg.type === "external-navigation") {
+        const destination = normalizeUrl(msg.url);
+        if (!destination || destination.origin === window.location.origin) return;
+        exitCanvas();
+        window.location.href = msg.url;
+        return;
+      }
+      if (msg.type !== "navigation-intent") return;
       const normalized = normalizeUrl(msg.url);
-      if (!normalized) return;
+      if (!normalized || normalized.origin !== window.location.origin) return;
 
       const existing = findCardByNormalizedUrl(normalized);
       if (existing) {
@@ -80,7 +161,7 @@ export function CanvasWorkspace(): ReactElement | null {
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [endPanning, movePanning, startPanning]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -131,37 +212,23 @@ export function CanvasWorkspace(): ReactElement | null {
 
     e.preventDefault();
     e.stopPropagation();
-    panningRef.current = true;
-    setBoardCursorClass("is-grabbing");
-    panOriginRef.current = { x: e.clientX, y: e.clientY };
-    cameraAtPanStartRef.current = {
-      x: camera.x,
-      y: camera.y,
-    };
+    startPanning({ x: e.clientX, y: e.clientY });
 
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     function onMove(ev: PointerEvent): void {
-      if (!panningRef.current) return;
-      const dx = ev.clientX - panOriginRef.current.x;
-      const dy = ev.clientY - panOriginRef.current.y;
-      setBoardCamera({
-        x: cameraAtPanStartRef.current.x + dx,
-        y: cameraAtPanStartRef.current.y + dy,
-        zoom: camera.zoom,
-      });
+      movePanning({ x: ev.clientX, y: ev.clientY });
     }
 
     function onUp(): void {
-      panningRef.current = false;
-      setBoardCursorClass(spaceHeldRef.current ? "is-grabbable" : "");
+      endPanning();
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     }
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-  }, [camera.zoom, camera.x, camera.y]);
+  }, [endPanning, movePanning, startPanning]);
 
   useEffect(() => {
     if (mode !== "canvas") return;

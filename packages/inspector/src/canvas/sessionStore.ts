@@ -24,9 +24,68 @@ import { removeManagedSheet } from "../managedStylesheet.ts";
 import { clearInspectorLayout } from "../panelLayout.ts";
 import { setSelectedElement } from "../selectionStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";
+import { canWriteWorkspace } from "./workspaceLease.ts";
 
 const SCHEMA_VERSION = 1;
 const STORAGE_PREFIX = "design-tool";
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isSameOriginUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    return new URL(value).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function isSource(value: unknown): value is { file: string; line: number; component: string } {
+  if (!value || typeof value !== "object") return false;
+  const source = value as Record<string, unknown>;
+  return typeof source.file === "string"
+    && isFiniteNumber(source.line)
+    && typeof source.component === "string";
+}
+
+function isTokenRef(value: unknown): boolean {
+  if (value === null) return true;
+  if (!value || typeof value !== "object") return false;
+  const token = value as Record<string, unknown>;
+  return typeof token.name === "string"
+    && typeof token.value === "string"
+    && typeof token.source === "string";
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return Boolean(value) && typeof value === "object"
+    && Object.values(value as Record<string, unknown>).every((entry) => typeof entry === "string");
+}
+
+function isSerializableChange(value: unknown): value is SerializableChange {
+  if (!value || typeof value !== "object") return false;
+  const change = value as Record<string, unknown>;
+  if (
+    typeof change.selector !== "string"
+    || typeof change.property !== "string"
+    || !isSource(change.source)
+    || typeof change.file !== "string"
+    || !isFiniteNumber(change.line)
+  ) return false;
+  if (change.kind === "token") {
+    return typeof change.tokenName === "string"
+      && typeof change.rawValue === "string"
+      && typeof change.oldRawValue === "string"
+      && isStringRecord(change.context)
+      && typeof change.contextLabel === "string";
+  }
+  return (change.kind === undefined || change.kind === "element")
+    && typeof change.cid === "string"
+    && isTokenRef(change.oldToken)
+    && isTokenRef(change.newToken);
+}
 
 function storageKey(projectId: string): string {
   return `${STORAGE_PREFIX}:${projectId}:v${SCHEMA_VERSION}`;
@@ -246,6 +305,7 @@ export function serializeSession(): DurableSession {
 }
 
 export function persistSession(): void {
+  if (!canWriteWorkspace()) return;
   if (!designToolProjectId) return;
   try {
     const session = buildSession();
@@ -297,6 +357,16 @@ export function hydrateSession(): HydrationResult {
     return { restored: false, changeCount: 0 };
   }
 
+  if (!isSameOriginUrl(s.inspectUrl)) {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
+
+  if (s.mode === "inspect" && s.inspectUrl !== window.location.href) {
+    window.location.replace(s.inspectUrl);
+    return { restored: false, changeCount: 0 };
+  }
+
   const cards = Array.isArray(s.cards) ? (s.cards as unknown[]) : null;
   if (!cards) {
     safeDiscard();
@@ -305,14 +375,17 @@ export function hydrateSession(): HydrationResult {
 
   const serializableCards: SerializableCard[] = [];
   for (const card of cards) {
+    const candidate = card as Record<string, unknown>;
     if (
       !card || typeof card !== "object" ||
-      typeof (card as Record<string, unknown>).id !== "string" ||
-      typeof (card as Record<string, unknown>).url !== "string" ||
-      typeof (card as Record<string, unknown>).x !== "number" ||
-      typeof (card as Record<string, unknown>).y !== "number" ||
-      typeof (card as Record<string, unknown>).width !== "number" ||
-      typeof (card as Record<string, unknown>).height !== "number"
+      typeof candidate.id !== "string" ||
+      !isSameOriginUrl(candidate.url) ||
+      !isFiniteNumber(candidate.x) ||
+      !isFiniteNumber(candidate.y) ||
+      !isFiniteNumber(candidate.width) ||
+      !isFiniteNumber(candidate.height) ||
+      candidate.width <= 0 ||
+      candidate.height <= 0
     ) {
       safeDiscard();
       return { restored: false, changeCount: 0 };
@@ -329,12 +402,17 @@ export function hydrateSession(): HydrationResult {
     });
   }
 
+  if (new Set(serializableCards.map((card) => card.id)).size !== serializableCards.length) {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
+
   const cameraRaw = s.camera;
   if (
     !cameraRaw || typeof cameraRaw !== "object" ||
-    typeof (cameraRaw as Record<string, unknown>).x !== "number" ||
-    typeof (cameraRaw as Record<string, unknown>).y !== "number" ||
-    typeof (cameraRaw as Record<string, unknown>).zoom !== "number"
+    !isFiniteNumber((cameraRaw as Record<string, unknown>).x) ||
+    !isFiniteNumber((cameraRaw as Record<string, unknown>).y) ||
+    !isFiniteNumber((cameraRaw as Record<string, unknown>).zoom)
   ) {
     safeDiscard();
     return { restored: false, changeCount: 0 };
@@ -343,21 +421,12 @@ export function hydrateSession(): HydrationResult {
   const changesRaw = Array.isArray(s.changes) ? s.changes : [];
   const deserializedChanges: ChangeRecord[] = [];
   for (const c of changesRaw) {
-    if (!c || typeof c !== "object") {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
-    }
-    const sc = c as Record<string, unknown>;
-    if (
-      typeof sc.selector !== "string" ||
-      typeof sc.property !== "string" ||
-      typeof sc.source !== "object"
-    ) {
+    if (!isSerializableChange(c)) {
       safeDiscard();
       return { restored: false, changeCount: 0 };
     }
     try {
-      deserializedChanges.push(deserializeChange(sc as unknown as SerializableChange));
+      deserializedChanges.push(deserializeChange(c));
     } catch {
       safeDiscard();
       return { restored: false, changeCount: 0 };
@@ -387,6 +456,7 @@ function safeDiscard(): void {
 }
 
 export function clearSession(): void {
+  if (!canWriteWorkspace()) return;
   try {
     localStorage.removeItem(storageKey(designToolProjectId));
   } catch {

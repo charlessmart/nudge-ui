@@ -1,0 +1,53 @@
+:host {
+  all: initial;
+  --dt-surface-panel: #ffffff;
+  --dt-surface-control: #f3f3f3;
+  --dt-surface-control-hover: #ececec;
+  --dt-surface-raised: #ffffff;
+  --dt-border-subtle: #e7e7e7;
+  --dt-border-strong: #d8d8d8;
+  --dt-text-primary: #242424;
+  --dt-text-secondary: #6f6f6f;
+  --dt-text-muted: #777777;
+  --dt-text-muted-subtle: #a1a1a1;
+  --dt-accent: #0d99ff;
+  --dt-accent-strong: #087fd4;
+  --dt-accent-text: #0788ed;
+  --dt-accent-surface: #e5f4ff;
+  --dt-focus: #0d99ff;
+  --dt-warning: #d97706;
+  --dt-warning-text: #9a5b00;
+  --dt-warning-surface: #fff6e5;
+  --dt-danger: #df4b4b;
+  --dt-danger-text: #bd3636;
+  --dt-danger-surface: #fff0f0;
+  --dt-radius-small: 7px;
+  --dt-radius-control: 10px;
+  --dt-radius-pill: 999px;
+  --dt-shadow-panel: -8px 0 28px rgba(0, 0, 0, 0.08);
+  --dt-shadow-popup: 0 10px 28px rgba(0, 0, 0, 0.14);
+  --dt-z-index: 2147483647;
+  --dt-font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dt-font-size: 12px;
+  --dt-control-height: 32px;
+  --dt-label-column: 104px;
+  position: fixed;
+  inset: 0;
+  z-index: var(--dt-z-index);
+  pointer-events: none;
+  font-family: var(--dt-font-family);
+  background: transparent;
+  box-sizing: border-box;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+}

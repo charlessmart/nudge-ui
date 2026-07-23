@@ -28,6 +28,10 @@ import {
   setBoardCamera,
 } from "./canvasStore.ts";
 import { designToolProjectId } from "virtual:design-tokens";
+
+function localUrl(path: string): string {
+  return new URL(path, window.location.href).href;
+}
 import type { TokenEntry } from "virtual:design-tokens";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
@@ -138,7 +142,7 @@ describe("sessionStore persistence", () => {
 
   it("serializes card and camera state", () => {
     setCanvasMode("canvas");
-    const card = addCanvasCard("http://localhost:5173/about", "About");
+    const card = addCanvasCard(localUrl("/about"), "About");
     setBoardCamera({ x: 100, y: 200, zoom: 2 });
     persistSession();
 
@@ -146,7 +150,7 @@ describe("sessionStore persistence", () => {
     const parsed = JSON.parse(raw!);
     expect(parsed.mode).toBe("canvas");
     expect(parsed.cards).toHaveLength(1);
-    expect(parsed.cards[0].url).toBe("http://localhost:5173/about");
+    expect(parsed.cards[0].url).toBe(localUrl("/about"));
     expect(parsed.cards[0].title).toBe("About");
     expect(parsed.camera.x).toBe(100);
     expect(parsed.camera.y).toBe(200);
@@ -194,7 +198,7 @@ describe("sessionStore hydration", () => {
 
   it("hydrates canvas mode, cards, and camera", () => {
     setCanvasMode("canvas");
-    const card = addCanvasCard("http://localhost:5173/about", "About");
+    const card = addCanvasCard(localUrl("/about"), "About");
     setBoardCamera({ x: 50, y: 100, zoom: 1.5 });
     persistSession();
 
@@ -207,7 +211,7 @@ describe("sessionStore hydration", () => {
     expect(result.restored).toBe(true);
     expect(getCanvasMode()).toBe("canvas");
     expect(getCanvasCards()).toHaveLength(1);
-    expect(getCanvasCards()[0]!.url).toBe("http://localhost:5173/about");
+    expect(getCanvasCards()[0]!.url).toBe(localUrl("/about"));
 
     const camera = getBoardCamera();
     expect(camera.x).toBe(50);
@@ -324,7 +328,7 @@ describe("sessionStore hydration", () => {
 
   it("hydrates cards with null titles", () => {
     setCanvasMode("canvas");
-    const card = addCanvasCard("http://localhost:5173/page");
+    const card = addCanvasCard(localUrl("/page"));
     persistSession();
 
     exitCanvas();
@@ -362,7 +366,7 @@ describe("sessionStore clear session", () => {
 
   it("clears all canvas cards", () => {
     setCanvasMode("canvas");
-    addCanvasCard("http://localhost:5173/about");
+    addCanvasCard(localUrl("/about"));
     expect(getCanvasCards().length).toBeGreaterThan(0);
 
     clearSession();
@@ -463,8 +467,8 @@ describe("sessionStore round trip", () => {
 
   it("full round-trip preserves canvas state", () => {
     setCanvasMode("canvas");
-    const card = addCanvasCard("http://localhost:5173/page1", "Page 1");
-    addCanvasCard("http://localhost:5173/page2", "Page 2");
+    const card = addCanvasCard(localUrl("/page1"), "Page 1");
+    addCanvasCard(localUrl("/page2"), "Page 2");
     setBoardCamera({ x: 42, y: 7, zoom: 0.5 });
     persistSession();
 

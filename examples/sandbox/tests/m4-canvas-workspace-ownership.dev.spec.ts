@@ -61,6 +61,12 @@ async function setInput(
   );
 }
 
+async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
+  const spacing = page.locator('[data-test="spacing-padding"]');
+  await spacing.locator('[data-test="individual-sides"]').click();
+  await expect(spacing).toHaveAttribute("data-expanded", "true");
+}
+
 test.describe("Canvas workspace lease — single ownership", () => {
   test("dev: second tab shows locked workspace notice with takeover", async ({ page, context }) => {
     await page.goto("/");
@@ -96,10 +102,6 @@ test.describe("Canvas workspace lease — single ownership", () => {
     await page.click("text=Save");
     await waitForInspector(page);
 
-    // Make an edit in tab 1
-    await setInput(page, "padding-top", "32px");
-    await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
-
     // Open second tab
     const page2 = await context.newPage();
     await page2.goto("/");
@@ -109,17 +111,12 @@ test.describe("Canvas workspace lease — single ownership", () => {
     // Take over in second tab
     await page2.locator('[data-test="takeover-here"]').click();
 
-    // Second tab should now show the inspector (after reload)
-    await page2.waitForLoadState("domcontentloaded");
-
-    // Verify tab 2 now has writes (wait for potential reload from takeover)
-    try {
-      await waitForInspector(page2);
-    } catch {
-      // page2 may have reloaded — wait again
-      await page2.goto("/");
-      await waitForInspector(page2);
-    }
+    // Takeover is an in-place handoff: B becomes editable without a reload and
+    // A is replaced by the locked panel before it can issue another edit.
+    await waitForInspector(page2);
+    await expect(page2.locator('[data-test="locked-workspace-notice"]')).not.toBeVisible();
+    await waitForLockedNotice(page);
+    await expect(page.locator('[data-test="inspect-tab"]')).not.toBeVisible();
 
     // Close pages
     await page2.close();
@@ -165,6 +162,7 @@ test.describe("Canvas workspace — stale change detection", () => {
     await waitForInspector(page);
 
     // Make an edit so we have a persisted change
+    await expandSpacing(page);
     await setInput(page, "padding-top", "48px");
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 48px;");
 
@@ -234,9 +232,11 @@ test.describe("Canvas workspace — stale change detection", () => {
 
     // Write a fresh session with a stale change
     await page.evaluate(() => {
-      const projectKey = Object.keys(window)
-        .find((k) => k.startsWith("__design_tool_project")) as string | undefined;
-      const id = (window as unknown as Record<string, string>).__designToolProjectId ?? "/stub/project";
+      const leaseKey = Object.keys(localStorage).find((key) =>
+        key.startsWith("design-tool:") && key.endsWith(":lease"),
+      );
+      if (!leaseKey) throw new Error("expected a workspace lease");
+      const id = leaseKey.slice("design-tool:".length, -":lease".length);
       const session = {
         schemaVersion: 1,
         projectId: id,
@@ -300,7 +300,11 @@ test.describe("Canvas workspace — stale change detection", () => {
     });
 
     await page.evaluate(() => {
-      const id = (window as unknown as Record<string, string>).__designToolProjectId ?? "/stub/project";
+      const leaseKey = Object.keys(localStorage).find((key) =>
+        key.startsWith("design-tool:") && key.endsWith(":lease"),
+      );
+      if (!leaseKey) throw new Error("expected a workspace lease");
+      const id = leaseKey.slice("design-tool:".length, -":lease".length);
       const session = {
         schemaVersion: 1,
         projectId: id,

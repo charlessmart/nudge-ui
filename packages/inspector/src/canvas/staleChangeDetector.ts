@@ -2,7 +2,9 @@ import type { ChangeRecord, TokenChangeRecord } from "../changesLog.ts";
 import { isTokenChange } from "../changesLog.ts";
 import type { PreviewResult } from "../managedStylesheet.ts";
 import { getRegisteredFrames } from "./projection.ts";
+import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { getCanvasCards } from "./canvasStore.ts";
+import { isRendererMessageFor } from "./frameProtocol.ts";
 import { tokenCatalog } from "virtual:design-tokens";
 import type { TokenDefinition } from "virtual:design-tokens";
 
@@ -184,7 +186,12 @@ export function startStaleDetection(changes: ChangeRecord[]): void {
 function handleFrameReady(event: MessageEvent): void {
   if (event.origin !== window.location.origin) return;
   const msg = event.data;
-  if (!msg || typeof msg !== "object" || msg.type !== "frame-ready") return;
+  const frame = findCanvasFrameBySource(event.source);
+  if (!frame || !isRendererMessageFor(msg, {
+    projectId: PROJECT_ID,
+    workspaceId: WORKSPACE_ID,
+    cardId: frame.cardId,
+  }) || msg.type !== "frame-ready") return;
   if (!pendingChanges) return;
 
   scheduleStaleCheck();

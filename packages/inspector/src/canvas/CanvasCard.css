@@ -13,6 +13,15 @@
   box-shadow: 0 0 0 2px var(--dt-accent, #0d99ff), 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
+.dt-canvas-card.is-focused {
+  animation: dt-canvas-card-focus 900ms ease-out;
+}
+
+@keyframes dt-canvas-card-focus {
+  0%, 35% { box-shadow: 0 0 0 3px var(--dt-accent, #0d99ff), 0 4px 20px rgba(0, 0, 0, 0.08); }
+  100% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); }
+}
+
 .dt-canvas-card__toolbar {
   display: flex;
   align-items: center;
@@ -94,25 +103,6 @@
 .dt-canvas-card__error-actions {
   display: flex;
   gap: 8px;
-}
-
-.dt-canvas-card__error-actions button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid var(--dt-border-strong, #d8d8d8);
-  border-radius: var(--dt-radius-small, 7px);
-  background: var(--dt-surface-control, #f3f3f3);
-  color: var(--dt-text-primary, #242424);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.dt-canvas-card__error-actions button:hover {
-  background: var(--dt-surface-control-hover, #ececec);
 }
 
 .dt-canvas-card__resize-handle {
