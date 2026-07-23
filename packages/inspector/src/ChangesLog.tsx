@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
+import { ChevronDown } from "lucide-react";
 import { isTokenChange, useChanges, revertChange } from "./changesLog.ts";
 import type { ChangeRecord } from "./changesLog.ts";
-import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { Button } from "./ui/Button.tsx";
 import { formatInspectorLabel } from "./ui/labels.ts";
 
@@ -53,44 +53,52 @@ export function ChangesLog(): ReactElement {
   const groups = useMemo(() => groupChanges(changes), [changes]);
 
   return (
-    <div className="dt-changes" data-test="changes-log">
-      <div className="dt-changes__title">Changes</div>
-      <CopyPromptButton />
-      {groups.length === 0 ? (
-        <div className="dt-changes__empty" data-test="changes-empty">
-          No changes yet
-        </div>
-      ) : (
-        groups.map((group) => (
-          <div className="dt-changes__group" data-test="changes-group" key={group.key} data-cid={group.label}>
-            <div className="dt-changes__group-title">
-              {group.label} <span className="dt-changes__group-file">{group.file}</span>
-            </div>
-            {group.changes.map((change, i) => (
-              <div className="dt-changes__row" data-test="change-row" key={`${group.key}\u0000${change.property}\u0000${i}`} data-property={change.property}>
-                <span className="dt-changes__prop">{isTokenChange(change) ? change.contextLabel : formatInspectorLabel(change.property)}</span>
-                <span className="dt-changes__before">{displayBefore(change)}</span>
-                <span className="dt-changes__arrow">→</span>
-                <span className="dt-changes__after">{displayAfter(change)}</span>
-                {change.previewResult?.status === "conflict" ? (
-                  <span className="dt-changes__conflict" data-test="preview-conflict" title={`Computed: ${change.previewResult.computedValue}`}>
-                  Preview Blocked ({change.previewResult.reason ? formatInspectorLabel(change.previewResult.reason) : "Unknown"})
-                  </span>
-                ) : null}
-                <Button
-                  size="compact"
-                  className="dt-changes__revert"
-                  data-test="change-revert"
-                  data-property={change.property}
-                  onClick={() => revertChange(change)}
-                >
-                  Revert
-                </Button>
-              </div>
-            ))}
+    <details className="dt-changes" data-test="changes-log">
+      <summary className="dt-changes__title" data-test="changes-toggle">
+        <span className="dt-changes__title-label">Changes</span>
+        {changes.length > 0 ? <span className="dt-changes__count">{changes.length}</span> : null}
+        <ChevronDown className="dt-changes__toggle-icon" size={15} strokeWidth={2} aria-hidden="true" />
+      </summary>
+      <div className="dt-changes__content">
+        {groups.length === 0 ? (
+          <div className="dt-changes__empty" data-test="changes-empty">
+            No changes yet
           </div>
-        ))
-      )}
-    </div>
+        ) : (
+          groups.map((group) => (
+            <div className="dt-changes__group" data-test="changes-group" key={group.key} data-cid={group.label}>
+              <div className="dt-changes__group-title">
+                <span>{group.label}</span>
+                <span className="dt-changes__group-file">{group.file}</span>
+              </div>
+              {group.changes.map((change, i) => (
+                <div className="dt-changes__row" data-test="change-row" key={`${group.key}\u0000${change.property}\u0000${i}`} data-property={change.property}>
+                  <span className="dt-changes__prop">{isTokenChange(change) ? change.contextLabel : formatInspectorLabel(change.property)}</span>
+                  <span className="dt-changes__value">
+                    <span className="dt-changes__before">{displayBefore(change)}</span>
+                    <span className="dt-changes__arrow">→</span>
+                    <span className="dt-changes__after">{displayAfter(change)}</span>
+                  </span>
+                  {change.previewResult?.status === "conflict" ? (
+                    <span className="dt-changes__conflict" data-test="preview-conflict" title={`Computed: ${change.previewResult.computedValue}`}>
+                    Preview Blocked ({change.previewResult.reason ? formatInspectorLabel(change.previewResult.reason) : "Unknown"})
+                    </span>
+                  ) : null}
+                  <Button
+                    size="compact"
+                    className="dt-changes__revert"
+                    data-test="change-revert"
+                    data-property={change.property}
+                    onClick={() => revertChange(change)}
+                  >
+                    Revert
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ))
+        )}
+      </div>
+    </details>
   );
 }

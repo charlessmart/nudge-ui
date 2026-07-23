@@ -5,10 +5,49 @@
 }
 
 .dt-changes__title {
-  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 10px 0;
   color: var(--dt-text-primary);
   font-size: var(--dt-font-size);
   font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dt-changes__title::-webkit-details-marker {
+  display: none;
+}
+
+.dt-changes__title-label {
+  flex: 1;
+}
+
+.dt-changes__count {
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: var(--dt-radius-pill);
+  background: var(--dt-surface-control);
+  color: var(--dt-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.dt-changes__toggle-icon {
+  color: var(--dt-text-muted);
+  transition: transform 120ms ease;
+}
+
+.dt-changes[open] .dt-changes__toggle-icon {
+  transform: rotate(180deg);
+}
+
+.dt-changes__content {
+  padding-bottom: 4px;
 }
 
 .dt-changes__group {
@@ -20,6 +59,9 @@
 }
 
 .dt-changes__group-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin-bottom: 8px;
   color: var(--dt-text-primary);
   font-size: var(--dt-font-size);
@@ -33,12 +75,18 @@
 }
 
 .dt-changes__row {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto minmax(0, 1fr) auto;
-  gap: 6px;
-  align-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
   padding: 4px 0;
   font-size: var(--dt-font-size);
+}
+
+.dt-changes__row + .dt-changes__row {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dt-border-subtle);
 }
 
 .dt-changes__prop,
@@ -56,23 +104,28 @@
   color: var(--dt-text-muted);
 }
 
+.dt-changes__value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+  line-height: 1.4;
+}
+
 .dt-changes__after {
   color: var(--dt-accent-text);
 }
 
 .dt-changes__conflict {
-  grid-column: 1 / -1;
   color: var(--dt-warning-text);
   font-size: var(--dt-font-size);
 }
 
-.dt-changes__copy {
-  display: block;
-  width: 100%;
-  margin-bottom: 12px;
+.dt-changes__revert {
+  margin-top: 2px;
 }
 
-.dt-changes__copy[data-copied="true"] {
+.dt-panel__copy[data-copied="true"] {
   background: #2eaf67;
   color: #ffffff;
 }

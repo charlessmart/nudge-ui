@@ -34,6 +34,7 @@ import type { InteractionState } from "./styleState.ts";
 import { isEditableTarget } from "./shortcuts.ts";
 import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "./ui/labels.ts";
+import { CopyPromptButton } from "./CopyPromptButton.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -151,15 +152,15 @@ export function InspectorShell(): ReactElement {
       <InspectorOverlay host={resolveHost()} />
       <div className="dt-panel" data-open={isOpen ? "true" : "false"}>
         <div className="dt-panel__header">
-          <span>Design Tool</span>
+          <IconButton
+            label="Collapse inspector"
+            data-test="collapse-inspector"
+            onClick={() => setInspectorOpen(false)}
+          >
+            <PanelRightClose size={16} strokeWidth={1.8} aria-hidden="true" />
+          </IconButton>
           <div className="dt-panel__header-actions">
-            <IconButton
-              label="Collapse inspector"
-              data-test="collapse-inspector"
-              onClick={() => setInspectorOpen(false)}
-            >
-              <PanelRightClose size={16} strokeWidth={1.8} aria-hidden="true" />
-            </IconButton>
+            <CopyPromptButton />
           </div>
         </div>
         <div className="dt-panel__tabs" role="tablist" aria-label="Inspector view">
