@@ -10,10 +10,9 @@ import {
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
-import { getAvailableInteractionStates, getStableTokenProperty, getTokenEntriesForElement, getTokenTable, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
+import { getAvailableInteractionStates, getAvailableTokenTableForElement, getStableTokenProperty, getTokenEntriesForElement, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
 import type { ResolvedProperty } from "./tokens/resolution.ts";
 import type { TokenEntry } from "virtual:design-tokens";
-import { tokens } from "virtual:design-tokens";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { SpacingBox } from "./styleEditors/SpacingBox.tsx";
 import { Typography } from "./styleEditors/Typography.tsx";
@@ -124,14 +123,14 @@ export function InspectorShell(): ReactElement {
   }, [isOpen, selected]);
 
   const tokenRows = useResolvedPropertiesDebounced(selected, styleState);
-  const tokenEntries: TokenEntry[] = selected ? getTokenEntriesForElement(selected.domElement) : tokens;
+  const tokenEntries: TokenEntry[] = selected ? getTokenEntriesForElement(selected.domElement) : [];
   const availableInteractionStates = selected ? getAvailableInteractionStates(selected.domElement) : [];
   const showInteractionState = availableInteractionStates.length > 2;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
   const backgroundTokenRow = selected
     ? paintedBackgroundRow?.tokenName
       ? paintedBackgroundRow
-      : styleState === "base" ? getStableTokenProperty(selected.domElement, ["background-color", "background"], getTokenTable())
+      : styleState === "base" ? getStableTokenProperty(selected.domElement, ["background-color", "background"], getAvailableTokenTableForElement(selected.domElement))
         ?? paintedBackgroundRow
         : paintedBackgroundRow
     : null;

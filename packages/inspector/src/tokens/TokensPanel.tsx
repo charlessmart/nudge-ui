@@ -16,6 +16,7 @@ import {
 } from "./catalog.ts";
 import type { TokenCatalogRow } from "./catalog.ts";
 import { setGlobalTokenValue } from "./tokenEdits.ts";
+import { getAvailableTokenCatalog } from "./resolution.ts";
 
 function useHostContextRevision(): number {
   const [revision, setRevision] = useState(0);
@@ -24,6 +25,7 @@ function useHostContextRevision(): number {
     const refresh = () => setRevision((value) => value + 1);
     const observer = new MutationObserver(refresh);
     observer.observe(document.documentElement, { attributes: true });
+    observer.observe(document.head, { attributes: true, childList: true, subtree: true });
 
     const media = [...new Set(tokenCatalog.flatMap((definition) =>
       definition.declarations.map((declaration) => declaration.context.media).filter(Boolean),
@@ -53,7 +55,7 @@ export function TokensPanel(): ReactElement {
   const revision = useHostContextRevision();
   const changes = useChanges();
   const rows = useMemo(
-    () => buildTokenCatalogRows(tokenCatalog),
+    () => buildTokenCatalogRows(getAvailableTokenCatalog()),
     [revision, changes],
   );
   const visibleRows = useMemo(() => filterTokenRows(rows, query), [query, rows]);

@@ -76,11 +76,10 @@ test("dev: style editors write through the managed stylesheet and update the .bt
     .poll(async () => computedProp(page, "border-radius"), { timeout: 5000 })
     .toBe("12px");
 
-  const tokenValue = await page.evaluate(() => {
-    const li = Array.from(document.querySelectorAll('[data-token-name="--color-text-secondary"]'))[0];
-    return li?.textContent ?? "";
-  });
-  const expectedRgb = hexToRgbString(tokenValue);
+  const expectedColor = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--color-text-secondary").trim(),
+  );
+  const expectedRgb = hexToRgbString(expectedColor);
 
   const hasColorChip = await page.evaluate(() => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
@@ -115,7 +114,7 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   }, "--color-text-secondary");
   await expect
     .poll(async () => computedProp(page, "color"), { timeout: 5000 })
-    .toContain(expectedRgb ?? "102, 102, 102");
+    .toContain(expectedRgb ?? expectedColor);
 
   const sheet = await sheetText(page);
   expect(sheet).toContain('[data-cid="Button"]');
@@ -124,6 +123,33 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   expect(sheet).toContain("font-size: 18px");
   expect(sheet).toContain("border-radius: 12px");
   expect(sheet).toContain("color: var(--color-text-secondary);");
+});
+
+test("dev: color suggestions exclude tokens from lazy route stylesheets", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForEditors(page);
+
+  await expect.poll(async () => page.evaluate(() => {
+    const catalog = (window as unknown as {
+      __designTokenCatalog?: Array<{ cssName: string }>;
+    }).__designTokenCatalog;
+    return catalog?.some((token) => token.cssName === "--color-danger") ?? false;
+  })).toBe(true);
+
+  const color = page.locator('[data-test="token-field"][data-property="color"]');
+  const chip = color.locator('[data-test="token-chip"]');
+  if (await chip.count()) await chip.click();
+  else await color.locator('[data-test="raw-input"]').fill("");
+
+  await expect.poll(async () => page.evaluate(() => {
+    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    return Array.from(root?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
+      .map((item) => item.textContent?.trim() ?? "");
+  })).not.toContain("--color-danger");
+
+  await page.locator('[data-test="tokens-tab"]').click();
+  await expect(page.locator('[data-test="global-token-row"][data-token-name="--color-danger"]')).toHaveCount(0);
 });
 
 test("dev: linked border values expand into icon-labelled individual side fields", async ({ page }) => {

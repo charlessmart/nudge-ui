@@ -3,6 +3,10 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   buildTokenTable,
   resolveTokenValue,
+  replaceColorOpacity,
+  normalizeColorOpacity,
+  getAvailableTokenCatalog,
+  getAvailableTokenEntriesForElement,
   resolvePropertiesFromRules,
   getAvailableInteractionStates,
   getResolvedPropertiesForState,
@@ -11,7 +15,7 @@ import {
   type MatchedRule,
   type TokenTable,
 } from "./resolution.ts";
-import type { TokenEntry } from "virtual:design-tokens";
+import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 
 function makeTable(entries: TokenEntry[]): TokenTable {
   return buildTokenTable(entries);
@@ -30,6 +34,54 @@ describe("buildTokenTable", () => {
   });
 });
 
+describe("runtime token availability", () => {
+  const definitions: TokenDefinition[] = [
+    {
+      cssName: "--color-live",
+      name: "--color-live",
+      declarations: [
+        { value: "#224466", source: "src/styles.css:1", important: false, context: {} },
+        { value: "#112233", source: "src/color-conformance.css:1", important: false, context: {} },
+      ],
+    },
+    {
+      cssName: "--color-danger",
+      name: "--color-danger",
+      declarations: [{ value: "#dc2626", source: "src/color-conformance.css:9", important: false, context: {} }],
+    },
+  ];
+
+  afterEach(() => {
+    document.head.innerHTML = "";
+    document.body.innerHTML = "";
+    document.documentElement.style.removeProperty("--color-live");
+  });
+
+  it("excludes catalog custom properties that are absent from the selected element cascade", () => {
+    const element = document.createElement("div");
+    element.style.setProperty("--color-live", "#224466");
+    document.body.appendChild(element);
+
+    expect(getAvailableTokenEntriesForElement(element, definitions)).toMatchObject([
+      { name: "--color-live", value: "#224466" },
+    ]);
+  });
+
+  it("keeps only declarations from stylesheets loaded by the current page", () => {
+    const style = document.createElement("style");
+    style.dataset.viteDevId = "/project/src/styles.css";
+    document.head.appendChild(style);
+    document.documentElement.style.setProperty("--color-live", "#224466");
+
+    expect(getAvailableTokenCatalog(document.documentElement, definitions)).toEqual([
+      {
+        ...definitions[0],
+        declarations: [definitions[0]!.declarations[0]!],
+      },
+    ]);
+  });
+});
+
 describe("resolveTokenValue", () => {
   it("preserves authored fallback references and exposes modifiers", () => {
     const table = makeTable([{ name: "--space-4", value: "1rem", source: "s:1" }]);
@@ -45,6 +97,44 @@ describe("resolveTokenValue", () => {
     expect(res.tokenName).toBe("--color-red-500");
     expect(res.tokens[0]).toMatchObject({ name: "--color-red-500", origin: "framework" });
     expect(res.modifiers).toContainEqual({ kind: "alpha", value: "10%" });
+    expect(res.opacity).toMatchObject({ value: "10%", source: "color-mix", tokenName: null });
+  });
+
+  it.each([
+    ["#ff000088", "53.3333%", "hex"],
+    ["#f008", "53.3333%", "hex"],
+    ["rgba(0, 0, 0, 0.8)", "80%", "rgb"],
+    ["rgb(0 255 0 / 25%)", "25%", "rgb"],
+    ["hsla(240, 100%, 50%, 0.3)", "30%", "hsl"],
+    ["hsl(240 100% 50% / 40%)", "40%", "hsl"],
+  ] as const)("extracts opacity from %s", (value, opacity, source) => {
+    expect(resolveTokenValue(value, makeTable([])).opacity).toMatchObject({ value: opacity, source, tokenName: null });
+  });
+
+  it("resolves a token-provided color-mix opacity without exposing the token as the UI value", () => {
+    const res = resolveTokenValue(
+      "color-mix(in srgb, var(--color-primary) var(--opacity-muted), transparent)",
+      makeTable([
+        { name: "--color-primary", value: "#2563eb", source: "s:1" },
+        { name: "--opacity-muted", value: "0.35", source: "s:2" },
+      ]),
+    );
+    expect(res.tokens.map((token) => token.name)).toEqual(["--color-primary", "--opacity-muted"]);
+    expect(res.opacity).toMatchObject({ value: "35%", source: "color-mix", tokenName: "--opacity-muted" });
+  });
+
+  it("does not mistake a visible color mix target for opacity", () => {
+    expect(resolveTokenValue("color-mix(in srgb, #2563eb 10%, white)", makeTable([])).opacity).toBeUndefined();
+  });
+
+  it("normalizes and rewrites supported color opacity values", () => {
+    expect(normalizeColorOpacity("0.35")).toBe("35%");
+    expect(replaceColorOpacity("#ff000088", "25%")).toBe("#ff000040");
+    expect(replaceColorOpacity("rgba(0, 0, 0, 0.8)", "40%")).toBe("rgba(0, 0, 0, 40%)");
+    expect(replaceColorOpacity("hsl(240 100% 50% / 40%)", "20%")).toBe("hsl(240 100% 50% / 20%)");
+    expect(replaceColorOpacity("color-mix(in srgb, var(--color-primary) 50%, transparent)", "30%")).toBe(
+      "color-mix(in srgb, var(--color-primary) 30%, transparent)",
+    );
   });
 
   it("attributes Tailwind v3 direct RGB helpers to config tokens and opacity aliases", () => {

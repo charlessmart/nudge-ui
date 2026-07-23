@@ -55,6 +55,23 @@
   white-space: nowrap;
 }
 
+.dt-token-opacity-input {
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 0;
+  padding: 0 2px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--dt-text-muted);
+  font: inherit;
+  text-align: right;
+}
+
+.dt-token-opacity-input:focus {
+  color: var(--dt-text-primary);
+}
+
 .dt-token-color-control {
   position: relative;
   display: inline-flex;

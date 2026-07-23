@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { ChevronDown, Unlink2 } from "lucide-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "./resolution.ts";
+import { normalizeColorOpacity, replaceColorOpacity } from "./resolution.ts";
+import type { ColorOpacity, ResolvedProperty } from "./resolution.ts";
 import { classifyToken, getAlternativeTokens, groupOfProperty } from "./TokenDropdown.tsx";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
@@ -33,6 +34,8 @@ export interface TokenValueFieldProps {
   trailing?: ReactNode;
   className?: string;
   label?: string;
+  opacity?: ColorOpacity;
+  onCommitOpacity?(value: string): void;
 }
 
 export interface TokenFieldProps {
@@ -114,9 +117,17 @@ function rgbToHex(value: string): string | null {
 
 export function colorValueToHex(value: string): string | null {
   const trimmed = value.trim();
-  const short = trimmed.match(/^#([\da-f])([\da-f])([\da-f])$/i);
-  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase();
-  if (/^#[\da-f]{6}$/i.test(trimmed)) return trimmed.toLowerCase();
+  const hex = trimmed.match(/^#([\da-f]{4}|[\da-f]{8})$/i);
+  if (hex) {
+    const raw = hex[1]!;
+    const rgb = raw.length === 4 ? raw.slice(0, 3).split("").map((part) => part + part).join("") : raw.slice(0, 6);
+    return `#${rgb}`.toLowerCase();
+  }
+  if (/^#([\da-f]{3}|[\da-f]{6})$/i.test(trimmed)) {
+    const short = trimmed.match(/^#([\da-f])([\da-f])([\da-f])$/i);
+    if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toLowerCase();
+    return trimmed.toLowerCase();
+  }
   const directRgb = rgbToHex(trimmed);
   if (directRgb) return directRgb;
   if (typeof document === "undefined") return null;
@@ -190,8 +201,11 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     trailing,
     className,
     label,
+    opacity,
+    onCommitOpacity,
   } = props;
   const [rawValue, setRawValue] = useState(committedValue);
+  const [opacityValue, setOpacityValue] = useState(opacity?.value ?? "");
   const [activeTokenName, setActiveTokenName] = useState<string | null>(controlledTokenName);
   const [isFocused, setIsFocused] = useState(false);
   const [isTokenPickerOpen, setTokenPickerOpen] = useState(false);
@@ -203,7 +217,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   useEffect(() => {
     setRawValue(committedValue);
     setActiveTokenName(controlledTokenName);
-  }, [committedValue, controlledTokenName, property]);
+    setOpacityValue(opacity?.value ?? "");
+  }, [committedValue, controlledTokenName, opacity?.value, property]);
 
   const activeToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? { name: activeTokenName, value: resolvedValue, source: "runtime" }
@@ -291,7 +306,42 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     }
   }
 
-  const colorPreview = activeToken ? resolvedValue || activeToken.value : rawValue || resolvedValue;
+  function commitOpacityValue(value = opacityValue): void {
+    if (!opacity || !onCommitOpacity) return;
+    const normalized = normalizeColorOpacity(value);
+    if (normalized === null) {
+      setOpacityValue(opacity.value);
+      return;
+    }
+    setOpacityValue(normalized);
+    onCommitOpacity(normalized);
+  }
+
+  const opacityControl = isColor && opacity ? (
+    <input
+      className="dt-token-opacity-input"
+      data-test="color-opacity-input"
+      type="text"
+      inputMode="decimal"
+      value={opacityValue}
+      disabled={disabled || !onCommitOpacity}
+      aria-label={`Opacity for ${property}`}
+      onChange={(event) => setOpacityValue(event.target.value)}
+      onBlur={() => commitOpacityValue()}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          setOpacityValue(opacity.value);
+          event.currentTarget.blur();
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
+      }}
+    />
+  ) : null;
+
+  const colorPreview = activeToken ? resolvedValue || activeToken.value : resolvedValue || rawValue;
   const colorControl = isColor ? (
     <NativeColorSwatch
       value={colorPreview}
@@ -326,6 +376,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             if (chosen) handleSuggestionSelect(chosen);
           }}
         />
+        {opacityControl}
         <IconButton
           variant="quiet"
           size="compact"
@@ -367,6 +418,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           if (chosen) handleSuggestionSelect(chosen);
         }}
       />
+      {opacityControl}
       {attributionTokens.length > 0 ? (
         <span className="dt-token-field__attribution" data-test="token-attribution" title="Referenced tokens">
           {attributionTokens.join(" · ")}
@@ -386,7 +438,8 @@ function arrowDirection(key: string): -1 | 1 | null {
 export function TokenField(props: TokenFieldProps): ReactElement {
   const { property, tokenRow, initialValue, domElement: el, entries, onAfterEdit, editMetadata, leading, trailing, className, label } = props;
   const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
-    || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")));
+    || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")
+    || /\bcolor-mix\s*\(/i.test(tokenRow.authored ?? tokenRow.declaredValue)));
   const activeTokenName = expression ? null : tokenRow?.tokenName ?? null;
   const fallbackValue = initialValue ?? structuredBorderValue(property, tokenRow) ?? computedRaw(el, property);
   // Keep authored CSS as the editable source of truth while allowing the UI
@@ -409,12 +462,20 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       committedValue={committedValue}
       resolvedValue={tokenRow?.resolvedValue ?? committedValue}
       activeTokenName={activeTokenName}
-      attributionTokens={expression ? tokenRow?.tokens?.map((token) => token.name) : undefined}
+      attributionTokens={expression
+        ? tokenRow?.tokens?.filter((token) => token.name !== tokenRow.opacity?.tokenName).map((token) => token.name)
+        : undefined}
+      opacity={tokenRow?.opacity}
       entries={entries}
       isColor={groupOfProperty(property) === "color"}
       formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(property))}
       onCommitRaw={(value) => {
         if (setStyle(el, property, value, editMetadata)) onAfterEdit?.();
+      }}
+      onCommitOpacity={(value) => {
+        const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? committedValue;
+        const next = replaceColorOpacity(authored, value);
+        if (next && setStyle(el, property, next, editMetadata)) onAfterEdit?.();
       }}
       onSelectToken={(chosen) => {
         if (activeTokenName) swapToken(el, tokenRow?.property ?? property, chosen, currentToken, editMetadata);

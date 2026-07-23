@@ -9,6 +9,8 @@ import { projectInspectorValues, type InspectorProjection, type ProjectionAxis, 
 export interface ConformancePropertyExpectation {
   authored: string;
   tokens?: string[];
+  opacity?: string;
+  opacityToken?: string | null;
   computed?: string;
   capability: EditCapability;
   confidence?: "exact" | "probable" | "unknown";
@@ -123,6 +125,8 @@ export function assertConformanceFixture(result: ConformanceResult, fixture: Con
     if (actual.authored !== expected.authored) failures.push(`${fixture.id}: ${property} authored value was ${actual.authored}, expected ${expected.authored}`);
     const actualTokens = (actual.tokens ?? []).map((token) => token.name);
     if (expected.tokens && JSON.stringify(actualTokens) !== JSON.stringify(expected.tokens)) failures.push(`${fixture.id}: ${property} tokens were ${actualTokens.join(", ")}, expected ${expected.tokens.join(", ")}`);
+    if (expected.opacity !== undefined && actual.opacity?.value !== expected.opacity) failures.push(`${fixture.id}: ${property} opacity was ${actual.opacity?.value}, expected ${expected.opacity}`);
+    if (expected.opacityToken !== undefined && (actual.opacity?.tokenName ?? null) !== expected.opacityToken) failures.push(`${fixture.id}: ${property} opacity token was ${actual.opacity?.tokenName ?? null}, expected ${expected.opacityToken}`);
     if (expected.computed !== undefined && actual.computed !== expected.computed) failures.push(`${fixture.id}: ${property} computed value was ${actual.computed}, expected ${expected.computed}`);
     if (actual.capability !== expected.capability) failures.push(`${fixture.id}: ${property} capability was ${actual.capability}, expected ${expected.capability}`);
     if (expected.confidence && actual.confidence !== expected.confidence) failures.push(`${fixture.id}: ${property} confidence was ${actual.confidence}, expected ${expected.confidence}`);

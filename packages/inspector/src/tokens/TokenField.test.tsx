@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createElement } from "react";
-import { TokenField, TokenValueField } from "./TokenField.tsx";
+import { colorValueToHex, TokenField, TokenValueField } from "./TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "./resolution.ts";
 import { resetPendingRules, getChangeRecords } from "./editActions.ts";
@@ -386,6 +386,43 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-color-swatch"]')?.getAttribute("style"))
       .toContain("--dt-swatch-color: #dc2626");
     selected.domElement.remove();
+  });
+
+  it("shows and commits a resolved opacity value beside a raw color", () => {
+    const onCommitOpacity = vi.fn();
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenValueField, {
+      property: "background-color",
+      committedValue: "rgba(0, 0, 0, 0.8)",
+      resolvedValue: "rgba(0, 0, 0, 0.8)",
+      entries: [],
+      isColor: true,
+      opacity: { value: "80%", authoredValue: "0.8", source: "rgb", tokenName: null },
+      onCommitOpacity,
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+
+    const opacityInput = handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement;
+    expect(opacityInput.value).toBe("80%");
+    expect(opacityInput.getAttribute("aria-label")).toBe("Opacity for background-color");
+
+    act(() => {
+      opacityInput.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(opacityInput, "40%");
+      opacityInput.dispatchEvent(new Event("change", { bubbles: true }));
+      opacityInput.blur();
+    });
+
+    expect(onCommitOpacity).toHaveBeenCalledWith("40%");
+    selected.domElement.remove();
+  });
+
+  it("uses the opaque RGB portion of alpha hex values for the native color input", () => {
+    expect(colorValueToHex("#ff000088")).toBe("#ff0000");
+    expect(colorValueToHex("#f008")).toBe("#ff0000");
   });
 
   it("renders browser-supported oklch values instead of the unresolved fallback", () => {

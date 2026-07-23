@@ -17,6 +17,7 @@ const COLOR_SURFACE = token("--color-surface", "#fafafa", "fixtures/color.css:5"
 const COLOR_ACCENT = token("--color-accent", "oklch(63% .2 25)", "fixtures/color.css:6");
 const COLOR_PRIMARY = token("--color-primary", "#2563eb", "fixtures/color.css:7");
 const COLOR_DANGER = token("--color-danger", "#dc2626", "fixtures/color.css:8");
+const OPACITY_MUTED = token("--opacity-muted", "0.35", "fixtures/color.css:9");
 
 /**
  * Framework-neutral color corpus covering `color` and `background-color`.
@@ -88,8 +89,8 @@ export const COLOR_CASES: ConformanceFixture[] = [
     expected: {
       catalog: [],
       properties: {
-        color: { authored: "#ff000088", capability: "color" },
-        "background-color": { authored: "#00000033", capability: "color" },
+        color: { authored: "#ff000088", opacity: "53.3333%", capability: "color" },
+        "background-color": { authored: "#00000033", opacity: "20%", capability: "color" },
       },
     },
   },
@@ -105,8 +106,8 @@ export const COLOR_CASES: ConformanceFixture[] = [
     expected: {
       catalog: [],
       properties: {
-        color: { authored: "#f008", capability: "color" },
-        "background-color": { authored: "#00f8", capability: "color" },
+        color: { authored: "#f008", opacity: "53.3333%", capability: "color" },
+        "background-color": { authored: "#00f8", opacity: "53.3333%", capability: "color" },
       },
     },
   },
@@ -123,7 +124,7 @@ export const COLOR_CASES: ConformanceFixture[] = [
       catalog: [],
       properties: {
         color: { authored: "rgb(255, 0, 0)", capability: "color" },
-        "background-color": { authored: "rgba(0, 0, 0, 0.8)", capability: "color" },
+        "background-color": { authored: "rgba(0, 0, 0, 0.8)", opacity: "80%", capability: "color" },
       },
     },
   },
@@ -140,7 +141,7 @@ export const COLOR_CASES: ConformanceFixture[] = [
       catalog: [],
       properties: {
         color: { authored: "rgb(255 0 0)", capability: "color" },
-        "background-color": { authored: "rgb(0 255 0 / 25%)", capability: "color" },
+        "background-color": { authored: "rgb(0 255 0 / 25%)", opacity: "25%", capability: "color" },
       },
     },
   },
@@ -174,7 +175,7 @@ export const COLOR_CASES: ConformanceFixture[] = [
       catalog: [],
       properties: {
         color: { authored: "hsl(0, 100%, 50%)", capability: "color" },
-        "background-color": { authored: "hsla(240, 100%, 50%, 0.3)", capability: "color" },
+        "background-color": { authored: "hsla(240, 100%, 50%, 0.3)", opacity: "30%", capability: "color" },
       },
     },
   },
@@ -190,8 +191,8 @@ export const COLOR_CASES: ConformanceFixture[] = [
     expected: {
       catalog: [],
       properties: {
-        color: { authored: "hsl(0 100% 50% / 80%)", capability: "color" },
-        "background-color": { authored: "hsl(240 100% 50% / 40%)", capability: "color" },
+        color: { authored: "hsl(0 100% 50% / 80%)", opacity: "80%", capability: "color" },
+        "background-color": { authored: "hsl(240 100% 50% / 40%)", opacity: "40%", capability: "color" },
       },
     },
   },
@@ -361,8 +362,44 @@ export const COLOR_CASES: ConformanceFixture[] = [
     expected: {
       catalog: [{ name: "--color-primary", value: "#2563eb" }],
       properties: {
-        color: { authored: "color-mix(in oklab, var(--color-primary) 50%, transparent)", tokens: ["--color-primary"], capability: "color" },
+        color: { authored: "color-mix(in oklab, var(--color-primary) 50%, transparent)", tokens: ["--color-primary"], opacity: "50%", capability: "color" },
         "background-color": { authored: "color-mix(in srgb, var(--color-primary) 10%, white)", tokens: ["--color-primary"], capability: "color" },
+      },
+    },
+  },
+  {
+    id: "color-opacity-token",
+    css: `:root {
+  --color-primary: #2563eb;
+  --opacity-muted: 0.35;
+}
+.subject {
+  color: color-mix(in srgb, var(--color-primary) var(--opacity-muted), transparent);
+  background-color: rgb(37 99 235 / var(--opacity-muted));
+}`,
+    markup: '<p class="subject" data-cid="ColorCase" data-src="fixtures/color.tsx:23:1">Opacity can be supplied by a token and displayed as its resolved value.</p>',
+    selected: ".subject",
+    catalog: [COLOR_PRIMARY, OPACITY_MUTED],
+    expected: {
+      catalog: [
+        { name: "--color-primary", value: "#2563eb" },
+        { name: "--opacity-muted", value: "0.35" },
+      ],
+      properties: {
+        color: {
+          authored: "color-mix(in srgb, var(--color-primary) var(--opacity-muted), transparent)",
+          tokens: ["--color-primary", "--opacity-muted"],
+          opacity: "35%",
+          opacityToken: "--opacity-muted",
+          capability: "color",
+        },
+        "background-color": {
+          authored: "rgb(37 99 235 / var(--opacity-muted))",
+          tokens: ["--opacity-muted"],
+          opacity: "35%",
+          opacityToken: "--opacity-muted",
+          capability: "color",
+        },
       },
     },
   },

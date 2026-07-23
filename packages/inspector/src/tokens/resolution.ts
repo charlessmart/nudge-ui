@@ -1,4 +1,4 @@
-import type { TokenEntry } from "virtual:design-tokens";
+import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 import { tokenCatalog, tokens } from "virtual:design-tokens";
 import { INTERACTION_STATES } from "../styleState.ts";
 import type { InteractionState } from "../styleState.ts";
@@ -13,6 +13,7 @@ export interface ResolvedProperty {
   sourceProperty?: string;
   computed?: string;
   tokens?: TokenReference[];
+  opacity?: ColorOpacity;
   modifiers?: ValueModifier[];
   capability?: EditCapability;
   resolvedTokenValue?: string;
@@ -26,6 +27,13 @@ export type TokenOrigin = "project" | "framework" | "generated" | "runtime";
 export type EditCapability = "atomic" | "color" | "box-sides" | "structured" | "composite" | "raw";
 export interface TokenReference { name: string; origin: TokenOrigin }
 export interface ValueModifier { kind: "alpha" | "fallback" | "expression"; value: string }
+export interface ColorOpacity {
+  value: string;
+  authoredValue: string;
+  source: "hex" | "rgb" | "hsl" | "color-mix";
+  tokenName: string | null;
+  token?: TokenReference;
+}
 export interface BorderStructure {
   kind: "border";
   sourceProperty: "border" | "border-top" | "border-right" | "border-bottom" | "border-left";
@@ -174,24 +182,105 @@ export function getTokenTable(): TokenTable {
   return tableCache;
 }
 
-export function getTokenEntriesForElement(el: HTMLElement): TokenEntry[] {
-  const computed = getComputedStyle(el);
-  const table = getTokenTable();
-  return tokenCatalog.map((definition) => ({
+function isCustomPropertyToken(definition: TokenDefinition): boolean {
+  return definition.cssName.startsWith("--");
+}
+
+function entryFromDefinition(definition: TokenDefinition, value: string): TokenEntry {
+  return {
     name: definition.name,
     cssName: definition.cssName,
-    value: resolveTokenValue(
-      computed.getPropertyValue(definition.cssName).trim()
-      || definition.declarations[0]?.value
-      || "",
-      table,
-    ).resolvedValue,
+    value,
     source: definition.declarations[0]?.source ?? "",
     cssValue: definition.cssValue,
     adapter: definition.adapter,
     origin: definition.origin,
     editable: definition.editable,
+  };
+}
+
+/**
+ * The build-time catalog is intentionally an inventory of every project token.
+ * Element edits must instead use only custom properties resolved in that
+ * element's cascade; a token defined by a lazy stylesheet is not usable until
+ * that stylesheet is attached to the document.
+ */
+export function getAvailableTokenEntriesForElement(
+  el: HTMLElement,
+  definitions: TokenDefinition[] = tokenCatalog,
+): TokenEntry[] {
+  const computed = getComputedStyle(el);
+  const available = definitions.flatMap((definition) => {
+    if (!isCustomPropertyToken(definition)) {
+      // Literal adapters (for example Tailwind v3) do not have a browser
+      // custom property to probe. Their adapter owns their availability.
+      return [entryFromDefinition(definition, definition.declarations[0]?.value ?? "")];
+    }
+    const value = computed.getPropertyValue(definition.cssName).trim();
+    return value ? [entryFromDefinition(definition, value)] : [];
+  });
+  const table = buildTokenTable(available);
+  return available.map((entry) => ({
+    ...entry,
+    value: resolveTokenValue(entry.value, table).resolvedValue,
   }));
+}
+
+/** @deprecated Use getAvailableTokenEntriesForElement for edit candidates. */
+export function getTokenEntriesForElement(el: HTMLElement): TokenEntry[] {
+  return getAvailableTokenEntriesForElement(el);
+}
+
+export function getAvailableTokenTableForElement(el: HTMLElement): TokenTable {
+  return buildTokenTable(getAvailableTokenEntriesForElement(el));
+}
+
+function sourceFile(source: string): string {
+  return source.replace(/:\d+$/, "").split(/[?#]/, 1)[0] ?? source;
+}
+
+function normalizedPath(value: string): string {
+  return decodeURIComponent(value).replace(/\\/g, "/").replace(/^file:\/\//, "").replace(/\/+$/, "");
+}
+
+function loadedStylesheetSources(doc: Document): string[] {
+  return Array.from(doc.querySelectorAll<HTMLStyleElement | HTMLLinkElement>(
+    'style[data-vite-dev-id], link[rel~="stylesheet"][href]',
+  )).flatMap((node) => {
+    const source = node instanceof HTMLStyleElement
+      ? node.dataset.viteDevId
+      : node.getAttribute("href");
+    return source ? [normalizedPath(source.split(/[?#]/, 1)[0] ?? source)] : [];
+  });
+}
+
+function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
+  const file = sourceFile(source);
+  if (!/\.css$/i.test(file) || loadedSources.length === 0) return true;
+  const normalizedFile = normalizedPath(file);
+  return loadedSources.some((loaded) => loaded === normalizedFile
+    || loaded.endsWith(`/${normalizedFile}`)
+    || normalizedFile.endsWith(`/${loaded}`));
+}
+
+/**
+ * Produces the page catalog used by the global Tokens tab. It retains the
+ * build-time inventory separately, while removing declarations from CSS files
+ * that Vite has not loaded for this page (such as lazy route stylesheets).
+ */
+export function getAvailableTokenCatalog(
+  root: HTMLElement = document.documentElement,
+  definitions: TokenDefinition[] = tokenCatalog,
+): TokenDefinition[] {
+  const computed = getComputedStyle(root);
+  const loadedSources = loadedStylesheetSources(root.ownerDocument ?? document);
+  return definitions.flatMap((definition) => {
+    if (!isCustomPropertyToken(definition)) return [definition];
+    if (!computed.getPropertyValue(definition.cssName).trim()) return [];
+    const declarations = definition.declarations.filter((declaration) =>
+      isLoadedCssSource(declaration.source, loadedSources));
+    return declarations.length > 0 ? [{ ...definition, declarations }] : [];
+  });
 }
 
 function normalizeInElementContext(el: HTMLElement, property: string, value: string): string {
@@ -278,11 +367,232 @@ function resolveTokenValueInner(
   return { tokenName: null, resolvedValue: trimmed, leafTokenName: null };
 }
 
+const MIX_PERCENTAGE_OR_TOKEN = /^(?:\d+\.?\d*|\.\d+)%$|^var\([\s\S]+\)$/i;
+
+function formatOpacityPercent(value: number): string {
+  return `${String(Number(value.toFixed(4)))}%`;
+}
+
+function parseOpacityPercent(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const isPercent = trimmed.endsWith("%");
+  const numeric = Number(isPercent ? trimmed.slice(0, -1).trim() : trimmed);
+  if (!Number.isFinite(numeric)) return null;
+  const percent = isPercent ? numeric : numeric * 100;
+  return Math.max(0, Math.min(100, percent));
+}
+
+export function normalizeColorOpacity(value: string): string | null {
+  const percent = parseOpacityPercent(value);
+  return percent === null ? null : formatOpacityPercent(percent);
+}
+
+function topLevelSlashIndex(value: string): number {
+  let depth = 0;
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index];
+    if (char === "(") depth++;
+    else if (char === ")") depth = Math.max(0, depth - 1);
+    else if (char === "/" && depth === 0) return index;
+  }
+  return -1;
+}
+
+function resolveOpacityComponent(
+  authoredValue: string,
+  tokenTable: TokenTable,
+  localAliases: ReadonlyMap<string, string>,
+): Pick<ColorOpacity, "value" | "authoredValue" | "tokenName" | "token"> | null {
+  const trimmed = authoredValue.trim();
+  const tokenResult = /^var\(/i.test(trimmed) ? resolveTokenValue(trimmed, tokenTable, localAliases) : null;
+  const localName = extractVarCalls(trimmed)[0]?.name;
+  const localValue = localName ? localAliases.get(localName) : undefined;
+  const fallback = extractVarCalls(trimmed)[0]?.fallback;
+  const resolved = localValue
+    ?? (tokenResult?.resolvedValue && !/^var\(/i.test(tokenResult.resolvedValue)
+    ? tokenResult.resolvedValue
+    : fallback ?? trimmed);
+  const value = normalizeColorOpacity(resolved);
+  if (value === null) return null;
+  const token = tokenResult?.tokens.find((candidate) => candidate.name === tokenResult.tokenName)
+    ?? tokenResult?.tokens[0];
+  return {
+    value,
+    authoredValue: trimmed,
+    tokenName: tokenResult?.tokenName ?? null,
+    token: localName?.startsWith("--tw-") ? undefined : token,
+  };
+}
+
+interface ColorMixItem {
+  color: string;
+  percentage: string | null;
+}
+
+function parseColorMixItem(value: string): ColorMixItem {
+  const parts = splitTopLevelWhitespace(value.trim());
+  if (parts.length > 1 && MIX_PERCENTAGE_OR_TOKEN.test(parts.at(-1)!)) {
+    return { color: parts.slice(0, -1).join(" "), percentage: parts.at(-1)! };
+  }
+  if (parts.length > 1 && MIX_PERCENTAGE_OR_TOKEN.test(parts[0]!)) {
+    return { color: parts.slice(1).join(" "), percentage: parts[0]! };
+  }
+  return { color: value.trim(), percentage: null };
+}
+
+function resolveColorMixOpacity(
+  value: string,
+  tokenTable: TokenTable,
+  localAliases: ReadonlyMap<string, string>,
+): ColorOpacity | undefined {
+  const open = value.indexOf("(");
+  const close = value.lastIndexOf(")");
+  if (open < 0 || close <= open) return undefined;
+  const parts = splitTopLevel(value.slice(open + 1, close), ",");
+  if (parts.length !== 3 || !/^\s*in\s+/i.test(parts[0]!)) return undefined;
+
+  const items = parts.slice(1).map(parseColorMixItem);
+  const transparentIndex = items.findIndex((item) => item.color.toLowerCase() === "transparent");
+  if (transparentIndex < 0 || items.filter((item) => item.color.toLowerCase() === "transparent").length !== 1) return undefined;
+  const colorIndex = transparentIndex === 0 ? 1 : 0;
+  const colorItem = items[colorIndex]!;
+  const transparentItem = items[transparentIndex]!;
+
+  let component = colorItem.percentage
+    ? resolveOpacityComponent(colorItem.percentage, tokenTable, localAliases)
+    : null;
+  if (!component && transparentItem.percentage) {
+    const transparentOpacity = resolveOpacityComponent(transparentItem.percentage, tokenTable, localAliases);
+    const transparentPercent = transparentOpacity ? parseOpacityPercent(transparentOpacity.value) : null;
+    if (transparentPercent !== null) {
+      component = {
+        value: formatOpacityPercent(100 - transparentPercent),
+        authoredValue: transparentItem.percentage,
+        tokenName: transparentOpacity?.tokenName ?? null,
+        token: transparentOpacity?.token,
+      };
+    }
+  }
+  if (!component) {
+    component = { value: "50%", authoredValue: "50%", tokenName: null, token: undefined };
+  }
+  return { ...component, source: "color-mix" };
+}
+
+function resolveColorOpacity(
+  value: string,
+  tokenTable: TokenTable,
+  localAliases: ReadonlyMap<string, string>,
+): ColorOpacity | undefined {
+  const trimmed = value.trim();
+  const hex = /^#([\da-f]{4}|[\da-f]{8})$/i.exec(trimmed);
+  if (hex) {
+    const raw = hex[1]!;
+    const alpha = raw.length === 4 ? raw.slice(-1) : raw.slice(-2);
+    const max = raw.length === 4 ? 15 : 255;
+    return {
+      value: formatOpacityPercent((Number.parseInt(alpha, 16) / max) * 100),
+      authoredValue: alpha,
+      source: "hex",
+      tokenName: null,
+    };
+  }
+
+  const colorFunction = /^(rgba?|hsla?)\(([\s\S]*)\)$/i.exec(trimmed);
+  if (colorFunction) {
+    const body = colorFunction[2]!;
+    const commaParts = splitTopLevel(body, ",");
+    const alpha = commaParts.length >= 4
+      ? commaParts[3]!
+      : (() => {
+        const slash = topLevelSlashIndex(body);
+        return slash >= 0 ? body.slice(slash + 1).trim() : null;
+      })();
+    if (alpha) {
+      const component = resolveOpacityComponent(alpha, tokenTable, localAliases);
+      if (component) {
+        return { ...component, source: colorFunction[1]!.toLowerCase().startsWith("rgb") ? "rgb" : "hsl" };
+      }
+    }
+  }
+
+  if (/^color-mix\(/i.test(trimmed)) return resolveColorMixOpacity(trimmed, tokenTable, localAliases);
+  return undefined;
+}
+
+function replaceFunctionOpacity(value: string, opacity: string): string | null {
+  const open = value.indexOf("(");
+  const close = value.lastIndexOf(")");
+  if (open < 0 || close <= open) return null;
+  const body = value.slice(open + 1, close);
+  const commaParts = splitTopLevel(body, ",");
+  if (commaParts.length >= 4) {
+    return `${value.slice(0, open + 1)}${commaParts.slice(0, 3).map((part) => part.trim()).join(", ")}, ${opacity}${value.slice(close)}`;
+  }
+  const slash = topLevelSlashIndex(body);
+  if (slash < 0) return null;
+  return `${value.slice(0, open + 1)}${body.slice(0, slash).trim()} / ${opacity}${value.slice(close)}`;
+}
+
+function replaceColorMixOpacity(value: string, opacity: string): string | null {
+  const open = value.indexOf("(");
+  const close = value.lastIndexOf(")");
+  if (open < 0 || close <= open) return null;
+  const parts = splitTopLevel(value.slice(open + 1, close), ",");
+  if (parts.length !== 3 || !/^\s*in\s+/i.test(parts[0]!)) return null;
+  const items = parts.slice(1).map(parseColorMixItem);
+  const transparentIndex = items.findIndex((item) => item.color.toLowerCase() === "transparent");
+  if (transparentIndex < 0 || items.filter((item) => item.color.toLowerCase() === "transparent").length !== 1) return null;
+  const colorIndex = transparentIndex === 0 ? 1 : 0;
+  const updated = [...parts];
+  const colorItem = items[colorIndex]!;
+  const transparentItem = items[transparentIndex]!;
+  if (colorItem.percentage) {
+    updated[colorIndex + 1] = replaceColorMixItemPercentage(parts[colorIndex + 1]!, opacity);
+  } else if (transparentItem.percentage) {
+    const percent = parseOpacityPercent(opacity);
+    if (percent === null) return null;
+    updated[transparentIndex + 1] = replaceColorMixItemPercentage(parts[transparentIndex + 1]!, formatOpacityPercent(100 - percent));
+  } else {
+    updated[colorIndex + 1] = `${parts[colorIndex + 1]!.trim()} ${opacity}`;
+  }
+  return `${value.slice(0, open + 1)}${updated.join(", ")}${value.slice(close)}`;
+}
+
+function replaceColorMixItemPercentage(item: string, opacity: string): string {
+  const parts = splitTopLevelWhitespace(item.trim());
+  if (parts.length > 1 && MIX_PERCENTAGE_OR_TOKEN.test(parts.at(-1)!)) {
+    return [...parts.slice(0, -1), opacity].join(" ");
+  }
+  if (parts.length > 1 && MIX_PERCENTAGE_OR_TOKEN.test(parts[0]!)) {
+    return [opacity, ...parts.slice(1)].join(" ");
+  }
+  return `${item.trim()} ${opacity}`;
+}
+
+export function replaceColorOpacity(value: string, opacity: string): string | null {
+  const normalized = normalizeColorOpacity(opacity);
+  if (normalized === null) return null;
+  const trimmed = value.trim();
+  const hex = /^#([\da-f]{4}|[\da-f]{8})$/i.exec(trimmed);
+  if (hex) {
+    const raw = hex[1]!;
+    const max = raw.length === 4 ? 15 : 255;
+    const digits = raw.length === 4 ? 1 : 2;
+    const alpha = Math.round((parseOpacityPercent(normalized)! / 100) * max).toString(16).padStart(digits, "0");
+    return `${trimmed.slice(0, -digits)}${alpha}`;
+  }
+  if (/^(?:rgba?|hsla?)\(/i.test(trimmed)) return replaceFunctionOpacity(trimmed, normalized);
+  if (/^color-mix\(/i.test(trimmed)) return replaceColorMixOpacity(trimmed, normalized);
+  return null;
+}
+
 export function resolveTokenValue(
   value: string,
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
-): { tokenName: string | null; resolvedValue: string; tokens: TokenReference[]; modifiers: ValueModifier[]; leafTokenName: string | null; cycle?: string } {
+): { tokenName: string | null; resolvedValue: string; tokens: TokenReference[]; opacity?: ColorOpacity; modifiers: ValueModifier[]; leafTokenName: string | null; cycle?: string } {
   const authored = value.trim();
   const calls = extractVarCalls(authored);
   const references: TokenReference[] = [];
@@ -316,22 +626,15 @@ export function resolveTokenValue(
       }
     }
   }
+  const opacity = resolveColorOpacity(authored, tokenTable, localAliases);
   const modifiers: ValueModifier[] = calls.flatMap((call) => call.fallback ? [{ kind: "fallback" as const, value: call.fallback }] : []);
-  const alpha = authored.match(/(?:color-mix\([^,]+,\s*var\([^)]*\)\s+)(\d+(?:\.\d+)?%)/i)?.[1]
-    ?? authored.match(/\/\s*(\d+(?:\.\d+)?%?)(?:\s*\)|\s*$)/)?.[1];
-  if (alpha) modifiers.push({ kind: "alpha", value: alpha.includes("%") ? alpha : `${alpha}%` });
-  for (const call of calls) {
-    const localAlpha = localAliases.get(call.name);
-    if (localAlpha && /^--tw-(?:bg|text|border)-opacity$/.test(call.name)) {
-      const numeric = Number(localAlpha);
-      if (Number.isFinite(numeric)) modifiers.push({ kind: "alpha", value: `${numeric <= 1 ? numeric * 100 : numeric}%` });
-    }
-  }
+  if (opacity) modifiers.push({ kind: "alpha", value: opacity.value });
   const inner = resolveTokenValueInner(authored, tokenTable, new Set(), localAliases);
   return {
     tokenName: firstKnown?.tokenName ?? inner.tokenName,
     resolvedValue: firstKnown?.resolvedValue ?? inner.resolvedValue,
     tokens: references,
+    opacity,
     modifiers,
     leafTokenName: firstKnown?.leafTokenName ?? firstKnown?.tokenName ?? null,
     cycle: firstKnown?.cycle,
@@ -583,6 +886,7 @@ interface ResolvedDeclaration {
   resolvedValue: string;
   important?: boolean;
   tokens: TokenReference[];
+  opacity?: ColorOpacity;
   modifiers: ValueModifier[];
   capability: EditCapability;
   resolvedTokenValue: string;
@@ -614,6 +918,7 @@ function resolveDeclaration(
           resolvedValue: resolved.resolvedValue,
           important: declaration.important,
           tokens: resolved.tokens,
+          opacity: resolved.opacity,
           modifiers: resolved.modifiers,
           capability: capabilityFor(property, declaredValue),
           resolvedTokenValue: resolved.resolvedValue,
@@ -651,6 +956,7 @@ function resolveDeclaration(
           resolvedValue: resolved.resolvedValue,
           important: declaration.important,
           tokens: isColor ? colorResult.tokens : [],
+          opacity: isColor ? colorResult.opacity : undefined,
           modifiers: isColor ? colorResult.modifiers : [],
           capability: "structured" as const,
           resolvedTokenValue: resolved.resolvedValue,
@@ -673,6 +979,7 @@ function resolveDeclaration(
           resolvedValue: resolved.resolvedValue,
           important: declaration.important,
           tokens: resolved.tokens,
+          opacity: resolved.opacity,
           modifiers: resolved.modifiers,
           capability: capabilityFor(property, declaredValue),
           resolvedTokenValue: resolved.resolvedValue,
@@ -692,6 +999,7 @@ function resolveDeclaration(
       resolvedValue: res.resolvedValue,
       important: declaration.important,
       tokens: res.tokens,
+      opacity: res.opacity,
       modifiers: res.modifiers,
       capability: declaration.property.toLowerCase() === "border" ? "raw" : capabilityFor(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
@@ -709,6 +1017,7 @@ function resolveDeclaration(
       resolvedValue: res.resolvedValue,
       important: declaration.important,
       tokens: res.tokens,
+      opacity: res.opacity,
       modifiers: res.modifiers,
       capability: capabilityFor(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
@@ -740,6 +1049,7 @@ function resolveDeclaration(
       resolvedValue: res.resolvedValue,
       important: declaration.important,
       tokens: res.tokens,
+      opacity: res.opacity,
       modifiers: res.modifiers,
       capability: capabilityFor(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
@@ -753,6 +1063,7 @@ function resolveDeclaration(
     sourceProperty: declaration.property,
     important: declaration.important,
     tokens: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).tokens,
+    opacity: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).opacity,
     modifiers: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).modifiers,
     capability: capabilityFor(property, sideValues[index]!.declaredValue),
     resolvedTokenValue: sideValues[index]!.resolvedValue,
@@ -874,6 +1185,7 @@ export function resolvePropertiesFromRules(
           authored: resolved.declaredValue,
           computed: "",
           tokens: resolved.tokens,
+          opacity: resolved.opacity,
           modifiers: resolved.modifiers,
           capability: resolved.capability,
           resolvedTokenValue: resolved.resolvedTokenValue,
@@ -946,6 +1258,7 @@ function inferTailwindV4ColorOpacity(
     row.declaredValue = authored;
     row.authored = authored;
     row.tokens = [{ name: baseName, origin: tokenOrigin(entry) }];
+    row.opacity = resolveColorOpacity(authored, tokenTable, EMPTY_LOCAL_ALIASES);
     row.modifiers = [{ kind: "alpha", value: alpha }];
     row.capability = "color";
     row.resolvedTokenValue = entry.value;
@@ -1249,6 +1562,7 @@ export function getResolvedProperties(
         authored: declaration.declaredValue,
         computed: painted,
         tokens: declaration.tokens,
+        opacity: declaration.opacity,
         modifiers: declaration.modifiers,
         capability: declaration.capability,
         resolvedTokenValue: declaration.resolvedValue,
@@ -1358,7 +1672,7 @@ export function useResolvedPropertiesDebounced(
     let cancelled = false;
     const handle = setTimeout(() => {
       if (cancelled) return;
-      setRows(getResolvedPropertiesForState(selected.domElement, getTokenTable(), state));
+      setRows(getResolvedPropertiesForState(selected.domElement, getAvailableTokenTableForElement(selected.domElement), state));
     }, 60);
     return () => {
       cancelled = true;
