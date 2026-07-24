@@ -2,6 +2,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import { parseDataSrc } from "../resolveSelection.ts";
 import {
   appendChange,
+  appendChanges,
   getPendingRules,
 } from "../changesLog.ts";
 import type { ChangeRecord, ElementChangeRecord } from "../changesLog.ts";
@@ -92,6 +93,37 @@ export function setStyle(el: HTMLElement, property: string, value: string, metad
   };
   appendChange(record);
   return record;
+}
+
+export function setStyles(
+  el: HTMLElement,
+  declarations: ReadonlyArray<{ property: string; value: string }>,
+  metadata?: StyleEditMetadata,
+): ElementChangeRecord[] {
+  const cid = el.getAttribute("data-cid") ?? "";
+  const src = el.getAttribute("data-src") ?? "";
+  const { selector, state } = stateFields(el);
+  if (!selector) return [];
+  const parsed = parseDataSrc(src);
+  const file = parsed ? parsed.file : src;
+  const line = parsed ? parsed.line : 0;
+  const records = declarations.map(({ property, value }) => ({
+    cid,
+    file,
+    line,
+    selector,
+    property,
+    ...metadata,
+    oldToken: null,
+    newToken: null,
+    rawValue: value,
+    oldRawValue: getStateStyleValue(el, property) || undefined,
+    source: { file, line, component: cid },
+    state,
+    ...scopeFields(el),
+  } satisfies ElementChangeRecord));
+  appendChanges(records);
+  return records;
 }
 
 export function promoteToToken(

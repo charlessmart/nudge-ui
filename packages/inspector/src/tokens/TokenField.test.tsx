@@ -77,6 +77,27 @@ describe("TokenField", () => {
     expect(getChangeRecords()).toHaveLength(1);
   });
 
+  it("offers raw CSS suggestions in the same dropdown as token suggestions", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "width",
+      initialValue: "auto",
+      domElement: selected.domElement,
+      entries: [],
+      suggestions: ["auto", "100%", "fit-content"],
+    }));
+    const input = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+
+    act(() => input.focus());
+
+    expect(document.body.querySelector('[data-test="raw-suggestion-item"]')).not.toBeNull();
+    expect(Array.from(document.body.querySelectorAll<HTMLElement>('[data-test="raw-suggestion-item"]')).map((item) => item.textContent)).toEqual([
+      "auto",
+      "100%",
+      "fit-content",
+    ]);
+  });
+
   it("supports shared leading and trailing adornments", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {

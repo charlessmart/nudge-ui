@@ -37,6 +37,13 @@ async function setInput(page: import("@playwright/test").Page, property: string,
   }, { p: property, v: value });
 }
 
+async function setLayoutInput(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
+  const input = page.locator(`[data-test="${testId}"] [data-test="raw-input"], [data-test="${testId}"] [data-test$="-input"]`).first();
+  await expect(input).toBeVisible();
+  await input.fill(value);
+  await input.blur();
+}
+
 async function selectValues(page: import("@playwright/test").Page, testId: string): Promise<string[]> {
   const trigger = page.locator(`[data-test="${testId}"]`);
   await trigger.click();
@@ -72,6 +79,7 @@ async function changesLogText(page: import("@playwright/test").Page): Promise<st
 async function revertChange(page: import("@playwright/test").Page, property: string): Promise<void> {
   const row = page.locator(`[data-test="change-row"][data-property="${property}"]`);
   await expect(row).toHaveCount(1);
+  await page.locator('[data-test="changes-toggle"]').click();
   await row.locator('[data-test="change-revert"]').click();
 }
 
@@ -318,4 +326,59 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
   await expect
     .poll(async () => computedPropOn(page, "positioned-box", "left"), { timeout: 5000 })
     .toBe("0px");
+});
+
+test("dev: layout size controls edit dimensions and aspect ratio", async ({ page }) => {
+  await page.goto("/");
+  await page.click('[data-test="sizing-box"]');
+  await waitForEditors(page);
+
+  await expect(page.locator('[data-test="layout-size"]')).toBeVisible();
+  await setLayoutInput(page, "layout-size-width", "240");
+  await setLayoutInput(page, "layout-size-max-height", "40vh");
+
+  const ratioInput = page.locator('[data-test="layout-aspect-ratio-input"]');
+  await ratioInput.fill("16 / 9");
+  await ratioInput.blur();
+
+  await expect.poll(async () => computedPropOn(page, "sizing-box", "width"), { timeout: 5000 }).toBe("240px");
+  await expect.poll(async () => computedPropOn(page, "sizing-box", "max-height"), { timeout: 5000 }).toMatch(/px$/);
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("max-height: 40vh");
+  await expect.poll(async () => computedPropOn(page, "sizing-box", "aspect-ratio"), { timeout: 5000 }).toContain("16 / 9");
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("width: 240px");
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("aspect-ratio: 16 / 9");
+});
+
+test("dev: absolute position controls route X and Y to their anchors", async ({ page }) => {
+  await page.goto("/");
+  await page.click('[data-test="right-anchored-box"]');
+  await waitForEditors(page);
+
+  await expect(page.locator('[data-test="layout-position"]')).toBeVisible();
+  await expect(page.locator('[data-test="layout-anchor-horizontal-end"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-test="layout-anchor-vertical-end"]')).toHaveAttribute("aria-pressed", "true");
+
+  await setLayoutInput(page, "layout-position-x", "32");
+  await setLayoutInput(page, "layout-position-y", "18");
+  await expect.poll(async () => computedPropOn(page, "right-anchored-box", "right"), { timeout: 5000 }).toBe("32px");
+  await expect.poll(async () => computedPropOn(page, "right-anchored-box", "bottom"), { timeout: 5000 }).toBe("18px");
+
+  await page.locator('[data-test="layout-anchor-horizontal-start"]').click();
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("left: 32px");
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("right: auto");
+
+  await page.keyboard.press("Control+z");
+  await expect.poll(async () => sheetText(page), { timeout: 5000 }).not.toContain("left: 32px");
+  await expect.poll(async () => computedPropOn(page, "right-anchored-box", "right"), { timeout: 5000 }).toBe("32px");
+});
+
+test("dev: stretched absolute positioning exposes both axis insets", async ({ page }) => {
+  await page.goto("/");
+  await page.click('[data-test="stretched-box"]');
+  await waitForEditors(page);
+
+  await expect(page.locator('[data-test="layout-anchor-horizontal-stretch"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-test="layout-position-x"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="layout-position-x-left"]')).toBeVisible();
+  await expect(page.locator('[data-test="layout-position-x-right"]')).toBeVisible();
 });

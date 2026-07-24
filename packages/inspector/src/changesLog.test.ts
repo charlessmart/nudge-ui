@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   appendChange,
+  appendChanges,
   revertChange,
   clearChanges,
   getChangesList,
@@ -66,6 +67,22 @@ describe("changesLog", () => {
   it("multiple appends for different properties all show in the log", () => {
     appendChange(makeRecord("background", COLOR_B, COLOR_A));
     appendChange(makeRecord("color", COLOR_C, null));
+    expect(getChangesList()).toHaveLength(2);
+  });
+
+  it("appends a declaration batch as one undoable history entry", () => {
+    appendChanges([
+      makeRecord("left", null, null, "auto"),
+      makeRecord("right", null, null, "32px"),
+    ]);
+    expect(getChangesList()).toHaveLength(2);
+    expect(getPendingRules().flatMap((rule) => Object.entries(rule.declarations))).toEqual([
+      ["left", "auto"],
+      ["right", "32px"],
+    ]);
+    expect(undo()).toBe(true);
+    expect(getChangesList()).toHaveLength(0);
+    expect(redo()).toBe(true);
     expect(getChangesList()).toHaveLength(2);
   });
 

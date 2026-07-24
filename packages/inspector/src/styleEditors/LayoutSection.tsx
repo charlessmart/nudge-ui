@@ -9,6 +9,9 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { SIDE_NAMES, SideControls, type SideValueSlot } from "../ui/SideValuesField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
+import { AspectRatioField } from "./AspectRatioField.tsx";
+import { PositionAnchorControls } from "./PositionAnchorControls.tsx";
+import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "./styleActions.ts";
 import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -16,6 +19,7 @@ import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
+import { FieldRow } from "../ui/FieldRow.tsx";
 
 const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
@@ -31,6 +35,10 @@ const FLEX_BASIS_PRESETS = ["auto", "0", "100%", "50%", "fit-content"];
 const ORDER_PRESETS = ["-1", "0", "1", "2", "3"];
 const GAP_PRESETS = ["0", "0.25rem", "0.5rem", "0.75rem", "1rem", "1.5rem", "2rem", "3rem"];
 const FLEX_ALIGNMENT_OPTIONS = ["flex-start", "center", "flex-end"];
+const SIZE_PRESETS = ["auto", "0", "100%", "fit-content"];
+const MIN_SIZE_PRESETS = ["0", "min-content", "fit-content"];
+const MAX_WIDTH_PRESETS = ["none", "100%", "100vw", "fit-content"];
+const MAX_HEIGHT_PRESETS = ["none", "100%", "100vh", "fit-content"];
 
 export interface LayoutSectionProps {
   element: SelectedElement;
@@ -46,7 +54,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
 
   const [isFlexContainer, setIsFlexContainer] = useState(false);
   const [isFlexChild, setIsFlexChild] = useState(false);
-  const [isPositioned, setIsPositioned] = useState(false);
+  const [position, setPosition] = useState(() => getStateStyleValue(el, "position", "static"));
   const [layoutRevision, setLayoutRevision] = useState(0);
   const [flexDirection] = useComputedLayoutValue(el, "flex-direction", "row", layoutRevision);
   const [flexWrap] = useComputedLayoutValue(el, "flex-wrap", "nowrap", layoutRevision);
@@ -63,12 +71,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
       const cs = getElementComputedStyle(el);
       const display = cs.display;
       setIsFlexContainer(display === "flex" || display === "inline-flex");
-      setIsPositioned(
-        cs.position === "absolute" ||
-        cs.position === "fixed" ||
-        cs.position === "relative" ||
-        cs.position === "sticky",
-      );
+      setPosition(cs.position);
     } catch {
       // noop
     }
@@ -99,10 +102,19 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
           revision={layoutRevision}
           onAfterEdit={notifyAfterEdit}
         />
+
         <LayoutDropdown
           property="position"
           options={POSITION_OPTIONS}
           domElement={el}
+          revision={layoutRevision}
+          onAfterEdit={notifyAfterEdit}
+        />
+
+        <SizeSection
+          domElement={el}
+          entries={allEntries}
+          tokenRows={tokenRows}
           revision={layoutRevision}
           onAfterEdit={notifyAfterEdit}
         />
@@ -219,7 +231,15 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
           </div>
         ) : null}
 
-        {isPositioned ? (
+        {position === "absolute" || position === "fixed" ? (
+          <PositionAnchorControls
+            domElement={el}
+            entries={allEntries}
+            tokenRows={tokenRows}
+            revision={layoutRevision}
+            onAfterEdit={notifyAfterEdit}
+          />
+        ) : position === "relative" || position === "sticky" ? (
           <div className="dt-layout__group" data-test="layout-inset">
             <div className="dt-layout__group-title">Inset</div>
             <SideControls label="Inset" sides={SIDE_NAMES.map((side): SideValueSlot => ({
@@ -237,6 +257,52 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+interface SizeSectionProps {
+  domElement: HTMLElement;
+  entries: TokenEntry[];
+  tokenRows: ResolvedProperty[];
+  revision: number;
+  onAfterEdit?: () => void;
+}
+
+function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit }: SizeSectionProps): ReactElement {
+  const fields = [
+    { property: "width", presets: SIZE_PRESETS },
+    { property: "height", presets: SIZE_PRESETS },
+    { property: "min-width", presets: MIN_SIZE_PRESETS },
+    { property: "min-height", presets: MIN_SIZE_PRESETS },
+    { property: "max-width", presets: MAX_WIDTH_PRESETS },
+    { property: "max-height", presets: MAX_HEIGHT_PRESETS },
+  ];
+  return (
+    <div className="dt-layout__group dt-layout__size" data-test="layout-size">
+      <div className="dt-layout__group-title">Size</div>
+      <div className="dt-layout__size-grid">
+        {fields.map(({ property, presets }) => (
+          <FieldRow key={property} label={property} data-test={`layout-size-${property}`}>
+            <TokenField
+              property={property}
+              tokenRow={tokenRows.find((row) => row.property === property) ?? null}
+              initialValue={meaningfulLayoutValue(el, property)}
+              domElement={el}
+              entries={entries}
+              suggestions={presets}
+              onAfterEdit={onAfterEdit}
+            />
+          </FieldRow>
+        ))}
+      </div>
+      <AspectRatioField
+        domElement={el}
+        entries={entries}
+        tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
+        revision={revision}
+        onAfterEdit={onAfterEdit}
+      />
     </div>
   );
 }

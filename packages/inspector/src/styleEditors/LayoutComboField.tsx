@@ -17,12 +17,22 @@ export interface LayoutComboFieldProps {
   domElement: HTMLElement;
   compact?: boolean;
   inputOnly?: boolean;
+  alwaysShowInput?: boolean;
   revision?: number;
   onAfterEdit?: () => void;
 }
 
 export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
-  const { property, presets, domElement: el, compact, inputOnly, revision = 0, onAfterEdit } = props;
+  const {
+    property,
+    presets,
+    domElement: el,
+    compact,
+    inputOnly,
+    alwaysShowInput,
+    revision = 0,
+    onAfterEdit,
+  } = props;
 
   const [currentValue, setCurrentValue] = useState(() =>
     getStateStyleValue(el, property),
@@ -96,6 +106,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       compact={compact}
       inputMode="decimal"
       placeholder="0"
+      aria-label={formatInspectorLabel(property)}
       data-test={`layout-combo-input-${property}`}
       value={customValue}
       onChange={(e) => setCustomValue(e.target.value)}
@@ -122,7 +133,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
             ]}
             onValueChange={handleSelectChange}
           />
-          {showCustom ? (
+          {showCustom || alwaysShowInput ? (
             <span className="dt-layout-combo__custom">{customInput}</span>
           ) : null}
         </>

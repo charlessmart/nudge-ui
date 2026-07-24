@@ -1,0 +1,349 @@
+import { useEffect, useMemo, useState } from "react";
+import type { ReactElement } from "react";
+import { Expand, Minimize2 } from "lucide-react";
+import type { TokenEntry } from "virtual:design-tokens";
+import { tokens } from "virtual:design-tokens";
+import type { ResolvedProperty } from "../tokens/resolution.ts";
+import { FieldRow } from "../ui/FieldRow.tsx";
+import { Button } from "../ui/Button.tsx";
+import { IconButton } from "../ui/IconButton.tsx";
+import { SideControls, SIDE_NAMES, type SideValueSlot } from "../ui/SideValuesField.tsx";
+import { TokenField } from "../tokens/TokenField.tsx";
+import { setStyles } from "./styleActions.ts";
+import { meaningfulLayoutValue } from "./layoutValue.ts";
+import { anchorEditPlan, axisAnchor, axisSide, type Axis, type AxisAnchor, type AxisInsetValues } from "./positionAnchor.ts";
+
+const OFFSET_PRESETS = ["auto", "0", "50%", "100%"];
+const ANCHOR_OPTIONS: ReadonlyArray<Exclude<AxisAnchor, "none">> = ["start", "end", "stretch"];
+type PhysicalSide = "left" | "right" | "top" | "bottom";
+
+export interface PositionAnchorControlsProps {
+  domElement: HTMLElement;
+  entries?: TokenEntry[];
+  tokenRows?: ResolvedProperty[];
+  revision?: number;
+  onAfterEdit?: () => void;
+}
+
+export function PositionAnchorControls({
+  domElement: el,
+  entries,
+  tokenRows = [],
+  revision = 0,
+  onAfterEdit,
+}: PositionAnchorControlsProps): ReactElement {
+  const allEntries = entries ?? tokens;
+  const [expanded, setExpanded] = useState(false);
+  const values = useInsetValues(el, revision);
+  const horizontalAnchor = axisAnchor(values.horizontal);
+  const verticalAnchor = axisAnchor(values.vertical);
+  const shownHorizontal = horizontalAnchor === "none" ? "start" : horizontalAnchor;
+  const shownVertical = verticalAnchor === "none" ? "start" : verticalAnchor;
+
+  useEffect(() => setExpanded(false), [el]);
+
+  const insetSlots = useMemo(() => SIDE_NAMES.map((side): SideValueSlot => ({
+    side,
+        control: (
+          <TokenField
+            property={side}
+            tokenRow={tokenRows.find((row) => row.property === side) ?? null}
+            initialValue={valuesForSide(values, side)}
+            domElement={el}
+            entries={allEntries}
+            suggestions={OFFSET_PRESETS}
+            onAfterEdit={onAfterEdit}
+          />
+    ),
+  })), [allEntries, el, onAfterEdit, tokenRows, values]);
+
+  function selectAnchor(axis: Axis, target: Exclude<AxisAnchor, "none">): void {
+    const plan = anchorEditPlan(axis, target, values[axis]);
+    setStyles(el, plan);
+    onAfterEdit?.();
+  }
+
+  return (
+    <div
+      className="dt-layout__group"
+      data-test="layout-position"
+      data-anchor-horizontal={horizontalAnchor}
+      data-anchor-vertical={verticalAnchor}
+    >
+      <div className="dt-layout__group-title">Position</div>
+      <AxisAnchorRow
+        axis="horizontal"
+        current={shownHorizontal}
+        onSelect={(target) => selectAnchor("horizontal", target)}
+      />
+      <AxisAnchorRow
+        axis="vertical"
+        current={shownVertical}
+        onSelect={(target) => selectAnchor("vertical", target)}
+      />
+      <div className="dt-layout__position-fields">
+        {shownHorizontal === "stretch" ? (
+          <>
+          <FieldRow label="left" data-test="layout-position-x-left">
+              <TokenField
+                property="left"
+                tokenRow={tokenRows.find((row) => row.property === "left") ?? null}
+                initialValue={values.horizontal.start}
+                domElement={el}
+                entries={allEntries}
+                suggestions={OFFSET_PRESETS}
+                onAfterEdit={onAfterEdit}
+              />
+            </FieldRow>
+            <FieldRow label="right" data-test="layout-position-x-right">
+              <TokenField
+                property="right"
+                tokenRow={tokenRows.find((row) => row.property === "right") ?? null}
+                initialValue={values.horizontal.end}
+                domElement={el}
+                entries={allEntries}
+                suggestions={OFFSET_PRESETS}
+                onAfterEdit={onAfterEdit}
+              />
+            </FieldRow>
+          </>
+        ) : (
+          <FieldRow label="X" data-test="layout-position-x">
+            <PositionValueField
+              property={axisSide("horizontal", shownHorizontal)}
+              tokenRows={tokenRows}
+              values={values}
+              axis="horizontal"
+              domElement={el}
+              entries={allEntries}
+              onAfterEdit={onAfterEdit}
+            />
+          </FieldRow>
+        )}
+        {shownVertical === "stretch" ? (
+          <>
+            <FieldRow label="top" data-test="layout-position-y-top">
+              <TokenField
+                property="top"
+                tokenRow={tokenRows.find((row) => row.property === "top") ?? null}
+                initialValue={values.vertical.start}
+                domElement={el}
+                entries={allEntries}
+                suggestions={OFFSET_PRESETS}
+                onAfterEdit={onAfterEdit}
+              />
+            </FieldRow>
+            <FieldRow label="bottom" data-test="layout-position-y-bottom">
+              <TokenField
+                property="bottom"
+                tokenRow={tokenRows.find((row) => row.property === "bottom") ?? null}
+                initialValue={values.vertical.end}
+                domElement={el}
+                entries={allEntries}
+                suggestions={OFFSET_PRESETS}
+                onAfterEdit={onAfterEdit}
+              />
+            </FieldRow>
+          </>
+        ) : (
+          <FieldRow label="Y" data-test="layout-position-y">
+            <PositionValueField
+              property={axisSide("vertical", shownVertical)}
+              tokenRows={tokenRows}
+              values={values}
+              axis="vertical"
+              domElement={el}
+              entries={allEntries}
+              onAfterEdit={onAfterEdit}
+            />
+          </FieldRow>
+        )}
+      </div>
+      <div className="dt-layout__individual-insets">
+        <IconButton
+          variant="secondary"
+          size="compact"
+          data-test="layout-position-individual-toggle"
+          aria-expanded={expanded}
+          label={expanded ? "Hide Individual Insets" : "Show Individual Insets"}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? <Minimize2 size={15} aria-hidden="true" /> : <Expand size={15} aria-hidden="true" />}
+        </IconButton>
+        <span>Individual insets</span>
+      </div>
+      {expanded ? <SideControls label="Inset" sides={insetSlots} /> : null}
+    </div>
+  );
+}
+
+interface AxisAnchorRowProps {
+  axis: Axis;
+  current: Exclude<AxisAnchor, "none">;
+  onSelect: (target: Exclude<AxisAnchor, "none">) => void;
+}
+
+function AxisAnchorRow({ axis, current, onSelect }: AxisAnchorRowProps): ReactElement {
+  const label = axis === "horizontal" ? "Horizontal anchor" : "Vertical anchor";
+  const labels = axis === "horizontal"
+    ? { start: "Left", end: "Right", stretch: "Stretch" }
+    : { start: "Top", end: "Bottom", stretch: "Stretch" };
+  return (
+    <div className="dt-layout__anchor-row">
+      <span className="dt-layout__anchor-label">{label}</span>
+      <div className="dt-layout__anchor-control" role="group" aria-label={label}>
+        {ANCHOR_OPTIONS.map((option) => (
+          <Button
+            key={option}
+            size="compact"
+            variant="quiet"
+            data-test={`layout-anchor-${axis}-${option}`}
+            data-active={current === option}
+            aria-pressed={current === option}
+            aria-label={`Anchor ${axis} to ${labels[option]}`}
+            onClick={() => onSelect(option)}
+          >
+            {labels[option]}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function useInsetValues(el: HTMLElement, revision: number): { horizontal: AxisInsetValues; vertical: AxisInsetValues } {
+  const authored = readAuthoredInsets(el);
+  const read = (property: PhysicalSide): string => authored[property] ?? meaningfulLayoutValue(el, property);
+  const [values, setValues] = useState(() => ({
+    horizontal: { start: read("left"), end: read("right") },
+    vertical: { start: read("top"), end: read("bottom") },
+  }));
+  useEffect(() => {
+    setValues({
+      horizontal: { start: read("left"), end: read("right") },
+      vertical: { start: read("top"), end: read("bottom") },
+    });
+  }, [el, revision]);
+  return values;
+}
+
+interface PositionValueFieldProps {
+  property: PhysicalSide;
+  tokenRows: ResolvedProperty[];
+  values: { horizontal: AxisInsetValues; vertical: AxisInsetValues };
+  axis: Axis;
+  domElement: HTMLElement;
+  entries: TokenEntry[];
+  onAfterEdit?: () => void;
+}
+
+function PositionValueField({
+  property,
+  tokenRows,
+  values,
+  axis,
+  domElement: el,
+  entries,
+  onAfterEdit,
+}: PositionValueFieldProps): ReactElement {
+  return (
+    <TokenField
+      property={property}
+      tokenRow={tokenRows.find((row) => row.property === property) ?? null}
+      initialValue={axis === "horizontal"
+        ? property === "left" ? values.horizontal.start : values.horizontal.end
+        : property === "top" ? values.vertical.start : values.vertical.end}
+      domElement={el}
+      entries={entries}
+      suggestions={OFFSET_PRESETS}
+      onAfterEdit={onAfterEdit}
+    />
+  );
+}
+
+function valuesForSide(
+  values: { horizontal: AxisInsetValues; vertical: AxisInsetValues },
+  side: PhysicalSide,
+): string {
+  if (side === "left") return values.horizontal.start;
+  if (side === "right") return values.horizontal.end;
+  if (side === "top") return values.vertical.start;
+  return values.vertical.end;
+}
+
+function readAuthoredInsets(el: HTMLElement): Partial<Record<PhysicalSide, string>> {
+  const result: Partial<Record<PhysicalSide, string>> = {};
+  const properties: PhysicalSide[] = ["left", "right", "top", "bottom"];
+  const applyStyle = (style: CSSStyleDeclaration): void => {
+    const inset = style.getPropertyValue("inset").trim();
+    if (inset) {
+      const parts = splitCssValueList(inset);
+      const expanded = parts.length === 1
+        ? [parts[0], parts[0], parts[0], parts[0]]
+        : parts.length === 2
+          ? [parts[0], parts[1], parts[0], parts[1]]
+          : parts.length === 3
+            ? [parts[0], parts[1], parts[2], parts[1]]
+            : [parts[0], parts[1], parts[2], parts[3]];
+      ["top", "right", "bottom", "left"].forEach((property, index) => {
+        result[property as PhysicalSide] = expanded[index] ?? "auto";
+      });
+    }
+    properties.forEach((property) => {
+      const value = style.getPropertyValue(property).trim();
+      if (value) result[property] = value;
+    });
+  };
+
+  applyStyle(el.style);
+  const walk = (rules: CSSRuleList): void => {
+    for (const rule of Array.from(rules)) {
+      if (rule instanceof CSSStyleRule) {
+        try {
+          if (el.matches(rule.selectorText)) applyStyle(rule.style);
+        } catch {
+          // Ignore selectors the current browser cannot evaluate.
+        }
+      } else if ("cssRules" in rule) {
+        try { walk((rule as CSSGroupingRule).cssRules); } catch { /* inaccessible rule */ }
+      }
+    }
+  };
+  for (const sheet of Array.from(el.ownerDocument.styleSheets)) {
+    try { walk(sheet.cssRules); } catch { /* inaccessible stylesheet */ }
+  }
+  return result;
+}
+
+function splitCssValueList(value: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let depth = 0;
+  let quote: '"' | "'" | null = null;
+  for (const char of value.trim()) {
+    if (quote) {
+      current += char;
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+    } else if (char === "(") {
+      depth += 1;
+      current += char;
+    } else if (char === ")") {
+      depth = Math.max(0, depth - 1);
+      current += char;
+    } else if (/\s/.test(char) && depth === 0) {
+      if (current) {
+        parts.push(current);
+        current = "";
+      }
+    } else {
+      current += char;
+    }
+  }
+  if (current) parts.push(current);
+  return parts;
+}

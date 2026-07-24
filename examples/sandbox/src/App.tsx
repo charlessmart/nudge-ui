@@ -206,6 +206,12 @@ export function App() {
               <div className="positioned-box" data-test="positioned-box">
                 <span className="position-pin">+</span> positioned element
               </div>
+              <div className="layout-fixtures" aria-label="Sizing and absolute positioning fixtures">
+                <div className="sizing-box" data-test="sizing-box">4:3 sizing box</div>
+                <div className="relative-offset-box" data-test="relative-offset-box">relative offset</div>
+                <div className="right-anchored-box" data-test="right-anchored-box">right / bottom</div>
+                <div className="stretched-box" data-test="stretched-box">stretched</div>
+              </div>
             </div>
           </div>
         </section>

@@ -809,6 +809,73 @@ h2 {
   font-size: 13px;
 }
 
+.layout-fixtures {
+  position: relative;
+  min-height: 126px;
+  margin-top: 18px;
+  border: 1px dashed rgba(196, 243, 107, 0.22);
+  border-radius: 10px;
+}
+
+.sizing-box,
+.relative-offset-box,
+.right-anchored-box,
+.stretched-box {
+  display: grid;
+  place-items: center;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 9px;
+  text-align: center;
+}
+
+.sizing-box {
+  width: 104px;
+  height: 78px;
+  min-width: 72px;
+  min-height: 52px;
+  max-width: 360px;
+  max-height: 100px;
+  aspect-ratio: 4 / 3;
+  background: #d9c8ff;
+  color: #211c2e;
+}
+
+.relative-offset-box {
+  width: 112px;
+  height: 32px;
+  margin-top: 9px;
+  position: relative;
+  top: 3px;
+  left: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.right-anchored-box {
+  width: 100px;
+  height: 34px;
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  background: #c4f36b;
+  color: #211c2e;
+  z-index: 2;
+}
+
+.stretched-box {
+  position: absolute;
+  top: 11px;
+  right: 12px;
+  bottom: auto;
+  left: 136px;
+  height: 28px;
+  border: 1px solid rgba(217, 200, 255, 0.45);
+  color: rgba(255, 255, 255, 0.68);
+  z-index: 2;
+}
+
 .type-section {
   display: grid;
   grid-template-columns: 0.75fr 1.25fr;

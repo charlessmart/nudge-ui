@@ -207,7 +207,7 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
 
     setSelectValue(handle.host.querySelector('[data-test="layout-select-position"]') as HTMLElement, "absolute");
-    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-position"]')).toBeTruthy();
   });
 
   it("shows flex container properties for inline-flex", () => {
@@ -254,14 +254,18 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-flex-child"]')).toBeFalsy();
   });
 
-  it("shows inset grid when position is absolute", () => {
+  it("shows anchor controls when position is absolute", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ display: "block", position: "absolute" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-position"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-anchor-horizontal-start"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-position-x"]')).toBeTruthy();
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-position-individual-toggle"]') as HTMLButtonElement).click();
+    });
     expect(handle.host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
-    expect(handle.host.querySelectorAll('.dt-side-values__side .dt-side-values__icon')).toHaveLength(4);
   });
 
   it("shows inset grid when position is relative", () => {
@@ -322,15 +326,55 @@ describe("LayoutSection", () => {
     expect(sheetText()).toContain("display: flex;");
   });
 
-  it("writes inset change to managed stylesheet", () => {
+  it("writes an absolute position offset to managed stylesheet", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ display: "flex", position: "absolute", "top": "0px" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    const input = handle.host.querySelector('[data-test="token-field"][data-property="top"] [data-test="raw-input"]') as HTMLInputElement;
-    expect(handle.host.querySelector('[data-test="layout-combo-select-top"]')).toBeNull();
+    const input = handle.host.querySelector('[data-test="layout-position-y"] [data-test="raw-input"]') as HTMLInputElement;
+    expect(input).toBeTruthy();
     setInputValue(input, "50%");
 
     expect(sheetText()).toContain("top: 50%;");
+  });
+
+  it("renders size controls for every selected element", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static", width: "240px", height: "120px" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    for (const property of ["width", "height", "min-width", "min-height", "max-width", "max-height"]) {
+      expect(handle.host.querySelector(`[data-test="layout-size-${property}"]`)).toBeTruthy();
+    }
+    expect(handle.host.querySelector('[data-test="layout-size-aspect-ratio"]')).toBeTruthy();
+  });
+
+  it("shows meaningful defaults instead of used pixel dimensions", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ display: "block", position: "static", width: "812px", height: "436px" });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect((handle.host.querySelector('[data-test="layout-size-width"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("auto");
+    expect((handle.host.querySelector('[data-test="layout-size-height"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("auto");
+    expect((handle.host.querySelector('[data-test="layout-size-min-width"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("0");
+    expect((handle.host.querySelector('[data-test="layout-size-max-width"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("none");
+  });
+
+  it("routes an absolute anchor switch through one managed projection", () => {
+    const { selected, el } = makeSelected();
+    el.style.left = "24px";
+    mockComputedStyle({
+      display: "block",
+      position: "absolute",
+      right: "auto",
+      top: "12px",
+      bottom: "auto",
+    });
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    (handle.host.querySelector('[data-test="layout-anchor-horizontal-end"]') as HTMLButtonElement).click();
+
+    expect(sheetText()).toContain("left: auto;");
+    expect(sheetText()).toContain("right: 24px;");
   });
 });

@@ -22,6 +22,8 @@ export interface TokenValueFieldProps {
   resolvedValue?: string;
   activeTokenName?: string | null;
   entries: TokenEntry[];
+  suggestions?: ReadonlyArray<string>;
+  inputDataTest?: string;
   allowedTokenNames?: ReadonlySet<string>;
   isColor?: boolean;
   disabled?: boolean;
@@ -44,6 +46,8 @@ export interface TokenFieldProps {
   initialValue?: string;
   domElement: HTMLElement;
   entries: TokenEntry[];
+  suggestions?: ReadonlyArray<string>;
+  inputDataTest?: string;
   onAfterEdit?: () => void;
   editMetadata?: StyleEditMetadata;
   leading?: ReactNode;
@@ -189,6 +193,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     resolvedValue = committedValue,
     activeTokenName: controlledTokenName = null,
     entries,
+    suggestions = [],
+    inputDataTest = "raw-input",
     allowedTokenNames,
     isColor = false,
     disabled = false,
@@ -235,6 +241,24 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       || entry.name.toLowerCase().includes(target)
       || entry.value.toLowerCase().includes(target));
   }, [rawValue, relevantTokens]);
+  const availableSuggestions = useMemo(() => {
+    return Array.from(new Set(suggestions));
+  }, [suggestions]);
+
+  function handleSuggestionSelect(value: string): void {
+    const rawSuggestion = decodeRawSuggestion(value);
+    if (rawSuggestion !== null) {
+      selectedFromPopover.current = true;
+      cancelOnBlur.current = false;
+      const formatted = formatRawValue(rawSuggestion);
+      setActiveTokenName(null);
+      setRawValue(formatted);
+      onCommitRaw(formatted);
+      return;
+    }
+    const chosen = relevantTokens.find((entry) => entry.name === value);
+    if (chosen) handleTokenSelect(chosen);
+  }
 
   function commitRawValue(value = rawValue): void {
     const formatted = formatRawValue(value);
@@ -254,7 +278,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     onUnlink(value);
   }
 
-  function handleSuggestionSelect(chosen: TokenEntry): void {
+  function handleTokenSelect(chosen: TokenEntry): void {
     selectedFromPopover.current = true;
     cancelOnBlur.current = false;
     setActiveTokenName(chosen.name);
@@ -350,6 +374,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     />
   ) : null;
 
+  const rawSuggestionItems = availableSuggestions.map(rawSuggestion);
+
   if (activeToken) {
     return (
       <span className={`dt-token-field${isColor ? " dt-token-field--color" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
@@ -368,12 +394,11 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           triggerClassName="dt-token-chip__trigger"
           triggerDataTest="token-chip"
           triggerAriaLabel={`Change ${property} token`}
-          items={relevantTokens.map(tokenSuggestion)}
+          items={[...rawSuggestionItems, ...relevantTokens.map(tokenSuggestion)]}
           onQueryChange={() => undefined}
           onOpenChange={setTokenPickerOpen}
           onSelect={(value) => {
-            const chosen = relevantTokens.find((entry) => entry.name === value);
-            if (chosen) handleSuggestionSelect(chosen);
+            handleSuggestionSelect(value);
           }}
         />
         {opacityControl}
@@ -393,7 +418,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     );
   }
 
-  const showPopover = isFocused && filteredTokens.length > 0;
+  const showPopover = isFocused && (filteredTokens.length > 0 || availableSuggestions.length > 0);
   return (
     <span className={`dt-token-field dt-token-field--raw${isColor ? " dt-token-field--color" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
       {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
@@ -404,18 +429,20 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         open={showPopover}
         placeholder={property}
         inputRef={inputRef}
-        inputDataTest="raw-input"
+        inputDataTest={inputDataTest}
         inputOnBlur={handleRawBlur}
         inputOnKeyDown={handleRawKeyDown}
-        items={filteredTokens.slice(0, 30).map(tokenSuggestion)}
+        items={[
+          ...availableSuggestions.map(rawSuggestion),
+          ...filteredTokens.slice(0, 30).map(tokenSuggestion),
+        ]}
         onQueryChange={(value) => {
           isNavigatingSuggestions.current = false;
           setRawValue(value);
         }}
         onOpenChange={setIsFocused}
         onSelect={(value) => {
-          const chosen = relevantTokens.find((entry) => entry.name === value);
-          if (chosen) handleSuggestionSelect(chosen);
+          handleSuggestionSelect(value);
         }}
       />
       {opacityControl}
@@ -436,7 +463,7 @@ function arrowDirection(key: string): -1 | 1 | null {
 }
 
 export function TokenField(props: TokenFieldProps): ReactElement {
-  const { property, tokenRow, initialValue, domElement: el, entries, onAfterEdit, editMetadata, leading, trailing, className, label } = props;
+  const { property, tokenRow, initialValue, domElement: el, entries, suggestions, inputDataTest, onAfterEdit, editMetadata, leading, trailing, className, label } = props;
   const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
     || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")
     || /\bcolor-mix\s*\(/i.test(tokenRow.authored ?? tokenRow.declaredValue)));
@@ -467,6 +494,8 @@ export function TokenField(props: TokenFieldProps): ReactElement {
         : undefined}
       opacity={tokenRow?.opacity}
       entries={entries}
+      suggestions={suggestions}
+      inputDataTest={inputDataTest}
       isColor={groupOfProperty(property) === "color"}
       formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(property))}
       onCommitRaw={(value) => {
@@ -502,4 +531,18 @@ function tokenSuggestion(entry: TokenEntry) {
     leading: classifyToken(entry.name, entry.value) === "color" ? <ColorSwatch color={entry.value} size="small" /> : undefined,
     trailing: <span>{entry.value}</span>,
   };
+}
+
+const RAW_SUGGESTION_PREFIX = "\u0000raw:";
+
+function rawSuggestion(value: string) {
+  return {
+    value: `${RAW_SUGGESTION_PREFIX}${value}`,
+    label: value,
+    "data-test": "raw-suggestion-item",
+  };
+}
+
+function decodeRawSuggestion(value: string): string | null {
+  return value.startsWith(RAW_SUGGESTION_PREFIX) ? value.slice(RAW_SUGGESTION_PREFIX.length) : null;
 }

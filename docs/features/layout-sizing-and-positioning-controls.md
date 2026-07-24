@@ -14,8 +14,8 @@ The work must preserve the current inspector contract:
 - write every edit through the existing change log and managed
   `#design-tool-styles` stylesheet, never an inline style;
 - use the stable selected-element selector already created by `setStyle()`;
-- keep the current `LayoutComboField` custom-value, unit-completion, and
-  keyboard-nudging behaviour; and
+- use the existing token-field raw input, suggestion-popover, unit-completion,
+  and keyboard-nudging behaviour; and
 - retain the dev-only boundary in ADR-0002. No plugin transform or production
   runtime work is needed for this feature.
 
@@ -26,8 +26,10 @@ The Layout section keeps its existing order: Display/Position, then the new
 
 ### Size group
 
-Show Size for every selected element. It contains six compact
-`LayoutComboField` controls and one dedicated ratio field:
+Show Size for every selected element. It contains six compact token-style raw
+fields and one dedicated ratio field. Each field is a single text input; its
+popover suggests the common CSS values listed below alongside available project
+tokens:
 
 | Row | CSS properties | Presets | Notes |
 | --- | --- | --- | --- |
@@ -46,6 +48,10 @@ Aspect ratio is deliberately a raw structured field rather than a numeric
 spinner. It should preserve authored slash syntax and not infer a ratio from
 the rendered box dimensions, since those dimensions may be determined by
 content, min/max constraints, or a parent layout.
+
+When a dimension has no authored declaration, show its CSS initial value
+(`auto`, `0`, or `none`) rather than the browser's used pixel size. Authored
+keywords, functions, percentages, and variables remain visible as written.
 
 ### Absolute/fixed position group
 
@@ -107,12 +113,15 @@ controls:
 ```text
 styleEditors/
   LayoutSection.tsx             # selection, visibility, ordering
-  LayoutComboField.tsx          # reused for length and keyword controls
+  LayoutComboField.tsx          # retained for existing flex controls
+  layoutValue.ts                # authored-value/default fallback for layout fields
   AspectRatioField.tsx          # raw ratio input + presets
   PositionAnchorControls.tsx    # anchors, X/Y routing, individual-inset disclosure
   positionAnchor.ts             # pure axis detection and edit-plan helpers
 ```
 
+Extend `TokenField` with raw CSS suggestions so Size, aspect ratio, and
+absolute-position fields share the same single-input/token-field interaction.
 `SizeSection` may remain a small local component in `LayoutSection.tsx` until
 it gains behaviour independent of those controls. Reuse the existing
 `SideValuesField`/`SideControls` visuals for the expanded individual-inset

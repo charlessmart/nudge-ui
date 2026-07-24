@@ -156,11 +156,9 @@ function reapply(): void {
   });
 }
 
-export function appendChange(change: ChangeRecord): void {
-  if (!canWriteWorkspace()) return;
-  const before = changes;
+function mergeChange(change: ChangeRecord, current: ChangeRecord[]): ChangeRecord[] {
   const key = changeKey(change);
-  const existing = changes.find((candidate) => changeKey(candidate) === key);
+  const existing = current.find((candidate) => changeKey(candidate) === key);
   const canonical = existing
     ? isTokenChange(change) && isTokenChange(existing)
       ? { ...change, oldRawValue: existing.oldRawValue }
@@ -168,14 +166,25 @@ export function appendChange(change: ChangeRecord): void {
         ? { ...change, oldToken: existing.oldToken, oldRawValue: existing.oldRawValue }
         : change
     : change;
-  const next = changes.filter((candidate) => changeKey(candidate) !== key);
-  const nextChanges = recordValue(canonical) !== baselineValue(canonical) ? [...next, canonical] : next;
+  const next = current.filter((candidate) => changeKey(candidate) !== key);
+  return recordValue(canonical) !== baselineValue(canonical) ? [...next, canonical] : next;
+}
+
+/** Append several records as one projection and one undoable history entry. */
+export function appendChanges(incoming: ChangeRecord[]): void {
+  if (!canWriteWorkspace() || incoming.length === 0) return;
+  const before = changes;
+  const nextChanges = incoming.reduce((current, change) => mergeChange(change, current), changes);
   if (sameEffectiveChanges(before, nextChanges)) return;
   changes = nextChanges;
   reapply();
   undoStack = [...undoStack, { before, after: changes }];
   redoStack = [];
   notify();
+}
+
+export function appendChange(change: ChangeRecord): void {
+  appendChanges([change]);
 }
 
 export function revertChange(change: ChangeRecord): void {
