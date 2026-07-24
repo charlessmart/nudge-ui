@@ -1,4 +1,7 @@
+import { getActiveStyleState } from "../styleState.ts";
 import { getStateStyleValue } from "../stateValue.ts";
+import { getElementComputedStyle } from "../domRealm.ts";
+import { getResolvedPropertiesForState, getTokenTable } from "../tokens/resolution.ts";
 
 const DEFAULT_LAYOUT_VALUES: Record<string, string> = {
   width: "auto",
@@ -29,37 +32,38 @@ export function meaningfulLayoutValue(el: HTMLElement, property: string): string
 }
 
 export function readAuthoredStyleValue(el: HTMLElement, property: string): string | null {
-  let value: string | null = null;
-  const applyStyle = (style: CSSStyleDeclaration): void => {
-    const next = style.getPropertyValue(property).trim();
-    if (next) value = next;
-  };
-
-  const walk = (rules: CSSRuleList): void => {
-    for (const rule of Array.from(rules)) {
-      if (rule instanceof CSSStyleRule) {
-        try {
-          if (el.matches(rule.selectorText)) applyStyle(rule.style);
-        } catch {
-          // Ignore selectors the current browser cannot evaluate.
-        }
-      } else if ("cssRules" in rule) {
-        try {
-          walk((rule as CSSGroupingRule).cssRules);
-        } catch {
-          // Ignore inaccessible cross-origin stylesheets.
-        }
-      }
-    }
-  };
-
-  for (const sheet of Array.from(el.ownerDocument.styleSheets)) {
-    try {
-      walk(sheet.cssRules);
-    } catch {
-      // Ignore inaccessible cross-origin stylesheets.
-    }
+  try {
+    const state = getActiveStyleState();
+    const row = getResolvedPropertiesForState(el, getTokenTable(), state)
+      .find((candidate) => candidate.property === property);
+    const authored = row?.authored ?? row?.declaredValue;
+    if (authored?.trim()) return authored.trim();
+  } catch {
+    // CSSOM can reject cross-origin stylesheets. Fall through to explicit
+    // inline CSS and the computed-value fallback used by the field layer.
   }
-  applyStyle(el.style);
-  return value;
+
+  const inline = el.style.getPropertyValue(property).trim();
+  return inline || null;
+}
+
+export interface LayoutValue {
+  property: string;
+  authored: string | null;
+  computed: string;
+}
+
+/**
+ * Reads both representations needed by a layout editor. Authored CSS is the
+ * editable source of truth; computed CSS is only the browser preview/fallback.
+ */
+export function getLayoutValue(el: HTMLElement, property: string): LayoutValue {
+  const authored = readAuthoredStyleValue(el, property);
+  let computed = "";
+  try {
+    computed = getElementComputedStyle(el).getPropertyValue(property).trim();
+  } catch {
+    computed = getStateStyleValue(el, property);
+  }
+  return { property, authored, computed };
 }

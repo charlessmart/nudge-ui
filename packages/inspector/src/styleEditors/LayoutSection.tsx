@@ -11,6 +11,7 @@ import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { AspectRatioField } from "./AspectRatioField.tsx";
 import { PositionAnchorControls } from "./PositionAnchorControls.tsx";
+import { GridSection } from "./GridSection.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "./styleActions.ts";
 import { Button } from "../ui/Button.tsx";
@@ -21,7 +22,7 @@ import { formatInspectorLabel } from "../ui/labels.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 
-const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "none", "contents"];
+const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
 const FLEX_DIRECTION_OPTIONS = ["row", "row-reverse", "column", "column-reverse"];
 const JUSTIFY_CONTENT_OPTIONS = ["flex-start", "flex-end", "center", "space-between", "space-around", "space-evenly"];
@@ -54,6 +55,8 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
 
   const [isFlexContainer, setIsFlexContainer] = useState(false);
   const [isFlexChild, setIsFlexChild] = useState(false);
+  const [isGridContainer, setIsGridContainer] = useState(false);
+  const [isGridChild, setIsGridChild] = useState(false);
   const [position, setPosition] = useState(() => getStateStyleValue(el, "position", "static"));
   const [layoutRevision, setLayoutRevision] = useState(0);
   const [flexDirection] = useComputedLayoutValue(el, "flex-direction", "row", layoutRevision);
@@ -71,6 +74,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
       const cs = getElementComputedStyle(el);
       const display = cs.display;
       setIsFlexContainer(display === "flex" || display === "inline-flex");
+      setIsGridContainer(display === "grid" || display === "inline-grid");
       setPosition(cs.position);
     } catch {
       // noop
@@ -82,12 +86,15 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
       const parentEl = el.parentElement;
       if (!parentEl) {
         setIsFlexChild(false);
+        setIsGridChild(false);
         return;
       }
       const pDisplay = getElementComputedStyle(parentEl).display;
       setIsFlexChild(pDisplay === "flex" || pDisplay === "inline-flex");
+      setIsGridChild(pDisplay === "grid" || pDisplay === "inline-grid");
     } catch {
       setIsFlexChild(false);
+      setIsGridChild(false);
     }
   }, [el, layoutRevision]);
 
@@ -229,6 +236,16 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
               onAfterEdit={notifyAfterEdit}
             />
           </div>
+        ) : null}
+
+        {isGridContainer || isGridChild ? (
+          <GridSection
+            domElement={el}
+            showContainer={isGridContainer}
+            showChild={isGridChild}
+            revision={layoutRevision}
+            onAfterEdit={notifyAfterEdit}
+          />
         ) : null}
 
         {position === "absolute" || position === "fixed" ? (

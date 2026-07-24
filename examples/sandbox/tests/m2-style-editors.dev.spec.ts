@@ -202,6 +202,31 @@ test("dev: authored CSS border fixtures parse width, style, and color per side",
   await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("border-right-width: 5px");
 });
 
+test("dev: main demo color fixtures expose authored partial opacity", async ({ page }) => {
+  await page.goto("/");
+  await waitForInspector(page);
+
+  const rgbaFixture = page.locator('[data-test="css-opacity-rgba"]');
+  await rgbaFixture.evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+  });
+  await waitForEditors(page);
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
+    .toHaveValue("rgba(196, 243, 107, 0.18)");
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
+    .toHaveValue("18%");
+
+  const hexFixture = page.locator('[data-test="css-opacity-hex"]');
+  await hexFixture.evaluate((element) => {
+    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+  });
+  await waitForEditors(page);
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
+    .toHaveValue("#d9c8ff33");
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
+    .toHaveValue("20%");
+});
+
 test("dev: individual side focus ring belongs to the whole side field", async ({ page }) => {
   await page.goto("/");
   await waitForInspector(page);

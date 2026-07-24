@@ -8,7 +8,7 @@ import { classifyToken, getAlternativeTokens, groupOfProperty } from "./TokenDro
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
-import { nudgeCssValue } from "../styleEditors/nudgeValue.ts";
+import { nudgeCssValue, nudgeOpacityValue } from "../styleEditors/nudgeValue.ts";
 import { valuePolicyFor } from "../styleEditors/valuePolicy.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
@@ -210,8 +210,10 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     opacity,
     onCommitOpacity,
   } = props;
+  const hasControlledToken = Boolean(controlledTokenName || attributionTokens.length > 0);
+  const defaultOpacityValue = isColor && !hasControlledToken ? "100%" : "";
   const [rawValue, setRawValue] = useState(committedValue);
-  const [opacityValue, setOpacityValue] = useState(opacity?.value ?? "");
+  const [opacityValue, setOpacityValue] = useState(opacity?.value ?? defaultOpacityValue);
   const [activeTokenName, setActiveTokenName] = useState<string | null>(controlledTokenName);
   const [isFocused, setIsFocused] = useState(false);
   const [isTokenPickerOpen, setTokenPickerOpen] = useState(false);
@@ -223,12 +225,14 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   useEffect(() => {
     setRawValue(committedValue);
     setActiveTokenName(controlledTokenName);
-    setOpacityValue(opacity?.value ?? "");
-  }, [committedValue, controlledTokenName, opacity?.value, property]);
+    setOpacityValue(opacity?.value ?? defaultOpacityValue);
+  }, [committedValue, controlledTokenName, defaultOpacityValue, opacity?.value, property]);
 
   const activeToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? { name: activeTokenName, value: resolvedValue, source: "runtime" }
     : null;
+  const hasTokenReference = Boolean(activeTokenName || attributionTokens.length > 0);
+  const showOpacity = isColor && (!hasTokenReference || Boolean(opacity));
   const relevantTokens = useMemo(() => {
     const candidates = allowedTokenNames
       ? entries.filter((entry) => allowedTokenNames.has(entry.name))
@@ -331,17 +335,17 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   }
 
   function commitOpacityValue(value = opacityValue): void {
-    if (!opacity || !onCommitOpacity) return;
+    if (!showOpacity || !onCommitOpacity) return;
     const normalized = normalizeColorOpacity(value);
     if (normalized === null) {
-      setOpacityValue(opacity.value);
+      setOpacityValue(opacity?.value ?? "100%");
       return;
     }
     setOpacityValue(normalized);
     onCommitOpacity(normalized);
   }
 
-  const opacityControl = isColor && opacity ? (
+  const opacityControl = showOpacity ? (
     <input
       className="dt-token-opacity-input"
       data-test="color-opacity-input"
@@ -353,9 +357,20 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       onChange={(event) => setOpacityValue(event.target.value)}
       onBlur={() => commitOpacityValue()}
       onKeyDown={(event) => {
+        const direction = arrowDirection(event.key);
+        if (direction && !event.altKey && !event.ctrlKey && !event.metaKey) {
+          const next = nudgeOpacityValue(opacityValue, direction, event.shiftKey);
+          if (next) {
+            event.preventDefault();
+            event.stopPropagation();
+            setOpacityValue(next);
+            commitOpacityValue(next);
+            return;
+          }
+        }
         if (event.key === "Escape") {
           event.preventDefault();
-          setOpacityValue(opacity.value);
+          setOpacityValue(opacity?.value ?? "100%");
           event.currentTarget.blur();
         } else if (event.key === "Enter") {
           event.preventDefault();

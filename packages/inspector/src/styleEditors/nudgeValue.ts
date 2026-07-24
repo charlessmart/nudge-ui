@@ -35,6 +35,20 @@ export function nudgeCssValue(
   return `${formatNumber(next)}${parsed.unit}`;
 }
 
+/** Returns a clamped opacity percentage nudged by 1%, or 10% with Shift. */
+export function nudgeOpacityValue(
+  rawValue: string,
+  direction: NudgeDirection,
+  large = false,
+): string | null {
+  const parsed = parseNumericLiteral(rawValue);
+  if (!parsed || parsed.unit !== "%") return null;
+
+  const step = large ? 10 : 1;
+  const next = Math.min(100, Math.max(0, parsed.number + direction * step));
+  return `${formatNumber(next)}%`;
+}
+
 function normaliseForNudge(property: string, rawValue: string): string {
   const value = rawValue.trim();
   if (!CSS_NUMBER.test(value)) return value;

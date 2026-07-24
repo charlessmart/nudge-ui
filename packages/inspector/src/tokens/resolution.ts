@@ -1270,12 +1270,104 @@ function inferTailwindV4ColorOpacity(
   }
 }
 
+function stripCssComments(value: string): string {
+  return value.replace(/\/\*[\s\S]*?\*\//g, " ");
+}
+
+function findTopLevelDelimiter(value: string, delimiter: string): number {
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  let comment = false;
+
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index]!;
+    const next = value[index + 1];
+    if (comment) {
+      if (char === "*" && next === "/") {
+        comment = false;
+        index++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      comment = true;
+      index++;
+      continue;
+    }
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "(") parenDepth++;
+    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (char === "[") bracketDepth++;
+    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
+    else if (char === delimiter && parenDepth === 0 && bracketDepth === 0) return index;
+  }
+  return -1;
+}
+
+function splitTopLevelDeclarations(cssText: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  let comment = false;
+
+  for (let index = 0; index < cssText.length; index++) {
+    const char = cssText[index]!;
+    const next = cssText[index + 1];
+    if (comment) {
+      if (char === "*" && next === "/") {
+        comment = false;
+        index++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      comment = true;
+      index++;
+      continue;
+    }
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "(") parenDepth++;
+    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (char === "[") bracketDepth++;
+    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
+    else if (char === ";" && parenDepth === 0 && bracketDepth === 0) {
+      parts.push(cssText.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(cssText.slice(start));
+  return parts;
+}
+
 function parseDeclarations(cssText: string): StyleDeclaration[] {
   const out: StyleDeclaration[] = [];
-  for (const part of cssText.split(";")) {
-    const idx = part.indexOf(":");
+  for (const part of splitTopLevelDeclarations(cssText)) {
+    const idx = findTopLevelDelimiter(part, ":");
     if (idx === -1) continue;
-    const property = part.slice(0, idx).trim();
+    const property = stripCssComments(part.slice(0, idx)).trim();
     const value = part.slice(idx + 1).trim();
     if (!property || !value) continue;
     const important = /!\s*important\s*$/i.test(value);
@@ -1290,29 +1382,139 @@ function selectorKey(selector: string): string {
     .replace(/\s*([>+~,])\s*/g, "$1");
 }
 
+function findNextBlockStart(source: string, start: number, end: number): { kind: "block" | "statement" | "end"; index: number } {
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  let comment = false;
+
+  for (let index = start; index < end; index++) {
+    const char = source[index]!;
+    const next = source[index + 1];
+    if (comment) {
+      if (char === "*" && next === "/") {
+        comment = false;
+        index++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      comment = true;
+      index++;
+      continue;
+    }
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "(") parenDepth++;
+    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (char === "[") bracketDepth++;
+    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
+    else if (parenDepth === 0 && bracketDepth === 0 && char === "{") return { kind: "block", index };
+    else if (parenDepth === 0 && bracketDepth === 0 && char === ";") return { kind: "statement", index };
+  }
+  return { kind: "end", index: end };
+}
+
+function findMatchingBrace(source: string, openIndex: number, end: number): number {
+  let depth = 1;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  let comment = false;
+
+  for (let index = openIndex + 1; index < end; index++) {
+    const char = source[index]!;
+    const next = source[index + 1];
+    if (comment) {
+      if (char === "*" && next === "/") {
+        comment = false;
+        index++;
+      }
+      continue;
+    }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      comment = true;
+      index++;
+      continue;
+    }
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "(") parenDepth++;
+    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (char === "[") bracketDepth++;
+    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
+    else if (parenDepth === 0 && bracketDepth === 0 && char === "{") depth++;
+    else if (parenDepth === 0 && bracketDepth === 0 && char === "}" && --depth === 0) return index;
+  }
+  return -1;
+}
+
 /**
  * CSSOM is allowed to canonicalise values (`.875rem` → `0.875rem`, and it can
- * reorder a `calc()` sum). For in-document style elements we can recover the
- * author text safely enough to present it back to the inspector. Linked or
- * inaccessible stylesheets continue through the CSSOM fallback below.
+ * reorder a `calc()` sum). For in-document style elements we recover author
+ * text with a small scanner that understands nested grouping rules, strings,
+ * comments, brackets, and functions. Linked or inaccessible stylesheets
+ * continue through the CSSOM fallback below.
  */
 function rawDeclarationsBySelector(sheet: CSSStyleSheet): Map<string, StyleDeclaration[][]> {
   const owner = sheet.ownerNode;
   if (!(owner instanceof HTMLStyleElement) || !owner.textContent) return new Map();
 
   const declarations = new Map<string, StyleDeclaration[][]>();
-  const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
-  let match: RegExpExecArray | null;
-  while ((match = rulePattern.exec(owner.textContent)) !== null) {
-    const selector = match[1]!.trim();
-    if (!selector || selector.startsWith("@")) continue;
-    const parsed = parseDeclarations(match[2]!);
-    if (parsed.length === 0) continue;
-    const key = selectorKey(selector);
-    const entries = declarations.get(key) ?? [];
-    entries.push(parsed);
-    declarations.set(key, entries);
-  }
+  const source = owner.textContent;
+
+  const walk = (start: number, end: number): void => {
+    let cursor = start;
+    while (cursor < end) {
+      const next = findNextBlockStart(source, cursor, end);
+      if (next.kind === "end") return;
+      if (next.kind === "statement") {
+        cursor = next.index + 1;
+        continue;
+      }
+
+      const close = findMatchingBrace(source, next.index, end);
+      if (close < 0) return;
+      const prelude = stripCssComments(source.slice(cursor, next.index)).trim();
+      const body = source.slice(next.index + 1, close);
+      if (prelude.startsWith("@")) {
+        walk(next.index + 1, close);
+      } else {
+        const parsed = parseDeclarations(body);
+        if (parsed.length > 0) {
+          const key = selectorKey(prelude);
+          const entries = declarations.get(key) ?? [];
+          entries.push(parsed);
+          declarations.set(key, entries);
+        }
+        // CSS nesting can put child style rules inside a style rule. They are
+        // uncommon in the current browser support matrix, but scanning them
+        // here keeps the source recovery path deterministic when present.
+        if (body.includes("{")) walk(next.index + 1, close);
+      }
+      cursor = close + 1;
+    }
+  };
+
+  walk(0, source.length);
   return declarations;
 }
 

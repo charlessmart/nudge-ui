@@ -6,6 +6,8 @@ const tailwindBorderFixtureIds = {
   override: import.meta.env.DEV ? { "data-test": "tailwind-border-override" } : {},
 };
 
+const tailwindOpacityFixtureId = import.meta.env.DEV ? { "data-test": "tailwind-alpha" } : {};
+
 function TailwindBorderExamples() {
   return (
     <section id="border-lab" className="border-t border-white/10 py-20 md:py-24" aria-labelledby="border-lab-title">
@@ -101,8 +103,10 @@ export function TailwindLandingPage() {
                 <div className="rounded-lg bg-white/5 p-3"><span className="block text-stone-500">Resolved</span><strong className="mt-1 block text-lg">28</strong></div>
               </div>
             </div>
-            <div data-test="tailwind-alpha" className="mt-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-950">
-              Tailwind v4 color opacity fixture
+            <div {...tailwindOpacityFixtureId} className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-4 py-4 text-red-100/80">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-red-200/70">Color opacity utility</p>
+              <p className="mt-2 text-sm">A partial red wash, authored as a Tailwind color plus alpha modifier.</p>
+              <code className="mt-3 block font-mono text-[10px] text-red-200/60">bg-red-500/10 · text-red-100/80</code>
             </div>
           </div>
         </section>

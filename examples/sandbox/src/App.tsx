@@ -49,6 +49,11 @@ const cssBorderFixtureIds = {
   override: import.meta.env.DEV ? { "data-test": "css-border-override" } : {},
 };
 
+const cssOpacityFixtureIds = {
+  rgba: import.meta.env.DEV ? { "data-test": "css-opacity-rgba" } : {},
+  hex: import.meta.env.DEV ? { "data-test": "css-opacity-hex" } : {},
+};
+
 function CssBorderExamples() {
   return (
     <section className="border-fixtures" aria-labelledby="border-fixtures-title">
@@ -79,6 +84,36 @@ function CssBorderExamples() {
           <h3>One-side override</h3>
           <p>A normal shared border with a deliberate bottom emphasis.</p>
           <code>border-bottom: 2px solid accent</code>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function CssOpacityExamples() {
+  return (
+    <section className="opacity-fixtures" aria-labelledby="opacity-fixtures-title">
+      <div className="opacity-fixtures__header">
+        <div>
+          <p className="eyebrow">Color decisions worth inspecting</p>
+          <h2 id="opacity-fixtures-title">Same color, less certainty.</h2>
+        </div>
+        <p className="opacity-fixtures__intro">
+          These cards keep their authored alpha visible so you can select the background or text color and check the split color + opacity field.
+        </p>
+      </div>
+      <div className="opacity-fixtures__grid">
+        <article className="opacity-fixture opacity-fixture--rgba" {...cssOpacityFixtureIds.rgba}>
+          <div className="opacity-fixture__meta"><span>01</span><span>rgba()</span></div>
+          <h3>Soft signal</h3>
+          <p>A warm accent that stays present without taking over the surface.</p>
+          <code>background: rgba(196, 243, 107, 0.18)</code>
+        </article>
+        <article className="opacity-fixture opacity-fixture--hex" {...cssOpacityFixtureIds.hex}>
+          <div className="opacity-fixture__meta"><span>02</span><span>8-digit hex</span></div>
+          <h3>Quiet highlight</h3>
+          <p>An authored alpha channel that should remain editable as its own value.</p>
+          <code>background: #d9c8ff33</code>
         </article>
       </div>
     </section>
@@ -206,11 +241,16 @@ export function App() {
               <div className="positioned-box" data-test="positioned-box">
                 <span className="position-pin">+</span> positioned element
               </div>
-              <div className="layout-fixtures" aria-label="Sizing and absolute positioning fixtures">
+              <div className="layout-fixtures" aria-label="Sizing, Grid, and absolute positioning fixtures">
                 <div className="sizing-box" data-test="sizing-box">4:3 sizing box</div>
                 <div className="relative-offset-box" data-test="relative-offset-box">relative offset</div>
                 <div className="right-anchored-box" data-test="right-anchored-box">right / bottom</div>
                 <div className="stretched-box" data-test="stretched-box">stretched</div>
+                <div className="grid-authored-container" data-test="grid-authored-container">
+                  <div className="grid-child-span" data-test="grid-child-span">span 3</div>
+                  <div className="grid-child-auto">auto</div>
+                </div>
+                <div className="grid-switch-target" data-test="grid-switch-target">select me → grid</div>
               </div>
             </div>
           </div>
@@ -249,6 +289,8 @@ export function App() {
         </section>
 
         <CssBorderExamples />
+
+        <CssOpacityExamples />
 
         {import.meta.env.DEV ? (
           <section className="conformance-links" data-test="conformance-links" aria-labelledby="conformance-links-title">

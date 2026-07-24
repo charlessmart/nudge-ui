@@ -372,6 +372,7 @@ describe("TokenField", () => {
       resolvedValue: "#112233",
       entries: [],
       isColor: true,
+      onCommitOpacity: vi.fn(),
       onCommitRaw,
       onSelectToken: vi.fn(),
       onUnlink: vi.fn(),
@@ -379,6 +380,7 @@ describe("TokenField", () => {
     const picker = handle.host.querySelector('[data-test="token-color-input"]') as HTMLInputElement;
     expect(picker).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-color-swatch"]')).not.toBeNull();
+    expect((handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement).value).toBe("100%");
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
       setter.call(picker, "#abcdef");
@@ -406,6 +408,26 @@ describe("TokenField", () => {
 
     expect(handle.host.querySelector('[data-test="token-color-swatch"]')?.getAttribute("style"))
       .toContain("--dt-swatch-color: #dc2626");
+    expect(handle.host.querySelector('[data-test="color-opacity-input"]')).toBeNull();
+    selected.domElement.remove();
+  });
+
+  it("hides the default opacity for a token-attributed color expression without alpha", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenValueField, {
+      property: "background-color",
+      committedValue: "color-mix(in srgb, var(--color-primary), white)",
+      resolvedValue: "rgb(128, 128, 128)",
+      entries: [],
+      isColor: true,
+      attributionTokens: ["--color-primary"],
+      onCommitOpacity: vi.fn(),
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+
+    expect(handle.host.querySelector('[data-test="color-opacity-input"]')).toBeNull();
     selected.domElement.remove();
   });
 
@@ -438,6 +460,42 @@ describe("TokenField", () => {
     });
 
     expect(onCommitOpacity).toHaveBeenCalledWith("40%");
+    selected.domElement.remove();
+  });
+
+  it("nudges opacity by one percent, or ten percent with Shift", () => {
+    const onCommitOpacity = vi.fn();
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenValueField, {
+      property: "background-color",
+      committedValue: "rgba(0, 0, 0, 0.8)",
+      resolvedValue: "rgba(0, 0, 0, 0.8)",
+      entries: [],
+      isColor: true,
+      opacity: { value: "80%", authoredValue: "0.8", source: "rgb", tokenName: null },
+      onCommitOpacity,
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+
+    const opacityInput = handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement;
+    act(() => {
+      opacityInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }));
+    });
+    expect(opacityInput.value).toBe("81%");
+    expect(onCommitOpacity).toHaveBeenLastCalledWith("81%");
+
+    act(() => {
+      opacityInput.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "ArrowDown",
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }));
+    });
+    expect(opacityInput.value).toBe("71%");
+    expect(onCommitOpacity).toHaveBeenLastCalledWith("71%");
     selected.domElement.remove();
   });
 

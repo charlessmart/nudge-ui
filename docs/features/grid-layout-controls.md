@@ -50,13 +50,22 @@ controls and preserve any grid edits in the change log for undo/revert.
 ### Grid container section
 
 Place a **Grid** group beside the existing **Flex** group, using the same
-`dt-layout__group`, field-row, compact select, and revision patterns. It must
-not create a second layout surface or invent a visual spreadsheet editor.
+`dt-layout__group`, compact controls, and revision patterns. The primary Grid
+control is a compact visual track picker: its preview shows the current column
+and row count, and clicking it opens a 12 × 8 cell matrix. Hovering previews a
+selection; clicking commits both track definitions through the managed
+stylesheet. This gives designers a visual way to understand and manipulate the
+grid without creating a second layout surface or a full spreadsheet editor.
+
+Keep the authored raw fields under an **Advanced grid CSS** disclosure. This
+preserves arbitrary track grammar and lets users inspect or edit values that
+cannot be represented by the picker, such as named lines, `subgrid`, `var()`,
+and `calc()`.
 
 | Control | CSS property | Control type | Initial scope |
 | --- | --- | --- | --- |
-| Columns | `grid-template-columns` | Authored raw track-list field | Any valid track-list text |
-| Rows | `grid-template-rows` | Authored raw track-list field | Any valid track-list text |
+| Columns | `grid-template-columns` | Visual picker + authored raw field | Picker writes explicit tracks; advanced field accepts any valid track-list text |
+| Rows | `grid-template-rows` | Visual picker + authored raw field | Picker writes explicit tracks; advanced field accepts any valid track-list text |
 | Auto flow | `grid-auto-flow` | Dropdown | `row`, `column`, `row dense`, `column dense` |
 | Auto columns | `grid-auto-columns` | Authored raw track-list field | Any valid track-size text |
 | Auto rows | `grid-auto-rows` | Authored raw track-list field | Any valid track-size text |
@@ -193,6 +202,7 @@ deep modules beside it:
 styleEditors/
   LayoutSection.tsx          # detects flex/grid container and child context
   GridSection.tsx            # container + child groups and control ordering
+  GridPicker.tsx             # visual rows × columns picker and managed edit
   GridValueField.tsx         # authored raw CSS field, draft/commit/cancel UI
   gridValues.ts              # pure display/fallback and CSS-value helpers
 tokens/
@@ -231,6 +241,9 @@ Extend the current Layout fixture in `examples/sandbox/src/App.tsx` and
 - `GridValueField` cases cover initial authored display, Enter/blur commits,
   Escape cancellation, invalid draft retention, and no length completion or
   keyboard nudge for a grid grammar.
+- `GridPicker` cases cover explicit and computed track-count detection,
+  keyboard-accessible cell selection, hover/selection preview, and writing
+  both template longhands as one visual edit.
 - `LayoutSection` cases cover `grid`/`inline-grid` visibility, parent-grid
   child controls, immediate refresh after a Display edit, and Grid/Flex
   sections never appearing for the wrong display type.
@@ -245,17 +258,19 @@ authored-value conformance test alongside the existing CSS fixtures:
 1. Select `grid-authored-container` and assert the Shadow DOM field contains
    the exact `repeat(auto-fit, minmax(12rem, 1fr))` author text while the page
    reports a potentially different computed value.
-2. Resize or use an active media fixture, then assert the field follows the
+2. Open the Grid preview, select a cell rectangle, and assert the displayed
+   dimensions plus both managed template declarations update immediately.
+3. Resize or use an active media fixture, then assert the field follows the
    winning actual page declaration rather than the first matching selector.
-3. Select `grid-switch-target`, choose `grid` from
+4. Select `grid-switch-target`, choose `grid` from
    `layout-select-display`, assert `layout-grid-container` appears, and verify
    the managed stylesheet contains `display: grid` under the selected stable
    selector.
-4. Edit a Columns value and a child `grid-column` value; assert their computed
+5. Edit an advanced Columns value and a child `grid-column` value; assert their computed
    browser effects, managed rules, Change Log records, and individual reverts.
-5. Re-render the sandbox after each kind of edit and confirm the preview still
+6. Re-render the sandbox after each kind of edit and confirm the preview still
    applies without inline styles.
-6. Run the production sandbox build and assert the existing dev-only output
+7. Run the production sandbox build and assert the existing dev-only output
    contract still holds.
 
 Run the project gate after implementation:

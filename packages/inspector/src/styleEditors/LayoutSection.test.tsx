@@ -218,6 +218,101 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
   });
 
+  it("shows Grid container controls for grid and inline-grid", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      display: "grid",
+      position: "static",
+      "grid-template-columns": "repeat(2, minmax(0, 1fr))",
+      "grid-template-rows": "auto",
+      "grid-auto-flow": "row",
+    });
+    const original = window.getComputedStyle;
+    (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((target: Element) => {
+      const base = original(target);
+      return new Proxy(base, {
+        get(source, key: string) {
+          if (key === "display") return target === selected.domElement ? "grid" : "block";
+          if (key === "getPropertyValue") {
+            return (property: string) => property === "display"
+              ? target === selected.domElement ? "grid" : "block"
+              : source.getPropertyValue(property);
+          }
+          const value = Reflect.get(source, key);
+          return typeof value === "function" ? value.bind(source) : value;
+        },
+      });
+    }) as typeof getComputedStyle;
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect(handle.host.querySelector('[data-test="layout-grid-container"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-picker"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-child"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="layout-grid-input-grid-template-columns"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-select-grid-auto-flow"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-gap"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-alignment"]')).toBeTruthy();
+
+    const autoFlow = handle.host.querySelector('[data-test="layout-select-grid-auto-flow"]') as HTMLElement;
+    expect(selectOptionValues(autoFlow)).toEqual(["row", "column", "row dense", "column dense"]);
+  });
+
+  it("shows Grid child controls when the parent is a Grid container", () => {
+    const { selected, el } = makeSelected();
+    const parent = document.createElement("div");
+    parent.appendChild(el);
+    document.body.appendChild(parent);
+    mockComputedStyle({ display: "block", position: "static", "grid-column": "2 / span 3" });
+
+    const original = window.getComputedStyle;
+    (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((target: Element) => {
+      if (target === parent) {
+        return {
+          display: "grid",
+          getPropertyValue: () => "",
+        } as unknown as CSSStyleDeclaration;
+      }
+      return original(target);
+    }) as typeof getComputedStyle;
+
+    handle = mount(createElement(LayoutSection, { element: selected }));
+
+    expect(handle.host.querySelector('[data-test="layout-grid-container"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="layout-grid-child"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-input-grid-column"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-input-grid-row"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-select-justify-self"]')).toBeTruthy();
+  });
+
+  it("refreshes Grid visibility after selecting Grid from Display", () => {
+    const { selected, el } = makeSelected();
+    let display = "block";
+    const original = window.getComputedStyle;
+    (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((target: Element) => {
+      const base = original(target);
+      return new Proxy(base, {
+        get(source, key: string) {
+          if (target === el && key === "display") return display;
+          if (target === el && key === "getPropertyValue") {
+            return (property: string) => property === "display" ? display : source.getPropertyValue(property);
+          }
+          const value = Reflect.get(source, key);
+          return typeof value === "function" ? value.bind(source) : value;
+        },
+      });
+    }) as typeof getComputedStyle;
+
+    handle = mount(createElement(LayoutSection, {
+      element: selected,
+      onAfterEdit: () => { display = "grid"; },
+    }));
+    expect(handle.host.querySelector('[data-test="layout-grid-container"]')).toBeFalsy();
+
+    setSelectValue(handle.host.querySelector('[data-test="layout-select-display"]') as HTMLElement, "grid");
+    expect(handle.host.querySelector('[data-test="layout-grid-container"]')).toBeTruthy();
+    expect(sheetText()).toContain("display: grid;");
+  });
+
   it("shows flex child properties when parent is flex", () => {
     const { selected, el } = makeSelected();
     const parent = document.createElement("div");

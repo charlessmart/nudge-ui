@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nudgeCssValue } from "./nudgeValue.ts";
+import { nudgeCssValue, nudgeOpacityValue } from "./nudgeValue.ts";
 
 describe("nudgeCssValue", () => {
   it.each([
@@ -33,5 +33,20 @@ describe("nudgeCssValue", () => {
     ["font-family", "Inter, sans-serif"],
   ])("leaves non-literal CSS alone: %s = %s", (property, value) => {
     expect(nudgeCssValue(property, value, 1)).toBeNull();
+  });
+});
+
+describe("nudgeOpacityValue", () => {
+  it.each([
+    ["80%", 1, false, "81%"],
+    ["80%", -1, true, "70%"],
+    ["0%", -1, false, "0%"],
+    ["95%", 1, true, "100%"],
+  ] as const)("nudges %s", (value, direction, large, expected) => {
+    expect(nudgeOpacityValue(value, direction, large)).toBe(expected);
+  });
+
+  it.each(["80", "var(--opacity)", "calc(50% + 1%)"])("rejects non-percentage opacity values: %s", (value) => {
+    expect(nudgeOpacityValue(value, 1)).toBeNull();
   });
 });

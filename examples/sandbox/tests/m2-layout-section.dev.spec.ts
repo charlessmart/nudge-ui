@@ -382,3 +382,57 @@ test("dev: stretched absolute positioning exposes both axis insets", async ({ pa
   await expect(page.locator('[data-test="layout-position-x-left"]')).toBeVisible();
   await expect(page.locator('[data-test="layout-position-x-right"]')).toBeVisible();
 });
+
+test("dev: Grid controls preserve authored track expressions and edit managed rules", async ({ page }) => {
+  await page.goto("/");
+  await page.click('[data-test="grid-authored-container"]');
+  await waitForEditors(page);
+
+  await expect(page.locator('[data-test="layout-grid-container"]')).toBeVisible();
+  const picker = page.locator('[data-test="layout-grid-picker-trigger"]');
+  await expect(picker).toBeVisible();
+  await picker.click();
+  await expect(page.locator('[data-test="layout-grid-picker-popover"]')).toBeVisible();
+  await page.locator('[data-test="layout-grid-cell-3-2"]').click();
+  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("grid-template-columns: repeat(3, minmax(0, 1fr))");
+  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("grid-template-rows: repeat(2, minmax(0, 1fr))");
+
+  await page.locator('[data-test="layout-grid-advanced"] summary').click();
+  const columns = page.locator('[data-test="layout-grid-input-grid-template-columns"]');
+  await expect(columns).toHaveValue("repeat(3, minmax(0, 1fr))");
+  await expect(page.locator('[data-test="layout-grid-input-grid-template-rows"]'))
+    .toHaveValue("repeat(2, minmax(0, 1fr))");
+
+  await columns.fill("repeat(4, minmax(0, 1fr))");
+  await columns.blur();
+  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("grid-template-columns: repeat(4, minmax(0, 1fr))");
+
+  await page.click('[data-test="grid-child-span"]');
+  await waitForEditors(page);
+  await expect(page.locator('[data-test="layout-grid-child"]')).toBeVisible();
+  const childColumn = page.locator('[data-test="layout-grid-input-grid-column"]');
+  await expect(childColumn).toHaveValue("2 / span 2");
+  await childColumn.fill("1 / span 3");
+  await childColumn.blur();
+  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("grid-column: 1 / span 3");
+  await expect.poll(async () => computedPropOn(page, "grid-child-span", "grid-column"), { timeout: 5000 })
+    .toContain("1 / span 3");
+});
+
+test("dev: Grid is selectable from the Layout display dropdown", async ({ page }) => {
+  await page.goto("/");
+  await page.click('[data-test="grid-switch-target"]');
+  await waitForEditors(page);
+  await expect(page.locator('[data-test="layout-grid-container"]')).toHaveCount(0);
+
+  await setSelect(page, "layout-select-display", "grid");
+  await expect(page.locator('[data-test="layout-grid-container"]')).toBeVisible();
+  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("display: grid");
+  await expect.poll(async () => computedPropOn(page, "grid-switch-target", "display"), { timeout: 5000 })
+    .toBe("grid");
+});
