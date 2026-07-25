@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 1 — Trace one CSS value</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <div class="eyebrow">Lesson 01 · CSSOM and the inspector</div>
+  <h1>Trace one CSS value all the way through</h1>
+  <p class="dek">Mission connection: become able to debug or extend the Design Tool without confusing source intent with browser output.</p>
+
+  <section class="card soft">
+    <h2 style="margin-top:0">Tangible win</h2>
+    <p>After this lesson, you should be able to explain why the inspector needs both <code>var(--space-4)</code> and <code>16px</code>, and identify where each enters the codebase.</p>
+  </section>
+
+  <h2>1. Predict before reading</h2>
+  <div class="question">
+    <p>Which API exposes the browser-computed result after cascade and value computation?</p>
+    <label><input type="radio" name="q1" value="rules"> <code>stylesheet.cssRules</code></label>
+    <label><input type="radio" name="q1" value="computed"> <code>window.getComputedStyle(element)</code></label>
+    <label><input type="radio" name="q1" value="source"> The original stylesheet text</label>
+    <button type="button" onclick="answer('q1','computed','Correct. CSSOM rules expose declarations; getComputedStyle exposes the resolved result.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+
+  <h2>2. The browser has two useful views</h2>
+  <p>Given:</p>
+  <pre><code>:root {
+  --space-4: 1rem;
+}
+
+.card {
+  padding: var(--space-4);
+}</code></pre>
+  <table>
+    <thead><tr><th>View</th><th>Likely answer</th><th>Why the inspector needs it</th></tr></thead>
+    <tbody>
+      <tr><td>CSSOM rule</td><td><code>.card</code> + <code>padding: var(--space-4)</code></td><td>Finds authored declarations and cascade evidence.</td></tr>
+      <tr><td>Token resolver</td><td><code>--space-4</code> → <code>1rem</code></td><td>Shows the meaningful project token.</td></tr>
+      <tr><td>Computed style</td><td>Often <code>16px</code></td><td>Confirms what the browser actually paints.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Follow the repository path</h2>
+  <ol>
+    <li><a href="../packages/inspector/src/tokens/resolution.ts">resolution.ts</a> walks <code>document.styleSheets</code> and <code>cssRules</code>.</li>
+    <li><code>resolveTokenValue()</code> follows <code>var()</code>, aliases, fallbacks, and modifiers.</li>
+    <li><code>resolveDeclaration()</code> expands safe shorthands into rows such as <code>padding-top</code>.</li>
+    <li><a href="../packages/inspector/src/InspectorShell.tsx">InspectorShell.tsx</a> passes those rows to the style editors.</li>
+    <li><a href="../packages/inspector/src/tokens/TokenField.tsx">TokenField.tsx</a> chooses between a token chip and authored raw input.</li>
+    <li><a href="../packages/inspector/src/managedStylesheet.ts">managedStylesheet.ts</a> applies edits as rules, never inline styles.</li>
+  </ol>
+
+  <div class="question">
+    <p>Why does the runtime resolver also scan the text of same-document <code>&lt;style&gt;</code> elements?</p>
+    <label><input type="radio" name="q2" value="speed"> To make CSS faster</label>
+    <label><input type="radio" name="q2" value="authored"> To recover authored spelling that CSSOM may canonicalize</label>
+    <label><input type="radio" name="q2" value="tailwind"> To parse Tailwind classes</label>
+    <button type="button" onclick="answer('q2','authored','Correct. CSSOM is excellent for rule structure, but source text preserves author intent more faithfully.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+
+  <h2>4. Apply the model to adapters</h2>
+  <table>
+    <thead><tr><th>System</th><th>What CSSOM sees</th><th>What the adapter adds</th></tr></thead>
+    <tbody>
+      <tr><td>Plain CSS vars</td><td><code>var(--brand)</code></td><td>Usually nothing beyond the universal catalog.</td></tr>
+      <tr><td>Tailwind v4</td><td>Generated CSS vars and <code>--tw-*</code> aliases</td><td>Framework provenance and opacity recovery.</td></tr>
+      <tr><td>Tailwind v3</td><td>Often literal RGB/spacing output</td><td>Config paths such as <code>theme.colors.brand</code>.</td></tr>
+      <tr><td>Sprinkles</td><td>Hashed classes and hashed CSS vars</td><td>Human contract paths such as <code>theme.color.brand</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. One-minute retrieval exercise</h2>
+  <p>Without looking back, complete this sentence:</p>
+  <div class="card">
+    <p><strong>CSSOM rules tell the inspector ________; computed style tells it ________; the token adapter tells it ________.</strong></p>
+    <p class="path">Expected shape: authored declaration/cascade evidence · painted result · human/source token meaning.</p>
+  </div>
+
+  <div class="next">
+    <h2>Continue</h2>
+    <p>Next lesson: reconstructing the cascade — selector matching, specificity, layers, inheritance, and confidence. Before then, inspect the standard fixture in <a href="../examples/sandbox/tests/conformance.dev.spec.ts">conformance.dev.spec.ts</a> and find the three separate assertions for authored CSS, computed CSS, and catalog presence.</p>
+    <p>Ask follow-up questions freely. In particular, ask me to trace a specific property or test line if any step still feels magical.</p>
+  </div>
+
+  <p class="path">Primary sources: <a href="https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleSheet/cssRules">CSSStyleSheet.cssRules</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/getComputedStyle">getComputedStyle()</a> · <a href="https://vanilla-extract.style/documentation/sprinkles-api/">Sprinkles</a></p>
+</main>
+<script>
+  function answer(name, expected, message) {
+    const selected = document.querySelector('input[name="' + name + '"]:checked');
+    const output = document.getElementById(name + '-feedback');
+    if (!selected) { output.textContent = 'Choose an answer first.'; return; }
+    output.textContent = selected.value === expected ? message : 'Not quite. Re-read the distinction between stylesheet rules, source text, and computed output.';
+  }
+</script>
+</body>
+</html>

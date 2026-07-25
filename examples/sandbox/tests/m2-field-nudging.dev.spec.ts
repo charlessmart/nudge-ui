@@ -12,6 +12,37 @@ async function managedSheet(page: import("@playwright/test").Page): Promise<stri
   return page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? "");
 }
 
+test("dev: focused inspector text inputs keep arrow cursor navigation", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-test="tokens-tab"]').click();
+
+  const search = page.locator('[data-test="token-search"]');
+  await search.fill("abc");
+  await search.focus();
+  await search.evaluate((input) => {
+    const textInput = input as HTMLInputElement;
+    textInput.setSelectionRange(textInput.value.length, textInput.value.length);
+  });
+  await search.press("ArrowLeft");
+
+  await expect(search).toHaveValue("abc");
+  await expect.poll(() => search.evaluate((input) => (input as HTMLInputElement).selectionStart)).toBe(2);
+});
+
+test("dev: focused inspector inputs do not delete the selected element", async ({ page }) => {
+  await page.goto("/");
+  const heading = page.locator("#hero-title");
+  await heading.click();
+  await page.locator('[data-test="tokens-tab"]').click();
+
+  const search = page.locator('[data-test="token-search"]');
+  await search.fill("x");
+  await search.press("Backspace");
+
+  await expect(search).toHaveValue("");
+  await expect(heading).toBeAttached();
+});
+
 test("dev: numeric fields nudge previews immediately and visibility shortcuts preserve state", async ({ page }) => {
   await page.goto("/");
   await page.locator(".hero-intro").click();
@@ -28,6 +59,7 @@ test("dev: numeric fields nudge previews immediately and visibility shortcuts pr
   await expect.poll(() => managedSheet(page)).toContain("line-height: 90%;");
   await expect(page.locator('[data-test="change-row"][data-property="line-height"]')).toHaveCount(1);
 
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   const before = await panelOpen(page);
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", {
     key: "|",

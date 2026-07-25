@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instatic Architecture Analysis — Research for Design Tool</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text2: #7d8590;
+    --accent: #58a6ff;
+    --accent2: #79c0ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --purple: #a371f7;
+    --orange: #d18616;
+    --code-bg: #1c2128;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+  h1 { font-size: 2rem; border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; margin-bottom: 0.5rem; }
+  h2 { font-size: 1.5rem; margin-top: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+  h3 { font-size: 1.2rem; margin-top: 1.8rem; color: var(--accent2); }
+  h4 { font-size: 1rem; margin-top: 1.2rem; color: var(--text2); font-style: italic; }
+  p { margin: 0.8rem 0; }
+  a { color: var(--accent); }
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+    font-size: 0.85em;
+    background: var(--code-bg);
+    padding: 0.15em 0.4em;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-x: auto;
+    font-size: 0.82em;
+    line-height: 1.5;
+    margin: 0.8rem 0;
+  }
+  pre code { background: none; border: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.88em;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--surface2); font-weight: 600; }
+  tr:nth-child(even) td { background: var(--surface); }
+  ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+  li { margin: 0.3rem 0; }
+  blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    background: var(--surface);
+    color: var(--accent2);
+    font-style: italic;
+  }
+  .ref {
+    font-size: 0.8em;
+    color: var(--text2);
+    font-family: monospace;
+  }
+  .tag {
+    display: inline-block;
+    padding: 0.15em 0.5em;
+    border-radius: 3px;
+    font-size: 0.75em;
+    font-weight: 600;
+  }
+  .tag-rec { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .tag-perf { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag-warn { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .tag-risk { background: rgba(248,81,73,0.15); color: var(--red); }
+  .tag-tip { background: rgba(163,113,247,0.15); color: var(--purple); }
+  .diagram {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    font-family: monospace;
+    font-size: 0.82em;
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .diagram.highlight {
+    border-color: var(--accent);
+    background: rgba(88,166,255,0.05);
+  }
+  .cmp-box {
+    display: inline-block;
+    border: 2px solid var(--accent);
+    background: rgba(88,166,255,0.08);
+    border-radius: 4px;
+    padding: 0.2em 0.5em;
+    margin: 0.1em;
+  }
+  .cmp-box.green { border-color: var(--green); background: rgba(63,185,80,0.08); }
+  .cmp-box.purple { border-color: var(--purple); background: rgba(163,113,247,0.08); }
+  .cmp-box.orange { border-color: var(--orange); background: rgba(209,134,22,0.08); }
+  .cmp-box.yellow { border-color: var(--yellow); background: rgba(210,153,34,0.08); }
+
+  .section-divider {
+    border: none;
+    border-top: 2px solid var(--border);
+    margin: 2.5rem 0;
+  }
+
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin: 1.5rem 0; }
+  .toc ul { list-style: none; margin: 0; }
+  .toc li { margin: 0.4rem 0; }
+  .toc a { text-decoration: none; }
+  .toc .l2 { padding-left: 1.5rem; }
+  .toc .l3 { padding-left: 3rem; font-size: 0.9em; }
+
+  /* Flow chart */
+  .flow { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem; margin: 1rem 0; font-family: monospace; font-size: 0.82em; }
+  .flow-step {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.4em 0.75em;
+    white-space: nowrap;
+  }
+  .flow-arrow { color: var(--text2); margin: 0 0.2rem; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1rem 0; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Instatic Architecture Analysis</h1>
+<p style="color: var(--text2);">Research for Design Tool — <a href="https://github.com/CoreBunch/Instatic">github.com/CoreBunch/Instatic</a></p>
+<p>Instatic is an open-source, self-hosted CMS with a visual editor comparable to Framer. This analysis examines three subsystems relevant to the Design Tool project: <strong>HTML/CSS import pipeline</strong>, <strong>canvas/preview architecture</strong>, and <strong>layer inspector</strong>.</p>
+
+<div class="toc">
+<h3>Table of Contents</h3>
+<ul>
+  <li><a href="#s1">1. HTML/CSS Import Pipeline</a></li>
+  <li class="l2"><a href="#s1a">1.1 Architecture Overview</a></li>
+  <li class="l2"><a href="#s1b">1.2 CSS Parsing: Internal Shape</a></li>
+  <li class="l2"><a href="#s1c">1.3 CSS Substitution Encoding (var/env)</a></li>
+  <li class="l2"><a href="#s1d">1.4 HTML Element → Module Mapping</a></li>
+  <li class="l2"><a href="#s1e">1.5 CSS Sanitization</a></li>
+  <li class="l2"><a href="#s1f">1.6 Edge Cases &amp; Reliability</a></li>
+  <li class="l2"><a href="#s1g">1.7 Publisher CSS Output</a></li>
+  <li><a href="#s2">2. Canvas / Preview Architecture</a></li>
+  <li class="l2"><a href="#s2a">2.1 Three Views, Not Two</a></li>
+  <li class="l2"><a href="#s2b">2.2 Why Iframes? (Not Scaled Divs)</a></li>
+  <li class="l2"><a href="#s2c">2.3 Multi-Responsive Frames</a></li>
+  <li class="l2"><a href="#s2d">2.4 CSS Cascade: Editor vs User</a></li>
+  <li class="l2"><a href="#s2e">2.5 Performance Optimizations</a></li>
+  <li class="l2"><a href="#s2f">2.6 Live Mode (Editable Preview)</a></li>
+  <li><a href="#s3">3. Layer Inspector</a></li>
+  <li class="l2"><a href="#s3a">3.1 UI Architecture</a></li>
+  <li class="l2"><a href="#s3b">3.2 Tree Rendering</a></li>
+  <li class="l2"><a href="#s3c">3.3 Drag-and-Drop Reordering</a></li>
+  <li class="l2"><a href="#s3d">3.4 Performance Strategy</a></li>
+  <li class="l2"><a href="#s3e">3.5 Context Menu &amp; Actions</a></li>
+  <li><a href="#s4">4. Takeaways for Design Tool</a></li>
+</ul>
+</div>
+
+<hr class="section-divider">
+
+<!-- ================================================================== -->
+<!-- SECTION 1: HTML/CSS Import Pipeline                                -->
+<!-- ================================================================== -->
+<h2 id="s1">1. HTML/CSS Import Pipeline</h2>
+
+<h3 id="s1a">1.1 Architecture Overview</h3>
+
+<p>The import pipeline has two phases:</p>
+
+<div class="diagram">
+<span style="color:var(--accent);">Phase 1: CSS Parsing</span>
+<span style="color:var(--text2);">(Pure function, no side effects)</span>
+
+  rawCSS ──► <span class="cmp-box">cssToStyleRules()</span> ──► NewStyleRule[]
+  <span class="ref">src/core/siteImport/cssToStyleRules.ts</span>
+
+  <span style="color:var(--text2);">Also extracts @font-face blocks, @keyframes blocks, and framework tokens (color/font custom props from :root)</span>
+
+<span style="color:var(--accent);">Phase 2: Site Import</span>
+<span style="color:var(--text2);">(Orchestrated multi-step pipeline)</span>
+
+  Files/ZIP ──► <span class="cmp-box">buildImportPlan()</span> ──► <span class="cmp-box yellow">ImportPlan</span> ──► <span class="cmp-box green">commitImportPlan()</span> ──► CMS Site
+  <span class="ref">src/core/siteImport/buildPlan.ts</span>       <span class="ref">src/core/siteImport/commitPlan.ts</span>
+
+  Both phases route through <span class="cmp-box orange">importHtml()</span> for HTML→PageNode conversion.
+  <span class="ref">src/core/htmlImport/walkAndMap.ts</span>
+</div>
+
+<h3 id="s1b">1.2 CSS Parsing: The Internal Shape — <code>NewStyleRule</code></h3>
+
+<p>This is the canonical representation used by the CSS parser, style engine, and publisher. Every imported style, user-authored style, and published output passes through this shape.</p>
+
+<table>
+  <tr><th>Field</th><th>Type</th><th>Purpose</th></tr>
+  <tr>
+    <td><code>name</code></td>
+    <td><code>string</code></td>
+    <td>Class name (e.g. <code>"btn"</code>) or verbatim selector text (ambient rules)</td>
+  </tr>
+  <tr>
+    <td><code>kind</code></td>
+    <td><code>'class' ❘ 'ambient'</code></td>
+    <td><code>'class'</code> = single class selector (<code>.btn</code>), unique name required. <code>'ambient'</code> = anything else (combinators, tags, pseudo-classes) — duplicates allowed, resolved by order.</td>
+  </tr>
+  <tr>
+    <td><code>selector</code></td>
+    <td><code>string</code></td>
+    <td>CSS selector text</td>
+  </tr>
+  <tr>
+    <td><code>order</code></td>
+    <td><code>number</code></td>
+    <td>Source position, ascending</td>
+  </tr>
+  <tr>
+    <td><code>styles</code></td>
+    <td><code>Record&lt;string, unknown&gt;</code></td>
+    <td>Base declarations (camelCase props → CSS values)</td>
+  </tr>
+  <tr>
+    <td><code>stylePriorities</code></td>
+    <td><code>Record&lt;string, 'important'&gt;</code></td>
+    <td><code>!important</code> flags per property</td>
+  </tr>
+  <tr>
+    <td><code>contextStyles</code></td>
+    <td><code>Record&lt;string, Record&lt;string, unknown&gt;&gt;</code></td>
+    <td>Per-breakpoint / per-condition overrides. Keys are breakpoint IDs or condition IDs. Unifies @media, @container, @supports.</td>
+  </tr>
+  <tr>
+    <td><code>rawCss</code></td>
+    <td><code>string?</code></td>
+    <td>Verbatim CSS for constructs that can't be modeled as property bags (e.g., <code>@keyframes</code> definitions)</td>
+  </tr>
+</table>
+
+<p><span class="tag tag-tip">Design Insight</span> Properties stored camelCase (e.g., <code>backgroundColor</code>, <code>fontSize</code>) — converted via <code>cssPropertyNameToStorageKey()</code>. <strong><code>--custom-properties</code> are stored verbatim</strong> (case-sensitive by CSS spec).</p>
+
+<div class="diagram">
+<span style="color:var(--accent);">@media/@container/@supports → Unified Condition Model</span>
+
+  type Condition =
+    | { kind: 'media';     query: string }
+    | { kind: 'container'; query: string; name?: string }
+    | { kind: 'supports';  query: string }
+
+  Each condition gets a deterministic id via conditionId().
+  Stored in a ConditionDef registry alongside the rules.
+  <span class="ref">src/core/page-tree/condition.ts</span>
+</div>
+
+<h4>Selector Classification Logic</h4>
+
+<pre><code>// cssToStyleRules.ts:135-144
+const SINGLE_CLASS_RE = /^\.[a-zA-Z_][\w-]*$/;
+
+// .btn         → kind:'class',  name:'btn'
+// .foo.bar     → kind:'ambient', name:'.foo.bar'
+// h1           → kind:'ambient', name:'h1'
+// a:hover      → kind:'ambient', name:'a:hover'
+// .foo .bar    → kind:'ambient', name:'.foo .bar'</code></pre>
+
+<h3 id="s1c">1.3 CSS Substitution Encoding — The <code>var()/env()</code> Problem</h3>
+
+<p>This is one of the most <strong>clever engineering decisions</strong> in the codebase. It solves a fundamental browser CSSOM inconsistency.</p>
+
+<div class="two-col">
+<div>
+<h4>The Problem</h4>
+<p>When CSS contains <code>var()</code> or <code>env()</code>, browsers disagree about what the CSSOM exposes:</p>
+<ul>
+  <li><strong>Chromium</strong>: stores a "pending-substitution value" — <code>style.length</code> enumerates longhands but <code>getPropertyValue()</code> returns <code>""</code></li>
+  <li><strong>happy-dom</strong> (test env): destroys the declaration entirely — <code>border-left: 1px solid var(--rule)</code> becomes three longhands each reporting only <code>var(--rule)</code> (the <code>1px solid</code> part is gone)</li>
+</ul>
+</div>
+<div>
+<h4>The Fix</h4>
+<p><strong>Rewrite before parsing</strong> — declarations with <code>var(</code> / <code>env(</code> are rewritten to marker custom properties:</p>
+<pre><code>/* Original */
+border-left: 1px solid var(--rule)
+
+/* Rewritten before CSSOM parse */
+--instatic-sub-border-left: 1px solid var(--rule)</code></pre>
+<p>Every CSS engine preserves custom property declarations <strong>verbatim</strong>. After parsing, <code>decodeSubstitutionProperty(kebab)</code> strips the <code>--instatic-sub-</code> prefix back to the real property name.</p>
+</div>
+</div>
+
+<div class="diagram">
+<span style="color:var(--accent);">Substitution Encode/Decode Pipeline</span>
+
+  Raw CSS ──► encodeSubstitutionDeclarations(css) ──► CSSStyleSheet.replaceSync() ──► walk CSSOM ──► readCssDeclarationBlock() ──► NewStyleRule
+
+    ↑ Rewrites to --instatic-sub-* props                    ↑ decodeSubstitutionProperty() strips prefix back
+    <span class="ref">src/core/css-substitution/index.ts</span>
+</div>
+
+<p>The scanner is a <strong>character-by-character state machine</strong> (not regex) that tracks:</p>
+<ul>
+  <li>String quotes (single/double)</li>
+  <li>Comment depth (<code>/* ... */</code>)</li>
+  <li>Parenthesis and bracket nesting</li>
+  <li><code>@keyframes</code> and <code>@font-face</code> blocks that must NOT be encoded</li>
+</ul>
+
+<h3 id="s1d">1.4 HTML Element → Module Mapping</h3>
+
+<p>A <strong>declarative rule table</strong> maps DOM elements to Instatic module types. Rules are tested in order — the catch-all <code>*</code> rule guarantees every element produces a node.</p>
+
+<table>
+  <tr><th>CSS Selector</th><th>Module</th><th>Recurse?</th><th>Key Behavior</th></tr>
+  <tr><td><code>h1-h6, p, span, small, strong, em</code></td><td><code>base.text</code> or <code>base.container</code></td><td>Conditional</td><td>Text when no element children; container when wrapping elements</td></tr>
+  <tr><td><code>a.btn</code></td><td><code>base.button</code></td><td>Leaf</td><td>No recursion — button inner content kept</td></tr>
+  <tr><td><code>a</code></td><td><code>base.link</code></td><td>Conditional</td><td>Recurse when wrapping element children</td></tr>
+  <tr><td><code>img</code></td><td><code>base.image</code></td><td>Leaf</td><td></td></tr>
+  <tr><td><code>svg</code></td><td><code>base.svg</code></td><td>Leaf</td><td>Captures <code>outerHTML</code> verbatim</td></tr>
+  <tr><td><code>iframe</code> (YouTube)</td><td><code>base.video</code></td><td>Leaf</td><td>YouTube detection via URL pattern match</td></tr>
+  <tr><td><code>iframe</code> (other)</td><td><code>base.container</code></td><td>Leaf</td><td>customTag: <code>'iframe'</code></td></tr>
+  <tr><td><code>form</code></td><td><code>base.form</code></td><td>Recurse</td><td></td></tr>
+  <tr><td><code>input[type=text/...]</code></td><td><code>base.input</code></td><td>Leaf</td><td></td></tr>
+  <tr><td><code>input[type=checkbox]</code></td><td><code>base.checkbox</code></td><td>Leaf</td><td></td></tr>
+  <tr><td><code>input[type=submit]</code></td><td><code>base.submit</code></td><td>Leaf</td><td></td></tr>
+  <tr><td><code>input[type=button/reset]</code></td><td><code>base.button</code></td><td>Leaf</td><td></td></tr>
+  <tr><td><code>textarea</code></td><td><code>base.textarea</code></td><td>Leaf</td><td></td></tr>
+  <tr><td><code>select</code></td><td><code>base.select</code></td><td>Recurse</td><td></td></tr>
+  <tr><td><code>option</code></td><td><code>base.option</code></td><td>Leaf</td><td></td></tr>
+  <tr><td><code>ul, ol, div, section, article, ...</code></td><td><code>base.container</code></td><td>Recurse</td><td>Standard block/semantic containers</td></tr>
+  <tr><td>Void elements (<code>br, hr, link, ...</code>)</td><td><code>base.container</code></td><td>Leaf</td><td>customTag preserves void element, empty children for React compat</td></tr>
+  <tr><td><code>*</code> (catch-all)</td><td><code>base.container</code></td><td>Recurse</td><td>Unknown elements preserve <code>customTag</code></td></tr>
+</table>
+
+<div class="diagram highlight">
+<span style="color:var(--accent);">Text Whitespace Algorithm</span> <span class="ref">src/core/htmlImport/text.ts + walkAndMap.ts:213-273</span>
+
+  For each text node:
+    ├── Inside &lt;pre&gt;: keep verbatim
+    ├── Whitespace-only with newline: DROP (pretty-print indentation)
+    ├── Whitespace-only without newline: single space (significant inline spacing)
+    └── Normal text: collapse all whitespace runs → single space, trim
+
+  Bare text children of containers (e.g. &lt;div class="num"&gt;98%&lt;/div&gt;)
+    → synthesized as base.text nodes with tag: 'none'
+</div>
+
+<h3 id="s1e">1.5 CSS Sanitization</h3>
+
+<p>A single <strong>dependency-free module</strong> that is the canonical authority for CSS value sanitization: <code>src/core/css-sanitize/sanitiseCssValue.ts</code>. Every CSS value passes through it.</p>
+
+<table>
+  <tr><th>Pattern</th><th>Blocks</th><th>Threat</th></tr>
+  <tr><td><code>expression(...)</code></td><td>IE CSS expression(), executes JS</td><td>CWE-79</td></tr>
+  <tr><td><code>javascript:</code></td><td>Historically exploited in some parsers</td><td>CWE-79</td></tr>
+  <tr><td><code>behavior:</code>, <code>-moz-binding</code></td><td>Legacy IE/Gecko CSS code execution</td><td>CWE-79</td></tr>
+  <tr><td><code>data:text</code></td><td>Data URI in CSS url() loads arbitrary HTML</td><td>CWE-79</td></tr>
+  <tr><td><code>{</code> or <code>}</code></td><td>Can close/open selector block</td><td>CWE-74</td></tr>
+  <tr><td><code>&lt;/</code></td><td>Bigram that could escape &lt;style&gt; in RAWTEXT</td><td>Defense-in-depth</td></tr>
+</table>
+
+<p><span class="tag tag-tip">Design Insight</span> The <code>&lt;/style</code> guard (<code>cssCollector.ts:122-124</code>) neutralizes <code>&lt;/style</code> → <code>&lt;\/style</code> before injection into a <code>&lt;style&gt;</code> block. The backslash is invisible in CSS string literals (<code>\/</code> = <code>/</code>), so values round-trip identically.</p>
+
+<h3 id="s1f">1.6 Edge Cases &amp; Reliability</h3>
+
+<div class="two-col">
+<div>
+<h4 style="color:var(--green);">Well-Handled</h4>
+<ul>
+  <li><code>var()/env()</code> byte-faithful preservation via substitution encoding</li>
+  <li>Duplicate classes within one file → later wins, warning emitted</li>
+  <li>Cross-sheet conflicting class defs → surfaced as conflict in wizard</li>
+  <li>Path traversal attacks → rejected during ingest</li>
+  <li>ZIP bomb detection → 5GB uncompressed guard</li>
+  <li>Per-rule resilience → individual failures caught, processing continues</li>
+  <li>Google Fonts → parsed from @import, installed as self-hosted</li>
+  <li><code>@font-face</code> external-only → <code>external-font</code> warning, skipped</li>
+  <li>CSS <code>@import</code> cycle detection → stack-based with warning</li>
+  <li>Background <code>url()</code> normalization → canonical <code>url('payload')</code></li>
+  <li>Bare text node synthesis → <code>&lt;div&gt;98%&lt;/div&gt;</code> imports faithfully</li>
+  <li>Internal link rewriting → <code>club.html</code> → <code>cms:page:&lt;id&gt;</code></li>
+  <li>CDN import rewriting → esm.sh/jsdelivr → npm specifier → self-hosted</li>
+</ul>
+</div>
+<div>
+<h4 style="color:var(--yellow);">Limitations / Risks</h4>
+<ul>
+  <li>Substitution scanner is <strong>hand-rolled</strong> — tracks quotes/comments/parens but does not deeply understand CSS grammar</li>
+  <li><code>@container</code> detection uses structural <code>cssText.startsWith('@container')</code> heuristic — could miss unusual formatting</li>
+  <li>Color token extraction only from root-scope ambient rules, non-<code>!important</code></li>
+  <li>Font stack parser is manual character-by-character with quote tracking</li>
+  <li>Property allowlist is permissive — accepts any syntactically-valid CSS property name</li>
+  <li><code>&lt;/style</code> neutralization doesn't run on kept-mode stylesheets (those pass through user's original source)</li>
+  <li>Bootstrap exempt patterns are hardcoded — non-Bootstrap utility frameworks would not benefit</li>
+  <li>Keyword matching for color token extraction uses a hardcoded list — CSS Color Level 4 additions may not be recognized</li>
+</ul>
+</div>
+</div>
+
+<h3 id="s1g">1.7 Publisher CSS Output Pipeline</h3>
+
+<div class="diagram">
+<span style="color:var(--accent);">Published CSS Bundle System</span>
+<span class="ref">src/core/publisher/siteCssBundle.ts</span>
+
+  Published pages get 4 separate CSS files:
+    1. reset.&lt;hash&gt;.css        — constant reset across all projects
+    2. framework.&lt;hash&gt;.css    — @font-face + framework vars + utilities
+    3. style.&lt;hash&gt;.css         — user-authored class registry
+    4. userStyles.&lt;hash&gt;.css    — user-authored global stylesheets (SiteFiles)
+
+  <span style="color:var(--text2);">Tree-shaking: only class-ids referenced by page nodes are emitted.</span>
+  <span style="color:var(--text2);">Ambient rules are always included (they match by CSS selection, not node assignment).</span>
+
+  Emission Order (for @media sorting):
+    Base declarations ──► Custom conditions (@container, @supports) ──► Viewport contexts
+                                                                    sorted: max-width widest first
+                                                                            min-width narrowest first
+                                                                            other (registry order)
+</div>
+
+<hr class="section-divider">
+
+<!-- ================================================================== -->
+<!-- SECTION 2: Canvas / Preview Architecture                            -->
+<!-- ================================================================== -->
+<h2 id="s2">2. Canvas / Preview Architecture</h2>
+
+<h3 id="s2a">2.1 Three Views, Not Two</h3>
+
+<p>Instatic inverts the traditional "canvas vs preview" model. <strong>Both the design view and the live view are fully editable.</strong> A separate read-only preview is a modal dialog.</p>
+
+<table>
+  <tr><th>View</th><th>Editable?</th><th>Rendering</th><th>Default?</th><th>Purpose</th></tr>
+  <tr>
+    <td><strong>Design</strong></td>
+    <td>Yes</td>
+    <td>3+ iframes side-by-side (per breakpoint)<br>with pan/zoom and selection rings</td>
+    <td>Yes</td>
+    <td>Multi-viewport editing, structure manipulation</td>
+  </tr>
+  <tr>
+    <td><strong>Live</strong></td>
+    <td>Yes</td>
+    <td>Single iframe, real size, normal scrolling</td>
+    <td>No</td>
+    <td>Real-size interaction preview while still editable</td>
+  </tr>
+  <tr>
+    <td><strong>Preview</strong> (modal)</td>
+    <td>No</td>
+    <td>Server-built page in sandboxed iframe</td>
+    <td>No</td>
+    <td>Read-only true production preview</td>
+  </tr>
+</table>
+
+<div class="diagram">
+<span style="color:var(--accent);">Component Hierarchy</span>
+<span class="ref">src/admin/pages/site/canvas/CanvasRoot.tsx:507-527</span>
+
+  CanvasRoot (state: canvasView)
+  ├── [design] CanvasTransformLayer            <span class="ref">src/admin/pages/site/canvas/CanvasTransformLayer.tsx</span>
+  │    ├── BreakpointFrame[mobile]              375px iframe
+  │    ├── BreakpointFrame[tablet]              768px iframe
+  │    └── BreakpointFrame[desktop]            1440px iframe
+  │         └── IframeFrameSurface (interaction='canvas')
+  │              ├── portals React content into iframe &lt;body&gt;
+  │              ├── injects 5 &lt;style&gt; elements (unlayered + @layer cascade)
+  │              ├── bridges wheel/pointer/keyboard events to parent
+  │              └── NodeRenderer renders each PageNode
+  └── [live] CanvasLiveSurface                  <span class="ref">src/admin/pages/site/canvas/CanvasLiveSurface.tsx</span>
+       └── IframeFrameSurface (interaction='live')
+            └── (same renderer, different mode: scrolling, fluid width, resizable)
+
+  PreviewOverlay (lazy-loaded, modal)           <span class="ref">src/admin/pages/site/preview/PreviewOverlay.tsx</span>
+  └── &lt;iframe sandbox=""&gt;  (server-built page, completely isolated)
+</div>
+
+<h3 id="s2b">2.2 Why Iframes? (Not Scaled <code>&lt;div&gt;</code>s)</h3>
+
+<p>Most visual editors (Webflow, older Framer) render a single <code>&lt;div&gt;</code> with <code>transform: scale()</code> or a <code>max-width</code> wrapper and fake viewport sizes with CSS. <strong>Instatic chose real iframes per breakpoint</strong> for three structural reasons documented at <code>IframeFrameSurface.tsx:1-26</code>:</p>
+
+<table>
+  <tr><th>Problem with Divs</th><th>Iframe Solution</th></tr>
+  <tr>
+    <td><code>&lt;body&gt;</code> <strong>is the editor chrome</strong> — user CSS like <code>body { background: black }</code> paints the entire editor</td>
+    <td>Each iframe gets its own real <code>&lt;body&gt;</code>. User CSS is fully isolated.</td>
+  </tr>
+  <tr>
+    <td><strong>Wrapper Divs between authored elements</strong> — CSS combinators (<code>&gt;</code>, <code>+</code>, <code>~</code>, <code>:nth-child()</code>) see wrapper divs, not authored elements</td>
+    <td>Modules spread handlers directly onto their root element. <strong>Zero wrapper elements</strong> between authored siblings. Combinators work identically to production.</td>
+  </tr>
+  <tr>
+    <td><strong>Faked viewport</strong> — <code>vw</code>/<code>vh</code> units, media queries, and scroll behavior don't match published page</td>
+    <td>Each iframe is sized to the exact breakpoint width. Media queries, viewport units, and scroll behavior match production perfectly.</td>
+  </tr>
+  <tr>
+    <td><strong>Style leakage</strong> — editor chrome CSS bleeds into the preview; user CSS bleeds into the editor</td>
+    <td>Complete style isolation between frames. Plus a deliberate <strong>unlayered-vs-@layer cascade split</strong> (see below).</td>
+  </tr>
+</table>
+
+<h3 id="s2c">2.3 Multi-Responsive Frames — Design Mode</h3>
+
+<div class="diagram highlight">
+<span style="color:var(--accent);">Multi-Frame Rendering Model</span>
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  CanvasTransformLayer  (CSS transform: translate(panX, panY) scale(zoom) ) │
+  │                                                                     │
+  │  ┌─────────┐      ┌──────────────┐      ┌──────────────────────┐   │
+  │  │ Mobile  │      │   Tablet     │      │       Desktop        │   │
+  │  │ 375px   │      │   768px      │      │       1440px         │   │
+  │  │ iframe  │      │   iframe     │      │       iframe         │   │
+  │  │(editable)│      │  (editable)  │      │     (editable)       │   │
+  │  └─────────┘      └──────────────┘      └──────────────────────┘   │
+  │      ↑                  ↑                     ↑                    │
+  │  [collapse]         [collapse]            [collapse]               │
+  │                                                                     │
+  │  Each frame: React portal into own iframe <body>                    │
+  │  All NodeRenderers share same Zustand store                         │
+  │  Selection/hover rings rendered as position:absolute overlays       │
+  └─────────────────────────────────────────────────────────────────────┘
+</div>
+
+<table>
+  <tr><th>Default Breakpoints</th><th>Width</th><th>Media Query</th></tr>
+  <tr><td>Mobile</td><td>375px</td><td><code>(max-width: 375px)</code></td></tr>
+  <tr><td>Tablet</td><td>768px</td><td><code>(max-width: 768px)</code></td></tr>
+  <tr><td>Desktop</td><td>1440px</td><td><code>(max-width: 1440px)</code></td></tr>
+</table>
+
+<p><span class="tag tag-tip">Clever Design</span> Breakpoints have a <code>previewFrame: boolean</code> field. A breakpoint can exist as a <strong>style-override target</strong> without rendering an iframe. Responsive contexts added via the picker default to <code>previewFrame: false</code> — so adding a custom 1024px context doesn't spawn a fourth iframe. <span class="ref">src/core/page-tree/breakpoint.ts:44</span></p>
+
+<h4>Per-Frame CSS Injection (5 Stylesheet Layers)</h4>
+
+<table>
+  <tr><th>&lt;style id&gt;</th><th>Injector</th><th>Cascade Layer</th><th>Contents</th></tr>
+  <tr>
+    <td><code>instatic-editor-chrome</code></td>
+    <td><code>EditorChromeInjector</code></td>
+    <td><strong>unlayered</strong></td>
+    <td>Editor chrome: placeholder styles, slot-instance markers, unknown-module indicators</td>
+  </tr>
+  <tr>
+    <td><code>mc-classes</code></td>
+    <td><code>ClassStyleInjector</code></td>
+    <td><code>@layer user-authored</code></td>
+    <td>Publisher reset + framework CSS + full class registry</td>
+  </tr>
+  <tr>
+    <td><code>mc-classes-preview</code></td>
+    <td><code>ClassStyleInjector</code></td>
+    <td><code>@layer user-authored</code></td>
+    <td>Higher-specificity preview on hover (applied class preview)</td>
+  </tr>
+  <tr>
+    <td><code>mc-classes-force-state</code></td>
+    <td><code>ClassStyleInjector</code></td>
+    <td><code>@layer user-authored</code></td>
+    <td>Forced pseudo-state preview (<code>:hover</code>, <code>:focus</code>)</td>
+  </tr>
+  <tr>
+    <td><code>mc-user-styles</code></td>
+    <td><code>UserStylesheetInjector</code></td>
+    <td><code>@layer user-authored</code></td>
+    <td>User-uploaded global stylesheets</td>
+  </tr>
+</table>
+
+<h3 id="s2d">2.4 The Unlayered Cascade Trick</h3>
+
+<p>This is a critical reliability mechanism:</p>
+
+<div class="diagram">
+<span style="color:var(--accent);">CSS Cascade: Editor Chrome Always Wins</span>
+
+  ┌──────────────────────────────────────────┐
+  │  instatic-editor-chrome  (UNLAYERED)     │  ← Always wins, regardless of specificity
+  │  selector: [data-canvas-module-placeholder]  │
+  ├──────────────────────────────────────────┤
+  │  @layer user-authored {                  │
+  │    resize.<hash>.css                      │  ← Can NEVER override unlayered
+  │    framework.<hash>.css                   │     even with !important or
+  │    style.<hash>.css (class registry)     │     high-specificity selectors
+  │    user-uploaded stylesheets             │
+  │    hover preview classes                 │
+  │  }                                       │
+  └──────────────────────────────────────────┘
+
+  Per CSS spec: unlayered rules always beat @layer rules.
+  User CSS at ANY specificity level can never override editor chrome.
+  <span class="ref">IframeFrameSurface.tsx:656-660</span>
+</div>
+
+<h3 id="s2e">2.5 Performance Optimizations</h3>
+
+<div class="two-col">
+<div>
+<h4>Pan/Zoom — Ref-Based, GPU-Composited</h4>
+<ul>
+  <li><code>transformRef</code> mutates the DOM element <strong>directly</strong> via <code>el.style.setProperty()</code> — zero React renders at 60fps</li>
+  <li>Only CSS <code>transform</code> changes — GPU-composited, no layout/paint</li>
+  <li>RAF-batched DOM writes coalesce gesture events</li>
+  <li>Zustand store updated <strong>100ms debounced</strong> after interaction ends</li>
+  <li>External sync (toolbar buttons, +/- keys) guarded by deep-equality check</li>
+</ul>
+</div>
+<div>
+<h4>Selection Overlays — Lazy RAF Loop</h4>
+<ul>
+  <li>Rings are <strong>position:absolute overlays</strong> outside the transform layer</li>
+  <li>1px borders are <strong>box-shadow</strong> — stays exactly 1px at every zoom</li>
+  <li>RAF loop only runs when <code>hasOverlayWork</code> is true — no ring, no loop</li>
+  <li>Each tick: <strong>READ phase</strong> (snapshot shared geometry) → <strong>WRITE phase</strong> (only when rect changed)</li>
+  <li>Zero per-frame <code>querySelector</code> scans — uses cached element lookup</li>
+</ul>
+</div>
+</div>
+<div class="two-col">
+<div>
+<h4>Iframe Auto-Height — Feedback Loop Guard</h4>
+<p><code>useIframeFrameAutoHeight.ts:37-63</code>: Frames grow to content height (no inner scrollbar). Body gets <code>min-height: 800px</code> artboard floor. A <strong>feedback loop guard</strong> caps self-driven resizes at 60 cycles and resets on external mutations. When replacing long→short pages, stale scroll height is ignored.</p>
+</div>
+<div>
+<h4>Frame Collapsing</h4>
+<p>Collapsed breakpoint frames keep a slim header label but <strong>drop the entire heavy iframe</strong> (DOM removed). State is ephemeral editor-session — not persisted. Reload clears collapsed state. <code>canvasSlice.ts:78</code></p>
+</div>
+</div>
+
+<h4>Cross-iframe Event Bridging</h4>
+
+<table>
+  <tr><th>Event</th><th>Mechanism</th><th>Guard</th></tr>
+  <tr><td>Wheel (scroll)</td><td>Re-dispatches WheelEvent on iframe element with coordinate transform</td><td>None — always forwarded for pan/zoom</td></tr>
+  <tr><td>Pointer (space+drag)</td><td>Tracks spacebar state, forwards pointerdown/move/up/cancel as new PointerEvents</td><td>Only during spacebar hold (pan gesture)</td></tr>
+  <tr><td>Keyboard shortcuts</td><td>Re-dispatches cloned keydown on parent document (spotlight, save, undo/redo)</td><td>Tab is blocked. Stands down during inline text editing.</td></tr>
+  <tr><td>Cross-iframe drag</td><td>When parent sets <code>data-instatic-canvas-dragging='1'</code>, each iframe forwards pointer with original <code>pointerId</code></td><td>Only during DnD operations</td></tr>
+  <tr><td>Navigation</td><td>Capture-phase preventDefault on all &lt;a href&gt;, &lt;area&gt;, form submit, aux-clicks</td><td>Always — canvas is editing surface, not browsing surface</td></tr>
+</table>
+
+<h3 id="s2f">2.6 Live Mode (Editable Preview)</h3>
+
+<div class="diagram">
+<span style="color:var(--accent);">Live Mode: Fully Editable Single-Frame View</span>
+
+  CanvasLiveSurface
+  └── IframeFrameSurface (interaction='live')
+       ├── Fluid width (fills space)
+       ├── Breakpoint presets clamp to min(breakpoint.width, containerWidth)
+       ├── Side drag handles resize between 240px and breakpoint width
+       ├── Symmetric drag: 1px pointer travel = 2px width change
+       ├── Live width badge: "{N}px"
+       ├── Native scroll (not pan)
+       ├── No wheel/keyboard forwarding to parent
+       ├── Canvas chrome CSS NOT applied (cursor, user-select, outline overrides)
+       └── Form controls LIVE (not suppressed)
+</div>
+
+<p>The live view reuses the exact same <code>IframeFrameSurface</code>, <code>NodeRenderer</code>, and selection overlay system. Only the wrapping layout and event handling differ. This means:</p>
+<ul>
+  <li>You can edit text, drag elements, modify styles while in "live" mode</li>
+  <li>No separate code path for rendering read-only content — it's the same renderer</li>
+  <li>Interactions feel native because the iframe scrolls normally, form elements work, etc.</li>
+</ul>
+
+<hr class="section-divider">
+
+<!-- ================================================================== -->
+<!-- SECTION 3: Layer Inspector                                         -->
+<!-- ================================================================== -->
+<h2 id="s3">3. Layer Inspector</h2>
+
+<h3 id="s3a">3.1 UI Architecture</h3>
+
+<div class="diagram">
+<span style="color:var(--accent);">Component Hierarchy — Layer Panel</span>
+
+  AdminCanvasEditorBody                  <span class="ref">src/admin/layouts/AdminCanvasLayout/AdminCanvasEditorBody.tsx</span>
+  └── LeftSidebar                        <span class="ref">src/admin/pages/site/sidebars/LeftSidebar/LeftSidebar.tsx</span>
+       ├── PanelRail (42px, icon buttons)  <span class="ref">src/admin/pages/site/sidebars/PanelRail/PanelRail.tsx</span>
+       │   ├── 🧩 Explorer (gold icon)
+       │   ├── 🎨 Framework
+       │   ├── 📐 Selectors
+       │   ├── 📦 Dependencies
+       │   └── 🤖 AI
+       └── panelSlot
+            └── ExplorerPanel            <span class="ref">src/admin/pages/site/panels/ExplorerPanel/ExplorerPanel.tsx</span>
+                 ├── SegmentedControl: [Layers | Site | Code | Media]
+                 └── DomPanel  ← THE LAYER TREE
+                      ├── DomTreeProvider (ExpansionStore context)
+                      │    └── ExpansionStore (external observable, NOT React state)
+                      └── DomPanelInner
+                           ├── SearchInput
+                           ├── SearchResults (flat list, when search active)
+                           └── ChildrenGroup (recursive tree, when not searching)
+                                └── TreeNode (React.memo, per-node subscriptions)
+                                     ├── TreeChevron (expand/collapse, 90° rotate)
+                                     ├── ModuleIcon (from module registry)
+                                     ├── TagPill (optional, e.g. &lt;div&gt;)
+                                     ├── TreeLabel (truncated display name)
+                                     ├── ClassChip (optional, e.g. .header.padding-m)
+                                     ├── Lock indicator (🔒)
+                                     └── Hidden indicator (EyeOff icon)
+</div>
+
+<p>The <code>ExplorerPanel</code> uses <strong><code>hidden</code> attributes</strong> (not conditional rendering) to toggle tabs, so all tab bodies stay mounted. Site and Code tabs share a single <code>SiteExplorerPanel</code> instance to avoid double <code>useDndMonitor</code> registration.</p>
+
+<h3 id="s3b">3.2 Tree Rendering</h3>
+
+<h4>Shared Tree Primitives</h4>
+
+<table>
+  <tr><th>Export</th><th>File</th><th>Purpose</th></tr>
+  <tr><td><code>TreeContainer</code></td><td><code>Tree.tsx:11</code></td><td><code>role="tree"</code> wrapper div</td></tr>
+  <tr><td><code>TreeRow</code></td><td><code>TreeRow.tsx:29</code></td><td>Single row with depth indent, selection/hover/locked/hidden states</td></tr>
+  <tr><td><code>TreeChevron</code></td><td><code>TreeRow.tsx:78</code></td><td>90° rotate animated chevron for expand/collapse</td></tr>
+  <tr><td><code>TreeIconSlot</code></td><td><code>TreeRow.tsx:107</code></td><td>14px icon container slot</td></tr>
+  <tr><td><code>TreeLabelGroup</code></td><td><code>TreeRow.tsx:126</code></td><td>Flex wrapper for label + meta</td></tr>
+  <tr><td><code>TreeLabel</code></td><td><code>TreeRow.tsx:133</code></td><td>Truncated text label</td></tr>
+  <tr><td><code>TreeMeta</code></td><td><code>TreeRow.tsx:142</code></td><td>Small metadata text (e.g., count)</td></tr>
+</table>
+
+<h4>Density &amp; Layout</h4>
+
+<div class="diagram">
+  Row height: --tree-row-h
+    Compact (default):   28px, font-size: var(--text-xs)
+    Comfortable:         36px, font-size: var(--text-s)
+
+  Indent: 8px base + 12px per depth level
+
+  <span class="ref">TreeRow.module.css:10-45</span>
+</div>
+
+<h4>Selection &amp; Visual States</h4>
+
+<table>
+  <tr><th>State</th><th>CSS Class</th><th>Visual</th></tr>
+  <tr><td>Selected</td><td><code>.rowSelected</code></td><td><code>--tree-row-accent: var(--overlay-60)</code>, background <code>var(--overlay-10)</code>, color <code>var(--text)</code></td></tr>
+  <tr><td>Hovered</td><td><code>.rowHovered</code></td><td>Background <code>var(--overlay-10)</code> (not applied when selected)</td></tr>
+  <tr><td>Focused</td><td><code>.rowFocused</code></td><td><code>--tree-row-focus: var(--overlay-20)</code></td></tr>
+  <tr><td>Locked</td><td><code>.rowLocked</code></td><td><code>color: var(--text-disabled)</code> — dimmed text</td></tr>
+  <tr><td>Hidden</td><td><code>.rowHidden</code></td><td><code>opacity: 0.35</code> — nearly transparent</td></tr>
+</table>
+
+<h4>Label Resolution</h4>
+
+<div class="diagram">
+<span style="color:var(--accent);">getNodeDisplayName()</span> <span class="ref">src/core/page-tree/nodeDisplayName.ts:31</span>
+
+  Priority order:
+    1. node.label           (user-set label)
+    2. Visual Component name (if node is a VC ref)
+    3. definition.name      (module definition display name)
+    4. node.moduleId        (fallback, e.g. "base.container")
+</div>
+
+<h3 id="s3c">3.3 Drag-and-Drop Reordering</h3>
+
+<p>The DnD subsystem is split into three clean layers:</p>
+
+<div class="diagram">
+<span style="color:var(--accent);">DnD Architecture — Three-Layer Separation</span>
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  Layer 1: Gesture Orchestration                                │
+  │  useDomPanelDnd.ts                                             │
+  │  ├── handleDragStart: capture drag id + multi-selection        │
+  │  ├── handleDragMove: resolve drop target + auto-scroll         │
+  │  │    └── auto-expand: 350ms hover → expands collapsed parent  │
+  │  └── handleDragEnd: returns final DomDropTarget or null        │
+  │  <span class="ref">src/admin/pages/site/panels/DomPanel/useDomPanelDnd.ts</span>
+  ├─────────────────────────────────────────────────────────────────┤
+  │  Layer 2: Geometry & Resolution                                 │
+  │  domPanelDnd.ts                                                │
+  │  ├── getDomDropZone: 'before'/'after'/'inside' from pointer Y  │
+  │  │    (edge band: 30% of row height = ~8-12px)                  │
+  │  ├── findDomDropRow: binary search over sorted measured rects  │
+  │  └── resolveDomDropTarget: delegates to core engine            │
+  │  <span class="ref">src/admin/pages/site/panels/DomPanel/domPanelDnd.ts</span>
+  ├─────────────────────────────────────────────────────────────────┤
+  │  Layer 3: Pure Engine Validation                                │
+  │  dnd.ts                                                        │
+  │  ├── resolvePageTreeDropTarget                                 │
+  │  ├── Validates: not root, not locked, not self, not ancestor   │
+  │  ├── For 'inside': checks canHaveChildren, cycles, index       │
+  │  ├── For 'before'/'after': finds parent, computes sibling idx  │
+  │  └── Returns null for no-op moves                              │
+  │  <span class="ref">src/core/page-tree/dnd.ts</span>
+  └─────────────────────────────────────────────────────────────────┘
+</div>
+
+<h4>Drop Indicators</h4>
+
+<table>
+  <tr><th>Class</th><th>Renders As</th></tr>
+  <tr><td><code>.dropBefore::before</code></td><td>2px horizontal line at TOP of row</td></tr>
+  <tr><td><code>.dropAfter::after</code></td><td>2px horizontal line at BOTTOM of row</td></tr>
+  <tr><td><code>.dropInside</code></td><td>Background + outline highlight on entire row</td></tr>
+  <tr><td><code>.dropInvalid</code></td><td>Red-tinted background + <code>cursor: not-allowed</code></td></tr>
+  <tr><td><code>.dropRoot::after</code></td><td>Full-width bottom line for root-level drops</td></tr>
+  <tr><td><code>.rootDropGap</code></td><td>12px gap div between root entries</td></tr>
+</table>
+
+<p><span class="tag tag-tip">Design Insight</span> All DnD state during drag is tracked in <strong>refs</strong>, not React state. <code>setTarget</code> only fires when the resolved target actually changes (guarded by <code>areTargetsEqual()</code>). This avoids re-rendering target rows on every pointer move.</p>
+
+<h4>Auto-scroll During Drag</h4>
+<div class="diagram">
+  When pointer is within 32px of scroll container's top/bottom edge:
+    → scrolls at up to 14px/frame using requestAnimationFrame
+  When hovering a collapsed container for 350ms (±4px movement tolerance):
+    → auto-expands to reveal children
+  <span class="ref">useDomPanelDnd.ts:111-135, 183-211</span>
+</div>
+
+<h3 id="s3d">3.4 Performance Strategy</h3>
+
+<p><strong>No virtualization.</strong> Instatic does not use react-window, react-virtuoso, or any virtual list. Instead, it relies on precise granular subscriptions and React.memo:</p>
+
+<table>
+  <tr><th>Technique</th><th>How</th><th>Impact</th></tr>
+  <tr>
+    <td><code>React.memo</code></td>
+    <td><code>TreeNode.tsx:66</code> — re-renders only when <code>nodeId</code> or <code>depth</code> change</td>
+    <td>Base optimization — props equality = no re-render</td>
+  </tr>
+  <tr>
+    <td>Per-node Zustand selectors</td>
+    <td>Each TreeNode subscribes to <strong>only its own</strong> <code>isSelected</code> and <code>isHovered</code> booleans</td>
+    <td>Canvas selection → only 2 rows re-render (old + new), not all 1,000+ rows</td>
+  </tr>
+  <tr>
+    <td><code>useSyncExternalStore</code> for expansion</td>
+    <td>Extension state lives in an external <code>ExpansionStore</code> class — <strong>not React state, not Zustand</strong>. A single toggle fires a targeted <code>notify()</code> that only triggers the 1 toggled row's subscription.</td>
+    <td>Expanding a row doesn't recreate a context value that re-renders every TreeNode</td>
+  </tr>
+  <tr>
+    <td>Stable child arrays</td>
+    <td><code>EMPTY_CHILDREN</code> const prevents referential inequality</td>
+    <td>Avoids unnecessary re-renders on empty children</td>
+  </tr>
+  <tr>
+    <td>Per-node class subscriptions</td>
+    <td>TreeNode subscribes to <code>site.styleRules</code> — renaming a class updates every referencing node</td>
+    <td>Granular via Mutative copy-on-write in Zustand</td>
+  </tr>
+  <tr>
+    <td>Search bypasses tree</td>
+    <td>When search active, renders a flat <code>SearchResults</code> list — not recursive <code>TreeNode</code></td>
+    <td>No recursive rendering during search; O(n) flatten + filter</td>
+  </tr>
+  <tr>
+    <td>Single-slot memo for active page</td>
+    <td><code>selectActivePage</code> uses a single-slot cache (<code>_activePageCache</code>) so O(pages) scan runs once per store update, not once per subscriber</td>
+    <td>All subscribers share one computation <span class="ref">store.ts:178-191</span></td>
+  </tr>
+</table>
+
+<p><span class="tag tag-tip">Key Insight</span> The <code>ExpansionStore</code> pattern (<code>expansionStore.ts</code>) is particularly elegant. Instead of putting expand/collapse state in React or Zustand (which would re-render every consumer on every toggle), it lives in an external observable class. Only the toggled row subscribes via <code>useSyncExternalStore</code>, and only that row re-renders.</p>
+
+<h3 id="s3e">3.5 Context Menu &amp; Actions</h3>
+
+<div class="diagram">
+<span style="color:var(--accent);">Right-Click Context Menu — LayerNodeContextMenu</span>
+<span class="ref">src/admin/pages/site/panels/DomPanel/LayerNodeContextMenu.tsx</span>
+
+  Rendered via createPortal(document.body) — escapes panel's transform: translateZ(0)
+
+  Multi-select aware menu items:
+  ├── Hide / Unhide         — toggles visibility for all selected nodes
+  ├── Rename                — single-node only, opens inline input
+  ├── Duplicate             — multi-aware, clones subtrees with scoped classes
+  ├── Componentize          — shown when eligible (multi-node → VC)
+  ├── Save as layout…       — page mode only, disabled on root
+  ├── Copy / Cut / Paste    — clipboard subtrees
+  ├── Paste HTML here…      — shown on container nodes, imports HTML into tree
+  ├── Wrap in → {Container, Loop}  — wraps selected nodes in new parent
+  ├── Insert module here →  — submenu with ModulePicker
+  └── Delete                — with confirm dialog
+
+  TreeBackgroundContextMenu — right-click on empty space (Paste, Insert)
+  <span class="ref">src/admin/pages/site/panels/DomPanel/TreeBackgroundContextMenu.tsx</span>
+</div>
+
+<h4>Inline Rename</h4>
+<div class="diagram">
+  TreeNode.tsx:355-359
+  └── Double-click or context → Rename → contentEditable input replaces TreeLabel
+      └── Enter to commit, Esc to cancel
+      └── applyNodeLabelChange → mutateActiveTree
+</div>
+
+<hr class="section-divider">
+
+<!-- ================================================================== -->
+<!-- SECTION 4: Takeaways                                               -->
+<!-- ================================================================== -->
+<h2 id="s4">4. Takeaways for Design Tool</h2>
+
+<h3>Import / Style Parsing</h3>
+
+<table>
+  <tr><th>Instatic Approach</th><th>Relevance to Design Tool</th></tr>
+  <tr>
+    <td><strong>Substitution encoding</strong> for <code>var()/env()</code> — rewrite to marker custom props before CSSOM parse</td>
+    <td><span class="tag tag-rec">Adopt</span> If you parse user CSS at any point, this technique is essential for reliability. The CSSOM is fundamentally broken for <code>var()</code>. The character-by-character scanner with comment/string/paren tracking is a proven pattern.</td>
+  </tr>
+  <tr>
+    <td><strong>NewStyleRule internal shape</strong> — unified camelCase props bag with <code>contextStyles</code> for @media/@container/@supports</td>
+    <td><span class="tag tag-rec">Consider</span> The unified <code>contextStyles</code> map is cleaner than separate @media/@container/@supports representations. The <code>class</code> vs <code>ambient</code> distinction elegantly handles both utility-class-first workflows and freeform CSS.</td>
+  </tr>
+  <tr>
+    <td><strong>Declarative element mapping rules</strong> with ordered match + conditional recursion</td>
+    <td><span class="tag tag-rec">Adopt</span> The <code>HTML_TO_MODULE_RULES</code> table pattern is cleaner than imperative mapping logic. The <code>hasElementChild</code> conditional (text vs container) is a neat solution for ambiguous elements like headings.</td>
+  </tr>
+  <tr>
+    <td><strong>Canonical CSS sanitizer</strong> — single dependency-free module for value/name/url checks</td>
+    <td><span class="tag tag-rec">Adopt</span> A single sanitization authority prevents inconsistencies. The <code>&lt;/style</code> → <code>&lt;\/style</code> trick is defense-in-depth worth implementing.</td>
+  </tr>
+  <tr>
+    <td><strong>4-file CSS bundle</strong> (reset + framework + styles + userStyles) with proper hashing</td>
+    <td><span class="tag tag-rec">Consider</span> Caching strategy with content-hash filenames. Tree-shaking class-ids by page usage.</td>
+  </tr>
+</table>
+
+<h3>Canvas / Preview</h3>
+
+<table>
+  <tr><th>Instatic Approach</th><th>Relevance to Design Tool</th></tr>
+  <tr>
+    <td><strong>Real iframes per breakpoint</strong> (not scaled divs)</td>
+    <td><span class="tag tag-rec">Consider</span> If you need CSS combinators, true <code>&lt;body&gt;</code>, and working media queries, iframes are the answer. The cost is cross-iframe event bridging complexity. Evaluate whether your use case needs combinator/body fidelity vs simpler div-scale approach.</td>
+  </tr>
+  <tr>
+    <td><strong>Design + Live both editable</strong> (Preview is separate modal)</td>
+    <td><span class="tag tag-rec">Adopt pattern</span> Having design and "preview-like" editable mode share the same renderer is elegant. Then a truly read-only preview is a separate build-and-display step.</td>
+  </tr>
+  <tr>
+    <td><strong>Unlayered vs @layer cascade</strong> — editor chrome always wins</td>
+    <td><span class="tag tag-rec">Adopt</span> This is an elegant CSS-native solution to prevent user CSS from breaking editor chrome. No specificity arms race needed. One extra <code>&lt;style&gt;</code> element unlayered, everything else in <code>@layer user-authored</code>.</td>
+  </tr>
+  <tr>
+    <td><strong><code>previewFrame: boolean</code></strong> — breakpoints can be style targets without spawning iframes</td>
+    <td><span class="tag tag-rec">Adopt</span> Users can add arbitrary responsive contexts (style target only) without cluttering the canvas with more iframes.</td>
+  </tr>
+  <tr>
+    <td><strong>Ref-based pan/zoom</strong> — GPU-composited, zero React re-renders at 60fps</td>
+    <td><span class="tag tag-rec">Adopt</span> The pattern of direct DOM mutation during gestures + debounced store commits is proven and performant.</td>
+  </tr>
+  <tr>
+    <td><strong>RAF-batched overlay reads/writes</strong> with element caching</td>
+    <td><span class="tag tag-rec">Adopt</span> Splitting each frame into read phase (snapshot geometry) then write phase (apply styles) avoids layout thrashing.</td>
+  </tr>
+  <tr>
+    <td><strong>Collapsible iframe frames</strong> — DOM removal, not hide</td>
+    <td><span class="tag tag-rec">Adopt</span> Dropping the heavy iframe from the DOM entirely when collapsed, not just hiding it, saves memory and rendering cost.</td>
+  </tr>
+</table>
+
+<h3>Layer Inspector</h3>
+
+<table>
+  <tr><th>Instatic Approach</th><th>Relevance to Design Tool</th></tr>
+  <tr>
+    <td><strong>Flat <code>Record&lt;string, PageNode&gt;</code></strong> — tree emerges from <code>children: string[]</code></td>
+    <td><span class="tag tag-rec">Adopt</span> Flat storage + denormalized <code>parentId</code> = O(1) node lookups. Tree structure is a view, not the storage model. This is the pattern you should use.</td>
+  </tr>
+  <tr>
+    <td><strong>Per-node granular subscriptions</strong> — <code>selectedNodeIds.includes(nodeId)</code></td>
+    <td><span class="tag tag-rec">Adopt</span> Each TreeNode subscribes only to its own selection state. Canvas click → only old+new rows re-render, not the entire tree.</td>
+  </tr>
+  <tr>
+    <td><strong>ExpansionStore</strong> — external observable, <code>useSyncExternalStore</code></td>
+    <td><span class="tag tag-rec">Adopt</span> This prevents the "expand one row = re-render every row" problem. Expansion state should NOT be in Zustand or React context.</td>
+  </tr>
+  <tr>
+    <td><strong>Three-layer DnD</strong> — gesture orchestration / geometry / pure engine</td>
+    <td><span class="tag tag-rec">Adopt</span> Separating DnD into gesture handling (UI), geometry resolution (measure), and validation (core engine) is clean architecture. The pure engine layer makes DnD logic testable.</td>
+  </tr>
+  <tr>
+    <td><strong>DnD state in refs</strong>, not React state</td>
+    <td><span class="tag tag-rec">Adopt</span> Tracking drag state in refs + equality-guarded setTarget avoids re-rendering target rows on every pointer move.</td>
+  </tr>
+  <tr>
+    <td><strong>No virtualization</strong> — relies on React.memo + granular subscriptions</td>
+    <td><span class="tag tag-warn">Evaluate</span> Works for Instatic's scale. If your trees can be 10,000+ nodes, you may need virtualization. But their subscription model means even large rendered trees are cheap to update.</td>
+  </tr>
+  <tr>
+    <td><strong>Search bypasses tree rendering</strong> — flat list when filtering</td>
+    <td><span class="tag tag-rec">Adopt</span> Switching to a flat search results list avoids the complexity of virtualizing a recursive tree.</td>
+  </tr>
+  <tr>
+    <td><strong>Shared tree primitives</strong> — TreeRow, TreeChevron, TreeIconSlot, TreeLabel</td>
+    <td><span class="tag tag-rec">Adopt</span> Extract reusable tree row components. They're used by both the DomPanel layer tree and the Site Explorer.</td>
+  </tr>
+</table>
+
+<h3>Architectural Patterns Worth Borrowing</h3>
+
+<table>
+  <tr><th>Pattern</th><th>Where Used</th><th>Why It's Good</th></tr>
+  <tr>
+    <td><strong>Declarative mapping tables</strong> (not imperative logic)</td>
+    <td><code>HTML_TO_MODULE_RULES</code>, element→module mapping</td>
+    <td>Readable, testable, extensible. Adding a new element type is one entry in the table.</td>
+  </tr>
+  <tr>
+    <td><strong>Pure engine layer with no UI imports</strong></td>
+    <td><code>src/core/page-tree/dnd.ts</code>, <code>mutations.ts</code></td>
+    <td>Business logic is testable without React. The entire import pipeline (<code>cssToStyleRules</code>) is a pure function.</td>
+  </tr>
+  <tr>
+    <td><strong>Single source of truth</strong> — page tree in Zustand</td>
+    <td>All panels subscribe, no panel keeps a local copy</td>
+    <td>Enforced by Constraint #182 in their architecture tests. No drift between canvas, layers, and properties panel.</td>
+  </tr>
+  <tr>
+    <td><strong>Canonical authority per concern</strong></td>
+    <td>One <code>sanitiseCssValue.ts</code> for all CSS sanitization. One <code>readCssDeclarationBlock()</code> for all CSSOM reading.</td>
+    <td>No duplicated validation logic. No inconsistencies in what's allowed.</td>
+  </tr>
+  <tr>
+    <td><strong>Multi-selection everywhere</strong></td>
+    <td>Layers: multi-select, multi-drag, multi-hide, multi-delete. Shift/Cmd-aware.</td>
+    <td>First-class multi-selection in the selection store slice enables all panels to be multi-node aware.</td>
+  </tr>
+  <tr>
+    <td><strong>External observables for volatile state</strong></td>
+    <td>ExpansionStore for tree nodes. Ref-based DnD state.</td>
+    <td>Not all state belongs in Zustand. Volatile/transient UI state in external stores prevents cascade re-renders.</td>
+  </tr>
+</table>
+
+<h3>Things Instatic Does That Design Tool Should Probably NOT Copy</h3>
+
+<table>
+  <tr><th>Thing</th><th>Why It May Not Apply</th></tr>
+  <tr>
+    <td>Bun-only server runtime</td>
+    <td>Design Tool is a Vite plugin. No server runtime needed.</td>
+  </tr>
+  <tr>
+    <td>CSS Modules + global CSS variables (no Tailwind)</td>
+    <td>Depends on the host app. Design Tool needs to work with whatever CSS setup the host uses.</td>
+  </tr>
+  <tr>
+    <td>Zustand + Mutative patches for undo history</td>
+    <td>Valid approach, but evaluate against simpler alternatives (e.g., immer, history stack of snapshots, or command pattern).</td>
+  </tr>
+  <tr>
+    <td>Hand-rolled CSS substitution scanner</td>
+    <td>The character-by-character scanner is robust but complex. A lighter-weight regex-based approach may be sufficient for simpler needs.</td>
+  </tr>
+  <tr>
+    <td>Agent snapshot frames (AI integration)</td>
+    <td>Instatic-specific feature. Only relevant if Design Tool adds AI prompt generation.</td>
+  </tr>
+</table>
+
+<hr class="section-divider">
+
+<p style="font-size: 0.85em; color: var(--text2); text-align: center; padding-top: 1rem;">
+  Analysis generated from <a href="https://github.com/CoreBunch/Instatic">Instatic v0.0.14</a> source at <code>server/</code>, <code>src/core/</code>, <code>src/admin/</code>, <code>src/ui/</code>.
+  All file path references are relative to the Instatic repository root.
+</p>
+
+</body>
+</html>

@@ -2,6 +2,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import { mountInspector, unmountInspector } from "./index.ts";
+import { setSelectedElement } from "./selectionStore.ts";
+import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { acquireLease, releaseLease } from "./canvas/workspaceLease.ts";
 import { clearRestoreCount, setRestoreCount } from "./canvas/sessionStore.ts";
 
@@ -122,6 +124,63 @@ describe("InspectorShell", () => {
     });
     expect(space!.defaultPrevented).toBe(true);
     expect(arrowDown!.defaultPrevented).toBe(true);
+  });
+
+  it("leaves arrow keys available to focused inspector inputs", () => {
+    act(() => {
+      mountInspector(host);
+    });
+    const shadow = host.shadowRoot!;
+    act(() => {
+      (shadow.querySelector('[data-test="tokens-tab"]') as HTMLButtonElement).click();
+    });
+    const input = shadow.querySelector('[data-test="token-search"]') as HTMLInputElement;
+
+    const event = new KeyboardEvent("keydown", {
+      key: "ArrowLeft",
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+    act(() => {
+      input.focus();
+      input.dispatchEvent(event);
+    });
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("does not delete the selected element from a focused inspector input", () => {
+    act(() => {
+      mountInspector(host);
+    });
+    const selected = document.createElement("div");
+    selected.setAttribute("data-cid", "Selected");
+    selected.setAttribute("data-src", "src/Selected.tsx:1:1");
+    document.body.append(selected);
+    act(() => {
+      setSelectedElement(resolveSelectionFromElement(selected));
+      (host.shadowRoot!.querySelector('[data-test="tokens-tab"]') as HTMLButtonElement).click();
+    });
+    const input = host.shadowRoot!.querySelector('[data-test="token-search"]') as HTMLInputElement;
+    const event = new KeyboardEvent("keydown", {
+      key: "Delete",
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+
+    act(() => {
+      input.focus();
+      input.dispatchEvent(event);
+    });
+
+    expect(selected.isConnected).toBe(true);
+    expect(event.defaultPrevented).toBe(false);
+    act(() => {
+      setSelectedElement(null);
+      selected.remove();
+    });
   });
 
   it("reserves the panel width while open and releases it when hidden", () => {
