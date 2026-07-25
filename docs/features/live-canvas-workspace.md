@@ -315,8 +315,8 @@ labelled as not restorable. Stable changes are serialized without transient DOM
 references, validated against a versioned schema, hydrated without creating an
 undo entry, and immediately projected into the top-level managed stylesheet.
 
-Restoration is automatic. Show a compact **Restored N preview changes** notice
-and a clearly available **Clear session** action. Clear removes durable Canvas
+Restoration is automatic. Keep a clearly available **Clear session** action
+without showing a restore-count notice. Clear removes durable Canvas
 and edit state, canonical changes, managed stylesheets, history, and the current
 workspace lease, then returns to a one-card Inspect baseline.
 

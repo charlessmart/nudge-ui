@@ -109,7 +109,8 @@ function PairedTokenField({
   const row = pairTokenRow(displayProperty, axisProjection);
   const expression = Boolean(row && (row.capability === "raw" || row.capability === "composite"
     || row.modifiers?.some((modifier) => modifier.kind === "alpha")));
-  const activeTokenName = expression ? null : row.tokenName;
+  const calcAuthored = row?.authored ?? row?.declaredValue ?? "";
+  const activeTokenName = expression || /\bcalc\s*\(/i.test(calcAuthored) ? null : row.tokenName;
   const committedValue = expression ? row.authored || row.declaredValue || row.resolvedValue : row.resolvedValue;
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null

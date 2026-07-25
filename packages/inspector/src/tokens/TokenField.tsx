@@ -482,13 +482,15 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
     || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")
     || /\bcolor-mix\s*\(/i.test(tokenRow.authored ?? tokenRow.declaredValue)));
-  const activeTokenName = expression ? null : tokenRow?.tokenName ?? null;
+  const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? "";
+  const isCalcAuthored = /\bcalc\s*\(/i.test(authored);
+  const activeTokenName = expression || isCalcAuthored ? null : tokenRow?.tokenName ?? null;
   const fallbackValue = initialValue ?? structuredBorderValue(property, tokenRow) ?? computedRaw(el, property);
-  // Keep authored CSS as the editable source of truth while allowing the UI
-  // polish branch to supply an explicit empty initial value for blank fields.
-  // Structured shorthands retain the full authored declaration on the row for
-  // attribution, but their individual controls must edit the parsed component.
-  const authoredOrComputed = expression || !activeTokenName
+  // When a calc() was simplified to a numeric value we suppress the token
+  // chip so the UI shows the resolved pixel value, not the internal
+  // multiplier token (e.g. --spacing).  The authored expression stays
+  // accessible via the row for diagnostics.
+  const authoredOrComputed = expression || (!activeTokenName && !isCalcAuthored)
     ? structuredBorderValue(property, tokenRow) ?? tokenRow?.authored ?? tokenRow?.declaredValue ?? fallbackValue
     : tokenRow?.resolvedValue ?? fallbackValue;
   const committedValue = property === "font-family" && !activeTokenName

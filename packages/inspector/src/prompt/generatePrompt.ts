@@ -1,5 +1,6 @@
 import { isTokenChange } from "../changesLog.ts";
 import type { ChangeRecord, ElementChangeRecord, TokenChangeRecord } from "../changesLog.ts";
+import { escapeAttrValue } from "../managedStylesheet.ts";
 
 export interface FrameworkHints {
   framework?: string;
@@ -103,6 +104,16 @@ function tokenChangeLine(rec: TokenChangeRecord): string {
   return `- \`${rec.tokenName}\` (${rec.contextLabel}, ${rec.file}:${rec.line}): \`${rec.oldRawValue}\` → \`${rec.rawValue}\`${conflictSuffix(rec)}`;
 }
 
+/**
+ * Managed rules use an exact source identity. Prompts deliberately keep the
+ * source-line form: it is more useful to an agent as a grep fallback and is
+ * not used to apply browser styles.
+ */
+function promptSelectorForElement(group: ElementGroup): string {
+  if (!group.cid || !group.file || !group.line) return group.selector;
+  return `[data-cid="${escapeAttrValue(group.cid)}"][data-src*="${escapeAttrValue(`${group.file}:${group.line}`)}"]`;
+}
+
 export function generatePrompt(changes: ChangeRecord[], frameworkHints?: FrameworkHints): string {
   if (changes.length === 0) return EMPTY_SENTINEL;
   const deduplicated = deduplicateChanges(changes);
@@ -151,6 +162,6 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
 
   lines.push("## Selectors (fallback)");
   tokenChanges.forEach((change) => lines.push(`- \`${change.tokenName}\` in \`${change.selector}\``));
-  elementGroups.forEach((group) => lines.push(`- \`${group.selector}\``));
+  elementGroups.forEach((group) => lines.push(`- \`${promptSelectorForElement(group)}\``));
   return lines.join("\n");
 }

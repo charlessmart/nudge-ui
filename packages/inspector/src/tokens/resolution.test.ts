@@ -7,6 +7,7 @@ import {
   normalizeColorOpacity,
   getAvailableTokenCatalog,
   getAvailableTokenEntriesForElement,
+  getResolvedProperties,
   resolvePropertiesFromRules,
   getAvailableInteractionStates,
   getResolvedPropertiesForState,
@@ -79,6 +80,33 @@ describe("runtime token availability", () => {
         declarations: [definitions[0]!.declarations[0]!],
       },
     ]);
+  });
+});
+
+describe("cross-document token attribution", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("reads authored token rules from a canvas iframe document", () => {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    const frameDocument = iframe.contentDocument!;
+    const style = frameDocument.createElement("style");
+    style.textContent = ".canvas-button { background-color: var(--color-canvas); }";
+    frameDocument.head.appendChild(style);
+    const button = frameDocument.createElement("button");
+    button.className = "canvas-button";
+    frameDocument.body.appendChild(button);
+
+    const rows = getResolvedProperties(button, makeTable([
+      { name: "--color-canvas", value: "#224466", source: "styles.css:1" },
+    ]));
+
+    expect(rows.find((row) => row.property === "background-color")).toMatchObject({
+      tokenName: "--color-canvas",
+      declaredValue: "var(--color-canvas)",
+    });
   });
 });
 
@@ -551,14 +579,14 @@ describe("resolvePropertiesFromRules", () => {
     },
   );
 
-  it("keeps authored expressions separate from computed and classifies them as raw", () => {
+  it("classifies a simple calc() as atomic when variables resolve and the property is not spacing", () => {
     const value = "calc(var(--space-1) * 2)";
     const row = resolvePropertiesFromRules(btn, [{
       selectorText: ".btn",
       specificity: 10000,
       declarations: [{ property: "width", value }],
     }], makeTable([{ name: "--space-1", value: "4px", source: "s:1" }]))[0];
-    expect(row).toMatchObject({ authored: value, declaredValue: value, capability: "raw", computed: "" });
+    expect(row).toMatchObject({ authored: value, declaredValue: value, capability: "atomic" });
     expect(row?.tokens?.map((token) => token.name)).toEqual(["--space-1"]);
   });
 

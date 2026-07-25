@@ -46,7 +46,7 @@ async function setInput(
 }
 
 test.describe("Canvas durable session", () => {
-  test("dev: edits survive page refresh and restore notice appears", async ({ page }) => {
+  test("dev: edits survive page refresh without restore-count copy", async ({ page }) => {
     await page.goto("/");
     await page.click("text=Save");
     await waitForInspector(page);
@@ -55,18 +55,17 @@ test.describe("Canvas durable session", () => {
     await setInput(page, "padding-top", "32px");
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
 
-    // Verify restore notice is NOT shown before refresh (no session was loaded)
-    const noticeBefore = await page.locator('[data-test="restore-notice"]').isVisible().catch(() => false);
-    expect(noticeBefore).toBe(false);
+    // Verify the clear action is NOT shown before refresh (no session was loaded)
+    const clearBefore = await page.locator('[data-test="clear-session"]').isVisible().catch(() => false);
+    expect(clearBefore).toBe(false);
 
     // Reload the page
     await page.reload();
     await waitForInspector(page);
 
-    // Restore notice should appear after reload with restored changes
-    await expect(page.locator('[data-test="restore-notice"]')).toBeVisible();
-    const noticeText = await page.locator('[data-test="restore-notice"]').textContent();
-    expect(noticeText).toContain("Restored");
+    // The restore-count message should stay hidden, while the clear action remains available below Changes
+    await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
+    await expect(page.locator('[data-test="session-actions"]')).toHaveClass(/dt-changes__session-action/);
 
     // The edit should still be present
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
@@ -123,14 +122,14 @@ test.describe("Canvas durable session", () => {
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
     await page.locator('[data-test="canvas-exit"]').click();
 
-    // Click "Clear Session" from the restore notice
+    // Click "Clear Session" from the session actions
     await page.reload();
     await waitForInspector(page);
 
-    // Restore notice should have the clear button
+    // Restored sessions should have the clear button
     const clearBtn = page.locator('[data-test="clear-session"]');
-    const noticeVisible = await page.locator('[data-test="restore-notice"]').isVisible().catch(() => false);
-    if (noticeVisible) {
+    const clearVisible = await clearBtn.isVisible().catch(() => false);
+    if (clearVisible) {
       await clearBtn.click();
     } else {
       // If no stored session, just verify state is clean
@@ -180,7 +179,7 @@ test.describe("Canvas durable session", () => {
     await page.click("text=Save");
     await waitForInspector(page);
 
-    // Verify restore notice disappears when we clear the session first
+    // Verify session actions disappear when we clear the session first
     const clearBtn = page.locator('[data-test="clear-session"]');
     if (await clearBtn.isVisible().catch(() => false)) {
       await clearBtn.click();

@@ -386,10 +386,10 @@ export const SPACING_CASES: ConformanceFixture[] = [
     expected: {
       catalog: [{ name: "--space-4", value: "16px" }],
       properties: {
-        "padding-top": { authored: "calc(var(--space-4) * 2)", tokens: ["--space-4"], capability: "raw" },
-        "padding-right": { authored: "calc(var(--space-4) * 2)", tokens: ["--space-4"], capability: "raw" },
-        "padding-bottom": { authored: "calc(var(--space-4) * 2)", tokens: ["--space-4"], capability: "raw" },
-        "padding-left": { authored: "calc(var(--space-4) * 2)", tokens: ["--space-4"], capability: "raw" },
+        "padding-top": { authored: "calc(var(--space-4) * 2)", tokens: ["--space-4"], capability: "box-sides" },
+        "padding-right": { authored: "calc(var(--space-4) * 2)", tokens: ["--space-4"], capability: "box-sides" },
+        "padding-bottom": { authored: "calc(var(--space-4) * 2)", tokens: ["--space-4"], capability: "box-sides" },
+        "padding-left": { authored: "calc(var(--space-4) * 2)", tokens: ["--space-4"], capability: "box-sides" },
       },
     },
   },

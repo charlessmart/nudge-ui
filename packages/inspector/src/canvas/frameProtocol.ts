@@ -56,6 +56,7 @@ export interface ElementHoverMessage extends RendererMessage {
   cid: string;
   selector: string;
   rect: { left: number; top: number; width: number; height: number } | null;
+  margins: { top: number; right: number; bottom: number; left: number } | null;
 }
 
 export interface ElementClickMessage extends RendererMessage {

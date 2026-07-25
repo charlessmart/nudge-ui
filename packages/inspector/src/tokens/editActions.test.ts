@@ -27,9 +27,9 @@ const SPRINKLES_BRAND: TokenEntry = { name: "theme.color.brand", cssName: "--col
 const TAILWIND_V3_SPACE: TokenEntry = { name: "theme.spacing.3", value: "0.75rem", cssValue: "0.75rem", source: "tailwind.config.js:1", adapter: "tailwind-v3", origin: "project" };
 
 describe("buildSelector", () => {
-  it("composes [data-cid=...][data-src*=...] from cid + file:line parsed from src", () => {
+  it("composes [data-cid=...][data-src=...] from the complete injected source identity", () => {
     expect(buildSelector("Button", "src/Button.tsx:42:8")).toBe(
-      '[data-cid="Button"][data-src*="src/Button.tsx:42"]',
+      '[data-cid="Button"][data-src="src/Button.tsx:42:8"]',
     );
   });
 
@@ -37,15 +37,16 @@ describe("buildSelector", () => {
     expect(buildSelector("", "src/x.tsx:1:1")).toBeNull();
   });
 
-  it("uses the whole src as the file match when it does not match line:col", () => {
-    expect(buildSelector("App", "App.tsx")).toBe('[data-cid="App"][data-src*="App.tsx"]');
+  it("uses the complete src when it does not match line:col", () => {
+    expect(buildSelector("App", "App.tsx")).toBe('[data-cid="App"][data-src="App.tsx"]');
   });
 
-  it("dedupes by selector+property even across different elements on the same line", () => {
+  it("keeps separate JSX elements on the same line independently targetable", () => {
     const a = buildSelector("Button", "src/Button.tsx:1:1");
     const b = buildSelector("Button", "src/Button.tsx:1:5");
-    expect(a).toBe(b);
-    expect(a).toBe('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+    expect(a).not.toBe(b);
+    expect(a).toBe('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
+    expect(b).toBe('[data-cid="Button"][data-src="src/Button.tsx:1:5"]');
   });
 });
 
@@ -69,7 +70,7 @@ describe("swapToken", () => {
     const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
     expect(sheet).not.toBeNull();
     const text = sheet.textContent ?? "";
-    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+    expect(text).toContain('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
     expect(text).toContain("background: var(--color-blue);");
   });
 
@@ -102,7 +103,7 @@ describe("swapToken", () => {
     expect(rec).not.toBeNull();
     expect(rec!.cid).toBe("Button");
     expect(rec!.file).toBe("src/Button.tsx");
-    expect(rec!.selector).toBe('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+    expect(rec!.selector).toBe('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
     expect(rec!.property).toBe("background");
     expect(rec!.newToken!.name).toBe("--color-blue");
     expect(rec!.oldToken?.name).toBe("--color-surface-raised");

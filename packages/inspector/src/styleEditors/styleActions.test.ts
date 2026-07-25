@@ -25,13 +25,13 @@ describe("setStyle", () => {
     document.getElementById("design-tool-styles")?.remove();
   });
 
-  it("writes a rule keyed by [data-cid][data-src*] mapping property to the raw value", () => {
+  it("writes a rule keyed by [data-cid][data-src] mapping property to the raw value", () => {
     const btn = makeButton();
     setStyle(btn, "padding", "24px 8px 24px 8px");
     const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
     expect(sheet).not.toBeNull();
     const text = sheet.textContent ?? "";
-    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+    expect(text).toContain('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
     expect(text).toContain("padding: 24px 8px 24px 8px;");
   });
 

@@ -68,6 +68,22 @@ test("dev: clicking a tracked non-anchor element inside an iframe selects it in 
   expect(page.url()).toMatch(/\/$/);
 });
 
+test("dev: canvas mirrors inspector hover margins and selected outline over the iframe", async ({ page }) => {
+  await waitForIframeReady(page, 0);
+
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const heading = frame.locator("#hero-title");
+  await heading.hover();
+
+  await expect(page.locator('[data-test="canvas-hover-outline"]')).toBeVisible();
+  await expect(page.locator(".dt-canvas-hover-margin-fill")).toHaveCount(2);
+  await expect(page.locator('.dt-canvas-hover-margin[data-side="top"]')).toHaveAttribute("data-distance", /\d/);
+
+  await heading.click();
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toHaveCSS("outline-color", "rgb(59, 130, 246)");
+});
+
 test("dev: clicking a Button component tracked element shows the Button component in the inspector", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
@@ -81,6 +97,8 @@ test("dev: clicking a Button component tracked element shows the Button componen
 
   await expect(page.locator('[data-test="selection"]')).toBeVisible({ timeout: 5000 });
   await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", "Button");
+  await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="token-chip"]'))
+    .toContainText("--color-text-primary");
   await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
 });
 

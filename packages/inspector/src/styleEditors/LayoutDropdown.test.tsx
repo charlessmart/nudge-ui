@@ -89,7 +89,7 @@ describe("LayoutDropdown", () => {
     const select = handle.host.querySelector('[data-test="layout-select-flex-direction"]') as HTMLElement;
     setSelectValue(select, "column");
 
-    expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+    expect(sheetText()).toContain('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
     expect(sheetText()).toContain("flex-direction: column;");
   });
 

@@ -6,6 +6,7 @@ import {
   type ElementHoverMessage,
 } from "./frameProtocol.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
+import { readMargins } from "../overlayGeometry.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -109,6 +110,7 @@ export function installRendererElementSelector(): void {
           width: rect.width,
           height: rect.height,
         },
+        margins: readMargins(el),
         ...identity,
       };
 
@@ -141,6 +143,7 @@ export function installRendererElementSelector(): void {
         cid,
         selector,
         rect: null,
+        margins: null,
         ...identity,
       };
 

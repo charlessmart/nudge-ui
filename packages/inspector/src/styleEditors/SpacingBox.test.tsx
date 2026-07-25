@@ -81,7 +81,7 @@ describe("SpacingBox", () => {
     showIndividualSides("padding");
     const pt = rawInput("padding-top");
     setInputValue(pt, "24px");
-    expect(sheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+    expect(sheetText()).toContain('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
     expect(sheetText()).toContain("padding-top: 24px;");
     expect(el.style.paddingTop).toBe("");
   });

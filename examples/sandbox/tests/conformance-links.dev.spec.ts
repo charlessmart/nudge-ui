@@ -6,10 +6,11 @@ test("dev: main demo links to every conformance page", async ({ page }) => {
   await page.reload();
 
   const links = page.locator('[data-test="conformance-link"]');
-  await expect(links).toHaveCount(7);
+  await expect(links).toHaveCount(8);
 
   await expect(links.evaluateAll((elements) => elements.map((element) => element.getAttribute("href")))).resolves.toEqual([
     "/conformance",
+    "/examples",
     "/spacing-conformance",
     "/typography-conformance",
     "/color-conformance",

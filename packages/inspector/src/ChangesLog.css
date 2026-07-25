@@ -50,6 +50,12 @@
   padding-bottom: 4px;
 }
 
+.dt-changes__session-action {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 0 20px;
+}
+
 .dt-changes__group {
   margin-bottom: 12px;
   padding: 12px;

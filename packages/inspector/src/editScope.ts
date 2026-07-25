@@ -14,9 +14,10 @@ let nextInstanceId = 1;
 export function sourceSiteSelector(cid: string, src: string): string | null {
   if (!cid) return null;
   if (!src) return `[data-cid="${escapeAttrValue(cid)}"]`;
-  const match = /^(.*):(\d+):(\d+)$/.exec(src);
-  const source = match ? `${match[1]}:${match[2]}` : src;
-  return `[data-cid="${escapeAttrValue(cid)}"][data-src*="${escapeAttrValue(source)}"]`;
+  // A source site is the complete file:line:column identity injected by the
+  // Vite transform. Keeping only file:line makes separate JSX elements on a
+  // single formatted line share a managed rule.
+  return `[data-cid="${escapeAttrValue(cid)}"][data-src="${escapeAttrValue(src)}"]`;
 }
 
 export function countSourceSiteMatches(el: HTMLElement): number {

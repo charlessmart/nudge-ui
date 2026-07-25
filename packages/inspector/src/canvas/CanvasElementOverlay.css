@@ -6,3 +6,36 @@
   outline: 1.5px solid #3b82f6;
   outline-offset: -1px;
 }
+
+.dt-canvas-selected-outline {
+  position: fixed;
+  pointer-events: none;
+  z-index: 3;
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+.dt-canvas-hover-margin-fill {
+  position: fixed;
+  pointer-events: none;
+  z-index: 2;
+  background: rgb(59 130 246 / 14%);
+}
+
+.dt-canvas-hover-margin {
+  position: fixed;
+  pointer-events: none;
+  z-index: 2;
+  border-color: rgb(59 130 246 / 52%);
+  border-style: dotted;
+  border-width: 0;
+  opacity: 0.72;
+}
+
+.dt-canvas-hover-margin[data-axis="horizontal"] {
+  border-top-width: 1px;
+}
+
+.dt-canvas-hover-margin[data-axis="vertical"] {
+  border-left-width: 1px;
+}

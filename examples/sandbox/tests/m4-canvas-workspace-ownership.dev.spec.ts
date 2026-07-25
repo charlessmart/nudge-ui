@@ -198,9 +198,11 @@ test.describe("Canvas workspace — stale change detection", () => {
     await page.reload();
     await waitForInspector(page);
 
-    // Restore notice should show 2 changes
-    const restoreNotice = page.locator('[data-test="restore-notice"]');
-    await expect(restoreNotice).toBeVisible();
+    // Restored sessions should keep the clear action available below Changes
+    const clearSession = page.locator('[data-test="clear-session"]');
+    await expect(clearSession).toBeVisible();
+    await expect(clearSession.locator(".."))
+      .toHaveClass(/dt-changes__session-action/);
 
     // The stale change should be in the changes log
     const changeRows = page.locator('[data-test="change-row"]');
@@ -267,7 +269,7 @@ test.describe("Canvas workspace — stale change detection", () => {
     await waitForInspector(page);
 
     // Restore notice should appear
-    await expect(page.locator('[data-test="restore-notice"]')).toBeVisible();
+    await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
 
     // Wait for stale detection timeout
     await page.waitForTimeout(7000);

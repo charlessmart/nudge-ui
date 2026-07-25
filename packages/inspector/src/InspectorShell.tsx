@@ -204,23 +204,6 @@ export function InspectorShell(): ReactElement {
             Tokens
           </Button>
         </div>
-        {restoreCount > 0 ? (
-          <div className="dt-panel__restore-banner" data-test="restore-notice">
-            <span>Restored {restoreCount} change{restoreCount === 1 ? "" : "s"}</span>
-            <Button
-              size="compact"
-              variant="secondary"
-              data-test="clear-session"
-              onClick={() => {
-                clearSession();
-                clearRestoreCount();
-                setShowRestore(0);
-              }}
-            >
-              Clear Session
-            </Button>
-          </div>
-        ) : null}
         <div className="dt-panel__body">
           {activeTab === "tokens" ? (
             <TokensPanel />
@@ -333,7 +316,13 @@ export function InspectorShell(): ReactElement {
               </div>
             </>
           ) : null}
-          <ChangesLog />
+          <ChangesLog
+            onClearSession={restoreCount > 0 ? () => {
+              clearSession();
+              clearRestoreCount();
+              setShowRestore(0);
+            } : undefined}
+          />
         </div>
       </div>
       {!isOpen ? (

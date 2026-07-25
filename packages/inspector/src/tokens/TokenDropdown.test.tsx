@@ -176,7 +176,7 @@ describe("TokenDropdown rendering", () => {
     const select = host.querySelector('[data-test="token-promote-select"]') as HTMLElement;
     setSelectValue(select, "--radius-md");
     const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
-    expect(sheet.textContent).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+    expect(sheet.textContent).toContain('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
     expect(sheet.textContent).toContain("border-radius: var(--radius-md);");
     btn.remove();
   });

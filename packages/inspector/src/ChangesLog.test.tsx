@@ -54,4 +54,20 @@ describe("ChangesLog", () => {
     });
     expect(details.hasAttribute("open")).toBe(true);
   });
+
+  it("renders the clear-session action below the accordion", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    const onClearSession = () => undefined;
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<ChangesLog onClearSession={onClearSession} />);
+    });
+
+    const details = container.querySelector("details")!;
+    const actions = container.querySelector('[data-test="session-actions"]')!;
+    expect(actions.previousElementSibling).toBe(details);
+    expect(actions.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Session");
+  });
 });

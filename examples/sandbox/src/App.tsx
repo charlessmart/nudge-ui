@@ -35,6 +35,7 @@ const typeSamples = [
 
 const conformancePages = [
   { href: "/conformance", label: "Core CSS", copy: "Authored values, aliases, and computed previews." },
+  { href: "/examples", label: "Examples", copy: "Detailed showroom: Spacing, Typography, Color, Border across Tailwind v4, v3, and Sprinkles." },
   { href: "/spacing-conformance", label: "Spacing", copy: "Logical properties and physical side projection." },
   { href: "/typography-conformance", label: "Typography", copy: "Text properties across the shared fixture corpus." },
   { href: "/color-conformance", label: "Color", copy: "Formats, opacity, aliases, and painted values." },

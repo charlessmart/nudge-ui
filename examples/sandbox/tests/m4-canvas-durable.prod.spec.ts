@@ -28,7 +28,7 @@ test("prod: no canvas or inspector persisted state", async ({ page }) => {
   });
   expect(hasCanvasHost).toBe(false);
 
-  // No restore notice or session management UI
+  // No session management UI
   const pageHtml = await page.content();
   expect(pageHtml).not.toContain("restore-notice");
   expect(pageHtml).not.toContain("clear-session");

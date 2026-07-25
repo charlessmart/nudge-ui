@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import { mountInspector, unmountInspector } from "./index.ts";
 import { acquireLease, releaseLease } from "./canvas/workspaceLease.ts";
+import { clearRestoreCount, setRestoreCount } from "./canvas/sessionStore.ts";
 
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -23,6 +24,7 @@ describe("InspectorShell", () => {
 
   afterEach(() => {
     unmountInspector();
+    clearRestoreCount();
     releaseLease();
     host.remove();
   });
@@ -41,6 +43,18 @@ describe("InspectorShell", () => {
     const shadow = host.shadowRoot!;
     expect(shadow.textContent).not.toContain("Inspector shell ready");
     expect(shadow.querySelector(".dt-panel__state")).toBeNull();
+  });
+
+  it("keeps session clearing below the changes accordion without restore-count copy", () => {
+    setRestoreCount(7);
+    act(() => {
+      mountInspector(host);
+    });
+    const shadow = host.shadowRoot!;
+    expect(shadow.textContent).not.toContain("Restored 7 changes");
+    expect(shadow.querySelector('[data-test="session-actions"]')?.previousElementSibling?.matches(".dt-changes")).toBe(true);
+    expect(shadow.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Session");
+    expect(shadow.querySelector(".dt-panel__session-actions")).toBeNull();
   });
 
   it("switches to the Tokens tab without requiring a selection", () => {

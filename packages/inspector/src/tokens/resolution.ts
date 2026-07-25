@@ -137,7 +137,7 @@ function capabilityFor(property: string, value: string): EditCapability {
   // Functions whose authored expression cannot be represented faithfully by
   // a numeric side control remain raw even when the property itself is a
   // spacing property. The computed value is still available as a preview.
-  if (/\b(?:calc|min|max|clamp|env|anchor-size)\s*\(/.test(v)) return "raw";
+  if (/\b(?:min|max|clamp|env|anchor-size)\s*\(/.test(v)) return "raw";
   if (["margin", "padding", "inset", "inset-block", "inset-inline"].includes(p)
     || p.startsWith("margin-") || p.startsWith("padding-") || p.startsWith("inset-")) return "box-sides";
   if (p === "border" || p.endsWith("-border") || p === "border-color" || p.endsWith("-border-color")) return "structured";
@@ -145,10 +145,26 @@ function capabilityFor(property: string, value: string): EditCapability {
   if (/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v)) return "atomic";
   if (p === "font" || /(gradient|shadow|transform|transition|animation|grid|background)/.test(p)
     || (v.includes(",") && !/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v))) return "composite";
-  if (/\b(calc|min|max|clamp|color-mix)\s*\(/.test(v)) return "raw";
+  if (/\b(min|max|clamp|color-mix)\s*\(/.test(v)) return "raw";
   if (/^[+-]?(?:\d*\.)?\d+(?:[a-z%]+)?$/i.test(v)
     || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|oklch\(|oklab\(|transparent|currentcolor)/.test(v)) return "atomic";
   return "raw";
+}
+
+/**
+ * Returns true when a `calc()` expression is safe to treat as a simple
+ * numeric value.  We exclude percentages, viewport units, and font-relative
+ * units because those depend on context the browser cannot freeze into a
+ * single pixel value safely.
+ */
+function canBecomeNumeric(value: string): boolean {
+  const v = value.trim();
+  if (/\b(?:min|max|clamp|env|anchor-size)\s*\(/i.test(v)) return false;
+  const m = /^calc\s*\(/i.exec(v);
+  if (!m) return false;
+  const inner = v.slice(m[0].length, -1).trim();
+  const withoutVars = inner.replace(/var\([^)]+\)/g, "");
+  return !/\b\d+(?:\.\d+)?(?:%|vw|vh|vmin|vmax|dvw|dvh|sv[lw]h|lv[lw]h|[ce]m|ex|ch)\b/i.test(withoutVars);
 }
 
 function colorTuple(value: string): string | null {
@@ -1210,6 +1226,14 @@ export function resolvePropertiesFromRules(
   }
   const rows = Array.from(map.values()).slice(0, MAX_PROPERTIES);
   inferTailwindV4ColorOpacity(el, tokenTable, rows);
+  for (const row of rows) {
+    if (row.capability !== "raw") continue;
+    const value = row.authored ?? row.declaredValue ?? "";
+    if (!canBecomeNumeric(value)) continue;
+    const numeric = row.resolvedValue ?? row.computed ?? "";
+    if (!numeric) continue;
+    row.capability = capabilityFor(row.property, numeric);
+  }
   return rows;
 }
 
@@ -1474,9 +1498,21 @@ function findMatchingBrace(source: string, openIndex: number, end: number): numb
  * comments, brackets, and functions. Linked or inaccessible stylesheets
  * continue through the CSSOM fallback below.
  */
-function rawDeclarationsBySelector(sheet: CSSStyleSheet): Map<string, StyleDeclaration[][]> {
+function isStyleElementInDocument(node: Node | null, doc: Document): node is HTMLStyleElement {
+  return node?.ownerDocument === doc && node.nodeType === node.ELEMENT_NODE
+    && (node as Element).tagName === "STYLE";
+}
+
+function isStyleRuleInDocument(rule: CSSRule, doc: Document): rule is CSSStyleRule {
+  const StyleRule = doc.defaultView?.CSSStyleRule;
+  if (StyleRule && rule instanceof StyleRule) return true;
+  return rule.type === (doc.defaultView?.CSSRule.STYLE_RULE ?? 1)
+    && "selectorText" in rule && "style" in rule;
+}
+
+function rawDeclarationsBySelector(sheet: CSSStyleSheet, doc: Document): Map<string, StyleDeclaration[][]> {
   const owner = sheet.ownerNode;
-  if (!(owner instanceof HTMLStyleElement) || !owner.textContent) return new Map();
+  if (!isStyleElementInDocument(owner, doc) || !owner.textContent) return new Map();
 
   const declarations = new Map<string, StyleDeclaration[][]>();
   const source = owner.textContent;
@@ -1642,7 +1678,10 @@ function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: bool
     layer?: string,
   ): void => {
     for (const rule of Array.from(rules)) {
-      if (rule instanceof CSSStyleRule) {
+      // Canvas elements are owned by an iframe document. CSSOM classes are
+      // realm-specific, so checking against the controller window's global
+      // CSSStyleRule would discard every iframe rule and lose token evidence.
+      if (isStyleRuleInDocument(rule, doc)) {
         let cssText: string;
         try {
           cssText = rule.style.cssText ?? "";
@@ -1676,7 +1715,7 @@ function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: bool
   };
   for (const sheet of Array.from(doc.styleSheets)) {
     try {
-      walkRules(sheet.cssRules, rawDeclarationsBySelector(sheet));
+      walkRules(sheet.cssRules, rawDeclarationsBySelector(sheet, doc));
     } catch {
       inaccessible = true;
     }
@@ -1734,7 +1773,7 @@ export function getResolvedProperties(
   const computed = getElementComputedStyle(el);
   for (const prop of result) {
     const cv = computed.getPropertyValue(prop.property);
-    if (cv) {
+    if (cv && !/\b(?:var|calc)\s*\(/.test(cv)) {
       prop.resolvedValue = cv;
       prop.computed = cv;
       const validated = candidateMatchesPainted(el, prop, cv);
@@ -1784,6 +1823,19 @@ export function getResolvedProperties(
     }
   }
 
+  // When a calc() expression only references static tokens the browser has
+  // already resolved it to a pixel value.  Reclassify the row so the UI
+  // shows the pixel value instead of the raw calc() string and allows
+  // numeric editing (nudge / token swap).
+  for (const prop of result) {
+    if (prop.capability !== "raw") continue;
+    const value = prop.authored ?? prop.declaredValue ?? "";
+    if (!canBecomeNumeric(value)) continue;
+    const numeric = prop.computed ?? prop.resolvedValue ?? "";
+    if (!numeric) continue;
+    prop.capability = capabilityFor(prop.property, numeric);
+  }
+
   return resolveInheritedProperties(el, rules, tokenTable, result, inaccessible);
 }
 
@@ -1814,13 +1866,27 @@ export function getResolvedPropertiesForState(
   state: InteractionState,
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
-  const { rules } = collectRules(doc);
+  const { rules, inaccessible } = collectRules(doc);
   const stateRules = rules.flatMap((rule) => {
     const selectorText = selectorForState(rule.selectorText, state);
     return selectorText ? [{ ...rule, selectorText }] : [];
   });
   const result = resolvePropertiesFromRules(el, stateRules, tokenTable);
-  return resolveInheritedProperties(el, stateRules, tokenTable, result, false);
+  const computed = getElementComputedStyle(el);
+  for (const prop of result) {
+    const cv = computed.getPropertyValue(prop.property);
+    if (cv && !/\b(?:var|calc)\s*\(/.test(cv)) {
+      prop.resolvedValue = cv;
+      prop.computed = cv;
+      const validated = candidateMatchesPainted(el, prop, cv);
+      prop.confidence = validated && !inaccessible && !prop.evidence.layer ? "exact" : prop.tokenName ? "probable" : "unknown";
+      prop.evidence.inaccessibleStylesheet = inaccessible || undefined;
+      prop.evidence.reason = prop.tokenName
+        ? (validated ? "authored token declaration validated against computed style" : "authored token candidate could not be proven uniquely")
+        : "painted value has no attributable catalog token";
+    }
+  }
+  return resolveInheritedProperties(el, stateRules, tokenTable, result, inaccessible);
 }
 
 export function getAvailableInteractionStates(el: HTMLElement): InteractionState[] {

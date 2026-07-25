@@ -94,6 +94,8 @@ test("dev: Tailwind v4 color opacity keeps base token, alpha, and painted previe
     const root = document.getElementById("design-tool-root")?.shadowRoot;
     return (root?.querySelector('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]') as HTMLInputElement | null)?.value ?? null;
   })).toContain("color-mix");
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
+    .toHaveValue("10%");
 });
 
 test("dev: Tailwind side border utilities parse into independent inspector fields", async ({ page }) => {
