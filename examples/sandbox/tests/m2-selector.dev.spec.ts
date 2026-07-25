@@ -89,6 +89,7 @@ test("dev: selection shares one stylesheet snapshot across inspector fields", as
   await page.goto("/");
 
   const cssRuleReads = await page.evaluate(async () => {
+    const stylesheetCount = document.styleSheets.length;
     const descriptor = Object.getOwnPropertyDescriptor(CSSStyleSheet.prototype, "cssRules");
     if (!descriptor?.get) throw new Error("CSSStyleSheet.cssRules getter is unavailable");
     let reads = 0;
@@ -114,15 +115,16 @@ test("dev: selection shares one stylesheet snapshot across inspector fields", as
       });
       // Include the delayed token-resolution pass in the measurement.
       await new Promise((resolve) => setTimeout(resolve, 100));
-      return reads;
+      return { reads, stylesheetCount };
     } finally {
       Object.defineProperty(CSSStyleSheet.prototype, "cssRules", descriptor);
     }
   });
 
-  // The inspector has several stylesheet sources in this fixture. A selection
-  // should walk each sheet once, not rewalk all sheets for each editor field.
-  expect(cssRuleReads).toBeLessThanOrEqual(12);
+  // A selection should walk each sheet once, not rewalk all sheets for each
+  // editor field. The inspector may add a runtime stylesheet after selection,
+  // so allow a small buffer beyond the pre-selection stylesheet count.
+  expect(cssRuleReads.reads).toBeLessThanOrEqual(cssRuleReads.stylesheetCount + 3);
 });
 
 test("dev: hover overlay shows margin space while selection keeps only its outline", async ({ page }) => {
