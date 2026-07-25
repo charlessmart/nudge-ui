@@ -25,6 +25,7 @@ import { clearInspectorLayout } from "../panelLayout.ts";
 import { setSelectedElement } from "../selectionStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { canWriteWorkspace } from "./workspaceLease.ts";
+import { clearDomMutations } from "../domMutations.ts";
 
 const SCHEMA_VERSION = 1;
 const STORAGE_PREFIX = "design-tool";
@@ -466,6 +467,7 @@ export function clearSession(): void {
   }
 
   clearChangesLog();
+  clearDomMutations(true);
   removeManagedSheet();
   setSelectedElement(null);
   clearInspectorLayout();

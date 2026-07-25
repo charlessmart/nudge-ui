@@ -7,8 +7,10 @@ import { acquireLease, releaseLease } from "./canvas/workspaceLease.ts";
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-function pressKey(init: KeyboardEventInit): void {
-  window.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+function pressKey(init: KeyboardEventInit): KeyboardEvent {
+  const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+  window.dispatchEvent(event);
+  return event;
 }
 
 describe("InspectorShell", () => {
@@ -89,6 +91,15 @@ describe("InspectorShell", () => {
     });
     const second = panel.getAttribute("data-open");
     expect(second).toBe(before);
+  });
+
+  it("prevents page-scrolling Space and arrow keys while open", () => {
+    act(() => {
+      mountInspector(host);
+    });
+
+    expect(pressKey({ code: "Space", key: " " }).defaultPrevented).toBe(true);
+    expect(pressKey({ key: "ArrowDown" }).defaultPrevented).toBe(true);
   });
 
   it("reserves the panel width while open and releases it when hidden", () => {

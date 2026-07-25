@@ -4,8 +4,15 @@ import {
   sendToParent,
   type ElementClickMessage,
   type ElementHoverMessage,
+  type ElementDeleteMessage,
+  type ElementNudgeMessage,
+  type ElementDragEndMessage,
+  type ElementDragMoveMessage,
+  type ElementDragStartMessage,
 } from "./frameProtocol.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
+import { installInteractionStyles } from "../interactionStyles.ts";
+import { createFrameThrottle } from "../frameThrottle.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -79,10 +86,25 @@ function buildSelector(el: HTMLElement): string {
 
 let installed = false;
 
+function instanceIndex(el: HTMLElement): number {
+  const cid = el.getAttribute("data-cid");
+  const src = el.getAttribute("data-src");
+  if (!cid) return 0;
+  return Array.from(document.querySelectorAll<HTMLElement>("[data-cid]")).filter((candidate) => (
+    candidate.getAttribute("data-cid") === cid && candidate.getAttribute("data-src") === src
+  )).indexOf(el);
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement
+    && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+}
+
 export function installRendererElementSelector(): void {
   if (!import.meta.env.DEV) return;
   if (installed) return;
   installed = true;
+  installInteractionStyles();
 
   document.addEventListener(
     "mouseover",
@@ -116,6 +138,93 @@ export function installRendererElementSelector(): void {
     },
     true,
   );
+
+  let pendingDrag: { element: HTMLElement; point: { x: number; y: number } } | null = null;
+  let dragging = false;
+  let lastSelected: HTMLElement | null = null;
+
+  const dragMoveUpdate = createFrameThrottle((point: { x: number; y: number }) => {
+    const identity = getRendererIdentity();
+    if (!point || !identity) return;
+    const msg: ElementDragMoveMessage = { type: "element-drag-move", protocolVersion: PROTOCOL_VERSION, point, ...identity };
+    sendToParent(msg);
+  });
+
+  document.addEventListener("mousedown", (event: MouseEvent) => {
+    if (event.button !== 0 || !(event.target instanceof HTMLElement)) return;
+    const element = event.target.closest("[data-cid]");
+    if (!(element instanceof HTMLElement)) return;
+    pendingDrag = { element, point: { x: event.clientX, y: event.clientY } };
+  }, true);
+
+  document.addEventListener("mousemove", (event: MouseEvent) => {
+    if (!pendingDrag) return;
+    if (!dragging && Math.hypot(event.clientX - pendingDrag.point.x, event.clientY - pendingDrag.point.y) < 6) return;
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    event.preventDefault();
+    const point = { x: event.clientX, y: event.clientY };
+    if (!dragging) {
+      dragging = true;
+      const msg: ElementDragStartMessage = {
+        type: "element-drag-start", protocolVersion: PROTOCOL_VERSION,
+        cid: pendingDrag.element.getAttribute("data-cid")!, src: pendingDrag.element.getAttribute("data-src") ?? "",
+        instanceIndex: instanceIndex(pendingDrag.element), point, ...identity,
+      };
+      sendToParent(msg);
+    } else {
+      dragMoveUpdate.schedule(point);
+    }
+  }, true);
+
+  function finishDrag(event: MouseEvent): void {
+    dragMoveUpdate.cancel();
+    if (dragging) {
+      const identity = getRendererIdentity();
+      if (identity) {
+        event.preventDefault();
+        const msg: ElementDragEndMessage = {
+          type: "element-drag-end", protocolVersion: PROTOCOL_VERSION,
+          point: { x: event.clientX, y: event.clientY }, ...identity,
+        };
+        sendToParent(msg);
+      }
+    }
+    pendingDrag = null;
+    dragging = false;
+  }
+  document.addEventListener("mouseup", finishDrag, true);
+
+  document.addEventListener("keydown", (event: KeyboardEvent) => {
+    if (isEditableTarget(event.target)) return;
+    const scrollKey = event.code === "Space"
+      || event.key === "ArrowUp"
+      || event.key === "ArrowDown"
+      || event.key === "ArrowLeft"
+      || event.key === "ArrowRight";
+    if (scrollKey) event.preventDefault();
+    if (!lastSelected) return;
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    if (event.key === "Delete" || event.key === "Backspace") {
+      event.preventDefault();
+      const msg: ElementDeleteMessage = {
+        type: "element-delete", protocolVersion: PROTOCOL_VERSION,
+        cid: lastSelected.getAttribute("data-cid")!, src: lastSelected.getAttribute("data-src") ?? "",
+        instanceIndex: instanceIndex(lastSelected), ...identity,
+      };
+      sendToParent(msg);
+      return;
+    }
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const msg: ElementNudgeMessage = {
+      type: "element-nudge", protocolVersion: PROTOCOL_VERSION,
+      cid: lastSelected.getAttribute("data-cid")!, src: lastSelected.getAttribute("data-src") ?? "",
+      instanceIndex: instanceIndex(lastSelected), key: event.key, ...identity,
+    };
+    sendToParent(msg);
+  }, true);
 
   document.addEventListener(
     "mouseout",
@@ -169,6 +278,7 @@ export function installRendererElementSelector(): void {
 
       const el = target.closest("[data-cid]");
       if (!(el instanceof HTMLElement)) return;
+      lastSelected = el;
 
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);

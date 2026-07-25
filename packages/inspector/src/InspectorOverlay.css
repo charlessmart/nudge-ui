@@ -5,6 +5,23 @@
   outline-offset: -2px;
 }
 
+.dt-dom-drop-line {
+  z-index: 4;
+  height: 3px;
+  margin-top: -1px;
+  border-radius: 999px;
+  background: #3b82f6;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 80%);
+}
+
+.dt-dom-drop-target {
+  z-index: 3;
+  box-sizing: border-box;
+  border: 1px solid rgb(59 130 246 / 72%);
+  border-radius: 4px;
+  background: rgb(59 130 246 / 5%);
+}
+
 .dt-hover-outline {
   outline: 2px solid #3b82f6;
 }

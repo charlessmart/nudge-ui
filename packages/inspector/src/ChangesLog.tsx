@@ -6,6 +6,7 @@ import type { ChangeRecord } from "./changesLog.ts";
 import { StaleChangeIndicator } from "./canvas/StaleChangeIndicator.tsx";
 import { Button } from "./ui/Button.tsx";
 import { formatInspectorLabel } from "./ui/labels.ts";
+import { revertDomMutation, useDomMutations } from "./domMutations.ts";
 
 interface Group {
   key: string;
@@ -51,22 +52,25 @@ function displayAfter(rec: ChangeRecord): string {
 
 export function ChangesLog(): ReactElement {
   const changes = useChanges();
+  const domMutations = useDomMutations();
   const groups = useMemo(() => groupChanges(changes), [changes]);
+  const total = changes.length + domMutations.length;
 
   return (
     <details className="dt-changes" data-test="changes-log">
       <summary className="dt-changes__title" data-test="changes-toggle">
         <span className="dt-changes__title-label">Changes</span>
-        {changes.length > 0 ? <span className="dt-changes__count">{changes.length}</span> : null}
+        {total > 0 ? <span className="dt-changes__count">{total}</span> : null}
         <ChevronDown className="dt-changes__toggle-icon" size={15} strokeWidth={2} aria-hidden="true" />
       </summary>
       <div className="dt-changes__content">
-        {groups.length === 0 ? (
+        {groups.length === 0 && domMutations.length === 0 ? (
           <div className="dt-changes__empty" data-test="changes-empty">
             No changes yet
           </div>
         ) : (
-          groups.map((group) => (
+          <>
+          {groups.map((group) => (
             <div className="dt-changes__group" data-test="changes-group" key={group.key} data-cid={group.label}>
               <div className="dt-changes__group-title">
                 <span>{group.label}</span>
@@ -93,7 +97,33 @@ export function ChangesLog(): ReactElement {
                 </div>
               ))}
             </div>
-          ))
+          ))}
+          {domMutations.map((mutation) => (
+            <div className="dt-changes__group" data-test="dom-change" key={mutation.id} data-cid={mutation.cid}>
+              <div className="dt-changes__group-title">
+                <span>{mutation.cid}</span>
+                <span className="dt-changes__group-file">{mutation.file}</span>
+              </div>
+              <div className="dt-changes__row" data-test="dom-change-row" data-action={mutation.action}>
+                <span className="dt-changes__prop">{mutation.action === "move" ? "Move in DOM" : "Delete from DOM"}</span>
+                <span className="dt-changes__value">
+                  <span className="dt-changes__before">{mutation.action === "move" ? `${mutation.from.parentTag} · position ${mutation.from.index + 1}` : "Visible"}</span>
+                  <span className="dt-changes__arrow">→</span>
+                  <span className="dt-changes__after">{mutation.action === "move" && mutation.to ? `${mutation.to.parentTag} · position ${mutation.to.index + 1}` : "Removed"}</span>
+                </span>
+                {mutation.stale ? <span className="dt-changes__conflict" data-test="dom-mutation-stale">React replaced this node. Apply this structural change in code.</span> : null}
+                <Button
+                  size="compact"
+                  className="dt-changes__revert"
+                  data-test="dom-change-revert"
+                  onClick={() => revertDomMutation(mutation)}
+                >
+                  Revert
+                </Button>
+              </div>
+            </div>
+          ))}
+          </>
         )}
       </div>
     </details>

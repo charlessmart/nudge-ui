@@ -1,5 +1,6 @@
 import { isTokenChange } from "../changesLog.ts";
 import type { ChangeRecord, ElementChangeRecord, TokenChangeRecord } from "../changesLog.ts";
+import type { DomMutationRecord } from "../domMutations.ts";
 
 export interface FrameworkHints {
   framework?: string;
@@ -103,15 +104,15 @@ function tokenChangeLine(rec: TokenChangeRecord): string {
   return `- \`${rec.tokenName}\` (${rec.contextLabel}, ${rec.file}:${rec.line}): \`${rec.oldRawValue}\` → \`${rec.rawValue}\`${conflictSuffix(rec)}`;
 }
 
-export function generatePrompt(changes: ChangeRecord[], frameworkHints?: FrameworkHints): string {
-  if (changes.length === 0) return EMPTY_SENTINEL;
+export function generatePrompt(changes: ChangeRecord[], frameworkHints?: FrameworkHints, domMutations: DomMutationRecord[] = []): string {
+  if (changes.length === 0 && domMutations.length === 0) return EMPTY_SENTINEL;
   const deduplicated = deduplicateChanges(changes);
-  if (deduplicated.length === 0) return EMPTY_SENTINEL;
+  if (deduplicated.length === 0 && domMutations.length === 0) return EMPTY_SENTINEL;
 
   const tokenChanges = deduplicated.filter(isTokenChange);
   const elementChanges = deduplicated.filter((change): change is ElementChangeRecord => !isTokenChange(change));
   const elementGroups = groupElementChanges(elementChanges);
-  const firstFile = deduplicated[0]!.file;
+  const firstFile = deduplicated[0]?.file ?? domMutations[0]!.file;
   const framework = frameworkHints?.framework ?? "React";
   const stylingSystem = frameworkHints?.stylingSystem ?? "CSS custom properties";
   const lines = [
@@ -149,8 +150,25 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
     }
   }
 
+  if (domMutations.length > 0) {
+    lines.push("## DOM structure changes", "");
+    for (const mutation of domMutations) {
+      if (mutation.action === "move" && mutation.to) {
+        lines.push(`- Move \`${mutation.cid}\` (${mutation.file}:${mutation.line}) from \`${mutation.from.parentTag}\` position ${mutation.from.index + 1} to \`${mutation.to.parentTag}\` position ${mutation.to.index + 1}.`);
+      } else {
+        lines.push(`- Remove \`${mutation.cid}\` (${mutation.file}:${mutation.line}) from \`${mutation.from.parentTag}\` position ${mutation.from.index + 1}.`);
+      }
+      if (mutation.scope === "instance-preview" && mutation.instanceEvidence) {
+        lines.push(`  - Scope: the rendered instance at index ${mutation.instanceEvidence.renderedIndex}; implement the data or conditional source change rather than deleting a DOM node at runtime.`);
+      }
+      if (mutation.stale) lines.push("  - Preview was reset by React; implement this change directly in source.");
+    }
+    lines.push("");
+  }
+
   lines.push("## Selectors (fallback)");
   tokenChanges.forEach((change) => lines.push(`- \`${change.tokenName}\` in \`${change.selector}\``));
   elementGroups.forEach((group) => lines.push(`- \`${group.selector}\``));
+  domMutations.forEach((mutation) => lines.push(`- \`${mutation.selector}\``));
   return lines.join("\n");
 }

@@ -3,6 +3,7 @@ import { generatePrompt } from "./generatePrompt.ts";
 import { detectFramework } from "./detectFramework.ts";
 import type { ChangeRecord, ElementChangeRecord } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
+import type { DomMutationRecord } from "../domMutations.ts";
 
 const SURFACE_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:1" };
 const SURFACE_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5f5f5", source: "styles.css:2" };
@@ -22,6 +23,17 @@ function rec(
 }
 
 describe("generatePrompt", () => {
+  it("includes temporary DOM operations as source-level structural instructions", () => {
+    const move: DomMutationRecord = {
+      id: "dom-1", action: "move", cid: "NavItem", file: "src/Nav.tsx", line: 12,
+      selector: '[data-cid="NavItem"]', source: { file: "src/Nav.tsx", line: 12, component: "NavItem" },
+      from: { parentTag: "nav", index: 2 }, to: { parentTag: "nav", index: 0 }, outerHTML: "<a />", scope: "source-site", stale: false,
+    };
+    const out = generatePrompt([], undefined, [move]);
+    expect(out).toContain("## DOM structure changes");
+    expect(out).toContain("Move `NavItem` (src/Nav.tsx:12) from `nav` position 3 to `nav` position 1.");
+  });
+
   it("returns the empty sentinel when there are no changes", () => {
     const out = generatePrompt([]);
     expect(out).toBe(
