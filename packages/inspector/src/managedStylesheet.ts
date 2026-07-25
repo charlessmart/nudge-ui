@@ -1,4 +1,5 @@
 import { getElementComputedStyle } from "./domRealm.ts";
+import { invalidateStyleResolutionCache } from "./tokens/resolution.ts";
 
 export interface StyleRule {
   selector: string;
@@ -92,6 +93,7 @@ export function applyRules(rules: StyleRule[]): void {
   if (!el) return;
   const text = rulesToCssText(rules);
   el.textContent = text;
+  invalidateStyleResolutionCache(document);
 }
 
 function commaListIncludes(value: string, property: string): boolean {
@@ -148,4 +150,5 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
 export function removeManagedSheet(): void {
   const el = document.getElementById(SHEET_ID);
   if (el) el.remove();
+  invalidateStyleResolutionCache(document);
 }

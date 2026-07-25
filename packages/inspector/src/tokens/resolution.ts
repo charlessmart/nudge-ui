@@ -1667,7 +1667,96 @@ function splitTopLevel(s: string, sep?: string): string[] {
   return parts;
 }
 
+interface RuleSnapshot {
+  revision: number;
+  rules: MatchedRule[];
+  inaccessible: boolean;
+}
+
+interface ResolvedPropertiesSnapshot {
+  revision: number;
+  rows: ResolvedProperty[];
+}
+
+interface DocumentRevisions {
+  element: number;
+  stylesheet: number;
+}
+
+const documentRevisions = new WeakMap<Document, DocumentRevisions>();
+const documentObservers = new WeakMap<Document, MutationObserver>();
+const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
+const stateResolutionSnapshots = new WeakMap<HTMLElement, WeakMap<TokenTable, Map<InteractionState, ResolvedPropertiesSnapshot>>>();
+
+function isStylesheetNode(node: Node | null): boolean {
+  if (!node || node.nodeType !== node.ELEMENT_NODE) return false;
+  const tag = (node as Element).tagName.toLowerCase();
+  return tag === "style" || tag === "link";
+}
+
+function changesStylesheet(record: MutationRecord): boolean {
+  if (record.type === "attributes") return isStylesheetNode(record.target);
+  if (record.type === "characterData") return isStylesheetNode(record.target.parentElement);
+  return isStylesheetNode(record.target)
+    || Array.from(record.addedNodes).some(isStylesheetNode)
+    || Array.from(record.removedNodes).some(isStylesheetNode);
+}
+
+function documentRevision(doc: Document): number {
+  let record = documentRevisions.get(doc);
+  if (!record) {
+    record = { element: 0, stylesheet: 0 };
+    documentRevisions.set(doc, record);
+
+    const Observer = doc.defaultView?.MutationObserver;
+    const root = doc.documentElement;
+    if (Observer && root) {
+      const observer = new Observer((records) => {
+        // Host tree and attribute changes can alter selector matches. Only CSS
+        // source changes need to invalidate the much more expensive rule walk.
+        record!.element++;
+        if (records.some(changesStylesheet)) record!.stylesheet++;
+      });
+      observer.observe(root, {
+        attributes: true,
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+      documentObservers.set(doc, observer);
+
+      doc.defaultView?.addEventListener("resize", () => {
+        // Viewport media queries participate in the CSS cascade even when the
+        // host DOM is otherwise unchanged.
+        record!.element++;
+        record!.stylesheet++;
+      });
+    }
+  }
+  return record.element;
+}
+
+function stylesheetRevision(doc: Document): number {
+  documentRevision(doc);
+  return documentRevisions.get(doc)!.stylesheet;
+}
+
+/** Invalidates CSSOM-derived snapshots after programmatic stylesheet edits. */
+export function invalidateStyleResolutionCache(doc: Document = document): void {
+  const record = documentRevisions.get(doc);
+  if (record) {
+    record.element++;
+    record.stylesheet++;
+  }
+  ruleSnapshots.delete(doc);
+}
+
 function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: boolean } {
+  const revision = stylesheetRevision(doc);
+  const cached = ruleSnapshots.get(doc);
+  if (cached?.revision === revision) {
+    return { rules: cached.rules, inaccessible: cached.inaccessible };
+  }
   const out: MatchedRule[] = [];
   let inaccessible = false;
   let sourceOrder = 0;
@@ -1720,7 +1809,9 @@ function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: bool
       inaccessible = true;
     }
   }
-  return { rules: out, inaccessible };
+  const snapshot = { revision, rules: out, inaccessible };
+  ruleSnapshots.set(doc, snapshot);
+  return snapshot;
 }
 
 const INHERITED_PROPERTIES = new Set([
@@ -1866,6 +1957,20 @@ export function getResolvedPropertiesForState(
   state: InteractionState,
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
+  const revision = documentRevision(doc);
+  let tableSnapshots = stateResolutionSnapshots.get(el);
+  if (!tableSnapshots) {
+    tableSnapshots = new WeakMap();
+    stateResolutionSnapshots.set(el, tableSnapshots);
+  }
+  let snapshots = tableSnapshots.get(tokenTable);
+  if (!snapshots) {
+    snapshots = new Map();
+    tableSnapshots.set(tokenTable, snapshots);
+  }
+  const cached = snapshots.get(state);
+  if (cached?.revision === revision) return cached.rows;
+
   const { rules, inaccessible } = collectRules(doc);
   const stateRules = rules.flatMap((rule) => {
     const selectorText = selectorForState(rule.selectorText, state);
@@ -1886,7 +1991,9 @@ export function getResolvedPropertiesForState(
         : "painted value has no attributable catalog token";
     }
   }
-  return resolveInheritedProperties(el, stateRules, tokenTable, result, inaccessible);
+  const rows = resolveInheritedProperties(el, stateRules, tokenTable, result, inaccessible);
+  snapshots.set(state, { revision, rows });
+  return rows;
 }
 
 export function getAvailableInteractionStates(el: HTMLElement): InteractionState[] {
@@ -1932,6 +2039,7 @@ import type { SelectedElement } from "../selectionStore.ts";
 export function useResolvedPropertiesDebounced(
   selected: SelectedElement | null,
   state: InteractionState = "base",
+  tokenTable?: TokenTable,
 ): ResolvedProperty[] {
   const [rows, setRows] = useState<ResolvedProperty[]>([]);
   useEffect(() => {
@@ -1942,12 +2050,16 @@ export function useResolvedPropertiesDebounced(
     let cancelled = false;
     const handle = setTimeout(() => {
       if (cancelled) return;
-      setRows(getResolvedPropertiesForState(selected.domElement, getAvailableTokenTableForElement(selected.domElement), state));
+      setRows(getResolvedPropertiesForState(
+        selected.domElement,
+        tokenTable ?? getAvailableTokenTableForElement(selected.domElement),
+        state,
+      ));
     }, 60);
     return () => {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [selected, state]);
+  }, [selected, state, tokenTable]);
   return rows;
 }

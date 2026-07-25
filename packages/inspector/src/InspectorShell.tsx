@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
@@ -8,8 +8,8 @@ import {
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
-import { getAvailableInteractionStates, getAvailableTokenTableForElement, getStableTokenProperty, getTokenEntriesForElement, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
-import type { ResolvedProperty } from "./tokens/resolution.ts";
+import { buildTokenTable, getAvailableInteractionStates, getStableTokenProperty, getTokenEntriesForElement, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
+import type { ResolvedProperty, TokenTable } from "./tokens/resolution.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { SpacingBox } from "./styleEditors/SpacingBox.tsx";
@@ -153,18 +153,30 @@ export function InspectorShell(): ReactElement {
     return () => window.removeEventListener("keydown", onKeydown);
   }, [isOpen, selected, domMutations.length]);
 
-  const tokenRows = useResolvedPropertiesDebounced(selected, styleState);
-  const tokenEntries: TokenEntry[] = selected ? getTokenEntriesForElement(selected.domElement) : [];
-  const availableInteractionStates = selected ? getAvailableInteractionStates(selected.domElement) : [];
+  const tokenEntries: TokenEntry[] = useMemo(
+    () => selected ? getTokenEntriesForElement(selected.domElement) : [],
+    [selected],
+  );
+  const tokenTable: TokenTable = useMemo(() => buildTokenTable(tokenEntries), [tokenEntries]);
+  const tokenRows = useResolvedPropertiesDebounced(selected, styleState, tokenTable);
+  const availableInteractionStates = useMemo(
+    () => selected ? getAvailableInteractionStates(selected.domElement) : [],
+    [selected],
+  );
   const showInteractionState = availableInteractionStates.length > 2;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
-  const backgroundTokenRow = selected
+  const backgroundTokenRow = useMemo(() => selected
     ? paintedBackgroundRow?.tokenName
       ? paintedBackgroundRow
-      : styleState === "base" ? getStableTokenProperty(selected.domElement, ["background-color", "background"], getAvailableTokenTableForElement(selected.domElement))
+      : styleState === "base" ? getStableTokenProperty(selected.domElement, ["background-color", "background"], tokenTable)
         ?? paintedBackgroundRow
         : paintedBackgroundRow
-    : null;
+    : null,
+  [selected, paintedBackgroundRow, styleState, tokenTable]);
+  const editScope = selected ? getEditScope(selected.domElement) : null;
+  const sourceSiteMatchCount = selected && editScope === "source-site"
+    ? countSourceSiteMatches(selected.domElement)
+    : 0;
 
   function refreshSelected(): void {
     if (!selected) return;
@@ -264,13 +276,13 @@ export function InspectorShell(): ReactElement {
                 <StatusCallout
                   tone={instancePreviewLost
                     ? "warning"
-                    : getEditScope(selected.domElement) === "instance-preview" ? "neutral" : "accent"}
+                    : editScope === "instance-preview" ? "neutral" : "accent"}
                   data-test="edit-scope"
                   data-lost={instancePreviewLost ? "true" : "false"}
                 >
                   {instancePreviewLost ? (
                     "Instance preview lost. The edit was not broadened to other rendered elements."
-                  ) : getEditScope(selected.domElement) === "instance-preview" ? (
+                  ) : editScope === "instance-preview" ? (
                     <>
                       <span>Editing only this unlinked rendered element.</span>
                       <br />
@@ -294,8 +306,8 @@ export function InspectorShell(): ReactElement {
                     </>
                   ) : (
                     <>
-                      Affects {countSourceSiteMatches(selected.domElement)} rendered {countSourceSiteMatches(selected.domElement) === 1 ? "element" : "components/elements"}.
-                      {countSourceSiteMatches(selected.domElement) > 1 ? (
+                      Affects {sourceSiteMatchCount} rendered {sourceSiteMatchCount === 1 ? "element" : "components/elements"}.
+                      {sourceSiteMatchCount > 1 ? (
                         <>
                           <br />
                           <Button

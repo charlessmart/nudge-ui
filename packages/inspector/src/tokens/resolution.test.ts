@@ -11,6 +11,7 @@ import {
   resolvePropertiesFromRules,
   getAvailableInteractionStates,
   getResolvedPropertiesForState,
+  invalidateStyleResolutionCache,
   computeSpecificity,
   parseBorderShorthand,
   type MatchedRule,
@@ -107,6 +108,56 @@ describe("cross-document token attribution", () => {
       tokenName: "--color-canvas",
       declaredValue: "var(--color-canvas)",
     });
+  });
+});
+
+describe("state resolution cache", () => {
+  afterEach(() => {
+    document.head.innerHTML = "";
+    document.body.innerHTML = "";
+    invalidateStyleResolutionCache();
+  });
+
+  it("reuses a selection snapshot, then refreshes after a host attribute change", async () => {
+    const style = document.createElement("style");
+    style.textContent = `
+      .subject { color: var(--color-a); }
+      .changed { color: var(--color-b); }
+    `;
+    document.head.appendChild(style);
+    const element = document.createElement("div");
+    element.className = "subject";
+    document.body.appendChild(element);
+    const table = makeTable([
+      { name: "--color-a", value: "#112233", source: "styles.css:1" },
+      { name: "--color-b", value: "#445566", source: "styles.css:2" },
+    ]);
+
+    const initial = getResolvedPropertiesForState(element, table, "base");
+    expect(getResolvedPropertiesForState(element, table, "base")).toBe(initial);
+    expect(initial.find((row) => row.property === "color")?.tokenName).toBe("--color-a");
+
+    element.className = "changed";
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const refreshed = getResolvedPropertiesForState(element, table, "base");
+    expect(refreshed).not.toBe(initial);
+    expect(refreshed.find((row) => row.property === "color")?.tokenName).toBe("--color-b");
+  });
+
+  it("refreshes immediately after an explicit stylesheet invalidation", () => {
+    const style = document.createElement("style");
+    style.textContent = ".subject { color: var(--color-a); }";
+    document.head.appendChild(style);
+    const element = document.createElement("div");
+    element.className = "subject";
+    document.body.appendChild(element);
+    const table = makeTable([{ name: "--color-a", value: "#112233", source: "styles.css:1" }]);
+
+    const initial = getResolvedPropertiesForState(element, table, "base");
+    invalidateStyleResolutionCache();
+
+    expect(getResolvedPropertiesForState(element, table, "base")).not.toBe(initial);
   });
 });
 
