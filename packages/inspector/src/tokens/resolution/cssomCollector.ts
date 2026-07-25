@@ -1,4 +1,5 @@
 import { parseDeclarations, rawDeclarationsBySelector, selectorKey } from "./cssText.ts";
+import { computeSpecificity } from "./selectorSemantics.ts";
 import type { MatchedRule, StyleDeclaration } from "./types.ts";
 
 interface RuleSnapshot {
@@ -80,10 +81,7 @@ function isStyleRuleInDocument(rule: CSSRule, doc: Document): rule is CSSStyleRu
     && "selectorText" in rule && "style" in rule;
 }
 
-export function collectRules(
-  doc: Document,
-  computeSpecificity: (selector: string) => number,
-): { rules: MatchedRule[]; inaccessible: boolean } {
+export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: boolean } {
   const revision = stylesheetRevision(doc);
   const cached = ruleSnapshots.get(doc);
   if (cached?.revision === revision) {

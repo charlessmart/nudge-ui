@@ -12,11 +12,11 @@ import {
   getAvailableInteractionStates,
   getResolvedPropertiesForState,
   invalidateStyleResolutionCache,
-  computeSpecificity,
   parseBorderShorthand,
   type MatchedRule,
   type TokenTable,
 } from "./resolution.ts";
+import { computeSpecificity } from "./resolution/selectorSemantics.ts";
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 
 function makeTable(entries: TokenEntry[]): TokenTable {

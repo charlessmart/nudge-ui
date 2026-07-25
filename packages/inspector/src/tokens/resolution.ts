@@ -7,7 +7,9 @@ import {
   collectRules as collectCssomRules,
   documentRevision as getDocumentRevision,
 } from "./resolution/cssomCollector.ts";
+import { computeSpecificity } from "./resolution/selectorSemantics.ts";
 export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
+export { computeSpecificity } from "./resolution/selectorSemantics.ts";
 import type {
   BorderStructure,
   ColorOpacity,
@@ -1255,95 +1257,7 @@ function inferTailwindV4ColorOpacity(
   }
 }
 
-function extractParenContent(s: string, openIdx: number): { content: string; end: number } {
-  let depth = 0;
-  let i = openIdx;
-  while (i < s.length && s[i] !== "(") i++;
-  if (i >= s.length) return { content: "", end: openIdx };
-  depth = 1;
-  const start = i + 1;
-  i++;
-  while (i < s.length && depth > 0) {
-    if (s[i] === "(") depth++;
-    else if (s[i] === ")") depth--;
-    i++;
-  }
-  return { content: s.slice(start, i - 1).trim(), end: i };
-}
-
-export function computeSpecificity(selectorText: string): number {
-  let s = selectorText.trim();
-
-  // Handle comma-separated selectors: use the max specificity of any part
-  const commaParts = splitTopLevel(s, ",");
-  if (commaParts.length > 1) {
-    let max = 0;
-    for (const part of commaParts) {
-      const spec = computeSpecificity(part);
-      if (spec > max) max = spec;
-    }
-    return max;
-  }
-
-  let idCount = 0;
-  let classCount = 0;
-  let elementCount = 0;
-
-  // Split by combinators (space, >, +, ~) to get individual compound selectors
-  // but only at the top level (not inside :not()/:is()/:has()/:where() parens)
-  const compounds = splitTopLevel(s);
-
-  for (const compound of compounds) {
-    let cs = compound;
-
-    // Handle :not(), :is(), :has(), :where() — extract and remove the entire
-    // :name(...) block including args so their content isn't double-counted
-    // by subsequent class/ID/element regexes
-    const pseudoFuncRe = /:(not|is|has|where)\(/g;
-    let funcMatch: RegExpExecArray | null;
-    while ((funcMatch = pseudoFuncRe.exec(cs)) !== null) {
-      const name = funcMatch[1]!;
-      const openIdx = funcMatch.index;
-      const { content, end } = extractParenContent(cs, openIdx + funcMatch[0].length - 1);
-      const argSpec = content ? computeSpecificity(content) : 0;
-      if (name !== "where") {
-        idCount += Math.floor(argSpec / 1000000);
-        classCount += Math.floor(argSpec / 10000) % 100;
-        elementCount += Math.floor(argSpec / 100) % 100;
-      }
-      // Remove the entire :name(...) block completely so args aren't re-counted
-      cs = cs.slice(0, openIdx) + " " + cs.slice(end);
-      // Reset regex lastIndex since we modified the string
-      pseudoFuncRe.lastIndex = openIdx + 1;
-    }
-
-    // Now cs has had all :not()/:is()/:has()/:where() removed
-    // Count ID selectors
-    cs = cs.replace(/#[\w-]+/g, () => { idCount++; return " "; });
-
-    // Count class selectors
-    cs = cs.replace(/\.[\w-]+/g, () => { classCount++; return " "; });
-
-    // Count attribute selectors
-    cs = cs.replace(/\[[^\]]*\]/g, () => { classCount++; return " "; });
-
-    // Count pseudo-elements (double colon) — remove after counting
-    cs = cs.replace(/::[\w-]+/g, () => { elementCount++; return " "; });
-
-    // Count pseudo-classes (single colon) — must be done AFTER pseudo-elements
-    // since single-colon legacy pseudo-elements like :before are also matched here
-    cs = cs.replace(/:(?!:)[\w-]+/g, () => { classCount++; return " "; });
-
-    // Remaining words are element type selectors (excluding * and &)
-    const words = cs.split(/[\s>+~]+/).filter((w) => w && w !== "*" && w !== "&");
-    elementCount += words.length;
-  }
-
-  return idCount * 1000000 + classCount * 10000 + elementCount * 100;
-}
-
-// Split a selector on combinators (space, >, +, ~), respecting nesting in parens.
-// If sep is given, splits on that character instead (for comma splitting).
+// Splits CSS values at top-level combinators or an optional delimiter.
 function splitTopLevel(s: string, sep?: string): string[] {
   const parts: string[] = [];
   let depth = 0;
@@ -1374,10 +1288,6 @@ interface ResolvedPropertiesSnapshot {
 }
 
 const stateResolutionSnapshots = new WeakMap<HTMLElement, WeakMap<TokenTable, Map<InteractionState, ResolvedPropertiesSnapshot>>>();
-
-function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: boolean } {
-  return collectCssomRules(doc, computeSpecificity);
-}
 
 const INHERITED_PROPERTIES = new Set([
   "color", "font", "font-family", "font-size", "font-style", "font-variant", "font-weight",
@@ -1424,7 +1334,7 @@ export function getResolvedProperties(
   tokenTable: TokenTable,
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
-  const { rules, inaccessible } = collectRules(doc);
+  const { rules, inaccessible } = collectCssomRules(doc);
   const result = resolvePropertiesFromRules(el, rules, tokenTable);
   const computed = getElementComputedStyle(el);
   for (const prop of result) {
@@ -1536,7 +1446,7 @@ export function getResolvedPropertiesForState(
   const cached = snapshots.get(state);
   if (cached?.revision === revision) return cached.rows;
 
-  const { rules, inaccessible } = collectRules(doc);
+  const { rules, inaccessible } = collectCssomRules(doc);
   const stateRules = rules.flatMap((rule) => {
     const selectorText = selectorForState(rule.selectorText, state);
     return selectorText ? [{ ...rule, selectorText }] : [];
@@ -1563,7 +1473,7 @@ export function getResolvedPropertiesForState(
 
 export function getAvailableInteractionStates(el: HTMLElement): InteractionState[] {
   const doc = el.ownerDocument ?? document;
-  const { rules } = collectRules(doc);
+  const { rules } = collectCssomRules(doc);
   const available: InteractionState[] = ["base"];
   for (const state of INTERACTION_STATES) {
     const relevant = rules.some((rule) => {
@@ -1589,7 +1499,7 @@ export function getStableTokenProperty(
   tokenTable: TokenTable,
 ): ResolvedProperty | null {
   const doc = el.ownerDocument ?? document;
-  const { rules } = collectRules(doc);
+  const { rules } = collectCssomRules(doc);
   const stableRules = rules.filter((rule) => !TRANSIENT_SELECTOR.test(rule.selectorText));
   const rows = resolvePropertiesFromRules(el, stableRules, tokenTable);
   for (const property of properties) {
