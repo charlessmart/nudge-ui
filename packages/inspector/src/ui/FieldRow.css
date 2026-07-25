@@ -3,12 +3,12 @@
   grid-template-columns: var(--dt-label-column) minmax(0, 1fr);
   gap: 10px;
   align-items: center;
-  min-height: var(--dt-control-height);
+  min-height: var(--dt-control-height-large);
 }
 
 .dt-field-row__label {
   color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   line-height: 1.25;
 }
 
@@ -33,6 +33,6 @@
   display: block;
   margin-top: 4px;
   color: var(--dt-text-muted-subtle);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   line-height: 1.3;
 }

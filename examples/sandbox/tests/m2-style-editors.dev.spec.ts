@@ -157,18 +157,16 @@ test("dev: linked border values expand into icon-labelled individual side fields
   await page.click("text=Save");
   await waitForEditors(page);
 
-  const borderSides = page.locator('[data-test="border-sides"]');
-  await expect(borderSides).toHaveAttribute("data-linked", "true");
-  await expect(borderSides.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(1);
-  await expect(borderSides.locator('[data-test="individual-sides"]')).toHaveClass(/dt-icon-button/);
-  await expect(borderSides.locator('.dt-side-values__linked-row')).toHaveCount(1);
-  await expect(borderSides.locator('.dt-side-values__linked-row > .dt-side-values__label')).toHaveText("Border Width");
-  await expect(borderSides.locator('.dt-side-values__linked-row .dt-side-values__linked [data-test="token-field"]')).toHaveCount(1);
+  const borderSection = page.locator('.dt-border');
+  await expect(borderSection).toHaveAttribute("data-expanded", "false");
+  await expect(borderSection.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(1);
+  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-icon-button/);
+  await expect(borderSection.locator('.dt-border__linked-row')).toHaveCount(1);
 
-  await borderSides.locator('[data-test="individual-sides"]').click();
-  await expect(borderSides).toHaveAttribute("data-linked", "false");
-  await expect(borderSides.locator('[data-side="top"] svg')).toHaveCount(1);
-  await expect(borderSides.locator('[data-test="token-field"][data-property="border-top-width"]')).toHaveCount(1);
+  await borderSection.locator('[data-test="border-expand"]').click();
+  await expect(borderSection).toHaveAttribute("data-expanded", "true");
+  await expect(borderSection.locator('[data-side="top"] svg')).toHaveCount(1);
+  await expect(borderSection.locator('[data-test="token-field"][data-property="border-top-width"]')).toHaveCount(1);
 
   await setInput(page, "border-top-width", "2px");
   await expect
@@ -186,9 +184,7 @@ test("dev: authored CSS border fixtures parse width, style, and color per side",
   });
   await waitForEditors(page);
 
-  await expect(page.locator('[data-test="border-sides"]')).toHaveAttribute("data-linked", "false");
-  await expect(page.locator('[data-test="border-style-sides"]')).toHaveAttribute("data-linked", "false");
-  await expect(page.locator('[data-test="border-color-sides"]')).toHaveAttribute("data-linked", "false");
+  await expect(page.locator('.dt-border')).toHaveAttribute("data-expanded", "true");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("2px");
   await expect(page.locator('[data-test="token-field"][data-property="border-bottom-width"] [data-test="raw-input"]')).toHaveValue("4px");
   await expect(page.locator('[data-test="border-style-top"]')).toContainText("Dashed");
@@ -286,10 +282,10 @@ test("dev: linking divergent border widths applies one value and survives resele
   });
   await waitForEditors(page);
 
-  const borderSides = page.locator('[data-test="border-sides"]');
-  await expect(borderSides).toHaveAttribute("data-linked", "false");
-  await borderSides.locator('[data-test="individual-sides"]').click();
-  await expect(borderSides).toHaveAttribute("data-linked", "true");
+  const borderSection = page.locator('.dt-border');
+  await expect(borderSection).toHaveAttribute("data-expanded", "true");
+  await borderSection.locator('[data-test="border-collapse"]').click();
+  await expect(borderSection).toHaveAttribute("data-expanded", "false");
   await expect
     .poll(async () => Promise.all(["top", "right", "bottom", "left"].map((side) => computedFixtureProp(page, "css-border-mixed", `border-${side}-width`))), { timeout: 5000 })
     .toEqual(["2px", "2px", "2px", "2px"]);
@@ -299,7 +295,7 @@ test("dev: linking divergent border widths applies one value and survives resele
     element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
   });
   await waitForEditors(page);
-  await expect(page.locator('[data-test="border-sides"]')).toHaveAttribute("data-linked", "true");
+  await expect(page.locator('.dt-border')).toHaveAttribute("data-expanded", "false");
 });
 
 test("dev: style editors keep layout and spacing ahead of typography and color", async ({ page }) => {

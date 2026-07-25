@@ -16,7 +16,7 @@
 .dt-side-values__label {
   min-width: 0;
   color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   line-height: 1.25;
 }
 
@@ -57,7 +57,7 @@
 .dt-side-values__side {
   display: flex;
   min-width: 0;
-  min-height: var(--dt-control-height);
+  min-height: var(--dt-control-height-large);
   align-items: center;
   gap: 6px;
   padding: 2px 6px 2px 8px;

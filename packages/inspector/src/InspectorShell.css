@@ -14,7 +14,7 @@
   border-radius: 0 0 24px 0;
   box-shadow: var(--dt-shadow-panel);
   font-family: var(--dt-font-family);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   line-height: 1.35;
   display: flex;
   flex-direction: column;
@@ -23,39 +23,6 @@
 
 .dt-panel[data-open="false"] {
   display: none;
-}
-
-.dt-panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 52px;
-  padding: 12px 20px 10px;
-  border-bottom: 1px solid var(--dt-border-subtle);
-  color: var(--dt-text-primary);
-  font-size: var(--dt-font-size);
-  font-weight: 650;
-  letter-spacing: -0.02em;
-}
-
-.dt-panel__header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.dt-panel__header-actions .dt-icon-button {
-  width: 32px;
-  height: 32px;
-}
-
-.dt-panel__copy.dt-button {
-  min-height: 32px;
-  padding: 0 10px;
-}
-
-.dt-panel__header-actions .dt-segmented-control {
-  margin-right: 6px;
 }
 
 .dt-panel__restore.dt-icon-button {
@@ -84,11 +51,18 @@
 }
 
 .dt-panel__tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 16px;
+  border-bottom: 1px solid var(--dt-border-subtle);
+}
+
+.dt-panel__tabs-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
-  padding: 6px 20px;
-  border-bottom: 1px solid var(--dt-border-subtle);
+  flex: 1;
 }
 
 .dt-panel__tab.dt-button {
@@ -133,7 +107,7 @@
 
 .dt-selection__label {
   color: var(--dt-text-muted-subtle);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   font-weight: 600;
   text-transform: uppercase;
 }
@@ -181,6 +155,13 @@
   font-weight: 600;
 }
 
+.dt-empty-state {
+  padding: 28px 0 0;
+  text-align: center;
+  color: var(--dt-text-muted-subtle);
+  font-weight: 500;
+}
+
 .dt-changes__empty {
   color: var(--dt-text-muted-subtle);
 }
@@ -197,7 +178,7 @@
 .dt-editor__title {
   margin-bottom: 10px;
   color: var(--dt-text-primary);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.02em;

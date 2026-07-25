@@ -8,12 +8,12 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: var(--dt-control-height);
-  height: var(--dt-control-height);
+  width: var(--dt-control-height-large);
+  height: var(--dt-control-height-large);
   padding: 0;
   border-radius: var(--dt-radius-control);
   font: inherit;
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   font-weight: 650;
   transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }

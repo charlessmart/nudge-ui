@@ -438,6 +438,8 @@ describe("LayoutSection", () => {
     mockComputedStyle({ display: "block", position: "static", width: "240px", height: "120px" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
+    act(() => (handle.host.querySelector('[data-test="layout-size-expand"]') as HTMLButtonElement).click());
+
     for (const property of ["width", "height", "min-width", "min-height", "max-width", "max-height"]) {
       expect(handle.host.querySelector(`[data-test="layout-size-${property}"]`)).toBeTruthy();
     }
@@ -451,6 +453,9 @@ describe("LayoutSection", () => {
 
     expect((handle.host.querySelector('[data-test="layout-size-width"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("auto");
     expect((handle.host.querySelector('[data-test="layout-size-height"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("auto");
+
+    act(() => (handle.host.querySelector('[data-test="layout-size-expand"]') as HTMLButtonElement).click());
+
     expect((handle.host.querySelector('[data-test="layout-size-min-width"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("0");
     expect((handle.host.querySelector('[data-test="layout-size-max-width"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("none");
   });

@@ -12,16 +12,14 @@ import {
   ChevronDown,
   Italic,
   LetterText,
-  SlidersVertical,
   Type,
 } from "lucide-react";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
-import { Button } from "../ui/Button.tsx";
-import { IconButton } from "../ui/IconButton.tsx";
 import { Select } from "../ui/Select.tsx";
+import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { setStyle } from "./styleActions.ts";
 
@@ -45,14 +43,6 @@ export function Typography(props: TypographyProps): ReactElement {
     <div className="dt-editor dt-editor--typography" data-test="typography">
       <div className="dt-editor__title-row">
         <div className="dt-editor__title">Text</div>
-        <IconButton
-          variant="quiet"
-          size="compact"
-          label="Typography settings"
-          data-test="typography-settings"
-        >
-          <SlidersVertical size={18} strokeWidth={1.7} aria-hidden="true" />
-        </IconButton>
       </div>
 
       <div className="dt-typography">
@@ -285,22 +275,18 @@ function AlignmentField({ property, label, element, defaultValue, options, onAft
   }
 
   return (
-    <div className="dt-typography__segmented" role="group" aria-label={label} data-property={property}>
-      {options.map((option) => (
-        <Button
-          key={option.value}
-          variant="quiet"
-          className="dt-typography__alignment-button"
-          data-test={`typography-align-${property}-${option.value}`}
-          data-active={current === option.value ? "true" : "false"}
-          aria-label={option.label}
-          aria-pressed={current === option.value}
-          onClick={() => handleChange(option.value)}
-        >
-          {option.icon}
-        </Button>
-      ))}
-    </div>
+    <SegmentedControl
+      value={current}
+      aria-label={label}
+      data-property={property}
+      options={options.map((option) => ({
+        value: option.value,
+        label: option.label,
+        icon: option.icon,
+        testId: `typography-align-${property}-${option.value}`,
+      }))}
+      onChange={handleChange}
+    />
   );
 }
 

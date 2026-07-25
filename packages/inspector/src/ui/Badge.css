@@ -3,7 +3,7 @@
   align-items: center;
   border-radius: var(--dt-radius-pill);
   color: var(--dt-text-muted);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   line-height: 1;
   padding: 5px 8px;
 }

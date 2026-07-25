@@ -10,6 +10,42 @@
   background: var(--dt-surface-panel);
 }
 
+.dt-border__linked-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dt-border__linked-control {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.dt-border__expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dt-border__expanded-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 26px;
+}
+
+.dt-border__side-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dt-color {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--dt-surface-panel);
+}
+
 .dt-typography {
   gap: 6px;
 }
@@ -17,7 +53,7 @@
 .dt-typography__field {
   position: relative;
   min-width: 0;
-  height: var(--dt-control-height);
+  height: var(--dt-control-height-large);
   align-items: center;
   background: var(--dt-surface-control);
   border-radius: var(--dt-radius-control);
@@ -54,7 +90,7 @@
 
 .dt-typography__field .dt-select {
   padding-left: 34px;
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
 }
 
 .dt-typography__metrics {
@@ -79,37 +115,6 @@
   gap: 6px;
 }
 
-.dt-typography__segmented {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 2px;
-  min-width: 0;
-  padding: 2px;
-  background: var(--dt-surface-control);
-  border-radius: var(--dt-radius-control);
-}
-
-.dt-typography__alignment-button.dt-button {
-  display: inline-flex;
-  min-width: 0;
-  min-height: 28px;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  color: var(--dt-text-muted);
-  border-radius: 8px;
-}
-
-.dt-typography__alignment-button.dt-button[data-active="true"] {
-  background: var(--dt-surface-raised);
-  color: var(--dt-text-primary);
-  box-shadow: inset 0 0 0 1px var(--dt-border-strong), 0 1px 2px rgba(0, 0, 0, 0.06);
-}
-
-.dt-typography__alignment-button.dt-button:hover:not(:disabled) {
-  background: var(--dt-surface-raised);
-}
-
 .dt-layout__group {
   margin-top: 4px;
   padding-top: 10px;
@@ -120,7 +125,7 @@
 .dt-layout__group-title {
   margin-bottom: 6px;
   color: var(--dt-text-primary);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   font-weight: 650;
   letter-spacing: -0.01em;
   text-transform: none;
@@ -138,16 +143,46 @@
   gap: 6px;
 }
 
+.dt-layout__size-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dt-layout__size-header .dt-layout__group-title {
+  margin-bottom: 0;
+}
+
+.dt-layout__size-collapsed {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: end;
+}
+
+.dt-layout__size-collapsed-control {
+  min-width: 0;
+}
+
+.dt-layout__size-collapsed .dt-field-row,
 .dt-layout__size-grid .dt-field-row {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
+  min-width: 0;
   min-height: 0;
 }
 
+.dt-layout__size-collapsed .dt-field-row__label,
 .dt-layout__size-grid .dt-field-row__label {
   font-size: 10px;
+}
+
+.dt-layout__size-collapsed .dt-field-row__control,
+.dt-layout__size-collapsed .dt-token-field {
+  min-width: 0;
+  width: 100%;
 }
 
 .dt-layout__size-grid .dt-layout-combo,
@@ -176,7 +211,7 @@
 
 .dt-layout__anchor-label {
   color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
 }
 
 .dt-layout__anchor-control {
@@ -219,7 +254,7 @@
   align-items: center;
   margin-top: 8px;
   color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
 }
 
 .dt-layout__grid {
@@ -432,44 +467,10 @@
   min-width: 0;
 }
 
-.dt-layout__direction {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px;
-  padding: 2px;
-  background: var(--dt-surface-control);
-  border-radius: var(--dt-radius-control);
-}
-
-.dt-layout__direction-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  padding: 0;
-  color: var(--dt-text-muted);
-}
-
-.dt-layout__direction-button[data-active="true"] {
-  background: var(--dt-surface-raised);
-  color: var(--dt-text-primary);
-  box-shadow: inset 0 0 0 1px var(--dt-border-strong), 0 1px 2px rgba(0, 0, 0, 0.06);
-}
-
 .dt-layout__wrap-button[data-active="true"] {
   background: var(--dt-surface-raised);
   color: var(--dt-text-primary);
   box-shadow: inset 0 0 0 1px var(--dt-border-strong), 0 1px 2px rgba(0, 0, 0, 0.06);
-}
-
-.dt-layout__direction-button svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.4;
 }
 
 .dt-layout__alignment-grid {

@@ -1,5 +1,5 @@
 import type { ChangeRecord, TokenChangeRecord } from "../changesLog.ts";
-import { isTokenChange } from "../changesLog.ts";
+import { isTokenChange, touchChanges } from "../changesLog.ts";
 import type { PreviewResult } from "../managedStylesheet.ts";
 import { getRegisteredFrames } from "./projection.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
@@ -178,6 +178,7 @@ export function startStaleDetection(changes: ChangeRecord[]): void {
       pendingChanges = null;
     }
     verificationTimer = null;
+    touchChanges();
   }, VERIFICATION_TIMEOUT_MS);
 
   window.addEventListener("message", handleFrameReady);

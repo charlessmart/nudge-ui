@@ -111,11 +111,9 @@ test("dev: Tailwind side border utilities parse into independent inspector field
     return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(",");
   })).toBe("2px,4px,8px,1px");
 
-  await expect(page.locator('[data-test="border-sides"]')).toHaveAttribute("data-linked", "false");
-  await expect(page.locator('[data-test="border-style-sides"]')).toHaveAttribute("data-linked", "true");
-  await expect(page.locator('[data-test="border-color-sides"]')).toHaveAttribute("data-linked", "false");
+  await expect(page.locator('.dt-border')).toHaveAttribute("data-expanded", "true");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("2px");
   await expect(page.locator('[data-test="token-field"][data-property="border-right-width"] [data-test="raw-input"]')).toHaveValue("4px");
-  await expect(page.locator('[data-test="border-style"]')).toContainText("Dashed");
+  await expect(page.locator('[data-test="border-style-top"]')).toContainText("Dashed");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-color"] [data-test="token-chip"]')).toContainText("--color-lime-300");
 });

@@ -1,37 +1,45 @@
 .dt-segmented-control {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  min-height: var(--dt-control-height-large);
+  padding: 2px;
+  box-sizing: border-box;
   overflow: hidden;
-  border: 1px solid var(--dt-border-strong);
-  border-radius: var(--dt-radius-control);
+  border-radius: 10px;
+  background: var(--dt-surface-well);
 }
 
-.dt-segmented-control__button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 24px;
-  padding: 0 8px;
+/* dt-button is the base; stretch fills the padded track (grows with text). */
+.dt-button.dt-segmented-control__button {
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 0 var(--dt-space-8);
   border: 0;
-  border-right: 1px solid var(--dt-border-strong);
+  border-radius: var(--dt-radius-control);
   background: transparent;
   color: var(--dt-text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 80ms ease, color 80ms ease;
+  font-size: var(--dt-font-size-base);
+  font-weight: var(--dt-font-weight-base);
+  box-shadow: none;
 }
 
-.dt-segmented-control__button:last-child {
-  border-right: 0;
-}
-
-.dt-segmented-control__button--selected {
-  background: var(--dt-accent);
-  color: #ffffff;
-}
-
-.dt-segmented-control__button:not(.dt-segmented-control__button--selected):hover {
-  background: var(--dt-surface-control-hover);
+.dt-button.dt-segmented-control__button--selected,
+.dt-button.dt-segmented-control__button--selected:hover:not(:disabled) {
+  background: var(--dt-surface-raised);
   color: var(--dt-text-primary);
+  box-shadow: 0 0 0 1px var(--dt-border-subtle), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.dt-button.dt-segmented-control__button:not(.dt-segmented-control__button--selected):hover:not(:disabled) {
+  background: transparent;
+  color: var(--dt-text-primary);
+}
+
+.dt-segmented-control__button svg {
+  flex-shrink: 0;
 }
