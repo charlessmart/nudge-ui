@@ -3,76 +3,39 @@ import { tokenCatalog, tokens } from "virtual:design-tokens";
 import { INTERACTION_STATES } from "../styleState.ts";
 import type { InteractionState } from "../styleState.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
+import {
+  collectRules as collectCssomRules,
+  documentRevision as getDocumentRevision,
+} from "./resolution/cssomCollector.ts";
+import { computeSpecificity } from "./resolution/selectorSemantics.ts";
+export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
+export { computeSpecificity } from "./resolution/selectorSemantics.ts";
+import type {
+  BorderStructure,
+  ColorOpacity,
+  EditCapability,
+  MatchedRule,
+  ResolvedProperty,
+  StyleDeclaration,
+  TokenOrigin,
+  TokenReference,
+  TokenTable,
+  ValueModifier,
+} from "./resolution/types.ts";
 
-export interface ResolvedProperty {
-  property: string;
-  tokenName: string | null;
-  declaredValue: string;
-  resolvedValue: string;
-  /** Product-contract aliases. `declaredValue`/`resolvedValue` remain for UI compatibility. */
-  authored?: string;
-  sourceProperty?: string;
-  computed?: string;
-  tokens?: TokenReference[];
-  opacity?: ColorOpacity;
-  modifiers?: ValueModifier[];
-  capability?: EditCapability;
-  resolvedTokenValue?: string;
-  diagnostic?: string;
-  structure?: BorderStructure;
-  confidence: "exact" | "probable" | "unknown";
-  evidence: AttributionEvidence;
-}
-
-export type TokenOrigin = "project" | "framework" | "generated" | "runtime";
-export type EditCapability = "atomic" | "color" | "box-sides" | "structured" | "composite" | "raw";
-export interface TokenReference { name: string; origin: TokenOrigin }
-export interface ValueModifier { kind: "alpha" | "fallback" | "expression"; value: string }
-export interface ColorOpacity {
-  value: string;
-  authoredValue: string;
-  source: "hex" | "rgb" | "hsl" | "color-mix";
-  tokenName: string | null;
-  token?: TokenReference;
-}
-export interface BorderStructure {
-  kind: "border";
-  sourceProperty: "border" | "border-top" | "border-right" | "border-bottom" | "border-left";
-  width: string;
-  style: string;
-  color: string;
-  colorTokenName: string | null;
-}
-
-export interface AttributionEvidence {
-  selector?: string;
-  sourceOrder?: number;
-  specificity?: number;
-  important?: boolean;
-  layer?: string;
-  inheritedFrom?: string;
-  inaccessibleStylesheet?: boolean;
-  reason: string;
-}
-
-export interface TokenTable {
-  [varName: string]: TokenEntry;
-}
-
-interface StyleDeclaration {
-  property: string;
-  value: string;
-  important?: boolean;
-}
-
-export interface MatchedRule {
-  selectorText: string;
-  declarations: StyleDeclaration[];
-  specificity: number;
-  sourceOrder?: number;
-  layer?: string;
-  active?: boolean;
-}
+export type {
+  AttributionEvidence,
+  BorderStructure,
+  ColorOpacity,
+  EditCapability,
+  MatchedRule,
+  ResolvedProperty,
+  StyleDeclaration,
+  TokenOrigin,
+  TokenReference,
+  TokenTable,
+  ValueModifier,
+} from "./resolution/types.ts";
 
 const MAX_PROPERTIES = 100;
 const VAR_REF = /var\(\s*(--[\w-]+)/g;
@@ -1294,355 +1257,7 @@ function inferTailwindV4ColorOpacity(
   }
 }
 
-function stripCssComments(value: string): string {
-  return value.replace(/\/\*[\s\S]*?\*\//g, " ");
-}
-
-function findTopLevelDelimiter(value: string, delimiter: string): number {
-  let parenDepth = 0;
-  let bracketDepth = 0;
-  let quote: string | null = null;
-  let escaped = false;
-  let comment = false;
-
-  for (let index = 0; index < value.length; index++) {
-    const char = value[index]!;
-    const next = value[index + 1];
-    if (comment) {
-      if (char === "*" && next === "/") {
-        comment = false;
-        index++;
-      }
-      continue;
-    }
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (char === "\\") escaped = true;
-      else if (char === quote) quote = null;
-      continue;
-    }
-    if (char === "/" && next === "*") {
-      comment = true;
-      index++;
-      continue;
-    }
-    if (char === "\"" || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (char === "(") parenDepth++;
-    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
-    else if (char === "[") bracketDepth++;
-    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
-    else if (char === delimiter && parenDepth === 0 && bracketDepth === 0) return index;
-  }
-  return -1;
-}
-
-function splitTopLevelDeclarations(cssText: string): string[] {
-  const parts: string[] = [];
-  let start = 0;
-  let parenDepth = 0;
-  let bracketDepth = 0;
-  let quote: string | null = null;
-  let escaped = false;
-  let comment = false;
-
-  for (let index = 0; index < cssText.length; index++) {
-    const char = cssText[index]!;
-    const next = cssText[index + 1];
-    if (comment) {
-      if (char === "*" && next === "/") {
-        comment = false;
-        index++;
-      }
-      continue;
-    }
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (char === "\\") escaped = true;
-      else if (char === quote) quote = null;
-      continue;
-    }
-    if (char === "/" && next === "*") {
-      comment = true;
-      index++;
-      continue;
-    }
-    if (char === "\"" || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (char === "(") parenDepth++;
-    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
-    else if (char === "[") bracketDepth++;
-    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
-    else if (char === ";" && parenDepth === 0 && bracketDepth === 0) {
-      parts.push(cssText.slice(start, index));
-      start = index + 1;
-    }
-  }
-  parts.push(cssText.slice(start));
-  return parts;
-}
-
-function parseDeclarations(cssText: string): StyleDeclaration[] {
-  const out: StyleDeclaration[] = [];
-  for (const part of splitTopLevelDeclarations(cssText)) {
-    const idx = findTopLevelDelimiter(part, ":");
-    if (idx === -1) continue;
-    const property = stripCssComments(part.slice(0, idx)).trim();
-    const value = part.slice(idx + 1).trim();
-    if (!property || !value) continue;
-    const important = /!\s*important\s*$/i.test(value);
-    out.push({ property, value: value.replace(/!\s*important\s*$/i, "").trim(), important });
-  }
-  return out;
-}
-
-function selectorKey(selector: string): string {
-  return selector.trim()
-    .replace(/\s+/g, " ")
-    .replace(/\s*([>+~,])\s*/g, "$1");
-}
-
-function findNextBlockStart(source: string, start: number, end: number): { kind: "block" | "statement" | "end"; index: number } {
-  let parenDepth = 0;
-  let bracketDepth = 0;
-  let quote: string | null = null;
-  let escaped = false;
-  let comment = false;
-
-  for (let index = start; index < end; index++) {
-    const char = source[index]!;
-    const next = source[index + 1];
-    if (comment) {
-      if (char === "*" && next === "/") {
-        comment = false;
-        index++;
-      }
-      continue;
-    }
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (char === "\\") escaped = true;
-      else if (char === quote) quote = null;
-      continue;
-    }
-    if (char === "/" && next === "*") {
-      comment = true;
-      index++;
-      continue;
-    }
-    if (char === "\"" || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (char === "(") parenDepth++;
-    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
-    else if (char === "[") bracketDepth++;
-    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
-    else if (parenDepth === 0 && bracketDepth === 0 && char === "{") return { kind: "block", index };
-    else if (parenDepth === 0 && bracketDepth === 0 && char === ";") return { kind: "statement", index };
-  }
-  return { kind: "end", index: end };
-}
-
-function findMatchingBrace(source: string, openIndex: number, end: number): number {
-  let depth = 1;
-  let parenDepth = 0;
-  let bracketDepth = 0;
-  let quote: string | null = null;
-  let escaped = false;
-  let comment = false;
-
-  for (let index = openIndex + 1; index < end; index++) {
-    const char = source[index]!;
-    const next = source[index + 1];
-    if (comment) {
-      if (char === "*" && next === "/") {
-        comment = false;
-        index++;
-      }
-      continue;
-    }
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (char === "\\") escaped = true;
-      else if (char === quote) quote = null;
-      continue;
-    }
-    if (char === "/" && next === "*") {
-      comment = true;
-      index++;
-      continue;
-    }
-    if (char === "\"" || char === "'") {
-      quote = char;
-      continue;
-    }
-    if (char === "(") parenDepth++;
-    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
-    else if (char === "[") bracketDepth++;
-    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
-    else if (parenDepth === 0 && bracketDepth === 0 && char === "{") depth++;
-    else if (parenDepth === 0 && bracketDepth === 0 && char === "}" && --depth === 0) return index;
-  }
-  return -1;
-}
-
-/**
- * CSSOM is allowed to canonicalise values (`.875rem` → `0.875rem`, and it can
- * reorder a `calc()` sum). For in-document style elements we recover author
- * text with a small scanner that understands nested grouping rules, strings,
- * comments, brackets, and functions. Linked or inaccessible stylesheets
- * continue through the CSSOM fallback below.
- */
-function isStyleElementInDocument(node: Node | null, doc: Document): node is HTMLStyleElement {
-  return node?.ownerDocument === doc && node.nodeType === node.ELEMENT_NODE
-    && (node as Element).tagName === "STYLE";
-}
-
-function isStyleRuleInDocument(rule: CSSRule, doc: Document): rule is CSSStyleRule {
-  const StyleRule = doc.defaultView?.CSSStyleRule;
-  if (StyleRule && rule instanceof StyleRule) return true;
-  return rule.type === (doc.defaultView?.CSSRule.STYLE_RULE ?? 1)
-    && "selectorText" in rule && "style" in rule;
-}
-
-function rawDeclarationsBySelector(sheet: CSSStyleSheet, doc: Document): Map<string, StyleDeclaration[][]> {
-  const owner = sheet.ownerNode;
-  if (!isStyleElementInDocument(owner, doc) || !owner.textContent) return new Map();
-
-  const declarations = new Map<string, StyleDeclaration[][]>();
-  const source = owner.textContent;
-
-  const walk = (start: number, end: number): void => {
-    let cursor = start;
-    while (cursor < end) {
-      const next = findNextBlockStart(source, cursor, end);
-      if (next.kind === "end") return;
-      if (next.kind === "statement") {
-        cursor = next.index + 1;
-        continue;
-      }
-
-      const close = findMatchingBrace(source, next.index, end);
-      if (close < 0) return;
-      const prelude = stripCssComments(source.slice(cursor, next.index)).trim();
-      const body = source.slice(next.index + 1, close);
-      if (prelude.startsWith("@")) {
-        walk(next.index + 1, close);
-      } else {
-        const parsed = parseDeclarations(body);
-        if (parsed.length > 0) {
-          const key = selectorKey(prelude);
-          const entries = declarations.get(key) ?? [];
-          entries.push(parsed);
-          declarations.set(key, entries);
-        }
-        // CSS nesting can put child style rules inside a style rule. They are
-        // uncommon in the current browser support matrix, but scanning them
-        // here keeps the source recovery path deterministic when present.
-        if (body.includes("{")) walk(next.index + 1, close);
-      }
-      cursor = close + 1;
-    }
-  };
-
-  walk(0, source.length);
-  return declarations;
-}
-
-function extractParenContent(s: string, openIdx: number): { content: string; end: number } {
-  let depth = 0;
-  let i = openIdx;
-  while (i < s.length && s[i] !== "(") i++;
-  if (i >= s.length) return { content: "", end: openIdx };
-  depth = 1;
-  const start = i + 1;
-  i++;
-  while (i < s.length && depth > 0) {
-    if (s[i] === "(") depth++;
-    else if (s[i] === ")") depth--;
-    i++;
-  }
-  return { content: s.slice(start, i - 1).trim(), end: i };
-}
-
-export function computeSpecificity(selectorText: string): number {
-  let s = selectorText.trim();
-
-  // Handle comma-separated selectors: use the max specificity of any part
-  const commaParts = splitTopLevel(s, ",");
-  if (commaParts.length > 1) {
-    let max = 0;
-    for (const part of commaParts) {
-      const spec = computeSpecificity(part);
-      if (spec > max) max = spec;
-    }
-    return max;
-  }
-
-  let idCount = 0;
-  let classCount = 0;
-  let elementCount = 0;
-
-  // Split by combinators (space, >, +, ~) to get individual compound selectors
-  // but only at the top level (not inside :not()/:is()/:has()/:where() parens)
-  const compounds = splitTopLevel(s);
-
-  for (const compound of compounds) {
-    let cs = compound;
-
-    // Handle :not(), :is(), :has(), :where() — extract and remove the entire
-    // :name(...) block including args so their content isn't double-counted
-    // by subsequent class/ID/element regexes
-    const pseudoFuncRe = /:(not|is|has|where)\(/g;
-    let funcMatch: RegExpExecArray | null;
-    while ((funcMatch = pseudoFuncRe.exec(cs)) !== null) {
-      const name = funcMatch[1]!;
-      const openIdx = funcMatch.index;
-      const { content, end } = extractParenContent(cs, openIdx + funcMatch[0].length - 1);
-      const argSpec = content ? computeSpecificity(content) : 0;
-      if (name !== "where") {
-        idCount += Math.floor(argSpec / 1000000);
-        classCount += Math.floor(argSpec / 10000) % 100;
-        elementCount += Math.floor(argSpec / 100) % 100;
-      }
-      // Remove the entire :name(...) block completely so args aren't re-counted
-      cs = cs.slice(0, openIdx) + " " + cs.slice(end);
-      // Reset regex lastIndex since we modified the string
-      pseudoFuncRe.lastIndex = openIdx + 1;
-    }
-
-    // Now cs has had all :not()/:is()/:has()/:where() removed
-    // Count ID selectors
-    cs = cs.replace(/#[\w-]+/g, () => { idCount++; return " "; });
-
-    // Count class selectors
-    cs = cs.replace(/\.[\w-]+/g, () => { classCount++; return " "; });
-
-    // Count attribute selectors
-    cs = cs.replace(/\[[^\]]*\]/g, () => { classCount++; return " "; });
-
-    // Count pseudo-elements (double colon) — remove after counting
-    cs = cs.replace(/::[\w-]+/g, () => { elementCount++; return " "; });
-
-    // Count pseudo-classes (single colon) — must be done AFTER pseudo-elements
-    // since single-colon legacy pseudo-elements like :before are also matched here
-    cs = cs.replace(/:(?!:)[\w-]+/g, () => { classCount++; return " "; });
-
-    // Remaining words are element type selectors (excluding * and &)
-    const words = cs.split(/[\s>+~]+/).filter((w) => w && w !== "*" && w !== "&");
-    elementCount += words.length;
-  }
-
-  return idCount * 1000000 + classCount * 10000 + elementCount * 100;
-}
-
-// Split a selector on combinators (space, >, +, ~), respecting nesting in parens.
-// If sep is given, splits on that character instead (for comma splitting).
+// Splits CSS values at top-level combinators or an optional delimiter.
 function splitTopLevel(s: string, sep?: string): string[] {
   const parts: string[] = [];
   let depth = 0;
@@ -1667,152 +1282,12 @@ function splitTopLevel(s: string, sep?: string): string[] {
   return parts;
 }
 
-interface RuleSnapshot {
-  revision: number;
-  rules: MatchedRule[];
-  inaccessible: boolean;
-}
-
 interface ResolvedPropertiesSnapshot {
   revision: number;
   rows: ResolvedProperty[];
 }
 
-interface DocumentRevisions {
-  element: number;
-  stylesheet: number;
-}
-
-const documentRevisions = new WeakMap<Document, DocumentRevisions>();
-const documentObservers = new WeakMap<Document, MutationObserver>();
-const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
 const stateResolutionSnapshots = new WeakMap<HTMLElement, WeakMap<TokenTable, Map<InteractionState, ResolvedPropertiesSnapshot>>>();
-
-function isStylesheetNode(node: Node | null): boolean {
-  if (!node || node.nodeType !== node.ELEMENT_NODE) return false;
-  const tag = (node as Element).tagName.toLowerCase();
-  return tag === "style" || tag === "link";
-}
-
-function changesStylesheet(record: MutationRecord): boolean {
-  if (record.type === "attributes") return isStylesheetNode(record.target);
-  if (record.type === "characterData") return isStylesheetNode(record.target.parentElement);
-  return isStylesheetNode(record.target)
-    || Array.from(record.addedNodes).some(isStylesheetNode)
-    || Array.from(record.removedNodes).some(isStylesheetNode);
-}
-
-function documentRevision(doc: Document): number {
-  let record = documentRevisions.get(doc);
-  if (!record) {
-    record = { element: 0, stylesheet: 0 };
-    documentRevisions.set(doc, record);
-
-    const Observer = doc.defaultView?.MutationObserver;
-    const root = doc.documentElement;
-    if (Observer && root) {
-      const observer = new Observer((records) => {
-        // Host tree and attribute changes can alter selector matches. Only CSS
-        // source changes need to invalidate the much more expensive rule walk.
-        record!.element++;
-        if (records.some(changesStylesheet)) record!.stylesheet++;
-      });
-      observer.observe(root, {
-        attributes: true,
-        childList: true,
-        characterData: true,
-        subtree: true,
-      });
-      documentObservers.set(doc, observer);
-
-      doc.defaultView?.addEventListener("resize", () => {
-        // Viewport media queries participate in the CSS cascade even when the
-        // host DOM is otherwise unchanged.
-        record!.element++;
-        record!.stylesheet++;
-      });
-    }
-  }
-  return record.element;
-}
-
-function stylesheetRevision(doc: Document): number {
-  documentRevision(doc);
-  return documentRevisions.get(doc)!.stylesheet;
-}
-
-/** Invalidates CSSOM-derived snapshots after programmatic stylesheet edits. */
-export function invalidateStyleResolutionCache(doc: Document = document): void {
-  const record = documentRevisions.get(doc);
-  if (record) {
-    record.element++;
-    record.stylesheet++;
-  }
-  ruleSnapshots.delete(doc);
-}
-
-function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: boolean } {
-  const revision = stylesheetRevision(doc);
-  const cached = ruleSnapshots.get(doc);
-  if (cached?.revision === revision) {
-    return { rules: cached.rules, inaccessible: cached.inaccessible };
-  }
-  const out: MatchedRule[] = [];
-  let inaccessible = false;
-  let sourceOrder = 0;
-  const walkRules = (
-    rules: CSSRuleList,
-    rawDeclarations: Map<string, StyleDeclaration[][]>,
-    active = true,
-    layer?: string,
-  ): void => {
-    for (const rule of Array.from(rules)) {
-      // Canvas elements are owned by an iframe document. CSSOM classes are
-      // realm-specific, so checking against the controller window's global
-      // CSSStyleRule would discard every iframe rule and lose token evidence.
-      if (isStyleRuleInDocument(rule, doc)) {
-        let cssText: string;
-        try {
-          cssText = rule.style.cssText ?? "";
-        } catch {
-          continue;
-        }
-        const raw = rawDeclarations.get(selectorKey(rule.selectorText))?.shift();
-        out.push({
-          selectorText: rule.selectorText,
-          specificity: computeSpecificity(rule.selectorText),
-          declarations: raw ?? parseDeclarations(cssText),
-          sourceOrder: sourceOrder++,
-          active,
-          layer,
-        });
-      } else if ("cssRules" in rule) {
-        try {
-          const record = rule as unknown as { cssRules: CSSRuleList; conditionText?: string; name?: string };
-          let childActive = active;
-          const cssText = rule.cssText ?? "";
-          if (cssText.startsWith("@media") && record.conditionText) childActive = active && doc.defaultView!.matchMedia(record.conditionText).matches;
-          else if (cssText.startsWith("@supports") && record.conditionText) childActive = active && (doc.defaultView?.CSS?.supports(record.conditionText) ?? false);
-          else if (cssText.startsWith("@container")) childActive = false; // CSSOM cannot reliably evaluate the queried container.
-          const childLayer = cssText.startsWith("@layer") ? record.name ?? cssText.slice(6, cssText.indexOf("{")).trim() : layer;
-          walkRules(record.cssRules, rawDeclarations, childActive, childLayer);
-        } catch {
-          continue;
-        }
-      }
-    }
-  };
-  for (const sheet of Array.from(doc.styleSheets)) {
-    try {
-      walkRules(sheet.cssRules, rawDeclarationsBySelector(sheet, doc));
-    } catch {
-      inaccessible = true;
-    }
-  }
-  const snapshot = { revision, rules: out, inaccessible };
-  ruleSnapshots.set(doc, snapshot);
-  return snapshot;
-}
 
 const INHERITED_PROPERTIES = new Set([
   "color", "font", "font-family", "font-size", "font-style", "font-variant", "font-weight",
@@ -1859,7 +1334,7 @@ export function getResolvedProperties(
   tokenTable: TokenTable,
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
-  const { rules, inaccessible } = collectRules(doc);
+  const { rules, inaccessible } = collectCssomRules(doc);
   const result = resolvePropertiesFromRules(el, rules, tokenTable);
   const computed = getElementComputedStyle(el);
   for (const prop of result) {
@@ -1957,7 +1432,7 @@ export function getResolvedPropertiesForState(
   state: InteractionState,
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
-  const revision = documentRevision(doc);
+  const revision = getDocumentRevision(doc);
   let tableSnapshots = stateResolutionSnapshots.get(el);
   if (!tableSnapshots) {
     tableSnapshots = new WeakMap();
@@ -1971,7 +1446,7 @@ export function getResolvedPropertiesForState(
   const cached = snapshots.get(state);
   if (cached?.revision === revision) return cached.rows;
 
-  const { rules, inaccessible } = collectRules(doc);
+  const { rules, inaccessible } = collectCssomRules(doc);
   const stateRules = rules.flatMap((rule) => {
     const selectorText = selectorForState(rule.selectorText, state);
     return selectorText ? [{ ...rule, selectorText }] : [];
@@ -1998,7 +1473,7 @@ export function getResolvedPropertiesForState(
 
 export function getAvailableInteractionStates(el: HTMLElement): InteractionState[] {
   const doc = el.ownerDocument ?? document;
-  const { rules } = collectRules(doc);
+  const { rules } = collectCssomRules(doc);
   const available: InteractionState[] = ["base"];
   for (const state of INTERACTION_STATES) {
     const relevant = rules.some((rule) => {
@@ -2024,7 +1499,7 @@ export function getStableTokenProperty(
   tokenTable: TokenTable,
 ): ResolvedProperty | null {
   const doc = el.ownerDocument ?? document;
-  const { rules } = collectRules(doc);
+  const { rules } = collectCssomRules(doc);
   const stableRules = rules.filter((rule) => !TRANSIENT_SELECTOR.test(rule.selectorText));
   const rows = resolvePropertiesFromRules(el, stableRules, tokenTable);
   for (const property of properties) {
@@ -2032,34 +1507,4 @@ export function getStableTokenProperty(
     if (row) return row;
   }
   return null;
-}
-import { useEffect, useState } from "react";
-import type { SelectedElement } from "../selectionStore.ts";
-
-export function useResolvedPropertiesDebounced(
-  selected: SelectedElement | null,
-  state: InteractionState = "base",
-  tokenTable?: TokenTable,
-): ResolvedProperty[] {
-  const [rows, setRows] = useState<ResolvedProperty[]>([]);
-  useEffect(() => {
-    if (!selected) {
-      setRows([]);
-      return;
-    }
-    let cancelled = false;
-    const handle = setTimeout(() => {
-      if (cancelled) return;
-      setRows(getResolvedPropertiesForState(
-        selected.domElement,
-        tokenTable ?? getAvailableTokenTableForElement(selected.domElement),
-        state,
-      ));
-    }, 60);
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [selected, state, tokenTable]);
-  return rows;
 }

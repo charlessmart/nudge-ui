@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   designTool,
   transformIndexHtmlHtml,
@@ -64,5 +67,34 @@ describe("designTool plugin virtual inspector module", () => {
     expect(code!).toContain('from "@design-tool/inspector"');
     expect(code!).toContain("bootstrapDesignTool");
     expect(code!).toContain('getElementById("design-tool-root")');
+  });
+});
+
+describe("designTool token catalog compiler", () => {
+  it("keeps authored Tailwind v4 theme tokens editable project tokens", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-catalog-"));
+    try {
+      writeFileSync(join(root, "app.css"), '@import "tailwindcss"; @theme { --color-brand: #123456; }');
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.buildStart!();
+      const code = await plugin.load!("\0virtual:design-tokens");
+      const catalog = JSON.parse(code!.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]") as Array<{
+        cssName: string;
+        origin?: string;
+        editable?: boolean;
+      }>;
+
+      expect(catalog.find((definition) => definition.cssName === "--color-brand")).toMatchObject({
+        origin: "project",
+        editable: true,
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

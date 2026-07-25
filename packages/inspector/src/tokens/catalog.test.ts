@@ -64,6 +64,42 @@ describe("token catalog", () => {
     expect(row?.contextLabel).toBe("Inactive in current theme");
   });
 
+  it("requires every nested conditional wrapper and keeps the wrapper stack for previews", () => {
+    const catalog: TokenDefinition[] = [{
+      cssName: "--surface",
+      name: "--surface",
+      declarations: [{
+        value: "#111",
+        source: "x.css:1",
+        important: false,
+        context: {
+          selector: ":root",
+          wrappers: [
+            { kind: "media", params: "(width > 600px)" },
+            { kind: "layer", params: "theme" },
+            { kind: "media", params: "(prefers-contrast: more)" },
+          ],
+        },
+      }],
+    }];
+    const matching = buildTokenCatalogRows(catalog, document.documentElement, runtime({
+      mediaMatches: (query) => query === "(width > 600px)" || query === "(prefers-contrast: more)",
+    }))[0]!;
+    expect(matching.activeDeclaration).not.toBeNull();
+    expect(matching.styleContext).toEqual({
+      wrappers: [
+        { kind: "media", params: "(width > 600px)" },
+        { kind: "layer", params: "theme" },
+        { kind: "media", params: "(prefers-contrast: more)" },
+      ],
+    });
+
+    const inactive = buildTokenCatalogRows(catalog, document.documentElement, runtime({
+      mediaMatches: (query) => query === "(width > 600px)",
+    }))[0]!;
+    expect(inactive.activeDeclaration).toBeNull();
+  });
+
   it("filters by name and any authored variant value", () => {
     const rows = buildTokenCatalogRows(CATALOG, document.documentElement, runtime());
     expect(filterTokenRows(rows, "space")).toHaveLength(1);

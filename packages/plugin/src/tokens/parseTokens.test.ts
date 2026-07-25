@@ -245,10 +245,37 @@ describe("parseTokenCatalog", () => {
     const declaration = parseTokenCatalog(css, "src/context.css")[0]?.declarations[0];
     expect(declaration?.context).toEqual({
       selector: ":root",
-      scope: "(.app)",
-      supports: "(color: oklch(0 0 0))",
-      media: "(prefers-color-scheme: dark)",
-      layer: "theme",
+      wrappers: [
+        { kind: "layer", params: "theme" },
+        { kind: "media", params: "(prefers-color-scheme: dark)" },
+        { kind: "supports", params: "(color: oklch(0 0 0))" },
+        { kind: "scope", params: "(.app)" },
+      ],
+    });
+  });
+
+  it("preserves repeated and interleaved conditional wrappers in source order", () => {
+    const css = `@media (width > 600px) {
+  @layer theme {
+    @supports (color: oklch(0 0 0)) {
+      @media (prefers-contrast: more) {
+        @layer overrides {
+          :root { --surface: oklch(0.1 0 0); }
+        }
+      }
+    }
+  }
+}`;
+
+    expect(parseTokenCatalog(css, "src/nested-context.css")[0]?.declarations[0]?.context).toEqual({
+      selector: ":root",
+      wrappers: [
+        { kind: "media", params: "(width > 600px)" },
+        { kind: "layer", params: "theme" },
+        { kind: "supports", params: "(color: oklch(0 0 0))" },
+        { kind: "media", params: "(prefers-contrast: more)" },
+        { kind: "layer", params: "overrides" },
+      ],
     });
   });
 });

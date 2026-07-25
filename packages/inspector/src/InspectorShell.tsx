@@ -8,8 +8,9 @@ import {
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
-import { buildTokenTable, getAvailableInteractionStates, getStableTokenProperty, getTokenEntriesForElement, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
+import { buildTokenTable, getAvailableInteractionStates, getStableTokenProperty, getTokenEntriesForElement } from "./tokens/resolution.ts";
 import type { ResolvedProperty, TokenTable } from "./tokens/resolution.ts";
+import { useResolvedPropertiesDebounced } from "./tokens/useResolvedProperties.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { SpacingBox } from "./styleEditors/SpacingBox.tsx";
@@ -29,7 +30,7 @@ import { UI_STYLES } from "./ui/styles.ts";
 import { TokensPanel } from "./tokens/TokensPanel.tsx";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
 import type { InteractionState } from "./styleState.ts";
-import { isEditableTarget } from "./shortcuts.ts";
+import { isEditableEvent } from "./shortcuts.ts";
 import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "./ui/labels.ts";
 import { useCanvasMode } from "./canvas/canvasStore.ts";
@@ -113,8 +114,9 @@ export function InspectorShell(): ReactElement {
     if (!isOpen) return;
     function onKeydown(event: KeyboardEvent): void {
       const mod = event.metaKey || event.ctrlKey;
+      const editable = isEditableEvent(event);
 
-      if (!isEditableTarget(event.target)) {
+      if (!editable) {
         const scrollKey = event.code === "Space"
           || event.key === "ArrowUp"
           || event.key === "ArrowDown"
@@ -133,7 +135,7 @@ export function InspectorShell(): ReactElement {
         }
       }
 
-      if (!selected || isEditableTarget(event.target)) return;
+      if (!selected || editable) return;
       // macOS labels the physical Backspace key as Delete, while browsers
       // report it as "Backspace". Support both without stealing text edits.
       if (event.key === "Delete" || event.key === "Backspace") {

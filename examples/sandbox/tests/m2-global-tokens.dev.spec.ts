@@ -45,3 +45,21 @@ test("dev: Tokens tab searches the global catalog", async ({ page }) => {
   await expect(page.locator('[data-test="global-token-row"]')).toHaveCount(1);
   await expect(page.locator('[data-test="global-token-row"]')).toHaveAttribute("data-token-name", "--color-text-primary");
 });
+
+test("dev: nested token wrappers are preserved through the catalog and managed preview", async ({ page }) => {
+  await page.goto("/conformance");
+  await page.locator('[data-test="tokens-tab"]').click();
+
+  const row = page.locator('[data-test="global-token-row"][data-token-name="--conformance-nested"]');
+  await expect(row).toBeVisible();
+  const input = row.locator('[data-test="raw-input"]');
+  await input.fill("4rem");
+  await input.press("Enter");
+
+  await expect.poll(() => managedSheet(page)).toContain(
+    "@media (min-width: 1px) { @supports (display: grid) { @layer conformance { @media (min-width: 1px)",
+  );
+  await expect.poll(() => page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--conformance-nested").trim(),
+  )).toBe("4rem");
+});

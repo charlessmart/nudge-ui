@@ -4,7 +4,13 @@ import postcss, {
   type Rule,
   type AtRule,
 } from "postcss";
-import type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
+import type {
+  TokenContext,
+  TokenContextWrapper,
+  TokenDeclaration,
+  TokenDefinition,
+  TokenEntry,
+} from "../virtual/design-tokens.ts";
 
 const GLOBAL_TOKEN_AT_RULES = new Set(["theme", "layer", "scope"]);
 
@@ -63,19 +69,22 @@ export function parseTokens(css: string, sourceId: string): TokenEntry[] {
 
 function declarationContext(decl: Declaration): TokenContext {
   const context: TokenContext = {};
+  const wrappers: TokenContextWrapper[] = [];
   let current: PostcssNode | undefined = decl.parent;
   while (current) {
     if (current.type === "rule" && context.selector === undefined) {
       context.selector = (current as Rule).selector;
     } else if (current.type === "atrule") {
       const at = current as AtRule;
-      if (at.name === "media") context.media = at.params;
-      else if (at.name === "supports") context.supports = at.params;
-      else if (at.name === "scope") context.scope = at.params;
-      else if (at.name === "layer") context.layer = at.params;
+      if (at.name === "media" || at.name === "supports" || at.name === "scope" || at.name === "layer") {
+        // Parents are visited inner-to-outer; prepend to preserve the source
+        // nesting order and retain repeated/interleaved wrapper kinds.
+        wrappers.unshift({ kind: at.name, params: at.params });
+      }
     }
     current = current.parent;
   }
+  if (wrappers.length > 0) context.wrappers = wrappers;
   return context;
 }
 

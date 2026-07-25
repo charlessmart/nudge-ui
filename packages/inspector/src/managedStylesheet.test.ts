@@ -95,13 +95,32 @@ describe("applyRules", () => {
       selector: ':root[data-theme="dark"]',
       declarations: { "--color-text": "#eeeeee" },
       context: {
-        layer: "theme",
-        media: "(prefers-color-scheme: dark)",
-        supports: "(color: oklch(0 0 0))",
-        scope: "(.app)",
+        wrappers: [
+          { kind: "layer", params: "theme" },
+          { kind: "media", params: "(prefers-color-scheme: dark)" },
+          { kind: "supports", params: "(color: oklch(0 0 0))" },
+          { kind: "scope", params: "(.app)" },
+        ],
       },
     }]);
     expect(css).toBe('@layer theme { @media (prefers-color-scheme: dark) { @supports (color: oklch(0 0 0)) { @scope (.app) { :root[data-theme="dark"] { --color-text: #eeeeee; } } } } }');
+  });
+
+  it("preserves nested and repeated wrappers in their authored order", () => {
+    const css = rulesToCssText([{
+      selector: ":root",
+      declarations: { "--surface": "#111111" },
+      context: {
+        wrappers: [
+          { kind: "media", params: "(width > 600px)" },
+          { kind: "layer", params: "theme" },
+          { kind: "supports", params: "(color: oklch(0 0 0))" },
+          { kind: "media", params: "(prefers-contrast: more)" },
+        ],
+      },
+    }]);
+
+    expect(css).toBe('@media (width > 600px) { @layer theme { @supports (color: oklch(0 0 0)) { @media (prefers-contrast: more) { :root { --surface: #111111; } } } } }');
   });
 });
 

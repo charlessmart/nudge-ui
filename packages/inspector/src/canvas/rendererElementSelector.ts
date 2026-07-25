@@ -14,6 +14,7 @@ import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./li
 import { readMargins } from "../overlayGeometry.ts";
 import { installInteractionStyles } from "../interactionStyles.ts";
 import { createFrameThrottle } from "../frameThrottle.ts";
+import { isEditableEvent } from "../shortcuts.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -94,11 +95,6 @@ function instanceIndex(el: HTMLElement): number {
   return Array.from(document.querySelectorAll<HTMLElement>("[data-cid]")).filter((candidate) => (
     candidate.getAttribute("data-cid") === cid && candidate.getAttribute("data-src") === src
   )).indexOf(el);
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement
-    && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
 }
 
 export function installRendererElementSelector(): void {
@@ -198,7 +194,7 @@ export function installRendererElementSelector(): void {
   document.addEventListener("mouseup", finishDrag, true);
 
   document.addEventListener("keydown", (event: KeyboardEvent) => {
-    if (isEditableTarget(event.target)) return;
+    if (isEditableEvent(event)) return;
     const scrollKey = event.code === "Space"
       || event.key === "ArrowUp"
       || event.key === "ArrowDown"

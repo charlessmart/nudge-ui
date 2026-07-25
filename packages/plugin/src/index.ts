@@ -101,18 +101,30 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   let devServer: ViteDevServer | undefined;
   let postTransformPromise: Promise<void> | null = null;
   const cssTokens = new Map<string, TokenDefinition[]>();
+  const projectTailwindTokenNamesByFile = new Map<string, Set<string>>();
   const adapterRegistry = createTokenAdapterRegistry([
     ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config)] : []),
     ...(options.vanillaExtract ? [createSprinklesAdapter(options.vanillaExtract)] : []),
   ]);
 
-  function cacheTokensForFile(id: string, code: string): void {
+  function cacheTokensForFile(id: string, code: string, sourceScan = false): void {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     const rel = relativePath(fileId, root);
     const parsed = parseTokenCatalog(code, rel);
+    if (sourceScan && root && fileId.startsWith(root) && !fileId.includes("/node_modules/")) {
+      // The initial source scan sees authored CSS before Tailwind expands its
+      // import. Remember those names so the later emitted catalog can retain
+      // project provenance instead of labelling every v4 variable framework.
+      projectTailwindTokenNamesByFile.set(fileId, new Set(parsed.map((definition) => definition.cssName)));
+    }
+    const projectTailwindTokenNames = new Set(
+      [...projectTailwindTokenNamesByFile.values()].flatMap((names) => [...names]),
+    );
     const tailwindV4 = createTailwindV4Adapter(code);
-    cssTokens.set(fileId, tailwindV4.detect() ? annotateTailwindV4Catalog(parsed) : parsed);
+    cssTokens.set(fileId, tailwindV4.detect()
+      ? annotateTailwindV4Catalog(parsed, { projectTokenNames: projectTailwindTokenNames })
+      : parsed);
   }
 
   function ensurePostTransformCss(): Promise<void> {
@@ -161,7 +173,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       for (const cssPath of scanCssFiles(root)) {
         try {
           const code = readFileSync(cssPath, "utf8");
-          cacheTokensForFile(cssPath, code);
+          cacheTokensForFile(cssPath, code, true);
         } catch {
           // skip unreadable files
         }
@@ -254,7 +266,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       // the updated tokens (Vite's own CSS reload happens in parallel).
       try {
         const code = await ctx.read();
-        cacheTokensForFile(ctx.file, code);
+        cacheTokensForFile(ctx.file, code, true);
       } catch {
         cssTokens.set(ctx.file, []);
       }

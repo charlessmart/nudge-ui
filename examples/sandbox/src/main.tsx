@@ -24,6 +24,9 @@ const DevColorConformancePage = import.meta.env.DEV
 const DevBorderConformancePage = import.meta.env.DEV
   ? lazy(() => import("./BorderConformancePage").then(({ BorderConformancePage }) => ({ default: BorderConformancePage })))
   : null;
+const DevPipelineConformancePage = import.meta.env.DEV
+  ? lazy(() => import("./PipelineConformancePage").then(({ PipelineConformancePage }) => ({ default: PipelineConformancePage })))
+  : null;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root not found");
@@ -54,6 +57,13 @@ function Route() {
     return DevBorderConformancePage ? (
       <Suspense fallback={<main className="border-conformance-loading">Loading border corpus…</main>}>
         <DevBorderConformancePage />
+      </Suspense>
+    ) : <App />;
+  }
+  if (import.meta.env.DEV && window.location.pathname === "/pipeline-conformance") {
+    return DevPipelineConformancePage ? (
+      <Suspense fallback={<main className="spacing-conformance-loading">Loading pipeline corpus…</main>}>
+        <DevPipelineConformancePage />
       </Suspense>
     ) : <App />;
   }

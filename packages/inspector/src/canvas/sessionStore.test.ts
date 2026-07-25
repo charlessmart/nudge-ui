@@ -65,7 +65,7 @@ function makeTokenChange(
     property: "--color-surface-raised",
     rawValue: "#abcdef",
     oldRawValue: "#00ff00",
-    context: { media: "(prefers-color-scheme: dark)" },
+    context: { wrappers: [{ kind: "media", params: "(prefers-color-scheme: dark)" }] },
     contextLabel: 'root[data-theme="dark"]',
     source: { file: "src/theme.css", line: 6, component: "Global token" },
     ...overrides,
