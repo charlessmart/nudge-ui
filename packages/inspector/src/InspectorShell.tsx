@@ -5,8 +5,6 @@ import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore
 import {
   useSelectedElement,
   setSelectedElement,
-  stepUp,
-  stepDown,
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
@@ -39,6 +37,7 @@ import { useCanvasMode } from "./canvas/canvasStore.ts";
 import { ModeToggle } from "./canvas/ModeToggle.tsx";
 import { getRestoreCount, clearRestoreCount, clearSession } from "./canvas/sessionStore.ts";
 import { getElementWindow } from "./domRealm.ts";
+import { deleteElement, nudgeElement, undoDomMutation, redoDomMutation, useDomMutations } from "./domMutations.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -78,6 +77,7 @@ export function InspectorShell(): ReactElement {
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const [restoreCount, setShowRestore] = useState<number>(getRestoreCount());
+  const domMutations = useDomMutations();
 
   useEffect(() => {
     setInspectorLayoutOpen(isOpen);
@@ -117,27 +117,41 @@ export function InspectorShell(): ReactElement {
       const mod = event.metaKey || event.ctrlKey;
 
       if (!isEditableTarget(event.target)) {
-        if (mod && !event.shiftKey && event.key.toLowerCase() === "z") {
-          event.preventDefault();
-          undo();
-          return;
-        }
+        const scrollKey = event.code === "Space"
+          || event.key === "ArrowUp"
+          || event.key === "ArrowDown"
+          || event.key === "ArrowLeft"
+          || event.key === "ArrowRight";
+        if (scrollKey) event.preventDefault();
         if (mod && event.shiftKey && event.key.toLowerCase() === "z") {
           event.preventDefault();
-          redo();
+          if (!redoDomMutation()) redo();
+          return;
+        }
+        if (mod && !event.shiftKey && event.key.toLowerCase() === "z") {
+          event.preventDefault();
+          if (!undoDomMutation()) undo();
           return;
         }
       }
 
       if (!selected || isEditableTarget(event.target)) return;
-      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-      event.preventDefault();
-      if (event.key === "ArrowUp") stepUp();
-      else stepDown();
+      // macOS labels the physical Backspace key as Delete, while browsers
+      // report it as "Backspace". Support both without stealing text edits.
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        if (deleteElement(selected)) setSelectedElement(null);
+        return;
+      }
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      if (nudgeElement(selected.domElement, event.key)) {
+        const refreshed = resolveSelectionFromElement(selected.domElement);
+        if (refreshed) setSelectedElement(refreshed);
+      }
     }
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, [isOpen, selected]);
+  }, [isOpen, selected, domMutations.length]);
 
   const tokenRows = useResolvedPropertiesDebounced(selected, styleState);
   const tokenEntries: TokenEntry[] = selected ? getTokenEntriesForElement(selected.domElement) : [];
@@ -210,6 +224,19 @@ export function InspectorShell(): ReactElement {
           ) : selected ? (
             <>
               <div className="dt-selection" data-test="selection" data-selected-cid={selected.cid}>
+                <StatusCallout tone="neutral" data-test="dom-edit-hint">
+                  Drag or use arrow keys to rearrange this element. In flex rows, Left/Right also reorder it. Press Delete/Backspace to remove it. Structural edits are temporary until applied in code.
+                </StatusCallout>
+                <Button
+                  size="compact"
+                  variant="danger"
+                  data-test="delete-selected-element"
+                  onClick={() => {
+                    if (deleteElement(selected)) setSelectedElement(null);
+                  }}
+                >
+                  Delete selected
+                </Button>
                 {showInteractionState ? (
                   <div className="dt-style-state" data-test="style-state">
                     <span className="dt-selection__label">State</span>

@@ -27,6 +27,7 @@ import {
 import { startStaleDetection } from "./canvas/staleChangeDetector.ts";
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./AppShell.tsx";
+import { clearDomMutations } from "./domMutations.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -164,6 +165,7 @@ export function unmountInspector(): void {
     reactRoot = null;
   }
   clearChanges();
+  clearDomMutations(true);
   removeManagedSheet();
   clearInspectorLayout();
   hostElement = null;

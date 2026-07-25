@@ -39,3 +39,44 @@
 .dt-canvas-hover-margin[data-axis="vertical"] {
   border-left-width: 1px;
 }
+
+.dt-canvas-dom-drop-line {
+  z-index: 2147483647;
+  border-radius: 999px;
+  background: #3b82f6;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 95%), 0 1px 5px rgb(37 99 235 / 72%);
+}
+
+.dt-canvas-dom-drop-line::before,
+.dt-canvas-dom-drop-line::after {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #2563eb;
+  content: "";
+  transform: translateY(-50%);
+}
+
+.dt-canvas-dom-drop-line::before { left: -3px; }
+.dt-canvas-dom-drop-line::after { right: -3px; }
+
+.dt-canvas-dom-drop-line[data-orientation="vertical"]::before,
+.dt-canvas-dom-drop-line[data-orientation="vertical"]::after {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+.dt-canvas-dom-drop-line[data-orientation="vertical"]::before { top: -3px; }
+.dt-canvas-dom-drop-line[data-orientation="vertical"]::after { top: auto; bottom: -3px; }
+
+.dt-canvas-dom-drop-target {
+  z-index: 2147483646;
+  box-sizing: border-box;
+  border: 1px solid rgb(59 130 246 / 72%);
+  border-radius: 4px;
+  background: rgb(59 130 246 / 5%);
+}

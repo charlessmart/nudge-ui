@@ -11,6 +11,13 @@ import {
   type Margins,
   type Rect,
 } from "./overlayGeometry.ts";
+import { getDropLocationAtPoint, moveElement } from "./domMutations.ts";
+import { resolveSelectionFromElement } from "./resolveSelection.ts";
+import { setSelectedElement } from "./selectionStore.ts";
+import { installInteractionStyles } from "./interactionStyles.ts";
+import { clearDropGuide, showDropGuide, useDropGuide } from "./dropGuide.ts";
+import { DropGuideOverlay } from "./DropGuideOverlay.tsx";
+import { createFrameThrottle } from "./frameThrottle.ts";
 
 export {
   getMarginFills,
@@ -26,7 +33,9 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
   const [hoverRect, setHoverRect] = useState<Rect | null>(null);
   const [hoverMargins, setHoverMargins] = useState<Margins | null>(null);
   const [selectedRect, setSelectedRect] = useState<Rect | null>(null);
+  const dropGuide = useDropGuide("inspect");
   const hoverElRef = useRef<HTMLElement | null>(null);
+  const isDraggingRef = useRef(false);
   const rafRef = useRef(0);
 
   useEffect(() => {
@@ -37,6 +46,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       return;
     }
     function recalcHover(): void {
+      if (isDraggingRef.current) return;
       const el = hoverElRef.current;
       if (!el) {
         setHoverRect(null);
@@ -47,10 +57,12 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       setHoverMargins(readMargins(el));
     }
     function scheduleHoverRecalc(): void {
+      if (isDraggingRef.current) return;
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(recalcHover);
     }
     function onMouseOver(e: MouseEvent): void {
+      if (isDraggingRef.current) return;
       const target = e.target;
       if (!(target instanceof HTMLElement)) return;
       if (host === target || host.contains(target)) {
@@ -67,9 +79,10 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
         return;
       }
       hoverElRef.current = el;
-      recalcHover();
+      scheduleHoverRecalc();
     }
     function onMouseOut(e: MouseEvent): void {
+      if (isDraggingRef.current) return;
       const related = e.relatedTarget;
       if (!related || !(related instanceof Node)) {
         hoverElRef.current = null;
@@ -126,6 +139,85 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       window.removeEventListener("scroll", schedule, true);
     };
   }, [selected]);
+
+  useEffect(() => {
+    if (!open) return;
+    const removeInteractionStyles = installInteractionStyles();
+    let candidate: HTMLElement | null = null;
+    let dragging = false;
+    let start: { x: number; y: number } | null = null;
+    function updateGuide(point: { x: number; y: number }): void {
+      if (!candidate) return;
+      const drop = getDropLocationAtPoint(document, candidate, point.x, point.y);
+      if (drop) showDropGuide("inspect", document, drop);
+      else clearDropGuide("inspect");
+    }
+
+    const guideUpdate = createFrameThrottle(updateGuide);
+
+    function clear(): void {
+      guideUpdate.cancel();
+      isDraggingRef.current = false;
+      candidate = null;
+      dragging = false;
+      start = null;
+      clearDropGuide("inspect");
+    }
+
+    function onPointerDown(event: MouseEvent): void {
+      if (event.button !== 0 || !(event.target instanceof HTMLElement)) return;
+      if (host === event.target || host.contains(event.target)) return;
+      const target = event.target.closest("[data-cid]");
+      if (!(target instanceof HTMLElement)) return;
+      candidate = target;
+      start = { x: event.clientX, y: event.clientY };
+    }
+
+    function onPointerMove(event: MouseEvent): void {
+      if (!candidate || !start) return;
+      if (!dragging && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6) return;
+      event.preventDefault();
+      const point = { x: event.clientX, y: event.clientY };
+      if (!dragging) {
+        dragging = true;
+        isDraggingRef.current = true;
+        hoverElRef.current = null;
+        setHoverRect(null);
+        setHoverMargins(null);
+        const selected = resolveSelectionFromElement(candidate);
+        if (selected) setSelectedElement(selected);
+        updateGuide(point);
+        return;
+      }
+      guideUpdate.schedule(point);
+    }
+
+    function onPointerUp(event: MouseEvent): void {
+      if (!candidate || !dragging) {
+        clear();
+        return;
+      }
+      event.preventDefault();
+      const drop = getDropLocationAtPoint(document, candidate, event.clientX, event.clientY);
+      if (drop) moveElement(candidate, drop);
+      const selected = resolveSelectionFromElement(candidate);
+      if (selected) setSelectedElement(selected);
+      clear();
+    }
+
+    document.addEventListener("mousedown", onPointerDown, true);
+    document.addEventListener("mousemove", onPointerMove, true);
+    document.addEventListener("mouseup", onPointerUp, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown, true);
+      document.removeEventListener("mousemove", onPointerMove, true);
+      document.removeEventListener("mouseup", onPointerUp, true);
+      guideUpdate.cancel();
+      isDraggingRef.current = false;
+      clearDropGuide("inspect");
+      removeInteractionStyles();
+    };
+  }, [open, host]);
 
   const hoverStyle: CSSProperties = hoverRect
     ? {
@@ -199,9 +291,18 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       ) : null}
       {open && selectedRect ? (
         <>
-          <div className="dt-selected-outline" style={selectedStyle} aria-hidden="true" />
+          <div className="dt-selected-outline" data-test="selected-outline" style={selectedStyle} aria-hidden="true" />
         </>
       ) : null}
+      {open ? <DropGuideOverlay
+        guide={dropGuide?.document === document
+          ? { orientation: dropGuide.orientation, line: dropGuide.line, target: dropGuide.target }
+          : null}
+        lineClassName="dt-dom-drop-line"
+        lineTestId="dom-drop-line"
+        targetClassName="dt-dom-drop-target"
+        targetTestId="dom-drop-target"
+      /> : null}
     </>
   );
 }

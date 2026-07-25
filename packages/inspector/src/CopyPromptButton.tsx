@@ -6,16 +6,18 @@ import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { detectFramework } from "./prompt/detectFramework.ts";
 import { copyToClipboard } from "./prompt/copyToClipboard.ts";
 import { Button } from "./ui/Button.tsx";
+import { useDomMutations } from "./domMutations.ts";
 
 export function CopyPromptButton(): ReactElement {
   const changes = useChanges();
+  const domMutations = useDomMutations();
   const [copied, setCopied] = useState(false);
-  const disabled = changes.length === 0;
+  const disabled = changes.length + domMutations.length === 0;
 
   async function onClick(): Promise<void> {
     if (disabled) return;
     const hints = detectFramework(tokens);
-    const text = generatePrompt(changes, hints);
+    const text = generatePrompt(changes, hints, domMutations);
     await copyToClipboard(text);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);

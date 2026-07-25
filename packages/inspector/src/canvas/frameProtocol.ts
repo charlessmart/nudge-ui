@@ -69,6 +69,39 @@ export interface ElementClickMessage extends RendererMessage {
   component: string;
 }
 
+export interface ElementDragStartMessage extends RendererMessage {
+  type: "element-drag-start";
+  cid: string;
+  src: string;
+  instanceIndex: number;
+  point: { x: number; y: number };
+}
+
+export interface ElementDragMoveMessage extends RendererMessage {
+  type: "element-drag-move";
+  point: { x: number; y: number };
+}
+
+export interface ElementDragEndMessage extends RendererMessage {
+  type: "element-drag-end";
+  point: { x: number; y: number };
+}
+
+export interface ElementDeleteMessage extends RendererMessage {
+  type: "element-delete";
+  cid: string;
+  src: string;
+  instanceIndex: number;
+}
+
+export interface ElementNudgeMessage extends RendererMessage {
+  type: "element-nudge";
+  cid: string;
+  src: string;
+  instanceIndex: number;
+  key: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight";
+}
+
 export interface ExternalNavigationMessage extends RendererMessage {
   type: "external-navigation";
   url: string;
@@ -97,6 +130,11 @@ export type FrameProtocolMessage =
   | NavigationIntentMessage
   | ElementHoverMessage
   | ElementClickMessage
+  | ElementDragStartMessage
+  | ElementDragMoveMessage
+  | ElementDragEndMessage
+  | ElementDeleteMessage
+  | ElementNudgeMessage
   | ExternalNavigationMessage
   | PanStartMessage
   | PanMoveMessage
