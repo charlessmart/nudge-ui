@@ -25,7 +25,9 @@ describe("InspectorShell", () => {
   });
 
   afterEach(() => {
-    unmountInspector();
+    act(() => {
+      unmountInspector();
+    });
     clearRestoreCount();
     releaseLease();
     host.remove();
@@ -112,8 +114,14 @@ describe("InspectorShell", () => {
       mountInspector(host);
     });
 
-    expect(pressKey({ code: "Space", key: " " }).defaultPrevented).toBe(true);
-    expect(pressKey({ key: "ArrowDown" }).defaultPrevented).toBe(true);
+    let space: KeyboardEvent;
+    let arrowDown: KeyboardEvent;
+    act(() => {
+      space = pressKey({ code: "Space", key: " " });
+      arrowDown = pressKey({ key: "ArrowDown" });
+    });
+    expect(space!.defaultPrevented).toBe(true);
+    expect(arrowDown!.defaultPrevented).toBe(true);
   });
 
   it("reserves the panel width while open and releases it when hidden", () => {

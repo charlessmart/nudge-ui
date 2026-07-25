@@ -92,9 +92,11 @@ describe("LayoutSection", () => {
     });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    (handle.host.querySelector('[data-test="layout-direction-column"]') as HTMLButtonElement).click();
-    (handle.host.querySelector('[data-test="layout-align-center-center"]') as HTMLButtonElement).click();
-    (handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]') as HTMLButtonElement).click();
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-direction-column"]') as HTMLButtonElement).click();
+      (handle.host.querySelector('[data-test="layout-align-center-center"]') as HTMLButtonElement).click();
+      (handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]') as HTMLButtonElement).click();
+    });
 
     expect(sheetText()).toContain("flex-direction: column;");
     expect(sheetText()).toContain("justify-content: center;");
@@ -139,7 +141,9 @@ describe("LayoutSection", () => {
     // In a column layout, the top row controls the main axis and the
     // columns control the cross axis. The top-middle cell is therefore
     // justify-content: flex-start + align-items: center.
-    (handle.host.querySelector('[data-test="layout-align-center-flex-start"]') as HTMLButtonElement).click();
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-align-center-flex-start"]') as HTMLButtonElement).click();
+    });
 
     expect(sheetText()).toContain("justify-content: flex-start;");
     expect(sheetText()).toContain("align-items: center;");
@@ -467,7 +471,9 @@ describe("LayoutSection", () => {
     });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    (handle.host.querySelector('[data-test="layout-anchor-horizontal-end"]') as HTMLButtonElement).click();
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-anchor-horizontal-end"]') as HTMLButtonElement).click();
+    });
 
     expect(sheetText()).toContain("left: auto;");
     expect(sheetText()).toContain("right: 24px;");

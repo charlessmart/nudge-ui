@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { Typography } from "./Typography.tsx";
 import { getChangeRecords, resetPendingRules } from "../tokens/editActions.ts";
 import {
@@ -130,7 +130,7 @@ describe("Typography", () => {
     mockComputedStyle({ "text-align": "left", "vertical-align": "baseline" });
     handle = mount(createElement(Typography, { element: selected }));
     const center = handle.host.querySelector('[data-test="typography-align-text-align-center"]') as HTMLButtonElement;
-    center.click();
+    act(() => center.click());
     expect(sheetText()).toContain("text-align: center;");
   });
 
