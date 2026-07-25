@@ -9,6 +9,16 @@
   :root { --conformance-media: 2rem; }
 }
 
+@media (min-width: 1px) {
+  @supports (display: grid) {
+    @layer conformance {
+      @media (min-width: 1px) {
+        :root { --conformance-nested: 3rem; }
+      }
+    }
+  }
+}
+
 .conformance-page { min-height: 100vh; padding: 48px; background: var(--conformance-surface); color: var(--conformance-copy); }
 .conformance-card { max-width: 640px; margin: 0 auto; padding: var(--conformance-alias); border: 2px solid var(--conformance-copy); box-shadow: 0 2px 4px rgb(0 0 0 / .15); }
 .conformance-copy { margin-block: 1rem 0; padding-inline: var(--conformance-space); font-size: 1rem; }

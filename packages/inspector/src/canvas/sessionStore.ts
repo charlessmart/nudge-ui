@@ -26,8 +26,9 @@ import { setSelectedElement } from "../selectionStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { canWriteWorkspace } from "./workspaceLease.ts";
 import { clearDomMutations } from "../domMutations.ts";
+import type { StyleRuleContext } from "../managedStylesheet.ts";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const STORAGE_PREFIX = "design-tool";
 
 function isFiniteNumber(value: unknown): value is number {
@@ -60,9 +61,16 @@ function isTokenRef(value: unknown): boolean {
     && typeof token.source === "string";
 }
 
-function isStringRecord(value: unknown): value is Record<string, string> {
-  return Boolean(value) && typeof value === "object"
-    && Object.values(value as Record<string, unknown>).every((entry) => typeof entry === "string");
+function isStyleRuleContext(value: unknown): value is StyleRuleContext {
+  if (!value || typeof value !== "object") return false;
+  const wrappers = (value as { wrappers?: unknown }).wrappers;
+  return wrappers === undefined || (Array.isArray(wrappers) && wrappers.every((wrapper) => {
+    if (!wrapper || typeof wrapper !== "object") return false;
+    const candidate = wrapper as { kind?: unknown; params?: unknown };
+    return (candidate.kind === "media" || candidate.kind === "supports"
+      || candidate.kind === "scope" || candidate.kind === "layer")
+      && typeof candidate.params === "string";
+  }));
 }
 
 function isSerializableChange(value: unknown): value is SerializableChange {
@@ -79,7 +87,7 @@ function isSerializableChange(value: unknown): value is SerializableChange {
     return typeof change.tokenName === "string"
       && typeof change.rawValue === "string"
       && typeof change.oldRawValue === "string"
-      && isStringRecord(change.context)
+      && isStyleRuleContext(change.context)
       && typeof change.contextLabel === "string";
   }
   return (change.kind === undefined || change.kind === "element")
@@ -139,7 +147,7 @@ export interface SerializableTokenChange {
   property: string;
   rawValue: string;
   oldRawValue: string;
-  context: Record<string, string>;
+  context: StyleRuleContext;
   contextLabel: string;
   source: { file: string; line: number; component: string };
 }
@@ -200,7 +208,9 @@ function serializeTokenChange(change: TokenChangeRecord): SerializableTokenChang
     property: change.property,
     rawValue: change.rawValue,
     oldRawValue: change.oldRawValue,
-    context: change.context ? { ...change.context } : {},
+    context: change.context.wrappers?.length
+      ? { wrappers: change.context.wrappers.map((wrapper) => ({ ...wrapper })) }
+      : {},
     contextLabel: change.contextLabel ?? "",
     source: change.source,
   };

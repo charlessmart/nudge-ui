@@ -28,8 +28,11 @@ function useHostContextRevision(): number {
     observer.observe(document.head, { attributes: true, childList: true, subtree: true });
 
     const media = [...new Set(tokenCatalog.flatMap((definition) =>
-      definition.declarations.map((declaration) => declaration.context.media).filter(Boolean),
-    ))] as string[];
+      definition.declarations.flatMap((declaration) =>
+        (declaration.context.wrappers ?? [])
+          .filter((wrapper) => wrapper.kind === "media")
+          .map((wrapper) => wrapper.params)),
+    ))];
     const queries = typeof window.matchMedia === "function"
       ? media.map((query) => window.matchMedia(query))
       : [];

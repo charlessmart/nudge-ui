@@ -13,12 +13,20 @@ export interface TokenEntry {
   editable?: boolean;
 }
 
+export type TokenContextWrapperKind = "media" | "supports" | "scope" | "layer";
+
+/**
+ * An ordered source wrapper around a token declaration. Keeping one stack
+ * retains nesting and interleaving, including repeated wrapper kinds.
+ */
+export interface TokenContextWrapper {
+  kind: TokenContextWrapperKind;
+  params: string;
+}
+
 export interface TokenContext {
   selector?: string;
-  media?: string;
-  supports?: string;
-  scope?: string;
-  layer?: string;
+  wrappers?: TokenContextWrapper[];
 }
 
 export interface TokenDeclaration {

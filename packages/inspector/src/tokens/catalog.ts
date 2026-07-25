@@ -80,10 +80,12 @@ function defaultRuntime(root: HTMLElement): TokenRuntime {
 
 export function isTokenContextActive(context: TokenContext, runtime: TokenRuntime): boolean {
   if (context.selector && !runtime.selectorMatches(context.selector)) return false;
-  if (context.media && !runtime.mediaMatches(context.media)) return false;
-  if (context.supports && !runtime.supports(context.supports)) return false;
-  if (context.scope && !runtime.scopeMatches(context.scope)) return false;
-  return true;
+  return (context.wrappers ?? []).every((wrapper) => {
+    if (wrapper.kind === "media") return runtime.mediaMatches(wrapper.params);
+    if (wrapper.kind === "supports") return runtime.supports(wrapper.params);
+    if (wrapper.kind === "scope") return runtime.scopeMatches(wrapper.params);
+    return true;
+  });
 }
 
 function pickWinningDeclaration(
@@ -95,8 +97,10 @@ function pickWinningDeclaration(
 
   const important = applicable.filter((declaration) => declaration.important);
   const candidates = important.length > 0 ? important : applicable;
-  const layered = candidates.filter((declaration) => declaration.context.layer);
-  const unlayered = candidates.filter((declaration) => !declaration.context.layer);
+  const layered = candidates.filter((declaration) =>
+    declaration.context.wrappers?.some((wrapper) => wrapper.kind === "layer"));
+  const unlayered = candidates.filter((declaration) =>
+    !declaration.context.wrappers?.some((wrapper) => wrapper.kind === "layer"));
 
   // Normal unlayered declarations outrank layered declarations. For important
   // declarations the layer order is reversed, so retain the applicable layered
@@ -113,10 +117,9 @@ export function contextLabel(context: TokenContext): string {
   const labels: string[] = [];
   if (context.selector && context.selector !== ":root") labels.push(context.selector);
   else if (context.selector === ":root") labels.push("Default");
-  if (context.media) labels.push(`@media ${context.media}`);
-  if (context.supports) labels.push(`@supports ${context.supports}`);
-  if (context.scope) labels.push(`@scope ${context.scope}`);
-  if (context.layer) labels.push(`@layer ${context.layer}`);
+  for (const wrapper of context.wrappers ?? []) {
+    labels.push(`@${wrapper.kind} ${wrapper.params}`);
+  }
   return labels.join(" · ") || "Default";
 }
 
@@ -126,12 +129,8 @@ export function sourceParts(source: string): { file: string; line: number } {
 }
 
 export function styleContext(context: TokenContext): StyleRuleContext {
-  return {
-    media: context.media,
-    supports: context.supports,
-    scope: context.scope,
-    layer: context.layer,
-  };
+  const wrappers = context.wrappers?.map((wrapper) => ({ ...wrapper }));
+  return wrappers && wrappers.length > 0 ? { wrappers } : {};
 }
 
 export function selectorForContext(context: TokenContext): string {

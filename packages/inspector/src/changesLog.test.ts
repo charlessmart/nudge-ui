@@ -306,7 +306,7 @@ describe("changesLog", () => {
       property: "--color-text",
       rawValue: "#eeeeee",
       oldRawValue: "#dddddd",
-      context: { media: "(prefers-color-scheme: dark)" },
+      context: { wrappers: [{ kind: "media", params: "(prefers-color-scheme: dark)" }] },
       contextLabel: 'root[data-theme="dark"]',
       source: { file: "src/theme.css", line: 6, component: "Global token" },
     });
@@ -315,7 +315,7 @@ describe("changesLog", () => {
     expect(getPendingRules()).toEqual([{
       selector: ':root[data-theme="dark"]',
       declarations: { "--color-text": "#eeeeee" },
-      context: { media: "(prefers-color-scheme: dark)" },
+      context: { wrappers: [{ kind: "media", params: "(prefers-color-scheme: dark)" }] },
     }]);
   });
 

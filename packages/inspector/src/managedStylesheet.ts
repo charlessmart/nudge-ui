@@ -1,5 +1,6 @@
 import { getElementComputedStyle } from "./domRealm.ts";
 import { invalidateStyleResolutionCache } from "./tokens/resolution.ts";
+import type { TokenContextWrapper } from "virtual:design-tokens";
 
 export interface StyleRule {
   selector: string;
@@ -8,10 +9,7 @@ export interface StyleRule {
 }
 
 export interface StyleRuleContext {
-  media?: string;
-  supports?: string;
-  scope?: string;
-  layer?: string;
+  wrappers?: TokenContextWrapper[];
 }
 
 export type PreviewConflictReason = "higher-specificity" | "inline-style" | "important" | "animation" | "transition" | "target-missing" | "token-drift";
@@ -71,10 +69,9 @@ function buildRuleText(rule: StyleRule): string {
   const body = buildDeclarationsBody(rule.declarations);
   if (!body) return "";
   let text = `${rule.selector} { ${body} }`;
-  if (rule.context?.scope) text = `@scope ${rule.context.scope} { ${text} }`;
-  if (rule.context?.supports) text = `@supports ${rule.context.supports} { ${text} }`;
-  if (rule.context?.media) text = `@media ${rule.context.media} { ${text} }`;
-  if (rule.context?.layer) text = `@layer ${rule.context.layer} { ${text} }`;
+  for (const wrapper of [...(rule.context?.wrappers ?? [])].reverse()) {
+    text = `@${wrapper.kind} ${wrapper.params} { ${text} }`;
+  }
   return text;
 }
 
