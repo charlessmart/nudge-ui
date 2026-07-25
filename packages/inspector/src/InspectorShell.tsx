@@ -8,8 +8,9 @@ import {
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
-import { buildTokenTable, getAvailableInteractionStates, getStableTokenProperty, getTokenEntriesForElement, useResolvedPropertiesDebounced } from "./tokens/resolution.ts";
+import { buildTokenTable, getAvailableInteractionStates, getStableTokenProperty, getTokenEntriesForElement } from "./tokens/resolution.ts";
 import type { ResolvedProperty, TokenTable } from "./tokens/resolution.ts";
+import { useResolvedPropertiesDebounced } from "./tokens/useResolvedProperties.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { SpacingBox } from "./styleEditors/SpacingBox.tsx";
