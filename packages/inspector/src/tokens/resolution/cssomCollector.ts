@@ -13,7 +13,6 @@ interface DocumentRevisions {
 }
 
 const documentRevisions = new WeakMap<Document, DocumentRevisions>();
-const documentObservers = new WeakMap<Document, MutationObserver>();
 const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
 
 function isStylesheetNode(node: Node | null): boolean {
@@ -49,7 +48,6 @@ export function documentRevision(doc: Document): number {
         characterData: true,
         subtree: true,
       });
-      documentObservers.set(doc, observer);
 
       doc.defaultView?.addEventListener("resize", () => {
         record!.element++;
