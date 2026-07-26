@@ -403,9 +403,9 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
 
   await page.locator('[data-test="layout-grid-advanced"] summary').click();
   const columns = page.locator('[data-test="layout-grid-input-grid-template-columns"]');
-  await expect(columns).toHaveValue("repeat(3, minmax(0, 1fr))");
+  await expect(columns).toHaveValue(/repeat\(3, minmax\(0(?:px)?, 1fr\)\)/);
   await expect(page.locator('[data-test="layout-grid-input-grid-template-rows"]'))
-    .toHaveValue("repeat(2, minmax(0, 1fr))");
+    .toHaveValue(/repeat\(2, minmax\(0(?:px)?, 1fr\)\)/);
 
   await columns.fill("repeat(4, minmax(0, 1fr))");
   await columns.blur();

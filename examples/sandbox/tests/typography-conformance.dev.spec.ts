@@ -21,7 +21,7 @@ async function setInput(page: import("@playwright/test").Page, property: string,
   }, { p: property, v: value });
 }
 
-test("dev: typography conformance gallery renders every shared case and exposes authored values", async ({ page }) => {
+test("dev: typography conformance gallery exposes CSSOM-declared values", async ({ page }) => {
   await page.goto("/typography-conformance");
 
   await expect(page.locator(".typography-case")).toHaveCount(6);
@@ -29,10 +29,10 @@ test("dev: typography conformance gallery renders every shared case and exposes 
 
   await page.locator('[data-test="typography-case-type-direct-literals"]').click();
   await waitForEditors(page);
-  await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]')).toHaveValue(".875rem");
-  await expect(page.locator('[data-test="token-field"][data-property="font-weight"] [data-test="raw-input"]')).toHaveValue("650");
+  await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]')).toHaveValue("0.875rem");
+  await expect(page.locator('[data-test="font-style-field"]')).toContainText("650");
   await expect(page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]')).toHaveValue("1.45");
-  await expect(page.locator('[data-test="token-field"][data-property="letter-spacing"] [data-test="raw-input"]')).toHaveValue("-.0125em");
+  await expect(page.locator('[data-test="token-field"][data-property="letter-spacing"] [data-test="raw-input"]')).toHaveValue("-0.0125em");
   await expect(page.locator('[data-test="token-field"][data-property="font-family"] [data-test="raw-input"]')).toHaveValue('"Aster Display"');
 });
 
@@ -52,16 +52,16 @@ test("dev: typography fixture tokens render as chips with type suggestions", asy
   await expect(family.locator('[data-test="raw-input"]')).toHaveCount(0);
 });
 
-test("dev: typography raw expressions and shorthand edits round-trip through the managed stylesheet", async ({ page }) => {
+test("dev: typography raw expressions remain editable after CSSOM normalization", async ({ page }) => {
   await page.goto("/typography-conformance");
 
   const functional = page.locator('[data-test="typography-case-type-functional-raw"]');
   await functional.click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]'))
-    .toHaveValue("clamp(1rem, 1vw + .78rem, 1.35rem)");
+    .toHaveValue("clamp(1rem, 0.78rem + 1vw, 1.35rem)");
   await expect(page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]'))
-    .toHaveValue("calc(1em + .5rem)");
+    .toHaveValue("calc(1em + 0.5rem)");
 
   const shorthand = page.locator('[data-test="typography-case-type-font-shorthand"]');
   await shorthand.click();

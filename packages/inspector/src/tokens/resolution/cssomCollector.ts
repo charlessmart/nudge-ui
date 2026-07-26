@@ -83,20 +83,102 @@ function isStyleRuleInDocument(rule: CSSRule, doc: Document): rule is CSSStyleRu
 /**
  * Reads the declarations the browser accepted for a style rule. This is the
  * semantic source for authored values; it intentionally does not inspect the
- * stylesheet element's original text.
+ * stylesheet element's original text. CSSOM may expose a shorthand as empty
+ * longhand entries through indexed enumeration, so prefer its serialized
+ * declaration block and use enumeration as a compatibility fallback.
  */
 export function declarationsFromCssom(style: CSSStyleDeclaration): StyleDeclaration[] {
-  const declarations: StyleDeclaration[] = [];
+  const declarations = parseCssomDeclarations(style.cssText);
+  const seen = new Set(declarations.map((declaration) => declaration.property));
   for (let index = 0; index < style.length; index++) {
     const property = typeof style.item === "function" ? style.item(index) : style[index] ?? "";
-    if (!property) continue;
+    if (!property || seen.has(property)) continue;
+    const value = style.getPropertyValue(property);
+    if (!value) continue;
     declarations.push({
       property,
-      value: style.getPropertyValue(property),
+      value,
       important: style.getPropertyPriority(property) === "important",
     });
   }
   return declarations;
+}
+
+function parseCssomDeclarations(cssText: string): StyleDeclaration[] {
+  const declarations: StyleDeclaration[] = [];
+  let start = 0;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+
+  const append = (part: string): void => {
+    const colon = findTopLevelColon(part);
+    if (colon < 0) return;
+    const property = part.slice(0, colon).trim();
+    let value = part.slice(colon + 1).trim();
+    if (!property || !value) return;
+    const important = /!\s*important\s*$/i.test(value);
+    if (important) value = value.replace(/!\s*important\s*$/i, "").trim();
+    declarations.push({ property, value, important });
+  };
+
+  for (let index = 0; index < cssText.length; index++) {
+    const char = cssText[index]!;
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "(") parenDepth++;
+    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (char === "[") bracketDepth++;
+    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
+    else if (char === "{") braceDepth++;
+    else if (char === "}") braceDepth = Math.max(0, braceDepth - 1);
+    else if (char === ";" && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) {
+      append(cssText.slice(start, index));
+      start = index + 1;
+    }
+  }
+  append(cssText.slice(start));
+  return declarations;
+}
+
+function findTopLevelColon(value: string): number {
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index]!;
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === "\"" || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "(") parenDepth++;
+    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1);
+    else if (char === "[") bracketDepth++;
+    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1);
+    else if (char === "{") braceDepth++;
+    else if (char === "}") braceDepth = Math.max(0, braceDepth - 1);
+    else if (char === ":" && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) return index;
+  }
+  return -1;
 }
 
 export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: boolean } {
