@@ -5,6 +5,45 @@
   outline-offset: -2px;
 }
 
+.dt-measurement-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.dt-alignment-guide {
+  stroke: rgb(59 130 246 / 46%);
+  stroke-dasharray: 3 4;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.dt-measurement-ruler {
+  stroke: #ef4444;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.dt-measurement-projection {
+  stroke: #ef4444;
+  stroke-dasharray: 4 4;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.dt-measurement-label {
+  fill: #fff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dt-measurement-label-chip {
+  fill: #ef4444;
+}
+
 .dt-dom-drop-line {
   z-index: 4;
   height: 3px;
