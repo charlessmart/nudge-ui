@@ -241,6 +241,21 @@ describe("BorderEditor", () => {
     expect(sheetText()).toContain("border: 1px solid;");
   });
 
+  it("shows the remove button when a border is present", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
+    expect(handle.host.querySelector('[data-test="remove-border"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+  });
+
+  it("removes the border when the remove button is clicked", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
+    act(() => (handle.host.querySelector('[data-test="remove-border"]') as HTMLButtonElement).click());
+    expect(sheetText()).toContain("border: 0 solid;");
+  });
+
   it("keeps border fields open after the user zeros width during an edit session", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());

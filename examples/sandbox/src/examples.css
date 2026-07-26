@@ -139,6 +139,7 @@
 .examples-framework__label--tw4::before { background: #38bdf8; }
 .examples-framework__label--tw3::before { background: #f59e0b; }
 .examples-framework__label--spr::before { background: #a78bfa; }
+.examples-framework__label--raw::before { background: #22c55e; }
 
 /* ---------- Example card grid ---------- */
 .examples-grid {

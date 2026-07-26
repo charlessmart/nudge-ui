@@ -20,7 +20,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
   const tokenRow = tokenRows.find((row) => row.property === "border-radius") ?? null;
 
   return (
-    <div className="dt-editor" data-test="border-radius-editor">
+    <div className="dt-editor dt-border-radius-editor" data-test="border-radius-editor">
       <div className="dt-editor__title">Border Radius</div>
       <div className="dt-property">
         <FieldRow label="Border Radius">

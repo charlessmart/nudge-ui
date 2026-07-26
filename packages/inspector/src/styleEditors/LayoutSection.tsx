@@ -103,6 +103,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
     <div className="dt-editor" data-test="layout-section">
       <div className="dt-editor__title">Layout</div>
       <div className="dt-layout">
+      <div className="dt-layout__tool-row">
         <LayoutDropdown
           property="display"
           options={DISPLAY_OPTIONS}
@@ -118,6 +119,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
           revision={layoutRevision}
           onAfterEdit={notifyAfterEdit}
         />
+      </div>
 
         <SizeSection
           domElement={el}
@@ -337,6 +339,13 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
                 {renderTokenField(property, presets)}
               </FieldRow>
             ))}
+            <AspectRatioField
+              domElement={el}
+              entries={entries}
+              tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
+              revision={revision}
+              onAfterEdit={onAfterEdit}
+            />
           </div>
         </>
       ) : (
@@ -364,13 +373,6 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
           </IconButton>
         </div>
       )}
-      <AspectRatioField
-        domElement={el}
-        entries={entries}
-        tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
-        revision={revision}
-        onAfterEdit={onAfterEdit}
-      />
     </div>
   );
 }

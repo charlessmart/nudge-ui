@@ -24,5 +24,5 @@ export default defineConfig({
       cssValues: { "--color-brand__hash": "#123456", "--color-accent__hash": "#abcdef" },
     },
   }) as unknown as PluginOption],
-  server: { port: 5173, strictPort: true },
+  server: { port: 5173, strictPort: true, host: "0.0.0.0", allowedHosts: true },
 });

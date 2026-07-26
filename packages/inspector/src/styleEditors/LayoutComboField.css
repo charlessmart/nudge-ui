@@ -1,0 +1,10 @@
+.dt-layout-combo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dt-layout-combo__custom {
+  display: flex;
+}

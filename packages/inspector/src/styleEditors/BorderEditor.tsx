@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Expand, Minimize2, Plus } from "lucide-react";
+import { Expand, Minimize2, Minus, Plus } from "lucide-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
@@ -270,6 +270,12 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
     onAfterEdit?.();
   }
 
+  function handleRemoveBorder(): void {
+    setStyle(el, "border", "0 solid");
+    setBorderSessionOpen(false);
+    onAfterEdit?.();
+  }
+
   function handleExpand(): void {
     setBorderLinked(false);
   }
@@ -320,10 +326,20 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   }));
 
   return (
-    <div className="dt-editor" data-test="border-editor">
+    <div className={`dt-editor`} data-test="border-editor">
       <div className="dt-editor__title-row">
         <div className="dt-editor__title">Border</div>
-        {!showBorderControls ? (
+        {showBorderControls ? (
+          <IconButton
+            variant="quiet"
+            label="Remove Border"
+            data-test="remove-border"
+            className="dt-border__remove"
+            onClick={handleRemoveBorder}
+          >
+            <Minus size={16} strokeWidth={1.8} aria-hidden="true" />
+          </IconButton>
+        ) : (
           <IconButton
             variant="quiet"
             label="Add Border"
@@ -333,11 +349,11 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           >
             <Plus size={16} strokeWidth={1.8} aria-hidden="true" />
           </IconButton>
-        ) : null}
+        )}
       </div>
-      <div className="dt-border" data-expanded={borderLinked ? "false" : "true"}>
-        {showBorderControls ? (
-          rawBorderFallback ? (
+      {showBorderControls && (
+        <div className="dt-border" data-expanded={borderLinked ? "false" : "true"}>
+          {rawBorderFallback ? (
             <FieldRow label="Border">
               <TokenField
                 property="border"
@@ -425,8 +441,9 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
               ) : null}
             </div>
           )
-        ) : null}
+        }
       </div>
+      )}
     </div>
   );
 }
