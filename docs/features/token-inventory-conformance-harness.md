@@ -11,14 +11,16 @@ the inspector can identify, explain, and edit faithfully.
 
 For a selected property, the inspector must keep four facts separate:
 
-1. **Authored value** — the declaration the author wrote.
+1. **Declared value** — the CSSOM serialization of the declaration the browser
+   accepted. It preserves the expression's CSS meaning, but not necessarily
+   the source file's exact whitespace or spelling.
 2. **Token attribution** — the project or framework token(s) referenced by
    that declaration, including aliases and local implementation variables.
 3. **Computed value** — the value the browser paints after cascade and
    function evaluation.
 4. **Edit capability** — whether the current UI can faithfully edit the value.
 
-Computed values are evidence and previews. They must never replace authored
+Computed values are evidence and previews. They must never replace declared
 values in an editable field: doing so would turn `rem`, `calc()`, aliases, and
 Tailwind color utilities into opaque pixels or sRGB strings.
 
@@ -26,7 +28,7 @@ Each resolved value should therefore carry the following conceptual model:
 
 ```ts
 type InspectedValue = {
-  authored: string;
+  authored: string; // CSSOM-declared serialization, not exact source text
   computed: string;
   tokens: Array<{ name: string; origin: "project" | "framework" | "generated" | "runtime" }>;
   modifiers: Array<{ kind: "alpha" | "fallback" | "expression"; value: string }>;

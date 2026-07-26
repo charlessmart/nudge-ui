@@ -34,7 +34,7 @@ export function PositionAnchorControls({
 }: PositionAnchorControlsProps): ReactElement {
   const allEntries = entries ?? tokens;
   const [expanded, setExpanded] = useState(false);
-  const values = useInsetValues(el, revision);
+  const values = useInsetValues(el, tokenRows, revision);
   const horizontalAnchor = axisAnchor(values.horizontal);
   const verticalAnchor = axisAnchor(values.vertical);
   const shownHorizontal = horizontalAnchor === "none" ? "start" : horizontalAnchor;
@@ -211,19 +211,26 @@ function AxisAnchorRow({ axis, current, onSelect }: AxisAnchorRowProps): ReactEl
   );
 }
 
-function useInsetValues(el: HTMLElement, revision: number): { horizontal: AxisInsetValues; vertical: AxisInsetValues } {
-  const authored = readAuthoredInsets(el);
-  const read = (property: PhysicalSide): string => authored[property] ?? meaningfulLayoutValue(el, property);
+function readInsetValue(el: HTMLElement, tokenRows: ResolvedProperty[], property: PhysicalSide): string {
+  const row = tokenRows.find((candidate) => candidate.property === property);
+  return row?.authored ?? row?.declaredValue ?? meaningfulLayoutValue(el, property);
+}
+
+function useInsetValues(
+  el: HTMLElement,
+  tokenRows: ResolvedProperty[],
+  revision: number,
+): { horizontal: AxisInsetValues; vertical: AxisInsetValues } {
   const [values, setValues] = useState(() => ({
-    horizontal: { start: read("left"), end: read("right") },
-    vertical: { start: read("top"), end: read("bottom") },
+    horizontal: { start: readInsetValue(el, tokenRows, "left"), end: readInsetValue(el, tokenRows, "right") },
+    vertical: { start: readInsetValue(el, tokenRows, "top"), end: readInsetValue(el, tokenRows, "bottom") },
   }));
   useEffect(() => {
     setValues({
-      horizontal: { start: read("left"), end: read("right") },
-      vertical: { start: read("top"), end: read("bottom") },
+      horizontal: { start: readInsetValue(el, tokenRows, "left"), end: readInsetValue(el, tokenRows, "right") },
+      vertical: { start: readInsetValue(el, tokenRows, "top"), end: readInsetValue(el, tokenRows, "bottom") },
     });
-  }, [el, revision]);
+  }, [el, revision, tokenRows]);
   return values;
 }
 
@@ -269,81 +276,4 @@ function valuesForSide(
   if (side === "right") return values.horizontal.end;
   if (side === "top") return values.vertical.start;
   return values.vertical.end;
-}
-
-function readAuthoredInsets(el: HTMLElement): Partial<Record<PhysicalSide, string>> {
-  const result: Partial<Record<PhysicalSide, string>> = {};
-  const properties: PhysicalSide[] = ["left", "right", "top", "bottom"];
-  const applyStyle = (style: CSSStyleDeclaration): void => {
-    const inset = style.getPropertyValue("inset").trim();
-    if (inset) {
-      const parts = splitCssValueList(inset);
-      const expanded = parts.length === 1
-        ? [parts[0], parts[0], parts[0], parts[0]]
-        : parts.length === 2
-          ? [parts[0], parts[1], parts[0], parts[1]]
-          : parts.length === 3
-            ? [parts[0], parts[1], parts[2], parts[1]]
-            : [parts[0], parts[1], parts[2], parts[3]];
-      ["top", "right", "bottom", "left"].forEach((property, index) => {
-        result[property as PhysicalSide] = expanded[index] ?? "auto";
-      });
-    }
-    properties.forEach((property) => {
-      const value = style.getPropertyValue(property).trim();
-      if (value) result[property] = value;
-    });
-  };
-
-  applyStyle(el.style);
-  const walk = (rules: CSSRuleList): void => {
-    for (const rule of Array.from(rules)) {
-      if (rule instanceof CSSStyleRule) {
-        try {
-          if (el.matches(rule.selectorText)) applyStyle(rule.style);
-        } catch {
-          // Ignore selectors the current browser cannot evaluate.
-        }
-      } else if ("cssRules" in rule) {
-        try { walk((rule as CSSGroupingRule).cssRules); } catch { /* inaccessible rule */ }
-      }
-    }
-  };
-  for (const sheet of Array.from(el.ownerDocument.styleSheets)) {
-    try { walk(sheet.cssRules); } catch { /* inaccessible stylesheet */ }
-  }
-  return result;
-}
-
-function splitCssValueList(value: string): string[] {
-  const parts: string[] = [];
-  let current = "";
-  let depth = 0;
-  let quote: '"' | "'" | null = null;
-  for (const char of value.trim()) {
-    if (quote) {
-      current += char;
-      if (char === quote) quote = null;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      current += char;
-    } else if (char === "(") {
-      depth += 1;
-      current += char;
-    } else if (char === ")") {
-      depth = Math.max(0, depth - 1);
-      current += char;
-    } else if (/\s/.test(char) && depth === 0) {
-      if (current) {
-        parts.push(current);
-        current = "";
-      }
-    } else {
-      current += char;
-    }
-  }
-  if (current) parts.push(current);
-  return parts;
 }

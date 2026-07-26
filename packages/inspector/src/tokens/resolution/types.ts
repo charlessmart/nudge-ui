@@ -5,7 +5,10 @@ export interface ResolvedProperty {
   tokenName: string | null;
   declaredValue: string;
   resolvedValue: string;
-  /** Product-contract aliases. `declaredValue`/`resolvedValue` remain for UI compatibility. */
+  /**
+   * CSSOM-declared serialization used by the UI as the authored expression.
+   * This preserves CSS meaning, not the source file's exact spelling.
+   */
   authored?: string;
   sourceProperty?: string;
   computed?: string;

@@ -7,19 +7,20 @@
 ## User story
 
 As a designer inspecting an expression such as `var(--space-4, 1rem)` or
-`calc(var(--space-4) * 2)`, I see the authored expression and referenced token
+`calc(var(--space-4) * 2)`, I see the CSSOM-declared expression and referenced token
 without it being replaced by a computed pixel value. The inspector tells me
 when its structured controls are safe to use and falls back to raw CSS when
 they are not.
 
 ## What to build
 
-Extend the shared token-resolution model so authored CSS, token references,
+Extend the shared token-resolution model so declared CSS, token references,
 computed browser output, and edit capability are separate facts. Do not expose
-the browser's serialization as the editable value for expressions.
+the browser's computed serialization as the editable value for expressions.
 
 Support token attribution inside `var()` fallbacks, aliases, `calc()`, `min()`,
-`max()`, and `clamp()`. Preserve complete authored text for every expression.
+`max()`, and `clamp()`. Preserve the complete meaning-bearing expression while
+accepting CSSOM normalization of its lexical spelling.
 Classify a value at least as `atomic`, `color`, `box-sides`, `structured`,
 `composite`, or `raw`; the initial implementation may keep non-supported
 categories in an existing raw field rather than adding new editors.
@@ -30,14 +31,14 @@ transforms, backgrounds, fonts, transitions, animations, or grid templates.
 
 ## Acceptance criteria
 
-- [x] A resolved inspection value retains authored text independently from its
-      computed browser value.
+- [x] A resolved inspection value retains its CSSOM-declared expression
+      independently from its computed browser value.
 - [x] `var(--token, fallback)` exposes the token reference and fallback without
       flattening either into the computed value.
 - [x] Alias chains resolve to a known leaf when safe; cycles are reported
       without looping or inventing a value.
 - [x] Token references within `calc()`, `min()`, `max()`, and `clamp()` are
-      attributed while the original expression remains editable as raw CSS.
+      attributed while the declared expression remains editable as raw CSS.
 - [x] The resolver supplies a stable edit-capability classification to the
       inspector; unsupported composite values use an explicit raw fallback.
 - [x] Unit tests cover each supported function, fallback, alias cycle, and raw

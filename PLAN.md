@@ -109,7 +109,7 @@ Adapters extend the table with framework-specific metadata (see below).
 
 **Universal core (no adapter needed):**
 
-Walk all `document.styleSheets` at runtime. For each authored rule containing `var(--something)`:
+Walk all `document.styleSheets` at runtime. For each CSSOM-declared rule containing `var(--something)`:
 1. Resolve the custom property through the cascade to find its declaration site.
 2. Match the resolved name against the build-time token table.
 3. Present the token name (not the resolved value) in the UI.

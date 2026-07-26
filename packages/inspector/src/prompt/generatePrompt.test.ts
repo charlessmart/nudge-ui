@@ -82,7 +82,7 @@ describe("generatePrompt", () => {
       sourceAuthoredValue: "var(--space-4)",
     })]);
     expect(out).toContain("Preserve existing tokens, logical properties, and CSS intent");
-    expect(out).toContain("Source declaration: `padding-inline: var(--space-4)`; preview edit uses physical `padding-left`");
+    expect(out).toContain("Source declaration (CSSOM): `padding-inline: var(--space-4)`; preview edit uses physical `padding-left`");
   });
 
   it("renders a raw value edit with only the new value when no old value is recorded", () => {

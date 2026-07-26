@@ -19,8 +19,8 @@ the result into a border UI that supports linked sides when their effective
 values match and independent side editing when an authored side override is
 present.
 
-Retain the shorthand's authored form for attribution and prompt context. An
-edit may write the focused longhand property through the managed stylesheet;
+Retain the shorthand's CSSOM-declared form for attribution and prompt context.
+An edit may write the focused longhand property through the managed stylesheet;
 it must not silently rewrite source or imply that all four sides were changed.
 
 Treat `border-image`, multi-layer/ambiguous values, inheritance keywords,

@@ -8,7 +8,8 @@ These notes capture follow-up ideas found while implementing issues 0024–0029.
   and optional managed-preview setup. Assertions stay data-led and do not need
   bespoke DOM control flow.
 - `ResolvedProperty` keeps compatibility fields (`declaredValue` and
-  `resolvedValue`) while exposing authored text, computed text, token origins,
+  `resolvedValue`) while exposing CSSOM-declared text as the authored value,
+  computed text, token origins,
   modifiers, capability, and diagnostics independently.
 - Adapter entries carry both a human name and the CSS implementation name. The
   managed stylesheet always writes the latter; prompts and UI can use the former.

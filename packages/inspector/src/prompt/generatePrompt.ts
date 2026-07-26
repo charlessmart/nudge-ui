@@ -98,7 +98,7 @@ function elementChangeLine(rec: ElementChangeRecord): string {
 function sourceIntentLine(rec: ElementChangeRecord): string | null {
   if (!rec.sourceProperty || rec.sourceProperty === rec.property) return null;
   const authored = rec.sourceAuthoredValue ? `: ${rec.sourceAuthoredValue}` : "";
-  return `  - Source declaration: \`${rec.sourceProperty}${authored}\`; preview edit uses physical \`${rec.property}\``;
+  return `  - Source declaration (CSSOM): \`${rec.sourceProperty}${authored}\`; preview edit uses physical \`${rec.property}\``;
 }
 
 function tokenChangeLine(rec: TokenChangeRecord): string {
