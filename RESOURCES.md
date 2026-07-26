@@ -10,6 +10,14 @@
   Use for the relationship between `selectorText`, `style`, and a concrete CSS style rule.
 - [Window.getComputedStyle() — MDN](https://developer.mozilla.org/en-US/docs/Web/API/Window/getComputedStyle)
   Use for the browser's resolved style output after active stylesheets and computation have been applied.
+- [Introduction to the CSS cascade — MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Cascade/Introduction)
+  Use for the browser's cascade stages: relevance, origin/importance, layers, specificity, scoping proximity, and source order.
+- [Specificity — MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Cascade/Specificity)
+  Use for selector specificity and the important distinction that specificity is compared only after higher-precedence cascade buckets have been selected.
+- [Inheritance — MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Cascade/Inheritance)
+  Use for understanding why a selected element can receive a value authored on an ancestor.
+- [Cascade layers — MDN](https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Styling_basics/Cascade_layers)
+  Use for how `@layer` changes precedence before specificity is compared.
 - [Tailwind CSS functions and directives](https://tailwindcss.com/docs/functions-and-directives)
   Use for Tailwind v4's CSS-first configuration and its relationship to legacy JavaScript configuration.
 - [Sprinkles — vanilla-extract](https://vanilla-extract.style/documentation/sprinkles-api/)

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cascade attribution — reference</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <div class="eyebrow">Design Tool reference</div>
+  <h1>Cascade attribution</h1>
+  <p class="dek">How the repository decides which authored declaration is worth showing for a selected element.</p>
+
+  <section class="card">
+    <h2>Browser concept</h2>
+    <ol>
+      <li>Relevance: selector and conditions match.</li>
+      <li>Origin and importance: author/user/UA and normal/important.</li>
+      <li>Layer: which cascade layer has precedence.</li>
+      <li>Specificity: selector weight inside the winning bucket.</li>
+      <li>Scoping proximity: nearest scope when relevant.</li>
+      <li>Order of appearance: later wins when the rest ties.</li>
+    </ol>
+    <p>Animations and transitions can sit outside this ordinary authored-rule comparison.</p>
+  </section>
+
+  <section class="card">
+    <h2>Repository approximation</h2>
+    <pre><code>matching selector branch
+        -> element.matches()
+        -> importance
+        -> layered vs unlayered
+        -> specificity
+        -> source order</code></pre>
+    <p>The implementation deliberately reconstructs the parts needed for authored attribution. It then checks the candidate against <code>getComputedStyle()</code> and records <code>exact</code>, <code>probable</code>, or <code>unknown</code> confidence.</p>
+  </section>
+
+  <section class="card soft">
+    <h2>Inheritance is a second search</h2>
+    <p>If the selected element has no winning declaration for an inherited property such as <code>color</code>, the resolver walks ancestors. It keeps the ancestor's selector and records <code>inheritedFrom</code> instead of pretending the child authored the value.</p>
+  </section>
+
+  <p class="path">Implementation: <a href="../packages/inspector/src/tokens/resolution.ts">resolution.ts</a> · tests: <a href="../packages/inspector/src/tokens/resolution.test.ts">resolution.test.ts</a></p>
+</main>
+</body>
+</html>

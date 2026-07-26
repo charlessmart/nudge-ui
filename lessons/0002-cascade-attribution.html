@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 2 — Cascade attribution</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+<main>
+  <div class="eyebrow">Lesson 02 · Cascade attribution</div>
+  <h1>Predict which CSS declaration the resolver keeps</h1>
+  <p class="dek">The tangible win: given several matching rules, predict the candidate the Design Tool will display and explain what evidence makes the result trustworthy.</p>
+
+  <section class="card soft">
+    <h2 style="margin-top:0">The important correction</h2>
+    <p>Specificity is not the first question. The browser first filters by relevance, origin/importance, and layer. Specificity only compares candidates that survive those earlier stages. See the <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Cascade/Introduction">MDN cascade overview</a>.</p>
+  </section>
+
+  <h2>1. Start with matching selectors</h2>
+  <p>For a selected element:</p>
+  <pre><code>&lt;button id="app" class="button"&gt;Save&lt;/button&gt;</code></pre>
+  <p>The resolver splits selector lists and asks the browser whether each branch matches:</p>
+  <pre><code>matchingSelectorBranch(element, selectorText)
+  -> element.matches(branch)</code></pre>
+  <p>This is implemented in <a href="../packages/inspector/src/tokens/resolution.ts#L1203">resolution.ts</a>. A non-matching rule never becomes a candidate, regardless of how specific it looks.</p>
+
+  <h2>2. Retrieval practice: specificity</h2>
+  <p>All three rules are normal author rules in the same layer, and all match:</p>
+  <pre><code>.button       { color: red; }   /* A */
+button.button { color: blue; }  /* B */
+#app .button  { color: green; } /* C */</code></pre>
+  <div class="question">
+    <p>Which candidate wins?</p>
+    <label><input type="radio" name="q1" value="A"> A</label>
+    <label><input type="radio" name="q1" value="B"> B</label>
+    <label><input type="radio" name="q1" value="C"> C</label>
+    <button type="button" onclick="answer('q1','C','Correct. The ID component outweighs the class/type-only selectors.')">Check</button>
+    <div class="feedback" id="q1-feedback"></div>
+  </div>
+  <p>The repository calculates this with <a href="../packages/inspector/src/tokens/resolution.ts#L1573"><code>computeSpecificity()</code></a>, then stores the winning number in <code>evidence.specificity</code>.</p>
+
+  <h2>3. Layers beat specificity</h2>
+  <pre><code>@layer theme {
+  #app .button { color: blue; }
+}
+
+.button { color: red; }</code></pre>
+  <p>For normal author styles, an unlayered declaration outranks a layered declaration. The high-specificity blue rule does not get to compete on specificity because it loses at the layer stage. This is why frameworks often put generated utilities into known layers.</p>
+  <div class="question">
+    <p>Which value should the ordinary cascade choose?</p>
+    <label><input type="radio" name="q2" value="blue"> Blue</label>
+    <label><input type="radio" name="q2" value="red"> Red</label>
+    <button type="button" onclick="answer('q2','red','Correct. The unlayered normal rule outranks normal rules inside a layer.')">Check</button>
+    <div class="feedback" id="q2-feedback"></div>
+  </div>
+  <p>The repository models the important/layered/unlayered distinction in <a href="../packages/inspector/src/tokens/resolution.ts#L1099"><code>compareCascade()</code></a>. It is an attribution model, not a claim to reimplement every browser cascade feature.</p>
+
+  <h2>4. Inheritance is not selector matching on the child</h2>
+  <pre><code>.wrapper {
+  color: var(--color-text-primary);
+}
+
+.wrapper &gt; p {
+  /* no color declaration */
+}</code></pre>
+  <p>A selected paragraph can still have a computed color. That value came from the parent because <code>color</code> is inherited by default. The resolver handles this in <a href="../packages/inspector/src/tokens/resolution.ts#L1732"><code>resolveInheritedProperties()</code></a>:</p>
+  <ol>
+    <li>Resolve directly matching declarations on the selected element.</li>
+    <li>Walk ancestors for properties in its inherited-property set.</li>
+    <li>Compare the ancestor's computed value with the selected element's computed value.</li>
+    <li>Record <code>evidence.inheritedFrom</code>.</li>
+  </ol>
+  <div class="question">
+    <p>Should the paragraph row claim that the paragraph authored the token?</p>
+    <label><input type="radio" name="q3" value="yes"> Yes</label>
+    <label><input type="radio" name="q3" value="no"> No</label>
+    <button type="button" onclick="answer('q3','no','Correct. The row can expose the inherited token, but it records the ancestor as the source.')">Check</button>
+    <div class="feedback" id="q3-feedback"></div>
+  </div>
+
+  <h2>5. Why confidence exists</h2>
+  <p>A candidate can look plausible without being proven. The resolver creates a hidden probe with the authored token declaration and compares its computed result with the selected element's painted value. A match can become <code>exact</code>; inaccessible stylesheets, layers, or ambiguous expressions can lower it to <code>probable</code> or <code>unknown</code>.</p>
+  <p>Read the final validation pass in <a href="../packages/inspector/src/tokens/resolution.ts#L1766">getResolvedProperties()</a>, then compare it with the test cases named “higher specificity wins”, “excludes inactive conditional candidates”, and “represents importance, layers and source order” in <a href="../packages/inspector/src/tokens/resolution.test.ts#L742">resolution.test.ts</a>.</p>
+
+  <section class="card">
+    <h2>Codebase exercise</h2>
+    <p>Open <a href="../packages/inspector/src/tokens/resolution.ts#L1177">resolvePropertiesFromRules()</a>. For each candidate, identify:</p>
+    <ul>
+      <li>where the matching selector branch is recorded;</li>
+      <li>where specificity is recorded;</li>
+      <li>where a later candidate replaces the previous one;</li>
+      <li>where browser-computed output overwrites the provisional resolved value.</li>
+    </ul>
+    <p class="path">If you can answer those four questions without opening the lesson again, you have the core cascade-attribution model.</p>
+  </section>
+
+  <div class="next">
+    <h2>Continue</h2>
+    <p>Next lesson: why shorthands are treated as projections rather than simple string splitting — spacing sides, logical properties, border structure, and authored intent.</p>
+    <p>Ask follow-up questions freely. A good next question is: “Show me a case where equal computed values still must remain unlinked because their authored token intent differs.”</p>
+  </div>
+
+  <p class="path">Reference: <a href="../reference/cascade-attribution.html">cascade attribution cheat sheet</a> · primary sources: <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Cascade/Specificity">specificity</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Cascade/Inheritance">inheritance</a> · <a href="https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Styling_basics/Cascade_layers">cascade layers</a></p>
+</main>
+<script>
+  function answer(name, expected, message) {
+    const selected = document.querySelector('input[name="' + name + '"]:checked');
+    const output = document.getElementById(name + '-feedback');
+    if (!selected) { output.textContent = 'Choose an answer first.'; return; }
+    output.textContent = selected.value === expected ? message : 'Not quite. First ask which cascade stage the candidate loses at.';
+  }
+</script>
+</body>
+</html>
