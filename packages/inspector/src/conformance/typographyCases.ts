@@ -88,7 +88,7 @@ export const TYPOGRAPHY_CASES: ConformanceFixture[] = [
   line-height: calc(1em + .5rem);
   letter-spacing: max(-.03em, calc(-.012em - .08vw));
 }`,
-    markup: '<p class="subject" data-cid="TypographyCase" data-src="fixtures/typography.tsx:3:1">Functional values remain editable exactly as they were authored.</p>',
+    markup: '<p class="subject" data-cid="TypographyCase" data-src="fixtures/typography.tsx:3:1">Functional values remain editable as declared CSS expressions.</p>',
     selected: ".subject",
     catalog: [TYPE_WEIGHT],
     expected: {

@@ -49,7 +49,7 @@ export const COLOR_CASES: ConformanceFixture[] = [
   color: #f00;
   background-color: #0f0;
 }`,
-    markup: '<p class="subject" data-cid="ColorCase" data-src="fixtures/color.tsx:2:1">Short hex codes remain authored exactly as written.</p>',
+    markup: '<p class="subject" data-cid="ColorCase" data-src="fixtures/color.tsx:2:1">Short hex colors remain a meaningful declared value.</p>',
     selected: ".subject",
     catalog: [],
     expected: {

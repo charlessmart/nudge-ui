@@ -140,7 +140,7 @@ It will:
 3. Prefer `authored` in the raw Grid fields; use `computed` only when no
    accessible, matching authored declaration exists. In that fallback, label
    the value **Computed — source unavailable** rather than presenting it as
-   source CSS.
+   declared CSS.
 4. Refresh after every layout edit so a declaration written into the managed
    stylesheet becomes the immediately displayed authored value.
 
@@ -148,36 +148,20 @@ The existing `ResolvedProperty` model already distinguishes authored,
 computed, source, and confidence. Grid should use this seam instead of adding
 a one-off page stylesheet parser inside `LayoutSection`.
 
-### Make source recovery safe for real page CSS
+### Use CSSOM as the declaration source
 
-`getResolvedPropertiesForState()` currently walks real `document.styleSheets`
-and uses CSSOM to find matching rules. Its raw author-text recovery is
-intentionally simple and is not sufficient as a correctness boundary for
-nested Grid functions or rules inside `@media`/`@layer` blocks. Before Grid
-fields depend on it, replace that recovery path with a shared, brace-aware
-source scanner for accessible `<style>` elements:
+`getResolvedPropertiesForState()` walks real `document.styleSheets` and uses
+CSSOM to find matching rules. It enumerates each accepted declaration directly
+from `CSSStyleRule.style`, so nested Grid functions and rules inside
+`@media`/`@layer` blocks use the same representation as cascade resolution.
 
-- scan declaration blocks while respecting quoted strings, escapes, comments,
-  brackets, and nested parentheses/functions;
-- split declarations only on top-level semicolons and the property/value pair
-  only on a top-level colon;
-- retain the exact value text for `CSSStyleRule` records, including
-  `repeat()`, `minmax()`, named lines, string template areas, `var()`, and
-  `!important`;
-- walk nested grouping rules in the same order as CSSOM, pairing recovered
-  blocks by rule path/source order rather than selector text alone (the same
-  selector may validly occur in multiple media or layer blocks);
-- use CSSOM serialization only for linked, constructed, or inaccessible
-  stylesheets, and mark that fallback as probable/unknown rather than
-  mislabelling it as authored text;
-- preserve the current cascade rules for selector matching, active media and
-  supports conditions, `!important`, layers, specificity, and source order.
-
-This improves the resolver for every property; Grid is simply the first UI
-that requires the stronger guarantee. `@container` rules remain conservative:
-until their condition can be evaluated reliably, no declaration from an
-unevaluable container query is claimed as the active authored winner. The
-computed value remains available as the honest fallback.
+CSSOM serialization preserves the meaning-bearing form needed by the Grid raw
+fields—such as `repeat()`, `minmax()`, named lines, template-area strings,
+`var()`, and `!important`—while it may normalize whitespace, colors, numbers,
+or shorthand compression. That normalization is acceptable for this best-
+effort editor; exact source spelling is not a product contract. When a
+stylesheet is inaccessible, the UI can still label the computed value as the
+honest fallback.
 
 ### Edit and prompt behaviour
 
@@ -206,7 +190,7 @@ styleEditors/
   GridValueField.tsx         # authored raw CSS field, draft/commit/cancel UI
   gridValues.ts              # pure display/fallback and CSS-value helpers
 tokens/
-  resolution.ts              # shared CSSOM/source recovery, not Grid-specific
+  resolution.ts              # shared CSSOM declaration resolution, not Grid-specific
 ```
 
 `GridValueField` receives a `LayoutValue`, `domElement`, property, revision,
@@ -256,8 +240,8 @@ Extend `examples/sandbox/tests/m2-layout-section.dev.spec.ts` and add an
 authored-value conformance test alongside the existing CSS fixtures:
 
 1. Select `grid-authored-container` and assert the Shadow DOM field contains
-   the exact `repeat(auto-fit, minmax(12rem, 1fr))` author text while the page
-   reports a potentially different computed value.
+   the CSSOM-declared `repeat(auto-fit, minmax(12rem, 1fr))` expression while
+   the page reports a potentially different computed value.
 2. Open the Grid preview, select a cell rectangle, and assert the displayed
    dimensions plus both managed template declarations update immediately.
 3. Resize or use an active media fixture, then assert the field follows the
@@ -291,5 +275,5 @@ pnpm --filter sandbox build
 - Automatic conversion between explicit tracks, named areas, and implicit
   tracks.
 - Source-file write-back or implementation of the generated prompt.
-- Support for CSSOM-inaccessible author text beyond the explicitly labelled
+- Support for CSSOM-inaccessible source text beyond the explicitly labelled
   computed fallback.

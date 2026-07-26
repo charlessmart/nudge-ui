@@ -12,8 +12,9 @@ export interface ElementChangeRecord {
   line: number;
   selector: string;
   property: string;
-  /** Authored declaration that the inspector projection came from. */
+  /** CSSOM-declared source context that the inspector projection came from. */
   sourceProperty?: string;
+  /** Best-effort CSSOM serialization; not an exact source-text quote. */
   sourceAuthoredValue?: string;
   oldToken: TokenEntry | null;
   newToken: TokenEntry | null;
