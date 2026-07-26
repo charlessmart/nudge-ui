@@ -1,4 +1,3 @@
-import { parseDeclarations, rawDeclarationsBySelector, selectorKey } from "./cssText.ts";
 import { computeSpecificity } from "./selectorSemantics.ts";
 import type { MatchedRule, StyleDeclaration } from "./types.ts";
 
@@ -81,6 +80,25 @@ function isStyleRuleInDocument(rule: CSSRule, doc: Document): rule is CSSStyleRu
     && "selectorText" in rule && "style" in rule;
 }
 
+/**
+ * Reads the declarations the browser accepted for a style rule. This is the
+ * semantic source for authored values; it intentionally does not inspect the
+ * stylesheet element's original text.
+ */
+export function declarationsFromCssom(style: CSSStyleDeclaration): StyleDeclaration[] {
+  const declarations: StyleDeclaration[] = [];
+  for (let index = 0; index < style.length; index++) {
+    const property = typeof style.item === "function" ? style.item(index) : style[index] ?? "";
+    if (!property) continue;
+    declarations.push({
+      property,
+      value: style.getPropertyValue(property),
+      important: style.getPropertyPriority(property) === "important",
+    });
+  }
+  return declarations;
+}
+
 export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: boolean } {
   const revision = stylesheetRevision(doc);
   const cached = ruleSnapshots.get(doc);
@@ -93,27 +111,23 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
   let sourceOrder = 0;
   const walkRules = (
     rules: CSSRuleList,
-    rawDeclarations: Map<string, StyleDeclaration[][]>,
     active = true,
     layer?: string,
   ): void => {
     for (const rule of Array.from(rules)) {
       if (isStyleRuleInDocument(rule, doc)) {
-        let cssText: string;
         try {
-          cssText = rule.style.cssText ?? "";
+          out.push({
+            selectorText: rule.selectorText,
+            specificity: computeSpecificity(rule.selectorText),
+            declarations: declarationsFromCssom(rule.style),
+            sourceOrder: sourceOrder++,
+            active,
+            layer,
+          });
         } catch {
           continue;
         }
-        const raw = rawDeclarations.get(selectorKey(rule.selectorText))?.shift();
-        out.push({
-          selectorText: rule.selectorText,
-          specificity: computeSpecificity(rule.selectorText),
-          declarations: raw ?? parseDeclarations(cssText),
-          sourceOrder: sourceOrder++,
-          active,
-          layer,
-        });
       } else if ("cssRules" in rule) {
         try {
           const record = rule as unknown as { cssRules: CSSRuleList; conditionText?: string; name?: string };
@@ -123,7 +137,7 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
           else if (cssText.startsWith("@supports") && record.conditionText) childActive = active && (doc.defaultView?.CSS?.supports(record.conditionText) ?? false);
           else if (cssText.startsWith("@container")) childActive = false;
           const childLayer = cssText.startsWith("@layer") ? record.name ?? cssText.slice(6, cssText.indexOf("{")).trim() : layer;
-          walkRules(record.cssRules, rawDeclarations, childActive, childLayer);
+          walkRules(record.cssRules, childActive, childLayer);
         } catch {
           continue;
         }
@@ -133,7 +147,7 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
 
   for (const sheet of Array.from(doc.styleSheets)) {
     try {
-      walkRules(sheet.cssRules, rawDeclarationsBySelector(sheet, doc));
+      walkRules(sheet.cssRules);
     } catch {
       inaccessible = true;
     }
