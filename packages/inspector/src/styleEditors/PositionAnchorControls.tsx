@@ -34,7 +34,7 @@ export function PositionAnchorControls({
 }: PositionAnchorControlsProps): ReactElement {
   const allEntries = entries ?? tokens;
   const [expanded, setExpanded] = useState(false);
-  const values = useInsetValues(el, tokenRows, revision);
+  const values = useInsetValues(el, revision);
   const horizontalAnchor = axisAnchor(values.horizontal);
   const verticalAnchor = axisAnchor(values.vertical);
   const shownHorizontal = horizontalAnchor === "none" ? "start" : horizontalAnchor;
@@ -211,26 +211,24 @@ function AxisAnchorRow({ axis, current, onSelect }: AxisAnchorRowProps): ReactEl
   );
 }
 
-function readInsetValue(el: HTMLElement, tokenRows: ResolvedProperty[], property: PhysicalSide): string {
-  const row = tokenRows.find((candidate) => candidate.property === property);
-  return row?.authored ?? row?.declaredValue ?? meaningfulLayoutValue(el, property);
+function readInsetValue(el: HTMLElement, property: PhysicalSide): string {
+  return meaningfulLayoutValue(el, property);
 }
 
 function useInsetValues(
   el: HTMLElement,
-  tokenRows: ResolvedProperty[],
   revision: number,
 ): { horizontal: AxisInsetValues; vertical: AxisInsetValues } {
   const [values, setValues] = useState(() => ({
-    horizontal: { start: readInsetValue(el, tokenRows, "left"), end: readInsetValue(el, tokenRows, "right") },
-    vertical: { start: readInsetValue(el, tokenRows, "top"), end: readInsetValue(el, tokenRows, "bottom") },
+    horizontal: { start: readInsetValue(el, "left"), end: readInsetValue(el, "right") },
+    vertical: { start: readInsetValue(el, "top"), end: readInsetValue(el, "bottom") },
   }));
   useEffect(() => {
     setValues({
-      horizontal: { start: readInsetValue(el, tokenRows, "left"), end: readInsetValue(el, tokenRows, "right") },
-      vertical: { start: readInsetValue(el, tokenRows, "top"), end: readInsetValue(el, tokenRows, "bottom") },
+      horizontal: { start: readInsetValue(el, "left"), end: readInsetValue(el, "right") },
+      vertical: { start: readInsetValue(el, "top"), end: readInsetValue(el, "bottom") },
     });
-  }, [el, revision, tokenRows]);
+  }, [el, revision]);
   return values;
 }
 

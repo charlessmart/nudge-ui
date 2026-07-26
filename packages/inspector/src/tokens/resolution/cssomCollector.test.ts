@@ -27,14 +27,16 @@ describe("CSSOM collector", () => {
     });
   });
 
-  it("enumerates CSSOM declarations without reparsing stylesheet text", () => {
+  it("reads serialized CSSOM shorthands before indexed longhand expansion", () => {
     const style = document.createElement("div").style;
     style.setProperty("--space-4", "clamp(8px, 2vw, 24px)");
-    style.setProperty("padding", "var(--space-4) 2rem", "important");
+    style.setProperty("padding-inline", "var(--space-4)", "important");
+    style.setProperty("font", "italic 600 1.25rem/1.5 var(--font-family)");
 
     expect(declarationsFromCssom(style)).toEqual([
       { property: "--space-4", value: "clamp(8px, 2vw, 24px)", important: false },
-      { property: "padding", value: "var(--space-4) 2rem", important: true },
+      { property: "padding-inline", value: "var(--space-4)", important: true },
+      { property: "font", value: "italic 600 1.25rem/1.5 var(--font-family)", important: false },
     ]);
   });
 

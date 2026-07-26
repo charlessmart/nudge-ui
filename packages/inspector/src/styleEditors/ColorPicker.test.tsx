@@ -80,6 +80,24 @@ describe("ColorPicker", () => {
     expect((handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement).value).toBe("100%");
   });
 
+  it("keeps an explicitly declared transparent value editable", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ color: "rgba(0, 0, 0, 0)" });
+    handle = mount(createElement(ColorPicker, {
+      element: selected,
+      entries: ENTRIES,
+      tokenRow: {
+        ...TOKEN_ROW,
+        tokenName: null,
+        declaredValue: "transparent",
+        authored: "transparent",
+        resolvedValue: "rgba(0, 0, 0, 0)",
+      },
+    }));
+
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("transparent");
+  });
+
   it("uses a readable title for the background color section", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "background-color": "rgba(0, 0, 0, 0)" });
