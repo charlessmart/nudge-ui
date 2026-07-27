@@ -21,6 +21,6 @@
 .dt-locked-notice__detail {
   margin: 6px 0 14px;
   color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   line-height: 1.45;
 }

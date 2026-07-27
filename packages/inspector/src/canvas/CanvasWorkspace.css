@@ -7,32 +7,6 @@
   pointer-events: auto;
 }
 
-.dt-canvas-workspace__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 48px;
-  padding: 8px 16px;
-  background: var(--dt-surface-panel);
-  border-bottom: 1px solid var(--dt-border-subtle);
-  color: var(--dt-text-primary);
-  font-size: var(--dt-font-size);
-  font-weight: 650;
-  flex-shrink: 0;
-}
-
-.dt-canvas-workspace__title {
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--dt-text-primary);
-}
-
-.dt-canvas-workspace__header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .dt-canvas-workspace__board {
   flex: 1;
   overflow: hidden;

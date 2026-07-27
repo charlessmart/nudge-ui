@@ -36,8 +36,6 @@ import {
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
 import foundationStyles from "../ui/Foundation.css?inline";
-import { Maximize } from "lucide-react";
-import { Button } from "../ui/Button.tsx";
 import { useInspectorOpen } from "../openStore.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");
@@ -264,10 +262,6 @@ export function CanvasWorkspace(): ReactElement | null {
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
   }, [mode]);
 
-  const handleFitAll = useCallback(() => {
-    fitCanvasToBoard();
-  }, [fitCanvasToBoard]);
-
   function handleEdit(card: CanvasCardData): void {
     setCanvasMode("inspect");
     resetFitAllFlag();
@@ -286,30 +280,6 @@ export function CanvasWorkspace(): ReactElement | null {
         data-test="canvas-workspace"
         style={{ right: inspectorOpen ? "min(320px, 100vw)" : 0 }}
       >
-        <div className="dt-canvas-workspace__header">
-          <span className="dt-canvas-workspace__title">Canvas</span>
-          <div className="dt-canvas-workspace__header-actions">
-            <Button
-              variant="secondary"
-              size="compact"
-              aria-label="Fit all cards"
-              data-test="canvas-fit-all"
-              onClick={handleFitAll}
-            >
-              <Maximize size={14} strokeWidth={1.8} aria-hidden="true" />
-              Fit All
-            </Button>
-            <Button
-              variant="secondary"
-              size="compact"
-              aria-label="Exit Canvas"
-              data-test="canvas-exit"
-              onClick={() => exitCanvas()}
-            >
-              Exit Canvas
-            </Button>
-          </div>
-        </div>
         <div
           className={`dt-canvas-workspace__board ${boardCursorClass}`.trim()}
           data-test="canvas-board"

@@ -257,6 +257,11 @@ export function getChangesList(): ChangeRecord[] {
 
 export { subscribe as subscribeChanges, getChangesSnapshot as getChanges };
 
+export function touchChanges(): void {
+  changes = [...changes];
+  notify();
+}
+
 export function useChanges(): ChangeRecord[] {
   return useSyncExternalStore(subscribe, getChangesSnapshot, getChangesSnapshot);
 }

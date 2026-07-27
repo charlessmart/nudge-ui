@@ -8,16 +8,16 @@ export function ModeToggle(): ReactElement {
 
   return (
     <SegmentedControl
-      value={isCanvas ? "canvas" : "inspect"}
+      value={isCanvas ? "canvas" : "preview"}
       aria-label="Inspector mode"
       data-test="canvas-mode-toggle"
       options={[
-        { value: "inspect", label: "Inspect", testId: "mode-inspect" },
+        { value: "preview", label: "Preview", testId: "mode-preview" },
         { value: "canvas", label: "Canvas", testId: "mode-canvas" },
       ]}
       onChange={(nextMode) => {
         if (nextMode === "canvas" && !isCanvas) enterCanvas();
-        if (nextMode === "inspect" && isCanvas) exitCanvas();
+        if (nextMode === "preview" && isCanvas) exitCanvas();
       }}
     />
   );

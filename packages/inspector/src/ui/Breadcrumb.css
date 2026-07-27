@@ -24,7 +24,7 @@
   color: var(--dt-text-muted);
   background: transparent;
   font: inherit;
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
 }
 
 .dt-breadcrumb__step[data-active="true"] {

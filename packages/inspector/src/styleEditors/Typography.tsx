@@ -12,16 +12,14 @@ import {
   ChevronDown,
   Italic,
   LetterText,
-  SlidersVertical,
   Type,
 } from "lucide-react";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
-import { Button } from "../ui/Button.tsx";
-import { IconButton } from "../ui/IconButton.tsx";
 import { Select } from "../ui/Select.tsx";
+import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { setStyle } from "./styleActions.ts";
 
@@ -45,21 +43,13 @@ export function Typography(props: TypographyProps): ReactElement {
     <div className="dt-editor dt-editor--typography" data-test="typography">
       <div className="dt-editor__title-row">
         <div className="dt-editor__title">Text</div>
-        <IconButton
-          variant="quiet"
-          size="compact"
-          label="Typography settings"
-          data-test="typography-settings"
-        >
-          <SlidersVertical size={18} strokeWidth={1.7} aria-hidden="true" />
-        </IconButton>
       </div>
 
       <div className="dt-typography">
         <TypographyTokenField
           property="font-family"
           label="Font family"
-          icon={<Italic size={24} strokeWidth={1.35} aria-hidden="true" />}
+          icon={<Italic size={"var(--dt-icon-size-small)"} strokeWidth={1.35} aria-hidden="true" />}
           tokenRow={findTokenRow(tokenRows, "font-family")}
           domElement={el}
           entries={allEntries}
@@ -77,7 +67,7 @@ export function Typography(props: TypographyProps): ReactElement {
           <TypographyTokenField
             property="font-size"
             label="Font size"
-            icon={<AArrowUp size={20} strokeWidth={1.55} aria-hidden="true" />}
+            icon={<AArrowUp size={"var(--dt-icon-size-small)"} strokeWidth={1.55} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "font-size")}
             domElement={el}
             entries={allEntries}
@@ -86,7 +76,7 @@ export function Typography(props: TypographyProps): ReactElement {
           <TypographyTokenField
             property="line-height"
             label="Line height"
-            icon={<Baseline size={21} strokeWidth={1.5} aria-hidden="true" />}
+            icon={<Baseline size={"var(--dt-icon-size-small)"} strokeWidth={1.5} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "line-height")}
             domElement={el}
             entries={allEntries}
@@ -95,7 +85,7 @@ export function Typography(props: TypographyProps): ReactElement {
           <TypographyTokenField
             property="letter-spacing"
             label="Letter spacing"
-            icon={<LetterText size={20} strokeWidth={1.5} aria-hidden="true" />}
+            icon={<LetterText size={"var(--dt-icon-size-small)"} strokeWidth={1.5} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "letter-spacing")}
             domElement={el}
             entries={allEntries}
@@ -110,9 +100,9 @@ export function Typography(props: TypographyProps): ReactElement {
             element={el}
             defaultValue="left"
             options={[
-              { value: "left", label: "Align left", icon: <AlignLeft size={22} strokeWidth={1.6} aria-hidden="true" /> },
-              { value: "center", label: "Align center", icon: <AlignCenter size={22} strokeWidth={1.6} aria-hidden="true" /> },
-              { value: "right", label: "Align right", icon: <AlignRight size={22} strokeWidth={1.6} aria-hidden="true" /> },
+              { value: "left", label: "Align left", icon: <AlignLeft size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
+              { value: "center", label: "Align center", icon: <AlignCenter size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
+              { value: "right", label: "Align right", icon: <AlignRight size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
             ]}
             onAfterEdit={onAfterEdit}
           />
@@ -122,9 +112,9 @@ export function Typography(props: TypographyProps): ReactElement {
             element={el}
             defaultValue="baseline"
             options={[
-              { value: "top", label: "Align top", icon: <AlignVerticalJustifyStart size={22} strokeWidth={1.6} aria-hidden="true" /> },
-              { value: "middle", label: "Align middle", icon: <AlignVerticalJustifyCenter size={22} strokeWidth={1.6} aria-hidden="true" /> },
-              { value: "bottom", label: "Align bottom", icon: <AlignVerticalJustifyEnd size={22} strokeWidth={1.6} aria-hidden="true" /> },
+              { value: "top", label: "Align top", icon: <AlignVerticalJustifyStart size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
+              { value: "middle", label: "Align middle", icon: <AlignVerticalJustifyCenter size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
+              { value: "bottom", label: "Align bottom", icon: <AlignVerticalJustifyEnd size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
             ]}
             onAfterEdit={onAfterEdit}
           />
@@ -225,7 +215,7 @@ function FontStyleField({ element, fontStyleRow, fontWeightRow, onAfterEdit }: F
       title="Font style"
     >
       <span className="dt-typography__field-icon" aria-hidden="true">
-        <Type size={23} strokeWidth={1.45} />
+        <Type size={"var(--dt-icon-size-small)"} strokeWidth={1.45} />
       </span>
       <Select
         value={currentKey}
@@ -285,22 +275,18 @@ function AlignmentField({ property, label, element, defaultValue, options, onAft
   }
 
   return (
-    <div className="dt-typography__segmented" role="group" aria-label={label} data-property={property}>
-      {options.map((option) => (
-        <Button
-          key={option.value}
-          variant="quiet"
-          className="dt-typography__alignment-button"
-          data-test={`typography-align-${property}-${option.value}`}
-          data-active={current === option.value ? "true" : "false"}
-          aria-label={option.label}
-          aria-pressed={current === option.value}
-          onClick={() => handleChange(option.value)}
-        >
-          {option.icon}
-        </Button>
-      ))}
-    </div>
+    <SegmentedControl
+      value={current}
+      aria-label={label}
+      data-property={property}
+      options={options.map((option) => ({
+        value: option.value,
+        label: option.label,
+        icon: option.icon,
+        testId: `typography-align-${property}-${option.value}`,
+      }))}
+      onChange={handleChange}
+    />
   );
 }
 

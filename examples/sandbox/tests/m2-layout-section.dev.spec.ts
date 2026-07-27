@@ -335,6 +335,8 @@ test("dev: layout size controls edit dimensions and aspect ratio", async ({ page
 
   await expect(page.locator('[data-test="layout-size"]')).toBeVisible();
   await setLayoutInput(page, "layout-size-width", "240");
+
+  await page.locator('[data-test="layout-size-expand"]').click();
   await setLayoutInput(page, "layout-size-max-height", "40vh");
 
   const ratioInput = page.locator('[data-test="layout-aspect-ratio-input"]');

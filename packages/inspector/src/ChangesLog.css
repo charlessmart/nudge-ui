@@ -11,7 +11,7 @@
   width: 100%;
   padding: 10px 0;
   color: var(--dt-text-primary);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   font-weight: 700;
   cursor: pointer;
   list-style: none;
@@ -70,7 +70,7 @@
   gap: 2px;
   margin-bottom: 8px;
   color: var(--dt-text-primary);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   font-weight: 650;
 }
 
@@ -86,7 +86,7 @@
   align-items: flex-start;
   gap: 5px;
   padding: 4px 0;
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
 }
 
 .dt-changes__row + .dt-changes__row {
@@ -124,7 +124,7 @@
 
 .dt-changes__conflict {
   color: var(--dt-warning-text);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
 }
 
 .dt-changes__revert {

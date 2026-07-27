@@ -2,15 +2,15 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  height: var(--dt-control-height);
-  padding: 0 12px;
+  height: var(--dt-control-height-large);
+  padding: 0 0;
   background: var(--dt-surface-control);
   color: var(--dt-text-primary);
   border: 0;
   border-radius: var(--dt-radius-control);
   outline: 0;
   font: inherit;
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   font-weight: 500;
   transition: background-color 120ms ease, box-shadow 120ms ease;
 }
@@ -18,7 +18,7 @@
 .dt-text-input--compact {
   height: 28px;
   padding: 0 10px;
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
 }
 
 .dt-text-input:hover:not(:focus) {

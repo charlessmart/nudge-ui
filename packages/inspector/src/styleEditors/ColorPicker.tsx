@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Plus } from "lucide-react";
+import { Minus, Plus } from "lucide-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import { getStateStyleValue } from "../stateValue.ts";
@@ -9,6 +9,7 @@ import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { IconButton } from "../ui/IconButton.tsx";
+import { setStyle } from "./styleActions.ts";
 
 export interface ColorPickerProps {
   element: SelectedElement;
@@ -61,11 +62,27 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
 
   const showTokenField = !isEmpty || fieldAdded;
 
+  function handleRemoveColor(): void {
+    setStyle(el, property, "transparent");
+    setFieldAdded(false);
+    onAfterEdit?.();
+  }
+
   return (
-    <div className="dt-editor" data-test="color-picker" data-property={property}>
+    <div className={`dt-editor`} data-test="color-picker" data-property={property}>
       <div className="dt-editor__title-row">
         <div className="dt-editor__title">{colorSectionTitle(property)}</div>
-        {!showTokenField ? (
+        {showTokenField ? (
+          <IconButton
+            variant="quiet"
+            label={`Remove ${colorSectionTitle(property)}`}
+            data-test="remove-color"
+            className="dt-color__remove"
+            onClick={handleRemoveColor}
+          >
+            <Minus size={"var(--dt-icon-size-small)"} strokeWidth={1.8} aria-hidden="true" />
+          </IconButton>
+        ) : (
           <IconButton
             variant="quiet"
             label={`Add ${colorSectionTitle(property)}`}
@@ -73,12 +90,12 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
             className="dt-color__add"
             onClick={() => setFieldAdded(true)}
           >
-            <Plus size={16} strokeWidth={1.8} aria-hidden="true" />
+            <Plus size={"var(--dt-icon-size-small)"} strokeWidth={1.8} aria-hidden="true" />
           </IconButton>
-        ) : null}
+        )}
       </div>
-      <div className="dt-color">
-        {showTokenField ? (
+      {showTokenField && (
+        <div className="dt-color">
           <TokenField
             property={property}
             tokenRow={isEmpty ? null : tokenRow}
@@ -87,8 +104,8 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
             entries={allEntries}
             onAfterEdit={handleAfterEdit}
           />
-        ) : null}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

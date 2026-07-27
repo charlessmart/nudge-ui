@@ -125,5 +125,39 @@ describe("ColorPicker", () => {
 
     expect(handle.host.querySelector('[data-test="token-field"]')).toBeTruthy();
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("");
+    expect(handle.host.querySelector('[data-test="remove-color"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+  });
+
+  it("shows the remove button when a color is present", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ color: "rgb(17, 17, 17)" });
+    handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
+    expect(handle.host.querySelector('[data-test="remove-color"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+    expect(handle.host.querySelector('[data-test="add-color"]')).toBeNull();
+  });
+
+  it("removes the color when the remove button is clicked", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ color: "rgb(17, 17, 17)" });
+    handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
+    act(() => {
+      (handle.host.querySelector('[data-test="remove-color"]') as HTMLButtonElement).click();
+    });
+    expect(sheetText()).toContain("color: transparent;");
+  });
+
+  it("shows the add button after removing the color", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ color: "rgb(17, 17, 17)" });
+    handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
+    act(() => {
+      (handle.host.querySelector('[data-test="remove-color"]') as HTMLButtonElement).click();
+    });
+    mockComputedStyle({ color: "transparent" });
+    act(() => {
+      handle.root.render(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
+    });
+    expect(handle.host.querySelector('[data-test="add-color"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+    expect(handle.host.querySelector('[data-test="remove-color"]')).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Check, Settings2, WrapText } from "lucide-react";
+import { Check, Expand, Minimize2, Settings2, WrapText } from "lucide-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
@@ -17,6 +17,7 @@ import { setStyle } from "./styleActions.ts";
 import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
+import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
@@ -102,6 +103,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
     <div className="dt-editor" data-test="layout-section">
       <div className="dt-editor__title">Layout</div>
       <div className="dt-layout">
+      <div className="dt-layout__tool-row">
         <LayoutDropdown
           property="display"
           options={DISPLAY_OPTIONS}
@@ -117,6 +119,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
           revision={layoutRevision}
           onAfterEdit={notifyAfterEdit}
         />
+      </div>
 
         <SizeSection
           domElement={el}
@@ -287,6 +290,8 @@ interface SizeSectionProps {
 }
 
 function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit }: SizeSectionProps): ReactElement {
+  const [expanded, setExpanded] = useState(false);
+
   const fields = [
     { property: "width", presets: SIZE_PRESETS },
     { property: "height", presets: SIZE_PRESETS },
@@ -295,31 +300,79 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
     { property: "max-width", presets: MAX_WIDTH_PRESETS },
     { property: "max-height", presets: MAX_HEIGHT_PRESETS },
   ];
-  return (
-    <div className="dt-layout__group dt-layout__size" data-test="layout-size">
-      <div className="dt-layout__group-title">Size</div>
-      <div className="dt-layout__size-grid">
-        {fields.map(({ property, presets }) => (
-          <FieldRow key={property} label={property} data-test={`layout-size-${property}`}>
-            <TokenField
-              property={property}
-              tokenRow={tokenRows.find((row) => row.property === property) ?? null}
-              initialValue={meaningfulLayoutValue(el, property)}
-              domElement={el}
-              entries={entries}
-              suggestions={presets}
-              onAfterEdit={onAfterEdit}
-            />
-          </FieldRow>
-        ))}
-      </div>
-      <AspectRatioField
+
+  function renderTokenField(property: string, presets: string[]): ReactElement {
+    return (
+      <TokenField
+        property={property}
+        tokenRow={tokenRows.find((row) => row.property === property) ?? null}
+        initialValue={meaningfulLayoutValue(el, property)}
         domElement={el}
         entries={entries}
-        tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
-        revision={revision}
+        suggestions={presets}
         onAfterEdit={onAfterEdit}
       />
+    );
+  }
+
+  return (
+    <div className="dt-layout__group dt-layout__size" data-test="layout-size">
+      {expanded ? (
+        <>
+          <div className="dt-layout__size-header">
+            <div className="dt-layout__group-title">Size</div>
+            <IconButton
+              variant="secondary"
+              size="default"
+              data-test="layout-size-collapse"
+              aria-label="Collapse Size Fields"
+              label="Collapse Size Fields"
+              title="Collapse Size Fields"
+              onClick={() => setExpanded(false)}
+            >
+              <Minimize2 size={16} strokeWidth={1.8} aria-hidden="true" />
+            </IconButton>
+          </div>
+          <div className="dt-layout__size-grid">
+            {fields.map(({ property, presets }) => (
+              <FieldRow key={property} label={property} data-test={`layout-size-${property}`}>
+                {renderTokenField(property, presets)}
+              </FieldRow>
+            ))}
+            <AspectRatioField
+              domElement={el}
+              entries={entries}
+              tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
+              revision={revision}
+              onAfterEdit={onAfterEdit}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="dt-layout__size-collapsed">
+          <div className="dt-layout__size-collapsed-control">
+            <FieldRow label="Width" data-test="layout-size-width">
+              {renderTokenField("width", SIZE_PRESETS)}
+            </FieldRow>
+          </div>
+          <div className="dt-layout__size-collapsed-control">
+            <FieldRow label="Height" data-test="layout-size-height">
+              {renderTokenField("height", SIZE_PRESETS)}
+            </FieldRow>
+          </div>
+          <IconButton
+            variant="secondary"
+            size="default"
+            data-test="layout-size-expand"
+            aria-label="Expand Size Fields"
+            label="Expand Size Fields"
+            title="Expand Size Fields"
+            onClick={() => setExpanded(true)}
+          >
+            <Expand size={16} strokeWidth={1.8} aria-hidden="true" />
+          </IconButton>
+        </div>
+      )}
     </div>
   );
 }
@@ -343,34 +396,33 @@ function FlexDirectionControl({ domElement, revision = 0, onAfterEdit }: FlexCon
   }
 
   return (
-    <div className="dt-layout__direction" role="group" aria-label="Flex direction">
-      <Button
-        size="compact"
-        className="dt-layout__direction-button"
-        data-active={orientation === "row"}
-        data-test="layout-direction-row"
-        aria-label="Set Flex Direction To Row"
-        aria-pressed={orientation === "row"}
-        onClick={() => selectDirection(`row${reverse ? "-reverse" : ""}`)}
-      >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2 8h11M9 4l4 4-4 4" />
-        </svg>
-      </Button>
-      <Button
-        size="compact"
-        className="dt-layout__direction-button"
-        data-active={orientation === "column"}
-        data-test="layout-direction-column"
-        aria-label="Set Flex Direction To Column"
-        aria-pressed={orientation === "column"}
-        onClick={() => selectDirection(`column${reverse ? "-reverse" : ""}`)}
-      >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M8 2v11M4 9l4 4 4-4" />
-        </svg>
-      </Button>
-    </div>
+    <SegmentedControl
+      value={orientation}
+      aria-label="Flex direction"
+      options={[
+        {
+          value: "row",
+          label: "Set Flex Direction To Row",
+          testId: "layout-direction-row",
+          icon: (
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+              <path d="M2 8h11M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
+            </svg>
+          ),
+        },
+        {
+          value: "column",
+          label: "Set Flex Direction To Column",
+          testId: "layout-direction-column",
+          icon: (
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+              <path d="M8 2v11M4 9l4 4 4-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
+            </svg>
+          ),
+        },
+      ]}
+      onChange={(next) => selectDirection(`${next}${reverse ? "-reverse" : ""}`)}
+    />
   );
 }
 

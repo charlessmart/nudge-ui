@@ -173,6 +173,7 @@ export function unmountInspector(): void {
 
 export { toggleInspector, setInspectorOpen } from "./InspectorShell.tsx";
 export { InspectorShell } from "./InspectorShell.tsx";
+export { FloatingToolbar } from "./FloatingToolbar.tsx";
 export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
 export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation, ConformanceProjectionExpectation, ConformanceProjectionFieldExpectation } from "./conformance/fixture.ts";
 export { TYPOGRAPHY_CASES } from "./conformance/typographyCases.ts";

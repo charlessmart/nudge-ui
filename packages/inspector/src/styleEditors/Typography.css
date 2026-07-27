@@ -1,0 +1,94 @@
+.dt-typography {
+  gap: var(--dt-space-8);
+}
+
+.dt-typography__field {
+  position: relative;
+  min-width: 0;
+  height: var(--dt-control-height-large);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--dt-surface-control);
+  border-radius: var(--dt-radius-control);
+  color: var(--dt-text-primary);
+  transition: background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.dt-typography__field:hover {
+  background: var(--dt-surface-control-hover);
+}
+
+.dt-typography__field:focus-within,
+.dt-typography__field:has(.dt-select[data-popup-open]) {
+  box-shadow: inset 0 0 0 2px var(--dt-focus);
+}
+
+.dt-typography__field.dt-token-field {
+  gap: var(--dt-space-8);
+  padding: 0 8px;
+}
+
+.dt-typography__field-icon {
+  position: absolute;
+  z-index: 1;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--dt-text-muted);
+  pointer-events: none;
+}
+
+.dt-typography__field > .dt-select {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.dt-typography__field .dt-popover-listbox,
+.dt-typography__field .dt-popover-listbox__trigger,
+.dt-typography__field .dt-text-input,
+.dt-typography__field .dt-select {
+  height: 100%;
+  background: transparent;
+}
+
+.dt-typography__field .dt-text-input:hover:not(:focus),
+.dt-typography__field .dt-select:hover:not(:disabled),
+.dt-typography__field .dt-popover-listbox__trigger:hover:not(:focus) {
+  background: transparent;
+}
+
+.dt-typography__field .dt-text-input:focus-visible,
+.dt-typography__field .dt-select:focus-visible,
+.dt-typography__field .dt-select[data-popup-open],
+.dt-typography__field .dt-popover-listbox__trigger:focus-visible {
+  box-shadow: none;
+}
+
+.dt-typography__field .dt-select {
+  padding-left: 34px;
+  font-size: var(--dt-font-size-base);
+}
+
+.dt-typography__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--dt-space-8);
+}
+
+.dt-typography__field .dt-token-field__leading svg {
+  width: var(--dt-icon-size-small);
+  height: var(--dt-icon-size-small);
+}
+
+.dt-typography__field--font-family .dt-token-field__leading svg {
+  width: var(--dt-icon-size-small);
+  height: var(--dt-icon-size-small);
+}
+
+.dt-typography__alignment {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: var(--dt-space-8);
+}

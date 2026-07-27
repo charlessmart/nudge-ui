@@ -1,25 +1,27 @@
 .dt-button {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--dt-space-4);
   background: var(--dt-surface-control);
   border: 0;
   color: var(--dt-text-primary);
   cursor: pointer;
   font: inherit;
-  font-size: var(--dt-font-size);
-  font-weight: 650;
+  font-size: var(--dt-font-size-base);
+  font-weight: var(--dt-font-weight-base);
+  min-height: var(--dt-control-height-large);
+  padding: 0 12px;
+  border-radius: var(--dt-radius-control);
+  vertical-align: middle;
   transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
 
-.dt-button {
-  min-height: var(--dt-control-height);
-  padding: 0 12px;
-  border-radius: var(--dt-radius-control);
-}
-
 .dt-button--compact {
-  min-height: 26px;
+  min-height: var(--dt-control-height-small);
   padding: 0 10px;
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
 }
 
 .dt-button--primary {

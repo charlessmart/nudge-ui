@@ -167,6 +167,41 @@ function SprSpacing() {
 }
 
 // ============================================================
+// Raw CSS — unit diversity (spacing)
+// ============================================================
+
+function CssUnitsSpacing() {
+  return (
+    <>
+      <ExampleCard id={exId("Spacing", "raw", 1)} label="padding rem" utilities="padding: 1rem">
+        <div className="spacing-specimen" style={{ padding: "1rem" }}>1rem</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 2)} label="padding em" utilities="padding: 1.5em">
+        <div className="spacing-specimen" style={{ padding: "1.5em" }}>1.5em</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 3)} label="padding %" utilities="padding: 12%">
+        <div className="spacing-specimen" style={{ padding: "12%" }}>12%</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 4)} label="padding vw vh" utilities="padding: 2vw 3vh">
+        <div className="spacing-specimen" style={{ padding: "2vw 3vh" }}>2vw 3vh</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 5)} label="padding vmin" utilities="padding: 3vmin">
+        <div className="spacing-specimen" style={{ padding: "3vmin" }}>3vmin</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 6)} label="padding px" utilities="padding: 20px">
+        <div className="spacing-specimen" style={{ padding: "20px" }}>20px</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 7)} label="padding ch" utilities="padding: 2ch">
+        <div className="spacing-specimen" style={{ padding: "2ch" }}>2ch</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 8)} label="mixed shorthand" utilities="padding: 1rem 2em 10% 4px">
+        <div className="spacing-specimen" style={{ padding: "1rem 2em 10% 4px" }}>mixed</div>
+      </ExampleCard>
+    </>
+  );
+}
+
+// ============================================================
 // Typography examples
 // ============================================================
 
@@ -255,6 +290,50 @@ function SprTypography() {
       </ExampleCard>
       <ExampleCard id={exId("Typography", "spr", 7)} label="accent" utilities="spr-text-accent spr-font-semibold">
         <span className="typography-specimen spr-text-accent spr-font-semibold">Accent token color.</span>
+      </ExampleCard>
+    </>
+  );
+}
+
+// ============================================================
+// Raw CSS — unit diversity (typography)
+// ============================================================
+
+function CssUnitsTypography() {
+  return (
+    <>
+      <ExampleCard id={exId("Typography", "raw", 1)} label="font-size rem" utilities="font-size: 2rem">
+        <span className="typography-specimen" style={{ fontSize: "2rem" }}>2rem heading</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 2)} label="font-size em" utilities="font-size: 1.4em">
+        <span className="typography-specimen" style={{ fontSize: "1.4em" }}>1.4em body text</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 3)} label="font-size vw" utilities="font-size: 3vw">
+        <span className="typography-specimen" style={{ fontSize: "3vw" }}>3vw responsive</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 4)} label="font-size %" utilities="font-size: 130%">
+        <span className="typography-specimen" style={{ fontSize: "130%" }}>130% of parent</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 5)} label="font-size px" utilities="font-size: 24px">
+        <span className="typography-specimen" style={{ fontSize: "24px" }}>24px fixed</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 6)} label="font-size ch" utilities="font-size: 2ch">
+        <span className="typography-specimen" style={{ fontSize: "2ch" }}>2ch width-based</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 7)} label="line-height unitless" utilities="line-height: 1.6">
+        <span className="typography-specimen" style={{ fontSize: "1rem", lineHeight: 1.6, display: "block" }}>Unitless line-height 1.6 for comfortable body reading across multiple lines of demo content.</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 8)} label="line-height em" utilities="line-height: 1.8em">
+        <span className="typography-specimen" style={{ fontSize: "1rem", lineHeight: "1.8em", display: "block" }}>Em line-height 1.8em gives extra generous spacing between these wrapped lines of text.</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 9)} label="line-height px" utilities="line-height: 32px">
+        <span className="typography-specimen" style={{ fontSize: "1rem", lineHeight: "32px", display: "block" }}>Pixel line-height 32px stays rigidly fixed regardless of the font-size value here.</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 10)} label="letter-spacing em" utilities="letter-spacing: 0.1em">
+        <span className="typography-specimen" style={{ fontSize: "1.2rem", letterSpacing: "0.1em" }}>0.1em letter spacing</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 11)} label="letter-spacing px" utilities="letter-spacing: 3px">
+        <span className="typography-specimen" style={{ fontSize: "1.2rem", letterSpacing: "3px" }}>3px letter spacing</span>
       </ExampleCard>
     </>
   );
@@ -353,6 +432,59 @@ function SprColor() {
       </ExampleCard>
       <ExampleCard id={exId("Color", "spr", 7)} label="unmapped" utilities="spr-bg-unknown">
         <div className="color-specimen px-6 py-4 spr-bg-unknown text-purple-100">unmapped (raw)</div>
+      </ExampleCard>
+    </>
+  );
+}
+
+// ============================================================
+// Raw CSS — color format diversity
+// ============================================================
+
+function CssUnitsColor() {
+  return (
+    <>
+      <ExampleCard id={exId("Color", "raw", 1)} label="rgb" utilities="rgb(96, 165, 250)">
+        <div className="color-specimen px-4 py-4" style={{ background: "rgb(96, 165, 250)", color: "#fff" }}>rgb(96, 165, 250)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 2)} label="rgba" utilities="rgba(96, 165, 250, 0.5)">
+        <div className="color-specimen px-4 py-4" style={{ background: "rgba(96, 165, 250, 0.5)", color: "#000" }}>rgba with 0.5 alpha</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 3)} label="hsl" utilities="hsl(210, 80%, 60%)">
+        <div className="color-specimen px-4 py-4" style={{ background: "hsl(210, 80%, 60%)", color: "#fff" }}>hsl(210, 80%, 60%)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 4)} label="hsla" utilities="hsla(210, 80%, 60%, 0.5)">
+        <div className="color-specimen px-4 py-4" style={{ background: "hsla(210, 80%, 60%, 0.5)", color: "#000" }}>hsla 50% opaque</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 5)} label="oklch" utilities="oklch(0.7 0.2 200)">
+        <div className="color-specimen px-4 py-4" style={{ background: "oklch(0.7 0.2 200)", color: "#fff" }}>oklch(0.7 0.2 200)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 6)} label="oklch alpha" utilities="oklch(0.7 0.2 200 / 0.5)">
+        <div className="color-specimen px-4 py-4" style={{ background: "oklch(0.7 0.2 200 / 0.5)", color: "#000" }}>oklch with / alpha</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 7)} label="oklab" utilities="oklab(0.7 0.05 -0.1)">
+        <div className="color-specimen px-4 py-4" style={{ background: "oklab(0.7 0.05 -0.1)", color: "#fff" }}>oklab(0.7 0.05 -0.1)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 8)} label="hwb" utilities="hwb(200 20% 10%)">
+        <div className="color-specimen px-4 py-4" style={{ background: "hwb(200 20% 10%)", color: "#fff" }}>hwb(200 20% 10%)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 9)} label="lab" utilities="lab(65 10 -25)">
+        <div className="color-specimen px-4 py-4" style={{ background: "lab(65 10 -25)", color: "#fff" }}>lab(65 10 -25)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 10)} label="lch" utilities="lch(65 27 290)">
+        <div className="color-specimen px-4 py-4" style={{ background: "lch(65 27 290)", color: "#fff" }}>lch(65 27 290)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 11)} label="color-mix srgb" utilities="color-mix(in srgb, #ff4444 50%, #4444ff)">
+        <div className="color-specimen px-4 py-4" style={{ background: "color-mix(in srgb, #ff4444 50%, #4444ff)", color: "#fff" }}>color-mix srgb</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 12)} label="color-mix oklch" utilities="color-mix(in oklch, #ff6600 60%, #0066ff)">
+        <div className="color-specimen px-4 py-4" style={{ background: "color-mix(in oklch, #ff6600 60%, #0066ff)", color: "#fff" }}>color-mix oklch</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 13)} label="8-digit hex" utilities="bg: #ff6600cc">
+        <div className="color-specimen px-4 py-4" style={{ background: "#ff6600cc", color: "#fff" }}>#ff6600cc</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 14)} label="4-digit hex" utilities="bg: #0c8a">
+        <div className="color-specimen px-4 py-4" style={{ background: "#0c8a", color: "#000" }}>#0c8a</div>
       </ExampleCard>
     </>
   );
@@ -713,9 +845,9 @@ export function ExamplesPage() {
         <div className="examples-hero__meta">
           <span>5 categories</span>
           <span>·</span>
-          <span>3 frameworks</span>
+          <span>4 frameworks</span>
           <span>·</span>
-          <span>Tailwind v4 · Tailwind v3 · Sprinkles</span>
+          <span>Tailwind v4 · Tailwind v3 · Sprinkles · Raw CSS</span>
           <span>·</span>
           <span>selectable specimens</span>
         </div>
@@ -729,6 +861,7 @@ export function ExamplesPage() {
           { name: "Tailwind v4", cssClass: "tw4", children: <Tw4Spacing /> },
           { name: "Tailwind v3", cssClass: "tw3", children: <Tw3Spacing /> },
           { name: "Sprinkles", cssClass: "spr", children: <SprSpacing /> },
+          { name: "Raw CSS", cssClass: "raw", children: <CssUnitsSpacing /> },
         ]}
       />
 
@@ -740,6 +873,7 @@ export function ExamplesPage() {
           { name: "Tailwind v4", cssClass: "tw4", children: <Tw4Typography /> },
           { name: "Tailwind v3", cssClass: "tw3", children: <Tw3Typography /> },
           { name: "Sprinkles", cssClass: "spr", children: <SprTypography /> },
+          { name: "Raw CSS", cssClass: "raw", children: <CssUnitsTypography /> },
         ]}
       />
 
@@ -751,6 +885,7 @@ export function ExamplesPage() {
           { name: "Tailwind v4", cssClass: "tw4", children: <Tw4Color /> },
           { name: "Tailwind v3", cssClass: "tw3", children: <Tw3Color /> },
           { name: "Sprinkles", cssClass: "spr", children: <SprColor /> },
+          { name: "Raw CSS", cssClass: "raw", children: <CssUnitsColor /> },
         ]}
       />
 

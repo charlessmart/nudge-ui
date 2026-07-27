@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Plus } from "lucide-react";
+import { Expand, Minimize2, Minus, Plus } from "lucide-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
@@ -9,7 +9,7 @@ import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
-import { SideValuesField, SIDE_NAMES } from "../ui/SideValuesField.tsx";
+import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../stateValue.ts";
@@ -245,20 +245,16 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const borderStyleDataLinked = valuesAreLinked(el, tokenRows, "border-style", borderStyleProperties);
   const borderColorDataLinked = valuesAreLinked(el, tokenRows, "border-color", borderColorProperties);
 
-  const [borderWidthLinked, setBorderWidthLinked] = useBorderLinkedState(borderWidthDataLinked, el);
-  const [borderStyleLinked, setBorderStyleLinked] = useBorderLinkedState(borderStyleDataLinked, el);
-  const [borderColorLinked, setBorderColorLinked] = useBorderLinkedState(borderColorDataLinked, el);
+  const allDataLinked = borderWidthDataLinked && borderStyleDataLinked && borderColorDataLinked;
+  const [borderLinked, setBorderLinked] = useBorderLinkedState(allDataLinked, el);
 
   const borderRow = findTokenRow(tokenRows, "border");
   const hasStructuredBorderRows = tokenRows.some((row) => Boolean(row.structure));
-  // Raw only when the shorthand could not be decomposed at all.
   const rawBorderFallback = Boolean(borderRow && !borderRow.structure && !hasStructuredBorderRows);
   const linkedBorderStyle = borderStyleValue(el, tokenRows, "border-style");
-  const showWidthAndColor = !(borderStyleLinked && INVISIBLE_BORDER_STYLES.has(linkedBorderStyle));
+  const showWidthAndColor = !(borderLinked && INVISIBLE_BORDER_STYLES.has(linkedBorderStyle));
 
   const hasBorder = hasBorderPresence(el, tokenRows);
-  // Once border controls open for this selection, keep them open through
-  // intermediate edits (e.g. width → 0). Reset only when the selection changes.
   const [borderSessionOpen, setBorderSessionOpen] = useState(false);
   useEffect(() => {
     setBorderSessionOpen(false);
@@ -274,11 +270,76 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
     onAfterEdit?.();
   }
 
+  function handleRemoveBorder(): void {
+    setStyle(el, "border", "0 solid");
+    setBorderSessionOpen(false);
+    onAfterEdit?.();
+  }
+
+  function handleExpand(): void {
+    setBorderLinked(false);
+  }
+
+  function handleCollapse(): void {
+    setBorderLinked(true);
+    linkBorderSides(el, tokenRows, "border-style", borderStyleProperties, onAfterEdit);
+    linkBorderSides(el, tokenRows, "border-width", borderWidthProperties, onAfterEdit);
+    linkBorderSides(el, tokenRows, "border-color", borderColorProperties, onAfterEdit);
+  }
+
+  const styleSides = borderStyleProperties.map((property, index) => ({
+    side: SIDE_NAMES[index]!,
+    control: (
+      <BorderStyleControl
+        property={property}
+        tokenRow={findTokenRow(tokenRows, property)}
+        domElement={el}
+        onAfterEdit={onAfterEdit}
+      />
+    ),
+  }));
+
+  const widthSides = borderWidthProperties.map((property, index) => ({
+    side: SIDE_NAMES[index]!,
+    control: (
+      <TokenField
+        property={property}
+        tokenRow={findTokenRow(tokenRows, property)}
+        domElement={el}
+        entries={allEntries}
+        onAfterEdit={onAfterEdit}
+      />
+    ),
+  }));
+
+  const colorSides = borderColorProperties.map((property, index) => ({
+    side: SIDE_NAMES[index]!,
+    control: (
+      <TokenField
+        property={property}
+        tokenRow={findTokenRow(tokenRows, property)}
+        domElement={el}
+        entries={allEntries}
+        onAfterEdit={onAfterEdit}
+      />
+    ),
+  }));
+
   return (
-    <div className="dt-editor" data-test="border-editor">
+    <div className={`dt-editor`} data-test="border-editor">
       <div className="dt-editor__title-row">
         <div className="dt-editor__title">Border</div>
-        {!showBorderControls ? (
+        {showBorderControls ? (
+          <IconButton
+            variant="quiet"
+            label="Remove Border"
+            data-test="remove-border"
+            className="dt-border__remove"
+            onClick={handleRemoveBorder}
+          >
+            <Minus size={16} strokeWidth={1.8} aria-hidden="true" />
+          </IconButton>
+        ) : (
           <IconButton
             variant="quiet"
             label="Add Border"
@@ -288,11 +349,11 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           >
             <Plus size={16} strokeWidth={1.8} aria-hidden="true" />
           </IconButton>
-        ) : null}
+        )}
       </div>
-      <div className="dt-border">
-        {showBorderControls ? (
-          rawBorderFallback ? (
+      {showBorderControls && (
+        <div className="dt-border" data-expanded={borderLinked ? "false" : "true"}>
+          {rawBorderFallback ? (
             <FieldRow label="Border">
               <TokenField
                 property="border"
@@ -302,110 +363,87 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                 onAfterEdit={onAfterEdit}
               />
             </FieldRow>
-          ) : (
-            <>
-              <SideValuesField
-                label="Border Style"
-                data-test="border-style-sides"
-                data-property="border-style"
-                resetKey={el}
-                linked={borderStyleLinked}
-                onLinkedChange={(linked) => {
-                  setBorderStyleLinked(linked);
-                  if (linked) linkBorderSides(el, tokenRows, "border-style", borderStyleProperties, onAfterEdit);
-                }}
-                linkedControl={(
-                  <BorderStyleControl
-                    property="border-style"
-                    tokenRow={linkedTokenRow(tokenRows, "border-style", borderStyleProperties)}
-                    domElement={el}
-                    onAfterEdit={onAfterEdit}
-                  />
-                )}
-                sides={borderStyleProperties.map((property, index) => ({
-                  side: SIDE_NAMES[index]!,
-                  control: (
-                    <BorderStyleControl
-                      property={property}
-                      tokenRow={findTokenRow(tokenRows, property)}
-                      domElement={el}
-                      onAfterEdit={onAfterEdit}
-                    />
-                  ),
-                }))}
-              />
+          ) : borderLinked ? (
+            <div className="dt-border__linked-row">
+              <div className="dt-border__linked-control">
+                <BorderStyleControl
+                  property="border-style"
+                  tokenRow={linkedTokenRow(tokenRows, "border-style", borderStyleProperties)}
+                  domElement={el}
+                  onAfterEdit={onAfterEdit}
+                />
+              </div>
               {showWidthAndColor ? (
                 <>
-                  <SideValuesField
-                    label="Border Width"
-                    data-test="border-sides"
-                    data-property="border-width"
-                    resetKey={el}
-                    linked={borderWidthLinked}
-                    onLinkedChange={(linked) => {
-                      setBorderWidthLinked(linked);
-                      if (linked) linkBorderSides(el, tokenRows, "border-width", borderWidthProperties, onAfterEdit);
-                    }}
-                    linkedControl={(
-                      <TokenField
-                        property="border-width"
-                        tokenRow={linkedTokenRow(tokenRows, "border-width", borderWidthProperties)}
-                        domElement={el}
-                        entries={allEntries}
-                        onAfterEdit={onAfterEdit}
-                      />
-                    )}
-                    sides={borderWidthProperties.map((property, index) => ({
-                      side: SIDE_NAMES[index]!,
-                      control: (
-                        <TokenField
-                          property={property}
-                          tokenRow={findTokenRow(tokenRows, property)}
-                          domElement={el}
-                          entries={allEntries}
-                          onAfterEdit={onAfterEdit}
-                        />
-                      ),
-                    }))}
-                  />
-                  <SideValuesField
-                    label="Border Color"
-                    data-test="border-color-sides"
-                    data-property="border-color"
-                    resetKey={el}
-                    linked={borderColorLinked}
-                    onLinkedChange={(linked) => {
-                      setBorderColorLinked(linked);
-                      if (linked) linkBorderSides(el, tokenRows, "border-color", borderColorProperties, onAfterEdit);
-                    }}
-                    linkedControl={(
-                      <TokenField
-                        property="border-color"
-                        tokenRow={linkedTokenRow(tokenRows, "border-color", borderColorProperties)}
-                        domElement={el}
-                        entries={allEntries}
-                        onAfterEdit={onAfterEdit}
-                      />
-                    )}
-                    sides={borderColorProperties.map((property, index) => ({
-                      side: SIDE_NAMES[index]!,
-                      control: (
-                        <TokenField
-                          property={property}
-                          tokenRow={findTokenRow(tokenRows, property)}
-                          domElement={el}
-                          entries={allEntries}
-                          onAfterEdit={onAfterEdit}
-                        />
-                      ),
-                    }))}
-                  />
+                  <div className="dt-border__linked-control">
+                    <TokenField
+                      property="border-width"
+                      tokenRow={linkedTokenRow(tokenRows, "border-width", borderWidthProperties)}
+                      domElement={el}
+                      entries={allEntries}
+                      onAfterEdit={onAfterEdit}
+                    />
+                  </div>
+                  <div className="dt-border__linked-control">
+                    <TokenField
+                      property="border-color"
+                      tokenRow={linkedTokenRow(tokenRows, "border-color", borderColorProperties)}
+                      domElement={el}
+                      entries={allEntries}
+                      onAfterEdit={onAfterEdit}
+                    />
+                  </div>
                 </>
               ) : null}
-            </>
+              <IconButton
+                variant="secondary"
+                size="default"
+                data-test="border-expand"
+                aria-label="Edit Individual Border Sides"
+                label="Edit Individual Border Sides"
+                title="Edit Individual Border Sides"
+                onClick={handleExpand}
+              >
+                <Expand size={16} strokeWidth={1.8} aria-hidden="true" />
+              </IconButton>
+            </div>
+          ) : (
+            <div className="dt-border__expanded">
+              <div className="dt-border__expanded-header">
+                <span className="dt-side-values__label">{formatInspectorLabel("Individual Sides")}</span>
+                <IconButton
+                  variant="secondary"
+                  size="default"
+                  data-test="border-collapse"
+                  aria-label="Link All Border Sides"
+                  label="Link All Border Sides"
+                  title="Link All Border Sides"
+                  onClick={handleCollapse}
+                >
+                  <Minimize2 size={16} strokeWidth={1.8} aria-hidden="true" />
+                </IconButton>
+              </div>
+              <div className="dt-border__side-group" data-test="border-style-sides" data-property="border-style">
+                <span className="dt-side-values__label">{formatInspectorLabel("Border Style")}</span>
+                <SideControls label="Border Style" sides={styleSides} />
+              </div>
+              {showWidthAndColor ? (
+                <>
+                  <div className="dt-border__side-group" data-test="border-sides" data-property="border-width">
+                    <span className="dt-side-values__label">{formatInspectorLabel("Border Width")}</span>
+                    <SideControls label="Border Width" sides={widthSides} />
+                  </div>
+                  <div className="dt-border__side-group" data-test="border-color-sides" data-property="border-color">
+                    <span className="dt-side-values__label">{formatInspectorLabel("Border Color")}</span>
+                    <SideControls label="Border Color" sides={colorSides} />
+                  </div>
+                </>
+              ) : null}
+            </div>
           )
-        ) : null}
+        }
       </div>
+      )}
     </div>
   );
 }

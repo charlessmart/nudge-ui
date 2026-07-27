@@ -39,7 +39,7 @@
   border-radius: 8px;
   color: var(--dt-text-primary);
   cursor: pointer;
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
 }
 
 .dt-popover-listbox__item[data-highlighted] {
@@ -66,7 +66,7 @@
   flex: 0 1 45%;
   overflow: hidden;
   color: var(--dt-text-muted);
-  font-size: var(--dt-font-size);
+  font-size: var(--dt-font-size-base);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

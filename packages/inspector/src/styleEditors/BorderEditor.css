@@ -1,0 +1,29 @@
+.dt-border__linked-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dt-border__linked-control {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.dt-border__expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dt-border__expanded-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 26px;
+}
+
+.dt-border__side-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
