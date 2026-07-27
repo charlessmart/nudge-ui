@@ -472,6 +472,58 @@ describe("BorderEditor", () => {
     expect(sheetText()).toContain("border-radius: 12px;");
   });
 
+  it("starts linked and reveals per-corner fields on expand", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BorderRadiusEditor, { element: selected, entries: ENTRIES }));
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-radius"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-left-radius"]')).toBeNull();
+
+    act(() => {
+      (handle.host.querySelector('[data-test="border-radius-expand"]') as HTMLButtonElement).click();
+    });
+
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-radius"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-left-radius"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-right-radius"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-bottom-right-radius"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-bottom-left-radius"]')).not.toBeNull();
+  });
+
+  it("writes per-corner border-radius from expanded state", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BorderRadiusEditor, { element: selected, entries: ENTRIES }));
+
+    act(() => {
+      (handle.host.querySelector('[data-test="border-radius-expand"]') as HTMLButtonElement).click();
+    });
+
+    const tlField = handle.host.querySelector('[data-test="token-field"][data-property="border-top-left-radius"]');
+    const raw = tlField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
+    act(() => {
+      setInputValue(raw, "16px");
+    });
+    expect(sheetText()).toContain("border-top-left-radius: 16px;");
+  });
+
+  it("collapses corners back to linked border-radius shorthand", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BorderRadiusEditor, { element: selected, entries: ENTRIES }));
+
+    act(() => {
+      (handle.host.querySelector('[data-test="border-radius-expand"]') as HTMLButtonElement).click();
+    });
+
+    act(() => {
+      (handle.host.querySelector('[data-test="border-radius-collapse"]') as HTMLButtonElement).click();
+    });
+
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-radius"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-left-radius"]')).toBeNull();
+  });
+
   it("writes box-shadow via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());

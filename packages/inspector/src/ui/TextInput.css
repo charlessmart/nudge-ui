@@ -3,7 +3,7 @@
   width: 100%;
   min-width: 0;
   height: var(--dt-control-height-large);
-  padding: 0 0;
+  padding: 0 0 0 var(--dt-space-12);
   background: var(--dt-surface-control);
   color: var(--dt-text-primary);
   border: 0;

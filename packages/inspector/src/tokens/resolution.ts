@@ -45,6 +45,14 @@ const SPACING_SIDES: Record<string, readonly string[]> = {
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
   inset: ["top", "right", "bottom", "left"],
 };
+const BORDER_RADIUS_CORNERS: Record<string, readonly string[]> = {
+  "border-radius": [
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
+  ],
+};
 
 export function buildTokenTable(entries: TokenEntry[]): TokenTable {
   const table: TokenTable = {};
@@ -968,6 +976,69 @@ function resolveDeclaration(
         };
       });
     }
+  }
+  const borderRadiusCorners = BORDER_RADIUS_CORNERS[declaration.property.toLowerCase()];
+  if (borderRadiusCorners) {
+    const rawValues = splitTopLevelWhitespace(declaration.value);
+    if (rawValues.length === 0 || rawValues.length > 4) {
+      const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
+      return [{
+        property: declaration.property,
+        declaredValue: declaration.value.trim(),
+        sourceProperty: declaration.property,
+        tokenName: res.tokenName,
+        resolvedValue: res.resolvedValue,
+        important: declaration.important,
+        tokens: res.tokens,
+        opacity: res.opacity,
+        modifiers: res.modifiers,
+        capability: capabilityFor(declaration.property, declaration.value),
+        resolvedTokenValue: res.resolvedValue,
+        diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
+      }];
+    }
+
+    const resolvedValues = rawValues.flatMap((rawValue) => {
+      const res = resolveTokenValue(rawValue, tokenTable, localAliases);
+      const tokenValues = res.tokenName ? splitTopLevelWhitespace(res.resolvedValue) : [];
+      if (res.tokenName && /^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(rawValue) && tokenValues.length > 1) {
+        return tokenValues.map((resolvedValue) => ({
+          declaredValue: rawValue,
+          tokenName: res.tokenName,
+          resolvedValue,
+        }));
+      }
+      return [{ declaredValue: rawValue, tokenName: res.tokenName, resolvedValue: res.resolvedValue }];
+    });
+    const cornerValues = expandFourValueShorthand(resolvedValues);
+    if (!cornerValues) {
+      const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
+      return [{
+        property: declaration.property,
+        declaredValue: declaration.value.trim(),
+        tokenName: res.tokenName,
+        resolvedValue: res.resolvedValue,
+        important: declaration.important,
+        tokens: res.tokens,
+        opacity: res.opacity,
+        modifiers: res.modifiers,
+        capability: capabilityFor(declaration.property, declaration.value),
+        resolvedTokenValue: res.resolvedValue,
+        diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
+      }];
+    }
+
+    return borderRadiusCorners.map((property, index) => ({
+      property,
+      ...cornerValues[index]!,
+      sourceProperty: declaration.property,
+      important: declaration.important,
+      tokens: resolveTokenValue(cornerValues[index]!.declaredValue, tokenTable, localAliases).tokens,
+      opacity: resolveTokenValue(cornerValues[index]!.declaredValue, tokenTable, localAliases).opacity,
+      modifiers: resolveTokenValue(cornerValues[index]!.declaredValue, tokenTable, localAliases).modifiers,
+      capability: capabilityFor(property, cornerValues[index]!.declaredValue),
+      resolvedTokenValue: cornerValues[index]!.resolvedValue,
+    }));
   }
   const sides = SPACING_SIDES[declaration.property.toLowerCase()];
   if (!sides) {
