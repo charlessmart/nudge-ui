@@ -196,7 +196,7 @@ test("dev: authored CSS border fixtures parse width, style, and color per side",
   await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("border-right-width: 5px");
 });
 
-test("dev: main demo color fixtures expose authored partial opacity", async ({ page }) => {
+test("dev: main demo color fixtures expose partial opacity after CSSOM normalization", async ({ page }) => {
   await page.goto("/");
   await waitForInspector(page);
 
@@ -216,7 +216,7 @@ test("dev: main demo color fixtures expose authored partial opacity", async ({ p
   });
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
-    .toHaveValue("#d9c8ff33");
+    .toHaveValue("rgba(217, 200, 255, 0.2)");
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
     .toHaveValue("20%");
 });

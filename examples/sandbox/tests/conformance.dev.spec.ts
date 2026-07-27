@@ -52,7 +52,7 @@ test("dev: logical spacing projects onto physical inspector side controls", asyn
     paddingHorizontal: { token: "--conformance-space", value: "--conformance-space" },
     paddingVertical: { token: null, value: "0px" },
     marginTop: { token: null, value: "1rem" },
-    marginBottom: { token: null, value: "0" },
+    marginBottom: { token: null, value: "0px" },
   });
 
   await expandButton.click();
@@ -72,9 +72,9 @@ test("dev: logical spacing projects onto physical inspector side controls", asyn
       paddingLeft: field("padding-left"),
     };
   })).toEqual({
-    paddingTop: { token: null, value: "0" },
+    paddingTop: { token: null, value: "0px" },
     paddingRight: { token: "--conformance-space", value: "--conformance-space" },
-    paddingBottom: { token: null, value: "0" },
+    paddingBottom: { token: null, value: "0px" },
     paddingLeft: { token: "--conformance-space", value: "--conformance-space" },
   });
 });
