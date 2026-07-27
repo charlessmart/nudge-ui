@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { MousePointer2, Maximize } from "lucide-react";
+import { IconPointer, IconMaximize } from "@tabler/icons-react";
 import { useCanvasMode, enterCanvas, exitCanvas, fitAllCards } from "./canvas/canvasStore.ts";
 import { useInspectorOpen } from "./openStore.ts";
 import { SegmentedControl } from "./ui/SegmentedControl.tsx";
@@ -26,7 +26,7 @@ export function FloatingToolbar(): ReactElement | null {
             aria-label="Select"
             data-test="tool-select"
           >
-            <MousePointer2 size={16} strokeWidth={1.8} aria-hidden="true" />
+            <IconPointer size={16} stroke={1.8} aria-hidden="true" />
           </button>
         </div>
         <SegmentedControl
@@ -50,7 +50,7 @@ export function FloatingToolbar(): ReactElement | null {
             data-test="canvas-fit-all"
             onClick={() => fitAllCards()}
           >
-            <Maximize size={14} strokeWidth={1.8} aria-hidden="true" />
+            <IconMaximize size={14} stroke={1.8} aria-hidden="true" />
             Fit All
           </Button>
         )}

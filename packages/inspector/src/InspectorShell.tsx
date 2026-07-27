@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand } from "@tabler/icons-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -199,7 +199,7 @@ export function InspectorShell(): ReactElement {
             data-test="collapse-inspector"
             onClick={() => setInspectorOpen(false)}
           >
-            <PanelRightClose size={16} strokeWidth={1.8} aria-hidden="true" />
+            <IconLayoutSidebarRightCollapse size={16} stroke={1.8} aria-hidden="true" />
           </IconButton>
           <div className="dt-panel__tabs-row">
             <Button
@@ -358,7 +358,7 @@ export function InspectorShell(): ReactElement {
           data-test="show-inspector"
           onClick={() => setInspectorOpen(true)}
         >
-          <PanelRightOpen size={18} strokeWidth={1.8} aria-hidden="true" />
+          <IconLayoutSidebarRightExpand size={18} stroke={1.8} aria-hidden="true" />
         </IconButton>
       ) : null}
     </>

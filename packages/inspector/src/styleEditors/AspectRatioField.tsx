@@ -14,6 +14,7 @@ export interface AspectRatioFieldProps {
   tokenRow?: ResolvedProperty | null;
   revision?: number;
   onAfterEdit?: () => void;
+  className?: string;
 }
 
 export function AspectRatioField({
@@ -21,9 +22,10 @@ export function AspectRatioField({
   entries = tokens,
   tokenRow,
   onAfterEdit,
+  className,
 }: AspectRatioFieldProps): ReactElement {
   return (
-    <FieldRow label="aspect-ratio" data-test="layout-size-aspect-ratio">
+    <FieldRow label="aspect-ratio" data-test="layout-size-aspect-ratio" className={className}>
       <TokenField
         property="aspect-ratio"
         tokenRow={tokenRow}

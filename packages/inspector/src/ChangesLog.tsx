@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
-import { ChevronDown } from "lucide-react";
+import { IconChevronDown } from "@tabler/icons-react";
 import { isTokenChange, useChanges, revertChange } from "./changesLog.ts";
 import type { ChangeRecord } from "./changesLog.ts";
 import { StaleChangeIndicator } from "./canvas/StaleChangeIndicator.tsx";
@@ -66,7 +66,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
         <summary className="dt-changes__title" data-test="changes-toggle">
           <span className="dt-changes__title-label">Changes</span>
           {total > 0 ? <span className="dt-changes__count">{total}</span> : null}
-          <ChevronDown className="dt-changes__toggle-icon" size={15} strokeWidth={2} aria-hidden="true" />
+          <IconChevronDown className="dt-changes__toggle-icon" size={15} stroke={2} aria-hidden="true" />
         </summary>
         <div className="dt-changes__content">
           {groups.length === 0 && domMutations.length === 0 ? (

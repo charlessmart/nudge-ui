@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Expand, Minimize2 } from "lucide-react";
+import { IconBorderSides } from "@tabler/icons-react";
+import { ToggleButton } from "../ui/ToggleButton.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
@@ -160,16 +161,16 @@ export function PositionAnchorControls({
         )}
       </div>
       <div className="dt-layout__individual-insets">
-        <IconButton
+        <ToggleButton
           variant="secondary"
           size="compact"
           data-test="layout-position-individual-toggle"
-          aria-expanded={expanded}
           label={expanded ? "Hide Individual Insets" : "Show Individual Insets"}
-          onClick={() => setExpanded((current) => !current)}
+          pressed={expanded}
+          onPressedChange={() => setExpanded((current) => !current)}
         >
-          {expanded ? <Minimize2 size={15} aria-hidden="true" /> : <Expand size={15} aria-hidden="true" />}
-        </IconButton>
+          <IconBorderSides size={15} aria-hidden="true" />
+        </ToggleButton>
         <span>Individual insets</span>
       </div>
       {expanded ? <SideControls label="Inset" sides={insetSlots} /> : null}

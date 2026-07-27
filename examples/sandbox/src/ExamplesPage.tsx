@@ -162,6 +162,22 @@ function SprSpacing() {
       <ExampleCard id={exId("Spacing", "spr", 7)} label="unmapped" utilities="spr-p-unknown">
         <div className="spacing-specimen spr-p-unknown">unmapped (raw)</div>
       </ExampleCard>
+      <ExampleCard id={exId("Spacing", "spr", 8)} label="token padding" utilities="spr-p-token">
+        <div className="spacing-specimen spr-p-token">var(--space-4)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "spr", 9)} label="token gap" utilities="spr-gap-token">
+        <div className="flex-row-gap spr-gap-token">
+          <span className="spacing-specimen px-2 py-1">A</span>
+          <span className="spacing-specimen px-2 py-1">B</span>
+          <span className="spacing-specimen px-2 py-1">C</span>
+        </div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "spr", 10)} label="token margin" utilities="spr-mt-token">
+        <div className="spacing-specimen spr-mt-token" style={{ padding: "4px" }}>var(--space-6)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "spr", 11)} label="token width" utilities="spr-w-token">
+        <div className="spacing-specimen spr-w-token" style={{ padding: "4px" }}>var(--space-10)</div>
+      </ExampleCard>
     </>
   );
 }
@@ -196,6 +212,22 @@ function CssUnitsSpacing() {
       </ExampleCard>
       <ExampleCard id={exId("Spacing", "raw", 8)} label="mixed shorthand" utilities="padding: 1rem 2em 10% 4px">
         <div className="spacing-specimen" style={{ padding: "1rem 2em 10% 4px" }}>mixed</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 9)} label="padding var(token)" utilities="padding: var(--space-5)">
+        <div className="spacing-specimen" style={{ padding: "var(--space-5)" }}>var(--space-5)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 10)} label="axis var(token)" utilities="padding: var(--space-2) var(--space-6)">
+        <div className="spacing-specimen" style={{ padding: "var(--space-2) var(--space-6)" }}>--space-2 --space-6</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 11)} label="width var(token)" utilities="width: var(--space-10)">
+        <div className="spacing-specimen" style={{ width: "var(--space-10)", padding: "4px" }}>width: var(--space-10)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Spacing", "raw", 12)} label="gap var(token)" utilities="gap: var(--space-4)">
+        <div className="flex-row-gap" style={{ gap: "var(--space-4)" }}>
+          <span className="spacing-specimen px-3 py-1">A</span>
+          <span className="spacing-specimen px-3 py-1">B</span>
+          <span className="spacing-specimen px-3 py-1">C</span>
+        </div>
       </ExampleCard>
     </>
   );
@@ -291,6 +323,15 @@ function SprTypography() {
       <ExampleCard id={exId("Typography", "spr", 7)} label="accent" utilities="spr-text-accent spr-font-semibold">
         <span className="typography-specimen spr-text-accent spr-font-semibold">Accent token color.</span>
       </ExampleCard>
+      <ExampleCard id={exId("Typography", "spr", 8)} label="token size" utilities="spr-text-xl">
+        <span className="typography-specimen spr-text-xl">var(--font-size-xl)</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "spr", 9)} label="token leading" utilities="spr-leading-normal">
+        <span className="typography-specimen spr-leading-normal">var(--leading-normal) for body copy that wraps naturally across a few lines of readable text.</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "spr", 10)} label="token font" utilities="spr-font-sans spr-text-base">
+        <span className="typography-specimen spr-font-sans spr-text-base">var(--font-sans) base size token</span>
+      </ExampleCard>
     </>
   );
 }
@@ -334,6 +375,18 @@ function CssUnitsTypography() {
       </ExampleCard>
       <ExampleCard id={exId("Typography", "raw", 11)} label="letter-spacing px" utilities="letter-spacing: 3px">
         <span className="typography-specimen" style={{ fontSize: "1.2rem", letterSpacing: "3px" }}>3px letter spacing</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 12)} label="font-size token" utilities="font-size: var(--font-size-xl)">
+        <span className="typography-specimen" style={{ fontSize: "var(--font-size-xl)" }}>var(--font-size-xl)</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 13)} label="multi-token" utilities="font-size: var(--font-size-2xl); line-height: var(--leading-tight)">
+        <span className="typography-specimen" style={{ fontSize: "var(--font-size-2xl)", lineHeight: "var(--leading-tight)", display: "block" }}>var(--font-size-2xl) + var(--leading-tight)</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 14)} label="base + relaxed" utilities="font-size: var(--font-size-base); line-height: var(--leading-relaxed)">
+        <span className="typography-specimen" style={{ fontSize: "var(--font-size-base)", lineHeight: "var(--leading-relaxed)", display: "block" }}>Base size with relaxed leading for comfortable long-form reading across multiple lines of text.</span>
+      </ExampleCard>
+      <ExampleCard id={exId("Typography", "raw", 15)} label="font-mono token" utilities="font-family: var(--font-mono)">
+        <span className="typography-specimen" style={{ fontFamily: "var(--font-mono)", fontSize: "var(--font-size-sm)" }}>var(--font-mono) monospace token</span>
       </ExampleCard>
     </>
   );
@@ -433,6 +486,21 @@ function SprColor() {
       <ExampleCard id={exId("Color", "spr", 7)} label="unmapped" utilities="spr-bg-unknown">
         <div className="color-specimen px-6 py-4 spr-bg-unknown text-purple-100">unmapped (raw)</div>
       </ExampleCard>
+      <ExampleCard id={exId("Color", "spr", 8)} label="primary" utilities="spr-bg-primary spr-text-primary">
+        <div className="color-specimen px-6 py-4 spr-bg-primary spr-text-primary">var(--color-primary)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "spr", 9)} label="success" utilities="spr-bg-success spr-text-success">
+        <div className="color-specimen px-6 py-4 spr-bg-success spr-text-success">var(--color-success)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "spr", 10)} label="warning" utilities="spr-bg-warning spr-text-warning">
+        <div className="color-specimen px-6 py-4 spr-bg-warning spr-text-warning">var(--color-warning)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "spr", 11)} label="danger" utilities="spr-bg-danger spr-text-danger">
+        <div className="color-specimen px-6 py-4 spr-bg-danger spr-text-danger">var(--color-danger)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "spr", 12)} label="info" utilities="spr-bg-info spr-text-info">
+        <div className="color-specimen px-6 py-4 spr-bg-info spr-text-info">var(--color-info)</div>
+      </ExampleCard>
     </>
   );
 }
@@ -485,6 +553,21 @@ function CssUnitsColor() {
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 14)} label="4-digit hex" utilities="bg: #0c8a">
         <div className="color-specimen px-4 py-4" style={{ background: "#0c8a", color: "#000" }}>#0c8a</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 15)} label="color-primary token" utilities="bg: var(--color-primary)">
+        <div className="color-specimen px-4 py-4" style={{ background: "var(--color-primary)", color: "var(--color-primary-text)" }}>var(--color-primary)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 16)} label="color-danger token" utilities="bg: var(--color-danger)">
+        <div className="color-specimen px-4 py-4" style={{ background: "var(--color-danger)", color: "var(--color-danger-text)" }}>var(--color-danger)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 17)} label="color-success token" utilities="bg: var(--color-success)">
+        <div className="color-specimen px-4 py-4" style={{ background: "var(--color-success)", color: "var(--color-success-text)" }}>var(--color-success)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 18)} label="color-warning token" utilities="bg: var(--color-warning)">
+        <div className="color-specimen px-4 py-4" style={{ background: "var(--color-warning)", color: "var(--color-warning-text)" }}>var(--color-warning)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 19)} label="color-info token" utilities="bg: var(--color-info)">
+        <div className="color-specimen px-4 py-4" style={{ background: "var(--color-info)", color: "var(--color-info-text)" }}>var(--color-info)</div>
       </ExampleCard>
     </>
   );
@@ -579,6 +662,38 @@ function SprBorder() {
       </ExampleCard>
       <ExampleCard id={exId("Border", "spr", 8)} label="unmapped" utilities="spr-border-unknown spr-rounded-unknown">
         <div className="border-specimen spr-border-unknown spr-rounded-unknown">unmapped</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Border", "spr", 9)} label="thick primary" utilities="spr-border-thick spr-border-primary">
+        <div className="border-specimen spr-border-thick spr-border-primary" style={{ borderStyle: "solid", color: "#a1a1aa" }}>var(--border-width-thick) var(--color-primary)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Border", "spr", 10)} label="radius-lg" utilities="spr-rounded-lg">
+        <div className="border-specimen border border-stone-700 spr-rounded-lg">var(--radius-lg)</div>
+      </ExampleCard>
+    </>
+  );
+}
+
+// ============================================================
+// Raw CSS — border token resolution
+// ============================================================
+
+function CssUnitsBorder() {
+  return (
+    <>
+      <ExampleCard id={exId("Border", "raw", 1)} label="border-width token" utilities="border-width: var(--border-width-thick)">
+        <div className="border-specimen" style={{ border: "var(--border-width-thick) solid var(--color-primary)", color: "#a1a1aa" }}>var(--border-width-thick)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Border", "raw", 2)} label="border shorthand token" utilities="border: var(--border-default)">
+        <div className="border-specimen" style={{ border: "var(--border-default)", borderRadius: "8px" }}>var(--border-default)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Border", "raw", 3)} label="shorthand accent" utilities="border: var(--border-thick-primary)">
+        <div className="border-specimen" style={{ border: "var(--border-thick-primary)" }}>var(--border-thick-primary)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Border", "raw", 4)} label="radius token" utilities="border-radius: var(--radius-lg)">
+        <div className="border-specimen" style={{ border: "var(--border-default)", borderRadius: "var(--radius-lg)" }}>var(--radius-lg)</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Border", "raw", 5)} label="radius-full token" utilities="border-radius: var(--radius-full)">
+        <div className="border-specimen" style={{ border: "var(--border-default)", borderRadius: "var(--radius-full)" }}>var(--radius-full)</div>
       </ExampleCard>
     </>
   );
@@ -897,6 +1012,7 @@ export function ExamplesPage() {
           { name: "Tailwind v4", cssClass: "tw4", children: <Tw4Border /> },
           { name: "Tailwind v3", cssClass: "tw3", children: <Tw3Border /> },
           { name: "Sprinkles", cssClass: "spr", children: <SprBorder /> },
+          { name: "Raw CSS", cssClass: "raw", children: <CssUnitsBorder /> },
         ]}
       />
 

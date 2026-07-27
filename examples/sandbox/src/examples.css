@@ -12,11 +12,52 @@
   --color-danger: #dc2626;
   --color-brand__hash: #123456;
   --color-accent__hash: #abcdef;
+
+  --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+  --space-10: 64px;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+  --font-size-3xl: 3rem;
+
+  --leading-tight: 1.15;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+
+  --font-sans: system-ui, -apple-system, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, monospace;
+
+  --border-width-default: 1px;
+  --border-width-thick: 4px;
+
+  --radius-sm: 6px;
   --radius-md: 8px;
+  --radius-lg: 18px;
   --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  --border-default: 1px solid #3f3f46;
+  --border-thick-primary: 4px solid #3b82f6;
+
+  --color-primary: #3b82f6;
+  --color-primary-text: #ffffff;
+  --color-danger-text: #ffffff;
+  --color-success: #22c55e;
+  --color-success-text: #ffffff;
+  --color-warning: #f59e0b;
+  --color-warning-text: #000000;
+  --color-info: #8b5cf6;
+  --color-info-text: #ffffff;
 }
 
 /* ---------- Page chrome ---------- */
@@ -337,45 +378,54 @@
 
 /* -- Spacing sprinkles -- */
 .spr-p-4 {
-  padding: 16px;
+  padding: var(--space-4);
 }
 .spr-px-6 {
-  padding-left: 24px;
-  padding-right: 24px;
+  padding-left: var(--space-5);
+  padding-right: var(--space-5);
 }
 .spr-py-3 {
-  padding-top: 12px;
-  padding-bottom: 12px;
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
 }
 .spr-pt-8 {
-  padding-top: 32px;
+  padding-top: var(--space-6);
 }
 .spr-pb-2 {
-  padding-bottom: 8px;
+  padding-bottom: var(--space-2);
+}
+.spr-p-token {
+  padding: var(--space-4);
 }
 
 .spr-m-2 {
-  margin: 8px;
+  margin: var(--space-2);
 }
 .spr-mt-6 {
-  margin-top: 24px;
+  margin-top: var(--space-5);
 }
 .spr-ml-4 {
-  margin-left: 16px;
+  margin-left: var(--space-4);
 }
 .spr-mb-4 {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-4);
 }
 .spr-mx-auto {
   margin-left: auto;
   margin-right: auto;
 }
+.spr-mt-token {
+  margin-top: var(--space-6);
+}
 
 .spr-gap-3 {
-  gap: 12px;
+  gap: var(--space-3);
 }
 .spr-gap-6 {
-  gap: 24px;
+  gap: var(--space-5);
+}
+.spr-gap-token {
+  gap: var(--space-4);
 }
 
 /* -- Typography sprinkles -- */
@@ -390,6 +440,12 @@
 }
 .spr-text-xs {
   font-size: 11px;
+}
+.spr-text-xl {
+  font-size: var(--font-size-xl);
+}
+.spr-text-base {
+  font-size: var(--font-size-base);
 }
 
 .spr-font-bold {
@@ -408,13 +464,19 @@
 .spr-leading-tight {
   line-height: 1.18;
 }
+.spr-leading-normal {
+  line-height: var(--leading-normal);
+}
 
 .spr-tracking-wide {
   letter-spacing: .04em;
 }
 
 .spr-font-mono {
-  font-family: "SFMono-Regular", Consolas, monospace;
+  font-family: var(--font-mono);
+}
+.spr-font-sans {
+  font-family: var(--font-sans);
 }
 
 .spr-text-center {
@@ -444,6 +506,17 @@
 .spr-bg-accent\/20 {
   background-color: rgb(171 205 239 / 0.2);
 }
+
+.spr-bg-primary { background-color: var(--color-primary); }
+.spr-text-primary { color: var(--color-primary-text); }
+.spr-bg-success { background-color: var(--color-success); }
+.spr-text-success { color: var(--color-success-text); }
+.spr-bg-warning { background-color: var(--color-warning); }
+.spr-text-warning { color: var(--color-warning-text); }
+.spr-bg-danger { background-color: var(--color-danger); }
+.spr-text-danger { color: var(--color-danger-text); }
+.spr-bg-info { background-color: var(--color-info); }
+.spr-text-info { color: var(--color-info-text); }
 
 /* -- Border sprinkles -- */
 .spr-border {
@@ -477,8 +550,18 @@
 .spr-rounded-xl {
   border-radius: var(--radius-xl);
 }
+.spr-rounded-lg {
+  border-radius: var(--radius-lg);
+}
 .spr-rounded-full {
-  border-radius: 9999px;
+  border-radius: var(--radius-full);
+}
+
+.spr-border-thick {
+  border-width: var(--border-width-thick);
+}
+.spr-border-primary {
+  border-color: var(--color-primary);
 }
 
 /* -- Sprinkles raw/unmapped classes -- */
@@ -512,6 +595,7 @@
 .spr-w-3\/4 { width: 75%; }
 .spr-w-screen { width: 100vw; }
 .spr-w-fit { width: fit-content; }
+.spr-w-token { width: var(--space-10); }
 .spr-min-w-0 { min-width: 0; }
 .spr-max-w-sm { max-width: 384px; }
 .spr-max-w-md { max-width: 448px; }
@@ -520,6 +604,7 @@
 .spr-h-full { height: 100%; }
 .spr-h-64 { height: 256px; }
 .spr-h-32 { height: 128px; }
+.spr-h-token { height: var(--space-8); }
 .spr-h-screen { height: 100vh; }
 .spr-min-h-screen { min-height: 100vh; }
 .spr-min-h-0 { min-height: 0; }

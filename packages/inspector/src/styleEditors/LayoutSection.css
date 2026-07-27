@@ -47,32 +47,29 @@
 
 .dt-layout__size-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.dt-layout__size-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.dt-layout__size-header .dt-layout__group-title {
-  margin-bottom: 0;
-}
-
-.dt-layout__size-collapsed {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  grid-template-areas:
+    "width height toggle"
+    "min-width min-height ."
+    "max-width max-height ."
+    "aspect-ratio . .";
   gap: 6px;
   align-items: end;
 }
 
-.dt-layout__size-collapsed-control {
+.dt-layout__size-cell {
   min-width: 0;
 }
 
-.dt-layout__size-collapsed .dt-field-row,
+.dt-layout__size-cell--width { grid-area: width; }
+.dt-layout__size-cell--height { grid-area: height; }
+.dt-layout__size-cell--toggle { grid-area: toggle; }
+.dt-layout__size-cell--min-width { grid-area: min-width; }
+.dt-layout__size-cell--min-height { grid-area: min-height; }
+.dt-layout__size-cell--max-width { grid-area: max-width; }
+.dt-layout__size-cell--max-height { grid-area: max-height; }
+.dt-layout__size-cell--aspect-ratio { grid-area: aspect-ratio; }
+
 .dt-layout__size-grid .dt-field-row {
   display: flex;
   flex-direction: column;
@@ -82,13 +79,12 @@
   min-height: 0;
 }
 
-.dt-layout__size-collapsed .dt-field-row__label,
 .dt-layout__size-grid .dt-field-row__label {
   font-size: 10px;
 }
 
-.dt-layout__size-collapsed .dt-field-row__control,
-.dt-layout__size-collapsed .dt-token-field {
+.dt-layout__size-grid .dt-field-row__control,
+.dt-layout__size-grid .dt-token-field {
   min-width: 0;
   width: 100%;
 }

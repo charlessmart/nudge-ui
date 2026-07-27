@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Expand, Minimize2, Minus, Plus } from "lucide-react";
+import { IconBorderSides, IconMinus, IconPlus } from "@tabler/icons-react";
+import { ToggleButton } from "../ui/ToggleButton.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
@@ -337,7 +338,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             className="dt-border__remove"
             onClick={handleRemoveBorder}
           >
-            <Minus size={16} strokeWidth={1.8} aria-hidden="true" />
+            <IconMinus size={16} stroke={1.8} aria-hidden="true" />
           </IconButton>
         ) : (
           <IconButton
@@ -347,7 +348,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             className="dt-border__add"
             onClick={handleAddBorder}
           >
-            <Plus size={16} strokeWidth={1.8} aria-hidden="true" />
+            <IconPlus size={16} stroke={1.8} aria-hidden="true" />
           </IconButton>
         )}
       </div>
@@ -395,33 +396,33 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                   </div>
                 </>
               ) : null}
-              <IconButton
+              <ToggleButton
                 variant="secondary"
                 size="default"
                 data-test="border-expand"
-                aria-label="Edit Individual Border Sides"
                 label="Edit Individual Border Sides"
                 title="Edit Individual Border Sides"
-                onClick={handleExpand}
+                pressed={!borderLinked}
+                onPressedChange={handleExpand}
               >
-                <Expand size={16} strokeWidth={1.8} aria-hidden="true" />
-              </IconButton>
+                <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
+              </ToggleButton>
             </div>
           ) : (
             <div className="dt-border__expanded">
               <div className="dt-border__expanded-header">
                 <span className="dt-side-values__label">{formatInspectorLabel("Individual Sides")}</span>
-                <IconButton
+                <ToggleButton
                   variant="secondary"
                   size="default"
                   data-test="border-collapse"
-                  aria-label="Link All Border Sides"
                   label="Link All Border Sides"
                   title="Link All Border Sides"
-                  onClick={handleCollapse}
+                  pressed={!borderLinked}
+                  onPressedChange={handleCollapse}
                 >
-                  <Minimize2 size={16} strokeWidth={1.8} aria-hidden="true" />
-                </IconButton>
+                  <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
+                </ToggleButton>
               </div>
               <div className="dt-border__side-group" data-test="border-style-sides" data-property="border-style">
                 <span className="dt-side-values__label">{formatInspectorLabel("Border Style")}</span>

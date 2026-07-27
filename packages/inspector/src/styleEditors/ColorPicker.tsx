@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Minus, Plus } from "lucide-react";
+import { IconMinus, IconPlus } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import { getStateStyleValue } from "../stateValue.ts";
@@ -80,7 +80,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
             className="dt-color__remove"
             onClick={handleRemoveColor}
           >
-            <Minus size={"var(--dt-icon-size-small)"} strokeWidth={1.8} aria-hidden="true" />
+            <IconMinus size={"var(--dt-icon-size-small)"} stroke={1.8} aria-hidden="true" />
           </IconButton>
         ) : (
           <IconButton
@@ -90,7 +90,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
             className="dt-color__add"
             onClick={() => setFieldAdded(true)}
           >
-            <Plus size={"var(--dt-icon-size-small)"} strokeWidth={1.8} aria-hidden="true" />
+            <IconPlus size={"var(--dt-icon-size-small)"} stroke={1.8} aria-hidden="true" />
           </IconButton>
         )}
       </div>
