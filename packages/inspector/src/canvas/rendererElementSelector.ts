@@ -4,6 +4,7 @@ import {
   sendToParent,
   type ElementClickMessage,
   type ElementHoverMessage,
+  type ElementMeasureStateMessage,
   type ElementDeleteMessage,
   type ElementNudgeMessage,
   type ElementDragEndMessage,
@@ -103,9 +104,29 @@ export function installRendererElementSelector(): void {
   installed = true;
   installInteractionStyles();
 
+  let measurePointerOverPage = false;
+  let measureAltKey = false;
+
+  function updateMeasureState(altKey: boolean, pointerOverPage: boolean): void {
+    if (measureAltKey === altKey && measurePointerOverPage === pointerOverPage) return;
+    measureAltKey = altKey;
+    measurePointerOverPage = pointerOverPage;
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    const msg: ElementMeasureStateMessage = {
+      type: "element-measure-state",
+      protocolVersion: PROTOCOL_VERSION,
+      altKey,
+      pointerOverPage,
+      ...identity,
+    };
+    sendToParent(msg);
+  }
+
   document.addEventListener(
     "mouseover",
     (event: MouseEvent) => {
+      updateMeasureState(event.altKey, true);
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
       const el = target.closest("[data-cid]");
@@ -114,6 +135,7 @@ export function installRendererElementSelector(): void {
       const rect = el.getBoundingClientRect();
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);
+      const src = el.getAttribute("data-src") ?? "";
       const identity = getRendererIdentity();
       if (!identity) return;
 
@@ -122,6 +144,8 @@ export function installRendererElementSelector(): void {
         protocolVersion: PROTOCOL_VERSION,
         cid,
         selector,
+        src,
+        instanceIndex: instanceIndex(el),
         rect: {
           left: rect.left,
           top: rect.top,
@@ -194,6 +218,7 @@ export function installRendererElementSelector(): void {
   document.addEventListener("mouseup", finishDrag, true);
 
   document.addEventListener("keydown", (event: KeyboardEvent) => {
+    if (event.key === "Alt") updateMeasureState(true, measurePointerOverPage);
     if (isEditableEvent(event)) return;
     const scrollKey = event.code === "Space"
       || event.key === "ArrowUp"
@@ -224,12 +249,23 @@ export function installRendererElementSelector(): void {
     sendToParent(msg);
   }, true);
 
+  document.addEventListener("keyup", (event: KeyboardEvent) => {
+    if (event.key === "Alt") updateMeasureState(false, measurePointerOverPage);
+  }, true);
+
+  window.addEventListener("blur", () => {
+    updateMeasureState(false, false);
+  });
+
   document.addEventListener(
     "mouseout",
     (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
       const related = event.relatedTarget;
+      if (!(related instanceof Node) || !document.contains(related)) {
+        updateMeasureState(event.altKey, false);
+      }
       if (related instanceof Node && (target.contains(related) || target === related)) return;
 
       const el = target.closest("[data-cid]");
@@ -239,6 +275,7 @@ export function installRendererElementSelector(): void {
 
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);
+      const src = el.getAttribute("data-src") ?? "";
       const identity = getRendererIdentity();
       if (!identity) return;
 
@@ -247,6 +284,8 @@ export function installRendererElementSelector(): void {
         protocolVersion: PROTOCOL_VERSION,
         cid,
         selector,
+        src,
+        instanceIndex: instanceIndex(el),
         rect: null,
         margins: null,
         ...identity,

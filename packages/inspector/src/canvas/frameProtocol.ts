@@ -55,8 +55,18 @@ export interface ElementHoverMessage extends RendererMessage {
   type: "element-hover";
   cid: string;
   selector: string;
+  src: string;
+  instanceIndex: number;
   rect: { left: number; top: number; width: number; height: number } | null;
   margins: { top: number; right: number; bottom: number; left: number } | null;
+}
+
+/** Modifier state stays inside one renderer frame; the parent never infers it
+ * from its own keyboard events because focus lives in the iframe. */
+export interface ElementMeasureStateMessage extends RendererMessage {
+  type: "element-measure-state";
+  altKey: boolean;
+  pointerOverPage: boolean;
 }
 
 export interface ElementClickMessage extends RendererMessage {
@@ -129,6 +139,7 @@ export type FrameProtocolMessage =
   | ReplaceStylesMessage
   | NavigationIntentMessage
   | ElementHoverMessage
+  | ElementMeasureStateMessage
   | ElementClickMessage
   | ElementDragStartMessage
   | ElementDragMoveMessage

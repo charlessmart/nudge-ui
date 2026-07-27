@@ -3,6 +3,7 @@ import {
   isRendererMessageFor,
   type ElementClickMessage,
   type ElementHoverMessage,
+  type ElementMeasureStateMessage,
   type ElementDeleteMessage,
   type ElementNudgeMessage,
   type ElementDragEndMessage,
@@ -26,12 +27,22 @@ import { resolveSelectionFromElement } from "../resolveSelection.ts";
 import { setSelectedElement } from "../selectionStore.ts";
 import { clearDropGuide, showDropGuide, useDropGuide, type DropGuide } from "../dropGuide.ts";
 import { DropGuideOverlay, type ViewportDropGuide } from "../DropGuideOverlay.tsx";
+import { getMeasurementGeometry } from "../measurementGeometry.ts";
+import { MeasurementGuideOverlay } from "../MeasurementGuideOverlay.tsx";
+import { projectMeasurementSegments } from "./measurementProjection.ts";
 
 interface FrameOverlayState {
   iframe: HTMLIFrameElement;
+  element: HTMLElement | null;
   rect: Rect;
   margins: Margins;
   cardId: string;
+}
+
+interface FrameMeasureState {
+  iframe: HTMLIFrameElement;
+  altKey: boolean;
+  pointerOverPage: boolean;
 }
 
 interface CanvasDragState {
@@ -98,6 +109,7 @@ function projectGuideToCanvas(guide: DropGuide | null, zoom: number): ViewportDr
 
 export function CanvasElementOverlay(): ReactElement | null {
   const [hover, setHover] = useState<FrameOverlayState | null>(null);
+  const [measureState, setMeasureState] = useState<FrameMeasureState | null>(null);
   const selected = useSelectedElement();
   const camera = useBoardCamera();
   useCanvasCards(); // Projected geometry must follow card drag and resize updates.
@@ -108,8 +120,14 @@ export function CanvasElementOverlay(): ReactElement | null {
   const selectedFrame = selected?.domElement.ownerDocument.defaultView?.frameElement;
   const selectedInCanvas = selectedFrame instanceof HTMLIFrameElement
     && selectedFrame.hasAttribute("data-design-tool-canvas-renderer");
-  const selectedRect = selectedInCanvas && selected
-    ? projectRect(selectedFrame, toRect(selected.domElement.getBoundingClientRect()), camera.zoom)
+  const selectedLocalRect = selectedInCanvas && selected
+    ? toRect(selected.domElement.getBoundingClientRect())
+    : null;
+  const selectedFrameRect = selectedInCanvas
+    ? toRect(selectedFrame.getBoundingClientRect())
+    : null;
+  const selectedRect = selectedInCanvas && selectedLocalRect
+    ? projectRect(selectedFrame, selectedLocalRect, camera.zoom)
     : null;
 
   useEffect(() => {
@@ -134,9 +152,17 @@ export function CanvasElementOverlay(): ReactElement | null {
         }
         setHover({
           iframe: sourceIframe,
+          element: findFrameElement(sourceIframe, msg.cid, msg.src, msg.instanceIndex),
           rect: msg.rect,
           margins: msg.margins ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: sourceCardId,
+        });
+      } else if (event.data.type === "element-measure-state") {
+        const msg = event.data as ElementMeasureStateMessage;
+        setMeasureState({
+          iframe: sourceIframe,
+          altKey: msg.altKey,
+          pointerOverPage: msg.pointerOverPage,
         });
       } else if (event.data.type === "element-click") {
         const msg = event.data as ElementClickMessage;
@@ -207,10 +233,39 @@ export function CanvasElementOverlay(): ReactElement | null {
   const hoverMarginFills = projectedHoverRect && hoverMargins
     ? getMarginFills(projectedHoverRect, hoverMargins)
     : [];
+  const measureStateForSelectedFrame = measureState?.iframe === selectedFrame ? measureState : null;
+  const hoverInSelectedFrame = hover?.iframe === selectedFrame ? hover : null;
+  const showGuideOverlay = Boolean(
+    selectedRect
+    && selectedFrameRect
+    && measureStateForSelectedFrame?.altKey
+    && measureStateForSelectedFrame.pointerOverPage,
+  );
+  const showMeasurement = Boolean(
+    showGuideOverlay
+    && selectedLocalRect
+    && hoverInSelectedFrame?.element
+    && hoverInSelectedFrame.element !== selected?.domElement,
+  );
+  const measurementSegments = showMeasurement && selectedFrameRect && selectedLocalRect && hoverInSelectedFrame
+    ? projectMeasurementSegments(
+      selectedFrameRect,
+      getMeasurementGeometry(selectedLocalRect, hoverInSelectedFrame.rect).segments,
+      camera.zoom,
+    )
+    : [];
 
   return (
     <>
       <style data-test="canvas-element-overlay-styles">{overlayStyles}</style>
+      {showGuideOverlay && selectedRect && selectedFrameRect ? (
+        <MeasurementGuideOverlay
+          testId="canvas-measurement-overlay"
+          selectedRect={selectedRect}
+          guideViewport={selectedFrameRect}
+          segments={measurementSegments}
+        />
+      ) : null}
       {projectedHoverRect ? (
         <>
           {hoverMarginFills.map((fill) => (
