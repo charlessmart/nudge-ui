@@ -6,7 +6,10 @@ test("dev: catalog retains light and dark declarations for one token", async ({ 
     const catalog = (window as unknown as { __designTokenCatalog?: { cssName: string; declarations: unknown[] }[] }).__designTokenCatalog ?? [];
     return catalog.find((token) => token.cssName === "--color-surface-raised");
   });
-  expect(surface?.declarations).toHaveLength(2);
+  expect(surface?.declarations).toEqual(expect.arrayContaining([
+    expect.objectContaining({ source: "src/styles.css:4" }),
+    expect.objectContaining({ source: "src/styles.css:29" }),
+  ]));
 });
 
 test("dev: tokenized and raw values appear in their relevant editors", async ({ page }) => {

@@ -33,6 +33,14 @@ async function changeCount(page: import("@playwright/test").Page): Promise<numbe
   });
 }
 
+async function openChangesLog(page: import("@playwright/test").Page): Promise<void> {
+  const changes = page.locator('[data-test="changes-log"]');
+  await expect(changes).toBeAttached();
+  const isOpen = await changes.evaluate((element) => (element as HTMLDetailsElement).open);
+  if (!isOpen) await changes.locator('[data-test="changes-toggle"]').click();
+  await expect.poll(() => changes.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(true);
+}
+
 async function btnBackground(page: import("@playwright/test").Page): Promise<string> {
   return await page.evaluate(() => {
     const btn = document.querySelector(".btn") as HTMLElement | null;
@@ -72,6 +80,7 @@ async function setFontSize(page: import("@playwright/test").Page, value: string)
 }
 
 async function revertChange(page: import("@playwright/test").Page, property: string): Promise<void> {
+  await openChangesLog(page);
   const handle = await page.evaluateHandle((p) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
     const rows = Array.from(sr?.querySelectorAll('[data-test="change-row"]') ?? []);

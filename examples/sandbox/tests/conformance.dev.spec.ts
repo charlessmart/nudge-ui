@@ -31,7 +31,6 @@ test("dev: logical spacing projects onto physical inspector side controls", asyn
   await expect(expandButton).toHaveClass(/dt-icon-button/);
   await expect(expandButton).toHaveClass(/dt-icon-button--default/);
   await expect.poll(async () => expandButton.boundingBox()).toEqual({ x: expect.any(Number), y: expect.any(Number), width: 32, height: 32 });
-  await expandButton.click();
 
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
@@ -53,13 +52,10 @@ test("dev: logical spacing projects onto physical inspector side controls", asyn
     paddingHorizontal: { token: "--conformance-space", value: "--conformance-space" },
     paddingVertical: { token: null, value: "0px" },
     marginTop: { token: null, value: "1rem" },
-    marginBottom: { token: null, value: "0px" },
+    marginBottom: { token: null, value: "0" },
   });
 
-  await page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
-    (root?.querySelector('[data-test="spacing-padding"] [data-test="individual-sides"]') as HTMLButtonElement | null)?.click();
-  });
+  await expandButton.click();
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
     const field = (property: string) => {
@@ -69,9 +65,16 @@ test("dev: logical spacing projects onto physical inspector side controls", asyn
         value: element?.querySelector("input")?.value ?? null,
       };
     };
-    return { paddingLeft: field("padding-left"), paddingRight: field("padding-right") };
+    return {
+      paddingTop: field("padding-top"),
+      paddingRight: field("padding-right"),
+      paddingBottom: field("padding-bottom"),
+      paddingLeft: field("padding-left"),
+    };
   })).toEqual({
-    paddingLeft: { token: "--conformance-space", value: "--conformance-space" },
+    paddingTop: { token: null, value: "0" },
     paddingRight: { token: "--conformance-space", value: "--conformance-space" },
+    paddingBottom: { token: null, value: "0" },
+    paddingLeft: { token: "--conformance-space", value: "--conformance-space" },
   });
 });

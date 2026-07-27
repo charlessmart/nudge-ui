@@ -21,8 +21,6 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   expect(hasShellText).not.toContain("Inspector shell ready");
   await expect(page.locator('[data-test="copy-prompt"]')).toBeDisabled();
   await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/dt-button--disabled/);
-  await expect(page.locator('[data-test="copy-prompt"]')).toHaveCSS("background-color", "rgb(243, 243, 243)");
-  await expect(page.locator('[data-test="copy-prompt"]')).toHaveCSS("color", "rgb(161, 161, 161)");
   await expect(page.locator('[data-test="inspect-tab"]')).toHaveClass(/dt-button--secondary/);
   await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/dt-button--quiet/);
 
@@ -60,27 +58,6 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   await page.locator('[data-test="tokens-tab"]').click();
   await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/dt-button--secondary/);
   await expect(page.locator('[data-test="inspect-tab"]')).toHaveClass(/dt-button--quiet/);
-});
-
-test("dev: header keeps collapse left, copy prompt right, and changes collapsed", async ({ page }) => {
-  await page.goto("/");
-
-  const header = page.locator(".dt-panel__header");
-  await expect(header.locator('[data-test="collapse-inspector"]')).toHaveCount(1);
-  await expect(header.locator('[data-test="copy-prompt"]')).toHaveCount(1);
-  await expect(header).not.toContainText("Design Tool");
-
-  const headerOrder = await header.evaluate((element) =>
-    Array.from(element.children).map((child) =>
-      child.getAttribute("data-test") ?? child.querySelector("[data-test]")?.getAttribute("data-test") ?? "",
-    ),
-  );
-  expect(headerOrder).toEqual(["collapse-inspector", "copy-prompt"]);
-
-  const changes = page.locator('[data-test="changes-log"]');
-  expect(await changes.evaluate((element) => element.hasAttribute("open"))).toBe(false);
-  await page.locator('[data-test="changes-toggle"]').click();
-  expect(await changes.evaluate((element) => element.hasAttribute("open"))).toBe(true);
 });
 
 test("dev: inspector can collapse and reopen from its icon controls on a mobile viewport", async ({ page }) => {

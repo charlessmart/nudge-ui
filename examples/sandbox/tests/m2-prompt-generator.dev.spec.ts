@@ -62,7 +62,16 @@ async function changeCount(page: import("@playwright/test").Page): Promise<numbe
   });
 }
 
+async function openChangesLog(page: import("@playwright/test").Page): Promise<void> {
+  const changes = page.locator('[data-test="changes-log"]');
+  await expect(changes).toBeAttached();
+  const isOpen = await changes.evaluate((element) => (element as HTMLDetailsElement).open);
+  if (!isOpen) await changes.locator('[data-test="changes-toggle"]').click();
+  await expect.poll(() => changes.evaluate((element) => (element as HTMLDetailsElement).open)).toBe(true);
+}
+
 async function revertChange(page: import("@playwright/test").Page, property: string): Promise<void> {
+  await openChangesLog(page);
   const handle = await page.evaluateHandle((p) => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
     const rows = Array.from(sr?.querySelectorAll('[data-test="change-row"]') ?? []);
@@ -113,7 +122,7 @@ test.describe("clipboard permissions", () => {
 
     const text = await page.evaluate(() => navigator.clipboard.readText());
     expect(text).toContain("Design changes for Button.tsx");
-    expect(text).toContain("Framework: React + CSS custom properties");
+    expect(text).toContain("Framework: React + vanilla-extract (sprinkles)");
     expect(text).toContain("--color-surface-sunken");
     expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:32"]');
     expect(text).toContain("border-radius");

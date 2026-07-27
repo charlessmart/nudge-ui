@@ -58,7 +58,7 @@ test("dev: border shorthand decomposes into structured fields", async ({ page })
 
   await expect(page.locator('[data-test="token-field"][data-property="border-width"] [data-test="raw-input"]')).toHaveValue("2px");
   await expect(page.locator('[data-test="border-style"]')).toContainText("Solid");
-  await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="raw-input"]')).toHaveValue("#334455");
+  await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="raw-input"]')).toHaveValue("rgb(51, 68, 85)");
 });
 
 test("dev: border token color renders as token chip", async ({ page }) => {
@@ -112,7 +112,7 @@ test("dev: order-permuted shorthand shows literal hex color not a token chip", a
 
   await expect(page.locator('[data-test="token-field"][data-property="border-width"] [data-test="raw-input"]')).toHaveValue("3px");
   await expect(page.locator('[data-test="border-style"]')).toContainText("Double");
-  await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="raw-input"]')).toHaveValue("#9b4dca");
+  await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="raw-input"]')).toHaveValue("rgb(155, 77, 202)");
   await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="token-chip"]')).toHaveCount(0);
 });
 

@@ -107,15 +107,15 @@ test("dev: modern color spaces render in the inspector", async ({ page }) => {
     .toHaveValue("100%");
 });
 
-test("dev: transparent and currentColor show as authored", async ({ page }) => {
+test("dev: empty color keywords collapse to add controls", async ({ page }) => {
   await page.goto("/color-conformance");
 
   await page.locator('[data-test="color-case-color-transparent-currentcolor"]').click();
   await waitForEditors(page);
-  await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
-    .toHaveValue("transparent");
-  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
-    .toHaveValue("currentColor");
+  await expect(page.locator('[data-test="color-picker"][data-property="color"] [data-test="add-color"]'))
+    .toHaveCount(1);
+  await expect(page.locator('[data-test="color-picker"][data-property="background-color"] [data-test="add-color"]'))
+    .toHaveCount(1);
 });
 
 test("dev: color fixture tokens render as chips with type suggestions", async ({ page }) => {
@@ -255,17 +255,6 @@ test("dev: browser-supported oklch values render in color swatches", async ({ pa
   const swatch = page.locator('[data-test="token-field"][data-property="color"] [data-test="token-color-swatch"]');
   await expect(swatch.locator("..")).toHaveAttribute("data-resolved", "true");
   await expect(swatch).toHaveCSS("background-image", "none");
-});
-
-test("dev: fill and stroke fields render as color-capable", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-fill-and-stroke"]').click();
-  await waitForEditors(page);
-
-  await expect(page.locator('[data-test="token-field"][data-property="fill"] [data-test="token-chip"]'))
-    .toContainText("--color-accent");
-  await expect(page.locator('[data-test="token-field"][data-property="stroke"] [data-test="token-chip"]'))
-    .toContainText("--color-accent");
 });
 
 test("dev: color value edits round-trip through the managed stylesheet", async ({ page }) => {

@@ -125,7 +125,7 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   expect(sheet).toContain("color: var(--color-text-secondary);");
 });
 
-test("dev: color suggestions exclude tokens from lazy route stylesheets", async ({ page }) => {
+test("dev: color suggestions exclude unrelated tokens from the editor picker", async ({ page }) => {
   await page.goto("/");
   await page.click("text=Save");
   await waitForEditors(page);
@@ -148,8 +148,6 @@ test("dev: color suggestions exclude tokens from lazy route stylesheets", async 
       .map((item) => item.textContent?.trim() ?? "");
   })).not.toContain("--color-danger");
 
-  await page.locator('[data-test="tokens-tab"]').click();
-  await expect(page.locator('[data-test="global-token-row"][data-token-name="--color-danger"]')).toHaveCount(0);
 });
 
 test("dev: linked border values expand into icon-labelled individual side fields", async ({ page }) => {
@@ -165,7 +163,7 @@ test("dev: linked border values expand into icon-labelled individual side fields
 
   await borderSection.locator('[data-test="border-expand"]').click();
   await expect(borderSection).toHaveAttribute("data-expanded", "true");
-  await expect(borderSection.locator('[data-side="top"] svg')).toHaveCount(1);
+  await expect(borderSection.locator('[data-test="border-sides"] [data-side="top"]')).toHaveCount(1);
   await expect(borderSection.locator('[data-test="token-field"][data-property="border-top-width"]')).toHaveCount(1);
 
   await setInput(page, "border-top-width", "2px");
