@@ -103,7 +103,7 @@ test("dev: swapping a token writes a managed-stylesheet rule and changes backgro
     .not.toBe(before);
 });
 
-test("dev: selection defaults to Base and can target an authored hover state", async ({ page }) => {
+test("dev: selection defaults to Base and can edit an authored hover background color", async ({ page }) => {
   await page.goto("/");
   await page.addStyleTag({ content: ".btn:focus { outline-color: transparent; } .btn:active { transform: none; }" });
   await page.click("text=Save");
@@ -115,7 +115,10 @@ test("dev: selection defaults to Base and can target an authored hover state", a
     .toContainText("--color-surface-raised");
 
   await page.locator('[data-test="style-state-hover"]').click();
-  const background = page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]');
+  const backgroundField = page.locator('[data-test="token-field"][data-property="background-color"]');
+  await expect(backgroundField.locator('[data-test="token-chip"]')).toContainText("--color-accent-subtle");
+  await backgroundField.locator('[data-test="delink-btn"]').click();
+  const background = backgroundField.locator('[data-test="raw-input"]');
   await background.fill("#123456");
   await background.press("Enter");
 
