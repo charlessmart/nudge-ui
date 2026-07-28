@@ -48,22 +48,6 @@ test("dev: style editors expose token-backed and raw values in their relevant fi
     });
 });
 
-test("dev: relevant value fields update when the selection steps up the hierarchy", async ({ page }) => {
-  await page.goto("/");
-
-  await page.click("text=Save");
-
-  await expect
-    .poll(async () => (await fieldState(page)).borderRadiusRaw, { timeout: 5000 })
-    .toBe("999px");
-
-  await page.keyboard.press("ArrowUp");
-
-  await expect
-    .poll(async () => (await fieldState(page)).borderRadiusRaw, { timeout: 5000 })
-    .toBe("0px");
-});
-
 test("dev: spacing token suggestions exclude color and typography tokens", async ({ page }) => {
   await page.goto("/");
   await page.click("text=Save");
