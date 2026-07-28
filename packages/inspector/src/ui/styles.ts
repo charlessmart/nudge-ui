@@ -14,7 +14,6 @@ import sideValuesFieldStyles from "./SideValuesField.css?inline";
 import inspectorShellStyles from "../InspectorShell.css?inline";
 import styleEditorStyles from "../styleEditors/StyleEditor.css?inline";
 import borderEditorStyles from "../styleEditors/BorderEditor.css?inline";
-import borderRadiusEditorStyles from "../styleEditors/BorderRadiusEditor.css?inline";
 import typographyStyles from "../styleEditors/Typography.css?inline";
 import layoutSectionStyles from "../styleEditors/LayoutSection.css?inline";
 import gridPickerStyles from "../styleEditors/GridPicker.css?inline";
@@ -42,7 +41,6 @@ export const UI_STYLES = [
   inspectorShellStyles,
   styleEditorStyles,
   borderEditorStyles,
-  borderRadiusEditorStyles,
   typographyStyles,
   layoutSectionStyles,
   gridPickerStyles,
