@@ -68,7 +68,7 @@ describe("ColorPicker", () => {
     expect(chip).toBeTruthy();
     expect(chip.textContent).toContain("--color-text-primary");
     expect(handle.host.querySelector('[data-test="token-field"]')?.classList.contains("dt-token-field--color")).toBe(true);
-    expect(handle.host.querySelector('[data-test="color-opacity-input"]')).toBeNull();
+    expect((handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement).value).toBe("100%");
   });
 
   it("shows a raw input when no tokenRow is provided", () => {

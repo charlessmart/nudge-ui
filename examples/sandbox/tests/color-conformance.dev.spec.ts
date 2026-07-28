@@ -125,13 +125,17 @@ test("dev: color fixture tokens render as chips with type suggestions", async ({
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-text-primary");
-  await expect(fg.locator('[data-test="color-opacity-input"]')).toHaveCount(0);
+  await expect(fg.locator('[data-test="color-opacity-input"]')).toHaveValue("100%");
   await fg.locator('[data-test="token-chip"]').click();
   await expect(page.getByRole("option", { name: /--color-surface-raised/ })).toBeVisible();
 
   const bg = page.locator('[data-test="token-field"][data-property="background-color"]');
   await expect(bg.locator('[data-test="token-chip"]')).toContainText("--color-surface-raised");
-  await expect(bg.locator('[data-test="color-opacity-input"]')).toHaveCount(0);
+  await expect(bg.locator('[data-test="color-opacity-input"]')).toHaveValue("100%");
+
+  await setOpacityInput(page, "color", "50%");
+  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+    .toContain("color: color-mix(in srgb, var(--color-text-primary) 50%, transparent);");
 });
 
 test("dev: color token fallback keeps the fallback in the authored expression", async ({ page }) => {
@@ -158,17 +162,16 @@ test("dev: unknown tokens surface the raw expression without token chips", async
     .toHaveValue("var(--unknown-bg, transparent)");
 });
 
-test("dev: color-mix expressions preserve full authored value with tokens", async ({ page }) => {
+test("dev: separable color-mix tokens render as a chip with opacity", async ({ page }) => {
   await page.goto("/color-conformance");
   await page.locator('[data-test="color-case-color-mix-token"]').click();
   await waitForEditors(page);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
-  await expect(fg.locator('[data-test="raw-input"]'))
-    .toHaveValue("color-mix(in oklab, var(--color-primary) 50%, transparent)");
+  await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-primary");
+  await expect(fg.locator('[data-test="raw-input"]')).toHaveCount(0);
   await expect(fg.locator('[data-test="color-opacity-input"]')).toHaveValue("50%");
-  await expect(fg.locator('[data-test="token-attribution"]')).toContainText("--color-primary");
-  await expect(fg.locator('[data-test="token-chip"]')).toHaveCount(0);
+  await expect(fg.locator('[data-test="token-attribution"]')).toHaveCount(0);
 
   const bg = page.locator('[data-test="token-field"][data-property="background-color"]');
   await expect(bg.locator('[data-test="raw-input"]'))
@@ -178,16 +181,15 @@ test("dev: color-mix expressions preserve full authored value with tokens", asyn
   await expect(bg.locator('[data-test="token-chip"]')).toHaveCount(0);
 });
 
-test("dev: opacity tokens populate the resolved opacity field without token chrome", async ({ page }) => {
+test("dev: opacity tokens stay separate from the color token chrome", async ({ page }) => {
   await page.goto("/color-conformance");
   await page.locator('[data-test="color-case-color-opacity-token"]').click();
   await waitForEditors(page);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="color-opacity-input"]')).toHaveValue("35%");
-  await expect(fg.locator('[data-test="token-attribution"]')).toContainText("--color-primary");
-  await expect(fg.locator('[data-test="token-attribution"]')).not.toContainText("--opacity-muted");
-  await expect(fg.locator('[data-test="token-chip"]')).toHaveCount(0);
+  await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-primary");
+  await expect(fg.locator('[data-test="token-attribution"]')).toHaveCount(0);
 
   const bg = page.locator('[data-test="token-field"][data-property="background-color"]');
   await expect(bg.locator('[data-test="color-opacity-input"]')).toHaveValue("35%");

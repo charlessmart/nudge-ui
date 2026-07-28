@@ -23,6 +23,12 @@ const FONT_SIZE: TokenEntry = {
   source: "styles.css:1",
 };
 
+const COLOR_PRIMARY: TokenEntry = {
+  name: "--color-primary",
+  value: "#2563eb",
+  source: "styles.css:2",
+};
+
 function tokenRow(): ResolvedProperty {
   return {
     property: "font-size",
@@ -301,6 +307,33 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-select"]')).toBeNull();
   });
 
+  it("renders a separable color token and alpha as a chip plus opacity", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "background-color",
+      tokenRow: {
+        property: "background-color",
+        tokenName: COLOR_PRIMARY.name,
+        declaredValue: "color-mix(in srgb, var(--color-primary) 50%, transparent)",
+        authored: "color-mix(in srgb, var(--color-primary) 50%, transparent)",
+        resolvedValue: "rgb(37, 99, 235)",
+        tokens: [{ name: COLOR_PRIMARY.name, origin: "project" }],
+        opacity: { value: "50%", authoredValue: "50%", source: "color-mix", tokenName: null },
+        modifiers: [{ kind: "alpha", value: "50%" }],
+        capability: "color",
+        confidence: "probable",
+        evidence: { reason: "test fixture" },
+      },
+      domElement: selected.domElement,
+      entries: [COLOR_PRIMARY],
+    }));
+
+    expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain(COLOR_PRIMARY.name);
+    expect((handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement).value).toBe("50%");
+    expect(handle.host.querySelector('[data-test="raw-input"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="token-attribution"]')).toBeNull();
+  });
+
   it("shows authored functional CSS and token attribution instead of computed pixels", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {
@@ -408,6 +441,25 @@ describe("TokenField", () => {
 
     expect(handle.host.querySelector('[data-test="token-color-swatch"]')?.getAttribute("style"))
       .toContain("--dt-swatch-color: #dc2626");
+    expect((handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement).value).toBe("100%");
+    selected.domElement.remove();
+  });
+
+  it("hides the default opacity when a token contains an alpha channel", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenValueField, {
+      property: "color",
+      committedValue: "var(--color-muted)",
+      resolvedValue: "rgba(37, 99, 235, 0.5)",
+      activeTokenName: "--color-muted",
+      entries: [{ name: "--color-muted", value: "rgba(37, 99, 235, 0.5)", source: "fixture.css:1" }],
+      isColor: true,
+      onCommitOpacity: vi.fn(),
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+
     expect(handle.host.querySelector('[data-test="color-opacity-input"]')).toBeNull();
     selected.domElement.remove();
   });
