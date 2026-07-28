@@ -1,19 +1,19 @@
 import type { ReactElement } from "react";
 import { useEffect, useState } from "react";
 import {
-  AArrowUp,
-  AlignCenter,
-  AlignLeft,
-  AlignRight,
-  AlignVerticalJustifyCenter,
-  AlignVerticalJustifyEnd,
-  AlignVerticalJustifyStart,
-  Baseline,
-  ChevronDown,
-  Italic,
-  LetterText,
-  Type,
-} from "lucide-react";
+  IconTextSize,
+  IconAlignCenter,
+  IconAlignLeft,
+  IconAlignRight,
+  IconLayoutAlignMiddle,
+  IconLayoutAlignBottom,
+  IconLayoutAlignTop,
+  IconBaseline,
+  IconChevronDown,
+  IconItalic,
+  IconLetterSpacing,
+  IconTypography,
+} from "@tabler/icons-react";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
@@ -49,7 +49,7 @@ export function Typography(props: TypographyProps): ReactElement {
         <TypographyTokenField
           property="font-family"
           label="Font family"
-          icon={<Italic size={"var(--dt-icon-size-small)"} strokeWidth={1.35} aria-hidden="true" />}
+          icon={<IconItalic size={"var(--dt-icon-size-small)"} stroke={1.35} aria-hidden="true" />}
           tokenRow={findTokenRow(tokenRows, "font-family")}
           domElement={el}
           entries={allEntries}
@@ -67,7 +67,7 @@ export function Typography(props: TypographyProps): ReactElement {
           <TypographyTokenField
             property="font-size"
             label="Font size"
-            icon={<AArrowUp size={"var(--dt-icon-size-small)"} strokeWidth={1.55} aria-hidden="true" />}
+            icon={<IconTextSize size={"var(--dt-icon-size-small)"} stroke={1.55} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "font-size")}
             domElement={el}
             entries={allEntries}
@@ -76,7 +76,7 @@ export function Typography(props: TypographyProps): ReactElement {
           <TypographyTokenField
             property="line-height"
             label="Line height"
-            icon={<Baseline size={"var(--dt-icon-size-small)"} strokeWidth={1.5} aria-hidden="true" />}
+            icon={<IconBaseline size={"var(--dt-icon-size-small)"} stroke={1.5} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "line-height")}
             domElement={el}
             entries={allEntries}
@@ -85,7 +85,7 @@ export function Typography(props: TypographyProps): ReactElement {
           <TypographyTokenField
             property="letter-spacing"
             label="Letter spacing"
-            icon={<LetterText size={"var(--dt-icon-size-small)"} strokeWidth={1.5} aria-hidden="true" />}
+            icon={<IconLetterSpacing size={"var(--dt-icon-size-small)"} stroke={1.5} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "letter-spacing")}
             domElement={el}
             entries={allEntries}
@@ -100,9 +100,9 @@ export function Typography(props: TypographyProps): ReactElement {
             element={el}
             defaultValue="left"
             options={[
-              { value: "left", label: "Align left", icon: <AlignLeft size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
-              { value: "center", label: "Align center", icon: <AlignCenter size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
-              { value: "right", label: "Align right", icon: <AlignRight size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
+              { value: "left", label: "Align left", icon: <IconAlignLeft size={"var(--dt-icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
+              { value: "center", label: "Align center", icon: <IconAlignCenter size={"var(--dt-icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
+              { value: "right", label: "Align right", icon: <IconAlignRight size={"var(--dt-icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
             ]}
             onAfterEdit={onAfterEdit}
           />
@@ -112,9 +112,9 @@ export function Typography(props: TypographyProps): ReactElement {
             element={el}
             defaultValue="baseline"
             options={[
-              { value: "top", label: "Align top", icon: <AlignVerticalJustifyStart size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
-              { value: "middle", label: "Align middle", icon: <AlignVerticalJustifyCenter size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
-              { value: "bottom", label: "Align bottom", icon: <AlignVerticalJustifyEnd size={"var(--dt-icon-size-small)"} strokeWidth={1.6} aria-hidden="true" /> },
+              { value: "top", label: "Align top", icon: <IconLayoutAlignTop size={"var(--dt-icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
+              { value: "middle", label: "Align middle", icon: <IconLayoutAlignMiddle size={"var(--dt-icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
+              { value: "bottom", label: "Align bottom", icon: <IconLayoutAlignBottom size={"var(--dt-icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
             ]}
             onAfterEdit={onAfterEdit}
           />
@@ -150,7 +150,7 @@ function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
       entries={entries}
       editMetadata={metadataFor(tokenRow)}
       leading={icon}
-      trailing={metric || hasTokenChip ? undefined : <ChevronDown size={17} strokeWidth={1.8} aria-hidden="true" />}
+      trailing={metric || hasTokenChip ? undefined : <IconChevronDown size={17} stroke={1.8} aria-hidden="true" />}
       label={label}
       onAfterEdit={onAfterEdit}
     />
@@ -215,7 +215,7 @@ function FontStyleField({ element, fontStyleRow, fontWeightRow, onAfterEdit }: F
       title="Font style"
     >
       <span className="dt-typography__field-icon" aria-hidden="true">
-        <Type size={"var(--dt-icon-size-small)"} strokeWidth={1.45} />
+        <IconTypography size={"var(--dt-icon-size-small)"} stroke={1.45} />
       </span>
       <Select
         value={currentKey}

@@ -575,7 +575,7 @@ describe("resolvePropertiesFromRules", () => {
     const result = resolvePropertiesFromRules(btn, rules, table);
     const byProp = new Map(result.map((r) => [r.property, r]));
 
-    expect(result).toHaveLength(22);
+    expect(result).toHaveLength(25);
     expect(byProp.get("padding-top")?.declaredValue).toBe("var(--space-1)");
     expect(byProp.get("padding-right")?.declaredValue).toBe("var(--space-2)");
     expect(byProp.get("padding-bottom")?.declaredValue).toBe("var(--space-1)");
@@ -584,8 +584,9 @@ describe("resolvePropertiesFromRules", () => {
     expect(byProp.get("background")?.declaredValue).toBe("var(--color-surface-raised)");
     expect(byProp.get("background")?.resolvedValue).toBe("#ffffff");
 
-    expect(byProp.get("border-radius")?.tokenName).toBe("--space-1");
-    expect(byProp.get("border-radius")?.resolvedValue).toBe("4px");
+    expect(byProp.get("border-top-left-radius")?.tokenName).toBe("--space-1");
+    expect(byProp.get("border-top-left-radius")?.resolvedValue).toBe("4px");
+    expect(byProp.get("border-top-left-radius")?.sourceProperty).toBe("border-radius");
 
     expect(byProp.get("cursor")?.tokenName).toBeNull();
     expect(byProp.get("cursor")?.resolvedValue).toBe("pointer");
@@ -893,5 +894,77 @@ describe("resolvePropertiesFromRules", () => {
     ], table);
     expect(result[0]?.tokenName).toBe("--important");
     expect(result[0]?.evidence).toMatchObject({ important: true, layer: "theme", sourceOrder: 0 });
+  });
+
+  it("expands single-value border-radius to four corner longhands", () => {
+    const result = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10_000,
+      declarations: [{ property: "border-radius", value: "8px" }],
+    }], makeTable([]));
+
+    expect(result).toHaveLength(4);
+    expect(result.find((r) => r.property === "border-top-left-radius")?.declaredValue).toBe("8px");
+    expect(result.find((r) => r.property === "border-top-left-radius")?.sourceProperty).toBe("border-radius");
+    expect(result.find((r) => r.property === "border-top-right-radius")?.declaredValue).toBe("8px");
+    expect(result.find((r) => r.property === "border-bottom-right-radius")?.declaredValue).toBe("8px");
+    expect(result.find((r) => r.property === "border-bottom-left-radius")?.declaredValue).toBe("8px");
+  });
+
+  it("expands 2-value border-radius to correct corner pairs", () => {
+    const result = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10_000,
+      declarations: [{ property: "border-radius", value: "4px 12px" }],
+    }], makeTable([]));
+
+    expect(result).toHaveLength(4);
+    expect(result.find((r) => r.property === "border-top-left-radius")?.declaredValue).toBe("4px");
+    expect(result.find((r) => r.property === "border-top-right-radius")?.declaredValue).toBe("12px");
+    expect(result.find((r) => r.property === "border-bottom-right-radius")?.declaredValue).toBe("4px");
+    expect(result.find((r) => r.property === "border-bottom-left-radius")?.declaredValue).toBe("12px");
+  });
+
+  it("expands 3-value border-radius to correct corners", () => {
+    const result = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10_000,
+      declarations: [{ property: "border-radius", value: "4px 8px 12px" }],
+    }], makeTable([]));
+
+    expect(result).toHaveLength(4);
+    expect(result.find((r) => r.property === "border-top-left-radius")?.declaredValue).toBe("4px");
+    expect(result.find((r) => r.property === "border-top-right-radius")?.declaredValue).toBe("8px");
+    expect(result.find((r) => r.property === "border-bottom-right-radius")?.declaredValue).toBe("12px");
+    expect(result.find((r) => r.property === "border-bottom-left-radius")?.declaredValue).toBe("8px");
+  });
+
+  it("expands 4-value border-radius to individual corner values", () => {
+    const result = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10_000,
+      declarations: [{ property: "border-radius", value: "2px 4px 6px 8px" }],
+    }], makeTable([]));
+
+    expect(result).toHaveLength(4);
+    expect(result.find((r) => r.property === "border-top-left-radius")?.declaredValue).toBe("2px");
+    expect(result.find((r) => r.property === "border-top-right-radius")?.declaredValue).toBe("4px");
+    expect(result.find((r) => r.property === "border-bottom-right-radius")?.declaredValue).toBe("6px");
+    expect(result.find((r) => r.property === "border-bottom-left-radius")?.declaredValue).toBe("8px");
+  });
+
+  it("expands token-based border-radius and preserves token attribution", () => {
+    const table = makeTable([{ name: "--radius", value: "12px", source: "s:1" }]);
+    const result = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10_000,
+      declarations: [{ property: "border-radius", value: "var(--radius)" }],
+    }], table);
+
+    expect(result).toHaveLength(4);
+    expect(result.find((r) => r.property === "border-top-left-radius")?.tokenName).toBe("--radius");
+    expect(result.find((r) => r.property === "border-top-left-radius")?.declaredValue).toBe("var(--radius)");
+    expect(result.find((r) => r.property === "border-top-left-radius")?.sourceProperty).toBe("border-radius");
+    expect(result.find((r) => r.property === "border-top-right-radius")?.tokenName).toBe("--radius");
   });
 });

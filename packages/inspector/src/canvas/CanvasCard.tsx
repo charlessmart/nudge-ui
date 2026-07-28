@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
-import { RefreshCw, Trash2, Pencil, Copy } from "lucide-react";
+import { IconRefresh, IconTrash, IconPencil, IconCopy, IconArrowsDiagonal } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
   isRendererMessageFor,
@@ -242,7 +242,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
             data-test={`canvas-card-duplicate-${card.id}`}
             onClick={handleDuplicate}
           >
-            <Copy size={14} strokeWidth={1.8} aria-hidden="true" />
+            <IconCopy size={14} stroke={1.8} aria-hidden="true" />
           </IconButton>
           <IconButton
             label="Edit this route"
@@ -251,7 +251,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
             data-test={`canvas-card-edit-${card.id}`}
             onClick={handleEdit}
           >
-            <Pencil size={14} strokeWidth={1.8} aria-hidden="true" />
+            <IconPencil size={14} stroke={1.8} aria-hidden="true" />
           </IconButton>
           <IconButton
             label="Reload card"
@@ -260,7 +260,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
             data-test={`canvas-card-reload-${card.id}`}
             onClick={handleReload}
           >
-            <RefreshCw size={14} strokeWidth={1.8} aria-hidden="true" />
+            <IconRefresh size={14} stroke={1.8} aria-hidden="true" />
           </IconButton>
           <IconButton
             label="Remove card"
@@ -269,7 +269,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
             data-test={`canvas-card-remove-${card.id}`}
             onClick={handleRemove}
           >
-            <Trash2 size={14} strokeWidth={1.8} aria-hidden="true" />
+            <IconTrash size={14} stroke={1.8} aria-hidden="true" />
           </IconButton>
         </div>
       </div>
@@ -306,11 +306,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
         aria-label="Resize card"
         tabIndex={0}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-          <path d="M11 1L1 11" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M11 6L6 11" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M11 11H1" stroke="currentColor" strokeWidth="1.5" />
-        </svg>
+        <IconArrowsDiagonal size={12} aria-hidden="true" />
       </div>
     </div>
   );

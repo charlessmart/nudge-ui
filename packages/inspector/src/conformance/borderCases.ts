@@ -261,7 +261,10 @@ export const BORDER_CASES: ConformanceFixture[] = [
     expected: {
       catalog: [],
       properties: {
-        "border-radius": { authored: "8px", capability: "atomic" },
+        "border-top-left-radius": { authored: "8px", capability: "atomic" },
+        "border-top-right-radius": { authored: "8px", capability: "atomic" },
+        "border-bottom-right-radius": { authored: "8px", capability: "atomic" },
+        "border-bottom-left-radius": { authored: "8px", capability: "atomic" },
       },
     },
   },
@@ -275,7 +278,10 @@ export const BORDER_CASES: ConformanceFixture[] = [
     expected: {
       catalog: [{ name: "--space-3", value: "12px" }],
       properties: {
-        "border-radius": { authored: "var(--space-3)", tokens: ["--space-3"], capability: "atomic" },
+        "border-top-left-radius": { authored: "var(--space-3)", tokens: ["--space-3"], capability: "atomic" },
+        "border-top-right-radius": { authored: "var(--space-3)", tokens: ["--space-3"], capability: "atomic" },
+        "border-bottom-right-radius": { authored: "var(--space-3)", tokens: ["--space-3"], capability: "atomic" },
+        "border-bottom-left-radius": { authored: "var(--space-3)", tokens: ["--space-3"], capability: "atomic" },
       },
     },
   },
@@ -288,7 +294,10 @@ export const BORDER_CASES: ConformanceFixture[] = [
     expected: {
       catalog: [],
       properties: {
-        "border-radius": { authored: "4px 8px 12px 16px", capability: "raw" },
+        "border-top-left-radius": { authored: "4px", capability: "atomic" },
+        "border-top-right-radius": { authored: "8px", capability: "atomic" },
+        "border-bottom-right-radius": { authored: "12px", capability: "atomic" },
+        "border-bottom-left-radius": { authored: "16px", capability: "atomic" },
       },
     },
   },

@@ -32,6 +32,10 @@
   gap: 6px;
 }
 
+.dt-side-values[data-expanded="true"] .dt-side-values__value-row {
+  align-items: start;
+}
+
 .dt-side-values__linked-row {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Expand, Minimize2 } from "lucide-react";
+import { IconBorderSides } from "@tabler/icons-react";
+import { ToggleButton } from "./ToggleButton.tsx";
 import { IconButton } from "./IconButton.tsx";
 import { formatInspectorLabel } from "./labels.ts";
 
@@ -130,11 +131,10 @@ export function SideValuesField({
                 ))}
               </div>
             )}
-            <IconButton
+            <ToggleButton
               variant="secondary"
               size="default"
               data-test="individual-sides"
-              aria-expanded={isExpanded}
               label={forceExpanded
                 ? `${labelText} Sides Are Expanded Because Values Differ`
                 : isExpanded ? `Collapse ${labelText} Sides` : `Expand ${labelText} Sides`}
@@ -142,45 +142,44 @@ export function SideValuesField({
                 ? "Individual Sides Stay Open While Values Differ"
                 : isExpanded ? "Collapse To Grouped Sides" : "Expand To Individual Sides"}
               disabled={forceExpanded}
-              onClick={toggleExpanded}
+              pressed={isExpanded}
+              onPressedChange={toggleExpanded}
             >
-              {isExpanded ? <Minimize2 size={16} strokeWidth={1.8} aria-hidden="true" /> : <Expand size={16} strokeWidth={1.8} aria-hidden="true" />}
-            </IconButton>
+              <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
+            </ToggleButton>
           </div>
         </>
       ) : isLinked ? (
         <div className="dt-side-values__value-row dt-side-values__linked-row">
           <span className="dt-side-values__label">{displayLabel}</span>
           <div className="dt-side-values__linked">{linkedControl}</div>
-          <IconButton
+          <ToggleButton
             variant="secondary"
             size="default"
             data-test="individual-sides"
-            aria-expanded={!isLinked}
-            aria-label={`Edit Individual ${labelText} Sides`}
             label={`Edit Individual ${labelText} Sides`}
             title={`Edit Individual ${labelText} Sides`}
-            onClick={toggleLinked}
+            pressed={!isLinked}
+            onPressedChange={toggleLinked}
           >
-            <Expand size={16} strokeWidth={1.8} aria-hidden="true" />
-          </IconButton>
+            <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
+          </ToggleButton>
         </div>
       ) : (
         <>
           <div className="dt-side-values__header">
             <span className="dt-side-values__label">{displayLabel}</span>
-            <IconButton
+            <ToggleButton
               variant="secondary"
               size="default"
               data-test="individual-sides"
-              aria-expanded={!isLinked}
-              aria-label={`Link ${labelText} Sides`}
               label={`Link ${labelText} Sides`}
               title={`Link ${labelText} Sides`}
-              onClick={toggleLinked}
+              pressed={!isLinked}
+              onPressedChange={toggleLinked}
             >
-              <Minimize2 size={16} strokeWidth={1.8} aria-hidden="true" />
-            </IconButton>
+              <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
+            </ToggleButton>
           </div>
           <SideControls label={label} sides={sides} />
         </>

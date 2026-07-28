@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { ChevronDown, Unlink2 } from "lucide-react";
+import { IconChevronDown, IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { normalizeColorOpacity, replaceColorOpacity } from "./resolution.ts";
 import type { ColorOpacity, ResolvedProperty } from "./resolution.ts";
@@ -403,7 +403,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           trigger={(
             <span className="dt-token-chip" data-group={classifyToken(activeToken.name)}>
               <span className="dt-token-chip__name">{activeToken.name}</span>
-              <ChevronDown size={13} strokeWidth={1.75} aria-hidden="true" />
+              <IconChevronDown size={13} stroke={1.75} aria-hidden="true" />
             </span>
           )}
           triggerClassName="dt-token-chip__trigger"
@@ -426,7 +426,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           disabled={disabled}
           onClick={handleDelink}
         >
-          <Unlink2 size={14} strokeWidth={1.75} aria-hidden="true" />
+          <IconLinkOff size={14} stroke={1.75} aria-hidden="true" />
         </IconButton>
         {trailing ? <span className="dt-token-field__trailing">{trailing}</span> : null}
       </span>

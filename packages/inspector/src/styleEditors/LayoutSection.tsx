@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Check, Expand, Minimize2, Settings2, WrapText } from "lucide-react";
+import { IconCheck, IconArrowsMaximize, IconArrowsMinimize, IconSettings, IconTextWrap } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
@@ -316,63 +316,51 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
   }
 
   return (
-    <div className="dt-layout__group dt-layout__size" data-test="layout-size">
-      {expanded ? (
-        <>
-          <div className="dt-layout__size-header">
-            <div className="dt-layout__group-title">Size</div>
-            <IconButton
-              variant="secondary"
-              size="default"
-              data-test="layout-size-collapse"
-              aria-label="Collapse Size Fields"
-              label="Collapse Size Fields"
-              title="Collapse Size Fields"
-              onClick={() => setExpanded(false)}
-            >
-              <Minimize2 size={16} strokeWidth={1.8} aria-hidden="true" />
-            </IconButton>
-          </div>
-          <div className="dt-layout__size-grid">
-            {fields.map(({ property, presets }) => (
-              <FieldRow key={property} label={property} data-test={`layout-size-${property}`}>
-                {renderTokenField(property, presets)}
-              </FieldRow>
-            ))}
-            <AspectRatioField
-              domElement={el}
-              entries={entries}
-              tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
-              revision={revision}
-              onAfterEdit={onAfterEdit}
-            />
-          </div>
-        </>
-      ) : (
-        <div className="dt-layout__size-collapsed">
-          <div className="dt-layout__size-collapsed-control">
-            <FieldRow label="Width" data-test="layout-size-width">
-              {renderTokenField("width", SIZE_PRESETS)}
-            </FieldRow>
-          </div>
-          <div className="dt-layout__size-collapsed-control">
-            <FieldRow label="Height" data-test="layout-size-height">
-              {renderTokenField("height", SIZE_PRESETS)}
-            </FieldRow>
-          </div>
-          <IconButton
-            variant="secondary"
-            size="default"
-            data-test="layout-size-expand"
-            aria-label="Expand Size Fields"
-            label="Expand Size Fields"
-            title="Expand Size Fields"
-            onClick={() => setExpanded(true)}
+    <div className="dt-layout__group dt-layout__size" data-test="layout-size" data-expanded={expanded ? "true" : "false"}>
+      <div className="dt-layout__size-grid">
+        <FieldRow label="Width" data-test="layout-size-width" className="dt-layout__size-cell dt-layout__size-cell--width">
+          {renderTokenField("width", SIZE_PRESETS)}
+        </FieldRow>
+        <FieldRow label="Height" data-test="layout-size-height" className="dt-layout__size-cell dt-layout__size-cell--height">
+          {renderTokenField("height", SIZE_PRESETS)}
+        </FieldRow>
+        <IconButton
+          className="dt-layout__size-cell dt-layout__size-cell--toggle"
+          variant="secondary"
+          size="default"
+          data-test={expanded ? "layout-size-collapse" : "layout-size-expand"}
+          aria-label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
+          label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
+          title={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? (
+            <IconArrowsMinimize size={16} stroke={1.8} aria-hidden="true" />
+          ) : (
+            <IconArrowsMaximize size={16} stroke={1.8} aria-hidden="true" />
+          )}
+        </IconButton>
+        {expanded && fields.slice(2).map(({ property, presets }) => (
+          <FieldRow
+            key={property}
+            label={property}
+            data-test={`layout-size-${property}`}
+            className={`dt-layout__size-cell dt-layout__size-cell--${property}`}
           >
-            <Expand size={16} strokeWidth={1.8} aria-hidden="true" />
-          </IconButton>
-        </div>
-      )}
+            {renderTokenField(property, presets)}
+          </FieldRow>
+        ))}
+        {expanded && (
+          <AspectRatioField
+            className="dt-layout__size-cell dt-layout__size-cell--aspect-ratio"
+            domElement={el}
+            entries={entries}
+            tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
+            revision={revision}
+            onAfterEdit={onAfterEdit}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -446,7 +434,7 @@ function FlexWrapToggle({ domElement, revision = 0, onAfterEdit }: FlexControlPr
       aria-pressed={isWrapped}
       onClick={toggleWrap}
     >
-      <WrapText size={16} strokeWidth={1.8} aria-hidden="true" />
+      <IconTextWrap size={16} stroke={1.8} aria-hidden="true" />
     </IconButton>
   );
 }
@@ -514,7 +502,7 @@ function FlexSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControl
           label="Flex settings"
           data-test="layout-flex-settings"
         >
-          <Settings2 size={16} strokeWidth={1.8} aria-hidden="true" />
+          <IconSettings size={16} stroke={1.8} aria-hidden="true" />
         </IconButton>
       )}
       triggerDataTest="layout-flex-settings"
@@ -523,7 +511,7 @@ function FlexSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControl
         value: item.value,
         label: item.label,
         trailing: item.trailing,
-        leading: item.current ? <Check size={14} strokeWidth={2} aria-hidden="true" /> : undefined,
+        leading: item.current ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : undefined,
         "data-test": item["data-test"],
       }))}
       onQueryChange={() => undefined}

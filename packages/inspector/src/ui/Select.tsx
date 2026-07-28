@@ -1,5 +1,5 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
-import { Check, ChevronDown } from "lucide-react";
+import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import type { ButtonHTMLAttributes, ReactElement } from "react";
 
 export interface SelectOption {
@@ -62,7 +62,7 @@ export function Select({
           {selectedOption?.label ?? (value || undefined)}
         </BaseSelect.Value>
         <BaseSelect.Icon className="dt-select__icon">
-          <ChevronDown size={15} strokeWidth={1.8} aria-hidden="true" />
+          <IconChevronDown size={15} stroke={1.8} aria-hidden="true" />
         </BaseSelect.Icon>
         {children}
       </BaseSelect.Trigger>
@@ -97,7 +97,7 @@ function SelectItem({ option }: { option: SelectOption }): ReactElement {
       data-value={option.value}
     >
       <BaseSelect.ItemIndicator className="dt-select__item-indicator">
-        <Check size={15} strokeWidth={2.4} aria-hidden="true" />
+        <IconCheck size={15} stroke={2.4} aria-hidden="true" />
       </BaseSelect.ItemIndicator>
       <BaseSelect.ItemText className="dt-select__item-text">
         {option.label}
