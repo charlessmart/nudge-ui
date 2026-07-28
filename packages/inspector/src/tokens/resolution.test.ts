@@ -2,8 +2,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   buildTokenTable,
+  colorValueHasEmbeddedAlpha,
   resolveTokenValue,
   replaceColorOpacity,
+  replaceColorToken,
   normalizeColorOpacity,
   getAvailableTokenCatalog,
   getAvailableTokenEntriesForElement,
@@ -200,6 +202,17 @@ describe("resolveTokenValue", () => {
     );
     expect(res.tokens.map((token) => token.name)).toEqual(["--color-primary", "--opacity-muted"]);
     expect(res.opacity).toMatchObject({ value: "35%", source: "color-mix", tokenName: "--opacity-muted" });
+    expect(res.tokenName).toBe("--color-primary");
+  });
+
+  it("does not promote an opacity-only token to the color token", () => {
+    const res = resolveTokenValue(
+      "rgb(37 99 235 / var(--opacity-muted))",
+      makeTable([{ name: "--opacity-muted", value: "0.35", source: "s:1" }]),
+    );
+    expect(res.tokenName).toBeNull();
+    expect(res.tokens).toEqual([{ name: "--opacity-muted", origin: "project" }]);
+    expect(res.opacity).toMatchObject({ value: "35%", tokenName: "--opacity-muted" });
   });
 
   it("does not mistake a visible color mix target for opacity", () => {
@@ -208,12 +221,43 @@ describe("resolveTokenValue", () => {
 
   it("normalizes and rewrites supported color opacity values", () => {
     expect(normalizeColorOpacity("0.35")).toBe("35%");
+    expect(replaceColorOpacity("var(--color-primary)", "50%")).toBe(
+      "color-mix(in srgb, var(--color-primary) 50%, transparent)",
+    );
+    expect(replaceColorOpacity("var(--color-primary)", "100%")).toBe("var(--color-primary)");
     expect(replaceColorOpacity("#ff000088", "25%")).toBe("#ff000040");
     expect(replaceColorOpacity("rgba(0, 0, 0, 0.8)", "40%")).toBe("rgba(0, 0, 0, 40%)");
     expect(replaceColorOpacity("hsl(240 100% 50% / 40%)", "20%")).toBe("hsl(240 100% 50% / 20%)");
     expect(replaceColorOpacity("color-mix(in srgb, var(--color-primary) 50%, transparent)", "30%")).toBe(
       "color-mix(in srgb, var(--color-primary) 30%, transparent)",
     );
+    expect(replaceColorToken(
+      "color-mix(in srgb, var(--color-primary) 50%, transparent)",
+      { name: "--color-primary", value: "#2563eb", source: "s:1" },
+      { name: "--color-secondary", value: "#7c3aed", source: "s:2" },
+    )).toBe("color-mix(in srgb, var(--color-secondary) 50%, transparent)");
+  });
+
+  it.each([
+    ["#1234", true],
+    ["#11223344", true],
+    ["transparent", true],
+    ["rgba(17, 34, 51, 0.5)", true],
+    ["hsl(210 50% 20% / 50%)", true],
+    ["hwb(210 20% 10% / 50%)", true],
+    ["lab(65 10 -25 / 50%)", true],
+    ["lch(65 27 290 / 50%)", true],
+    ["oklab(50% 0.1 0.1 / 0.5)", true],
+    ["oklch(63% 0.2 25 / 0.5)", true],
+    ["color(srgb 1 0 0 / 50%)", true],
+    ["color-mix(in srgb, red 50%, transparent)", true],
+    ["#112233", false],
+    ["rgb(17 34 51)", false],
+    ["oklch(63% 0.2 25)", false],
+    ["hsl(210 50% 20%)", false],
+    ["color-mix(in srgb, red 50%, white)", false],
+  ] as const)("detects embedded alpha in %s", (value, expected) => {
+    expect(colorValueHasEmbeddedAlpha(value)).toBe(expected);
   });
 
   it("attributes Tailwind v3 direct RGB helpers to config tokens and opacity aliases", () => {
@@ -244,6 +288,16 @@ describe("resolveTokenValue", () => {
     const res = resolveTokenValue("var(--color-surface-raised)", table);
     expect(res.tokenName).toBe("--color-surface-raised");
     expect(res.resolvedValue).toBe("#ffffff");
+  });
+
+  it("keeps a token with embedded alpha as one token value", () => {
+    const res = resolveTokenValue(
+      "var(--color-muted)",
+      makeTable([{ name: "--color-muted", value: "rgba(37, 99, 235, 0.5)", source: "s:1" }]),
+    );
+    expect(res.tokenName).toBe("--color-muted");
+    expect(res.resolvedValue).toBe("rgba(37, 99, 235, 0.5)");
+    expect(res.opacity).toBeUndefined();
   });
 
   it("resolves chained aliases depth-first to the leaf", () => {
@@ -881,6 +935,76 @@ describe("resolvePropertiesFromRules", () => {
     expect(resolvePropertiesFromRules(btn, [
       { selectorText: ".btn", specificity: 10_000, active: false, declarations: [{ property: "color", value: "var(--active)" }] },
     ], table)).toEqual([]);
+  });
+
+  it("retains the active responsive context on the winning declaration", () => {
+    const table = makeTable([]);
+    const result = resolvePropertiesFromRules(btn, [
+      {
+        selectorText: ".btn",
+        specificity: 10_000,
+        sourceOrder: 0,
+        declarations: [{ property: "font-size", value: "20px" }],
+      },
+      {
+        selectorText: ".btn",
+        specificity: 10_000,
+        sourceOrder: 1,
+        active: true,
+        atRules: [{ kind: "media", params: "(max-width: 640px)" }],
+        declarations: [{ property: "font-size", value: "16px" }],
+      },
+    ], table);
+
+    expect(result.find((row) => row.property === "font-size")).toMatchObject({
+      declaredValue: "16px",
+      atRules: [{ kind: "media", params: "(max-width: 640px)" }],
+    });
+  });
+
+  it("excludes unsupported capability branches before comparing the cascade", () => {
+    const cssDescriptor = Object.getOwnPropertyDescriptor(window, "CSS");
+    Object.defineProperty(window, "CSS", {
+      configurable: true,
+      value: { supports: () => false },
+    });
+    const rules: MatchedRule[] = [
+      {
+        selectorText: ".btn",
+        specificity: 10_000,
+        sourceOrder: 0,
+        declarations: [{ property: "background-color", value: "#2563eb" }],
+      },
+      {
+        selectorText: ".btn",
+        specificity: 10_000,
+        sourceOrder: 1,
+        atRules: [{ kind: "supports", params: "(color: color-mix(in lab, red, red))" }],
+        declarations: [{ property: "background-color", value: "var(--color-primary)" }],
+      },
+    ];
+
+    expect(resolvePropertiesFromRules(btn, rules, makeTable([
+      { name: "--color-primary", value: "#2563eb", source: "tailwind.css:1" },
+    ])).find((row) => row.property === "background-color")).toMatchObject({
+      declaredValue: "#2563eb",
+      tokenName: null,
+    });
+
+    Object.defineProperty(window, "CSS", {
+      configurable: true,
+      value: { supports: () => true },
+    });
+    expect(resolvePropertiesFromRules(btn, rules, makeTable([
+      { name: "--color-primary", value: "#2563eb", source: "tailwind.css:1" },
+    ])).find((row) => row.property === "background-color")).toMatchObject({
+      declaredValue: "var(--color-primary)",
+      tokenName: "--color-primary",
+      atRules: [{ kind: "supports", params: "(color: color-mix(in lab, red, red))" }],
+    });
+
+    if (cssDescriptor) Object.defineProperty(window, "CSS", cssDescriptor);
+    else delete (window as unknown as { CSS?: unknown }).CSS;
   });
 
   it("represents importance, layers and source order in candidate selection", () => {

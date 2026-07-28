@@ -11,6 +11,7 @@ import { computeSpecificity } from "./resolution/selectorSemantics.ts";
 export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
 export { computeSpecificity } from "./resolution/selectorSemantics.ts";
 import type {
+  AtRuleContext,
   BorderStructure,
   ColorOpacity,
   EditCapability,
@@ -25,6 +26,7 @@ import type {
 
 export type {
   AttributionEvidence,
+  AtRuleContext,
   BorderStructure,
   ColorOpacity,
   EditCapability,
@@ -430,6 +432,32 @@ function parseColorMixItem(value: string): ColorMixItem {
   return { color: value.trim(), percentage: null };
 }
 
+const COLOR_FUNCTIONS_WITH_ALPHA_SYNTAX = new Set(["rgb", "hsl", "hwb", "lab", "lch", "oklab", "oklch", "color"]);
+
+/** Returns whether a color value carries its own alpha channel. */
+export function colorValueHasEmbeddedAlpha(value: string): boolean {
+  const trimmed = value.trim();
+  if (/^transparent$/i.test(trimmed)) return true;
+  if (/^#(?:[\da-f]{4}|[\da-f]{8})$/i.test(trimmed)) return true;
+
+  const colorFunction = /^([a-z-]+)\(([\s\S]*)\)$/i.exec(trimmed);
+  if (!colorFunction) return false;
+  const name = colorFunction[1]!.toLowerCase();
+  const body = colorFunction[2]!;
+  if (name === "rgba" || name === "hsla") return true;
+  if (COLOR_FUNCTIONS_WITH_ALPHA_SYNTAX.has(name)) {
+    if (topLevelSlashIndex(body) >= 0) return true;
+    if ((name === "rgb" || name === "hsl") && splitTopLevel(body, ",").length >= 4) return true;
+  }
+  if (name !== "color-mix") return false;
+
+  const parts = splitTopLevel(body, ",");
+  return parts.length === 3 && parts.slice(1).some((part) => {
+    const item = parseColorMixItem(part);
+    return item.color.toLowerCase() === "transparent" || colorValueHasEmbeddedAlpha(item.color);
+  });
+}
+
 function resolveColorMixOpacity(
   value: string,
   tokenTable: TokenTable,
@@ -564,6 +592,9 @@ export function replaceColorOpacity(value: string, opacity: string): string | nu
   const normalized = normalizeColorOpacity(opacity);
   if (normalized === null) return null;
   const trimmed = value.trim();
+  if (/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/i.test(trimmed)) {
+    return normalized === "100%" ? trimmed : `color-mix(in srgb, ${trimmed} ${normalized}, transparent)`;
+  }
   const hex = /^#([\da-f]{4}|[\da-f]{8})$/i.exec(trimmed);
   if (hex) {
     const raw = hex[1]!;
@@ -574,6 +605,41 @@ export function replaceColorOpacity(value: string, opacity: string): string | nu
   }
   if (/^(?:rgba?|hsla?)\(/i.test(trimmed)) return replaceFunctionOpacity(trimmed, normalized);
   if (/^color-mix\(/i.test(trimmed)) return replaceColorMixOpacity(trimmed, normalized);
+  return null;
+}
+
+function tokenReferenceName(entry: TokenEntry): string | null {
+  const name = entry.cssName ?? entry.name;
+  return name.startsWith("--") ? name : null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Replaces only the color token in a separable color expression. Keeping this
+ * separate from `swapToken` is important for values such as Tailwind's
+ * `color-mix(... var(--color-red-500) 10%, transparent)`: a token swap must
+ * retain the authored alpha modifier.
+ */
+export function replaceColorToken(value: string, oldToken: TokenEntry, newToken: TokenEntry): string | null {
+  const nextName = tokenReferenceName(newToken);
+  if (!nextName) return null;
+
+  for (const oldName of [oldToken.cssName, oldToken.name].filter((name): name is string => Boolean(name))) {
+    const reference = new RegExp(`var\\(\\s*${escapeRegExp(oldName)}(?=\\s*(?:,|\\)))`, "i");
+    if (reference.test(value)) {
+      return value.replace(
+        new RegExp(`var\\(\\s*${escapeRegExp(oldName)}(?=\\s*(?:,|\\)))`, "gi"),
+        `var(${nextName}`,
+      );
+    }
+  }
+
+  const oldValue = oldToken.cssValue?.trim() || oldToken.value.trim();
+  const nextValue = newToken.cssValue?.trim() || newToken.value.trim();
+  if (oldValue && nextValue && value.includes(oldValue)) return value.replace(oldValue, nextValue);
   return null;
 }
 
@@ -619,14 +685,23 @@ export function resolveTokenValue(
   const modifiers: ValueModifier[] = calls.flatMap((call) => call.fallback ? [{ kind: "fallback" as const, value: call.fallback }] : []);
   if (opacity) modifiers.push({ kind: "alpha", value: opacity.value });
   const inner = resolveTokenValueInner(authored, tokenTable, new Set(), localAliases);
+  // An alpha variable is still a token reference, but it is not the color
+  // token represented by the field. For example, in
+  // `rgb(37 99 235 / var(--opacity-muted))`, the color is literal and only
+  // the opacity is token-backed. Keep that distinction in `tokenName` so the
+  // UI can render a base color chip only when one actually exists.
+  const alphaTokenName = opacity?.tokenName;
+  const baseKnown = firstKnown && firstKnown.tokenName !== alphaTokenName ? firstKnown : null;
+  const baseInner = inner.tokenName && inner.tokenName !== alphaTokenName ? inner : null;
+  const primary = baseKnown ?? baseInner;
   return {
-    tokenName: firstKnown?.tokenName ?? inner.tokenName,
-    resolvedValue: firstKnown?.resolvedValue ?? inner.resolvedValue,
+    tokenName: primary?.tokenName ?? (alphaTokenName ? null : firstKnown?.tokenName ?? inner.tokenName),
+    resolvedValue: primary?.resolvedValue ?? (alphaTokenName ? authored : inner.resolvedValue),
     tokens: references,
     opacity,
     modifiers,
-    leafTokenName: firstKnown?.leafTokenName ?? firstKnown?.tokenName ?? null,
-    cycle: firstKnown?.cycle,
+    leafTokenName: primary?.leafTokenName ?? primary?.tokenName ?? null,
+    cycle: primary?.cycle,
   };
 }
 
@@ -1130,6 +1205,45 @@ interface LocalAliasCandidate {
   sourceOrder: number;
 }
 
+let containerProbeSequence = 0;
+
+/**
+ * Container conditions are element-relative. CSSOM exposes their text but has
+ * no `matches` API, so ask the browser by applying an inert custom property to
+ * the selected element inside an equivalent temporary @container wrapper.
+ */
+function matchesContainerQuery(el: HTMLElement, params: string): boolean {
+  const doc = el.ownerDocument;
+  if (!doc.head || !params) return false;
+
+  const id = ++containerProbeSequence;
+  const marker = `data-dt-container-probe-${id}`;
+  const property = `--dt-container-probe-${id}`;
+  const style = doc.createElement("style");
+  style.setAttribute("data-design-tool", "container-probe");
+  style.textContent = `@container ${params} { [${marker}] { ${property}: 1; } }`;
+
+  el.setAttribute(marker, "");
+  doc.head.appendChild(style);
+  try {
+    return getElementComputedStyle(el).getPropertyValue(property).trim() === "1";
+  } catch {
+    return false;
+  } finally {
+    style.remove();
+    el.removeAttribute(marker);
+  }
+}
+
+function atRulesApplyToElement(el: HTMLElement, atRules: readonly AtRuleContext[] | undefined): boolean {
+  const view = el.ownerDocument.defaultView;
+  return (atRules ?? []).every((atRule) => {
+    if (atRule.kind === "container") return matchesContainerQuery(el, atRule.params);
+    if (atRule.kind === "supports") return view?.CSS?.supports(atRule.params) ?? false;
+    return true;
+  });
+}
+
 function compareCascade(
   a: { important?: boolean; layer?: string; specificity: number; sourceOrder: number },
   b: { important?: boolean; layer?: string; specificity: number; sourceOrder: number },
@@ -1151,6 +1265,7 @@ function compareCascade(
 function collectLocalAliases(
   el: HTMLElement,
   rules: MatchedRule[],
+  ruleApplies: (rule: MatchedRule) => boolean,
 ): ReadonlyMap<string, string> {
   // Custom properties inherit independently of the property being resolved.
   // Resolve the winning declaration separately for each element in the
@@ -1169,6 +1284,7 @@ function collectLocalAliases(
     const candidates = new Map<string, LocalAliasCandidate>();
     rules.forEach((rule, index) => {
       if (rule.active === false) return;
+      if (!ruleApplies(rule)) return;
       const branch = matchingSelectorBranch(element, rule.selectorText);
       if (!branch) return;
       const sourceOrder = rule.sourceOrder ?? index;
@@ -1214,7 +1330,18 @@ export function resolvePropertiesFromRules(
   tokenTable: TokenTable,
 ): ResolvedProperty[] {
   const map = new Map<string, ResolvedProperty>();
-  const localAliases = collectLocalAliases(el, rules);
+  const matchingContexts = new Map<string, boolean>();
+  const ruleApplies = (rule: MatchedRule): boolean => {
+    const atRules = rule.atRules;
+    if (!atRules || atRules.length === 0) return true;
+    const key = JSON.stringify(atRules);
+    const cached = matchingContexts.get(key);
+    if (cached !== undefined) return cached;
+    const result = atRulesApplyToElement(el, atRules);
+    matchingContexts.set(key, result);
+    return result;
+  };
+  const localAliases = collectLocalAliases(el, rules, ruleApplies);
 
   // Sort by specificity ascending so rules are processed lowest-first.
   // Map.set() naturally overwrites: higher specificity rules processed later win,
@@ -1223,6 +1350,7 @@ export function resolvePropertiesFromRules(
 
   for (const rule of sorted) {
     if (rule.active === false) continue;
+    if (!ruleApplies(rule)) continue;
     const branch = matchingSelectorBranch(el, rule.selectorText);
     if (!branch) continue;
     const specificity = computeSpecificity(branch);
@@ -1243,6 +1371,7 @@ export function resolvePropertiesFromRules(
           resolvedTokenValue: resolved.resolvedTokenValue,
           diagnostic: resolved.diagnostic,
           structure: resolved.structure,
+          atRules: rule.atRules,
           confidence: resolved.tokenName ? "probable" : "unknown",
           evidence: {
             selector: branch,

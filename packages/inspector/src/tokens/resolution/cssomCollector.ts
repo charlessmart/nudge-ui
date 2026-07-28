@@ -1,5 +1,5 @@
 import { computeSpecificity } from "./selectorSemantics.ts";
-import type { MatchedRule, StyleDeclaration } from "./types.ts";
+import type { AtRuleContext, MatchedRule, StyleDeclaration } from "./types.ts";
 
 interface RuleSnapshot {
   revision: number;
@@ -181,6 +181,45 @@ function findTopLevelColon(value: string): number {
   return -1;
 }
 
+function atRuleParams(cssText: string, name: "media" | "container" | "supports"): string {
+  const match = new RegExp(`^\\s*@${name}\\s+([\\s\\S]*?)\\s*\\{`, "i").exec(cssText);
+  return match?.[1]?.trim() ?? "";
+}
+
+function contextForRule(
+  cssText: string,
+  record: { conditionText?: string; containerName?: string },
+): AtRuleContext | null {
+  if (/^\s*@media\b/i.test(cssText)) {
+    const params = record.conditionText?.trim() || atRuleParams(cssText, "media");
+    return params ? { kind: "media", params } : null;
+  }
+  if (/^\s*@container\b/i.test(cssText)) {
+    // CSSContainerRule exposes `conditionText` and `containerName` in modern
+    // engines. Fall back to the serialised prelude so named, style, and newer
+    // container queries remain presentable without hand-parsing their grammar.
+    const containerName = record.containerName?.trim();
+    const fromInterfaces = [containerName && containerName !== "none" ? containerName : undefined, record.conditionText?.trim()]
+      .filter((part): part is string => Boolean(part))
+      .join(" ");
+    const params = fromInterfaces || atRuleParams(cssText, "container");
+    return params ? { kind: "container", params } : null;
+  }
+  if (/^\s*@supports\b/i.test(cssText)) {
+    const params = record.conditionText?.trim() || atRuleParams(cssText, "supports");
+    return params ? { kind: "supports", params } : null;
+  }
+  return null;
+}
+
+function isNestedDeclarations(rule: CSSRule, doc: Document): rule is CSSRule & { style: CSSStyleDeclaration } {
+  if (isStyleRuleInDocument(rule, doc) || !("style" in rule) || "selectorText" in rule) return false;
+  // Chromium represents declarations nested in a style rule's @supports /
+  // @media block as CSSNestedDeclarations. Its public type is not yet in
+  // lib.dom, so identify its declaration-only CSSOM shape conservatively.
+  return !/^\s*@/.test(rule.cssText ?? "") && typeof (rule as { style?: unknown }).style === "object";
+}
+
 export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: boolean } {
   const revision = stylesheetRevision(doc);
   const cached = ruleSnapshots.get(doc);
@@ -195,6 +234,8 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
     rules: CSSRuleList,
     active = true,
     layer?: string,
+    atRules: AtRuleContext[] = [],
+    inheritedSelector?: string,
   ): void => {
     for (const rule of Array.from(rules)) {
       if (isStyleRuleInDocument(rule, doc)) {
@@ -206,20 +247,57 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
             sourceOrder: sourceOrder++,
             active,
             layer,
+            atRules: atRules.length > 0 ? atRules : undefined,
+          });
+          const nested = (rule as unknown as { cssRules?: CSSRuleList }).cssRules;
+          if (nested?.length) walkRules(nested, active, layer, atRules, rule.selectorText);
+        } catch {
+          continue;
+        }
+      } else if (isNestedDeclarations(rule, doc)) {
+        if (!inheritedSelector) continue;
+        try {
+          out.push({
+            selectorText: inheritedSelector,
+            specificity: computeSpecificity(inheritedSelector),
+            declarations: declarationsFromCssom(rule.style),
+            sourceOrder: sourceOrder++,
+            active,
+            layer,
+            atRules: atRules.length > 0 ? atRules : undefined,
           });
         } catch {
           continue;
         }
       } else if ("cssRules" in rule) {
         try {
-          const record = rule as unknown as { cssRules: CSSRuleList; conditionText?: string; name?: string };
+          const record = rule as unknown as {
+            cssRules: CSSRuleList;
+            conditionText?: string;
+            containerName?: string;
+            name?: string;
+          };
           let childActive = active;
           const cssText = rule.cssText ?? "";
-          if (cssText.startsWith("@media") && record.conditionText) childActive = active && doc.defaultView!.matchMedia(record.conditionText).matches;
-          else if (cssText.startsWith("@supports") && record.conditionText) childActive = active && (doc.defaultView?.CSS?.supports(record.conditionText) ?? false);
-          else if (cssText.startsWith("@container")) childActive = false;
-          const childLayer = cssText.startsWith("@layer") ? record.name ?? cssText.slice(6, cssText.indexOf("{")).trim() : layer;
-          walkRules(record.cssRules, childActive, childLayer);
+          const isMedia = /^\s*@media\b/i.test(cssText);
+          const isSupports = /^\s*@supports\b/i.test(cssText);
+          const isLayer = /^\s*@layer\b/i.test(cssText);
+          const view = doc.defaultView;
+          if (isMedia && record.conditionText) childActive = active && (view ? view.matchMedia(record.conditionText).matches : false);
+          else if (isSupports && record.conditionText) childActive = active && (doc.defaultView?.CSS?.supports(record.conditionText) ?? false);
+          // A container query is evaluated relative to the styled element, so
+          // it cannot be answered while walking a document-level stylesheet.
+          // Resolution evaluates its retained context against the selected
+          // element using a harmless browser probe.
+          const context = contextForRule(cssText, record);
+          const childLayer = isLayer ? record.name ?? cssText.slice(6, cssText.indexOf("{")).trim() : layer;
+          walkRules(
+            record.cssRules,
+            childActive,
+            childLayer,
+            context ? [...atRules, context] : atRules,
+            inheritedSelector,
+          );
         } catch {
           continue;
         }

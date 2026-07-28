@@ -4,6 +4,7 @@ import { FieldRow } from "../ui/FieldRow.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { getLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "./styleActions.ts";
+import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
 
 const DEFAULT_GRID_VALUES: Record<string, string> = {
   "grid-template-columns": "none",
@@ -32,6 +33,7 @@ export function GridValueField({
   revision = 0,
   onAfterEdit,
 }: GridValueFieldProps): ReactElement {
+  const atRules = useFieldAtRules(property);
   const readValue = (): string => {
     const value = getLayoutValue(el, property);
     return value.authored || value.computed || DEFAULT_GRID_VALUES[property] || "";
@@ -63,6 +65,8 @@ export function GridValueField({
   return (
     <FieldRow
       label={property}
+      property={property}
+      atRules={atRules}
       data-test={`layout-grid-${property}`}
       hint={getLayoutValue(el, property).authored ? undefined : "Computed preview"}
     >

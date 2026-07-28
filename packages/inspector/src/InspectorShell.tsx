@@ -37,6 +37,7 @@ import { useCanvasMode } from "./canvas/canvasStore.ts";
 import { getRestoreCount, clearRestoreCount, clearSession } from "./canvas/sessionStore.ts";
 import { getElementWindow } from "./domRealm.ts";
 import { deleteElement, nudgeElement, undoDomMutation, redoDomMutation, useDomMutations } from "./domMutations.ts";
+import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -312,30 +313,32 @@ export function InspectorShell(): ReactElement {
                 </StatusCallout>
               </div>
 
-              <div className="dt-style-editors" data-test="style-editors">
-                <LayoutSection key={`layout-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                <SpacingBox key={`spacing-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                <Typography key={`type-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                <ColorPicker
-                  key={`color-${styleState}`}
-                  element={selected}
-                  property="color"
-                  entries={tokenEntries}
-                  tokenRow={findTokenRow(tokenRows, "color")}
-                  onAfterEdit={refreshSelected}
-                />
-                <ColorPicker
-                  key={`background-${styleState}`}
-                  element={selected}
-                  property="background-color"
-                  entries={tokenEntries}
-                  tokenRow={backgroundTokenRow}
-                  onAfterEdit={refreshSelected}
-                />
-                <BorderEditor key={`border-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                <BorderRadiusEditor key={`border-radius-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-              </div>
+              <AtRuleContextProvider rows={tokenRows}>
+                <div className="dt-style-editors" data-test="style-editors">
+                  <LayoutSection key={`layout-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                  <SpacingBox key={`spacing-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                  <Typography key={`type-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                  <ColorPicker
+                    key={`color-${styleState}`}
+                    element={selected}
+                    property="color"
+                    entries={tokenEntries}
+                    tokenRow={findTokenRow(tokenRows, "color")}
+                    onAfterEdit={refreshSelected}
+                  />
+                  <ColorPicker
+                    key={`background-${styleState}`}
+                    element={selected}
+                    property="background-color"
+                    entries={tokenEntries}
+                    tokenRow={backgroundTokenRow}
+                    onAfterEdit={refreshSelected}
+                  />
+                  <BorderEditor key={`border-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                  <BorderRadiusEditor key={`border-radius-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                  <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                </div>
+              </AtRuleContextProvider>
             </>
           ) : (
             <div className="dt-empty-state" data-test="empty-state">

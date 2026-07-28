@@ -17,6 +17,21 @@
   min-width: 0;
 }
 
+.dt-field-row__control[data-has-at-rule="true"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dt-field-row__control[data-has-at-rule="true"] > :not(.dt-at-rule-indicator):not(.dt-field-row__hint) {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dt-field-row__control[data-has-at-rule="true"] > .dt-at-rule-indicator {
+  margin-left: auto;
+}
+
 .dt-field-row--stacked {
   display: flex;
   flex-direction: column;

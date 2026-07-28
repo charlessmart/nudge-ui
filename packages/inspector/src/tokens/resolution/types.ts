@@ -19,6 +19,12 @@ export interface ResolvedProperty {
   resolvedTokenValue?: string;
   diagnostic?: string;
   structure?: BorderStructure;
+  /**
+   * Conditional source wrappers that apply to the declaration currently
+   * attributed to this field. These include responsive, container, and
+   * capability conditions which can affect the winning declaration.
+   */
+  atRules?: AtRuleContext[];
   confidence: "exact" | "probable" | "unknown";
   evidence: AttributionEvidence;
 }
@@ -64,6 +70,15 @@ export interface StyleDeclaration {
   important?: boolean;
 }
 
+export type AtRuleKind = "media" | "container" | "supports";
+
+/** A conditional wrapper retained from CSSOM in source nesting order. */
+export interface AtRuleContext {
+  kind: AtRuleKind;
+  /** The CSSOM-normalised prelude, without the leading `@kind`. */
+  params: string;
+}
+
 export interface MatchedRule {
   selectorText: string;
   declarations: StyleDeclaration[];
@@ -71,4 +86,5 @@ export interface MatchedRule {
   sourceOrder?: number;
   layer?: string;
   active?: boolean;
+  atRules?: AtRuleContext[];
 }

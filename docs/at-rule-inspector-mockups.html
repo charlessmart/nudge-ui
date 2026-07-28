@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Design Tool — Rule-context inspector concepts</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --canvas: #101116;
+        --panel: #191b22;
+        --panel-raised: #22252e;
+        --border: #343947;
+        --border-soft: #2a2e3a;
+        --text: #f4f6fa;
+        --muted: #9aa1b1;
+        --subtle: #6e7585;
+        --blue: #7aa7ff;
+        --blue-strong: #3f7fe8;
+        --blue-wash: #18325b;
+        --green: #77d8a1;
+        --amber: #e5b86b;
+        --red: #ef8f99;
+        --purple: #c6a6ff;
+        --radius: 12px;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--canvas); color: var(--text); }
+      button, input { font: inherit; }
+
+      .page {
+        max-width: 1440px;
+        margin: 0 auto;
+        padding: 48px 28px 72px;
+      }
+
+      .intro { max-width: 760px; margin-bottom: 36px; }
+      .eyebrow { color: var(--blue); font-size: 12px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+      h1 { margin: 9px 0 10px; font-size: 30px; letter-spacing: -.035em; }
+      .intro p { margin: 0; color: var(--muted); line-height: 1.55; }
+
+      .concepts { display: grid; gap: 28px; }
+      .concept {
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: #14161c;
+        box-shadow: 0 16px 45px rgba(0, 0, 0, .22);
+      }
+      .concept-heading {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 21px 24px 19px;
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .concept-heading h2 { margin: 0 0 4px; font-size: 16px; letter-spacing: -.015em; }
+      .concept-heading p { max-width: 660px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+      .concept-no { color: var(--subtle); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+      .mock-stage {
+        min-height: 520px;
+        padding: 34px;
+        background:
+          radial-gradient(circle at 20% 0%, rgba(64, 104, 177, .1), transparent 28%),
+          #0d0f14;
+      }
+      .inspector {
+        width: min(100%, 430px);
+        margin-left: auto;
+        overflow: hidden;
+        border: 1px solid #3b4152;
+        border-radius: 14px;
+        background: var(--panel);
+        box-shadow: 0 22px 55px rgba(0,0,0,.35);
+      }
+      .panel-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 52px;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .tabs { display: flex; gap: 4px; }
+      .tab { padding: 7px 9px; color: var(--muted); font-size: 13px; font-weight: 650; }
+      .tab.active { color: var(--text); border-bottom: 2px solid var(--blue); }
+      .icon-button { color: var(--muted); font-size: 18px; line-height: 1; }
+      .panel-body { padding: 15px; }
+
+      .selection {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 13px;
+        padding-bottom: 13px;
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .selection-label { color: var(--muted); font-size: 12px; }
+      .selection-value { margin-top: 3px; font-size: 14px; font-weight: 700; }
+      .source { color: var(--subtle); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
+      .state { padding: 4px 7px; border-radius: 6px; background: #272b35; color: var(--muted); font-size: 11px; }
+
+      .section-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 17px 0 9px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 750;
+        letter-spacing: .075em;
+        text-transform: uppercase;
+      }
+      .field {
+        margin-bottom: 10px;
+        padding: 11px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: #1f222a;
+      }
+      .field-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .field-label { color: var(--muted); font-size: 12px; }
+      .field-value { color: var(--text); font-size: 14px; font-weight: 650; }
+      .field.focus { border-color: #4f81ce; box-shadow: 0 0 0 2px rgba(78, 131, 211, .14); }
+      .value-input {
+        width: 90px;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 700;
+        text-align: right;
+      }
+
+      .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 25px;
+        padding: 4px 7px;
+        border: 1px solid #3b4252;
+        border-radius: 6px;
+        color: #c9d0dc;
+        background: #242832;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10px;
+        white-space: nowrap;
+      }
+      .chip.active { border-color: #477cc9; background: var(--blue-wash); color: #bcd4ff; }
+      .chip.layer { color: #e0d2ff; border-color: #5e507d; background: #2b2638; }
+      .chip.scope { color: #b9efd3; border-color: #3e7960; background: #1d352b; }
+      .chip.muted { opacity: .62; }
+      .status-dot { width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: var(--green); }
+
+      /* A — context ribbon */
+      .context-ribbon {
+        margin-bottom: 14px;
+        padding: 11px;
+        border: 1px solid #365887;
+        border-radius: 9px;
+        background: linear-gradient(100deg, #192c4a, #1d2230);
+      }
+      .ribbon-title { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+      .ribbon-title strong { font-size: 12px; }
+      .link { color: var(--blue); font-size: 11px; font-weight: 650; }
+      .ribbon-note { margin-top: 8px; color: #a9b4c7; font-size: 11px; line-height: 1.4; }
+      .ribbon-note b { color: white; }
+
+      /* B — declaration stack */
+      .rule-stack { display: grid; gap: 8px; }
+      .rule-card {
+        display: grid;
+        grid-template-columns: 17px 1fr auto;
+        align-items: center;
+        gap: 9px;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #1d2028;
+      }
+      .rule-card.active { border-color: #457fd2; background: #1b2a40; }
+      .rule-card.inactive { opacity: .63; }
+      .rule-radio { width: 14px; height: 14px; border: 1px solid #6d7687; border-radius: 50%; }
+      .rule-card.active .rule-radio { border: 4px solid var(--blue); }
+      .rule-name { font-size: 12px; font-weight: 700; }
+      .rule-meta { margin-top: 3px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
+      .rule-value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+      .rule-caption { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+      /* C — contextual rail */
+      .context-layout { display: grid; grid-template-columns: 130px 1fr; gap: 14px; }
+      .rail { position: relative; padding: 4px 0; }
+      .rail::before { position: absolute; top: 18px; bottom: 18px; left: 8px; width: 1px; background: #3d4250; content: ""; }
+      .rail-item { position: relative; margin-bottom: 16px; padding-left: 24px; }
+      .rail-dot { position: absolute; top: 4px; left: 4px; width: 9px; height: 9px; border: 2px solid #697284; border-radius: 50%; background: var(--panel); }
+      .rail-item.active .rail-dot { border-color: var(--blue); background: var(--blue); box-shadow: 0 0 0 4px rgba(80,135,221,.17); }
+      .rail-title { font-size: 11px; font-weight: 700; }
+      .rail-subtitle { margin-top: 2px; color: var(--subtle); font-size: 10px; line-height: 1.3; }
+      .context-card { padding: 13px; border: 1px solid #3e618f; border-radius: 10px; background: #1a2940; }
+      .context-card h3 { margin: 0 0 4px; font-size: 13px; }
+      .context-card p { margin: 0 0 11px; color: #acbbcf; font-size: 11px; line-height: 1.42; }
+      .context-card .field { margin: 0; background: rgba(12,18,30,.3); }
+      .hint { display: flex; gap: 7px; margin-top: 12px; color: var(--muted); font-size: 11px; line-height: 1.38; }
+      .hint-mark { color: var(--amber); }
+
+      .legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0 2px; color: var(--muted); font-size: 11px; }
+      .legend strong { color: var(--text); }
+
+      @media (max-width: 700px) {
+        .page { padding: 26px 14px 48px; }
+        .mock-stage { padding: 16px; }
+        .concept-heading { padding: 17px; }
+        .context-layout { grid-template-columns: 1fr; }
+        .rail { display: flex; gap: 10px; padding: 0; }
+        .rail::before { display: none; }
+        .rail-item { margin: 0; padding: 0; }
+        .rail-dot { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <div class="intro">
+        <div class="eyebrow">Design Tool · Inspector exploration</div>
+        <h1>Three ways to expose rule context</h1>
+        <p>All examples inspect the same heading. Its base value is 24px, while the active small-screen media rule sets it to 20px. The key is to make the current source context obvious without turning the inspector into a stylesheet editor.</p>
+      </div>
+
+      <section class="concepts">
+        <article class="concept">
+          <header class="concept-heading">
+            <div>
+              <h2>A. Context ribbon</h2>
+              <p>Smallest intervention: always edit the currently winning authored context. The active rule is visible before the fields, while the full list stays behind one “View variants” affordance.</p>
+            </div>
+            <div class="concept-no">01</div>
+          </header>
+          <div class="mock-stage">
+            <div class="inspector">
+              <div class="panel-top"><div class="tabs"><span class="tab active">Inspect</span><span class="tab">Tokens</span></div><span class="icon-button">⋮</span></div>
+              <div class="panel-body">
+                <div class="selection"><div><div class="selection-label">Selected element</div><div class="selection-value">Heading</div><div class="source">Hero.tsx:42</div></div><span class="state">Base</span></div>
+                <div class="context-ribbon">
+                  <div class="ribbon-title"><strong>Editing active rule</strong><span class="link">View variants</span></div>
+                  <div class="chip-row"><span class="chip">Base</span><span class="chip active"><span class="status-dot"></span>@media (width &lt; 768px)</span><span class="chip layer">@layer components</span></div>
+                  <div class="ribbon-note"><b>Matches this preview.</b> This edit will apply only below 768px.</div>
+                </div>
+                <div class="section-label"><span>Text</span><span>3 properties</span></div>
+                <div class="field focus"><div class="field-top"><span class="field-label">Font size</span><input class="value-input" value="20px" aria-label="Font size" /></div></div>
+                <div class="field"><div class="field-top"><span class="field-label">Line height</span><span class="field-value">28px</span></div></div>
+                <div class="field"><div class="field-top"><span class="field-label">Font weight</span><span class="field-value">700</span></div></div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="concept">
+          <header class="concept-heading">
+            <div>
+              <h2>B. Rule variants in the field</h2>
+              <p>More explicit, but still scoped: the Font size field expands into the declarations affecting that one property. It makes base and responsive values directly comparable.</p>
+            </div>
+            <div class="concept-no">02</div>
+          </header>
+          <div class="mock-stage">
+            <div class="inspector">
+              <div class="panel-top"><div class="tabs"><span class="tab active">Inspect</span><span class="tab">Tokens</span></div><span class="icon-button">⋮</span></div>
+              <div class="panel-body">
+                <div class="selection"><div><div class="selection-label">Selected element</div><div class="selection-value">Heading</div><div class="source">Hero.tsx:42</div></div><span class="state">Base</span></div>
+                <div class="section-label"><span>Text</span><span>Context-aware</span></div>
+                <div class="field focus">
+                  <div class="field-top"><span class="field-label">Font size</span><span class="field-value">20px&nbsp;&nbsp;⌃</span></div>
+                </div>
+                <div class="rule-stack">
+                  <div class="rule-card active"><span class="rule-radio"></span><div><div class="rule-name">Current preview <span style="color:var(--green); font-weight:600;">• matches</span></div><div class="rule-meta">@media (width &lt; 768px)</div></div><span class="rule-value">20px</span></div>
+                  <div class="rule-card"><span class="rule-radio"></span><div><div class="rule-name">Default</div><div class="rule-meta">unconditional</div></div><span class="rule-value">24px</span></div>
+                  <div class="rule-card inactive"><span class="rule-radio"></span><div><div class="rule-name">Large layout</div><div class="rule-meta">@container hero (width &gt; 56rem)</div></div><span class="rule-value">32px</span></div>
+                </div>
+                <p class="rule-caption">Only the matching declaration is editable here. Resize the preview to make another variant active, then edit it in place.</p>
+                <div class="section-label"><span>Other text</span></div>
+                <div class="field"><div class="field-top"><span class="field-label">Line height</span><span class="field-value">28px</span></div></div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="concept">
+          <header class="concept-heading">
+            <div>
+              <h2>C. Context rail</h2>
+              <p>A stronger responsive-design affordance. The selected context is a short vertical route through base, viewport, and container conditions; the editor remains focused on one rule at a time.</p>
+            </div>
+            <div class="concept-no">03</div>
+          </header>
+          <div class="mock-stage">
+            <div class="inspector">
+              <div class="panel-top"><div class="tabs"><span class="tab active">Inspect</span><span class="tab">Tokens</span></div><span class="icon-button">⋮</span></div>
+              <div class="panel-body">
+                <div class="selection"><div><div class="selection-label">Selected element</div><div class="selection-value">Heading</div><div class="source">Hero.tsx:42</div></div><span class="state">Base</span></div>
+                <div class="section-label"><span>Rule context</span><span class="link">Show all</span></div>
+                <div class="context-layout">
+                  <div class="rail">
+                    <div class="rail-item"><span class="rail-dot"></span><div class="rail-title">Default</div><div class="rail-subtitle">24px</div></div>
+                    <div class="rail-item active"><span class="rail-dot"></span><div class="rail-title">Small viewport</div><div class="rail-subtitle">&lt; 768px · 20px</div></div>
+                    <div class="rail-item"><span class="rail-dot"></span><div class="rail-title">Wide hero</div><div class="rail-subtitle">container &gt; 56rem</div></div>
+                  </div>
+                  <div>
+                    <div class="context-card">
+                      <h3>Small viewport</h3>
+                      <p>Active in this preview. Changes stay inside this media rule.</p>
+                      <div class="chip-row" style="margin-bottom:10px"><span class="chip active">@media (width &lt; 768px)</span><span class="chip layer">@layer components</span></div>
+                      <div class="field focus"><div class="field-top"><span class="field-label">Font size</span><input class="value-input" value="20px" aria-label="Font size" /></div></div>
+                    </div>
+                    <div class="hint"><span class="hint-mark">↗</span><span>Resize the live preview to activate another existing rule. This deliberately does not ask you to invent a breakpoint in the inspector.</span></div>
+                  </div>
+                </div>
+                <div class="legend"><span><strong>Good for:</strong> Canvas and responsive review</span><span><strong>Trade-off:</strong> more panel space</span></div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

@@ -8,6 +8,7 @@ import { Select } from "../ui/Select.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
+import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 
 const CUSTOM_KEY = "__custom__";
 
@@ -33,6 +34,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     revision = 0,
     onAfterEdit,
   } = props;
+  const atRules = useFieldAtRules(property);
 
   const [currentValue, setCurrentValue] = useState(() =>
     getStateStyleValue(el, property),
@@ -138,6 +140,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
           ) : null}
         </>
       )}
+      <AtRuleIndicator atRules={atRules} />
     </span>
   );
 }

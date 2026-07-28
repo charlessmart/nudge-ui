@@ -72,6 +72,16 @@
   font-size: var(--dt-font-size-base);
 }
 
+.dt-typography__field > .dt-at-rule-indicator {
+  position: absolute;
+  z-index: 2;
+  right: 8px;
+}
+
+.dt-typography__field:has(> .dt-at-rule-indicator) > .dt-select {
+  padding-right: 68px;
+}
+
 .dt-typography__metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -92,4 +102,21 @@
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: var(--dt-space-8);
+}
+
+.dt-typography__alignment-field {
+  position: relative;
+  min-width: 0;
+}
+
+.dt-typography__alignment-field > .dt-at-rule-indicator {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+}
+
+.dt-typography__alignment-field:has(> .dt-at-rule-indicator) .dt-segmented-control {
+  padding-right: 65px;
 }

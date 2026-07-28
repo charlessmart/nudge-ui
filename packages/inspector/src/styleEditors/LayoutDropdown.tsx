@@ -5,6 +5,7 @@ import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../stateValue.ts";
+import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
 
 export interface LayoutDropdownProps {
   property: string;
@@ -17,6 +18,7 @@ export interface LayoutDropdownProps {
 
 export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
   const { property, options, domElement: el, stacked, revision = 0, onAfterEdit } = props;
+  const atRules = useFieldAtRules(property);
 
   const [value, setValue] = useState(() =>
     getStateStyleValue(el, property, options[0]),
@@ -41,6 +43,8 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
   return (
     <FieldRow
       label={property}
+      property={property}
+      atRules={atRules}
       className={stacked ? "dt-field-row--stacked" : undefined}
       data-test="layout-dropdown"
     >

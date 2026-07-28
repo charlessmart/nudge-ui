@@ -54,4 +54,43 @@ describe("CSSOM collector", () => {
       { property: "color", value: "blue", important: false },
     ]);
   });
+
+  it("retains a media query prelude on its nested style rules", () => {
+    const matchMedia = window.matchMedia;
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ matches: true }),
+    });
+    const style = document.createElement("style");
+    style.textContent = "@media (min-width: 1px) { .subject { font-size: 17px; } }";
+    document.head.appendChild(style);
+
+    expect(collectRules(document).rules).toContainEqual(expect.objectContaining({
+      selectorText: ".subject",
+      active: true,
+      atRules: [{ kind: "media", params: "(min-width: 1px)" }],
+    }));
+
+    Object.defineProperty(window, "matchMedia", { configurable: true, value: matchMedia });
+  });
+
+  it("retains an active supports prelude on its nested style rules", () => {
+    const cssDescriptor = Object.getOwnPropertyDescriptor(window, "CSS");
+    Object.defineProperty(window, "CSS", {
+      configurable: true,
+      value: { supports: () => true },
+    });
+    const style = document.createElement("style");
+    style.textContent = "@supports (display: grid) { .subject { display: grid; } }";
+    document.head.appendChild(style);
+
+    expect(collectRules(document).rules).toContainEqual(expect.objectContaining({
+      selectorText: ".subject",
+      active: true,
+      atRules: [{ kind: "supports", params: "(display: grid)" }],
+    }));
+
+    if (cssDescriptor) Object.defineProperty(window, "CSS", cssDescriptor);
+    else delete (window as unknown as { CSS?: unknown }).CSS;
+  });
 });
