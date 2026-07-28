@@ -22,6 +22,7 @@ import { Select } from "../ui/Select.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { setStyle } from "./styleActions.ts";
+import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
@@ -72,6 +73,7 @@ export function Typography(props: TypographyProps): ReactElement {
             domElement={el}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
+            chipVariant="small"
           />
           <TypographyTokenField
             property="line-height"
@@ -81,6 +83,7 @@ export function Typography(props: TypographyProps): ReactElement {
             domElement={el}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
+            chipVariant="small"
           />
           <TypographyTokenField
             property="letter-spacing"
@@ -90,6 +93,7 @@ export function Typography(props: TypographyProps): ReactElement {
             domElement={el}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
+            chipVariant="small"
           />
         </div>
 
@@ -132,10 +136,11 @@ interface TypographyTokenFieldProps {
   domElement: HTMLElement;
   entries: TokenEntry[];
   onAfterEdit?: () => void;
+  chipVariant?: "default" | "small";
 }
 
 function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
-  const { property, label, icon, tokenRow, domElement, entries, onAfterEdit } = props;
+  const { property, label, icon, tokenRow, domElement, entries, onAfterEdit, chipVariant } = props;
   const metric = property === "font-size" || property === "line-height" || property === "letter-spacing";
   const hasTokenChip = Boolean(tokenRow?.tokenName
     && tokenRow.capability !== "raw"
@@ -152,6 +157,7 @@ function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
       leading={icon}
       trailing={metric || hasTokenChip ? undefined : <IconChevronDown size={17} stroke={1.8} aria-hidden="true" />}
       label={label}
+      chipVariant={chipVariant}
       onAfterEdit={onAfterEdit}
     />
   );
@@ -183,6 +189,10 @@ interface FontStyleFieldProps {
 }
 
 function FontStyleField({ element, fontStyleRow, fontWeightRow, onAfterEdit }: FontStyleFieldProps): ReactElement {
+  const fontStyleAtRules = useFieldAtRules("font-style");
+  const fontWeightAtRules = useFieldAtRules("font-weight");
+  const atRules = fontStyleRow?.atRules ?? fontWeightRow?.atRules
+    ?? (fontStyleAtRules.length > 0 ? fontStyleAtRules : fontWeightAtRules);
   const readValue = () => readFontStyle(element);
   const [current, setCurrent] = useState(readValue);
 
@@ -223,6 +233,7 @@ function FontStyleField({ element, fontStyleRow, fontWeightRow, onAfterEdit }: F
         onValueChange={handleChange}
         data-test="font-style-field"
       />
+      <AtRuleIndicator atRules={atRules} />
     </div>
   );
 }
@@ -262,6 +273,7 @@ interface AlignmentFieldProps {
 }
 
 function AlignmentField({ property, label, element, defaultValue, options, onAfterEdit }: AlignmentFieldProps): ReactElement {
+  const atRules = useFieldAtRules(property);
   const [current, setCurrent] = useState(() => normalizeAlignment(property, getStateStyleValue(element, property, defaultValue)));
 
   useEffect(() => {
@@ -275,18 +287,21 @@ function AlignmentField({ property, label, element, defaultValue, options, onAft
   }
 
   return (
-    <SegmentedControl
-      value={current}
-      aria-label={label}
-      data-property={property}
-      options={options.map((option) => ({
-        value: option.value,
-        label: option.label,
-        icon: option.icon,
-        testId: `typography-align-${property}-${option.value}`,
-      }))}
-      onChange={handleChange}
-    />
+    <div className="dt-typography__alignment-field">
+      <SegmentedControl
+        value={current}
+        aria-label={label}
+        data-property={property}
+        options={options.map((option) => ({
+          value: option.value,
+          label: option.label,
+          icon: option.icon,
+          testId: `typography-align-${property}-${option.value}`,
+        }))}
+        onChange={handleChange}
+      />
+      <AtRuleIndicator atRules={atRules} />
+    </div>
   );
 }
 

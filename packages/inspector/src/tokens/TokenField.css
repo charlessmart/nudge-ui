@@ -133,27 +133,35 @@
   min-width: 0;
   height: var(--dt-control-height-large);
   padding: 0 10px;
-  background: var(--dt-accent-surface);
+  background: var(--dt-surface-control);
+  border: 1px solid var(--dt-border-strong);
   border-radius: var(--dt-radius-control);
-  color: var(--dt-accent-strong);
-  font-size: var(--dt-font-size-base);
-  font-weight: 600;
-}
-
-.dt-token-chip:hover {
-  background: #d8efff;
-}
-
-.dt-token-field--color .dt-token-chip {
-  height: 30px;
-  padding: 0 4px;
-  background: transparent;
   color: var(--dt-text-primary);
+  font-size: var(--dt-font-size-base);
   font-weight: 500;
 }
 
-.dt-token-field--color .dt-token-chip:hover {
-  background: transparent;
+.dt-token-chip:hover {
+  background: var(--dt-surface-control-hover);
+}
+
+.dt-token-chip__trigger--small {
+  width: auto;
+}
+
+.dt-token-field .dt-token-chip.dt-token-chip--small {
+  display: inline-flex;
+  width: auto;
+  height: var(--dt-control-height-small);
+  padding: 0 var(--dt-space-4);
+  gap: 3px;
+  background: var(--dt-surface-raised);
+  border-color: var(--dt-border-subtle);
+  border-radius: var(--dt-radius-4);
+}
+
+.dt-token-field .dt-token-chip.dt-token-chip--small:hover {
+  background: var(--dt-surface-raised);
 }
 
 .dt-token-field--color .dt-text-input {
@@ -173,6 +181,15 @@
 
 .dt-token-field--color .dt-token-field__delink {
   flex: 0 0 auto;
+}
+
+.dt-token-field__delink--small {
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.dt-token-field:hover .dt-token-field__delink--small {
+  opacity: 1;
 }
 
 .dt-token-chip__name {

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { IconChevronDown, IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { normalizeColorOpacity, replaceColorOpacity } from "./resolution.ts";
-import type { ColorOpacity, ResolvedProperty } from "./resolution.ts";
+import { colorValueHasEmbeddedAlpha, normalizeColorOpacity, replaceColorOpacity, replaceColorToken } from "./resolution.ts";
+import type { AtRuleContext, ColorOpacity, ResolvedProperty } from "./resolution.ts";
 import { classifyToken, getAlternativeTokens, groupOfProperty } from "./TokenDropdown.tsx";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
@@ -15,6 +15,7 @@ import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { ColorSwatch } from "../ui/ColorSwatch.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import type { StyleEditMetadata } from "./editActions.ts";
+import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 
 export interface TokenValueFieldProps {
   property: string;
@@ -38,6 +39,8 @@ export interface TokenValueFieldProps {
   label?: string;
   opacity?: ColorOpacity;
   onCommitOpacity?(value: string): void;
+  atRules?: readonly AtRuleContext[];
+  chipVariant?: "default" | "small";
 }
 
 export interface TokenFieldProps {
@@ -54,6 +57,7 @@ export interface TokenFieldProps {
   trailing?: ReactNode;
   className?: string;
   label?: string;
+  chipVariant?: "default" | "small";
 }
 
 function computedRaw(el: HTMLElement, property: string): string {
@@ -87,6 +91,10 @@ function parsePixels(value: string): number | null {
 
 function formatNumber(value: number): string {
   return String(Number(value.toFixed(12)));
+}
+
+function stripCssUnit(value: string): string {
+  return value.replace(/^(-?\d+(?:\.\d+)?)(px|rem|em|vh|vw|vmin|vmax|%|ch|ex|cm|mm|in|pt|pc)$/i, "$1");
 }
 
 /** Returns the first family in a CSS family list without splitting var() fallbacks. */
@@ -209,9 +217,16 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     label,
     opacity,
     onCommitOpacity,
+    atRules,
+    chipVariant = "default",
   } = props;
-  const hasControlledToken = Boolean(controlledTokenName || attributionTokens.length > 0);
-  const defaultOpacityValue = isColor && !hasControlledToken ? "100%" : "";
+  const inheritedAtRules = useFieldAtRules(property);
+  const fieldAtRules = atRules ?? inheritedAtRules;
+  const controlledToken = controlledTokenName ? entries.find((entry) => entry.name === controlledTokenName) : null;
+  const controlledTokenHasEmbeddedAlpha = Boolean(isColor && controlledTokenName && (
+    colorValueHasEmbeddedAlpha(controlledToken?.value ?? "") || (!opacity && colorValueHasEmbeddedAlpha(resolvedValue ?? ""))
+  ));
+  const defaultOpacityValue = isColor && !controlledTokenHasEmbeddedAlpha ? "100%" : "";
   const [rawValue, setRawValue] = useState(committedValue);
   const [opacityValue, setOpacityValue] = useState(opacity?.value ?? defaultOpacityValue);
   const [activeTokenName, setActiveTokenName] = useState<string | null>(controlledTokenName);
@@ -231,8 +246,11 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const activeToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? { name: activeTokenName, value: resolvedValue, source: "runtime" }
     : null;
-  const hasTokenReference = Boolean(activeTokenName || attributionTokens.length > 0);
-  const showOpacity = isColor && (!hasTokenReference || Boolean(opacity));
+  const activeTokenHasEmbeddedAlpha = Boolean(isColor && activeToken && (
+    colorValueHasEmbeddedAlpha(activeToken.value) || (!opacity && colorValueHasEmbeddedAlpha(resolvedValue ?? ""))
+  ));
+  const showOpacity = isColor && !activeTokenHasEmbeddedAlpha
+    && (Boolean(activeTokenName) || attributionTokens.length === 0 || Boolean(opacity));
   const relevantTokens = useMemo(() => {
     const candidates = allowedTokenNames
       ? entries.filter((entry) => allowedTokenNames.has(entry.name))
@@ -276,7 +294,9 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   }
 
   function handleDelink(): void {
-    const value = activeToken?.value || resolvedValue || committedValue;
+    // A token-backed alpha expression is represented by a chip, but unlinking
+    // it should preserve the complete authored color expression and its alpha.
+    const value = opacity ? committedValue : activeToken?.value || resolvedValue || committedValue;
     setActiveTokenName(null);
     setRawValue(value);
     onUnlink(value);
@@ -392,6 +412,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const rawSuggestionItems = availableSuggestions.map(rawSuggestion);
 
   if (activeToken) {
+    const chipValue = chipVariant === "small" ? stripCssUnit(activeToken.value) : activeToken.name;
     return (
       <span className={`dt-token-field${isColor ? " dt-token-field--color" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
         {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
@@ -401,12 +422,12 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           value={activeToken.name}
           open={isTokenPickerOpen}
           trigger={(
-            <span className="dt-token-chip" data-group={classifyToken(activeToken.name)}>
-              <span className="dt-token-chip__name">{activeToken.name}</span>
-              <IconChevronDown size={13} stroke={1.75} aria-hidden="true" />
+            <span className={`dt-token-chip${chipVariant === "small" ? " dt-token-chip--small" : ""}`} data-group={classifyToken(activeToken.name)}>
+              <span className="dt-token-chip__name">{chipValue}</span>
+              {chipVariant !== "small" ? <IconChevronDown size={13} stroke={1.75} aria-hidden="true" /> : null}
             </span>
           )}
-          triggerClassName="dt-token-chip__trigger"
+          triggerClassName={`dt-token-chip__trigger${chipVariant === "small" ? " dt-token-chip__trigger--small" : ""}`}
           triggerDataTest="token-chip"
           triggerAriaLabel={`Change ${property} token`}
           items={[...rawSuggestionItems, ...relevantTokens.map(tokenSuggestion)]}
@@ -421,13 +442,14 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           variant="quiet"
           size="compact"
           label="Replace with raw value"
-          className="dt-token-field__delink"
+          className={`dt-token-field__delink${chipVariant === "small" ? " dt-token-field__delink--small" : ""}`}
           data-test="delink-btn"
           disabled={disabled}
           onClick={handleDelink}
         >
-          <IconLinkOff size={14} stroke={1.75} aria-hidden="true" />
+          <IconLinkOff size={chipVariant === "small" ? 12 : 14} stroke={1.75} aria-hidden="true" />
         </IconButton>
+        <AtRuleIndicator atRules={fieldAtRules} />
         {trailing ? <span className="dt-token-field__trailing">{trailing}</span> : null}
       </span>
     );
@@ -466,6 +488,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           {attributionTokens.join(" · ")}
         </span>
       ) : null}
+      <AtRuleIndicator atRules={fieldAtRules} />
       {trailing ? <span className="dt-token-field__trailing">{trailing}</span> : null}
     </span>
   );
@@ -478,19 +501,26 @@ function arrowDirection(key: string): -1 | 1 | null {
 }
 
 export function TokenField(props: TokenFieldProps): ReactElement {
-  const { property, tokenRow, initialValue, domElement: el, entries, suggestions, inputDataTest, onAfterEdit, editMetadata, leading, trailing, className, label } = props;
+  const { property, tokenRow, initialValue, domElement: el, entries, suggestions, inputDataTest, onAfterEdit, editMetadata, leading, trailing, className, label, chipVariant } = props;
+  const tokenBackedOpacityName = tokenRow?.tokenName
+    && tokenRow.opacity
+    && tokenRow.opacity.tokenName !== tokenRow.tokenName
+    ? tokenRow.tokenName
+    : null;
   const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
     || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")
     || /\bcolor-mix\s*\(/i.test(tokenRow.authored ?? tokenRow.declaredValue)));
   const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? "";
   const isCalcAuthored = /\bcalc\s*\(/i.test(authored);
-  const activeTokenName = expression || isCalcAuthored ? null : tokenRow?.tokenName ?? null;
+  const activeTokenName = tokenBackedOpacityName ?? (expression || isCalcAuthored ? null : tokenRow?.tokenName ?? null);
   const fallbackValue = initialValue ?? structuredBorderValue(property, tokenRow) ?? computedRaw(el, property);
   // When a calc() was simplified to a numeric value we suppress the token
   // chip so the UI shows the resolved pixel value, not the internal
   // multiplier token (e.g. --spacing).  The authored expression stays
   // accessible via the row for diagnostics.
-  const authoredOrComputed = expression || (!activeTokenName && !isCalcAuthored)
+  const authoredOrComputed = tokenBackedOpacityName
+    ? authored
+    : expression || (!activeTokenName && !isCalcAuthored)
     ? structuredBorderValue(property, tokenRow) ?? tokenRow?.authored ?? tokenRow?.declaredValue ?? fallbackValue
     : tokenRow?.resolvedValue ?? fallbackValue;
   const committedValue = property === "font-family" && !activeTokenName
@@ -524,7 +554,15 @@ export function TokenField(props: TokenFieldProps): ReactElement {
         if (next && setStyle(el, property, next, editMetadata)) onAfterEdit?.();
       }}
       onSelectToken={(chosen) => {
-        if (activeTokenName) swapToken(el, tokenRow?.property ?? property, chosen, currentToken, editMetadata);
+        const targetProperty = tokenRow?.property ?? property;
+        if (activeTokenName && tokenBackedOpacityName && currentToken) {
+          const next = replaceColorToken(authored, currentToken, chosen);
+          if (next && setStyle(el, targetProperty, next, editMetadata)) {
+            onAfterEdit?.();
+            return;
+          }
+        }
+        if (activeTokenName) swapToken(el, targetProperty, chosen, currentToken, editMetadata);
         else promoteToToken(el, property, chosen, editMetadata);
         onAfterEdit?.();
       }}
@@ -536,6 +574,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       trailing={trailing}
       className={className}
       label={label}
+      chipVariant={chipVariant}
     />
   );
 }

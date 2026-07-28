@@ -49,6 +49,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
                 entries={allEntries}
                 editMetadata={metadataFor(findTokenRow(tokenRows, `${property}-${side}`))}
                 onAfterEdit={onAfterEdit}
+                chipVariant="small"
               />
             ),
           }));
@@ -66,6 +67,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
                 axisProjection={spacingProjection.axes[axis]}
                 entries={allEntries}
                 onAfterEdit={onAfterEdit}
+                chipVariant="small"
               />
             ),
           }));
@@ -96,6 +98,7 @@ interface PairedTokenFieldProps {
   axisProjection: InspectorAxisProjection;
   entries: TokenEntry[];
   onAfterEdit?: () => void;
+  chipVariant?: "default" | "small";
 }
 
 function PairedTokenField({
@@ -105,6 +108,7 @@ function PairedTokenField({
   axisProjection,
   entries,
   onAfterEdit,
+  chipVariant,
 }: PairedTokenFieldProps): ReactElement {
   const row = pairTokenRow(displayProperty, axisProjection);
   const expression = Boolean(row && (row.capability === "raw" || row.capability === "composite"
@@ -128,7 +132,9 @@ function PairedTokenField({
       committedValue={committedValue}
       resolvedValue={row.resolvedValue}
       activeTokenName={activeTokenName}
+      atRules={row.atRules}
       entries={entries}
+      chipVariant={chipVariant}
       formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(displayProperty))}
       onCommitRaw={commitOnBothSides}
       onSelectToken={(chosen) => {
