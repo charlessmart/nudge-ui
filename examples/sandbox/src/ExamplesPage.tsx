@@ -474,8 +474,8 @@ function SprColor() {
       <ExampleCard id={exId("Color", "spr", 3)} label="accent" utilities="spr-text-accent spr-font-semibold">
         <div className="color-specimen px-6 py-4 spr-text-accent bg-stone-800">accent token fg</div>
       </ExampleCard>
-      <ExampleCard id={exId("Color", "spr", 4)} label="accent-bg" utilities="spr-bg-accent spr-text-stone-900">
-        <div className="color-specimen px-6 py-4 spr-bg-accent" style={{ color: "#0a1929" }}>accent token bg</div>
+      <ExampleCard id={exId("Color", "spr", 4)} label="bg-token-text-raw" utilities="spr-bg-accent spr-text-stone-900">
+        <div className="color-specimen px-6 py-4 spr-bg-accent spr-text-stone-900">bg: token · text: raw class</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "spr", 5)} label="brand-opacity" utilities="spr-bg-brand/10 spr-text-brand">
         <div className="color-specimen px-6 py-4 spr-bg-brand/10 spr-text-brand">brand 10% wash</div>
@@ -483,8 +483,8 @@ function SprColor() {
       <ExampleCard id={exId("Color", "spr", 6)} label="accent-opacity" utilities="spr-bg-accent/20 spr-text-accent">
         <div className="color-specimen px-6 py-4 spr-bg-accent/20 spr-text-accent">accent 20% wash</div>
       </ExampleCard>
-      <ExampleCard id={exId("Color", "spr", 7)} label="unmapped" utilities="spr-bg-unknown">
-        <div className="color-specimen px-6 py-4 spr-bg-unknown text-purple-100">unmapped (raw)</div>
+      <ExampleCard id={exId("Color", "spr", 7)} label="raw-no-token" utilities="spr-bg-unknown">
+        <div className="color-specimen px-6 py-4 spr-bg-unknown text-purple-100">CSS applies but no token</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "spr", 8)} label="primary" utilities="spr-bg-primary spr-text-primary">
         <div className="color-specimen px-6 py-4 spr-bg-primary spr-text-primary">var(--color-primary)</div>

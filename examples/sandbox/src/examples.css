@@ -497,6 +497,9 @@
 .spr-text-accent {
   color: var(--color-accent__hash);
 }
+.spr-text-stone-900 {
+  color: #0a1929;
+}
 .spr-bg-accent {
   background-color: var(--color-accent__hash);
 }

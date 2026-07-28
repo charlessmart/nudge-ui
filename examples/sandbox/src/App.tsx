@@ -35,7 +35,11 @@ const typeSamples = [
 
 const conformancePages = [
   { href: "/conformance", label: "Core CSS", copy: "Authored values, aliases, and computed previews." },
-  { href: "/examples", label: "Examples", copy: "Detailed showroom: Spacing, Typography, Color, Border across Tailwind v4, v3, and Sprinkles." },
+  { href: "/examples", label: "All Examples", copy: "Detailed showroom: Spacing, Typography, Color, Border across Tailwind v4, v3, Sprinkles, and Raw CSS." },
+  { href: "/examples/tailwind-v4", label: "Examples: TW v4", copy: "Tailwind v4 examples in isolation for debugging token resolution." },
+  { href: "/examples/tailwind-v3", label: "Examples: TW v3", copy: "Tailwind v3 examples in isolation for debugging token resolution." },
+  { href: "/examples/sprinkles", label: "Examples: Sprinkles", copy: "Sprinkles examples in isolation for debugging token resolution." },
+  { href: "/examples/raw-css", label: "Examples: Raw CSS", copy: "Raw CSS examples in isolation for debugging token resolution." },
   { href: "/spacing-conformance", label: "Spacing", copy: "Logical properties and physical side projection." },
   { href: "/typography-conformance", label: "Typography", copy: "Text properties across the shared fixture corpus." },
   { href: "/color-conformance", label: "Color", copy: "Formats, opacity, aliases, and painted values." },

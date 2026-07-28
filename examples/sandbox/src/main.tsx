@@ -6,6 +6,10 @@ import { ConformancePage } from "./ConformancePage";
 import { TailwindV3ConformancePage } from "./TailwindV3ConformancePage";
 import { SprinklesConformancePage } from "./SprinklesConformancePage";
 import { ExamplesPage } from "./ExamplesPage";
+import { ExamplesTailwindV4Page } from "./ExamplesTailwindV4Page";
+import { ExamplesTailwindV3Page } from "./ExamplesTailwindV3Page";
+import { ExamplesSprinklesPage } from "./ExamplesSprinklesPage";
+import { ExamplesRawCssPage } from "./ExamplesRawCssPage";
 import "./styles.css";
 import "./tailwind.css";
 
@@ -70,6 +74,10 @@ function Route() {
   if (window.location.pathname === "/tailwind") return <TailwindLandingPage />;
   if (window.location.pathname === "/conformance") return <ConformancePage />;
   if (window.location.pathname === "/examples") return <ExamplesPage />;
+  if (window.location.pathname === "/examples/tailwind-v4") return <ExamplesTailwindV4Page />;
+  if (window.location.pathname === "/examples/tailwind-v3") return <ExamplesTailwindV3Page />;
+  if (window.location.pathname === "/examples/sprinkles") return <ExamplesSprinklesPage />;
+  if (window.location.pathname === "/examples/raw-css") return <ExamplesRawCssPage />;
   if (window.location.pathname === "/tailwind-v3") return <TailwindV3ConformancePage />;
   if (window.location.pathname === "/sprinkles") return <SprinklesConformancePage />;
   return <App />;
