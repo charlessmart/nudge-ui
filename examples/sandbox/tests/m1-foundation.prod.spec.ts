@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("prod: data-cid / data-src / data-cprops absent from production build", async ({ page }) => {
-  await page.goto("http://localhost:4173/");
+  await page.goto("/");
 
   const button = page.locator("button").first();
   await expect(button).toBeVisible();

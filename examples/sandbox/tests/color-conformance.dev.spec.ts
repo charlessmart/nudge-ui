@@ -281,7 +281,7 @@ test("dev: token alias chain resolves correctly", async ({ page }) => {
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-error");
   await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveAttribute("style", /--dt-swatch-color:\s*#dc2626/);
   await fg.locator('[data-test="token-chip"]').click();
-  await expect(page.getByRole("option", { name: /--color-danger/ })).toBeVisible();
+  await expect(page.getByRole("option", { name: "--color-danger #dc2626" })).toBeVisible();
 });
 
 test("dev: inherited local color tokens remain attributable", async ({ page }) => {

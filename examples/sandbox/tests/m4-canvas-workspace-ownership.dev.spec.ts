@@ -172,7 +172,7 @@ test.describe("Canvas workspace — stale change detection", () => {
     // Now inject a fake "stale" change into the session — one that won't match any DOM element
     await page.evaluate(() => {
       const keys = Object.keys(localStorage).filter((k) =>
-        k.startsWith("design-tool:") && k.endsWith(":v1"),
+        k.startsWith("design-tool:") && k.endsWith(":v2"),
       );
       if (keys.length === 0) return;
       const raw = localStorage.getItem(keys[0]!);
@@ -240,7 +240,7 @@ test.describe("Canvas workspace — stale change detection", () => {
       if (!leaseKey) throw new Error("expected a workspace lease");
       const id = leaseKey.slice("design-tool:".length, -":lease".length);
       const session = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         projectId: id,
         mode: "inspect",
         inspectUrl: window.location.href,
@@ -261,7 +261,7 @@ test.describe("Canvas workspace — stale change detection", () => {
           },
         ],
       };
-      const prefixedKey = `design-tool:${id}:v1`;
+      const prefixedKey = `design-tool:${id}:v2`;
       localStorage.setItem(prefixedKey, JSON.stringify(session));
     });
 
@@ -308,7 +308,7 @@ test.describe("Canvas workspace — stale change detection", () => {
       if (!leaseKey) throw new Error("expected a workspace lease");
       const id = leaseKey.slice("design-tool:".length, -":lease".length);
       const session = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         projectId: id,
         mode: "inspect",
         inspectUrl: window.location.href,
@@ -330,7 +330,7 @@ test.describe("Canvas workspace — stale change detection", () => {
           },
         ],
       };
-      const prefixedKey = `design-tool:${id}:v1`;
+      const prefixedKey = `design-tool:${id}:v2`;
       localStorage.setItem(prefixedKey, JSON.stringify(session));
     });
 

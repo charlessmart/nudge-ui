@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("prod: token table is emptied in the production build (ADR-0002)", async ({ page }) => {
-  await page.goto("http://localhost:4173/");
+  await page.goto("/");
 
   // No token list rendered (section is dev-gated).
   await expect(page.locator('[data-test="tokens"]')).toHaveCount(0);

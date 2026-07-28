@@ -20,6 +20,12 @@ async function waitForInspector(page: import("@playwright/test").Page): Promise<
     .toBe(true);
 }
 
+async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
+  const spacing = page.locator('[data-test="spacing-padding"]');
+  await spacing.locator('[data-test="individual-sides"]').click();
+  await expect(spacing).toHaveAttribute("data-expanded", "true");
+}
+
 async function setInput(
   page: import("@playwright/test").Page,
   property: string,
@@ -52,6 +58,7 @@ test.describe("Canvas durable session", () => {
     await waitForInspector(page);
 
     // Make an element edit in Inspect mode
+    await expandSpacing(page);
     await setInput(page, "padding-top", "32px");
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
 
@@ -97,14 +104,14 @@ test.describe("Canvas durable session", () => {
     await waitForInspector(page);
 
     // Make sure we're in inspect mode
-    await expect(page.locator('[data-test="mode-inspect"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-test="mode-preview"]')).toHaveAttribute("aria-pressed", "true");
 
     // Reload
     await page.reload();
     await waitForInspector(page);
 
     // Should still be in inspect mode
-    await expect(page.locator('[data-test="mode-inspect"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-test="mode-preview"]')).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
   });
 
@@ -114,13 +121,14 @@ test.describe("Canvas durable session", () => {
     await waitForInspector(page);
 
     // Make edits
+    await expandSpacing(page);
     await setInput(page, "padding-top", "48px");
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 48px;");
 
     // Enter Canvas, then exit
     await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-    await page.locator('[data-test="canvas-exit"]').click();
+    await page.locator('[data-test="mode-preview"]').click();
 
     // Click "Clear Session" from the session actions
     await page.reload();
@@ -139,7 +147,7 @@ test.describe("Canvas durable session", () => {
     await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 48px;");
 
     // Should be in inspect mode
-    await expect(page.locator('[data-test="mode-inspect"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-test="mode-preview"]')).toHaveAttribute("aria-pressed", "true");
   });
 
   test("dev: global token edits survive refresh", async ({ page }) => {
@@ -186,6 +194,7 @@ test.describe("Canvas durable session", () => {
     }
 
     // Make a source-site edit first so we have a known baseline
+    await expandSpacing(page);
     await setInput(page, "padding-top", "24px");
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 24px;");
 

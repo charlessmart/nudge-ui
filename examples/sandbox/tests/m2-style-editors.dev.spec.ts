@@ -138,9 +138,18 @@ test("dev: color suggestions exclude unrelated tokens from the editor picker", a
   })).toBe(true);
 
   const color = page.locator('[data-test="token-field"][data-property="color"]');
+  const colorPicker = page.locator('[data-test="color-picker"][data-property="color"]');
   const chip = color.locator('[data-test="token-chip"]');
+  const raw = color.locator('[data-test="raw-input"]');
+  const addColor = colorPicker.locator('[data-test="add-color"]');
+  await expect.poll(async () => (await chip.count()) + (await raw.count()) + (await addColor.count()))
+    .toBeGreaterThan(0);
   if (await chip.count()) await chip.click();
-  else await color.locator('[data-test="raw-input"]').fill("");
+  else if (await raw.count()) await raw.fill("");
+  else {
+    await addColor.click();
+    await color.locator('[data-test="raw-input"]').fill("");
+  }
 
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
@@ -158,7 +167,7 @@ test("dev: linked border values expand into icon-labelled individual side fields
   const borderSection = page.locator('.dt-border');
   await expect(borderSection).toHaveAttribute("data-expanded", "false");
   await expect(borderSection.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(1);
-  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-icon-button/);
+  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-toggle-button/);
   await expect(borderSection.locator('.dt-border__linked-row')).toHaveCount(1);
 
   await borderSection.locator('[data-test="border-expand"]').click();

@@ -115,7 +115,13 @@ test("dev: selection defaults to Base and can target an authored hover state", a
     .toContainText("--color-surface-raised");
 
   await page.locator('[data-test="style-state-hover"]').click();
-  const background = page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]');
+  const backgroundField = page.locator('[data-test="token-field"][data-property="background-color"]');
+  if (await backgroundField.locator('[data-test="token-chip"]').count()) {
+    await backgroundField.locator('[data-test="delink-btn"]').click();
+  } else {
+    await page.locator('[data-test="color-picker"][data-property="background-color"] [data-test="add-color"]').click();
+  }
+  const background = backgroundField.locator('[data-test="raw-input"]');
   await background.fill("#123456");
   await background.press("Enter");
 
