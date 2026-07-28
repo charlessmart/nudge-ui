@@ -113,7 +113,7 @@ test("dev: edit handoff switches to inspect mode without reloading when editing 
   await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
 
   // Mode should be back to inspect
-  await expect(page.locator('[data-test="mode-inspect"]')).toHaveAttribute(
+  await expect(page.locator('[data-test="mode-preview"]')).toHaveAttribute(
     "aria-pressed",
     "true",
   );

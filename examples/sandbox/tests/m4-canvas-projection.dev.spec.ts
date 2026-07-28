@@ -188,9 +188,10 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
     .toContain("padding-top: 60px;");
 
   // Switch back to Inspect and clear changes
-  await page.locator('[data-test="canvas-exit"]').click();
+  await page.locator('[data-test="mode-preview"]').click();
   await waitForInspector(page);
 
+  await page.locator('[data-test="changes-toggle"]').click();
   await page.locator(
     '[data-test="change-revert"][data-property="padding-top"]',
   ).click();
@@ -212,5 +213,5 @@ test("dev: canvas renderer protocol is present in dev mode", async ({ page }) =>
   await page.goto("/");
 
   // In dev mode, canvas mode toggle should be present
-  await expect(page.locator('[data-test="canvas-mode-toggle"]')).toBeVisible();
+  await expect(page.locator('[data-test="view-mode-toggle"]')).toBeVisible();
 });
