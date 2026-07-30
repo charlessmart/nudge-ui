@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { IconCheck, IconArrowsMaximize, IconArrowsMinimize, IconSettings, IconTextWrap } from "@tabler/icons-react";
+import { IconCheck, IconArrowsMaximize, IconArrowsMinimize, IconLayoutDistributeHorizontal, IconSettings, IconTextWrap } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
@@ -18,6 +18,7 @@ import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
+import { Select } from "../ui/Select.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
@@ -26,17 +27,16 @@ import { FieldRow } from "../ui/FieldRow.tsx";
 const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
 const FLEX_DIRECTION_OPTIONS = ["row", "row-reverse", "column", "column-reverse"];
-const JUSTIFY_CONTENT_OPTIONS = ["flex-start", "flex-end", "center", "space-between", "space-around", "space-evenly"];
-const ALIGN_ITEMS_OPTIONS = ["stretch", "flex-start", "flex-end", "center", "baseline"];
 const ALIGN_CONTENT_OPTIONS = ["normal", "stretch", "flex-start", "flex-end", "center", "space-between", "space-around"];
 const ALIGN_SELF_OPTIONS = ["auto", "stretch", "flex-start", "flex-end", "center", "baseline"];
 
 const FLEX_GROW_PRESETS = ["0", "1", "2", "3"];
 const FLEX_SHRINK_PRESETS = ["0", "1"];
-const FLEX_BASIS_PRESETS = ["auto", "0", "100%", "50%", "fit-content"];
+const FLEX_BASIS_PRESETS = ["auto", "0", "0%", "100%", "50%", "fit-content"];
 const ORDER_PRESETS = ["-1", "0", "1", "2", "3"];
 const GAP_PRESETS = ["0", "0.25rem", "0.5rem", "0.75rem", "1rem", "1.5rem", "2rem", "3rem"];
 const FLEX_ALIGNMENT_OPTIONS = ["flex-start", "center", "flex-end"];
+const FLEX_DISTRIBUTION_OPTIONS = ["space-between", "space-around", "space-evenly"];
 const SIZE_PRESETS = ["auto", "0", "100%", "fit-content"];
 const MIN_SIZE_PRESETS = ["0", "min-content", "fit-content"];
 const MAX_WIDTH_PRESETS = ["none", "100%", "100vw", "fit-content"];
@@ -64,6 +64,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const [flexWrap] = useComputedLayoutValue(el, "flex-wrap", "nowrap", layoutRevision);
   const isFlexWrapped = flexWrap !== "nowrap";
   const relevantGap = flexDirection.startsWith("column") ? "row-gap" : "column-gap";
+  const lineGap = relevantGap === "row-gap" ? "column-gap" : "row-gap";
 
   function notifyAfterEdit(): void {
     setLayoutRevision((revision) => revision + 1);
@@ -142,60 +143,28 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             <div className="dt-layout__flex-lower">
               <FlexAlignmentGrid domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
               <div className="dt-layout__gap-column" data-test="layout-gap">
-                <span className="dt-layout__group-title">Gap</span>
-                <div className={`dt-layout__gap-fields${isFlexWrapped ? "" : " dt-layout__gap-fields--single"}`}>
-                  {isFlexWrapped ? (
-                    <>
-                      <LayoutComboField
-                        property="row-gap"
-                        presets={GAP_PRESETS}
-                        domElement={el}
-                        compact
-                        inputOnly
-                        revision={layoutRevision}
-                        onAfterEdit={notifyAfterEdit}
-                      />
-                      <LayoutComboField
-                        property="column-gap"
-                        presets={GAP_PRESETS}
-                        domElement={el}
-                        compact
-                        inputOnly
-                        revision={layoutRevision}
-                        onAfterEdit={notifyAfterEdit}
-                      />
-                    </>
-                  ) : (
-                    <LayoutComboField
+                <span className="dt-layout__group-title">Spacing</span>
+                <div className="dt-layout__gap-fields">
+                  <div className="dt-layout__spacing-primary">
+                    <FlexGapField
                       property={relevantGap}
-                      presets={GAP_PRESETS}
                       domElement={el}
-                      compact
-                      inputOnly
                       revision={layoutRevision}
                       onAfterEdit={notifyAfterEdit}
                     />
-                  )}
+                    <FlexDistributionControl domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+                  </div>
+                  {isFlexWrapped ? (
+                    <FlexGapField
+                      label="Lines"
+                      property={lineGap}
+                      domElement={el}
+                      revision={layoutRevision}
+                      onAfterEdit={notifyAfterEdit}
+                    />
+                  ) : null}
                 </div>
               </div>
-            </div>
-            <div className="dt-layout__flex-advanced">
-              <LayoutDropdown
-                property="justify-content"
-                options={JUSTIFY_CONTENT_OPTIONS}
-                domElement={el}
-                stacked
-                revision={layoutRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
-              <LayoutDropdown
-                property="align-items"
-                options={ALIGN_ITEMS_OPTIONS}
-                domElement={el}
-                stacked
-                revision={layoutRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
             </div>
           </div>
         ) : null}
@@ -203,41 +172,51 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
         {isFlexChild ? (
           <div className="dt-layout__group" data-test="layout-flex-child">
             <div className="dt-layout__group-title">Flex Child</div>
-            <LayoutDropdown
-              property="align-self"
-              options={ALIGN_SELF_OPTIONS}
-              domElement={el}
-              revision={layoutRevision}
-              onAfterEdit={notifyAfterEdit}
-            />
-            <LayoutComboField
-              property="flex-grow"
-              presets={FLEX_GROW_PRESETS}
-              domElement={el}
-              revision={layoutRevision}
-              onAfterEdit={notifyAfterEdit}
-            />
-            <LayoutComboField
-              property="flex-shrink"
-              presets={FLEX_SHRINK_PRESETS}
-              domElement={el}
-              revision={layoutRevision}
-              onAfterEdit={notifyAfterEdit}
-            />
-            <LayoutComboField
-              property="flex-basis"
-              presets={FLEX_BASIS_PRESETS}
-              domElement={el}
-              revision={layoutRevision}
-              onAfterEdit={notifyAfterEdit}
-            />
-            <LayoutComboField
-              property="order"
-              presets={ORDER_PRESETS}
-              domElement={el}
-              revision={layoutRevision}
-              onAfterEdit={notifyAfterEdit}
-            />
+            <div className="dt-layout__flex-child-fields">
+              <LayoutDropdown
+                property="align-self"
+                options={ALIGN_SELF_OPTIONS}
+                domElement={el}
+                stacked
+                revision={layoutRevision}
+                onAfterEdit={notifyAfterEdit}
+              />
+              <FlexChildValueField
+                label="Grow"
+                property="flex-grow"
+                presets={FLEX_GROW_PRESETS}
+                domElement={el}
+                revision={layoutRevision}
+                onAfterEdit={notifyAfterEdit}
+              />
+              <FlexChildValueField
+                label="Shrink"
+                property="flex-shrink"
+                presets={FLEX_SHRINK_PRESETS}
+                domElement={el}
+                revision={layoutRevision}
+                onAfterEdit={notifyAfterEdit}
+              />
+              <FlexChildValueField
+                label="Basis"
+                property="flex-basis"
+                presets={FLEX_BASIS_PRESETS}
+                domElement={el}
+                revision={layoutRevision}
+                onAfterEdit={notifyAfterEdit}
+              />
+              <FlexChildValueField
+                label="Order"
+                property="order"
+                presets={ORDER_PRESETS}
+                domElement={el}
+                revision={layoutRevision}
+                onAfterEdit={notifyAfterEdit}
+              />
+            </div>
+            <p className="dt-layout__flex-child-help">
+              Grow shares spare room · Shrink gives up room · Basis sets the starting size · Order changes visual position.
+            </p>
           </div>
         ) : null}
 
@@ -371,6 +350,55 @@ interface FlexControlProps {
   onAfterEdit?: () => void;
 }
 
+interface FlexChildValueFieldProps extends FlexControlProps {
+  label: string;
+  property: string;
+  presets: string[];
+}
+
+function FlexChildValueField({ label, property, presets, domElement, revision = 0, onAfterEdit }: FlexChildValueFieldProps): ReactElement {
+  return (
+    <FieldRow label={label} className="dt-layout__flex-child-field">
+      <LayoutComboField
+        property={property}
+        presets={presets}
+        domElement={domElement}
+        compact
+        revision={revision}
+        onAfterEdit={onAfterEdit}
+      />
+    </FieldRow>
+  );
+}
+
+interface FlexGapFieldProps extends FlexControlProps {
+  label?: string;
+  property: "row-gap" | "column-gap";
+}
+
+function FlexGapField({ label, property, domElement, revision = 0, onAfterEdit }: FlexGapFieldProps): ReactElement {
+  const field = (
+    <LayoutComboField
+      property={property}
+      presets={GAP_PRESETS}
+      domElement={domElement}
+      compact
+      inputOnly
+      revision={revision}
+      onAfterEdit={onAfterEdit}
+    />
+  );
+
+  if (!label) return field;
+
+  return (
+    <div className="dt-layout__spacing-field">
+      <span className="dt-layout__spacing-label">{label}</span>
+      {field}
+    </div>
+  );
+}
+
 function FlexDirectionControl({ domElement, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [direction, setDirection] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
   const orientation = direction.startsWith("column") ? "column" : "row";
@@ -443,8 +471,11 @@ function FlexSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControl
   const [direction] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
   const [wrap] = useComputedLayoutValue(domElement, "flex-wrap", "nowrap", revision);
   const [alignContent] = useComputedLayoutValue(domElement, "align-content", "normal", revision);
+  const [alignItems] = useComputedLayoutValue(domElement, "align-items", "stretch", revision);
   const [open, setOpen] = useState(false);
   const orientation = direction.startsWith("column") ? "column" : "row";
+  const crossAxis = orientation === "column" ? "width" : "height";
+  const isStretching = normalizeFlexAlign(alignItems) === "stretch";
   const reverseDirection = direction.endsWith("-reverse")
     ? orientation
     : `${orientation}-reverse`;
@@ -472,11 +503,18 @@ function FlexSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControl
       "data-test": `layout-flex-setting-align-content-${value}`,
     })),
     {
-      value: "justify-content:space-between",
-      label: "space-between",
-      trailing: "Justify Content",
-      current: getStateStyleValue(domElement, "justify-content", "flex-start") === "space-between",
-      "data-test": "layout-flex-setting-justify-space-between",
+      value: "align-items:baseline",
+      label: "Text baseline",
+      trailing: "Cross-axis fit",
+      current: alignItems === "baseline",
+      "data-test": "layout-flex-setting-align-items-baseline",
+    },
+    {
+      value: "align-items:stretch",
+      label: `Children fill ${crossAxis}`,
+      trailing: "Cross-axis fit",
+      current: isStretching,
+      "data-test": "layout-flex-setting-align-items-stretch",
     },
   ];
 
@@ -521,12 +559,74 @@ function FlexSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControl
   );
 }
 
+function FlexDistributionControl({ domElement, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+  const [computedJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
+  const justify = normalizeFlexJustify(computedJustify);
+  const lastPlacement = useRef("flex-start");
+  const distributed = FLEX_DISTRIBUTION_OPTIONS.includes(justify);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (FLEX_ALIGNMENT_OPTIONS.includes(justify)) lastPlacement.current = justify;
+  }, [justify]);
+
+  function selectDistribution(next: string): void {
+    const value = next === "packed" ? lastPlacement.current : next;
+    setStyle(domElement, "justify-content", value);
+    onAfterEdit?.();
+  }
+
+  return (
+    <PopoverListbox
+      className="dt-layout__distribution-control"
+      query=""
+      value={distributed ? justify : "packed"}
+      open={open}
+      triggerElement={(
+        <IconButton
+          variant="secondary"
+          size="compact"
+          label="Item distribution"
+          title="Item distribution"
+          data-active={distributed}
+          data-test="layout-flex-distribution"
+        >
+          <IconLayoutDistributeHorizontal size={16} stroke={1.8} aria-hidden="true" />
+        </IconButton>
+      )}
+      triggerDataTest="layout-flex-distribution"
+      triggerAriaLabel="Item distribution"
+      items={[
+        { value: "packed", label: "Keep grouped" },
+        { value: "space-between", label: "Spread between" },
+        { value: "space-around", label: "Spread around" },
+        { value: "space-evenly", label: "Spread evenly" },
+      ].map((item) => ({
+        ...item,
+        leading: (distributed ? justify : "packed") === item.value
+          ? <IconCheck size={14} stroke={2} aria-hidden="true" />
+          : undefined,
+        "data-test": `layout-flex-distribution-${item.value}`,
+      }))}
+      onQueryChange={() => undefined}
+      onOpenChange={setOpen}
+      onSelect={(next) => {
+        selectDistribution(next);
+        setOpen(false);
+      }}
+    />
+  );
+}
+
 function FlexAlignmentGrid({ domElement, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [direction] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
-  const [justify, setJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
-  const [align, setAlign] = useComputedLayoutValue(domElement, "align-items", "stretch", revision);
+  const [computedJustify, setJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
+  const [computedAlign, setAlign] = useComputedLayoutValue(domElement, "align-items", "stretch", revision);
+  const justify = normalizeFlexJustify(computedJustify);
+  const align = normalizeFlexAlign(computedAlign);
   const isColumn = direction.startsWith("column");
   const isReverse = direction.endsWith("-reverse");
+  const distributed = FLEX_DISTRIBUTION_OPTIONS.includes(justify);
 
   // The grid represents physical positions in the parent. For row flex
   // containers, justify-content runs horizontally; for column flex
@@ -547,7 +647,20 @@ function FlexAlignmentGrid({ domElement, revision = 0, onAfterEdit }: FlexContro
   }
 
   return (
-    <div className="dt-layout__alignment-grid" role="group" aria-label="Flex alignment">
+    <div
+      className="dt-layout__alignment-grid"
+      role="group"
+      aria-label="Place flex items"
+      data-direction={isColumn ? "column" : "row"}
+      data-justify={justify}
+      data-align={align}
+      data-distributed={distributed}
+    >
+      {distributed ? (
+        <span className="dt-layout__distribution-preview" aria-hidden="true">
+          <span /><span /><span />
+        </span>
+      ) : null}
       {rowValues.flatMap((rowValue) =>
         columnValues.map((columnValue) => {
           const justifyValue = isColumn ? rowValue : columnValue;
@@ -572,6 +685,17 @@ function FlexAlignmentGrid({ domElement, revision = 0, onAfterEdit }: FlexContro
       )}
     </div>
   );
+}
+
+function normalizeFlexJustify(value: string): string {
+  // `normal` is the computed initial value, but behaves as `flex-start` for
+  // flex containers. Show the physical placement the user will actually see.
+  return value === "normal" ? "flex-start" : value;
+}
+
+function normalizeFlexAlign(value: string): string {
+  // The initial `normal` value resolves to stretch for flex items.
+  return value === "normal" ? "stretch" : value;
 }
 
 function useComputedLayoutValue(

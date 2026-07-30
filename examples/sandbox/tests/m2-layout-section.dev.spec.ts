@@ -116,6 +116,9 @@ test("dev: layout section shows flex container controls and edits write to manag
       .map((field) => field.getAttribute("data-property"));
   });
   expect(initialGapProperties).toEqual(["column-gap"]);
+  await expect(page.locator('[data-test="layout-gap"]')).toContainText("Spacing");
+  await expect(page.locator('[data-test="layout-gap"]')).not.toContainText("Items");
+  await expect(page.locator('[data-test="layout-gap"]')).not.toContainText("Distribution");
 
   const columnGapInput = page.locator('[data-test="layout-gap"] [data-test="layout-combo-input-column-gap"]');
   await expect(columnGapInput).toBeVisible();
@@ -149,6 +152,7 @@ test("dev: layout section shows flex container controls and edits write to manag
       .map((field) => field.getAttribute("data-property"))
       .sort();
   }), { timeout: 5000 }).toEqual(["column-gap", "row-gap"]);
+  await expect(page.locator('[data-test="layout-gap"]')).toContainText("Lines");
 
   // Change flex-direction to column.
   await page.evaluate(() => {
@@ -185,12 +189,56 @@ test("dev: layout section shows flex container controls and edits write to manag
   }), { timeout: 5000 }).toBe(true);
   await page.evaluate(() => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const item = sr?.querySelector('[data-test="layout-flex-setting-justify-space-between"]');
-    (item as HTMLElement | null)?.click();
+    (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
   });
+  await page.locator('[data-test="layout-flex-distribution"]').click();
+  await page.locator('[data-test="layout-flex-distribution-space-between"]').click();
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "justify-content"), { timeout: 5000 })
     .toBe("space-between");
+  await expect.poll(async () => page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return !!sr?.querySelector(".dt-layout__distribution-preview");
+  }), { timeout: 5000 }).toBe(true);
+
+  const betweenMarkers = await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return Array.from(sr?.querySelectorAll(".dt-layout__distribution-preview span") ?? []).map((marker) => ({
+      top: marker.getBoundingClientRect().top,
+      shadow: getComputedStyle(marker).boxShadow,
+    }));
+  });
+  expect(betweenMarkers).toHaveLength(3);
+  expect(betweenMarkers.every((marker) => marker.shadow === "none")).toBe(true);
+
+  await page.locator('[data-test="layout-flex-distribution"]').click();
+  await page.locator('[data-test="layout-flex-distribution-space-around"]').click();
+  await expect
+    .poll(async () => computedPropOn(page, "flex-container", "justify-content"), { timeout: 5000 })
+    .toBe("space-around");
+  const aroundMarkers = await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return Array.from(sr?.querySelectorAll(".dt-layout__distribution-preview span") ?? [])
+      .map((marker) => marker.getBoundingClientRect().top);
+  });
+  expect(aroundMarkers[0]!).toBeGreaterThan(betweenMarkers[0]!.top);
+  expect(aroundMarkers[2]!).toBeLessThan(betweenMarkers[2]!.top);
+
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
+  });
+  await expect.poll(async () => page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return !!sr?.querySelector('[data-test="layout-flex-setting-align-items-stretch"]');
+  }), { timeout: 5000 }).toBe(true);
+  await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    (sr?.querySelector('[data-test="layout-flex-setting-align-items-stretch"]') as HTMLElement | null)?.click();
+  });
+  await expect
+    .poll(async () => computedPropOn(page, "flex-container", "align-items"), { timeout: 5000 })
+    .toBe("stretch");
 
   await page.evaluate(() => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
