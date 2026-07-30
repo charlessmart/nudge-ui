@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokenCatalog } from "virtual:design-tokens";
 import { isTokenChange, useChanges } from "../changesLog.ts";
+import type { TokenChangeRecord } from "../changesLog.ts";
 import { TextInput } from "../ui/TextInput.tsx";
 import { TokenValueField } from "./TokenField.tsx";
 import {
@@ -46,8 +47,12 @@ function useHostContextRevision(): number {
   return revision;
 }
 
-function rowChange(row: TokenCatalogRow, changes: ReturnType<typeof useChanges>) {
-  return changes.find((change) => isTokenChange(change)
+function rowChange(
+  row: TokenCatalogRow,
+  changes: ReturnType<typeof useChanges>,
+): TokenChangeRecord | undefined {
+  return changes.find((change): change is TokenChangeRecord =>
+    isTokenChange(change)
     && change.tokenName === row.definition.cssName
     && change.file === row.file
     && change.line === row.line);

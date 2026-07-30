@@ -1,6 +1,13 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { basename, join } from "node:path";
+import {
+  basename,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import type { Alias, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { injectIdentity } from "./transform/injectDataCid.ts";
 import { parseTokenCatalog } from "./tokens/parseTokens.ts";
@@ -11,6 +18,8 @@ import type { TailwindV3Config } from "./adapters/tailwindV3.ts";
 import { createSprinklesAdapter } from "./adapters/vanillaExtract.ts";
 import type { VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
 import { createTokenAdapterRegistry } from "./adapters/registry.ts";
+import { extractComponentContracts } from "./components/extractContracts.ts";
+import type { ComponentContract } from "./components/types.ts";
 
 export interface DesignToolOptions {
   enabled?: boolean;
@@ -19,13 +28,24 @@ export interface DesignToolOptions {
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
   tailwindV3?: { config: TailwindV3Config };
   vanillaExtract?: VanillaExtractAdapterOptions;
+  /**
+   * Optional contracts published by an npm design-system package. Local TSX
+   * contracts are discovered automatically; package manifests fill the gap
+   * when package source is intentionally not transformed.
+   */
+  componentMetadata?: ComponentContract[];
 }
+
+export type { ComponentContract, ComponentPropContract, ComponentPropValue } from "./components/types.ts";
 
 const VIRTUAL_TOKENS_ID = "virtual:design-tokens";
 const RESOLVED_TOKENS_ID = "\0" + VIRTUAL_TOKENS_ID;
 const VIRTUAL_INSPECTOR_ID = "virtual:design-tool-inspector";
 const RESOLVED_INSPECTOR_ID = "\0" + VIRTUAL_INSPECTOR_ID;
+const VIRTUAL_COMPONENTS_ID = "virtual:design-tool-components";
+const RESOLVED_COMPONENTS_ID = "\0" + VIRTUAL_COMPONENTS_ID;
 const CSS_EXT = /\.css(?:$|[?#])/;
+const COMPONENT_EXT = /\.(?:tsx|jsx)(?:$|[?#])/;
 
 const MOUNT_DIV = `<div id="design-tool-root"></div>`;
 const INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:design-tool-inspector"></script>`;
@@ -36,6 +56,26 @@ function relativePath(id: string, root?: string): string {
     if (id.startsWith(rootPrefix)) return id.slice(rootPrefix.length);
   }
   return id.replace(/^\//, "");
+}
+
+export function isHostApplicationSource(
+  id: string,
+  projectRoot: string | undefined,
+): boolean {
+  if (!projectRoot || id.startsWith("\0")) return false;
+  const fileId = id.split(/[?#]/, 1)[0] ?? id;
+  if (
+    fileId.includes("/node_modules/")
+    || fileId.includes("\\node_modules\\")
+  ) return false;
+  const absoluteFile = isAbsolute(fileId)
+    ? resolve(fileId)
+    : resolve(projectRoot, fileId);
+  const relativeFile = relative(resolve(projectRoot), absoluteFile);
+  return relativeFile !== ""
+    && relativeFile !== ".."
+    && !relativeFile.startsWith(`..${sep}`)
+    && !isAbsolute(relativeFile);
 }
 
 function scanCssFiles(rootDir: string, files: string[] = [], dir = rootDir): string[] {
@@ -52,6 +92,27 @@ function scanCssFiles(rootDir: string, files: string[] = [], dir = rootDir): str
       const st = statSync(full);
       if (st.isDirectory()) scanCssFiles(rootDir, files, full);
       else if (CSS_EXT.test(entry)) files.push(full);
+    } catch {
+      // ignore unreadable entries
+    }
+  }
+  return files;
+}
+
+function scanComponentFiles(rootDir: string, files: string[] = [], dir = rootDir): string[] {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return files;
+  }
+  for (const entry of entries) {
+    if (entry === "node_modules" || entry === ".git" || entry.startsWith("dist")) continue;
+    const full = join(dir, entry);
+    try {
+      const st = statSync(full);
+      if (st.isDirectory()) scanComponentFiles(rootDir, files, full);
+      else if (COMPONENT_EXT.test(entry)) files.push(full);
     } catch {
       // ignore unreadable entries
     }
@@ -101,6 +162,13 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   let devServer: ViteDevServer | undefined;
   let postTransformPromise: Promise<void> | null = null;
   const cssTokens = new Map<string, TokenDefinition[]>();
+  const componentContracts = new Map<string, ComponentContract[]>();
+  if (options.componentMetadata?.length) {
+    componentContracts.set("package-manifests", options.componentMetadata.map((contract) => ({
+      ...contract,
+      provenance: "package-manifest",
+    })));
+  }
   const projectTailwindTokenNamesByFile = new Map<string, Set<string>>();
   const adapterRegistry = createTokenAdapterRegistry([
     ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config)] : []),
@@ -125,6 +193,13 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     cssTokens.set(fileId, tailwindV4.detect()
       ? annotateTailwindV4Catalog(parsed, { projectTokenNames: projectTailwindTokenNames })
       : parsed);
+  }
+
+  function cacheComponentsForFile(id: string, code: string): void {
+    if (!COMPONENT_EXT.test(id) || !isHostApplicationSource(id, root)) return;
+    const fileId = id.split(/[?#]/, 1)[0] ?? id;
+    const rel = relativePath(fileId, root);
+    componentContracts.set(fileId, extractComponentContracts(code, rel));
   }
 
   function ensurePostTransformCss(): Promise<void> {
@@ -178,10 +253,18 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
           // skip unreadable files
         }
       }
+      for (const componentPath of scanComponentFiles(root)) {
+        try {
+          cacheComponentsForFile(componentPath, readFileSync(componentPath, "utf8"));
+        } catch {
+          // skip unreadable component sources
+        }
+      }
     },
     resolveId(id) {
       if (id === VIRTUAL_TOKENS_ID || id === RESOLVED_TOKENS_ID) return RESOLVED_TOKENS_ID;
       if (id === VIRTUAL_INSPECTOR_ID || id === RESOLVED_INSPECTOR_ID) return RESOLVED_INSPECTOR_ID;
+      if (id === VIRTUAL_COMPONENTS_ID || id === RESOLVED_COMPONENTS_ID) return RESOLVED_COMPONENTS_ID;
       return null;
     },
     async load(id) {
@@ -242,6 +325,11 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         }
         return `import { bootstrapDesignTool } from "@design-tool/inspector";\nconst __dt_root = document.getElementById("design-tool-root");\nif (__dt_root) bootstrapDesignTool(__dt_root);\n`;
       }
+      if (id === RESOLVED_COMPONENTS_ID) {
+        if (command === "build") return "export const componentContracts = [];\nexport default componentContracts;\n";
+        const catalog = [...componentContracts.values()].flat();
+        return `export const componentContracts = ${JSON.stringify(catalog)};\nexport default componentContracts;\n`;
+      }
       return null;
     },
     transform(code, id) {
@@ -251,7 +339,16 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         cacheTokensForFile(id, code);
         return null; // let Vite's CSS pipeline handle the actual stylesheet
       }
-      return injectIdentity(code, id, root);
+      const instrumentComponents = isHostApplicationSource(id, root);
+      if (COMPONENT_EXT.test(id) && instrumentComponents) {
+        cacheComponentsForFile(id, code);
+      }
+      return injectIdentity(code, id, root, {
+        // Runtime component boundaries belong to host application callsites.
+        // Workspace packages and the inspector itself sit outside the Vite
+        // application root and are therefore excluded without layout knowledge.
+        instrumentComponents,
+      });
     },
     transformIndexHtml(html) {
       if (!enabled) return;
@@ -260,6 +357,19 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     },
     async handleHotUpdate(ctx) {
       if (!enabled || command !== "serve") return;
+      if (COMPONENT_EXT.test(ctx.file)) {
+        try {
+          cacheComponentsForFile(ctx.file, await ctx.read());
+        } catch {
+          componentContracts.set(ctx.file, []);
+        }
+        const virtualComponents = ctx.server.moduleGraph.getModuleById(RESOLVED_COMPONENTS_ID);
+        if (virtualComponents) {
+          ctx.server.moduleGraph.invalidateModule(virtualComponents);
+          return [...ctx.modules, virtualComponents];
+        }
+        return;
+      }
       if (!CSS_EXT.test(ctx.file)) return;
 
       // Refresh the token map immediately so the next virtual-module load sees

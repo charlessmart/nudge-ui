@@ -15,7 +15,8 @@ import {
   resetAutoSave,
 } from "./sessionStore.ts";
 import { clearChanges, getChangesList, appendChange } from "../changesLog.ts";
-import type { ElementChangeRecord, TokenChangeRecord } from "../changesLog.ts";
+import type { ComponentChangeRecord, ElementChangeRecord, TokenChangeRecord } from "../changesLog.ts";
+import { makeComponentChange as makeComponentChangeRecord } from "../changes/_testUtils.ts";
 import {
   getCanvasMode,
   getCanvasCards,
@@ -70,6 +71,10 @@ function makeTokenChange(
     source: { file: "src/theme.css", line: 6, component: "Global token" },
     ...overrides,
   };
+}
+
+function makeComponentChange(): ComponentChangeRecord {
+  return makeComponentChangeRecord();
 }
 
 function resetAllState(): void {
@@ -447,7 +452,7 @@ describe("sessionStore round trip", () => {
     expect(restored).toHaveLength(2);
     expect(restored[0]!.property).toBe("background");
     expect(restored[1]!.property).toBe("color");
-    expect(restored[1]!.rawValue).toBe("red");
+    expect((restored[1] as ElementChangeRecord).rawValue).toBe("red");
   });
 
   it("full round-trip preserves token changes", () => {
@@ -463,6 +468,22 @@ describe("sessionStore round trip", () => {
     if (restored[0]!.kind === "token") {
       expect((restored[0] as TokenChangeRecord).rawValue).toBe("#abcdef");
     }
+  });
+
+  it("full round-trip preserves typed component prop changes", () => {
+    appendChange(makeComponentChange());
+    persistSession();
+
+    clearChanges();
+    hydrateSession();
+
+    expect(getChangesList()).toMatchObject([{
+      kind: "component-prop",
+      target: { componentId: "src/ui/Button#Button" },
+      before: { kind: "value", value: "primary" },
+      after: "secondary",
+      authoredAs: "literal",
+    }]);
   });
 
   it("full round-trip preserves canvas state", () => {

@@ -10,6 +10,7 @@ import { ExamplesTailwindV4Page } from "./ExamplesTailwindV4Page";
 import { ExamplesTailwindV3Page } from "./ExamplesTailwindV3Page";
 import { ExamplesSprinklesPage } from "./ExamplesSprinklesPage";
 import { ExamplesRawCssPage } from "./ExamplesRawCssPage";
+import { ComponentPropsPage } from "./ComponentPropsPage";
 import "./styles.css";
 import "./tailwind.css";
 
@@ -80,6 +81,7 @@ function Route() {
   if (window.location.pathname === "/examples/raw-css") return <ExamplesRawCssPage />;
   if (window.location.pathname === "/tailwind-v3") return <TailwindV3ConformancePage />;
   if (window.location.pathname === "/sprinkles") return <SprinklesConformancePage />;
+  if (window.location.pathname === "/component-props") return <ComponentPropsPage />;
   return <App />;
 }
 

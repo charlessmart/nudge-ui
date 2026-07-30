@@ -1,5 +1,13 @@
-import type { ChangeRecord, TokenChangeRecord } from "../changesLog.ts";
-import { isTokenChange, touchChanges } from "../changesLog.ts";
+import type {
+  ChangeRecord,
+  PreviewableChangeRecord,
+  TokenChangeRecord,
+} from "../changesLog.ts";
+import {
+  isPreviewableChange,
+  isTokenChange,
+  touchChanges,
+} from "../changesLog.ts";
 import type { PreviewResult } from "../managedStylesheet.ts";
 import { getRegisteredFrames } from "./projection.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
@@ -13,7 +21,7 @@ const STALE_CHECK_DEBOUNCE_MS = 100;
 
 let verificationTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingChanges: ChangeRecord[] | null = null;
+let pendingChanges: PreviewableChangeRecord[] | null = null;
 
 export type StaleChangeStatus = "unverified" | "verified" | "stale" | "token-drift";
 
@@ -42,7 +50,7 @@ function checkSelectorInFrame(iframe: HTMLIFrameElement, selector: string): bool
   }
 }
 
-function getRequestedValue(change: ChangeRecord): string {
+function getRequestedValue(change: PreviewableChangeRecord): string {
   if (isTokenChange(change)) return change.rawValue;
   if (change.newToken) {
     return change.newToken.cssValue ?? `var(${change.newToken.cssName ?? change.newToken.name})`;
@@ -94,7 +102,9 @@ function checkTokenDrift(change: TokenChangeRecord): PreviewResult | null {
   return null;
 }
 
-function gatherMatchEvidence(changes: ChangeRecord[]): Map<number, string[]> {
+function gatherMatchEvidence(
+  changes: PreviewableChangeRecord[],
+): Map<number, string[]> {
   const evidence = new Map<number, string[]>();
 
   for (let i = 0; i < changes.length; i++) {
@@ -128,7 +138,7 @@ function gatherMatchEvidence(changes: ChangeRecord[]): Map<number, string[]> {
   return evidence;
 }
 
-function applyStaleResults(changes: ChangeRecord[]): void {
+function applyStaleResults(changes: PreviewableChangeRecord[]): void {
   const evidence = gatherMatchEvidence(changes);
 
   for (let i = 0; i < changes.length; i++) {
@@ -142,7 +152,6 @@ function applyStaleResults(changes: ChangeRecord[]): void {
       }
       continue;
     }
-
     const routes = evidence.get(i);
     if (!routes || routes.length === 0) {
       change.previewResult = buildStaleResult(
@@ -163,13 +172,14 @@ function scheduleStaleCheck(): void {
 }
 
 export function startStaleDetection(changes: ChangeRecord[]): void {
-  if (changes.length === 0) return;
+  const previewableChanges = changes.filter(isPreviewableChange);
+  if (previewableChanges.length === 0) return;
 
-  for (const change of changes) {
+  for (const change of previewableChanges) {
     change.previewResult = undefined;
   }
 
-  pendingChanges = changes;
+  pendingChanges = previewableChanges;
 
   if (verificationTimer) clearTimeout(verificationTimer);
   verificationTimer = setTimeout(() => {

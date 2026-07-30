@@ -166,7 +166,7 @@ describe("promoteToToken", () => {
     promoteToToken(btn, "cursor", SPACE_2);
     const recs = getChangeRecords();
     expect(recs).toHaveLength(1);
-    expect(recs[0]!.oldToken).toBeNull();
+    expect("oldToken" in recs[0]! ? recs[0]!.oldToken : undefined).toBeNull();
     expect(recs[0]!.property).toBe("cursor");
   });
 });

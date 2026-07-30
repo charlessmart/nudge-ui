@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { computeHierarchy } from "./hierarchy.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
+import type { RuntimeComponentTarget } from "./componentSemantics/types.ts";
 
 export interface SelectedElement {
   cid: string;
@@ -11,6 +12,7 @@ export interface SelectedElement {
   column: number;
   domElement: HTMLElement;
   fiber?: unknown;
+  componentTargets: RuntimeComponentTarget[];
 }
 
 let current: SelectedElement | null = null;

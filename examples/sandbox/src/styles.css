@@ -12,16 +12,29 @@
   --color-border-strong: #c4c5bf;
   --color-accent: #54718e;
   --color-accent-subtle: #e8eef3;
+  --color-brand: #1a1a2e;
+  --color-border: #c4c5bf;
+  --color-success: #2e7d52;
+  --color-success-subtle: #e6f4ed;
+  --color-warning: #b8860b;
+  --color-warning-subtle: #fef7e0;
+  --color-danger: #b33a3a;
+  --color-danger-subtle: #fce8e8;
+  --color-info: #3b6e8f;
+  --color-info-subtle: #e6f0f6;
+  --color-neutral-subtle: #e8e8e5;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 16px;
   --space-4: 24px;
   --space-5: 32px;
   --space-6: 48px;
+  --space-8: 64px;
   --radius-sm: 6px;
   --radius-md: 12px;
   --radius-lg: 18px;
   --shadow-raised: 0 18px 42px rgba(24, 27, 24, 0.13);
+  --shadow-elevated: 0 8px 24px rgba(24, 27, 24, 0.10);
   --content-width: 1180px;
 }
 
@@ -1492,4 +1505,439 @@ h2 {
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* Internal design-system semantic-prop fixture. Class composition mirrors the
+ * generated output shape of a Vanilla Extract Sprinkles package. */
+.component-props-page {
+  max-width: 720px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 96px 32px;
+}
+
+.component-props-page h1 {
+  margin: 12px 0;
+  font-size: clamp(36px, 6vw, 72px);
+}
+
+.component-props-page > p:not(.eyebrow) {
+  max-width: 620px;
+  margin-bottom: 32px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.semantic-button {
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.semantic-button--primary {
+  background: var(--color-brand);
+  color: #111;
+}
+
+.semantic-button--secondary {
+  border-color: var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+}
+
+.semantic-button--small {
+  padding: var(--space-2) var(--space-4);
+  font-size: 14px;
+}
+
+.semantic-button--large {
+  padding: var(--space-4) var(--space-8);
+  font-size: 18px;
+}
+
+.semantic-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* ------------------------------------------------------------------
+   Semantic Badge
+   Prop contract: variant (neutral|success|warning|danger|info),
+                   size (sm|md|lg)
+   ------------------------------------------------------------------ */
+.semantic-badge {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  line-height: 1;
+}
+.semantic-badge--sm {
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+}
+.semantic-badge--md {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+}
+.semantic-badge--lg {
+  padding: 6px 16px;
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+}
+.semantic-badge--neutral {
+  background: var(--color-neutral-subtle);
+  color: var(--color-text-secondary);
+}
+.semantic-badge--success {
+  background: var(--color-success-subtle);
+  color: var(--color-success);
+}
+.semantic-badge--warning {
+  background: var(--color-warning-subtle);
+  color: var(--color-warning);
+}
+.semantic-badge--danger {
+  background: var(--color-danger-subtle);
+  color: var(--color-danger);
+}
+.semantic-badge--info {
+  background: var(--color-info-subtle);
+  color: var(--color-info);
+}
+
+/* ------------------------------------------------------------------
+   Semantic Card
+   Prop contract: variant (elevated|outlined|flat),
+                   padding (sm|md|lg), bordered (boolean)
+   ------------------------------------------------------------------ */
+.semantic-card {
+  border-radius: var(--radius-md);
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+.semantic-card--elevated {
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-raised);
+}
+.semantic-card--outlined {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+}
+.semantic-card--flat {
+  background: var(--color-surface-sunken);
+}
+.semantic-card--sm {
+  padding: var(--space-3);
+}
+.semantic-card--md {
+  padding: var(--space-4);
+}
+.semantic-card--lg {
+  padding: var(--space-5);
+}
+.semantic-card--bordered {
+  border: 1px solid var(--color-border-strong);
+}
+
+/* ------------------------------------------------------------------
+   Semantic Toggle
+   Prop contract: variant (accent|success|danger),
+                   size (sm|md|lg), disabled (boolean)
+   ------------------------------------------------------------------ */
+.semantic-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+}
+.semantic-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.semantic-toggle__track {
+  border-radius: 999px;
+  background: var(--color-border-strong);
+  transition: background 180ms ease;
+}
+.semantic-toggle__thumb {
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  transition: transform 180ms ease;
+}
+.semantic-toggle[aria-checked="true"] .semantic-toggle__track {
+  background: var(--color-accent);
+}
+.semantic-toggle--success[aria-checked="true"] .semantic-toggle__track {
+  background: var(--color-success);
+}
+.semantic-toggle--danger[aria-checked="true"] .semantic-toggle__track {
+  background: var(--color-danger);
+}
+.semantic-toggle--sm .semantic-toggle__track {
+  width: 32px;
+  height: 18px;
+}
+.semantic-toggle--sm .semantic-toggle__thumb {
+  width: 14px;
+  height: 14px;
+  transform: translateX(2px);
+}
+.semantic-toggle--sm[aria-checked="true"] .semantic-toggle__thumb {
+  transform: translateX(16px);
+}
+.semantic-toggle--md .semantic-toggle__track {
+  width: 40px;
+  height: 22px;
+}
+.semantic-toggle--md .semantic-toggle__thumb {
+  width: 18px;
+  height: 18px;
+  transform: translateX(2px);
+}
+.semantic-toggle--md[aria-checked="true"] .semantic-toggle__thumb {
+  transform: translateX(20px);
+}
+.semantic-toggle--lg .semantic-toggle__track {
+  width: 52px;
+  height: 28px;
+}
+.semantic-toggle--lg .semantic-toggle__thumb {
+  width: 24px;
+  height: 24px;
+  transform: translateX(2px);
+}
+.semantic-toggle--lg[aria-checked="true"] .semantic-toggle__thumb {
+  transform: translateX(26px);
+}
+
+/* ------------------------------------------------------------------
+   Semantic Alert
+   Prop contract: variant (info|success|warning|danger),
+                   dismissible (boolean)
+   ------------------------------------------------------------------ */
+.semantic-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.semantic-alert--info {
+  background: var(--color-info-subtle);
+  color: var(--color-info);
+  border-left: 4px solid var(--color-info);
+}
+.semantic-alert--success {
+  background: var(--color-success-subtle);
+  color: var(--color-success);
+  border-left: 4px solid var(--color-success);
+}
+.semantic-alert--warning {
+  background: var(--color-warning-subtle);
+  color: var(--color-warning);
+  border-left: 4px solid var(--color-warning);
+}
+.semantic-alert--danger {
+  background: var(--color-danger-subtle);
+  color: var(--color-danger);
+  border-left: 4px solid var(--color-danger);
+}
+.semantic-alert__dismiss {
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 180ms ease;
+}
+.semantic-alert__dismiss:hover {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------
+   Semantic Chip
+   Prop contract: variant (default|primary|success|warning|danger),
+                   size (sm|md), closable (boolean)
+   ------------------------------------------------------------------ */
+.semantic-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-weight: 500;
+  line-height: 1;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.semantic-chip--sm {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 999px;
+}
+.semantic-chip--md {
+  padding: 5px 14px;
+  font-size: 13px;
+  border-radius: 999px;
+}
+.semantic-chip--default {
+  background: var(--color-neutral-subtle);
+  color: var(--color-text-primary);
+}
+.semantic-chip--primary {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+.semantic-chip--success {
+  background: var(--color-success-subtle);
+  color: var(--color-success);
+}
+.semantic-chip--warning {
+  background: var(--color-warning-subtle);
+  color: var(--color-warning);
+}
+.semantic-chip--danger {
+  background: var(--color-danger-subtle);
+  color: var(--color-danger);
+}
+.semantic-chip__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.5;
+  padding: 0;
+  transition: opacity 180ms ease, background 180ms ease;
+}
+.semantic-chip__close:hover {
+  opacity: 1;
+  background: rgba(0,0,0,0.08);
+}
+
+/* ------------------------------------------------------------------
+   Semantic Avatar
+   Prop contract: variant (initials|icon|image),
+                   size (sm|md|lg|xl), shape (circle|square)
+   ------------------------------------------------------------------ */
+.semantic-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
+}
+.semantic-avatar--circle {
+  border-radius: 50%;
+}
+.semantic-avatar--square {
+  border-radius: var(--radius-sm);
+}
+.semantic-avatar--sm {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+.semantic-avatar--md {
+  width: 36px;
+  height: 36px;
+  font-size: 14px;
+}
+.semantic-avatar--lg {
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
+}
+.semantic-avatar--xl {
+  width: 64px;
+  height: 64px;
+  font-size: 24px;
+}
+.semantic-avatar--initials {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+.semantic-avatar--icon {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+.semantic-avatar--image {
+  background: var(--color-neutral-subtle);
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------
+   Section layout for component props page fixture
+   ------------------------------------------------------------------ */
+.semantic-section {
+  padding: 40px 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.semantic-section__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.semantic-section__desc {
+  margin: 6px 0 0;
+  color: var(--color-text-tertiary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.semantic-section__desc code {
+  color: var(--color-accent);
+}
+
+.semantic-showcase {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.semantic-showcase--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.semantic-showcase--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.semantic-showcase--toggle {
+  gap: 20px;
 }

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   designTool,
+  isHostApplicationSource,
   transformIndexHtmlHtml,
 } from "./index.ts";
 
@@ -16,6 +17,33 @@ const SAMPLE_HTML = `<!doctype html>
     <div id="root"></div>
   </body>
 </html>`;
+
+describe("isHostApplicationSource", () => {
+  const root = join(tmpdir(), "design-tool-app");
+
+  it("includes source files inside the resolved Vite root", () => {
+    expect(isHostApplicationSource(
+      join(root, "src/ui/Button.tsx"),
+      root,
+    )).toBe(true);
+  });
+
+  it("excludes workspace packages without relying on their directory names", () => {
+    expect(isHostApplicationSource(
+      join(root, "..", "renamed-runtime-package", "Inspector.tsx"),
+      root,
+    )).toBe(false);
+  });
+
+  it("excludes dependencies and virtual modules", () => {
+    expect(isHostApplicationSource(
+      join(root, "node_modules", "design-system", "Button.tsx"),
+      root,
+    )).toBe(false);
+    expect(isHostApplicationSource("\0virtual:design-tool-inspector", root))
+      .toBe(false);
+  });
+});
 
 describe("transformIndexHtmlHtml", () => {
   it("injects the mount div + script before </body> in serve mode", () => {
@@ -67,6 +95,67 @@ describe("designTool plugin virtual inspector module", () => {
     expect(code!).toContain('from "@design-tool/inspector"');
     expect(code!).toContain("bootstrapDesignTool");
     expect(code!).toContain('getElementById("design-tool-root")');
+  });
+});
+
+describe("designTool component contract catalog", () => {
+  it("scans local TypeScript component contracts into a dev virtual module", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-components-"));
+    try {
+      writeFileSync(
+        join(root, "Button.tsx"),
+        `export function Button(props: { variant: "primary" | "secondary"; disabled?: boolean }) { return <button /> }`,
+      );
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        buildStart?: () => void;
+        resolveId?: (id: string) => string | null;
+        load?: (id: string) => string | null | Promise<string | null>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.buildStart!();
+      expect(plugin.resolveId!("virtual:design-tool-components")).toBe(
+        "\0virtual:design-tool-components",
+      );
+      const code = await plugin.load!("\0virtual:design-tool-components");
+      expect(code).toContain('"componentId":"Button#Button"');
+      expect(code).toContain('"options":["primary","secondary"]');
+      expect(code).toContain('"control":"boolean"');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("returns an empty component catalog for production builds", async () => {
+    const plugin = designTool() as unknown as {
+      configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+      load?: (id: string) => string | null | Promise<string | null>;
+    };
+    plugin.configResolved!({ root: "/project", command: "build" });
+    expect(await plugin.load!("\0virtual:design-tool-components")).toContain(
+      "componentContracts = []",
+    );
+  });
+
+  it("merges package-published component metadata into the dev catalog", async () => {
+    const plugin = designTool({
+      componentMetadata: [{
+        componentId: "@work/design-system#Button",
+        name: "Button",
+        file: "@work/design-system",
+        provenance: "package-manifest",
+        props: [{
+          name: "variant",
+          control: "select",
+          options: ["primary", "secondary"],
+          optional: true,
+        }],
+      }],
+    }) as unknown as {
+      load?: (id: string) => string | null | Promise<string | null>;
+    };
+    expect(await plugin.load!("\0virtual:design-tool-components"))
+      .toContain('"componentId":"@work/design-system#Button"');
   });
 });
 

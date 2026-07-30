@@ -11,8 +11,9 @@ import {
   undo,
   redo,
 } from "./changesLog.ts";
-import type { ChangeRecord, ElementChangeRecord } from "./changesLog.ts";
+import type { ChangeRecord, ComponentChangeRecord, ElementChangeRecord } from "./changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
+import { makeComponentChange } from "./changes/_testUtils.ts";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
@@ -35,6 +36,16 @@ function makeRecord(
     rawValue,
     source: { file: "src/Button.tsx", line: 1, component: "Button" },
   };
+}
+
+function makeComponentRecord(
+  afterValue: "primary" | "secondary",
+  beforeValue: "primary" | "secondary" = "primary",
+): ComponentChangeRecord {
+  return makeComponentChange({
+    before: { kind: "value", value: beforeValue },
+    after: afterValue,
+  });
 }
 
 describe("changesLog", () => {
@@ -70,6 +81,25 @@ describe("changesLog", () => {
     expect(getChangesList()).toHaveLength(2);
   });
 
+  it("keeps component prop intent canonical without emitting a CSS rule", () => {
+    appendChange(makeComponentRecord("secondary"));
+    appendChange(makeComponentRecord("primary", "secondary"));
+    expect(getChangesList()).toEqual([]);
+    expect(getPendingRules()).toEqual([]);
+
+    appendChange(makeComponentRecord("secondary"));
+    expect(getChangesList()).toMatchObject([{
+      kind: "component-prop",
+      before: { kind: "value", value: "primary" },
+      after: "secondary",
+    }]);
+    expect(getPendingRules()).toEqual([]);
+    expect(undo()).toBe(true);
+    expect(getChangesList()).toEqual([]);
+    expect(redo()).toBe(true);
+    expect(getChangesList()).toHaveLength(1);
+  });
+
   it("appends a declaration batch as one undoable history entry", () => {
     appendChanges([
       makeRecord("left", null, null, "auto"),
@@ -90,8 +120,9 @@ describe("changesLog", () => {
     appendChange(makeRecord("background", COLOR_B, COLOR_A));
     appendChange(makeRecord("background", COLOR_C, COLOR_B));
     expect(getChangesList()).toHaveLength(1);
-    expect(getChangesList()[0]!.oldToken).toBe(COLOR_A);
-    expect(getChangesList()[0]!.newToken).toBe(COLOR_C);
+    const change = getChangesList()[0] as ElementChangeRecord;
+    expect(change.oldToken).toBe(COLOR_A);
+    expect(change.newToken).toBe(COLOR_C);
     const rules = getPendingRules();
     expect(rules).toHaveLength(1);
     expect(rules[0]!.declarations.background).toBe("var(--color-c)");

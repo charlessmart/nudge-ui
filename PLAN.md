@@ -22,6 +22,7 @@ The current agent loop is slow: describe a change in chat → agent writes code 
 | Source mapping | Runtime fiber-walking (`_debugSource` / `__source`) | Works on most dev builds via `@babel/preset-react` / SWC. No dependency on Locator.js or React DevTools extension. Component name + props + file:line captured from the fiber tree. |
 | Style application | Managed `<style>` sheet keyed by stable element identity | Never inline styles (React clobbers them on re-render). External stylesheet survives re-renders naturally. Hard rule, same as Design Mode's CONTRIBUTING.md. |
 | Token extraction | Universal CSS-var core + adapter pattern | Core works on any project using CSS custom properties (most modern design systems). Adapters add enrichment for specific frameworks. No adapter = still useful. |
+| Component prop editing | Typed contract catalog + framework runtime adapters | Scalar presentational props rerender the real component. Project TS contracts are inferred; npm design systems may publish a manifest. CSS inference is not used as a semantic substitute. |
 | DOM mutations (drag) | Record-and-replay, no live reconciliation | React re-renders clobber DOM moves. We record structured change records and detect snap-back, with clear UX messaging. Not a live Figma-feel drag — honest about the limitation. |
 | Canvas | Live same-origin iframe previews, controller/renderer architecture | Real application renders inside iframes with current canonical changes projected in. No screenshots in v1 — every card is a live interactive preview. See `docs/features/live-canvas-workspace.md`. |
 | Agent handoff | Clipboard-paste prompt (v1), MCP server (v2) | v1: structured text prompt with file:line, component, token name, before→after. v2: live MCP bridge where agent calls into the browser. |
@@ -267,6 +268,11 @@ Each milestone is independently shippable and demoable.
 
 **Demo:** Click an element in the work app → see `theme.color.brand` instead of `--color-brand__1g5vs1s0` → edit → prompt references `theme.color.brand` (the thing an agent can grep for).
 
+**Semantic component slice:** For React/Vite, discover typed enum/boolean props
+from project components or an npm design-system manifest. Instrument consuming
+JSX invocation sites in dev, preview through the React runtime adapter, and
+record `component-prop` intent separately from CSS/token changes (ADR-0007).
+
 ### Milestone 4 — Canvas
 **Live same-origin iframe previews; controller/renderer separation**
 
@@ -320,7 +326,10 @@ Each milestone is independently shippable and demoable.
 
 ## Key technical constraints
 
-1. **Never write inline styles to tracked elements.** React clobbers them on re-render. All edits go through the managed `<style>` sheet. This is a hard rule.
+1. **Never write inline styles to tracked elements.** CSS/token previews go
+through the managed `<style>` sheet. Semantic component prop previews rerender
+through a framework runtime Adapter under ADR-0007; they never mutate rendered
+host styles or attributes directly.
 
 2. **Tree-shaking must be airtight.** All plugin transforms and inspector injection must be gated behind `import.meta.env.DEV`. One stray import that isn't dev-gated ships an inspector into production. Verify with a production build at every milestone.
 

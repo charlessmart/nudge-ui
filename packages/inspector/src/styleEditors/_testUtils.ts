@@ -21,6 +21,7 @@ export function makeSelected(
     line: 1,
     column: 1,
     domElement: el,
+    componentTargets: [],
   };
   return { el, selected };
 }

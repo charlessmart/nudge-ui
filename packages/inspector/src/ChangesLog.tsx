@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import { IconChevronDown } from "@tabler/icons-react";
-import { isTokenChange, useChanges, revertChange } from "./changesLog.ts";
+import { useChanges, revertChange } from "./changesLog.ts";
 import type { ChangeRecord } from "./changesLog.ts";
 import { StaleChangeIndicator } from "./canvas/StaleChangeIndicator.tsx";
 import { Button } from "./ui/Button.tsx";
-import { formatInspectorLabel } from "./ui/labels.ts";
 import { revertDomMutation, useDomMutations } from "./domMutations.ts";
+import { presentChange } from "./changes/presentation.ts";
 
 interface Group {
   key: string;
@@ -22,15 +22,14 @@ interface ChangesLogProps {
 function groupChanges(changes: ChangeRecord[]): Group[] {
   const map = new Map<string, Group>();
   for (const change of changes) {
-    const key = isTokenChange(change)
-      ? ["token", change.tokenName, change.file, change.line, change.contextLabel].join("\u0000")
-      : [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site"].join("\u0000");
+    const presentation = presentChange(change);
+    const key = presentation.groupKey;
     let group = map.get(key);
     if (!group) {
       group = {
         key,
-        label: isTokenChange(change) ? `Global token · ${change.tokenName}` : change.cid,
-        file: change.file,
+        label: presentation.groupLabel,
+        file: presentation.file,
         changes: [],
       };
       map.set(key, group);
@@ -38,20 +37,6 @@ function groupChanges(changes: ChangeRecord[]): Group[] {
     group.changes.push(change);
   }
   return Array.from(map.values());
-}
-
-function displayBefore(rec: ChangeRecord): string {
-  if (isTokenChange(rec)) return rec.oldRawValue;
-  if (rec.oldToken) return rec.oldToken.name;
-  if (rec.rawValue !== undefined && rec.newToken) return rec.rawValue;
-  return "(original)";
-}
-
-function displayAfter(rec: ChangeRecord): string {
-  if (isTokenChange(rec)) return rec.rawValue;
-  if (rec.newToken) return rec.newToken.name;
-  if (rec.rawValue !== undefined) return rec.rawValue;
-  return "";
 }
 
 export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
@@ -81,26 +66,29 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                     <span>{group.label}</span>
                     <span className="dt-changes__group-file">{group.file}</span>
                   </div>
-                  {group.changes.map((change, i) => (
-                    <div className="dt-changes__row" data-test="change-row" key={`${group.key}\u0000${change.property}\u0000${i}`} data-property={change.property}>
-                      <span className="dt-changes__prop">{isTokenChange(change) ? change.contextLabel : formatInspectorLabel(change.property)}</span>
-                      <span className="dt-changes__value">
-                        <span className="dt-changes__before">{displayBefore(change)}</span>
-                        <span className="dt-changes__arrow">→</span>
-                        <span className="dt-changes__after">{displayAfter(change)}</span>
-                      </span>
-                      <StaleChangeIndicator change={change} />
-                      <Button
-                        size="compact"
-                        className="dt-changes__revert"
-                        data-test="change-revert"
-                        data-property={change.property}
-                        onClick={() => revertChange(change)}
-                      >
-                        Revert
-                      </Button>
-                    </div>
-                  ))}
+                  {group.changes.map((change, i) => {
+                    const presentation = presentChange(change);
+                    return (
+                      <div className="dt-changes__row" data-test="change-row" key={`${group.key}\u0000${presentation.property}\u0000${i}`} data-property={presentation.property}>
+                        <span className="dt-changes__prop">{presentation.propertyLabel}</span>
+                        <span className="dt-changes__value">
+                          <span className="dt-changes__before">{presentation.before}</span>
+                          <span className="dt-changes__arrow">→</span>
+                          <span className="dt-changes__after">{presentation.after}</span>
+                        </span>
+                        <StaleChangeIndicator change={change} />
+                        <Button
+                          size="compact"
+                          className="dt-changes__revert"
+                          data-test="change-revert"
+                          data-property={presentation.property}
+                          onClick={() => revertChange(change)}
+                        >
+                          Revert
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
               {domMutations.map((mutation) => (

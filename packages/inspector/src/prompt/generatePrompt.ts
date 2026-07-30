@@ -1,7 +1,19 @@
-import { isTokenChange } from "../changesLog.ts";
-import type { ChangeRecord, ElementChangeRecord, TokenChangeRecord } from "../changesLog.ts";
+import { isComponentChange, isTokenChange } from "../changesLog.ts";
+import type {
+  ChangeRecord,
+  ComponentChangeRecord,
+  ElementChangeRecord,
+  PreviewableChangeRecord,
+  TokenChangeRecord,
+} from "../changesLog.ts";
 import { escapeAttrValue } from "../managedStylesheet.ts";
 import type { DomMutationRecord } from "../domMutations.ts";
+import { canonicalizeChanges } from "../changes/model.ts";
+import {
+  formatComponentPropBaseline,
+  formatComponentPropValue,
+} from "../componentSemantics/changeModel.ts";
+import { presentChange } from "../changes/presentation.ts";
 
 export interface FrameworkHints {
   framework?: string;
@@ -25,34 +37,6 @@ function basename(filePath: string): string {
   return slash >= 0 ? filePath.slice(slash + 1) : filePath;
 }
 
-function recordKey(change: ChangeRecord): string {
-  if (isTokenChange(change)) {
-    return ["token", change.tokenName, change.file, change.line, change.selector, JSON.stringify(change.context)].join("\u0000");
-  }
-  return [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site", change.state ?? "base", change.property].join("\u0000");
-}
-
-function deduplicateChanges(changes: ChangeRecord[]): ChangeRecord[] {
-  const groups = new Map<string, ChangeRecord[]>();
-  for (const change of changes) {
-    const list = groups.get(recordKey(change));
-    if (list) list.push(change);
-    else groups.set(recordKey(change), [change]);
-  }
-
-  return [...groups.values()].map((list) => {
-    const first = list[0]!;
-    const last = list.at(-1)!;
-    if (isTokenChange(first) && isTokenChange(last)) {
-      return { ...last, oldRawValue: first.oldRawValue };
-    }
-    if (!isTokenChange(first) && !isTokenChange(last)) {
-      return { ...last, oldToken: first.oldToken, oldRawValue: first.oldRawValue };
-    }
-    return last;
-  });
-}
-
 function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
   const map = new Map<string, ElementGroup>();
   for (const change of changes) {
@@ -74,7 +58,7 @@ function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
   return [...map.values()];
 }
 
-function conflictSuffix(rec: ChangeRecord): string {
+function conflictSuffix(rec: PreviewableChangeRecord): string {
   const result = rec.previewResult;
   if (!result || result.status === "applied") return "";
   return ` — preview conflict: browser computed \`${result.computedValue || "(no value)"}\` (${result.reason ?? "cascade conflict"}); implement the requested value without assuming \`!important\``;
@@ -105,6 +89,15 @@ function tokenChangeLine(rec: TokenChangeRecord): string {
   return `- \`${rec.tokenName}\` (${rec.contextLabel}, ${rec.file}:${rec.line}): \`${rec.oldRawValue}\` → \`${rec.rawValue}\`${conflictSuffix(rec)}`;
 }
 
+function componentChangeLine(rec: ComponentChangeRecord): string {
+  const sourceGuidance = rec.authoredAs === "literal"
+    ? "replace the invocation prop literal"
+    : rec.authoredAs === "default"
+      ? "add the prop at this invocation"
+      : `preserve the authored ${rec.authoredAs} and update its source logic`;
+  return `- \`${rec.property}\`: \`${formatComponentPropBaseline(rec.before)}\` → \`${formatComponentPropValue(rec.after)}\` — ${sourceGuidance}`;
+}
+
 /**
  * Managed rules use an exact source identity. Prompts deliberately keep the
  * source-line form: it is more useful to an agent as a grep fallback and is
@@ -117,13 +110,17 @@ function promptSelectorForElement(group: ElementGroup): string {
 
 export function generatePrompt(changes: ChangeRecord[], frameworkHints?: FrameworkHints, domMutations: DomMutationRecord[] = []): string {
   if (changes.length === 0 && domMutations.length === 0) return EMPTY_SENTINEL;
-  const deduplicated = deduplicateChanges(changes);
+  const deduplicated = canonicalizeChanges(changes);
   if (deduplicated.length === 0 && domMutations.length === 0) return EMPTY_SENTINEL;
 
   const tokenChanges = deduplicated.filter(isTokenChange);
-  const elementChanges = deduplicated.filter((change): change is ElementChangeRecord => !isTokenChange(change));
+  const componentChanges = deduplicated.filter(isComponentChange);
+  const elementChanges = deduplicated.filter((change): change is ElementChangeRecord =>
+    !isTokenChange(change) && !isComponentChange(change));
   const elementGroups = groupElementChanges(elementChanges);
-  const firstFile = deduplicated[0]?.file ?? domMutations[0]!.file;
+  const firstFile = deduplicated[0]
+    ? presentChange(deduplicated[0]).file
+    : domMutations[0]!.file;
   const framework = frameworkHints?.framework ?? "React";
   const stylingSystem = frameworkHints?.stylingSystem ?? "CSS custom properties";
   const lines = [
@@ -139,6 +136,17 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
     lines.push("## Global token changes", "");
     tokenChanges.forEach((change) => lines.push(tokenChangeLine(change)));
     lines.push("");
+  }
+
+  if (componentChanges.length > 0) {
+    lines.push("## Component prop changes", "");
+    for (const change of componentChanges) {
+      const target = change.target;
+      lines.push(`### ${target.componentName} invocation (${target.file}:${target.line}:${target.column})`);
+      lines.push(componentChangeLine(change));
+      lines.push(`  - Component contract: \`${target.componentId}\``);
+      lines.push("");
+    }
   }
 
   if (elementGroups.length > 0) {
@@ -179,6 +187,8 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
 
   lines.push("## Selectors (fallback)");
   tokenChanges.forEach((change) => lines.push(`- \`${change.tokenName}\` in \`${change.selector}\``));
+  componentChanges.forEach((change) =>
+    lines.push(`- Component callsite: \`${change.target.file}:${change.target.line}:${change.target.column}\` (\`${change.target.componentName}\`)`));
   elementGroups.forEach((group) => lines.push(`- \`${promptSelectorForElement(group)}\``));
   domMutations.forEach((mutation) => lines.push(`- \`${mutation.selector}\``));
   return lines.join("\n");

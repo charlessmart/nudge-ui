@@ -1,4 +1,5 @@
 import type { SelectedElement } from "./selectionStore.ts";
+import { inspectComponentTargets } from "./componentSemantics/index.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -31,9 +32,11 @@ function findReactFiber(el: HTMLElement): unknown {
 }
 
 export function resolveSelectionFromElement(el: HTMLElement): SelectedElement | null {
-  const cid = el.getAttribute("data-cid");
+  const componentTargets = inspectComponentTargets(el);
+  const nearestComponent = componentTargets[0];
+  const cid = el.getAttribute("data-cid") ?? nearestComponent?.meta.componentName ?? null;
   if (!cid) return null;
-  const src = el.getAttribute("data-src") ?? "";
+  const src = el.getAttribute("data-src") ?? nearestComponent?.meta.callsiteId ?? "";
   const parsed = parseDataSrc(src);
   const cpropsAttr = el.getAttribute("data-cprops");
   const fiber = findReactFiber(el);
@@ -46,6 +49,7 @@ export function resolveSelectionFromElement(el: HTMLElement): SelectedElement | 
     column: parsed?.column ?? 0,
     domElement: el,
     fiber,
+    componentTargets,
   };
 }
 
@@ -60,7 +64,8 @@ export function resolveSelectionFromEvent(
   if (root instanceof ShadowRoot && root.host instanceof HTMLElement && root.host.id === "design-tool-root") {
     return null;
   }
+  const direct = resolveSelectionFromElement(target);
+  if (direct) return direct;
   const el = target.closest("[data-cid]");
-  if (!el || !(el instanceof HTMLElement)) return null;
-  return resolveSelectionFromElement(el);
+  return el instanceof HTMLElement ? resolveSelectionFromElement(el) : null;
 }

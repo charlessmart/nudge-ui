@@ -1,11 +1,22 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { ChangeRecord, ElementChangeRecord, TokenChangeRecord } from "../changesLog.ts";
+import type {
+  ElementChangeRecord,
+  PreviewableChangeRecord,
+  TokenChangeRecord,
+} from "../changesLog.ts";
 import { startStaleDetection, cancelStaleDetection, isVerificationPending } from "./staleChangeDetector.ts";
-import { clearChanges, loadChanges, getChangesList } from "../changesLog.ts";
+import {
+  clearChanges,
+  getChangesList,
+  isElementChange,
+  isPreviewableChange,
+  loadChanges,
+} from "../changesLog.ts";
 import { getRegisteredFrames } from "./projection.ts";
 import { addCanvasCard, removeCanvasCard as removeCanvasCardStore, getCanvasCards } from "./canvasStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";
+import { makeComponentChange } from "../changes/_testUtils.ts";
 
 const TOKEN_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const TOKEN_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
@@ -39,6 +50,10 @@ function makeTokenChange(overrides: Partial<TokenChangeRecord> = {}): TokenChang
     source: { file: "src/theme.css", line: 6, component: "Global token" },
     ...overrides,
   };
+}
+
+function getPreviewableChanges(): PreviewableChangeRecord[] {
+  return getChangesList().filter(isPreviewableChange);
 }
 
 function setupMockElements(...selectors: string[]): void {
@@ -103,7 +118,7 @@ describe("staleChangeDetector", () => {
       });
       loadChanges([change]);
 
-      const changes = getChangesList();
+      const changes = getPreviewableChanges();
       expect(changes[0]!.previewResult?.status).toBe("applied");
 
       startStaleDetection(changes);
@@ -121,7 +136,7 @@ describe("staleChangeDetector", () => {
 
       vi.advanceTimersByTime(6000);
 
-      const updated = getChangesList();
+      const updated = getPreviewableChanges();
       expect(updated[0]!.previewResult?.status).toBe("conflict");
       expect(updated[0]!.previewResult?.reason).toBe("target-missing");
 
@@ -139,7 +154,7 @@ describe("staleChangeDetector", () => {
 
       vi.advanceTimersByTime(6000);
 
-      const updated = getChangesList();
+      const updated = getPreviewableChanges();
       expect(updated[0]!.previewResult).toBeUndefined();
 
       vi.useRealTimers();
@@ -164,7 +179,7 @@ describe("staleChangeDetector", () => {
 
       vi.advanceTimersByTime(6000);
 
-      const updated = getChangesList();
+      const updated = getPreviewableChanges();
       expect(updated[0]!.previewResult).toBeUndefined();
 
       frameMap.delete(card.id);
@@ -194,7 +209,7 @@ describe("staleChangeDetector", () => {
 
       vi.advanceTimersByTime(6000);
 
-      const updated = getChangesList();
+      const updated = getPreviewableChanges();
       expect(updated[0]!.previewResult?.status).toBe("conflict");
       expect(updated[0]!.previewResult?.reason).toBe("target-missing");
 
@@ -217,7 +232,7 @@ describe("staleChangeDetector", () => {
 
       vi.advanceTimersByTime(6000);
 
-      const updated = getChangesList();
+      const updated = getPreviewableChanges();
       expect(updated[0]!.previewResult).toBeUndefined();
 
       vi.useRealTimers();
@@ -241,8 +256,8 @@ describe("staleChangeDetector", () => {
 
       vi.advanceTimersByTime(6000);
 
-      const updated = getChangesList();
-      const stale = updated[0]!;
+      const updated = getPreviewableChanges();
+      const stale = updated.find(isElementChange)!;
       expect(stale.selector).toBe(selector);
       expect(stale.cid).toBe("Widget");
       expect(stale.file).toBe("src/Widget.tsx");
@@ -269,7 +284,7 @@ describe("staleChangeDetector", () => {
 
       vi.advanceTimersByTime(6000);
 
-      const updated = getChangesList();
+      const updated = getPreviewableChanges();
       expect(updated[0]!.kind).toBe("token");
 
       vi.useRealTimers();
@@ -286,7 +301,7 @@ describe("staleChangeDetector", () => {
 
       vi.advanceTimersByTime(6000);
 
-      const updated = getChangesList();
+      const updated = getPreviewableChanges();
       expect(updated[0]!.previewResult?.status).not.toBe("applied");
       expect(updated[0]!.previewResult?.status).toBe("conflict");
 
@@ -308,10 +323,15 @@ describe("staleChangeDetector", () => {
 
       vi.advanceTimersByTime(6000);
 
-      const updated = getChangesList();
+      const updated = getPreviewableChanges();
       expect(updated[0]!.previewResult).toBeUndefined();
 
       vi.useRealTimers();
     });
+  });
+
+  it("does not schedule selector verification for component prop changes", () => {
+    startStaleDetection([makeComponentChange()]);
+    expect(isVerificationPending()).toBe(false);
   });
 });

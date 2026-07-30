@@ -22,6 +22,7 @@ function makeEl(overrides: Partial<SelectedElement> = {}): SelectedElement {
     line: 12,
     column: 5,
     domElement: document.createElement("button"),
+    componentTargets: [],
     ...overrides,
   };
 }

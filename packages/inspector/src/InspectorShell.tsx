@@ -38,6 +38,7 @@ import { getRestoreCount, clearRestoreCount, clearSession } from "./canvas/sessi
 import { getElementWindow } from "./domRealm.ts";
 import { deleteElement, nudgeElement, undoDomMutation, redoDomMutation, useDomMutations } from "./domMutations.ts";
 import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
+import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -312,6 +313,8 @@ export function InspectorShell(): ReactElement {
                   )}
                 </StatusCallout>
               </div>
+
+              <ComponentPropsSection selected={selected} />
 
               <AtRuleContextProvider rows={tokenRows}>
                 <div className="dt-style-editors" data-test="style-editors">

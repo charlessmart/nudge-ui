@@ -3,7 +3,9 @@ import type { ChangeRecord } from "../changesLog.ts";
 import {
   getChangesList,
   loadChanges,
+  isComponentChange,
   isTokenChange,
+  type ComponentChangeRecord,
   type ElementChangeRecord,
   type TokenChangeRecord,
 } from "../changesLog.ts";
@@ -28,7 +30,7 @@ import { canWriteWorkspace } from "./workspaceLease.ts";
 import { clearDomMutations } from "../domMutations.ts";
 import type { StyleRuleContext } from "../managedStylesheet.ts";
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const STORAGE_PREFIX = "design-tool";
 
 function isFiniteNumber(value: unknown): value is number {
@@ -76,6 +78,32 @@ function isStyleRuleContext(value: unknown): value is StyleRuleContext {
 function isSerializableChange(value: unknown): value is SerializableChange {
   if (!value || typeof value !== "object") return false;
   const change = value as Record<string, unknown>;
+  if (change.kind === "component-prop") {
+    const target = change.target as Record<string, unknown> | undefined;
+    const before = change.before as Record<string, unknown> | undefined;
+    const validBefore = before?.kind === "default"
+      || (before?.kind === "value"
+        && (typeof before.value === "string"
+          || typeof before.value === "number"
+          || typeof before.value === "boolean"));
+    return target !== undefined
+      && target.framework === "react"
+      && typeof target.componentId === "string"
+      && typeof target.callsiteId === "string"
+      && typeof target.componentName === "string"
+      && typeof target.file === "string"
+      && isFiniteNumber(target.line)
+      && isFiniteNumber(target.column)
+      && typeof change.property === "string"
+      && validBefore
+      && (typeof change.after === "string"
+        || typeof change.after === "number"
+        || typeof change.after === "boolean")
+      && (change.authoredAs === "literal"
+        || change.authoredAs === "expression"
+        || change.authoredAs === "spread"
+        || change.authoredAs === "default");
+  }
   if (
     typeof change.selector !== "string"
     || typeof change.property !== "string"
@@ -152,7 +180,29 @@ export interface SerializableTokenChange {
   source: { file: string; line: number; component: string };
 }
 
-export type SerializableChange = SerializableElementChange | SerializableTokenChange;
+export interface SerializableComponentChange {
+  kind: "component-prop";
+  target: {
+    framework: "react";
+    componentId: string;
+    callsiteId: string;
+    componentName: string;
+    file: string;
+    line: number;
+    column: number;
+  };
+  property: string;
+  before:
+    | { kind: "default" }
+    | { kind: "value"; value: string | number | boolean };
+  after: string | number | boolean;
+  authoredAs: "literal" | "expression" | "spread" | "default";
+}
+
+export type SerializableChange =
+  | SerializableElementChange
+  | SerializableTokenChange
+  | SerializableComponentChange;
 
 export interface DurableSession {
   schemaVersion: typeof SCHEMA_VERSION;
@@ -216,8 +266,22 @@ function serializeTokenChange(change: TokenChangeRecord): SerializableTokenChang
   };
 }
 
+function serializeComponentChange(change: ComponentChangeRecord): SerializableComponentChange {
+  return {
+    kind: "component-prop",
+    target: { ...change.target },
+    property: change.property,
+    before: change.before.kind === "default"
+      ? { kind: "default" }
+      : { kind: "value", value: change.before.value },
+    after: change.after,
+    authoredAs: change.authoredAs,
+  };
+}
+
 function serializeChange(change: ChangeRecord): SerializableChange | null {
   if (isTokenChange(change)) return serializeTokenChange(change);
+  if (isComponentChange(change)) return serializeComponentChange(change);
   return serializeElementChange(change);
 }
 
@@ -270,8 +334,22 @@ function deserializeTokenChange(s: SerializableTokenChange): TokenChangeRecord {
   };
 }
 
+function deserializeComponentChange(s: SerializableComponentChange): ComponentChangeRecord {
+  return {
+    kind: "component-prop",
+    target: { ...s.target },
+    property: s.property,
+    before: s.before.kind === "default"
+      ? { kind: "default" }
+      : { kind: "value", value: s.before.value },
+    after: s.after,
+    authoredAs: s.authoredAs,
+  };
+}
+
 function deserializeChange(s: SerializableChange): ChangeRecord {
   if (s.kind === "token") return deserializeTokenChange(s);
+  if (s.kind === "component-prop") return deserializeComponentChange(s);
   return deserializeElementChange(s);
 }
 

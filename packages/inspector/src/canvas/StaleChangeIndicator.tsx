@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import type { ChangeRecord } from "../changesLog.ts";
-import { isTokenChange } from "../changesLog.ts";
+import { isPreviewableChange, isTokenChange } from "../changesLog.ts";
 import { isVerificationPending } from "./staleChangeDetector.ts";
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
 }
 
 export function StaleChangeIndicator({ change }: Props): ReactElement | null {
+  if (!isPreviewableChange(change)) return null;
   if (change.previewResult === undefined) {
     if (isVerificationPending()) {
       return (

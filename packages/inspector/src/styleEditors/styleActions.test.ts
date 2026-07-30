@@ -95,7 +95,7 @@ describe("setStyle", () => {
     const recs = getChangeRecords();
     expect(recs.length).toBeGreaterThanOrEqual(2);
     const last = recs[recs.length - 1]!;
-    expect(last.rawValue).toBe("12px");
+    expect("rawValue" in last ? last.rawValue : undefined).toBe("12px");
   });
 
   it("returns null when cid is absent", () => {

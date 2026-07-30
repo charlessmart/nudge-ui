@@ -34,9 +34,11 @@ The active build order lives in `docs/issues/` (Milestones 1-3 are in scope now,
    module is guarded by `import.meta.env.DEV`. The plugin's `transform` hook
    must no-op outside dev. The virtual `design-tokens` module resolves to an
    empty table in production.
-2. **Managed stylesheet only (ADR-0003)**: never write `style="..."` inline on
-   a tracked element. All edits become rules in `<style id="design-tool-styles">`
-   keyed by `[data-cid="..."][data-src*="..."]`.
+2. **CSS managed stylesheet; semantic props use Adapters (ADR-0003,
+   ADR-0007)**: never write `style="..."` inline on a tracked element. CSS and
+   token edits become managed rules keyed by stable identity. Component prop
+   changes rerender through the framework Adapter and never mutate rendered
+   host attributes as a preview mechanism.
 3. **`data-*` attributes are the identity layer (PLAN.md constraint #3)**: do
    not rely on DOM selectors that drift across re-renders, or on fiber refs that
    change across renders.

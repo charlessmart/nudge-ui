@@ -4,6 +4,7 @@ import { detectFramework } from "./detectFramework.ts";
 import type { ChangeRecord, ElementChangeRecord } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { DomMutationRecord } from "../domMutations.ts";
+import { makeComponentChange } from "../changes/_testUtils.ts";
 
 const SURFACE_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:1" };
 const SURFACE_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5f5f5", source: "styles.css:2" };
@@ -23,6 +24,17 @@ function rec(
 }
 
 describe("generatePrompt", () => {
+  it("renders semantic component prop intent at the invocation callsite", () => {
+    const change = makeComponentChange();
+    const out = generatePrompt([change]);
+    expect(out).toContain("## Component prop changes");
+    expect(out).toContain("### Button invocation (src/App.tsx:12:4)");
+    expect(out).toContain("`variant`: `primary` → `secondary` — replace the invocation prop literal");
+    expect(out).toContain("Component contract: `src/ui/Button#Button`");
+    expect(out).toContain("Component callsite: `src/App.tsx:12:4` (`Button`)");
+    expect(out).not.toContain("component-callsite:");
+  });
+
   it("includes temporary DOM operations as source-level structural instructions", () => {
     const move: DomMutationRecord = {
       id: "dom-1", action: "move", cid: "NavItem", file: "src/Nav.tsx", line: 12,

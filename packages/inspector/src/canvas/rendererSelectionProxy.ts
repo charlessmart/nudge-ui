@@ -61,6 +61,7 @@ export function handleElementClick(msg: ElementClickMessage, iframe: HTMLIFrameE
     line: msg.line,
     column: 0,
     domElement: el,
+    componentTargets: [],
   };
 
   // setSelectedElement must run before any side effect that could reload the

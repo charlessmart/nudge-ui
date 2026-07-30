@@ -19,3 +19,9 @@ declare module "virtual:design-tokens" {
   export const designToolProjectId: string;
   export default tokens;
 }
+
+declare module "virtual:design-tool-components" {
+  import type { ComponentContract } from "./componentSemantics/types.ts";
+  export const componentContracts: ComponentContract[];
+  export default componentContracts;
+}

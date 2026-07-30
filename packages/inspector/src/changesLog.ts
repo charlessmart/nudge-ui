@@ -1,57 +1,31 @@
 import { useSyncExternalStore } from "react";
-import type { TokenEntry } from "virtual:design-tokens";
-import { applyRules, verifyPreview } from "./managedStylesheet.ts";
-import type { PreviewResult, StyleRule, StyleRuleContext } from "./managedStylesheet.ts";
 import { canWriteWorkspace } from "./canvas/workspaceLease.ts";
-import { getSelectedElement } from "./selectionStore.ts";
+import {
+  changeKey,
+  mergeChange,
+  sameEffectiveChanges,
+  selectorForChange,
+} from "./changes/model.ts";
+import {
+  applyChangeProjections,
+  buildManagedStyleRules,
+} from "./changes/projection.ts";
+import type { StyleRule } from "./managedStylesheet.ts";
+import type { ChangeRecord } from "./changes/types.ts";
 
-export interface ElementChangeRecord {
-  kind?: "element";
-  cid: string;
-  file: string;
-  line: number;
-  selector: string;
-  property: string;
-  /** CSSOM-declared source context that the inspector projection came from. */
-  sourceProperty?: string;
-  /** Best-effort CSSOM serialization; not an exact source-text quote. */
-  sourceAuthoredValue?: string;
-  oldToken: TokenEntry | null;
-  newToken: TokenEntry | null;
-  rawValue?: string;
-  oldRawValue?: string;
-  source: { file: string; line: number; component: string };
-  scope?: "source-site" | "instance-preview";
-  instanceEvidence?: { renderedIndex: number; props: string | null; text: string | null };
-  previewResult?: PreviewResult;
-  state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";
-}
-
-export interface TokenChangeRecord {
-  kind: "token";
-  tokenName: string;
-  file: string;
-  line: number;
-  selector: string;
-  property: string;
-  rawValue: string;
-  oldRawValue: string;
-  context: StyleRuleContext;
-  contextLabel: string;
-  source: { file: string; line: number; component: string };
-  cid?: undefined;
-  oldToken?: null;
-  newToken?: null;
-  scope?: undefined;
-  instanceEvidence?: undefined;
-  previewResult?: PreviewResult;
-}
-
-export type ChangeRecord = ElementChangeRecord | TokenChangeRecord;
-
-export function isTokenChange(change: ChangeRecord): change is TokenChangeRecord {
-  return change.kind === "token";
-}
+export {
+  isComponentChange,
+  isElementChange,
+  isPreviewableChange,
+  isTokenChange,
+} from "./changes/types.ts";
+export type {
+  ChangeRecord,
+  ComponentChangeRecord,
+  ElementChangeRecord,
+  PreviewableChangeRecord,
+  TokenChangeRecord,
+} from "./changes/types.ts";
 
 let changes: ChangeRecord[] = [];
 interface HistoryEntry { before: ChangeRecord[]; after: ChangeRecord[] }
@@ -74,108 +48,22 @@ function notify(): void {
   listeners.forEach((l) => l());
 }
 
-function recordValue(rec: ChangeRecord): string {
-  if (isTokenChange(rec)) return rec.rawValue;
-  if (rec.newToken) return tokenReference(rec.newToken);
-  if (rec.rawValue !== undefined) return rec.rawValue;
-  return "";
-}
-
-function ruleKey(rec: ChangeRecord): string {
-  const context = isTokenChange(rec) ? JSON.stringify(rec.context) : "";
-  return `${rec.selector}\u0000${rec.property}\u0000${context}`;
-}
-
-function changeKey(rec: ChangeRecord): string {
-  if (isTokenChange(rec)) {
-    return ["token", rec.tokenName, rec.file, rec.line, rec.selector, JSON.stringify(rec.context)].join("\u0000");
-  }
-  return [rec.cid, rec.file, rec.line, rec.selector, rec.scope ?? "source-site", rec.state ?? "base", rec.property].join("\u0000");
-}
-
-function baselineValue(rec: ChangeRecord): string {
-  if (isTokenChange(rec)) return rec.oldRawValue;
-  if (rec.oldToken) return tokenReference(rec.oldToken);
-  return rec.oldRawValue ?? "";
-}
-
-function tokenReference(token: TokenEntry): string {
-  return token.cssValue ?? `var(${token.cssName ?? token.name})`;
-}
-
-function sameEffectiveChanges(a: ChangeRecord[], b: ChangeRecord[]): boolean {
-  if (a.length !== b.length) return false;
-  const values = new Map(a.map((change) => [changeKey(change), recordValue(change)]));
-  return b.every((change) => values.get(changeKey(change)) === recordValue(change));
-}
-
 export function getPendingRules(): StyleRule[] {
-  const map = new Map<string, StyleRule>();
-  for (const rec of changes) {
-    const key = ruleKey(rec);
-    const value = recordValue(rec);
-    if (!value) continue;
-    const existing = map.get(key);
-    if (existing) {
-      existing.declarations[rec.property] = value;
-    } else {
-      map.set(key, {
-        selector: rec.selector,
-        declarations: { [rec.property]: value },
-        context: isTokenChange(rec) ? rec.context : undefined,
-      });
-    }
-  }
-  return Array.from(map.values());
+  return buildManagedStyleRules(changes);
 }
 
 function reapply(): void {
-  applyRules(getPendingRules());
-  const selected = getSelectedElement();
-  changes = changes.map((change) => {
-    const requestedValue = recordValue(change);
-    // A Canvas-only selection belongs to an iframe. The controller stylesheet
-    // cannot verify it synchronously; leave its result unknown until the frame
-    // has received the canonical projection rather than claiming it is stale.
-    if (
-      selected
-      && selected.domElement.ownerDocument !== document
-      && selected.domElement.matches(change.selector)
-    ) {
-      return { ...change, previewResult: undefined };
-    }
-    let targets: HTMLElement[] = [];
-    try {
-      targets = Array.from(document.querySelectorAll<HTMLElement>(change.selector));
-    } catch {
-      targets = [];
-    }
-    const results = targets.length === 0
-      ? [verifyPreview(null, change.property, requestedValue)]
-      : targets.map((target) => verifyPreview(target, change.property, requestedValue));
-    return { ...change, previewResult: results.find((result) => result.status === "conflict") ?? results[0] };
-  });
-}
-
-function mergeChange(change: ChangeRecord, current: ChangeRecord[]): ChangeRecord[] {
-  const key = changeKey(change);
-  const existing = current.find((candidate) => changeKey(candidate) === key);
-  const canonical = existing
-    ? isTokenChange(change) && isTokenChange(existing)
-      ? { ...change, oldRawValue: existing.oldRawValue }
-      : !isTokenChange(change) && !isTokenChange(existing)
-        ? { ...change, oldToken: existing.oldToken, oldRawValue: existing.oldRawValue }
-        : change
-    : change;
-  const next = current.filter((candidate) => changeKey(candidate) !== key);
-  return recordValue(canonical) !== baselineValue(canonical) ? [...next, canonical] : next;
+  changes = applyChangeProjections(changes);
 }
 
 /** Append several records as one projection and one undoable history entry. */
 export function appendChanges(incoming: ChangeRecord[]): void {
   if (!canWriteWorkspace() || incoming.length === 0) return;
   const before = changes;
-  const nextChanges = incoming.reduce((current, change) => mergeChange(change, current), changes);
+  const nextChanges = incoming.reduce(
+    (current, change) => mergeChange(current, change),
+    changes,
+  );
   if (sameEffectiveChanges(before, nextChanges)) return;
   changes = nextChanges;
   reapply();
@@ -204,7 +92,7 @@ export function revertChange(change: ChangeRecord): void {
 export function discardChangesForSelector(selector: string): void {
   if (!canWriteWorkspace()) return;
   const before = changes;
-  changes = changes.filter((change) => change.selector !== selector);
+  changes = changes.filter((change) => selectorForChange(change) !== selector);
   if (changes.length === before.length) return;
   reapply();
   undoStack = [...undoStack, { before, after: changes }];
@@ -240,7 +128,7 @@ export function loadChanges(incoming: ChangeRecord[]): void {
   changes = [...incoming];
   undoStack = [];
   redoStack = [];
-  applyRules(getPendingRules());
+  changes = applyChangeProjections(changes, false);
   notify();
 }
 
@@ -248,7 +136,7 @@ export function clearChanges(): void {
   changes = [];
   undoStack = [];
   redoStack = [];
-  applyRules([]);
+  applyChangeProjections([], false);
   notify();
 }
 

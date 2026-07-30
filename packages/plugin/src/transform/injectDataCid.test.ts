@@ -257,3 +257,59 @@ describe("injectIdentity — data-cprops", () => {
     expect(res!.code).not.toMatch(/data-cprops="[^"]*data-cid/);
   });
 });
+
+describe("injectIdentity — React component invocation instrumentation", () => {
+  it("wraps custom component invocations with dev runtime metadata", () => {
+    const code = `function App() { return <Button variant="primary" disabled={false}>Save</Button>; }`;
+    const result = injectIdentity(code, "/project/src/App.tsx", "/project", {
+      instrumentComponents: true,
+    });
+
+    expect(result?.code).toContain(
+      'import { instrumentReactComponent as __designToolInstrumentComponent } from "@design-tool/inspector/component-runtime";',
+    );
+    expect(result?.code).toContain("__designToolInstrumentComponent(<Button");
+    expect(result?.code).toContain('"callsiteId":"src/App.tsx:1:26"');
+    expect(result?.code).toContain('"componentName":"Button"');
+    expect(result?.code).toContain('"componentId":"src/App#Button"');
+    expect(result?.code).toContain('"variant":"literal"');
+    expect(result?.code).toContain('"disabled":"literal"');
+  });
+
+  it("uses an expression container when instrumenting a JSX child", () => {
+    const code = `function App() { return <main><Button /></main>; }`;
+    const result = injectIdentity(code, "/src/App.tsx", undefined, {
+      instrumentComponents: true,
+    });
+    expect(result?.code).toContain(
+      "<main data-cid=\"App\" data-src=\"src/App.tsx:1:26\">{__designToolInstrumentComponent(<Button",
+    );
+  });
+
+  it("does not wrap intrinsic host elements", () => {
+    const code = `function App() { return <main><span>Hi</span></main>; }`;
+    const result = injectIdentity(code, "/src/App.tsx", undefined, {
+      instrumentComponents: true,
+    });
+    expect(result?.code).not.toContain("__designToolInstrumentComponent");
+    expect(result?.code).not.toContain("@design-tool/inspector/component-runtime");
+  });
+
+  it("qualifies imported components by local module or package export", () => {
+    const local = injectIdentity(
+      `import { Button as Action } from "./ui/Button"; export const App = () => <Action />;`,
+      "/project/src/App.tsx",
+      "/project",
+      { instrumentComponents: true },
+    );
+    expect(local?.code).toContain('"componentId":"src/ui/Button#Button"');
+
+    const packaged = injectIdentity(
+      `import { Button } from "@work/design-system"; export const App = () => <Button />;`,
+      "/project/src/App.tsx",
+      "/project",
+      { instrumentComponents: true },
+    );
+    expect(packaged?.code).toContain('"componentId":"@work/design-system#Button"');
+  });
+});

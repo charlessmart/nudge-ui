@@ -1,9 +1,14 @@
 import { parse } from "@babel/parser";
 import MagicString, { type SourceMap } from "magic-string";
+import { posix } from "node:path";
 
 export interface InjectResult {
   code: string;
   map: SourceMap | null;
+}
+
+export interface InjectIdentityOptions {
+  instrumentComponents?: boolean;
 }
 
 type Node = {
@@ -156,35 +161,125 @@ function buildCprops(attrs: Node[]): string | null {
   return parts.join(",");
 }
 
+function authoredPropKinds(attrs: Node[]): Record<string, "literal" | "expression" | "spread"> {
+  const result: Record<string, "literal" | "expression" | "spread"> = {};
+  for (const attr of attrs) {
+    if (attr.type === "JSXSpreadAttribute") {
+      result["..."] = "spread";
+      continue;
+    }
+    if (attr.type !== "JSXAttribute") continue;
+    const name = nodeName(attr.name as Node);
+    if (!name || IDENTITY_ATTRS.has(name) || name === "key" || name === "ref") continue;
+    const value = attr.value as Node | null | undefined;
+    result[name] = value === null || value === undefined
+      || value.type === "StringLiteral"
+      || (value.type === "JSXExpressionContainer"
+        && isNode(value.expression)
+        && (value.expression.type === "StringLiteral"
+          || value.expression.type === "NumericLiteral"
+          || value.expression.type === "BooleanLiteral"))
+      ? "literal"
+      : "expression";
+  }
+  return result;
+}
+
+function nodeName(node: Node | null | undefined): string | null {
+  if (!node) return null;
+  if (node.type === "Identifier") {
+    return typeof node.name === "string" ? node.name : null;
+  }
+  return getMemberExpressionName(node);
+}
+
+interface WalkState {
+  changed: boolean;
+  instrumentedComponents: boolean;
+  componentBindings: Map<string, { source: string; exportName: string | null; namespace: boolean }>;
+}
+
+function collectComponentBindings(
+  ast: Node,
+): Map<string, { source: string; exportName: string | null; namespace: boolean }> {
+  const bindings = new Map<string, { source: string; exportName: string | null; namespace: boolean }>();
+  const body = ((ast.program as Node | undefined)?.body as Node[] | undefined) ?? [];
+  for (const statement of body) {
+    if (statement.type !== "ImportDeclaration" || typeof statement.source !== "object") continue;
+    const source = String((statement.source as { value?: unknown }).value ?? "");
+    if (!source) continue;
+    for (const specifier of (statement.specifiers as Node[] | undefined) ?? []) {
+      const local = nodeName(specifier.local as Node);
+      if (!local) continue;
+      if (specifier.type === "ImportNamespaceSpecifier") {
+        bindings.set(local, { source, exportName: null, namespace: true });
+      } else if (specifier.type === "ImportDefaultSpecifier") {
+        bindings.set(local, { source, exportName: "default", namespace: false });
+      } else if (specifier.type === "ImportSpecifier") {
+        bindings.set(local, {
+          source,
+          exportName: nodeName(specifier.imported as Node) ?? local,
+          namespace: false,
+        });
+      }
+    }
+  }
+  return bindings;
+}
+
+function stripModuleExtension(value: string): string {
+  return value.replace(/\.(?:d\.)?[cm]?[jt]sx?$/, "");
+}
+
+function componentIdFor(
+  componentName: string,
+  relPath: string,
+  bindings: WalkState["componentBindings"],
+): string {
+  const [rootName, ...members] = componentName.split(".");
+  const binding = rootName ? bindings.get(rootName) : undefined;
+  if (!binding) return `${stripModuleExtension(relPath)}#${componentName}`;
+  const moduleId = binding.source.startsWith(".")
+    ? stripModuleExtension(posix.normalize(posix.join(posix.dirname(relPath), binding.source)))
+    : stripModuleExtension(binding.source);
+  const exportName = binding.namespace
+    ? members.join(".") || rootName!
+    : binding.exportName ?? rootName!;
+  return `${moduleId}#${exportName}`;
+}
+
 function walkChildren(
   node: Node,
   scopeStack: string[],
   ms: MagicString,
   relPath: string,
-): boolean {
-  let changed = false;
+  options: InjectIdentityOptions,
+  state: WalkState,
+): void {
   for (const key of Object.keys(node)) {
     if (SKIP_KEYS.has(key)) continue;
     const value = node[key];
     if (Array.isArray(value)) {
       for (const child of value) {
         if (isNode(child)) {
-          changed = walk(child, scopeStack, ms, relPath) || changed;
+          walk(child, node, scopeStack, ms, relPath, options, state);
         }
       }
     } else if (isNode(value)) {
-      changed = walk(value, scopeStack, ms, relPath) || changed;
+      walk(value, node, scopeStack, ms, relPath, options, state);
     }
   }
-  return changed;
 }
 
 function walk(
   node: Node,
+  parent: Node | null,
   scopeStack: string[],
   ms: MagicString,
   relPath: string,
-): boolean {
+  options: InjectIdentityOptions,
+  state: WalkState,
+): void {
   // A function/class expression bound to a variable inherits the variable's
   // name as its component name (arrows have no own id).
   if (node.type === "VariableDeclarator") {
@@ -193,28 +288,65 @@ function walk(
       (node.id as { name?: string } | null | undefined)?.name ?? null;
     if (init && varName && EXPRESSION_SCOPE_TYPES.has(init.type)) {
       scopeStack.push(varName);
-      const changed = walkChildren(init, scopeStack, ms, relPath);
+      walkChildren(init, scopeStack, ms, relPath, options, state);
       scopeStack.pop();
-      return changed;
+      return;
     }
   }
 
   if (DECLARATION_SCOPE_TYPES.has(node.type)) {
     scopeStack.push(getScopeName(node));
-    const changed = walkChildren(node, scopeStack, ms, relPath);
+    walkChildren(node, scopeStack, ms, relPath, options, state);
     scopeStack.pop();
-    return changed;
+    return;
   }
 
   if (ALL_SCOPE_TYPES.has(node.type)) {
     // Named/anonymous expression scopes: push their own id (may be null).
     scopeStack.push(getScopeName(node));
-    const changed = walkChildren(node, scopeStack, ms, relPath);
+    walkChildren(node, scopeStack, ms, relPath, options, state);
     scopeStack.pop();
-    return changed;
+    return;
   }
 
-  let changed = false;
+  if (node.type === "JSXElement" && options.instrumentComponents) {
+    const opening = node.openingElement as Node | undefined;
+    const openingName = opening?.name as Node | undefined;
+    const componentName = nodeName(openingName);
+    const start = node.start as number | undefined;
+    const end = node.end as number | undefined;
+    const loc = openingName?.loc as { start?: { line?: number; column?: number } } | undefined;
+    const line = loc?.start?.line;
+    const column = loc?.start?.column;
+    if (
+      componentName
+      && isComponentName(componentName)
+      && typeof start === "number"
+      && typeof end === "number"
+      && typeof line === "number"
+      && typeof column === "number"
+    ) {
+      const attrs = (opening?.attributes as Node[] | undefined) ?? [];
+      const meta = {
+        callsiteId: `${relPath}:${line}:${column + 1}`,
+        componentId: componentIdFor(componentName, relPath, state.componentBindings),
+        componentName,
+        file: relPath,
+        line,
+        column: column + 1,
+        authoredProps: authoredPropKinds(attrs),
+      };
+      const needsExpression = parent?.type === "JSXElement" || parent?.type === "JSXFragment";
+      ms.prependLeft(
+        start,
+        `${needsExpression ? "{" : ""}__designToolInstrumentComponent(`,
+      );
+      ms.appendRight(end, `, ${JSON.stringify(meta)})${needsExpression ? "}" : ""}`);
+      state.changed = true;
+      state.instrumentedComponents = true;
+    }
+  }
+
   if (node.type === "JSXOpeningElement") {
     const attrs = (node.attributes as Node[]) ?? [];
     const nameNode = node.name as Node;
@@ -223,7 +355,7 @@ function walk(
       if (!hasAttr(attrs, "data-cid")) {
         const cid = resolveCid(nameNode, scopeStack);
         ms.appendRight(end, ` data-cid="${cid}"`);
-        changed = true;
+        state.changed = true;
       }
       if (!hasAttr(attrs, "data-src")) {
         const loc = nameNode.loc as
@@ -234,26 +366,27 @@ function walk(
         // Babel columns are 0-indexed; emit 1-indexed to match __source.
         if (typeof line === "number" && typeof col === "number") {
           ms.appendRight(end, ` data-src="${relPath}:${line}:${col + 1}"`);
-          changed = true;
+          state.changed = true;
         }
       }
       if (!hasAttr(attrs, "data-cprops")) {
         const cprops = buildCprops(attrs);
         if (cprops) {
           ms.appendRight(end, ` data-cprops="${cprops}"`);
-          changed = true;
+          state.changed = true;
         }
       }
     }
   }
 
-  return walkChildren(node, scopeStack, ms, relPath) || changed;
+  walkChildren(node, scopeStack, ms, relPath, options, state);
 }
 
 export function injectIdentity(
   code: string,
   id: string,
   root?: string,
+  options: InjectIdentityOptions = {},
 ): InjectResult | null {
   if (id.includes("/node_modules/")) return null;
   if (!PARSEABLE_EXT.test(id)) return null;
@@ -270,8 +403,18 @@ export function injectIdentity(
 
   const ms = new MagicString(code);
   const relPath = relativePath(id, root);
-  const changed = walk(ast, [], ms, relPath);
-  if (!changed) return null;
+  const state: WalkState = {
+    changed: false,
+    instrumentedComponents: false,
+    componentBindings: collectComponentBindings(ast),
+  };
+  walk(ast, null, [], ms, relPath, options, state);
+  if (!state.changed) return null;
+  if (state.instrumentedComponents) {
+    ms.prepend(
+      'import { instrumentReactComponent as __designToolInstrumentComponent } from "@design-tool/inspector/component-runtime";\n',
+    );
+  }
 
   return {
     code: ms.toString(),
