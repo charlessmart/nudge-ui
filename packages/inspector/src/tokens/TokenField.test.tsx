@@ -123,7 +123,7 @@ describe("TokenField", () => {
 
   it.each([
     ["padding-top", "8", "8px"],
-    ["font-size", "1", "1rem"],
+    ["font-size", "1", "1px"],
     ["line-height", "120", "120%"],
     ["line-height", "1.6", "160%"],
     ["letter-spacing", "0.04", "0.04em"],

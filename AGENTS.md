@@ -7,9 +7,6 @@ Guidance for AI coding agents working on this repository.
 Design Tool is a dev-only Vite plugin + runtime inspector for visually editing
 UI live in the browser and copying structured prompts for an AI coding agent.
 
-Read `PLAN.md` for the full scope and architecture. It is the source of truth.
-The active build order lives in `docs/issues/` (Milestones 1-3 are in scope now,
-4-7 are deferred).
 
 ## Tech stack
 
@@ -45,9 +42,6 @@ The active build order lives in `docs/issues/` (Milestones 1-3 are in scope now,
 4. **Source mapping is best-effort (PLAN.md constraint #4)**: when `__source` /
    `_debugSource` is absent, fall back to `data-cid` + grep-ready selector. The
    prompt generator must always include a selector fallback.
-5. **Vite-only for v1 (PLAN.md constraint #6)**: do not introduce Webpack /
-   SWC / Babel plugin logic. Cross-build-tool work is out of scope.
-6. **React-first (PLAN.md scope)**: do not add Vue/Svelte adapters.
 
 ## Verification obligations
 

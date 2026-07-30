@@ -161,6 +161,14 @@ function buildCprops(attrs: Node[]): string | null {
   return parts.join(",");
 }
 
+function escapeJsxAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
 function authoredPropKinds(attrs: Node[]): Record<string, "literal" | "expression" | "spread"> {
   const result: Record<string, "literal" | "expression" | "spread"> = {};
   for (const attr of attrs) {
@@ -337,7 +345,11 @@ function walk(
         authoredProps: authoredPropKinds(attrs),
       };
       const needsExpression = parent?.type === "JSXElement" || parent?.type === "JSXFragment";
-      ms.prependLeft(
+      // appendRight preserves insertion order when two JSX siblings have no
+      // whitespace between them. At the shared `</First><Second>` boundary,
+      // the first component's closing wrapper must be emitted before the
+      // second component's opening wrapper.
+      ms.appendRight(
         start,
         `${needsExpression ? "{" : ""}__designToolInstrumentComponent(`,
       );
@@ -350,7 +362,18 @@ function walk(
   if (node.type === "JSXOpeningElement") {
     const attrs = (node.attributes as Node[]) ?? [];
     const nameNode = node.name as Node;
-    const end = (nameNode.end as number | undefined) ?? null;
+    // TypeScript JSX type arguments sit between the component name and its
+    // attributes (`<Button<Props> size="small" />`). Injecting immediately
+    // after the name would produce the invalid `<Button data-cid...<Props>`
+    // shape, so place identity attributes after the complete type argument
+    // list when one is present.
+    const typeArguments =
+      (node.typeArguments as Node | null | undefined) ??
+      (node.typeParameters as Node | null | undefined);
+    const end =
+      (typeArguments?.end as number | undefined) ??
+      (nameNode.end as number | undefined) ??
+      null;
     if (typeof end === "number") {
       if (!hasAttr(attrs, "data-cid")) {
         const cid = resolveCid(nameNode, scopeStack);
@@ -372,7 +395,7 @@ function walk(
       if (!hasAttr(attrs, "data-cprops")) {
         const cprops = buildCprops(attrs);
         if (cprops) {
-          ms.appendRight(end, ` data-cprops="${cprops}"`);
+          ms.appendRight(end, ` data-cprops="${escapeJsxAttribute(cprops)}"`);
           state.changed = true;
         }
       }

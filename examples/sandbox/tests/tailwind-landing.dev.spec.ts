@@ -92,8 +92,10 @@ test("dev: Tailwind v4 color opacity keeps base token, alpha, and painted previe
   });
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
-    return (root?.querySelector('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]') as HTMLInputElement | null)?.value ?? null;
-  })).toContain("color-mix");
+    return root?.querySelector('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]')?.textContent?.trim() ?? null;
+  })).toBe("--color-red-500");
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
+    .toHaveCount(0);
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
     .toHaveValue("10%");
 });

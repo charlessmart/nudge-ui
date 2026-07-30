@@ -38,8 +38,8 @@ const BORDER_WIDTH: ValuePolicy = {
 
 const FONT_SIZE: ValuePolicy = {
   kind: "unit",
-  defaultUnit: "rem",
-  allowedUnits: ["rem", "px", "em", "%"],
+  defaultUnit: "px",
+  allowedUnits: ["px", "rem", "em", "%"],
 };
 
 const LINE_HEIGHT: ValuePolicy = {

@@ -160,6 +160,12 @@ function CssUnitsColor() {
       <ExampleCard id={exId("Color", "raw", 19)} label="color-info token" utilities="bg: var(--color-info)">
         <div className="color-specimen px-4 py-4" style={{ background: "var(--color-info)", color: "var(--color-info-text)" }}>var(--color-info)</div>
       </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 20)} label="token + alpha srgb" utilities="color-mix(in srgb, var(--color-primary) 58%, transparent)">
+        <div className="color-specimen px-4 py-4" style={{ background: "color-mix(in srgb, var(--color-primary) 58%, transparent)", color: "#fff" }}>--color-primary · 58%</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "raw", 21)} label="token + alpha oklab" utilities="color-mix(in oklab, var(--color-accent) 34%, transparent)">
+        <div className="color-specimen px-4 py-4" style={{ background: "color-mix(in oklab, var(--color-accent) 34%, transparent)", color: "#fff" }}>--color-accent · 34%</div>
+      </ExampleCard>
     </>
   );
 }

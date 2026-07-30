@@ -10,7 +10,7 @@ describe("valuePolicyFor", () => {
     ["row-gap", "unit", "px"],
     ["top", "unit", "px"],
     ["flex-basis", "unit", "px"],
-    ["font-size", "unit", "rem"],
+    ["font-size", "unit", "px"],
     ["line-height", "line-height", "%"],
     ["letter-spacing", "unit", "em"],
     ["font-weight", "number", null],

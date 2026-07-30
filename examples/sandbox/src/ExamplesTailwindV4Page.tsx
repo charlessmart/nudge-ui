@@ -119,6 +119,12 @@ function Tw4Color() {
           <div className="color-swatch__chip bg-purple-400" />
         </div>
       </ExampleCard>
+      <ExampleCard id={exId("Color", "tw4", 10)} label="token-alpha" utilities="bg-cyan-700/45 text-cyan-50/85">
+        <div className="color-specimen px-6 py-4 bg-cyan-700/45 text-cyan-50/85">base token + 45% / 85%</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "tw4", 11)} label="token-alpha pair" utilities="bg-purple-500/35 text-purple-50/90">
+        <div className="color-specimen px-6 py-4 bg-purple-500/35 text-purple-50/90">two token opacity controls</div>
+      </ExampleCard>
     </>
   );
 }

@@ -125,6 +125,12 @@ function SprColor() {
       <ExampleCard id={exId("Color", "spr", 12)} label="info" utilities="spr-bg-info spr-text-info">
         <div className="color-specimen px-6 py-4 spr-bg-info spr-text-info">var(--color-info)</div>
       </ExampleCard>
+      <ExampleCard id={exId("Color", "spr", 13)} label="token-alpha" utilities="spr-bg-brand/55">
+        <div className="color-specimen px-6 py-4 spr-bg-brand/55 spr-text-stone-900">brand token at 55%</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "spr", 14)} label="token-alpha accent" utilities="spr-bg-accent/35">
+        <div className="color-specimen px-6 py-4 spr-bg-accent/35 spr-text-stone-900">accent token at 35%</div>
+      </ExampleCard>
     </>
   );
 }

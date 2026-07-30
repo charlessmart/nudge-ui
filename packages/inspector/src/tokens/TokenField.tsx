@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { IconChevronDown, IconLinkOff } from "@tabler/icons-react";
+import { IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { colorValueHasEmbeddedAlpha, normalizeColorOpacity, replaceColorOpacity, replaceColorToken } from "./resolution.ts";
 import type { AtRuleContext, ColorOpacity, ResolvedProperty } from "./resolution.ts";
@@ -401,7 +401,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   ) : null;
 
   const colorPreview = activeToken ? resolvedValue || activeToken.value : resolvedValue || rawValue;
-  const colorControl = isColor ? (
+  const colorControlEl = isColor ? (
     <NativeColorSwatch
       value={colorPreview}
       disabled={disabled}
@@ -413,18 +413,19 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   if (activeToken) {
     const chipValue = chipVariant === "small" ? stripCssUnit(activeToken.value) : activeToken.name;
+    const embedColorSwatch = isColor && chipVariant !== "small";
     return (
-      <span className={`dt-token-field${isColor ? " dt-token-field--color" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
+      <span className={`dt-token-field${isColor ? " dt-token-field--color" : ""}${embedColorSwatch ? " dt-token-field--color-chip" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
         {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
-        {colorControl}
+        {embedColorSwatch ? null : colorControlEl}
         <PopoverListbox
           query=""
           value={activeToken.name}
           open={isTokenPickerOpen}
           trigger={(
-            <span className={`dt-token-chip${chipVariant === "small" ? " dt-token-chip--small" : ""}`} data-group={classifyToken(activeToken.name)}>
+            <span className={`dt-token-chip${chipVariant === "small" ? " dt-token-chip--small" : ""}${embedColorSwatch ? " dt-token-chip--with-swatch" : ""}`} data-group={classifyToken(activeToken.name)}>
+              {embedColorSwatch ? colorControlEl : null}
               <span className="dt-token-chip__name">{chipValue}</span>
-              {chipVariant !== "small" ? <IconChevronDown size={13} stroke={1.75} aria-hidden="true" /> : null}
             </span>
           )}
           triggerClassName={`dt-token-chip__trigger${chipVariant === "small" ? " dt-token-chip__trigger--small" : ""}`}
@@ -459,7 +460,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   return (
     <span className={`dt-token-field dt-token-field--raw${isColor ? " dt-token-field--color" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
       {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
-      {colorControl}
+      {colorControlEl}
       <PopoverListbox
         query={rawValue}
         value={null}

@@ -347,6 +347,10 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   await emptyBackground.locator('[data-test="add-color"]').click();
   await expect(emptyBackground.locator('[data-test="token-field"]')).toBeVisible();
   await expect(emptyBackground.locator('[data-test="raw-input"]')).toHaveValue("");
+
+  const emptyBorder = page.locator('[data-test="border-editor"]');
+  await expect(emptyBorder.locator('.dt-editor__title-row [data-test="add-border"]')).toHaveClass(/dt-icon-button--quiet/);
+  await expect(emptyBorder.locator('.dt-border')).toHaveCount(0);
 });
 
 test("dev: spacing fields split a three-value margin shorthand by side", async ({ page }) => {

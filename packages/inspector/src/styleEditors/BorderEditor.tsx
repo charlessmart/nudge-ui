@@ -161,7 +161,6 @@ function sidePaints(el: HTMLElement, rows: ResolvedProperty[], side: string): bo
  * - any painted face (drawn style + non-zero width)
  * - explicit `none` / `hidden`
  * - authored non-zero width
- * - authored `border-style` longhand (even when width is still 0)
  */
 function hasBorderPresence(el: HTMLElement, rows: ResolvedProperty[]): boolean {
   if (SIDE_NAMES.some((side) => sidePaints(el, rows, side))) return true;
@@ -178,11 +177,6 @@ function hasBorderPresence(el: HTMLElement, rows: ResolvedProperty[]): boolean {
     }
     if (structuredWidth && !isZeroWidthValue(structuredWidth)) return true;
     if ((property === "border-width" || property.endsWith("-width")) && authored && !isZeroWidthValue(authored)) {
-      return true;
-    }
-    // Style longhands are intentional even at zero width; structured "0 solid"
-    // preflight is not (handled by paint / width checks above).
-    if (!row.structure && (property === "border-style" || property.endsWith("-style")) && authored) {
       return true;
     }
   }

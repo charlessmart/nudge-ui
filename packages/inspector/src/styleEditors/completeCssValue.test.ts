@@ -6,7 +6,7 @@ describe("completeCssValue", () => {
   it.each([
     ["padding-top", "80", "80px"],
     ["row-gap", "12", "12px"],
-    ["font-size", "1", "1rem"],
+    ["font-size", "1", "1px"],
     ["line-height", "120", "120%"],
     ["line-height", "1.6", "160%"],
     ["letter-spacing", "0.04", "0.04em"],
@@ -26,7 +26,7 @@ describe("completeCssValue", () => {
   );
 
   it("trims surrounding whitespace before committing", () => {
-    expect(completeCssValue("  1  ", valuePolicyFor("font-size"))).toBe("1rem");
+    expect(completeCssValue("  1  ", valuePolicyFor("font-size"))).toBe("1px");
   });
 
   it("preserves a zero line-height without adding a unit", () => {

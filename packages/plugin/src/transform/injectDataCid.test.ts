@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { parse } from "@babel/parser";
 import { injectDataCid, injectIdentity } from "./injectDataCid";
 
 describe("injectDataCid", () => {
@@ -140,6 +141,16 @@ describe("injectIdentity — data-src", () => {
     expect(res!.code).toMatch(/data-src="src\/App\.tsx:\d+:\d+"/);
   });
 
+  it("places identity attributes after TypeScript JSX type arguments", () => {
+    const code = `function App() { return <ButtonLink<RouterProps> variant="primary" />; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain(
+      '<ButtonLink<RouterProps> data-cid="ButtonLink"',
+    );
+    expect(res!.code).not.toContain("<ButtonLink data-cid");
+  });
+
   it("omits data-src when the AST node has no loc (defensive)", () => {
     // We can't easily produce a loc-less node via the public API, so just
     // assert that the happy path always has loc — this test exercises the
@@ -227,6 +238,21 @@ describe("injectIdentity — data-cprops", () => {
     expect(res!.code).toContain('data-cprops="variant:primary,size:large"');
   });
 
+  it("escapes quotes in serialised string props", () => {
+    const code = `function App() { return <Field placeholder={'{"orientation":"Vertical"}'} />; }`;
+    const res = injectIdentity(code, "/src/App.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain(
+      "data-cprops=\"placeholder:{&quot;orientation&quot;:&quot;Vertical&quot;}\"",
+    );
+    expect(() =>
+      parse(res!.code, {
+        sourceType: "module",
+        plugins: ["jsx", "typescript"],
+      }),
+    ).not.toThrow();
+  });
+
   it("emits all three attrs together on a realistic Button", () => {
     const code = `function App() { return <Button variant="primary" onClick={() => {}}>Save</Button>; }`;
     const res = injectIdentity(code, "/src/App.tsx");
@@ -284,6 +310,20 @@ describe("injectIdentity — React component invocation instrumentation", () => 
     expect(result?.code).toContain(
       "<main data-cid=\"App\" data-src=\"src/App.tsx:1:26\">{__designToolInstrumentComponent(<Button",
     );
+  });
+
+  it("keeps adjacent component siblings parseable without whitespace", () => {
+    const code = `function App() { return <><Meta/><Links/></>; }`;
+    const result = injectIdentity(code, "/src/App.tsx", undefined, {
+      instrumentComponents: true,
+    });
+
+    expect(() =>
+      parse(result!.code, {
+        sourceType: "module",
+        plugins: ["jsx", "typescript"],
+      }),
+    ).not.toThrow();
   });
 
   it("does not wrap intrinsic host elements", () => {

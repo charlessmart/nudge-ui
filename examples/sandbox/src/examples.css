@@ -509,6 +509,12 @@
 .spr-bg-accent\/20 {
   background-color: rgb(171 205 239 / 0.2);
 }
+.spr-bg-brand\/55 {
+  background-color: color-mix(in srgb, var(--color-brand__hash) 55%, transparent);
+}
+.spr-bg-accent\/35 {
+  background-color: color-mix(in srgb, var(--color-accent__hash) 35%, transparent);
+}
 
 .spr-bg-primary { background-color: var(--color-primary); }
 .spr-text-primary { color: var(--color-primary-text); }

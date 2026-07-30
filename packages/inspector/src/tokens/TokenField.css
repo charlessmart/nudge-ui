@@ -25,7 +25,7 @@
 .dt-token-field--color {
   min-height: var(--dt-control-height-large);
   gap: 4px;
-  padding: 0 6px;
+  padding: 0 var(--dt-space-4);
   background: var(--dt-surface-control);
   border-radius: var(--dt-radius-control);
   transition: background-color 120ms ease, box-shadow 120ms ease;
@@ -132,9 +132,9 @@
   width: 100%;
   min-width: 0;
   height: var(--dt-control-height-large);
-  padding: 0 10px;
-  background: var(--dt-surface-control);
-  border: 1px solid var(--dt-border-strong);
+  padding: 0 var(--dt-space-4);
+  background: var(--dt-surface-raised);
+  border: 1px solid var(--dt-border-subtle);
   border-radius: var(--dt-radius-control);
   color: var(--dt-text-primary);
   font-size: var(--dt-font-size-base);
@@ -142,7 +142,7 @@
 }
 
 .dt-token-chip:hover {
-  background: var(--dt-surface-control-hover);
+  background: var(--dt-surface-raised);
 }
 
 .dt-token-chip__trigger--small {
@@ -164,10 +164,18 @@
   background: var(--dt-surface-raised);
 }
 
+.dt-token-chip--with-swatch {
+  padding-left: var(--dt-space-8);
+}
+
+.dt-token-field--color-chip {
+  padding-left: 0;
+}
+
 .dt-token-field--color .dt-text-input {
   height: 30px;
   padding-right: 4px;
-  padding-left: 2px;
+  padding-left: 0;
   background: transparent;
 }
 

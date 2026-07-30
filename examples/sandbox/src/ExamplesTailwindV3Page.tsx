@@ -79,6 +79,12 @@ function Tw3Color() {
       <ExampleCard id={exId("Color", "tw3", 6)} label="accent" utilities="bg-accent text-accent-foreground">
         <div className="color-specimen px-6 py-4" style={{ backgroundColor: "#abcdef", color: "#0a1929" }}>accent bg</div>
       </ExampleCard>
+      <ExampleCard id={exId("Color", "tw3", 7)} label="token-alpha" utilities="bg-brand/60 text-brand/80 border border-brand/40">
+        <div className="color-specimen px-6 py-4 bg-brand/60 text-brand/80 border border-brand/40">brand token at 60% / 80% / 40%</div>
+      </ExampleCard>
+      <ExampleCard id={exId("Color", "tw3", 8)} label="token-alpha wash" utilities="bg-brand/25 text-white/75">
+        <div className="color-specimen px-6 py-4 bg-brand/25 text-white/75">brand token wash</div>
+      </ExampleCard>
     </>
   );
 }

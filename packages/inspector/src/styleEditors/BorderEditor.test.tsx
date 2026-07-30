@@ -221,6 +221,44 @@ describe("BorderEditor", () => {
     expect(handle.host.querySelector('[data-test="border-style"]')).toBeNull();
   });
 
+  it("hides default solid style declarations when every border width is zero", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      ...defaultComputed(),
+      "border-top-style": "solid",
+      "border-right-style": "solid",
+      "border-bottom-style": "solid",
+      "border-left-style": "solid",
+      "border-style": "solid",
+      "border-top-width": "0px",
+      "border-right-width": "0px",
+      "border-bottom-width": "0px",
+      "border-left-width": "0px",
+      "border-width": "0px",
+    });
+    const row = (property: string, authored: string, resolvedValue: string): ResolvedProperty => ({
+      property,
+      tokenName: null,
+      declaredValue: authored,
+      authored,
+      resolvedValue,
+      capability: "raw",
+      confidence: "unknown",
+      evidence: { reason: "matched default style" },
+    });
+    handle = mount(createElement(BorderEditor, {
+      element: selected,
+      entries: ENTRIES,
+      tokenRows: [
+        row("border-style", "solid", "solid"),
+        row("border-width", "0", "0px"),
+      ],
+    }));
+
+    expect(handle.host.querySelector('[data-test="add-border"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style"]')).toBeNull();
+  });
+
   it("adds a default border when the add button is clicked", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
