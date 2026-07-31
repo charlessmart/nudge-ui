@@ -160,6 +160,29 @@ describe("designTool component contract catalog", () => {
 });
 
 describe("designTool token catalog compiler", () => {
+  it("imports a compiled vanilla-extract contract only in the dev token module", async () => {
+    const plugin = designTool({
+      vanillaExtract: {
+        themeContractModule: "/src/theme.css.ts",
+        themeContractExport: "vars",
+        source: "src/theme.css.ts",
+      },
+    }) as unknown as {
+      configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+      load?: (id: string) => string | null | Promise<string | null>;
+    };
+    plugin.configResolved!({ root: "/project", command: "serve" });
+    const devCode = await plugin.load!("\0virtual:design-tokens");
+    expect(devCode).toContain('import * as __dt_ve_module from "/src/theme.css.ts"');
+    expect(devCode).toContain("materializeVanillaExtractContract");
+    expect(devCode).toContain('__dt_ve_module["vars"]');
+
+    plugin.configResolved!({ root: "/project", command: "build" });
+    const productionCode = await plugin.load!("\0virtual:design-tokens");
+    expect(productionCode).toContain("tokenCatalog = []");
+    expect(productionCode).not.toContain("theme.css.ts");
+  });
+
   it("keeps authored Tailwind v4 theme tokens editable project tokens", async () => {
     const root = mkdtempSync(join(tmpdir(), "design-tool-catalog-"));
     try {

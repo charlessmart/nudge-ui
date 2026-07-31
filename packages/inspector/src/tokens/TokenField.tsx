@@ -4,7 +4,7 @@ import { IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { colorValueHasEmbeddedAlpha, normalizeColorOpacity, replaceColorOpacity, replaceColorToken } from "./resolution.ts";
 import type { AtRuleContext, ColorOpacity, ResolvedProperty } from "./resolution.ts";
-import { classifyToken, getAlternativeTokens, groupOfProperty } from "./TokenDropdown.tsx";
+import { classifyToken, getAlternativeTokens, groupOfProperty } from "./tokenSuggestions.ts";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";

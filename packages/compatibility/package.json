@@ -1,0 +1,19 @@
+{
+  "name": "@design-tool/compatibility",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/manifest.ts",
+    "./playwright": "./src/playwright.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "vitest run"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

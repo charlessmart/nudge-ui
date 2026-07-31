@@ -225,6 +225,55 @@ export function getAvailableTokenTableForElement(el: HTMLElement): TokenTable {
   return buildTokenTable(getAvailableTokenEntriesForElement(el));
 }
 
+/**
+ * Replaces build-time token declaration hints with declarations serialized by
+ * the browser from the stylesheets currently attached to this document.
+ */
+export function hydrateTokenCatalogFromCssom(
+  definitions: TokenDefinition[],
+  doc: Document = document,
+): TokenDefinition[] {
+  const needsHydration = (definition: TokenDefinition): boolean =>
+    definition.declarations.length === 0
+    || (definition.adapter === "vanilla-extract" && definition.declarations.every((declaration) =>
+      declaration.value.trim() === `var(${definition.cssName})`
+      && !declaration.context.selector
+      && !declaration.context.wrappers?.length));
+  const known = new Set(definitions.filter(needsHydration).map((definition) => definition.cssName));
+  const declarations = new Map<string, TokenDefinition["declarations"]>();
+  for (const rule of collectCssomRules(doc).rules) {
+    if (rule.source === "#design-tool-styles") continue;
+    for (const declaration of rule.declarations) {
+      if (!known.has(declaration.property)) continue;
+      const wrappers = [
+        ...(rule.layer ? [{ kind: "layer" as const, params: rule.layer }] : []),
+        ...(rule.atRules ?? []).flatMap((atRule) =>
+          atRule.kind === "media" || atRule.kind === "supports"
+            ? [{ kind: atRule.kind, params: atRule.params }]
+            : []),
+      ];
+      const list = declarations.get(declaration.property) ?? [];
+      list.push({
+        id: `${declaration.property}\u0000${rule.source ?? "cssom"}\u0000${rule.sourceOrder ?? list.length}`,
+        order: rule.sourceOrder,
+        value: declaration.value,
+        source: rule.source ?? "cssom",
+        important: Boolean(declaration.important),
+        context: {
+          selector: rule.selectorText,
+          ...(wrappers.length > 0 ? { wrappers } : {}),
+        },
+      });
+      declarations.set(declaration.property, list);
+    }
+  }
+  return definitions.map((definition) => {
+    if (!needsHydration(definition)) return definition;
+    const accepted = declarations.get(definition.cssName);
+    return accepted?.length ? { ...definition, declarations: accepted } : definition;
+  });
+}
+
 function sourceFile(source: string): string {
   return source.replace(/:\d+$/, "").split(/[?#]/, 1)[0] ?? source;
 }
@@ -264,7 +313,8 @@ export function getAvailableTokenCatalog(
 ): TokenDefinition[] {
   const computed = getElementComputedStyle(root);
   const loadedSources = loadedStylesheetSources(root.ownerDocument ?? document);
-  return definitions.flatMap((definition) => {
+  const hydrated = hydrateTokenCatalogFromCssom(definitions, root.ownerDocument ?? document);
+  return hydrated.flatMap((definition) => {
     if (!isCustomPropertyToken(definition)) return [definition];
     if (!computed.getPropertyValue(definition.cssName).trim()) return [];
     const declarations = definition.declarations.filter((declaration) =>

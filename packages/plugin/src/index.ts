@@ -316,6 +316,23 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         }));
         const body = JSON.stringify(all);
         const projectId = JSON.stringify(options.projectId ?? (root ? basename(root) : ""));
+        const contractModule = options.vanillaExtract?.themeContractModule;
+        if (contractModule) {
+          const contractExport = JSON.stringify(options.vanillaExtract?.themeContractExport ?? "vars");
+          const contractPrefix = JSON.stringify(options.vanillaExtract?.themeContractPrefix ?? "theme");
+          const contractSource = JSON.stringify(options.vanillaExtract?.source ?? contractModule);
+          return `import * as __dt_ve_module from ${JSON.stringify(contractModule)};
+import { materializeVanillaExtractContract as __dt_materialize_ve, mergeVanillaExtractContract as __dt_merge_ve } from "@design-tool/plugin/vanilla-extract-runtime";
+const __dt_ve_contract = __dt_ve_module[${contractExport}];
+if (!__dt_ve_contract || typeof __dt_ve_contract !== "object") throw new Error("Design Tool could not read vanilla-extract contract export " + ${contractExport} + " from " + ${JSON.stringify(contractModule)});
+const __dt_ve_entries = __dt_materialize_ve(__dt_ve_contract, { prefix: ${contractPrefix}, source: ${contractSource} });
+const __dt_ve_result = __dt_merge_ve(${JSON.stringify(catalog)}, __dt_ve_entries);
+export const tokenCatalog = __dt_ve_result.tokenCatalog;
+export const tokens = __dt_ve_result.tokens;
+export const designToolProjectId = ${projectId};
+export default tokens;
+`;
+        }
         return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${body};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {
@@ -429,3 +446,5 @@ export { createTokenAdapterRegistry } from "./adapters/registry.ts";
 export { createSprinklesAdapter, createVanillaExtractAdapter, extractVanillaExtractTokens, resolveSprinklesClassName } from "./adapters/vanillaExtract.ts";
 export type { TokenAdapter, TokenMapping } from "./adapters/types.ts";
 export type { ThemeContract, SprinklesClassMap, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
+export { materializeVanillaExtractContract, mergeVanillaExtractContract } from "./adapters/vanillaExtractRuntime.ts";
+export type { MaterializedTokenCatalog, MaterializeVanillaExtractOptions } from "./adapters/vanillaExtractRuntime.ts";

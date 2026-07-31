@@ -59,6 +59,7 @@ describe("runtime token availability", () => {
     document.head.innerHTML = "";
     document.body.innerHTML = "";
     document.documentElement.style.removeProperty("--color-live");
+    invalidateStyleResolutionCache(document);
   });
 
   it("excludes catalog custom properties that are absent from the selected element cascade", () => {
@@ -83,6 +84,31 @@ describe("runtime token availability", () => {
         declarations: [definitions[0]!.declarations[0]!],
       },
     ]);
+  });
+
+  it("hydrates semantic contract entries from compiler CSSOM declarations", () => {
+    const style = document.createElement("style");
+    style.dataset.viteDevId = "/project/src/theme.css.ts.vanilla.css";
+    style.textContent = ".compiled-theme { --ve-hash: #123456; }";
+    document.head.appendChild(style);
+    const element = document.createElement("main");
+    element.className = "compiled-theme";
+    document.body.appendChild(element);
+    invalidateStyleResolutionCache(document);
+
+    expect(getAvailableTokenCatalog(element, [{
+      cssName: "--ve-hash",
+      name: "theme.color.brand",
+      adapter: "vanilla-extract",
+      declarations: [],
+    }])).toMatchObject([{
+      name: "theme.color.brand",
+      declarations: [{
+        value: "#123456",
+        source: "/project/src/theme.css.ts.vanilla.css",
+        context: { selector: ".compiled-theme" },
+      }],
+    }]);
   });
 });
 
