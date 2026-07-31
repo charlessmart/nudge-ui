@@ -1,5 +1,4 @@
-import { computeSpecificity } from "./selectorSemantics.ts";
-import type { AtRuleContext, MatchedRule, StyleDeclaration } from "./types.ts";
+import { computeSpecificityCore } from "./selectorSemantics.ts";import type { AtRuleContext, MatchedRule, StyleDeclaration } from "./types.ts";
 
 interface RuleSnapshot {
   revision: number;
@@ -12,8 +11,20 @@ interface DocumentRevisions {
   stylesheet: number;
 }
 
-const documentRevisions = new WeakMap<Document, DocumentRevisions>();
+const revisionRecords = new WeakMap<Document, DocumentRevisions>();
 const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
+
+const registeredElements = new WeakSet<Element>();
+
+/**
+ * Elements whose attribute changes can affect a cached cascade outcome. The
+ * observer only counts attribute mutations against registered elements so
+ * unrelated host churn (React commits, hover states, animations) cannot bump
+ * the element revision. Registration is idempotent.
+ */
+export function registerResolutionElement(el: Element): void {
+  registeredElements.add(el);
+}
 
 function isStylesheetNode(node: Node | null): boolean {
   if (!node || node.nodeType !== node.ELEMENT_NODE) return false;
@@ -29,18 +40,56 @@ function changesStylesheet(record: MutationRecord): boolean {
     || Array.from(record.removedNodes).some(isStylesheetNode);
 }
 
-export function documentRevision(doc: Document): number {
-  let record = documentRevisions.get(doc);
+/** A node that is, or lives inside, one of the tool's own probe elements. */
+function isProbeNode(node: Node): boolean {
+  let current: Node | null = node;
+  while (current && current.nodeType !== current.DOCUMENT_NODE) {
+    if (current.nodeType === current.ELEMENT_NODE && (current as Element).hasAttribute("data-design-tool")) return true;
+    current = current.parentNode;
+  }
+  return false;
+}
+
+const CONTAINER_PROBE_MARKER = /^data-dt-container-probe-/;
+
+/**
+ * Records that cannot affect cascade outcomes are skipped: mutations made by
+ * the tool's own probes (attribution, container-query, value, managed sheet),
+ * attribute churn on elements outside the resolution registry, and the
+ * container-query marker attribute set on registered elements.
+ */
+function isProbeMutation(record: MutationRecord): boolean {
+  if (record.type === "attributes") {
+    const target = record.target as Element;
+    if (!registeredElements.has(target)) return true;
+    const name = record.attributeName ?? "";
+    return name.startsWith("data-design-tool") || CONTAINER_PROBE_MARKER.test(name);
+  }
+  if (record.type === "characterData") {
+    return isProbeNode(record.target);
+  }
+  if (isProbeNode(record.target)) return true;
+  // Removed nodes are already disconnected, so their ancestor chain is gone;
+  // check the record's target subtree and the nodes themselves instead.
+  const nodes = [...record.addedNodes, ...record.removedNodes];
+  return nodes.length > 0 && nodes.every((node) =>
+    node.nodeType === node.ELEMENT_NODE && (node as Element).hasAttribute("data-design-tool"));
+}
+
+export function documentRevisions(doc: Document): DocumentRevisions {
+  let record = revisionRecords.get(doc);
   if (!record) {
     record = { element: 0, stylesheet: 0 };
-    documentRevisions.set(doc, record);
+    revisionRecords.set(doc, record);
 
     const Observer = doc.defaultView?.MutationObserver;
     const root = doc.documentElement;
     if (Observer && root) {
       const observer = new Observer((records) => {
+        const relevant = records.filter((entry) => !isProbeMutation(entry));
+        if (relevant.length === 0) return;
         record!.element++;
-        if (records.some(changesStylesheet)) record!.stylesheet++;
+        if (relevant.some(changesStylesheet)) record!.stylesheet++;
       });
       observer.observe(root, {
         attributes: true,
@@ -55,17 +104,20 @@ export function documentRevision(doc: Document): number {
       });
     }
   }
-  return record.element;
+  return record;
+}
+
+export function documentRevision(doc: Document): number {
+  return documentRevisions(doc).element;
 }
 
 function stylesheetRevision(doc: Document): number {
-  documentRevision(doc);
-  return documentRevisions.get(doc)!.stylesheet;
+  return documentRevisions(doc).stylesheet;
 }
 
 /** Invalidates CSSOM-derived snapshots after programmatic stylesheet edits. */
 export function invalidateStyleResolutionCache(doc: Document = document): void {
-  const record = documentRevisions.get(doc);
+  const record = revisionRecords.get(doc);
   if (record) {
     record.element++;
     record.stylesheet++;
@@ -242,7 +294,7 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
         try {
           out.push({
             selectorText: rule.selectorText,
-            specificity: computeSpecificity(rule.selectorText),
+            specificity: computeSpecificityCore(rule.selectorText),
             declarations: declarationsFromCssom(rule.style),
             sourceOrder: sourceOrder++,
             active,
@@ -259,7 +311,7 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
         try {
           out.push({
             selectorText: inheritedSelector,
-            specificity: computeSpecificity(inheritedSelector),
+            specificity: computeSpecificityCore(inheritedSelector),
             declarations: declarationsFromCssom(rule.style),
             sourceOrder: sourceOrder++,
             active,

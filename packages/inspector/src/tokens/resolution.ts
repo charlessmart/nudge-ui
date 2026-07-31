@@ -5,7 +5,8 @@ import type { InteractionState } from "../styleState.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
 import {
   collectRules as collectCssomRules,
-  documentRevision as getDocumentRevision,
+  documentRevisions as getDocumentRevisions,
+  registerResolutionElement,
 } from "./resolution/cssomCollector.ts";
 import { computeSpecificity } from "./resolution/selectorSemantics.ts";
 export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
@@ -56,12 +57,17 @@ const BORDER_RADIUS_CORNERS: Record<string, readonly string[]> = {
   ],
 };
 
+const tokenTableMemo = new WeakMap<TokenEntry[], TokenTable>();
+
 export function buildTokenTable(entries: TokenEntry[]): TokenTable {
+  const cached = tokenTableMemo.get(entries);
+  if (cached) return cached;
   const table: TokenTable = {};
   for (const entry of entries) {
     table[entry.name] = entry;
     if (entry.cssName) table[entry.cssName] = entry;
   }
+  tokenTableMemo.set(entries, table);
   return table;
 }
 
@@ -189,16 +195,43 @@ function entryFromDefinition(definition: TokenDefinition, value: string): TokenE
   };
 }
 
+interface TokenEntriesCacheEntry {
+  elementRevision: number;
+  stylesheetRevision: number;
+  definitions: TokenDefinition[];
+  entries: TokenEntry[];
+  table: TokenTable;
+}
+
+const tokenEntriesCache = new WeakMap<HTMLElement, TokenEntriesCacheEntry>();
+
+function registerWithAncestors(el: HTMLElement): void {
+  let current: HTMLElement | null = el;
+  while (current) {
+    registerResolutionElement(current);
+    current = current.parentElement;
+  }
+}
+
 /**
  * The build-time catalog is intentionally an inventory of every project token.
  * Element edits must instead use only custom properties resolved in that
  * element's cascade; a token defined by a lazy stylesheet is not usable until
- * that stylesheet is attached to the document.
+ * that stylesheet is attached to the document. Entries (and their table) are
+ * cached per element until the element or stylesheet revision changes.
  */
 export function getAvailableTokenEntriesForElement(
   el: HTMLElement,
   definitions: TokenDefinition[] = tokenCatalog,
 ): TokenEntry[] {
+  const revisions = getDocumentRevisions(el.ownerDocument ?? document);
+  const cached = tokenEntriesCache.get(el);
+  if (cached && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet
+    && cached.definitions === definitions) {
+    return cached.entries;
+  }
+  registerWithAncestors(el);
   const computed = getElementComputedStyle(el);
   const available = definitions.flatMap((definition) => {
     if (!isCustomPropertyToken(definition)) {
@@ -209,11 +242,19 @@ export function getAvailableTokenEntriesForElement(
     const value = computed.getPropertyValue(definition.cssName).trim();
     return value ? [entryFromDefinition(definition, value)] : [];
   });
-  const table = buildTokenTable(available);
-  return available.map((entry) => ({
+  const intermediateTable = buildTokenTable(available);
+  const entries = available.map((entry) => ({
     ...entry,
-    value: resolveTokenValue(entry.value, table).resolvedValue,
+    value: resolveTokenValue(entry.value, intermediateTable).resolvedValue,
   }));
+  tokenEntriesCache.set(el, {
+    elementRevision: revisions.element,
+    stylesheetRevision: revisions.stylesheet,
+    definitions,
+    entries,
+    table: buildTokenTable(entries),
+  });
+  return entries;
 }
 
 /** @deprecated Use getAvailableTokenEntriesForElement for edit candidates. */
@@ -222,6 +263,13 @@ export function getTokenEntriesForElement(el: HTMLElement): TokenEntry[] {
 }
 
 export function getAvailableTokenTableForElement(el: HTMLElement): TokenTable {
+  const revisions = getDocumentRevisions(el.ownerDocument ?? document);
+  const cached = tokenEntriesCache.get(el);
+  if (cached && cached.definitions === tokenCatalog
+    && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet) {
+    return cached.table;
+  }
   return buildTokenTable(getAvailableTokenEntriesForElement(el));
 }
 
@@ -1262,6 +1310,13 @@ function compareCascade(
   return a.sourceOrder - b.sourceOrder;
 }
 
+function specificityForBranch(rule: Pick<MatchedRule, "selectorText" | "specificity">, branch: string): number {
+  // Single-branch selectors reuse the specificity collected from CSSOM; the
+  // matched branch is the whole selector. Multi-branch selectors need the
+  // matched branch's own weight, so recompute per branch.
+  return rule.selectorText.includes(",") ? computeSpecificity(branch) : rule.specificity;
+}
+
 function collectLocalAliases(
   el: HTMLElement,
   rules: MatchedRule[],
@@ -1288,7 +1343,7 @@ function collectLocalAliases(
       const branch = matchingSelectorBranch(element, rule.selectorText);
       if (!branch) return;
       const sourceOrder = rule.sourceOrder ?? index;
-      const specificity = computeSpecificity(branch);
+      const specificity = specificityForBranch(rule, branch);
       for (const declaration of rule.declarations) {
         if (!declaration.property.startsWith("--") || declaration.property.startsWith("--dt-")) continue;
         const candidate: LocalAliasCandidate = {
@@ -1353,7 +1408,7 @@ export function resolvePropertiesFromRules(
     if (!ruleApplies(rule)) continue;
     const branch = matchingSelectorBranch(el, rule.selectorText);
     if (!branch) continue;
-    const specificity = computeSpecificity(branch);
+    const specificity = specificityForBranch(rule, branch);
     for (const decl of rule.declarations) {
       for (const resolved of resolveDeclaration(decl, tokenTable, localAliases, el)) {
         const candidate: ResolvedProperty = {
@@ -1632,7 +1687,7 @@ export function getResolvedPropertiesForState(
   state: InteractionState,
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
-  const revision = getDocumentRevision(doc);
+  const revision = getDocumentRevisions(doc).element;
   let tableSnapshots = stateResolutionSnapshots.get(el);
   if (!tableSnapshots) {
     tableSnapshots = new WeakMap();
@@ -1667,6 +1722,7 @@ export function getResolvedPropertiesForState(
     }
   }
   const rows = resolveInheritedProperties(el, stateRules, tokenTable, result, inaccessible);
+  registerWithAncestors(el);
   snapshots.set(state, { revision, rows });
   return rows;
 }

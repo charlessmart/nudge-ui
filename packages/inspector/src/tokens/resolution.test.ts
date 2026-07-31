@@ -9,6 +9,8 @@ import {
   normalizeColorOpacity,
   getAvailableTokenCatalog,
   getAvailableTokenEntriesForElement,
+  getAvailableTokenTableForElement,
+  getTokenEntriesForElement,
   getResolvedProperties,
   resolvePropertiesFromRules,
   getAvailableInteractionStates,
@@ -18,7 +20,12 @@ import {
   type MatchedRule,
   type TokenTable,
 } from "./resolution.ts";
-import { computeSpecificity } from "./resolution/selectorSemantics.ts";
+import {
+  computeSpecificity,
+  computeSpecificityCore,
+  resetSpecificityMemo,
+  specificityComputationCount,
+} from "./resolution/selectorSemantics.ts";
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 
 function makeTable(entries: TokenEntry[]): TokenTable {
@@ -35,6 +42,14 @@ describe("buildTokenTable", () => {
     expect(Object.keys(table)).toHaveLength(3);
     expect(table["--color-surface-raised"]?.value).toBe("#ffffff");
     expect(table["--space-1"]?.value).toBe("4px");
+  });
+
+  it("memoizes by input array identity", () => {
+    const entries: TokenEntry[] = [
+      { name: "--space-1", value: "4px", source: "styles.css:6" },
+    ];
+    expect(buildTokenTable(entries)).toBe(buildTokenTable(entries));
+    expect(buildTokenTable([...entries])).not.toBe(buildTokenTable(entries));
   });
 });
 
@@ -160,6 +175,51 @@ describe("state resolution cache", () => {
     invalidateStyleResolutionCache();
 
     expect(getResolvedPropertiesForState(element, table, "base")).not.toBe(initial);
+  });
+});
+
+describe("token entries cache identity", () => {
+  afterEach(() => {
+    document.head.innerHTML = "";
+    document.body.innerHTML = "";
+    invalidateStyleResolutionCache();
+  });
+
+  it("returns the same entries and table references across calls at the same revisions", () => {
+    const element = document.createElement("div");
+    element.style.setProperty("--color-live", "#224466");
+    document.body.appendChild(element);
+
+    const first = getTokenEntriesForElement(element);
+    expect(getTokenEntriesForElement(element)).toBe(first);
+    expect(getAvailableTokenEntriesForElement(element)).toBe(first);
+    expect(getAvailableTokenTableForElement(element)).toBe(buildTokenTable(first));
+    expect(buildTokenTable(first)).toBe(buildTokenTable(first));
+  });
+
+  it("returns fresh entries and table after an element revision bump", async () => {
+    const element = document.createElement("div");
+    element.style.setProperty("--color-live", "#224466");
+    document.body.appendChild(element);
+
+    const first = getTokenEntriesForElement(element);
+    element.setAttribute("data-attrs", "1");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const second = getTokenEntriesForElement(element);
+    expect(second).not.toBe(first);
+    expect(getAvailableTokenTableForElement(element)).not.toBe(buildTokenTable(first));
+  });
+
+  it("returns fresh entries after a stylesheet revision bump", () => {
+    const element = document.createElement("div");
+    element.style.setProperty("--color-live", "#224466");
+    document.body.appendChild(element);
+
+    const first = getTokenEntriesForElement(element);
+    invalidateStyleResolutionCache(document);
+
+    expect(getTokenEntriesForElement(element)).not.toBe(first);
   });
 });
 
@@ -544,6 +604,34 @@ describe("computeSpecificity", () => {
     [":where(.a, #b)", 0],
   ])("'%s' → %d", (selector, expected) => {
     expect(computeSpecificity(selector)).toBe(expected);
+  });
+
+  it("computes each unique selector string at most once", () => {
+    resetSpecificityMemo();
+    const corpus = ["*", "div", ".foo", "#bar", "div.foo", ".foo .bar", ".foo > .bar", "div > p", "[data-x]", "button:hover", "a::before", "div + p"];
+    for (const selector of corpus) {
+      computeSpecificity(selector);
+      computeSpecificity(selector);
+      computeSpecificity(selector);
+    }
+    expect(specificityComputationCount()).toBe(corpus.length);
+  });
+
+  it("matches the unmemoized function across a selector corpus", () => {
+    resetSpecificityMemo();
+    const corpus = [
+      "*", "div", ".foo", "#bar", "div.foo", ".foo .bar", ".foo > .bar", "div > p",
+      "[data-x]", "button:hover", "a::before", "#a .b div", "a, b, c", ".a, #b",
+      "div :not(.foo)", ":is(.a, #b)", ":where(.a, #b)", "ul > li + li",
+      ".btn:is(.primary, .secondary):hover", "input[type='text']", "p::first-line",
+      "section .card .title", ".x ~ .y", "a, b", "#id.x:is(.y, .z)",
+    ];
+    for (const selector of corpus) {
+      const memoized = computeSpecificity(selector);
+      expect(computeSpecificityCore(selector)).toBe(memoized);
+      expect(computeSpecificity(selector)).toBe(memoized);
+      expect(computeSpecificityCore(selector)).toBe(memoized);
+    }
   });
 });
 

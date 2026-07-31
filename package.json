@@ -8,7 +8,9 @@
     "lint": "eslint packages examples --ext .ts,.tsx",
     "typecheck": "pnpm -r typecheck",
     "test:unit": "pnpm -r test:unit",
-    "test:e2e": "pnpm --filter sandbox playwright test",
+    "test:e2e": "pnpm --filter sandbox playwright test --project=dev --project=prod",
+    "perf": "pnpm --filter sandbox perf",
+    "perf:baseline": "pnpm --filter sandbox perf:baseline",
     "build": "pnpm -r build",
     "dev:sandbox": "pnpm --filter sandbox dev",
     "dev:sandbox:remote": "pnpm --filter sandbox dev:remote"

@@ -11,8 +11,9 @@ export default defineConfig({
   workers: 1,
   use: { baseURL: DEV_URL, trace: "on-first-retry" },
   projects: [
-    { name: "dev", use: { ...devices["Desktop Chrome"], baseURL: DEV_URL }, testMatch: /.*\.dev\.spec\.ts/ },
-    { name: "prod", use: { ...devices["Desktop Chrome"], baseURL: PROD_URL }, testMatch: /.*\.prod\.spec\.ts/ },
+    { name: "dev", use: { ...devices["Desktop Chrome"], baseURL: DEV_URL }, testMatch: /.*\.dev\.spec\.ts/, testIgnore: /.*perf.*\.spec\.ts/ },
+    { name: "prod", use: { ...devices["Desktop Chrome"], baseURL: PROD_URL }, testMatch: /.*\.prod\.spec\.ts/, testIgnore: /.*perf.*\.spec\.ts/ },
+    { name: "perf", use: { ...devices["Desktop Chrome"], baseURL: DEV_URL }, testMatch: /.*perf.*\.spec\.ts/ },
   ],
   webServer: [
     {
