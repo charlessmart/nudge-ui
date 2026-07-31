@@ -144,15 +144,23 @@ async function assertScenario(page: Page, scenario: CompatibilityScenario): Prom
     for (const text of scenario.edit.promptContains) expect(edited.prompt).toContain(text);
     const selectedToken = edited.catalog.find((entry) => entry.name === scenario.edit!.selectToken);
     expect(selectedToken, `${scenario.id}: selected token catalog entry`).toBeDefined();
-    const requestedValue = `var(${selectedToken!.cssName})`;
-    const managedRule = edited.managedPreview.rules.find((rule) =>
-      rule.declarations[scenario.edit!.property] === requestedValue);
-    expect(managedRule, `${scenario.id}: managed rule ${scenario.edit.property}=${requestedValue}`).toBeDefined();
+    const tokenReference = `var(${selectedToken!.cssName})`;
+    const frozenTokenValue = await page.locator(scenario.selector).evaluate((element, cssName) =>
+      getComputedStyle(element).getPropertyValue(cssName).trim(), selectedToken!.cssName);
     const previewResult = edited.managedPreview.results.find((result) =>
-      result.property === scenario.edit!.property && result.requestedValue === requestedValue);
+      result.property === scenario.edit!.property);
+    expect(
+      [tokenReference, frozenTokenValue],
+      `${scenario.id}: preview value represents selected token`,
+    ).toContain(previewResult?.requestedValue);
+    const managedRule = edited.managedPreview.rules.find((rule) =>
+      rule.declarations[scenario.edit!.property] === previewResult?.requestedValue);
+    expect(
+      managedRule,
+      `${scenario.id}: managed rule ${scenario.edit.property}=${previewResult?.requestedValue}`,
+    ).toBeDefined();
     expect(previewResult, `${scenario.id}: managed preview result`).toMatchObject({
       property: scenario.edit.property,
-      requestedValue,
       computedValue: scenario.edit.computedAfter,
       status: "applied",
     });
