@@ -418,38 +418,40 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       <span className={`dt-token-field${isColor ? " dt-token-field--color" : ""}${embedColorSwatch ? " dt-token-field--color-chip" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
         {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
         {embedColorSwatch ? null : colorControlEl}
-        <PopoverListbox
-          query=""
-          value={activeToken.name}
-          open={isTokenPickerOpen}
-          trigger={(
-            <span className={`dt-token-chip${chipVariant === "small" ? " dt-token-chip--small" : ""}${embedColorSwatch ? " dt-token-chip--with-swatch" : ""}`} data-group={classifyToken(activeToken.name)}>
-              {embedColorSwatch ? colorControlEl : null}
-              <span className="dt-token-chip__name">{chipValue}</span>
-            </span>
-          )}
-          triggerClassName={`dt-token-chip__trigger${chipVariant === "small" ? " dt-token-chip__trigger--small" : ""}`}
-          triggerDataTest="token-chip"
-          triggerAriaLabel={`Change ${property} token`}
-          items={[...rawSuggestionItems, ...relevantTokens.map(tokenSuggestion)]}
-          onQueryChange={() => undefined}
-          onOpenChange={setTokenPickerOpen}
-          onSelect={(value) => {
-            handleSuggestionSelect(value);
-          }}
-        />
+        <span className={`dt-token-field__chip-wrap${chipVariant === "small" ? " dt-token-field__chip-wrap--small" : ""}`}>
+          <PopoverListbox
+            query=""
+            value={activeToken.name}
+            open={isTokenPickerOpen}
+            trigger={(
+              <span className={`dt-token-chip${chipVariant === "small" ? " dt-token-chip--small" : ""}${embedColorSwatch ? " dt-token-chip--with-swatch" : ""}`} data-group={classifyToken(activeToken.name)}>
+                {embedColorSwatch ? colorControlEl : null}
+                <span className="dt-token-chip__name">{chipValue}</span>
+              </span>
+            )}
+            triggerClassName={`dt-token-chip__trigger${chipVariant === "small" ? " dt-token-chip__trigger--small" : ""}`}
+            triggerDataTest="token-chip"
+            triggerAriaLabel={`Change ${property} token`}
+            items={[...rawSuggestionItems, ...relevantTokens.map(tokenSuggestion)]}
+            onQueryChange={() => undefined}
+            onOpenChange={setTokenPickerOpen}
+            onSelect={(value) => {
+              handleSuggestionSelect(value);
+            }}
+          />
+          <IconButton
+            variant="quiet"
+            size="compact"
+            label="Replace with raw value"
+            className="dt-token-field__delink"
+            data-test="delink-btn"
+            disabled={disabled}
+            onClick={handleDelink}
+          >
+            <IconLinkOff size={chipVariant === "small" ? 12 : 14} stroke={1.75} aria-hidden="true" />
+          </IconButton>
+        </span>
         {opacityControl}
-        <IconButton
-          variant="quiet"
-          size="compact"
-          label="Replace with raw value"
-          className={`dt-token-field__delink${chipVariant === "small" ? " dt-token-field__delink--small" : ""}`}
-          data-test="delink-btn"
-          disabled={disabled}
-          onClick={handleDelink}
-        >
-          <IconLinkOff size={chipVariant === "small" ? 12 : 14} stroke={1.75} aria-hidden="true" />
-        </IconButton>
         <AtRuleIndicator atRules={fieldAtRules} />
         {trailing ? <span className="dt-token-field__trailing">{trailing}</span> : null}
       </span>

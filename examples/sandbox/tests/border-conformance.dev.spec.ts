@@ -32,6 +32,10 @@ async function computedValue(page: import("@playwright/test").Page, id: string, 
   return page.locator(`[data-test="border-case-${id}"]`).evaluate((element, prop) => getComputedStyle(element).getPropertyValue(prop), property);
 }
 
+async function expectLinkedBorderStyle(page: import("@playwright/test").Page, style: string): Promise<void> {
+  await expect(page.locator('[data-test="border-style-settings"]')).toHaveAttribute("data-current-style", style);
+}
+
 test("dev: border conformance gallery renders every shared case and selects a sample", async ({ page }) => {
   await page.goto("/border-conformance");
 
@@ -57,7 +61,7 @@ test("dev: border shorthand decomposes into structured fields", async ({ page })
   await selectCase(page, "border-shorthand-literal");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-width"] [data-test="raw-input"]')).toHaveValue("2px");
-  await expect(page.locator('[data-test="border-style"]')).toContainText("Solid");
+  await expectLinkedBorderStyle(page, "solid");
   await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="raw-input"]')).toHaveValue("rgb(51, 68, 85)");
 });
 
@@ -83,7 +87,7 @@ test("dev: incomplete border shorthand decomposes with CSS initials", async ({ p
   await selectCase(page, "border-incomplete-shorthand");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-width"] [data-test="raw-input"]')).toHaveValue("2px");
-  await expect(page.locator('[data-test="border-style"]')).toContainText("Solid");
+  await expectLinkedBorderStyle(page, "solid");
   await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="raw-input"]')).toHaveValue("currentcolor");
 });
 
@@ -91,7 +95,7 @@ test("dev: border none exposes style and hides width/color until drawn", async (
   await page.goto("/border-conformance");
   await selectCase(page, "border-none-style");
 
-  await expect(page.locator('[data-test="border-style"]')).toContainText("None");
+  await expectLinkedBorderStyle(page, "none");
   await expect(page.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(0);
   await expect(page.locator('[data-test="token-field"][data-property="border-color"]')).toHaveCount(0);
 });
@@ -111,7 +115,7 @@ test("dev: order-permuted shorthand shows literal hex color not a token chip", a
   await selectCase(page, "border-shorthand-order-permutation");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-width"] [data-test="raw-input"]')).toHaveValue("3px");
-  await expect(page.locator('[data-test="border-style"]')).toContainText("Double");
+  await expectLinkedBorderStyle(page, "double");
   await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="raw-input"]')).toHaveValue("rgb(155, 77, 202)");
   await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="token-chip"]')).toHaveCount(0);
 });
@@ -120,8 +124,21 @@ test("dev: border hidden exposes style control", async ({ page }) => {
   await page.goto("/border-conformance");
   await selectCase(page, "border-hidden-style");
 
-  await expect(page.locator('[data-test="border-style"]')).toContainText("Hidden");
+  await expectLinkedBorderStyle(page, "hidden");
   await expect(page.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(0);
+});
+
+test("dev: linked border style is edited from the settings picker", async ({ page }) => {
+  await page.goto("/border-conformance");
+  await selectCase(page, "border-shorthand-literal");
+
+  await expectLinkedBorderStyle(page, "solid");
+  await page.locator('[data-test="border-style-settings"]').click();
+  await expect(page.locator('[data-test="border-style-setting-dashed"]')).toBeVisible();
+  await page.locator('[data-test="border-style-setting-dashed"]').click();
+
+  await expectLinkedBorderStyle(page, "dashed");
+  await expect.poll(() => computedValue(page, "border-shorthand-literal", "border-top-style")).toBe("dashed");
 });
 
 test("dev: border radius token is editable as atomic", async ({ page }) => {
