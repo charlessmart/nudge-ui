@@ -56,9 +56,9 @@ authored meaning:
 
 Examples of deliberately deferred structured editors are `background`,
 `font`, `transition`, `animation`, arbitrary transform chains, and multi-shadow
-lists. They remain inspectable and editable as raw CSS. Grid has a separately
-proposed raw-field slice in `docs/features/grid-layout-controls.md`; it does
-not introduce a visual track or area builder without further conformance work.
+lists. They remain inspectable and editable as raw CSS. Grid controls likewise
+must preserve authored track grammar and avoid claiming universal support for
+every track or area form without further conformance work.
 
 ## Tool and framework scope
 

@@ -33,6 +33,17 @@ Thumbs.db
 
 # Misc
 .cache/
+.pnpm-store/
 coverage/
 .tmp/
 test-results/
+
+# Local teaching materials and research notes
+/MISSION.md
+/NOTES.md
+/GLOSSARY.md
+/RESOURCES.md
+/lessons/
+/learning-records/
+/reference/
+/assets/

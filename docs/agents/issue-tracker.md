@@ -1,10 +1,14 @@
 # Issue tracker: local Markdown
 
-Implementation issues live as numbered Markdown files in `docs/issues/`.
+Active implementation issues live as numbered Markdown files in `docs/issues/`.
+Completed issue records may be moved to `docs/issues/archive/` as historical
+evidence; archived records are not candidates for new work.
 
 ## Conventions
 
-- One issue per `docs/issues/NNNN-slug.md` file.
+- One active issue per `docs/issues/NNNN-slug.md` file.
+- Preserve the original number and slug when moving a completed issue to
+  `docs/issues/archive/`.
 - Continue the repository-wide zero-padded number sequence.
 - Include `Labels`, `Type`, and `Milestone` near the top of every new issue.
 - Record dependencies in a `## Blocked by` section using local issue numbers.

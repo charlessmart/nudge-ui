@@ -23,7 +23,8 @@ UI live in the browser and copying structured prompts for an AI coding agent.
 - `packages/inspector` — runtime inspector UI.
 - `examples/sandbox` — sandbox app + e2e harness.
 - `docs/adr/` — architecture decision records (immutable once written).
-- `docs/issues/` — issue tracker (local markdown, `needs-triage` label on each).
+- `docs/issues/` — active issue tracker (local markdown, `needs-triage` label on
+  each); completed issue history is kept in `docs/issues/archive/`.
 
 ## Hard rules (do not violate, see relevant ADR)
 
@@ -55,7 +56,8 @@ UI live in the browser and copying structured prompts for an AI coding agent.
 
 ## Issue workflow
 
-- Each issue lives at `docs/issues/NNNN-slug.md`.
+- Each active issue lives at `docs/issues/NNNN-slug.md`; completed issues may be
+  moved to `docs/issues/archive/` without changing their number or slug.
 - Issues are vertical (tracer-bullet) slices, not horizontal layer slices.
 - Pick up the lowest-numbered issue whose `Blocked by` list is satisfied.
 - Update the issue's acceptance criteria checkboxes by editing the file when
