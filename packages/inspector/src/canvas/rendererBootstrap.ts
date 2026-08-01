@@ -17,6 +17,7 @@ import type {
 import { handleReplaceStyles } from "./rendererStylesheet.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
 import { installRendererElementSelector } from "./rendererElementSelector.ts";
+import { createFrameThrottle } from "../frameThrottle.ts";
 
 let rendererBootstrapped = false;
 function sendFrameReady(): void {
@@ -158,6 +159,18 @@ function installRendererPanProxy(): void {
   let spaceHeld = false;
   let panning = false;
 
+  const panMoveUpdate = createFrameThrottle((point: { x: number; y: number }) => {
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    const message: PanMoveMessage = {
+      type: "pan-move",
+      protocolVersion: PROTOCOL_VERSION,
+      point,
+      ...identity,
+    };
+    sendToParent(message);
+  });
+
   function isEditableTarget(target: EventTarget | null): boolean {
     return target instanceof HTMLElement
       && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
@@ -172,6 +185,7 @@ function installRendererPanProxy(): void {
     if (event.code === "Space") spaceHeld = false;
   });
   function endPan(): void {
+    panMoveUpdate.cancel();
     if (!panning) return;
     panning = false;
     const identity = getRendererIdentity();
@@ -201,16 +215,8 @@ function installRendererPanProxy(): void {
   }, true);
   document.addEventListener("pointermove", (event) => {
     if (!panning) return;
-    const identity = getRendererIdentity();
-    if (!identity) return;
     event.preventDefault();
-    const message: PanMoveMessage = {
-      type: "pan-move",
-      protocolVersion: PROTOCOL_VERSION,
-      point: { x: event.clientX, y: event.clientY },
-      ...identity,
-    };
-    sendToParent(message);
+    panMoveUpdate.schedule({ x: event.clientX, y: event.clientY });
   }, true);
   document.addEventListener("pointerup", endPan, true);
   document.addEventListener("pointercancel", endPan, true);

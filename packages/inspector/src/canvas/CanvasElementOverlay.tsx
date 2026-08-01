@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
   isRendererMessageFor,
   type ElementClickMessage,
@@ -30,10 +30,17 @@ import { DropGuideOverlay, type ViewportDropGuide } from "../DropGuideOverlay.ts
 import { getMeasurementGeometry } from "../measurementGeometry.ts";
 import { MeasurementGuideOverlay } from "../MeasurementGuideOverlay.tsx";
 import { projectMeasurementSegments } from "./measurementProjection.ts";
+import { escapeAttrValue } from "../managedStylesheet.ts";
+
+interface ElementIdentity {
+  cid: string;
+  src: string;
+  instanceIndex: number;
+}
 
 interface FrameOverlayState {
   iframe: HTMLIFrameElement;
-  element: HTMLElement | null;
+  identity: ElementIdentity;
   rect: Rect;
   margins: Margins;
   cardId: string;
@@ -130,6 +137,22 @@ export function CanvasElementOverlay(): ReactElement | null {
     ? projectRect(selectedFrame, selectedLocalRect, camera.zoom)
     : null;
 
+  // The selected element's identity is computed once per selection change
+  // (never per hover), so the measurement self-rulers exclusion can compare
+  // identities without a per-hover scan of the frame document.
+  const selectedIdentity = useMemo((): ElementIdentity | null => {
+    const el = selected?.domElement;
+    if (!el) return null;
+    const cid = el.getAttribute("data-cid");
+    if (!cid) return null;
+    const src = el.getAttribute("data-src") ?? "";
+    const doc = el.ownerDocument;
+    if (!doc) return null;
+    const matches = Array.from(doc.querySelectorAll<HTMLElement>(`[data-cid="${escapeAttrValue(cid)}"]`))
+      .filter((candidate) => candidate.getAttribute("data-src") === src);
+    return { cid, src, instanceIndex: matches.indexOf(el) };
+  }, [selected?.domElement]);
+
   useEffect(() => {
     function onMessage(event: MessageEvent): void {
       if (event.origin !== window.location.origin) return;
@@ -152,7 +175,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         }
         setHover({
           iframe: sourceIframe,
-          element: findFrameElement(sourceIframe, msg.cid, msg.src, msg.instanceIndex),
+          identity: { cid: msg.cid, src: msg.src, instanceIndex: msg.instanceIndex },
           rect: msg.rect,
           margins: msg.margins ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: sourceCardId,
@@ -241,11 +264,18 @@ export function CanvasElementOverlay(): ReactElement | null {
     && measureStateForSelectedFrame?.altKey
     && measureStateForSelectedFrame.pointerOverPage,
   );
+  const isSelfHover = Boolean(
+    hoverInSelectedFrame
+    && selectedIdentity
+    && hoverInSelectedFrame.identity.cid === selectedIdentity.cid
+    && hoverInSelectedFrame.identity.src === selectedIdentity.src
+    && hoverInSelectedFrame.identity.instanceIndex === selectedIdentity.instanceIndex,
+  );
   const showMeasurement = Boolean(
     showGuideOverlay
     && selectedLocalRect
-    && hoverInSelectedFrame?.element
-    && hoverInSelectedFrame.element !== selected?.domElement,
+    && hoverInSelectedFrame
+    && !isSelfHover,
   );
   const measurementSegments = showMeasurement && selectedFrameRect && selectedLocalRect && hoverInSelectedFrame
     ? projectMeasurementSegments(

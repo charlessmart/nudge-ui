@@ -74,6 +74,7 @@ export interface ElementClickMessage extends RendererMessage {
   cid: string;
   selector: string;
   src: string;
+  instanceIndex: number;
   file: string;
   line: number;
   component: string;
