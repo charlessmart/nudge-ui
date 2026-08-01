@@ -45,6 +45,17 @@ function notify(): void {
 
 export function setSelectedElement(el: SelectedElement | null): void {
   if (current === el) return;
+  // Re-clicks and post-edit refreshes re-resolve a fresh object with the same
+  // source-site identity. Keep the existing selection (and the hierarchy step)
+  // so the panel pipeline does not churn; edits still refresh the panel via
+  // the document revision subscription.
+  if (el && current
+    && current.cid === el.cid
+    && current.src === el.src
+    && current.domElement === el.domElement
+    && index === 0) {
+    return;
+  }
   current = el;
   chain = el ? computeHierarchy(el.domElement) : [];
   index = 0;

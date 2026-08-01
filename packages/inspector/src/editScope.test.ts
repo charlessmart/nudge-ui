@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { countSourceSiteMatches, getEditScope, getInstanceEvidence, relinkElement, selectorForElement, unlinkElement } from "./editScope";
+import { countSourceSiteMatches, getEditScope, getInstanceEvidence, relinkElement, resetSourceSiteMatchCounts, selectorForElement, unlinkElement } from "./editScope";
 
 describe("edit scope", () => {
   beforeEach(() => { document.body.innerHTML = ""; });
@@ -42,5 +42,27 @@ describe("edit scope", () => {
 
     expect(countSourceSiteMatches(elements[0]!)).toBe(2);
     expect(getInstanceEvidence(elements[1]!)).toMatchObject({ renderedIndex: 1, text: "two" });
+  });
+
+  it("memoizes the match count per scope revision", () => {
+    resetSourceSiteMatchCounts();
+    const first = add("one"); add("two");
+    expect(countSourceSiteMatches(first)).toBe(2);
+
+    // The DOM gained a third sibling, but the scope revision is unchanged so
+    // the memoized count for revision 0 stays put.
+    add("three");
+    expect(countSourceSiteMatches(first)).toBe(2);
+
+    // Bumping the scope revision recomputes the full-document scan.
+    expect(countSourceSiteMatches(first, 1)).toBe(3);
+  });
+
+  it("keeps counting the source site after unlinking one instance", () => {
+    resetSourceSiteMatchCounts();
+    const first = add("one"); add("two");
+    unlinkElement(first);
+    expect(countSourceSiteMatches(first)).toBe(2);
+    expect(countSourceSiteMatches(add("three"))).toBe(3);
   });
 });

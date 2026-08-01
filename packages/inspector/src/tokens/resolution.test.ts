@@ -16,10 +16,13 @@ import {
   getAvailableInteractionStates,
   getResolvedPropertiesForState,
   invalidateStyleResolutionCache,
+  resetSourceSiteMatchCache,
+  sourceSiteMatchCacheSize,
   parseBorderShorthand,
   type MatchedRule,
   type TokenTable,
 } from "./resolution.ts";
+import { unlinkElement } from "../editScope.ts";
 import {
   computeSpecificity,
   computeSpecificityCore,
@@ -175,6 +178,166 @@ describe("state resolution cache", () => {
     invalidateStyleResolutionCache();
 
     expect(getResolvedPropertiesForState(element, table, "base")).not.toBe(initial);
+  });
+});
+
+describe("source-site matched-rule cache", () => {
+  function flush(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  function mountRow(container: HTMLElement, className = "row"): HTMLElement {
+    const el = document.createElement("div");
+    el.className = className;
+    el.setAttribute("data-cid", "Row");
+    el.setAttribute("data-src", "Row.tsx:4:2");
+    container.appendChild(el);
+    return el;
+  }
+
+  const table = makeTable([
+    { name: "--color-a", value: "#112233", source: "s:1" },
+    { name: "--color-b", value: "#445566", source: "s:2" },
+  ]);
+
+  afterEach(() => {
+    document.head.innerHTML = "";
+    document.body.innerHTML = "";
+    invalidateStyleResolutionCache();
+    resetSourceSiteMatchCache();
+  });
+
+  it("shares one match set across sibling instances of the same source site", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".row { background: var(--color-a); }";
+    document.head.appendChild(style);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    await flush();
+
+    const first = mountRow(container);
+    getResolvedPropertiesForState(first, table, "base");
+    expect(sourceSiteMatchCacheSize()).toBe(1);
+
+    const second = mountRow(container);
+    await flush();
+    const secondRows = getResolvedPropertiesForState(second, table, "base");
+    // The second instance reused the first's matched-rule set instead of
+    // creating a new entry.
+    expect(sourceSiteMatchCacheSize()).toBe(1);
+    expect(secondRows.find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+  });
+
+  it("invalidates per-element matches after a host attribute change bumps the revision", async () => {
+    const style = document.createElement("style");
+    style.textContent = "[data-variant=\"a\"] { background: var(--color-a); } [data-variant=\"b\"] { background: var(--color-b); }";
+    document.head.appendChild(style);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const el = mountRow(container);
+    el.setAttribute("data-variant", "a");
+    await flush();
+
+    const before = getResolvedPropertiesForState(el, table, "base");
+    expect(before.find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+
+    el.setAttribute("data-variant", "b");
+    await flush();
+    const after = getResolvedPropertiesForState(el, table, "base");
+    expect(after.find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+  });
+
+  it("disambiguates an unlinked instance from its source site", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".row { background: var(--color-a); }";
+    document.head.appendChild(style);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const el = mountRow(container);
+    await flush();
+
+    getResolvedPropertiesForState(el, table, "base");
+    const sizeBefore = sourceSiteMatchCacheSize();
+
+    unlinkElement(el);
+    await flush();
+    getResolvedPropertiesForState(el, table, "base");
+    expect(sourceSiteMatchCacheSize()).toBe(sizeBefore + 1);
+  });
+
+  it("keeps one cache entry when the element is remounted with the same identity", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".row { background: var(--color-a); }";
+    document.head.appendChild(style);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const el = mountRow(container);
+    await flush();
+
+    getResolvedPropertiesForState(el, table, "base");
+    container.replaceChildren();
+    const remounted = mountRow(container);
+    await flush();
+
+    const rows = getResolvedPropertiesForState(remounted, table, "base");
+    expect(sourceSiteMatchCacheSize()).toBe(1);
+    expect(rows.find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+  });
+
+  it("does not share matches across same-source-site elements with different classes", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".one { background: var(--color-a); } .two { background: var(--color-b); }";
+    document.head.appendChild(style);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    await flush();
+
+    const one = mountRow(container, "one");
+    const two = mountRow(container, "two");
+    await flush();
+
+    expect(getResolvedPropertiesForState(one, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+    expect(getResolvedPropertiesForState(two, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+  });
+
+  it("traces inherited token-backed properties through a multi-level lineage in one pass", () => {
+    const style = document.createElement("style");
+    style.textContent = ".grand { --color-ink: #1a1a2e; color: var(--color-ink); }";
+    document.head.appendChild(style);
+
+    const grand = document.createElement("div");
+    grand.className = "grand";
+    const parent = document.createElement("div");
+    parent.className = "parent";
+    const leaf = document.createElement("p");
+    grand.appendChild(parent);
+    parent.appendChild(leaf);
+    document.body.appendChild(grand);
+
+    const rows = getResolvedPropertiesForState(leaf, makeTable([]), "base");
+    expect(rows.find((row) => row.property === "color")).toMatchObject({
+      tokenName: "--color-ink",
+      evidence: { inheritedFrom: "div" },
+    });
+  });
+
+  it("derives interaction states from the cached match snapshot without extra matches", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".btn { background: var(--color-a); } .btn:hover { color: var(--color-b); }";
+    document.head.appendChild(style);
+    const btn = document.createElement("button");
+    btn.className = "btn";
+    btn.setAttribute("data-cid", "Button");
+    btn.setAttribute("data-src", "Button.tsx:1:1");
+    document.body.appendChild(btn);
+    await flush();
+
+    expect(getAvailableInteractionStates(btn)).toEqual(["base", "hover"]);
+    const sizeAfterFirstScan = sourceSiteMatchCacheSize();
+    expect(getAvailableInteractionStates(btn)).toEqual(["base", "hover"]);
+    expect(sourceSiteMatchCacheSize()).toBe(sizeAfterFirstScan);
   });
 });
 

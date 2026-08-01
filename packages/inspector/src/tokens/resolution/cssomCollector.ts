@@ -16,6 +16,31 @@ const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
 
 const registeredElements = new WeakSet<Element>();
 
+let globalRevision = 0;
+const globalRevisionListeners = new Set<() => void>();
+
+/**
+ * A monotonically increasing counter bumped whenever any document's cascade
+ * inputs change (host mutations, stylesheet writes, explicit invalidation).
+ * The inspector's debounced panel resolution subscribes to this so it can
+ * refresh after an edit without churning the selection identity.
+ */
+export function getGlobalRevision(): number {
+  return globalRevision;
+}
+
+export function subscribeGlobalRevision(cb: () => void): () => void {
+  globalRevisionListeners.add(cb);
+  return () => {
+    globalRevisionListeners.delete(cb);
+  };
+}
+
+function bumpGlobalRevision(): void {
+  globalRevision++;
+  globalRevisionListeners.forEach((cb) => cb());
+}
+
 /**
  * Elements whose attribute changes can affect a cached cascade outcome. The
  * observer only counts attribute mutations against registered elements so
@@ -90,6 +115,7 @@ export function documentRevisions(doc: Document): DocumentRevisions {
         if (relevant.length === 0) return;
         record!.element++;
         if (relevant.some(changesStylesheet)) record!.stylesheet++;
+        bumpGlobalRevision();
       });
       observer.observe(root, {
         attributes: true,
@@ -101,6 +127,7 @@ export function documentRevisions(doc: Document): DocumentRevisions {
       doc.defaultView?.addEventListener("resize", () => {
         record!.element++;
         record!.stylesheet++;
+        bumpGlobalRevision();
       });
     }
   }
@@ -123,6 +150,7 @@ export function invalidateStyleResolutionCache(doc: Document = document): void {
     record.stylesheet++;
   }
   ruleSnapshots.delete(doc);
+  bumpGlobalRevision();
 }
 
 function isStyleRuleInDocument(rule: CSSRule, doc: Document): rule is CSSStyleRule {

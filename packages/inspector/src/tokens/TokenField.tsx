@@ -145,6 +145,7 @@ export function colorValueToHex(value: string): string | null {
   if (typeof document === "undefined") return null;
 
   const probe = document.createElement("span");
+  probe.setAttribute("data-design-tool", "value-probe");
   probe.style.color = "";
   probe.style.color = trimmed;
   if (!probe.style.color) return null;
@@ -158,6 +159,7 @@ function browserRecognizesColor(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed || /var\(/i.test(trimmed) || typeof document === "undefined") return false;
   const probe = document.createElement("span");
+  probe.setAttribute("data-design-tool", "value-probe");
   probe.style.color = "";
   probe.style.color = trimmed;
   return probe.style.color !== "";

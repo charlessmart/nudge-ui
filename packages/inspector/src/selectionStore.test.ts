@@ -76,6 +76,33 @@ describe("selectionStore", () => {
     expect(count).toBe(0);
     unsub();
   });
+
+  it("short-circuits a re-resolved object with the same source-site identity", () => {
+    const el = makeEl();
+    setSelectedElement(el);
+    let count = 0;
+    const unsub = subscribe(() => {
+      count++;
+    });
+    setSelectedElement({ ...el });
+    expect(count).toBe(0);
+    expect(getSelectedElement()).toBe(el);
+    unsub();
+  });
+
+  it("updates when the identity changes even if the DOM element matches", () => {
+    const domElement = document.createElement("button");
+    const el = makeEl({ domElement });
+    setSelectedElement(el);
+    let count = 0;
+    const unsub = subscribe(() => {
+      count++;
+    });
+    setSelectedElement(makeEl({ domElement, cid: "Header" }));
+    expect(count).toBe(1);
+    expect(getSelectedElement()?.cid).toBe("Header");
+    unsub();
+  });
 });
 
 describe("hierarchy stepping", () => {
@@ -172,6 +199,16 @@ describe("hierarchy stepping", () => {
     expect(getHierarchyIndex()).toBe(0);
     expect(getHierarchy()).toEqual([leaf, mid, outer]);
     expect(getSelectedElement()?.cid).toBe("Button");
+  });
+
+  it("re-selecting the current element after stepping resets the hierarchy index", () => {
+    selectLeaf();
+    stepUp();
+    expect(getHierarchyIndex()).toBe(1);
+    expect(getSelectedElement()?.cid).toBe("Card");
+    setSelectedElement(resolveSelectionFromElement(mid)!);
+    expect(getHierarchyIndex()).toBe(0);
+    expect(getSelectedElement()?.cid).toBe("Card");
   });
 
   it("notifies listeners on step", () => {

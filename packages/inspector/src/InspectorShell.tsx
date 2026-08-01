@@ -177,7 +177,7 @@ export function InspectorShell(): ReactElement {
   [selected, paintedBackgroundRow, styleState, tokenTable]);
   const editScope = selected ? getEditScope(selected.domElement) : null;
   const sourceSiteMatchCount = selected && editScope === "source-site"
-    ? countSourceSiteMatches(selected.domElement)
+    ? countSourceSiteMatches(selected.domElement, scopeRevision)
     : 0;
 
   function refreshSelected(): void {

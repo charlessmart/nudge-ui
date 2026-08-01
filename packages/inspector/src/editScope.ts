@@ -11,6 +11,13 @@ export interface InstanceEvidence {
 const INSTANCE_ATTR = "data-dt-instance";
 let nextInstanceId = 1;
 
+const sourceSiteMatchCounts = new Map<string, number>();
+
+/** Test hook: clears the memoized source-site match counts. */
+export function resetSourceSiteMatchCounts(): void {
+  sourceSiteMatchCounts.clear();
+}
+
 export function sourceSiteSelector(cid: string, src: string): string | null {
   if (!cid) return null;
   if (!src) return `[data-cid="${escapeAttrValue(cid)}"]`;
@@ -20,10 +27,28 @@ export function sourceSiteSelector(cid: string, src: string): string | null {
   return `[data-cid="${escapeAttrValue(cid)}"][data-src="${escapeAttrValue(src)}"]`;
 }
 
-export function countSourceSiteMatches(el: HTMLElement): number {
-  const selector = sourceSiteSelector(el.getAttribute("data-cid") ?? "", el.getAttribute("data-src") ?? "");
-  if (!selector) return 0;
-  try { return el.ownerDocument.querySelectorAll(selector).length; } catch { return 0; }
+/**
+ * Counts the rendered elements matching a source site. The result is memoized
+ * per (element identity, scope revision) so the selection render path no longer
+ * runs a full-document querySelectorAll on every render; it only recomputes
+ * when the caller's scope revision changes.
+ */
+export function countSourceSiteMatches(el: HTMLElement, revision = 0): number {
+  const cid = el.getAttribute("data-cid") ?? "";
+  const src = el.getAttribute("data-src") ?? "";
+  const instance = el.getAttribute(INSTANCE_ATTR) ?? "";
+  const doc = el.ownerDocument ?? document;
+  const key = `${cid}\u0000${src}\u0000${instance}\u0000${revision}\u0000${doc === document ? "doc" : "frame"}`;
+  const cached = sourceSiteMatchCounts.get(key);
+  if (cached !== undefined) return cached;
+  const selector = sourceSiteSelector(cid, src);
+  let count = 0;
+  if (selector) {
+    try { count = doc.querySelectorAll(selector).length; } catch { count = 0; }
+  }
+  if (sourceSiteMatchCounts.size >= 4096) sourceSiteMatchCounts.clear();
+  sourceSiteMatchCounts.set(key, count);
+  return count;
 }
 
 export function unlinkElement(el: HTMLElement): string {
