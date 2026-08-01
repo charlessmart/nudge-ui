@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 
 test("dev: Tailwind v3 fixture exposes config provenance, literal spacing values, and opacity helper", async ({ page }) => {
   await page.goto("/tailwind-v3");
+  await expect.poll(() => page.evaluate(() => Boolean(
+    document.getElementById("design-tool-root")?.shadowRoot?.querySelector('[data-test="inspect-tab"]'),
+  ))).toBe(true);
   const card = page.locator('[data-test="tailwind-v3-card"]');
   await expect(card).toBeVisible();
   const catalog = await page.evaluate(() => (window as unknown as { __designTokenCatalog?: { name: string; adapter?: string; origin?: string; cssValue?: string }[] }).__designTokenCatalog ?? []);
@@ -9,8 +12,6 @@ test("dev: Tailwind v3 fixture exposes config provenance, literal spacing values
   expect(catalog.find((entry) => entry.name === "theme.spacing.3")).toMatchObject({ adapter: "tailwind-v3", cssValue: "0.75rem" });
   expect(await card.evaluate((element) => getComputedStyle(element).backgroundColor)).toContain("rgba");
   await card.click();
-  await expect.poll(async () => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
-    return root?.querySelector('[data-test="token-attribution"]')?.textContent?.trim() ?? null;
-  })).toContain("theme.colors.brand");
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]'))
+    .toContainText("theme.colors.brand");
 });

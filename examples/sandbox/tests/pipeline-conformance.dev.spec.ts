@@ -78,8 +78,8 @@ test("dev: physical and logical spacing survive the static CSS pipeline", async 
 
   await page.goto("/pipeline-conformance");
   await selectCase(page, "logical-spacing");
-  await expect(page.locator('[data-test="token-field"][data-property="padding-horizontal"] [data-test="token-chip"]'))
-    .toContainText("--pipeline-space");
+  await expect(page.locator('[data-test="token-field"][data-property="padding-horizontal"] input[aria-hidden="true"]'))
+    .toHaveValue("--pipeline-space");
 });
 
 test("dev: border, typography, and layout controls use rows from the static CSS pipeline", async ({ page }) => {

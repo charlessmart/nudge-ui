@@ -4,5 +4,11 @@
     "noEmit": true,
     "types": ["node", "@playwright/test"]
   },
-  "include": ["src", "tests", "playwright.config.ts", "vite.config.ts"]
+  "include": [
+    "src",
+    "tests",
+    "playwright.config.ts",
+    "playwright.newvato.config.ts",
+    "vite.config.ts"
+  ]
 }

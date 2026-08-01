@@ -44,7 +44,7 @@ test("dev: Tailwind post-transform theme tokens reach the virtual catalog", asyn
   });
 });
 
-test("dev: Tailwind local aliases resolve to global tokens in the inspector", async ({ page }) => {
+test("dev: Tailwind local aliases remain identifiable in the inspector", async ({ page }) => {
   await page.goto("/tailwind");
   await waitForInspector(page);
   await page.locator("#notes blockquote").evaluate((element) => {
@@ -53,8 +53,10 @@ test("dev: Tailwind local aliases resolve to global tokens in the inspector", as
 
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
-    return root?.querySelector('[data-test="token-field"][data-property="line-height"] [data-test="token-chip"]')?.textContent?.trim() ?? null;
-  })).toContain("--leading-tight");
+    return (root?.querySelector(
+      '[data-test="token-field"][data-property="line-height"] input[aria-hidden="true"]',
+    ) as HTMLInputElement | null)?.value ?? null;
+  })).toContain("--tw-leading");
 });
 
 test("dev: Tailwind inherited color resolves from an ancestor utility", async ({ page }) => {

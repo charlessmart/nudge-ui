@@ -7,6 +7,7 @@ const PROD_URL = `http://localhost:${PROD_PORT}`;
 
 export default defineConfig({
   testDir: "./tests",
+  testIgnore: /newvato-consumer\.dev\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   use: { baseURL: DEV_URL, trace: "on-first-retry" },
