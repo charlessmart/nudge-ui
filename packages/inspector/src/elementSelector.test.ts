@@ -113,6 +113,40 @@ describe("resolveSelectionFromEvent", () => {
     expect(sel?.domElement).toBe(parent);
   });
 
+  it("prefers an interactive parent over a full-bleed tracked child", () => {
+    const button = document.createElement("button");
+    button.setAttribute("data-cid", "Button");
+    button.setAttribute("data-src", "Button.tsx:1:1");
+    const label = makeHostElement({
+      "data-cid": "ButtonLabel",
+      "data-src": "Button.tsx:2:1",
+    });
+    button.appendChild(label);
+    document.body.appendChild(button);
+
+    const sel = resolveSelectionFromEvent({ target: label } as unknown as MouseEvent, host);
+    expect(sel?.domElement).toBe(button);
+  });
+
+  it("uses the deepest tracked child for Ctrl or Command clicks", () => {
+    const button = makeHostElement({
+      "data-cid": "Button",
+      "data-src": "Button.tsx:1:1",
+    });
+    const label = makeHostElement({
+      "data-cid": "ButtonLabel",
+      "data-src": "Button.tsx:2:1",
+    });
+    button.appendChild(label);
+    document.body.appendChild(button);
+
+    const sel = resolveSelectionFromEvent(
+      { target: label, ctrlKey: true } as unknown as MouseEvent,
+      host,
+    );
+    expect(sel?.domElement).toBe(label);
+  });
+
   it("captures a React fiber when the key is present", () => {
     const el = makeHostElement({
       "data-cid": "Button",

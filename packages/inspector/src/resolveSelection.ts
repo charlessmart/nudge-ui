@@ -1,5 +1,6 @@
 import type { SelectedElement } from "./selectionStore.ts";
 import { inspectComponentTargets } from "./componentSemantics/index.ts";
+import { resolveSelectionTarget, selectionTargetMode, type SelectionTargetMode } from "./selectionTarget.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -56,16 +57,15 @@ export function resolveSelectionFromElement(el: HTMLElement): SelectedElement | 
 export function resolveSelectionFromEvent(
   e: MouseEvent,
   inspectorHost: Element,
+  mode: SelectionTargetMode = selectionTargetMode(e),
 ): SelectedElement | null {
   const target = e.target;
-  if (!(target instanceof HTMLElement)) return null;
+  if (!(target instanceof Element)) return null;
   if (inspectorHost === target || inspectorHost.contains(target)) return null;
   const root = target.getRootNode();
   if (root instanceof ShadowRoot && root.host instanceof HTMLElement && root.host.id === "design-tool-root") {
     return null;
   }
-  const direct = resolveSelectionFromElement(target);
-  if (direct) return direct;
-  const el = target.closest("[data-cid]");
-  return el instanceof HTMLElement ? resolveSelectionFromElement(el) : null;
+  const el = resolveSelectionTarget(target, mode);
+  return el ? resolveSelectionFromElement(el) : null;
 }

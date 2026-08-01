@@ -118,6 +118,26 @@ test("dev: selection shares one stylesheet snapshot across inspector fields", as
   expect(cssRuleReads.reads).toBeLessThanOrEqual(cssRuleReads.stylesheetCount + 3);
 });
 
+test("dev: ordinary clicks choose a button wrapper and Command-click chooses its child", async ({ page }) => {
+  await page.goto("/");
+
+  const button = page.locator("button.btn").first();
+  const label = button.locator(".btn__label");
+  const buttonSrc = await button.getAttribute("data-src");
+  const labelSrc = await label.getAttribute("data-src");
+  expect(buttonSrc).toBeTruthy();
+  expect(labelSrc).toBeTruthy();
+  expect(labelSrc).not.toBe(buttonSrc);
+
+  await label.click();
+  const selectedSrc = () => page.evaluate(() => document.getElementById("design-tool-root")
+    ?.shadowRoot?.querySelector('[data-test="selection"]')?.getAttribute("data-selected-src") ?? null);
+  await expect.poll(selectedSrc).toBe(buttonSrc);
+
+  await label.click({ modifiers: ["Meta"] });
+  await expect.poll(selectedSrc).toBe(labelSrc);
+});
+
 test("dev: hover overlay shows margin space while selection keeps only its outline", async ({ page }) => {
   await page.goto("/");
 

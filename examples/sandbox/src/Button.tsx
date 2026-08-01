@@ -11,7 +11,7 @@ export function Button({
 }) {
   return (
     <button className="btn" onClick={onClick}>
-      {label}
+      <span className="btn__label">{label}</span>
     </button>
   );
 }

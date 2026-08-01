@@ -16,6 +16,7 @@ import { readMargins } from "../overlayGeometry.ts";
 import { installInteractionStyles } from "../interactionStyles.ts";
 import { createFrameThrottle } from "../frameThrottle.ts";
 import { isEditableEvent } from "../shortcuts.ts";
+import { resolveSelectionTarget, selectionTargetMode } from "../selectionTarget.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -128,9 +129,9 @@ export function installRendererElementSelector(): void {
     (event: MouseEvent) => {
       updateMeasureState(event.altKey, true);
       const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-      const el = target.closest("[data-cid]");
-      if (!(el instanceof HTMLElement)) return;
+      if (!(target instanceof Element)) return;
+      const el = resolveSelectionTarget(target, selectionTargetMode(event));
+      if (!el) return;
 
       const rect = el.getBoundingClientRect();
       const cid = el.getAttribute("data-cid")!;
@@ -173,9 +174,10 @@ export function installRendererElementSelector(): void {
   });
 
   document.addEventListener("mousedown", (event: MouseEvent) => {
-    if (event.button !== 0 || !(event.target instanceof HTMLElement)) return;
-    const element = event.target.closest("[data-cid]");
-    if (!(element instanceof HTMLElement)) return;
+    if (event.button !== 0) return;
+    const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
+    if (!element) return;
+    lastSelected = element;
     pendingDrag = { element, point: { x: event.clientX, y: event.clientY } };
   }, true);
 
@@ -268,10 +270,11 @@ export function installRendererElementSelector(): void {
       }
       if (related instanceof Node && (target.contains(related) || target === related)) return;
 
-      const el = target.closest("[data-cid]");
-      if (!(el instanceof HTMLElement)) return;
+      if (!(target instanceof Element)) return;
+      const el = resolveSelectionTarget(target, selectionTargetMode(event));
+      if (!el) return;
 
-      if (related instanceof HTMLElement && related.closest("[data-cid]")) return;
+      if (resolveSelectionTarget(related, selectionTargetMode(event))) return;
 
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);
@@ -314,9 +317,15 @@ export function installRendererElementSelector(): void {
         return;
       }
 
-      const el = target.closest("[data-cid]");
-      if (!(el instanceof HTMLElement)) return;
+      if (!(target instanceof Element)) return;
+      const el = resolveSelectionTarget(target, selectionTargetMode(event));
+      if (!el) return;
       lastSelected = el;
+
+      if (selectionTargetMode(event) === "deep") {
+        event.preventDefault();
+        event.stopPropagation();
+      }
 
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);

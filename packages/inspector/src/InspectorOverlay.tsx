@@ -20,6 +20,7 @@ import { DropGuideOverlay } from "./DropGuideOverlay.tsx";
 import { createFrameThrottle } from "./frameThrottle.ts";
 import { getMeasurementGeometry } from "./measurementGeometry.ts";
 import { MeasurementGuideOverlay } from "./MeasurementGuideOverlay.tsx";
+import { resolveSelectionTarget, selectionTargetMode } from "./selectionTarget.ts";
 
 export {
   getMarginFills,
@@ -93,8 +94,8 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
         return;
       }
       setPointerOverPage(true);
-      const el = target.closest("[data-cid]");
-      if (!el || !(el instanceof HTMLElement)) {
+      const el = resolveSelectionTarget(target, selectionTargetMode(e));
+      if (!el) {
         clearHover();
         return;
       }
@@ -115,10 +116,8 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
         clearHover();
         return;
       }
-      if (related instanceof HTMLElement) {
-        const nearest = related.closest("[data-cid]");
-        if (!(nearest instanceof HTMLElement) || nearest !== hoverElRef.current) clearHover();
-      }
+      const nearest = resolveSelectionTarget(related, selectionTargetMode(e));
+      if (nearest !== hoverElRef.current) clearHover();
     }
     document.addEventListener("mouseover", onMouseOver, true);
     document.addEventListener("mouseout", onMouseOut, true);
@@ -211,8 +210,8 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
     function onPointerDown(event: MouseEvent): void {
       if (event.button !== 0 || !(event.target instanceof HTMLElement)) return;
       if (host === event.target || host.contains(event.target)) return;
-      const target = event.target.closest("[data-cid]");
-      if (!(target instanceof HTMLElement)) return;
+      const target = resolveSelectionTarget(event.target, selectionTargetMode(event));
+      if (!target) return;
       candidate = target;
       start = { x: event.clientX, y: event.clientY };
     }

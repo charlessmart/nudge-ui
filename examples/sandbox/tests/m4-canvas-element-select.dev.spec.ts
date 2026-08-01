@@ -102,6 +102,27 @@ test("dev: clicking a Button component tracked element shows the Button componen
   await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
 });
 
+test("dev: ordinary canvas clicks choose a button wrapper and Command-click chooses its child", async ({ page }) => {
+  await waitForIframeReady(page, 0);
+
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const button = frame.locator("button.btn").first();
+  const label = button.locator(".btn__label");
+  const buttonSrc = await button.getAttribute("data-src");
+  const labelSrc = await label.getAttribute("data-src");
+  expect(buttonSrc).toBeTruthy();
+  expect(labelSrc).toBeTruthy();
+  expect(labelSrc).not.toBe(buttonSrc);
+
+  await label.click();
+  await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-src", buttonSrc as string);
+  await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
+
+  await label.click({ modifiers: ["Meta"] });
+  await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-src", labelSrc as string);
+  await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
+});
+
 test("dev: editing a selected canvas element updates that element inside the iframe", async ({ page }) => {
   await waitForIframeReady(page, 0);
 

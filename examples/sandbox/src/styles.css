@@ -235,6 +235,7 @@ a {
 }
 
 .btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -250,6 +251,14 @@ a {
   font-weight: 750;
   letter-spacing: -0.01em;
   transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.btn__label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn:hover {
