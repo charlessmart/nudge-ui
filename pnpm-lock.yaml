@@ -32,6 +32,9 @@ importers:
       '@design-tool/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
+      '@design-tool/package-css-fixture':
+        specifier: workspace:*
+        version: link:../../packages/package-css-fixture
       '@design-tool/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
@@ -97,6 +100,8 @@ importers:
       vitest:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.32.0)
+
+  packages/package-css-fixture: {}
 
   packages/plugin:
     dependencies:

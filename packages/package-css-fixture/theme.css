@@ -1,0 +1,6 @@
+@import "./foundations.css";
+
+:root {
+  --color-content-primary: #20211f;
+  --color-content-secondary: #6d6e69;
+}

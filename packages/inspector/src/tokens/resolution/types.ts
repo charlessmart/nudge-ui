@@ -29,7 +29,7 @@ export interface ResolvedProperty {
   evidence: AttributionEvidence;
 }
 
-export type TokenOrigin = "project" | "framework" | "generated" | "runtime";
+export type TokenOrigin = "project" | "package" | "framework" | "generated" | "runtime";
 export type EditCapability = "atomic" | "color" | "box-sides" | "structured" | "composite" | "raw";
 export interface TokenReference { name: string; origin: TokenOrigin }
 export interface ValueModifier { kind: "alpha" | "fallback" | "expression"; value: string }

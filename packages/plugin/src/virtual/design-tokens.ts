@@ -9,7 +9,7 @@ export interface TokenEntry {
   cssValue?: string;
   adapter?: string;
   cssName?: string;
-  origin?: "project" | "framework" | "generated" | "runtime";
+  origin?: "project" | "package" | "framework" | "generated" | "runtime";
   editable?: boolean;
 }
 
@@ -44,7 +44,7 @@ export interface TokenDefinition {
   declarations: TokenDeclaration[];
   cssValue?: string;
   adapter?: string;
-  origin?: "project" | "framework" | "generated" | "runtime";
+  origin?: "project" | "package" | "framework" | "generated" | "runtime";
   editable?: boolean;
 }
 

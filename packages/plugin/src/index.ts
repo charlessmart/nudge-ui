@@ -11,6 +11,7 @@ import {
 import type { Alias, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { injectIdentity } from "./transform/injectDataCid.ts";
 import { parseTokenCatalog } from "./tokens/parseTokens.ts";
+import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
 import type { TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
 import { annotateTailwindV4Catalog, createTailwindV4Adapter } from "./adapters/tailwindV4.ts";
 import { createTailwindV3Adapter } from "./adapters/tailwindV3.ts";
@@ -56,6 +57,20 @@ function relativePath(id: string, root?: string): string {
     if (id.startsWith(rootPrefix)) return id.slice(rootPrefix.length);
   }
   return id.replace(/^\//, "");
+}
+
+function isPackageStylesheet(id: string, projectRoot: string | undefined): boolean {
+  return !isHostApplicationSource(id, projectRoot);
+}
+
+/** Keep package sources useful to people without serialising machine-specific paths. */
+function catalogSourcePath(id: string, projectRoot: string | undefined): string {
+  const fileId = stripCssQuery(id).replace(/\\/g, "/");
+  if (!isPackageStylesheet(fileId, projectRoot)) return relativePath(fileId, projectRoot);
+  const nodeModules = fileId.lastIndexOf("/node_modules/");
+  if (nodeModules >= 0) return fileId.slice(nodeModules + "/node_modules/".length);
+  if (projectRoot) return relative(projectRoot, fileId).replace(/\\/g, "/");
+  return fileId.replace(/^\//, "");
 }
 
 export function isHostApplicationSource(
@@ -162,6 +177,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   let devServer: ViteDevServer | undefined;
   let postTransformPromise: Promise<void> | null = null;
   const cssTokens = new Map<string, TokenDefinition[]>();
+  let activePackageCssFiles = new Set<string>();
   const componentContracts = new Map<string, ComponentContract[]>();
   if (options.componentMetadata?.length) {
     componentContracts.set("package-manifests", options.componentMetadata.map((contract) => ({
@@ -178,7 +194,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   function cacheTokensForFile(id: string, code: string, sourceScan = false): void {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
-    const rel = relativePath(fileId, root);
+    const rel = catalogSourcePath(fileId, root);
     const parsed = parseTokenCatalog(code, rel);
     if (sourceScan && root && fileId.startsWith(root) && !fileId.includes("/node_modules/")) {
       // The initial source scan sees authored CSS before Tailwind expands its
@@ -190,9 +206,12 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       [...projectTailwindTokenNamesByFile.values()].flatMap((names) => [...names]),
     );
     const tailwindV4 = createTailwindV4Adapter(code);
-    cssTokens.set(fileId, tailwindV4.detect()
+    const catalog = tailwindV4.detect()
       ? annotateTailwindV4Catalog(parsed, { projectTokenNames: projectTailwindTokenNames })
-      : parsed);
+      : parsed;
+    cssTokens.set(fileId, isPackageStylesheet(fileId, root)
+      ? catalog.map((definition) => ({ ...definition, origin: "package", editable: false }))
+      : catalog);
   }
 
   function cacheComponentsForFile(id: string, code: string): void {
@@ -200,6 +219,27 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     const rel = relativePath(fileId, root);
     componentContracts.set(fileId, extractComponentContracts(code, rel));
+  }
+
+  async function refreshActiveStylesheetTokens(): Promise<void> {
+    if (!devServer || !root) return;
+    const graph = await discoverCssImportGraph(scanCssFiles(root), {
+      read: (id) => readFileSync(id, "utf8"),
+      resolve: async (specifier, importer) => {
+        const resolved = await devServer!.pluginContainer.resolveId(specifier, importer);
+        return resolved?.id ?? null;
+      },
+    });
+    const nextPackageFiles = new Set<string>();
+    for (const [id, code] of graph.files) {
+      const fileId = stripCssQuery(id);
+      cacheTokensForFile(fileId, code, isHostApplicationSource(fileId, root));
+      if (isPackageStylesheet(fileId, root)) nextPackageFiles.add(fileId);
+    }
+    for (const previous of activePackageCssFiles) {
+      if (!nextPackageFiles.has(previous)) cssTokens.delete(previous);
+    }
+    activePackageCssFiles = nextPackageFiles;
   }
 
   function ensurePostTransformCss(): Promise<void> {
@@ -210,14 +250,17 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     // imports. Ask Vite to transform every authored stylesheet first so
     // Tailwind's generated CSS (rather than just `@import "tailwindcss"`) has
     // passed through the normal plugin pipeline and reached our transform hook.
-    postTransformPromise = Promise.all(scanCssFiles(root).map(async (cssPath) => {
-      try {
-        await devServer!.transformRequest(cssPath);
-      } catch {
-        // The regular source scan remains available when a stylesheet cannot
-        // be transformed yet (for example while it is being deleted).
-      }
-    })).then(() => undefined);
+    postTransformPromise = (async () => {
+      await refreshActiveStylesheetTokens();
+      await Promise.all(scanCssFiles(root).map(async (cssPath) => {
+        try {
+          await devServer!.transformRequest(cssPath);
+        } catch {
+          // The regular source scan remains available when a stylesheet cannot
+          // be transformed yet (for example while it is being deleted).
+        }
+      }));
+    })();
     return postTransformPromise;
   }
 
@@ -380,6 +423,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       } catch {
         cssTokens.set(ctx.file, []);
       }
+
+      await refreshActiveStylesheetTokens();
 
       // ctx.read() returns authored source. Re-run the CSS through Vite so the
       // transform hook can replace that snapshot with Tailwind's generated

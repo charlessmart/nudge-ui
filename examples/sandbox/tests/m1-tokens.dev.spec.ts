@@ -23,3 +23,27 @@ test("dev: virtual:design-tokens module renders populated token table", async ({
   expect(Array.isArray(designTokens)).toBe(true);
   expect((designTokens as unknown[]).length).toBeGreaterThanOrEqual(20);
 });
+
+test("dev: first catalog load follows the active package CSS import graph", async ({ page }) => {
+  await page.goto("/");
+
+  const packageTokens = await page.evaluate(() => {
+    const catalog = (window as unknown as {
+      __designTokenCatalog?: Array<{ cssName: string; origin?: string; editable?: boolean; declarations: Array<{ source: string }> }>;
+    }).__designTokenCatalog ?? [];
+    return [
+      "--color-content-primary",
+      "--color-content-secondary",
+      "--spacing-200",
+      "--border-radius-medium",
+    ].map((cssName) => catalog.find((token) => token.cssName === cssName));
+  });
+
+  expect(packageTokens).toEqual([
+    expect.objectContaining({ origin: "package", editable: false }),
+    expect.objectContaining({ origin: "package", editable: false }),
+    expect.objectContaining({ origin: "package", editable: false }),
+    expect.objectContaining({ origin: "package", editable: false }),
+  ]);
+  expect(packageTokens[0]?.declarations[0]?.source).toMatch(/package-css-fixture\/theme\.css:4$/);
+});

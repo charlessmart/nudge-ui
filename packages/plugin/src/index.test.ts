@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -160,6 +160,130 @@ describe("designTool component contract catalog", () => {
 });
 
 describe("designTool token catalog compiler", () => {
+  it("discovers only Vite-resolved package CSS imports with package provenance", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-package-css-"));
+    const root = join(parent, "app");
+    const packageRoot = join(parent, "node_modules", "@fixture");
+    const appCss = join(root, "app.css");
+    const themeCss = join(packageRoot, "theme.css");
+    const foundationsCss = join(packageRoot, "foundations.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(appCss, '@import "@fixture/theme.css"; @import "@fixture/theme.css";');
+      writeFileSync(themeCss, '@import "./foundations.css"; :root { --color-content-primary: #20211f; --color-content-secondary: #6d6e69; }');
+      writeFileSync(foundationsCss, ':root { --spacing-200: 8px; --border-radius-medium: 12px; }');
+      writeFileSync(join(parent, "node_modules", "unrelated.css"), ':root { --unrelated: hotpink; }');
+
+      const server = {
+        pluginContainer: {
+          resolveId: async (specifier: string, importer: string) => {
+            if (specifier === "@fixture/theme.css") return { id: themeCss };
+            if (specifier === "./foundations.css" && importer === themeCss) return { id: foundationsCss };
+            return null;
+          },
+        },
+        transformRequest: async () => null,
+      };
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+      const code = await plugin.load!("\0virtual:design-tokens");
+      const catalog = JSON.parse(code!.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]") as Array<{
+        cssName: string;
+        origin?: string;
+        editable?: boolean;
+        declarations: Array<{ source: string }>;
+      }>;
+
+      for (const name of ["--color-content-primary", "--color-content-secondary", "--spacing-200", "--border-radius-medium"]) {
+        expect(catalog.find((definition) => definition.cssName === name)).toMatchObject({
+          origin: "package",
+          editable: false,
+        });
+      }
+      expect(catalog.find((definition) => definition.cssName === "--color-content-primary")?.declarations[0]?.source)
+        .toBe("@fixture/theme.css:1");
+      expect(catalog.some((definition) => definition.cssName === "--unrelated")).toBe(false);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("refreshes and removes reachable package CSS entries on HMR", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-package-css-hmr-"));
+    const root = join(parent, "app");
+    const packageRoot = join(parent, "node_modules", "@fixture");
+    const appCss = join(root, "app.css");
+    const themeCss = join(packageRoot, "theme.css");
+    const foundationsCss = join(packageRoot, "foundations.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(appCss, '@import "@fixture/theme.css";');
+      writeFileSync(themeCss, '@import "./foundations.css"; :root { --color-content-primary: #20211f; }');
+      writeFileSync(foundationsCss, ':root { --spacing-200: 8px; }');
+
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: {
+          resolveId: async (specifier: string, importer: string) => {
+            if (specifier === "@fixture/theme.css") return { id: themeCss };
+            if (specifier === "./foundations.css" && importer === themeCss) return { id: foundationsCss };
+            return null;
+          },
+        },
+        transformRequest: async () => null,
+        moduleGraph: {
+          getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
+          invalidateModule: () => undefined,
+        },
+      };
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+        handleHotUpdate?: (context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }) => Promise<unknown>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+      await plugin.load!("\0virtual:design-tokens");
+
+      writeFileSync(foundationsCss, ':root { --spacing-300: 12px; }');
+      await plugin.handleHotUpdate!({
+        file: foundationsCss,
+        read: async () => ':root { --spacing-300: 12px; }',
+        server,
+        modules: [],
+      });
+      let code = await plugin.load!("\0virtual:design-tokens");
+      expect(code).toContain("--spacing-300");
+      expect(code).not.toContain("--spacing-200");
+
+      writeFileSync(appCss, ':root { --project-color: #ffffff; }');
+      await plugin.handleHotUpdate!({
+        file: appCss,
+        read: async () => ':root { --project-color: #ffffff; }',
+        server,
+        modules: [],
+      });
+      code = await plugin.load!("\0virtual:design-tokens");
+      expect(code).toContain("--project-color");
+      expect(code).not.toContain("--color-content-primary");
+      expect(code).not.toContain("--spacing-300");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
   it("keeps authored Tailwind v4 theme tokens editable project tokens", async () => {
     const root = mkdtempSync(join(tmpdir(), "design-tool-catalog-"));
     try {
