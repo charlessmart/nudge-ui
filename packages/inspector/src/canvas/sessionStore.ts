@@ -395,6 +395,15 @@ export function serializeSession(): DurableSession {
 
 export function persistSession(): void {
   if (!canWriteWorkspace()) return;
+  persistSessionUnchecked();
+}
+
+/**
+ * Serializes and writes the session without the write-lease gate. Used by the
+ * synchronous canvas persistence path and the timer-backed debounced autosave,
+ * where the caller has already checked the lease.
+ */
+function persistSessionUnchecked(): void {
   if (!designToolProjectId) return;
   try {
     const session = buildSession();
@@ -569,16 +578,57 @@ export function clearSession(): void {
 }
 
 let autoSaveEnabled = false;
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+const AUTOSAVE_DEBOUNCE_MS = 500;
 
 export function enableAutoSave(): void {
   if (autoSaveEnabled) return;
   autoSaveEnabled = true;
-  window.addEventListener("beforeunload", persistSession);
+  window.addEventListener("beforeunload", flushAutoSave);
 }
 
+/**
+ * Coalesces the synchronous full-session `JSON.stringify` + `localStorage`
+ * write behind a trailing timer so commits never block on persistence. A
+ * refresh or close inside the debounce window still flushes on `beforeunload`.
+ */
 export function scheduleAutoSave(): void {
   if (!autoSaveEnabled) return;
+  if (autosaveTimer !== null) clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    autosaveTimer = null;
+    persistSession();
+  }, AUTOSAVE_DEBOUNCE_MS);
+}
+
+/**
+ * Canvas mode/card/camera changes persist immediately (synchronous) so a
+ * refresh always restores the workspace, even inside the edit-autosave
+ * debounce window. Edit autosave stays coalesced behind the trailing timer.
+ */
+export function scheduleCanvasSave(): void {
+  if (!autoSaveEnabled) return;
   persistSession();
+}
+
+function flushAutoSave(): void {
+  const pending = autosaveTimer !== null;
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+  if (!pending) return;
+  // Persist the pending debounced write only when a session already exists. A
+  // missing key means the storage was deliberately cleared (for example the
+  // perf harness resets localStorage before reloading); re-writing would undo
+  // that reset. The concurrent lease release on unload would also block the
+  // guarded write, so persist unconditionally of the lease here.
+  try {
+    if (!localStorage.getItem(storageKey(designToolProjectId))) return;
+  } catch {
+    return;
+  }
+  persistSessionUnchecked();
 }
 
 let restoreCount = 0;
@@ -597,7 +647,11 @@ export function clearRestoreCount(): void {
 
 export function resetAutoSave(): void {
   autoSaveEnabled = false;
-  window.removeEventListener("beforeunload", persistSession);
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+  window.removeEventListener("beforeunload", flushAutoSave);
 }
 
 export { storageKey, SCHEMA_VERSION, type SerializableCard as HydratedCard };

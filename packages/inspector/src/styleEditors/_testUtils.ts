@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { act } from "react";
 import type { SelectedElement } from "../selectionStore.ts";
+import { getManagedSheetText } from "../managedStylesheet.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -113,5 +114,5 @@ export function selectOptionValues(select: HTMLElement): string[] {
 }
 
 export function sheetText(): string {
-  return document.getElementById("design-tool-styles")?.textContent ?? "";
+  return getManagedSheetText();
 }

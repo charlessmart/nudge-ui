@@ -23,7 +23,10 @@ test("dev: a blocked managed preview remains visible in the change log", async (
     return root?.querySelector('[data-test="preview-conflict"]')?.textContent ?? "";
   })).toContain("important");
 
-  const managedCss = await page.locator("#design-tool-styles").textContent();
-  expect(managedCss).toContain("font-size: 22px");
-  expect(managedCss).not.toContain("!important");
+  await expect
+    .poll(async () => page.locator("#design-tool-styles").textContent(), { timeout: 5000 })
+    .toContain("font-size: 22px");
+  await expect
+    .poll(async () => page.locator("#design-tool-styles").textContent(), { timeout: 5000 })
+    .not.toContain("!important");
 });

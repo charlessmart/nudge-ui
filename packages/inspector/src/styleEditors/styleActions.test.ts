@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { setStyle, swapToken, resetPendingRules, getPendingRules, getChangeRecords } from "../tokens/editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
+import { getManagedSheetText } from "../managedStylesheet.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");
@@ -28,9 +29,7 @@ describe("setStyle", () => {
   it("writes a rule keyed by [data-cid][data-src] mapping property to the raw value", () => {
     const btn = makeButton();
     setStyle(btn, "padding", "24px 8px 24px 8px");
-    const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
-    expect(sheet).not.toBeNull();
-    const text = sheet.textContent ?? "";
+    const text = getManagedSheetText();
     expect(text).toContain('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
     expect(text).toContain("padding: 24px 8px 24px 8px;");
   });
@@ -63,7 +62,7 @@ describe("setStyle", () => {
     setStyle(btn, "padding", "10px");
     setStyle(btn, "padding", "24px 24px 24px 24px");
     expect(getPendingRules()).toHaveLength(1);
-    const text = (document.getElementById("design-tool-styles") as HTMLStyleElement).textContent ?? "";
+    const text = getManagedSheetText() ;
     expect(text).toContain("padding: 24px 24px 24px 24px;");
     expect(text).not.toContain("padding: 10px;");
   });
@@ -73,7 +72,7 @@ describe("setStyle", () => {
     setStyle(btn, "padding", "10px");
     setStyle(btn, "margin", "12px");
     expect(getPendingRules()).toHaveLength(2);
-    const text = (document.getElementById("design-tool-styles") as HTMLStyleElement).textContent ?? "";
+    const text = getManagedSheetText() ;
     expect(text).toContain("padding: 10px;");
     expect(text).toContain("margin: 12px;");
   });
@@ -83,7 +82,7 @@ describe("setStyle", () => {
     swapToken(btn, "color", COLOR_BLUE, null);
     setStyle(btn, "color", "#abcdef");
     expect(getPendingRules()).toHaveLength(1);
-    const text = (document.getElementById("design-tool-styles") as HTMLStyleElement).textContent ?? "";
+    const text = getManagedSheetText() ;
     expect(text).toContain("color: #abcdef;");
     expect(text).not.toContain("var(--color-blue)");
   });

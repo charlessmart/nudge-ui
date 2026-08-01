@@ -10,6 +10,7 @@ import {
 } from "./editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { setActiveStyleState } from "../styleState.ts";
+import { getManagedSheetText } from "../managedStylesheet.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");
@@ -67,9 +68,7 @@ describe("swapToken", () => {
   it("writes a rule keyed by [data-cid][data-src*] mapping property to var(name)", () => {
     const btn = makeButton();
     swapToken(btn, "background", COLOR_BLUE, COLOR_RAISED);
-    const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
-    expect(sheet).not.toBeNull();
-    const text = sheet.textContent ?? "";
+    const text = getManagedSheetText();
     expect(text).toContain('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
     expect(text).toContain("background: var(--color-blue);");
   });
@@ -78,14 +77,14 @@ describe("swapToken", () => {
     const btn = makeButton();
     const rec = swapToken(btn, "color", SPRINKLES_BRAND, null);
     expect(rec?.newToken?.name).toBe("theme.color.brand");
-    expect(document.getElementById("design-tool-styles")?.textContent).toContain("color: var(--color-brand__hash);");
+    expect(getManagedSheetText()).toContain("color: var(--color-brand__hash);");
   });
 
   it("uses a config token's literal CSS value when Tailwind v3 has no emitted custom property", () => {
     const btn = makeButton();
     const rec = swapToken(btn, "padding-top", TAILWIND_V3_SPACE, null);
     expect(rec?.newToken?.name).toBe("theme.spacing.3");
-    expect(document.getElementById("design-tool-styles")?.textContent).toContain("padding-top: 0.75rem;");
+    expect(getManagedSheetText()).toContain("padding-top: 0.75rem;");
   });
 
   it("writes a state-qualified selector and preserves the state on the change", () => {
@@ -94,7 +93,7 @@ describe("swapToken", () => {
     const rec = swapToken(btn, "background", COLOR_BLUE, COLOR_RAISED);
     expect(rec?.state).toBe("hover");
     expect(rec?.selector).toContain(':hover');
-    expect(document.getElementById("design-tool-styles")?.textContent).toContain(':hover');
+    expect(getManagedSheetText()).toContain(':hover');
   });
 
   it("recorded change record carries cid, file, selector, property, old/new token", () => {
@@ -115,7 +114,7 @@ describe("swapToken", () => {
     swapToken(btn, "background", COLOR_SUNKEN, COLOR_BLUE);
     const rules = getPendingRules();
     expect(rules).toHaveLength(1);
-    const text = (document.getElementById("design-tool-styles") as HTMLStyleElement).textContent ?? "";
+    const text = getManagedSheetText() ;
     expect(text).toContain("background: var(--color-surface-sunken);");
     expect(text).not.toContain("var(--color-blue)");
   });
@@ -125,7 +124,7 @@ describe("swapToken", () => {
     swapToken(btn, "background", COLOR_BLUE, null);
     swapToken(btn, "border-radius", SPACE_2, null);
     expect(getPendingRules()).toHaveLength(2);
-    const text = (document.getElementById("design-tool-styles") as HTMLStyleElement).textContent ?? "";
+    const text = getManagedSheetText() ;
     expect(text).toContain("background: var(--color-blue);");
     expect(text).toContain("border-radius: var(--space-2);");
   });
@@ -157,7 +156,7 @@ describe("promoteToToken", () => {
     expect(rec).not.toBeNull();
     expect(rec!.oldToken).toBeNull();
     expect(rec!.newToken!.name).toBe("--space-2");
-    const text = (document.getElementById("design-tool-styles") as HTMLStyleElement).textContent ?? "";
+    const text = getManagedSheetText() ;
     expect(text).toContain("border-radius: var(--space-2);");
   });
 

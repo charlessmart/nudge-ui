@@ -306,6 +306,25 @@ describe("changesLog", () => {
     expect(rebuilt[1]!.declarations).toEqual(before[1]!.declarations);
   });
 
+  it("deferred delta verification: a commit does not probe synchronously, and the result lands on the next pass", async () => {
+    const btn = document.createElement("button");
+    btn.setAttribute("data-cid", "Button");
+    btn.setAttribute("data-src", "src/Button.tsx:1:1");
+    document.body.appendChild(btn);
+
+    appendChange(makeRecord("background", COLOR_B, COLOR_A));
+    const afterCommit = getChangesList()[0] as ElementChangeRecord;
+    // The commit handler returns before any querySelectorAll/probe work runs.
+    expect(afterCommit.previewResult).toBeUndefined();
+
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const verified = getChangesList()[0] as ElementChangeRecord;
+    expect(verified.previewResult).toBeDefined();
+    expect(verified.previewResult!.status).toBe("applied");
+    btn.remove();
+  });
+
   it("returning to the original baseline removes the canonical delta", () => {
     appendChange(makeRecord("background", COLOR_B, COLOR_A));
     appendChange(makeRecord("background", COLOR_A, COLOR_B));

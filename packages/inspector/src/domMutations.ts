@@ -324,10 +324,10 @@ function undoLiveMutation(mutation: LiveMutation): void {
 }
 
 function commit(mutation: LiveMutation): DomMutationRecord {
-  liveMutations = [...liveMutations, mutation];
+  liveMutations.push(mutation);
   refreshSnapshot();
-  undoStack = [...undoStack, mutation];
-  redoStack = [];
+  undoStack.push(mutation);
+  redoStack.length = 0;
   observeForSnapBack(mutation);
   notify();
   return mutation.record;
@@ -408,9 +408,9 @@ export function revertDomMutation(record: DomMutationRecord): void {
 export function undoDomMutation(): boolean {
   const mutation = undoStack.at(-1);
   if (!mutation) return false;
-  undoStack = undoStack.slice(0, -1);
+  undoStack.pop();
   undoLiveMutation(mutation);
-  redoStack = [...redoStack, mutation];
+  redoStack.push(mutation);
   notify();
   return true;
 }
@@ -418,9 +418,9 @@ export function undoDomMutation(): boolean {
 export function redoDomMutation(): boolean {
   const mutation = redoStack.at(-1);
   if (!mutation) return false;
-  redoStack = redoStack.slice(0, -1);
+  redoStack.pop();
   applyLiveMutation(mutation);
-  undoStack = [...undoStack, mutation];
+  undoStack.push(mutation);
   notify();
   return true;
 }
@@ -430,10 +430,10 @@ export function clearDomMutations(revert = false): void {
     [...liveMutations].reverse().forEach((mutation) => undoLiveMutation(mutation));
   }
   liveMutations.forEach((mutation) => mutation.observer?.disconnect());
-  liveMutations = [];
+  liveMutations.length = 0;
   refreshSnapshot();
-  undoStack = [];
-  redoStack = [];
+  undoStack.length = 0;
+  redoStack.length = 0;
   notify();
 }
 

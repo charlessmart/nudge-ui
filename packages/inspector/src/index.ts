@@ -13,6 +13,7 @@ import {
   hydrateSession,
   enableAutoSave,
   scheduleAutoSave,
+  scheduleCanvasSave,
   setRestoreCount,
 } from "./canvas/sessionStore.ts";
 import { subscribeChanges, getChangesList } from "./changesLog.ts";
@@ -97,7 +98,7 @@ function startController(inspectorHost: HTMLElement): void {
   enableAutoSave();
   if (!persistenceSubscribed) {
     subscribeChanges(() => scheduleAutoSave());
-    subscribeCanvas(() => scheduleAutoSave());
+    subscribeCanvas(() => scheduleCanvasSave());
     persistenceSubscribed = true;
   }
 }

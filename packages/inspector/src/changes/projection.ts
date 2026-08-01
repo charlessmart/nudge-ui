@@ -47,7 +47,7 @@ export function buildManagedStyleRules(changes: ChangeRecord[]): StyleRule[] {
   return [...map.values()];
 }
 
-function verifyManagedStyleProjection(
+export function verifyManagedStyleProjection(
   change: PreviewableChangeRecord,
 ): PreviewableChangeRecord {
   const selected = getSelectedElement();
@@ -79,15 +79,18 @@ function verifyManagedStyleProjection(
   };
 }
 
+/**
+ * Applies the managed stylesheet and component override projections for a
+ * change set. Projection is synchronous and cheap; verification is never run
+ * here. Delta verification is scheduled by `changesLog` off the commit path so
+ * the commit handler returns before any `querySelectorAll`/probe work.
+ */
 export function applyChangeProjections(
   changes: ChangeRecord[],
-  verify = true,
 ): ChangeRecord[] {
   applyRules(buildManagedStyleRules(changes));
   replaceComponentOverrideProjection(
     changes.filter(isComponentChange).map(componentChangeToOverride),
   );
-  if (!verify) return changes;
-  return changes.map((change) =>
-    isComponentChange(change) ? change : verifyManagedStyleProjection(change));
+  return changes;
 }
