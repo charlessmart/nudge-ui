@@ -6,7 +6,7 @@ declare module "virtual:design-tokens" {
     cssValue?: string;
     adapter?: string;
     cssName?: string;
-    origin?: "project" | "framework" | "generated" | "runtime";
+    origin?: "project" | "package" | "framework" | "generated" | "runtime";
     editable?: boolean;
   }
   export type TokenContextWrapperKind = "media" | "supports" | "scope" | "layer";
@@ -19,10 +19,12 @@ declare module "virtual:design-tokens" {
     declarations: TokenDeclaration[];
     cssValue?: string;
     adapter?: string;
-    origin?: "project" | "framework" | "generated" | "runtime";
+    origin?: "project" | "package" | "framework" | "generated" | "runtime";
     editable?: boolean;
   }
   export const tokens: TokenEntry[];
   export const tokenCatalog: TokenDefinition[];
+  export interface TokenCatalogDiagnostic { code: "vanilla-extract-contract-unresolved" | "vanilla-extract-contract-missing-export" | "vanilla-extract-contract-unsupported-shape"; message: string; module: string; exportName?: string }
+  export const tokenDiagnostics: TokenCatalogDiagnostic[];
   export default tokens;
 }

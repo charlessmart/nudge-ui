@@ -48,9 +48,17 @@ export interface TokenDefinition {
   editable?: boolean;
 }
 
+export interface TokenCatalogDiagnostic {
+  code: "vanilla-extract-contract-unresolved" | "vanilla-extract-contract-missing-export" | "vanilla-extract-contract-unsupported-shape";
+  message: string;
+  module: string;
+  exportName?: string;
+}
+
 export const tokenTable: Record<string, TokenEntry> = {};
 
 /** Authoritative contextual inventory. Runtime values still come from CSS. */
 export const tokenCatalog: TokenDefinition[] = [];
+export const tokenDiagnostics: TokenCatalogDiagnostic[] = [];
 
 export default tokenTable;

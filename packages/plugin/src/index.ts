@@ -12,12 +12,13 @@ import type { Alias, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 import { injectIdentity } from "./transform/injectDataCid.ts";
 import { parseTokenCatalog } from "./tokens/parseTokens.ts";
 import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
-import type { TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
+import type { TokenCatalogDiagnostic, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
 import { annotateTailwindV4Catalog, createTailwindV4Adapter } from "./adapters/tailwindV4.ts";
 import { createTailwindV3Adapter } from "./adapters/tailwindV3.ts";
 import type { TailwindV3Config } from "./adapters/tailwindV3.ts";
 import { createSprinklesAdapter } from "./adapters/vanillaExtract.ts";
-import type { VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
+import type { ThemeContract, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
+import { enrichVanillaExtractCatalog, materializeVanillaExtractContract } from "./adapters/vanillaExtractContract.ts";
 import { createTokenAdapterRegistry } from "./adapters/registry.ts";
 import { extractComponentContracts } from "./components/extractContracts.ts";
 import type { ComponentContract } from "./components/types.ts";
@@ -61,6 +62,10 @@ function relativePath(id: string, root?: string): string {
 
 function isPackageStylesheet(id: string, projectRoot: string | undefined): boolean {
   return !isHostApplicationSource(id, projectRoot);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Keep package sources useful to people without serialising machine-specific paths. */
@@ -178,6 +183,10 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   let postTransformPromise: Promise<void> | null = null;
   const cssTokens = new Map<string, TokenDefinition[]>();
   let activePackageCssFiles = new Set<string>();
+  let publishedThemeContract: ThemeContract | null = null;
+  let publishedThemeContractModuleId: string | null = null;
+  let publishedThemeContractLoaded = false;
+  let tokenDiagnostics: TokenCatalogDiagnostic[] = [];
   const componentContracts = new Map<string, ComponentContract[]>();
   if (options.componentMetadata?.length) {
     componentContracts.set("package-manifests", options.componentMetadata.map((contract) => ({
@@ -219,6 +228,85 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     const rel = relativePath(fileId, root);
     componentContracts.set(fileId, extractComponentContracts(code, rel));
+  }
+
+  async function refreshPublishedThemeContract(): Promise<void> {
+    const moduleSpecifier = options.vanillaExtract?.themeContractModule;
+    if (!moduleSpecifier || !devServer) return;
+    const exportName = options.vanillaExtract?.themeContractExport ?? "vars";
+    publishedThemeContract = null;
+    publishedThemeContractModuleId = null;
+    tokenDiagnostics = [];
+
+    let resolvedId: string | null = null;
+    try {
+      resolvedId = (await devServer.pluginContainer.resolveId(moduleSpecifier))?.id ?? null;
+    } catch {
+      // A diagnostic below gives consumers a stable explanation without making
+      // the ordinary CSS catalog unavailable.
+    }
+    if (!resolvedId) {
+      tokenDiagnostics = [{
+        code: "vanilla-extract-contract-unresolved",
+        module: moduleSpecifier,
+        message: `Could not resolve vanilla-extract contract module ${moduleSpecifier}.`,
+      }];
+      publishedThemeContractLoaded = true;
+      return;
+    }
+    // Retain the resolved id even for an invalid export so a later HMR update
+    // can recover from a package publishing the contract after startup.
+    publishedThemeContractModuleId = stripCssQuery(resolvedId);
+
+    let namespace: Record<string, unknown>;
+    try {
+      namespace = await devServer.ssrLoadModule(resolvedId);
+    } catch {
+      tokenDiagnostics = [{
+        code: "vanilla-extract-contract-unresolved",
+        module: moduleSpecifier,
+        message: `Could not load vanilla-extract contract module ${moduleSpecifier}.`,
+      }];
+      publishedThemeContractLoaded = true;
+      return;
+    }
+    const exported = namespace[exportName];
+    if (exported === undefined) {
+      tokenDiagnostics = [{
+        code: "vanilla-extract-contract-missing-export",
+        module: moduleSpecifier,
+        exportName,
+        message: `Vanilla-extract contract module ${moduleSpecifier} does not export ${exportName}.`,
+      }];
+    } else if (!isRecord(exported)) {
+      tokenDiagnostics = [{
+        code: "vanilla-extract-contract-unsupported-shape",
+        module: moduleSpecifier,
+        exportName,
+        message: `Vanilla-extract contract export ${exportName} from ${moduleSpecifier} must be an object.`,
+      }];
+    } else {
+      publishedThemeContract = exported;
+    }
+    publishedThemeContractLoaded = true;
+  }
+
+  async function ensurePublishedThemeContract(): Promise<void> {
+    if (!options.vanillaExtract?.themeContractModule || publishedThemeContractLoaded) return;
+    await refreshPublishedThemeContract();
+  }
+
+  function enrichCatalogWithPublishedThemeContract(catalog: TokenDefinition[]): TokenDefinition[] {
+    if (!publishedThemeContract) return catalog;
+    const moduleSpecifier = options.vanillaExtract?.themeContractModule;
+    if (!moduleSpecifier) return catalog;
+    return enrichVanillaExtractCatalog(catalog, materializeVanillaExtractContract(publishedThemeContract, {
+      prefix: options.vanillaExtract?.themeContractPrefix,
+      source: options.vanillaExtract?.source ?? moduleSpecifier,
+      origin: publishedThemeContractModuleId && isPackageStylesheet(publishedThemeContractModuleId, root)
+        ? "package"
+        : "project",
+    }));
   }
 
   async function refreshActiveStylesheetTokens(): Promise<void> {
@@ -314,9 +402,10 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       if (id === RESOLVED_TOKENS_ID) {
         // ADR-0002: production builds receive an empty token table.
         if (command === "build") {
-          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const designToolProjectId = "";\nexport default tokens;\n`;
+          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const tokenDiagnostics = [];\nexport const designToolProjectId = "";\nexport default tokens;\n`;
         }
         await ensurePostTransformCss();
+        await ensurePublishedThemeContract();
         const catalogByName = new Map<string, TokenDefinition>();
         let declarationOrder = 0;
         for (const list of cssTokens.values()) {
@@ -346,7 +435,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
             declarations: [{ value: entry.value, source: entry.source, important: false, context: {} }],
           });
         }
-        const catalog = [...catalogByName.values()];
+        const catalog = enrichCatalogWithPublishedThemeContract([...catalogByName.values()]);
         const all: TokenEntry[] = catalog.map((definition) => ({
           name: definition.name,
           cssName: definition.cssName,
@@ -358,8 +447,9 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
           editable: definition.editable,
         }));
         const body = JSON.stringify(all);
+        const diagnostics = JSON.stringify(tokenDiagnostics);
         const projectId = JSON.stringify(options.projectId ?? (root ? basename(root) : ""));
-        return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${body};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
+        return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${body};\nexport const tokenDiagnostics = ${diagnostics};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {
         // ADR-0002: no inspector bootstrap in production builds.
@@ -400,6 +490,16 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     },
     async handleHotUpdate(ctx) {
       if (!enabled || command !== "serve") return;
+      if (publishedThemeContractModuleId && stripCssQuery(ctx.file) === publishedThemeContractModuleId) {
+        publishedThemeContractLoaded = false;
+        await ensurePublishedThemeContract();
+        const virtual = ctx.server.moduleGraph.getModuleById(RESOLVED_TOKENS_ID);
+        if (virtual) {
+          ctx.server.moduleGraph.invalidateModule(virtual);
+          return [...ctx.modules, virtual];
+        }
+        return;
+      }
       if (COMPONENT_EXT.test(ctx.file)) {
         try {
           cacheComponentsForFile(ctx.file, await ctx.read());

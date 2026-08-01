@@ -5,7 +5,14 @@ export type ThemeContract = Record<string, unknown>;
 export type SprinklesClassMap = Record<string, string | { token: string; property?: string }>;
 
 export interface VanillaExtractAdapterOptions {
-  themeContract: ThemeContract;
+  /** Static contract values, retained for simple local configurations. */
+  themeContract?: ThemeContract;
+  /** A Vite-resolvable module exporting a published compiled contract. */
+  themeContractModule?: string;
+  /** Named export containing the contract (defaults to `vars`). */
+  themeContractExport?: string;
+  /** Human-readable path prefix applied to published contract entries. */
+  themeContractPrefix?: string;
   classMap?: SprinklesClassMap;
   cssValues?: Readonly<Record<string, string>>;
   source?: string;
@@ -37,7 +44,7 @@ function walkContract(value: unknown, path: string[], cssValues: Readonly<Record
 
 export function extractVanillaExtractTokens(options: VanillaExtractAdapterOptions): TokenEntry[] {
   const out: TokenEntry[] = [];
-  walkContract(options.themeContract, ["theme"], options.cssValues ?? {}, options.source ?? "theme-contract.ts", out);
+  walkContract(options.themeContract ?? {}, ["theme"], options.cssValues ?? {}, options.source ?? "theme-contract.ts", out);
   return out;
 }
 
@@ -58,7 +65,7 @@ export function resolveSprinklesClassName(className: string, options: VanillaExt
 export function createVanillaExtractAdapter(options: VanillaExtractAdapterOptions): TokenAdapter {
   return {
     name: "vanilla-extract",
-    detect: () => Object.keys(options.themeContract).length > 0,
+    detect: () => Object.keys(options.themeContract ?? {}).length > 0,
     extractTokens: () => extractVanillaExtractTokens(options),
     resolveClassName: (className) => resolveSprinklesClassName(className, options),
   };

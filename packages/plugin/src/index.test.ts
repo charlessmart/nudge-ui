@@ -284,6 +284,121 @@ describe("designTool token catalog compiler", () => {
     }
   });
 
+  it("enriches active package CSS with a resolved published contract and refreshes it on HMR", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-vanilla-contract-"));
+    const root = join(parent, "app");
+    const packageRoot = join(parent, "node_modules", "@fixture");
+    const appCss = join(root, "app.css");
+    const themeCss = join(packageRoot, "theme.css");
+    const contractId = join(packageRoot, "contract.ts");
+    try {
+      mkdirSync(root, { recursive: true });
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(appCss, '@import "@fixture/theme.css";');
+      writeFileSync(themeCss, ':root { --color-content-primary: #20211f; --color-content-secondary: #6d6e69; }');
+      let contract: Record<string, unknown> = {
+        vars: { color: { content: { primary: "var(--color-content-primary)" } } },
+      };
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: {
+          resolveId: async (specifier: string) => {
+            if (specifier === "@fixture/theme.css") return { id: themeCss };
+            if (specifier === "@fixture/contract") return { id: contractId };
+            return null;
+          },
+        },
+        ssrLoadModule: async () => contract,
+        transformRequest: async () => null,
+        moduleGraph: {
+          getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
+          invalidateModule: () => undefined,
+        },
+      };
+      const plugin = designTool({
+        vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
+      }) as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+        handleHotUpdate?: (context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }) => Promise<unknown>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+
+      let code = await plugin.load!("\0virtual:design-tokens");
+      expect(code).toContain('"name":"theme.color.content.primary"');
+      expect(code).toContain('"value":"#20211f"');
+      expect(code).toContain('"origin":"package"');
+      expect((code!.match(/--color-content-primary/g) ?? []).length).toBeGreaterThan(0);
+
+      contract = { vars: { color: { content: { secondary: "var(--color-content-secondary)" } } } };
+      await plugin.handleHotUpdate!({
+        file: contractId,
+        read: async () => "export const vars = {};",
+        server,
+        modules: [],
+      });
+      code = await plugin.load!("\0virtual:design-tokens");
+      expect(code).toContain('"name":"theme.color.content.secondary"');
+      expect(code).not.toContain('"name":"theme.color.content.primary"');
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ["unresolved", null, {}, "vanilla-extract-contract-unresolved"],
+    ["missing export", "/fixture/contract.ts", {}, "vanilla-extract-contract-missing-export"],
+    ["unsupported shape", "/fixture/contract.ts", { vars: "not-an-object" }, "vanilla-extract-contract-unsupported-shape"],
+  ])("fails soft with a %s published-contract diagnostic", async (_label, resolvedId, namespace, code) => {
+    const plugin = designTool({
+      vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
+    }) as unknown as {
+      configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+      configureServer?: (server: unknown) => void;
+      load?: (id: string) => string | null | Promise<string | null>;
+    };
+    plugin.configResolved!({ root: "/app", command: "serve" });
+    plugin.configureServer!({
+      pluginContainer: { resolveId: async () => resolvedId ? { id: resolvedId } : null },
+      ssrLoadModule: async () => namespace,
+    });
+
+    const virtual = await plugin.load!("\0virtual:design-tokens");
+    expect(virtual).toContain(code);
+    expect(virtual).toContain("tokenCatalog = []");
+  });
+
+  it("keeps CSS-derived tokens available when an optional contract export is invalid", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-invalid-contract-"));
+    try {
+      writeFileSync(join(root, "app.css"), ':root { --still-available: #123456; }');
+      const plugin = designTool({
+        vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
+      }) as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!({
+        pluginContainer: { resolveId: async () => ({ id: "/fixture/contract.ts" }) },
+        ssrLoadModule: async () => ({ vars: "invalid" }),
+      });
+      plugin.buildStart!();
+
+      const virtual = await plugin.load!("\0virtual:design-tokens");
+      expect(virtual).toContain("--still-available");
+      expect(virtual).toContain("vanilla-extract-contract-unsupported-shape");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("keeps authored Tailwind v4 theme tokens editable project tokens", async () => {
     const root = mkdtempSync(join(tmpdir(), "design-tool-catalog-"));
     try {

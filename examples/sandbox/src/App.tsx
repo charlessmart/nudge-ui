@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { Button } from "./Button";
 import { Footer } from "./Footer";
 import { RepeatedItem } from "./RepeatedItem";
-import { tokenCatalog, tokens } from "virtual:design-tokens";
+import { tokenCatalog, tokenDiagnostics, tokens } from "virtual:design-tokens";
 
 if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as { __designTokens?: unknown }).__designTokens = tokens;
   (window as unknown as { __designTokenCatalog?: unknown }).__designTokenCatalog = tokenCatalog;
+  (window as unknown as { __designTokenDiagnostics?: unknown }).__designTokenDiagnostics = tokenDiagnostics;
 }
 
 const featureList = [
