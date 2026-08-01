@@ -49,7 +49,7 @@ test("dev: logical spacing projects onto physical inspector side controls", asyn
       marginBottom: field("margin-bottom"),
     };
   })).toEqual({
-    paddingHorizontal: { token: "--conformance-space", value: "--conformance-space" },
+    paddingHorizontal: { token: "1", value: "--conformance-space" },
     paddingVertical: { token: null, value: "0px" },
     marginTop: { token: null, value: "1rem" },
     marginBottom: { token: null, value: "0px" },
@@ -73,8 +73,8 @@ test("dev: logical spacing projects onto physical inspector side controls", asyn
     };
   })).toEqual({
     paddingTop: { token: null, value: "0px" },
-    paddingRight: { token: "--conformance-space", value: "--conformance-space" },
+    paddingRight: { token: "1", value: "--conformance-space" },
     paddingBottom: { token: null, value: "0px" },
-    paddingLeft: { token: "--conformance-space", value: "--conformance-space" },
+    paddingLeft: { token: "1", value: "--conformance-space" },
   });
 });

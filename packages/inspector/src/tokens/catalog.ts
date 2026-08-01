@@ -5,26 +5,11 @@ import type {
 } from "virtual:design-tokens";
 import type { StyleRuleContext } from "../managedStylesheet.ts";
 import { getElementComputedStyle, getElementWindow } from "../domRealm.ts";
+import { presentationForToken } from "./compatibility.ts";
+import type { TokenGroup } from "./compatibility.ts";
 
-export type TokenCatalogGroup = "color" | "spacing" | "typography" | "radius" | "shadow" | "other";
-
-export const TOKEN_GROUP_LABELS: Record<TokenCatalogGroup, string> = {
-  color: "Color",
-  spacing: "Spacing",
-  typography: "Typography",
-  radius: "Radius",
-  shadow: "Shadow",
-  other: "Other",
-};
-
-export const TOKEN_GROUP_ORDER: TokenCatalogGroup[] = [
-  "color",
-  "spacing",
-  "typography",
-  "radius",
-  "shadow",
-  "other",
-];
+export type TokenCatalogGroup = TokenGroup;
+export { TOKEN_GROUP_LABELS, TOKEN_GROUP_ORDER } from "./compatibility.ts";
 
 export interface TokenCatalogRow {
   definition: TokenDefinition;
@@ -137,22 +122,8 @@ export function selectorForContext(context: TokenContext): string {
   return context.selector?.trim() || ":root";
 }
 
-function browserRecognizesColor(value: string): boolean {
-  if (typeof document === "undefined") return /^#(?:[\da-f]{3,8})$/i.test(value.trim());
-  const probe = document.createElement("span");
-  probe.style.color = "";
-  probe.style.color = value.trim();
-  return probe.style.color !== "";
-}
-
 export function classifyCatalogToken(name: string, value = ""): TokenCatalogGroup {
-  const n = name.toLowerCase();
-  if (n.includes("shadow")) return "shadow";
-  if (n.includes("radius") || n.includes("rounded")) return "radius";
-  if (n.includes("font") || n.includes("type") || n.includes("line-height") || n.includes("letter-spacing")) return "typography";
-  if (n.includes("color") || n.includes("foreground") || n.includes("background") || n.includes("surface") || browserRecognizesColor(value)) return "color";
-  if (n.includes("space") || n.includes("spacing") || n.includes("gap") || n.includes("size")) return "spacing";
-  return "other";
+  return presentationForToken({ name, value, source: "" }).group;
 }
 
 export function buildTokenCatalogRows(

@@ -4,7 +4,8 @@ import { act } from "react";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
-import { classifyToken, getAlternativeTokens, TokenDropdown } from "./TokenDropdown.tsx";
+import { TokenDropdown } from "./TokenDropdown.tsx";
+import { getCompatibleTokenCandidates, presentationForToken } from "./compatibility.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "./resolution.ts";
 import { resetPendingRules } from "./editActions.ts";
@@ -21,47 +22,48 @@ const ENTRIES: TokenEntry[] = [
   { name: "--font-size-base", value: "14px", source: "s:9" },
 ];
 
-describe("classifyToken", () => {
-  it("groups by name prefix", () => {
-    expect(classifyToken("--color-surface-raised")).toBe("color");
-    expect(classifyToken("--space-1")).toBe("spacing");
-    expect(classifyToken("--radius-md")).toBe("radius");
-    expect(classifyToken("--font-size-base")).toBe("typography");
-    expect(classifyToken("--text-sm")).toBe("typography");
-    expect(classifyToken("--z-modal")).toBe("generic");
+describe("token presentation", () => {
+  it("groups familiar names in the one compatibility module", () => {
+    const group = (name: string) => presentationForToken({ name, value: "", source: "fixture.css:1" }).group;
+    expect(group("--color-surface-raised")).toBe("color");
+    expect(group("--space-1")).toBe("spacing");
+    expect(group("--radius-md")).toBe("radius");
+    expect(group("--font-size-base")).toBe("typography");
+    expect(group("--text-sm")).toBe("typography");
+    expect(group("--z-modal")).toBe("generic");
   });
 });
 
-describe("getAlternativeTokens", () => {
+describe("getCompatibleTokenCandidates", () => {
+  function alternativeNames(property: string, currentToken: string | null): string[] {
+    return getCompatibleTokenCandidates({ property, entries: ENTRIES, currentToken }).map(({ entry }) => entry.name);
+  }
+
   it("for a background property returns only color tokens", () => {
-    const result = getAlternativeTokens(ENTRIES, { property: "background", currentToken: "--color-surface-raised" });
-    expect(result.map((e) => e.name)).toEqual(["--color-surface-raised", "--color-surface-sunken"]);
+    expect(alternativeNames("background", "--color-surface-raised")).toEqual(["--color-surface-raised", "--color-surface-sunken"]);
   });
 
-  it("for padding returns only spacing tokens", () => {
-    const result = getAlternativeTokens(ENTRIES, { property: "padding", currentToken: "--space-1" });
-    expect(result.map((e) => e.name)).toEqual(["--space-1", "--space-2"]);
+  it("for padding returns every CSS-compatible dimension, with spacing ranked first", () => {
+    expect(alternativeNames("padding", "--space-1")).toEqual(["--space-1", "--space-2", "--font-size-base", "--radius-md"]);
   });
 
-  it("for border-radius returns only radius tokens", () => {
-    const result = getAlternativeTokens(ENTRIES, { property: "border-radius", currentToken: null });
-    expect(result.map((e) => e.name)).toEqual(["--radius-md"]);
+  it("for border-radius returns every CSS-compatible dimension, with radius ranked first", () => {
+    expect(alternativeNames("border-radius", null)).toEqual(["--radius-md", "--font-size-base", "--space-1", "--space-2"]);
   });
 
   it("keeps a cross-category current token available for the selected field", () => {
-    const result = getAlternativeTokens(ENTRIES, { property: "border-radius", currentToken: "--space-1" });
-    expect(result.map((e) => e.name)).toEqual(["--space-1", "--radius-md"]);
+    expect(alternativeNames("border-radius", "--space-1")).toEqual(["--space-1", "--radius-md", "--font-size-base", "--space-2"]);
   });
 
-  it("for font-size returns only typography tokens", () => {
-    const result = getAlternativeTokens(ENTRIES, { property: "font-size", currentToken: null });
-    expect(result.map((e) => e.name)).toEqual(["--font-size-base"]);
+  it("for font-size returns every CSS-compatible dimension, with typography ranked first", () => {
+    expect(alternativeNames("font-size", null)).toEqual(["--font-size-base", "--radius-md", "--space-1", "--space-2"]);
   });
 
   it("classifies type, leading, and tracking aliases as typography", () => {
-    expect(classifyToken("--type-size-body")).toBe("typography");
-    expect(classifyToken("--leading-body")).toBe("typography");
-    expect(classifyToken("--tracking-tight")).toBe("typography");
+    const group = (name: string) => presentationForToken({ name, value: "", source: "fixture.css:1" }).group;
+    expect(group("--type-size-body")).toBe("typography");
+    expect(group("--leading-body")).toBe("typography");
+    expect(group("--tracking-tight")).toBe("typography");
   });
 });
 
@@ -145,7 +147,7 @@ describe("TokenDropdown rendering", () => {
     btn.remove();
   });
 
-  it("limits a spacing promote select to spacing tokens", () => {
+  it("offers CSS-compatible dimensions in a spacing promote select", () => {
     const btn = makeButton();
     act(() => {
       root.render(
@@ -158,7 +160,7 @@ describe("TokenDropdown rendering", () => {
     });
     const select = host.querySelector('[data-test="token-promote-select"]') as HTMLElement;
     const values = selectOptionValues(select);
-    expect(values).toEqual(["--space-1", "--space-2"]);
+    expect(values).toEqual(["--space-1", "--space-2", "--radius-md", "--font-size-base"]);
     btn.remove();
   });
 

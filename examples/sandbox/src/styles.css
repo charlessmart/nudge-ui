@@ -23,6 +23,10 @@
   --color-info: #3b6e8f;
   --color-info-subtle: #e6f0f6;
   --color-neutral-subtle: #e8e8e5;
+  /* Deliberately omit the old --color-* prefix: compatibility is determined
+     from the resolved CSS value, not a design-system-specific taxonomy. */
+  --content-primary: #20211f;
+  --content-secondary: #6d6e69;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 16px;

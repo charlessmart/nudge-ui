@@ -4,7 +4,12 @@ import { IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { colorValueHasEmbeddedAlpha, normalizeColorOpacity, replaceColorOpacity, replaceColorToken } from "./resolution.ts";
 import type { AtRuleContext, ColorOpacity, ResolvedProperty } from "./resolution.ts";
-import { classifyToken, getAlternativeTokens, groupOfProperty } from "./TokenDropdown.tsx";
+import {
+  getCompatibleTokenCandidates,
+  groupForProperty,
+  presentationForToken,
+} from "./compatibility.ts";
+import type { TokenSemanticSlot } from "./compatibility.ts";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
@@ -19,6 +24,8 @@ import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 
 export interface TokenValueFieldProps {
   property: string;
+  domElement?: HTMLElement;
+  semanticSlot?: TokenSemanticSlot;
   committedValue: string;
   resolvedValue?: string;
   activeTokenName?: string | null;
@@ -45,6 +52,7 @@ export interface TokenValueFieldProps {
 
 export interface TokenFieldProps {
   property: string;
+  semanticSlot?: TokenSemanticSlot;
   tokenRow?: ResolvedProperty | null;
   initialValue?: string;
   domElement: HTMLElement;
@@ -197,6 +205,8 @@ function NativeColorSwatch({
 export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const {
     property,
+    domElement,
+    semanticSlot,
     committedValue,
     resolvedValue = committedValue,
     activeTokenName: controlledTokenName = null,
@@ -254,9 +264,15 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const relevantTokens = useMemo(() => {
     const candidates = allowedTokenNames
       ? entries.filter((entry) => allowedTokenNames.has(entry.name))
-      : getAlternativeTokens(entries, { property, currentToken: activeTokenName });
+      : getCompatibleTokenCandidates({
+        element: domElement,
+        property,
+        slot: semanticSlot,
+        entries,
+        currentToken: activeTokenName,
+      }).map(({ entry }) => entry);
     return candidates.filter((entry) => entry.name !== property);
-  }, [activeTokenName, allowedTokenNames, entries, property]);
+  }, [activeTokenName, allowedTokenNames, domElement, entries, property, semanticSlot]);
   const filteredTokens = useMemo(() => {
     const target = rawValue.toLowerCase();
     return relevantTokens.filter((entry) => !target
@@ -423,7 +439,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           value={activeToken.name}
           open={isTokenPickerOpen}
           trigger={(
-            <span className={`dt-token-chip${chipVariant === "small" ? " dt-token-chip--small" : ""}${embedColorSwatch ? " dt-token-chip--with-swatch" : ""}`} data-group={classifyToken(activeToken.name)}>
+            <span className={`dt-token-chip${chipVariant === "small" ? " dt-token-chip--small" : ""}${embedColorSwatch ? " dt-token-chip--with-swatch" : ""}`} data-group={presentationForToken(activeToken).group}>
               {embedColorSwatch ? colorControlEl : null}
               <span className="dt-token-chip__name">{chipValue}</span>
             </span>
@@ -468,6 +484,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         placeholder={property}
         inputRef={inputRef}
         inputDataTest={inputDataTest}
+        inputOnFocus={() => setIsFocused(true)}
         inputOnBlur={handleRawBlur}
         inputOnKeyDown={handleRawKeyDown}
         items={[
@@ -502,7 +519,7 @@ function arrowDirection(key: string): -1 | 1 | null {
 }
 
 export function TokenField(props: TokenFieldProps): ReactElement {
-  const { property, tokenRow, initialValue, domElement: el, entries, suggestions, inputDataTest, onAfterEdit, editMetadata, leading, trailing, className, label, chipVariant } = props;
+  const { property, semanticSlot, tokenRow, initialValue, domElement: el, entries, suggestions, inputDataTest, onAfterEdit, editMetadata, leading, trailing, className, label, chipVariant } = props;
   const tokenBackedOpacityName = tokenRow?.tokenName
     && tokenRow.opacity
     && tokenRow.opacity.tokenName !== tokenRow.tokenName
@@ -534,6 +551,8 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   return (
     <TokenValueField
       property={property}
+      domElement={el}
+      semanticSlot={semanticSlot}
       committedValue={committedValue}
       resolvedValue={tokenRow?.resolvedValue ?? committedValue}
       activeTokenName={activeTokenName}
@@ -544,7 +563,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       entries={entries}
       suggestions={suggestions}
       inputDataTest={inputDataTest}
-      isColor={groupOfProperty(property) === "color"}
+      isColor={groupForProperty(property, semanticSlot) === "color"}
       formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(property))}
       onCommitRaw={(value) => {
         if (setStyle(el, property, value, editMetadata)) onAfterEdit?.();
@@ -585,7 +604,7 @@ function tokenSuggestion(entry: TokenEntry) {
     value: entry.name,
     label: entry.name,
     "data-test": "suggestion-item",
-    leading: classifyToken(entry.name, entry.value) === "color" ? <ColorSwatch color={entry.value} size="small" /> : undefined,
+    leading: presentationForToken(entry).group === "color" ? <ColorSwatch color={entry.value} size="small" /> : undefined,
     trailing: <span>{entry.value}</span>,
   };
 }

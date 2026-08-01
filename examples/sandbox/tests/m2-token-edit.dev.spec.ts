@@ -142,7 +142,7 @@ test("dev: replacing a hardcoded spacing value with a token writes a rule to the
     .toContain("padding-top: var(--space-2);");
   await expect
     .poll(async () => tokenRows(page), { timeout: 5000 })
-    .toEqual(expect.arrayContaining([expect.objectContaining({ property: "padding-top", token: "--space-2" })]));
+    .toEqual(expect.arrayContaining([expect.objectContaining({ property: "padding-top", token: "8" })]));
 });
 
 test("dev: typing a spacing value keeps its matching token suggestion visible", async ({ page }) => {

@@ -5,105 +5,22 @@ import { getTokenTable } from "./resolution.ts";
 import type { ResolvedProperty } from "./resolution.ts";
 import { swapToken, promoteToToken } from "./editActions.ts";
 import { Select } from "../ui/Select.tsx";
+import {
+  getCompatibleTokenCandidates,
+  TOKEN_GROUP_LABELS,
+  TOKEN_GROUP_ORDER,
+} from "./compatibility.ts";
+import type {
+  CssValueGrammar,
+  TokenCandidate,
+  TokenGroup,
+  TokenSemanticSlot,
+} from "./compatibility.ts";
 
-export type TokenGroup = "color" | "spacing" | "radius" | "typography" | "generic";
-
-export function classifyToken(name: string, value = ""): TokenGroup {
-  if (name.startsWith("--color-")) return "color";
-  if (name.startsWith("--space-")) return "spacing";
-  if (name.startsWith("--radius-")) return "radius";
-  if (name.startsWith("--font-") || name.startsWith("--text-") || name.startsWith("--type-")
-    || name.startsWith("--leading-") || name.startsWith("--tracking-")) return "typography";
-  const humanPath = name.toLowerCase();
-  if (/(^|\.)(color|colors|surface|background|foreground)(\.|$)/.test(humanPath) || /^(?:#|rgb\(|hsl\(|oklch\(|oklab\(|transparent)/i.test(value.trim())) return "color";
-  if (/(^|\.)(space|spacing|size|gap)(\.|$)/.test(humanPath)) return "spacing";
-  if (/(^|\.)(font|typography|lineheight|letterspacing)(\.|$)/.test(humanPath)) return "typography";
-  return "generic";
-}
-
-const GROUP_LABELS: Record<TokenGroup, string> = {
-  color: "Color",
-  spacing: "Spacing",
-  radius: "Radius",
-  typography: "Typography",
-  generic: "Other",
-};
-
-export function groupOfProperty(property: string): TokenGroup {
-  const p = property.toLowerCase();
-  if (
-    p === "background" ||
-    p === "background-color" ||
-    p === "color" ||
-    p === "border-color" ||
-    p === "border-top-color" ||
-    p === "border-right-color" ||
-    p === "border-bottom-color" ||
-    p === "border-left-color" ||
-    p === "outline-color" ||
-    p === "fill" ||
-    p === "stroke" ||
-    p === "box-shadow"
-  ) {
-    return "color";
-  }
-  if (p === "border-radius") return "radius";
-  if (
-    p === "font-size" ||
-    p === "font-weight" ||
-    p === "font-family" ||
-    p === "line-height" ||
-    p === "letter-spacing" ||
-    p === "text-align"
-  ) {
-    return "typography";
-  }
-  if (
-    p === "padding" ||
-    p === "margin" ||
-    p.startsWith("padding-") ||
-    p.startsWith("margin-") ||
-    p === "gap" ||
-    p === "row-gap" ||
-    p === "column-gap" ||
-    p.startsWith("border-") && p.endsWith("-width") ||
-    p === "border-spacing" ||
-    p === "width" ||
-    p === "height" ||
-    p === "min-width" ||
-    p === "max-width" ||
-    p === "min-height" ||
-    p === "max-height" ||
-    p === "top" ||
-    p === "right" ||
-    p === "bottom" ||
-    p === "left"
-  ) {
-    return "spacing";
-  }
-  return "generic";
-}
-
-export interface AlternativeTokensOptions {
-  property: string;
-  currentToken: string | null;
-}
-
-export function getAlternativeTokens(
-  entries: TokenEntry[],
-  opts: AlternativeTokensOptions,
-): TokenEntry[] {
-  const preferredGroup = groupOfProperty(opts.property);
-  return entries.filter((entry) => {
-    const group = classifyToken(entry.name, entry.value);
-    return group === preferredGroup || entry.name === opts.currentToken;
-  });
-}
-
-function groupTokens(entries: TokenEntry[]): Map<TokenGroup, TokenEntry[]> {
-  const map = new Map<TokenGroup, TokenEntry[]>();
+function groupTokens(entries: TokenCandidate[]): Map<TokenGroup, TokenCandidate[]> {
+  const map = new Map<TokenGroup, TokenCandidate[]>();
   for (const entry of entries) {
-    const group = classifyToken(entry.name, entry.value);
+    const group = entry.group;
     let list = map.get(group);
     if (!list) {
       list = [];
@@ -118,22 +35,30 @@ export interface TokenDropdownProps {
   row: ResolvedProperty;
   domElement: HTMLElement;
   entries: TokenEntry[];
+  slot?: TokenSemanticSlot;
+  grammar?: CssValueGrammar;
   onAfterEdit?: () => void;
 }
 
 export function TokenDropdown(props: TokenDropdownProps): ReactElement {
-  const { row, domElement, entries, onAfterEdit } = props;
+  const { row, domElement, entries, slot, grammar, onAfterEdit } = props;
 
-  const alternatives = useMemo(
-    () => getAlternativeTokens(entries, { property: row.property, currentToken: row.tokenName }),
-    [entries, row.property, row.tokenName],
+  const candidates = useMemo(
+    () => getCompatibleTokenCandidates({
+      element: domElement,
+      property: row.property,
+      slot,
+      entries,
+      currentToken: row.tokenName,
+      grammar,
+    }),
+    [domElement, entries, grammar, row.property, row.tokenName, slot],
   );
 
-  const grouped = useMemo(() => groupTokens(alternatives), [alternatives]);
-  const orderedGroups: TokenGroup[] = ["color", "spacing", "radius", "typography", "generic"];
+  const grouped = useMemo(() => groupTokens(candidates), [candidates]);
 
   function handleSelect(value: string): void {
-    const chosen = alternatives.find((entry) => entry.name === value);
+    const chosen = candidates.find(({ entry }) => entry.name === value)?.entry;
     if (!chosen) return;
     const oldToken = row.tokenName
       ? (getTokenTable()[row.tokenName] ?? null)
@@ -151,12 +76,12 @@ export function TokenDropdown(props: TokenDropdownProps): ReactElement {
 
   const hasToken = row.tokenName !== null;
   const selectValue = row.tokenName ?? "";
-  const selectGroups = orderedGroups.flatMap((group) => {
+  const selectGroups = TOKEN_GROUP_ORDER.flatMap((group) => {
     const list = grouped.get(group);
     if (!list || list.length === 0) return [];
     return [{
-      label: GROUP_LABELS[group],
-      options: list.map((entry) => ({ value: entry.name, label: entry.name })),
+      label: TOKEN_GROUP_LABELS[group],
+      options: list.map(({ entry }) => ({ value: entry.name, label: entry.name })),
     }];
   });
 

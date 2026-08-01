@@ -123,6 +123,11 @@ test("dev: color fixture tokens render as chips with type suggestions", async ({
   await page.locator('[data-test="color-case-color-token-simple"]').click();
   await waitForEditors(page);
 
+  await expect.poll(async () => page.evaluate(() => {
+    const catalog = (window as unknown as { __designTokenCatalog?: { cssName: string }[] }).__designTokenCatalog ?? [];
+    return catalog.some((token) => token.cssName === "--content-secondary");
+  })).toBe(true);
+
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-text-primary");
   await expect(fg.locator('[data-test="color-opacity-input"]')).toHaveValue("100%");
@@ -136,6 +141,22 @@ test("dev: color fixture tokens render as chips with type suggestions", async ({
   await setOpacityInput(page, "color", "50%");
   await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
     .toContain("color: color-mix(in srgb, var(--color-text-primary) 50%, transparent);");
+});
+
+test("dev: picker offers a concrete-color peer with an unfamiliar token name", async ({ page }) => {
+  await page.goto("/color-conformance");
+  await page.locator('[data-test="color-case-color-token-simple"]').click();
+  await waitForEditors(page);
+
+  const fg = page.locator('[data-test="token-field"][data-property="color"]');
+  await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-text-primary");
+  await fg.locator('[data-test="token-chip"]').click();
+  const peer = page.getByRole("option", { name: /^--content-secondary/ });
+  await expect(peer).toBeVisible();
+  await peer.click();
+
+  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+    .toContain("color: var(--content-secondary);");
 });
 
 test("dev: color token fallback keeps the fallback in the authored expression", async ({ page }) => {

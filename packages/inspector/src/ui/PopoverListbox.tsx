@@ -24,6 +24,7 @@ export interface PopoverListboxProps {
   inputRef?: Ref<HTMLInputElement>;
   inputClassName?: string;
   inputDataTest?: string;
+  inputOnFocus?: FocusEventHandler<HTMLInputElement>;
   inputOnBlur?: FocusEventHandler<HTMLInputElement>;
   inputOnKeyDown?: KeyboardEventHandler<HTMLInputElement>;
   className?: string;
@@ -46,6 +47,7 @@ export function PopoverListbox({
   inputRef,
   inputClassName,
   inputDataTest,
+  inputOnFocus,
   inputOnBlur,
   inputOnKeyDown,
   className,
@@ -118,21 +120,18 @@ export function PopoverListbox({
           filteredItems={items.map((item) => item.value)}
           autoHighlight
           mode="none"
+          openOnInputClick
           onValueChange={onQueryChange}
           onOpenChange={(next) => onOpenChange(next)}
         >
           <Autocomplete.Input
             ref={inputRef}
-            render={(
-              <input
-                className={`dt-text-input${inputClassName ? ` ${inputClassName}` : ""}`}
-                placeholder={placeholder}
-                data-test={inputDataTest}
-                onFocus={() => onOpenChange(true)}
-                onBlur={inputOnBlur}
-                onKeyDownCapture={inputOnKeyDown}
-              />
-            )}
+            className={`dt-text-input${inputClassName ? ` ${inputClassName}` : ""}`}
+            placeholder={placeholder}
+            data-test={inputDataTest}
+            onFocus={inputOnFocus}
+            onBlur={inputOnBlur}
+            onKeyDownCapture={inputOnKeyDown}
           />
           <Autocomplete.Portal container={portalContainer}>
             <Autocomplete.Positioner className="dt-popover-listbox__positioner">

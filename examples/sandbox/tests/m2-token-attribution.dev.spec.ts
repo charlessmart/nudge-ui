@@ -7,8 +7,15 @@ test("dev: catalog retains light and dark declarations for one token", async ({ 
     return catalog.find((token) => token.cssName === "--color-surface-raised");
   });
   expect(surface?.declarations).toEqual(expect.arrayContaining([
-    expect.objectContaining({ source: "src/styles.css:4" }),
-    expect.objectContaining({ source: "src/styles.css:29" }),
+    expect.objectContaining({
+      source: expect.stringMatching(/^src\/styles\.css:\d+$/),
+      value: "#ffffff",
+    }),
+    expect.objectContaining({
+      context: { selector: ':root[data-theme="dark"]' },
+      source: expect.stringMatching(/^src\/styles\.css:\d+$/),
+      value: "#17151f",
+    }),
   ]));
 });
 
