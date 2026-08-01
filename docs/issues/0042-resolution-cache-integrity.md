@@ -37,21 +37,36 @@ large app, without changing resolution semantics:
 
 ## Acceptance criteria
 
-- [ ] Re-selecting the same element resolves from the warm snapshot cache
+- [x] Re-selecting the same element resolves from the warm snapshot cache
       (no re-collect, no re-match) when the cascade is unchanged.
-- [ ] The tool's own probe mutations (`data-design-tool` nodes) no longer
+- [x] The tool's own probe mutations (`data-design-tool` nodes) no longer
       invalidate the resolution caches mid-resolve.
-- [ ] Host attribute churn (non-stylesheet) no longer bumps the stylesheet
+- [x] Host attribute churn (non-stylesheet) no longer bumps the stylesheet
       revision or the selector-match cache.
-- [ ] `computeSpecificity` is computed at most once per selector string per
+- [x] `computeSpecificity` is computed at most once per selector string per
       collect; per-resolve redundant recomputation is eliminated.
-- [ ] Unit tests cover revision accounting (probe filtering, stylesheet vs
+- [x] Unit tests cover revision accounting (probe filtering, stylesheet vs
       element churn) and snapshot-keying correctness on edit invalidation.
-- [ ] Harness (0041): warm repeat-select latency drops materially vs the
+- [x] Harness (0041): warm repeat-select latency drops materially vs the
       recorded baseline; reveal and commit budgets unchanged or improved.
-- [ ] `pnpm lint`, `pnpm typecheck`, unit tests, and
+- [x] `pnpm lint`, `pnpm typecheck`, unit tests, and
       `pnpm --filter sandbox build` pass; production bundle unchanged
       (ADR-0002).
+
+## Results (2026-08-01, harness median of 3)
+
+| Metric | Baseline | After 0042 | Budget |
+| --- | --- | --- | --- |
+| Cold reveal | 1081 ms | 14.0 ms | 100 ms — PASS |
+| Warm repeat-select | 795 ms | 116.3 ms | 30 ms (0043) — target `<200 ms` met |
+| Edit commit | 410 ms | 456.0 ms | 50 ms — FAIL (0044 scope) |
+| Growth (#20 vs #1) | 8.71× | 8.47× | 2× — FAIL (0044 scope) |
+
+Delivered by: per-element token-entries cache keyed on (element revision,
+stylesheet revision, definitions) with a memoized `TokenTable`
+(`resolution.ts`), observer probe/attribute filtering via a registered-element
+set (`cssomCollector.ts`), and a memoized `computeSpecificity`
+(`selectorSemantics.ts`).
 
 ## Out of scope
 

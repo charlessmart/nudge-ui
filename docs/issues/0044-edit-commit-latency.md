@@ -35,20 +35,20 @@ the synchronous commit path:
 
 ## Acceptance criteria
 
-- [ ] A commit verifies only the delta change; verification of prior changes
+- [x] A commit verifies only the delta change; verification of prior changes
       does not run in the synchronous commit handler.
-- [ ] Managed stylesheet writes touch only changed rules via CSSOM; the
+- [x] Managed stylesheet writes touch only changed rules via CSSOM; the
       sheet stays last in `<head>` and edits still lose to author `!important`
       rules as before.
-- [ ] Autosave is debounced and does not block the commit handler; a
+- [x] Autosave is debounced and does not block the commit handler; a
       refresh/close within the debounce window still persists.
-- [ ] Unit tests cover rule-diffing correctness (update/remove/restore
+- [x] Unit tests cover rule-diffing correctness (update/remove/restore
       round-trip through the managed sheet), delta verification semantics,
       and debounced persistence flush.
-- [ ] Harness (0041): commit budget met with a long session (tens of
+- [x] Harness (0041): commit budget met with a long session (tens of
       accumulated edits) — cost no longer grows linearly per commit with
       session length.
-- [ ] `pnpm lint`, `pnpm typecheck`, unit tests, and
+- [x] `pnpm lint`, `pnpm typecheck`, unit tests, and
       `pnpm --filter sandbox build` pass; production bundle unchanged
       (ADR-0002).
 
@@ -61,3 +61,25 @@ the synchronous commit path:
 
 - 0041 — Large-app performance harness.
 - 0042 — Resolution cache integrity.
+
+## Results (2026-08-01, harness median of 3)
+
+| Metric | Before 0044 | After 0044 | Budget |
+| --- | --- | --- | --- |
+| Cold reveal | 34.4 ms | 36.7 ms | 100 ms — PASS |
+| Warm repeat-select | 17.6 ms | 14.2 ms | 30 ms — PASS |
+| Edit commit | 79.0 ms | 5.0 ms | 50 ms — PASS |
+| Growth (#20 vs #1) | 39.97× | 0.94× | 2× — PASS |
+
+Delivered by: delta-only verification scheduled off the commit path via
+`requestIdleCallback` (`changesLog.ts` `markForVerification`/`flushVerification`),
+incremental CSSOM writes diffing only changed rules (`managedStylesheet.ts`
+`applyRules`), trailing-debounced autosave (`sessionStore.ts` `scheduleAutoSave`),
+and `push`/`pop` history stacks (`changesLog.ts`, `domMutations.ts`).
+
+Verification: 954 unit tests (856 inspector + 98 plugin), `pnpm lint`,
+`pnpm typecheck`, sandbox build with identical dist hashes
+(`index-D0sGTtXL.css` / `index-BKTszAt1.js`) and 0 `data-design-tool` matches
+in the production bundle (ADR-0002), and dev e2e with only the 9 pre-existing
+`main` failures. Two e2e specs (`m2-preview-conflict:3`, `m2-style-editors:58`)
+now poll the deferred text mirror instead of reading `textContent` synchronously.
