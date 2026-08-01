@@ -13,6 +13,7 @@ import type {
 } from "../virtual/design-tokens.ts";
 
 const GLOBAL_TOKEN_AT_RULES = new Set(["theme", "layer", "scope"]);
+const MIN_THEME_TABLE_DECLARATIONS = 8;
 
 function isRootSelectorPart(sel: string): boolean {
   return sel === ":root"
@@ -24,6 +25,19 @@ function isRootSelectorPart(sel: string): boolean {
 function isRootOnlySelector(rule: Rule): boolean {
   const parts = rule.selector.split(",").map((s) => s.trim());
   return parts.length > 0 && parts.every(isRootSelectorPart);
+}
+
+/**
+ * Published design systems often scope an entire theme beneath a class on the
+ * application shell instead of :root (for example, to support multiple themes
+ * on one page). A sufficiently large rule made entirely of custom properties
+ * is a theme table, not a component-local variable declaration. Its selector
+ * is retained in the catalog and resolved against the selected element later.
+ */
+function isScopedThemeTable(rule: Rule): boolean {
+  const declarations = rule.nodes?.filter((node): node is Declaration => node.type === "decl") ?? [];
+  return declarations.length >= MIN_THEME_TABLE_DECLARATIONS
+    && declarations.every((declaration) => declaration.prop.startsWith("--"));
 }
 
 function nearestRule(
@@ -44,7 +58,8 @@ function nearestGlobalAncestor(decl: Declaration): boolean {
   let cur: PostcssNode | undefined = decl.parent;
   while (cur) {
     if (cur.type === "rule") {
-      return isRootOnlySelector(cur as Rule);
+      const rule = cur as Rule;
+      return isRootOnlySelector(rule) || isScopedThemeTable(rule);
     }
     if (cur.type === "atrule") {
       const atRule = cur as AtRule;

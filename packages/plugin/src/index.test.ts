@@ -216,6 +216,88 @@ describe("designTool token catalog compiler", () => {
     }
   });
 
+  it("ignores conventional build output when compiling the dev token catalog", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-build-output-"));
+    const root = join(parent, "app");
+    const sourceCss = join(root, "app.css");
+    const outputCss = join(root, "build", "client", "app.css");
+    try {
+      mkdirSync(join(root, "build", "client"), { recursive: true });
+      writeFileSync(sourceCss, ":root { --color-content-primary: #20211f; }");
+      writeFileSync(outputCss, ":root { --color-content-primary: #ffffff; }");
+
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build"; build?: { outDir?: string } }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!({
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => null,
+      });
+      plugin.buildStart!();
+      const code = await plugin.load!("\0virtual:design-tokens");
+      const catalog = JSON.parse(code!.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]") as Array<{
+        cssName: string;
+        declarations: Array<{ value: string; source: string }>;
+      }>;
+
+      expect(catalog.find((definition) => definition.cssName === "--color-content-primary"))
+        .toMatchObject({ declarations: [expect.objectContaining({ value: "#20211f", source: "app.css:1" })] });
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("falls back to Node package exports when a CSS import bypasses Vite resolution", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-package-css-exports-"));
+    const root = join(parent, "app");
+    const packageRoot = join(parent, "node_modules", "@fixture", "design-system");
+    const appCss = join(root, "app.css");
+    const themeCss = join(packageRoot, "theme.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(appCss, '@import "@fixture/design-system/theme.css";');
+      writeFileSync(
+        join(packageRoot, "package.json"),
+        JSON.stringify({
+          name: "@fixture/design-system",
+          exports: { "./theme.css": "./theme.css" },
+        }),
+      );
+      writeFileSync(themeCss, ':root { --color-content-primary: #20211f; }');
+
+      const server = {
+        pluginContainer: {
+          resolveId: async () => null,
+        },
+        transformRequest: async () => null,
+      };
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+      const code = await plugin.load!("\0virtual:design-tokens");
+      const catalog = JSON.parse(code!.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]") as Array<{
+        cssName: string;
+        origin?: string;
+      }>;
+
+      expect(catalog.find((definition) => definition.cssName === "--color-content-primary"))
+        .toMatchObject({ origin: "package" });
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
   it("refreshes and removes reachable package CSS entries on HMR", async () => {
     const parent = mkdtempSync(join(tmpdir(), "design-tool-package-css-hmr-"));
     const root = join(parent, "app");

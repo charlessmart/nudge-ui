@@ -98,7 +98,12 @@ export function isHostApplicationSource(
     && !isAbsolute(relativeFile);
 }
 
-function scanCssFiles(rootDir: string, files: string[] = [], dir = rootDir): string[] {
+function scanCssFiles(
+  rootDir: string,
+  files: string[] = [],
+  dir = rootDir,
+  ignoredDirectory?: string,
+): string[] {
   let entries: string[];
   try {
     entries = readdirSync(dir);
@@ -106,11 +111,19 @@ function scanCssFiles(rootDir: string, files: string[] = [], dir = rootDir): str
     return files;
   }
   for (const entry of entries) {
-    if (entry === "node_modules" || entry === ".git" || entry.startsWith("dist")) continue;
+    if (
+      entry === "node_modules"
+      || entry === ".git"
+      || entry === "build"
+      || entry.startsWith("dist")
+    ) continue;
     const full = join(dir, entry);
     try {
       const st = statSync(full);
-      if (st.isDirectory()) scanCssFiles(rootDir, files, full);
+      if (st.isDirectory()) {
+        if (ignoredDirectory && resolve(full) === ignoredDirectory) continue;
+        scanCssFiles(rootDir, files, full, ignoredDirectory);
+      }
       else if (CSS_EXT.test(entry)) files.push(full);
     } catch {
       // ignore unreadable entries
@@ -178,6 +191,7 @@ export function transformIndexHtmlHtml(
 export function designTool(options: DesignToolOptions = {}): Plugin {
   const enabled = options.enabled ?? true;
   let root: string | undefined;
+  let buildOutputDirectory: string | undefined;
   let command: "serve" | "build" = "serve";
   let devServer: ViteDevServer | undefined;
   let postTransformPromise: Promise<void> | null = null;
@@ -200,9 +214,22 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     ...(options.vanillaExtract ? [createSprinklesAdapter(options.vanillaExtract)] : []),
   ]);
 
+  function isGeneratedBuildOutput(id: string): boolean {
+    if (!root || id.startsWith("\0")) return false;
+    const fileId = id.split(/[?#]/, 1)[0] ?? id;
+    const absoluteFile = resolve(fileId);
+    if (buildOutputDirectory && (
+      absoluteFile === buildOutputDirectory
+      || absoluteFile.startsWith(`${buildOutputDirectory}${sep}`)
+    )) return true;
+    const relativeFile = relative(root, absoluteFile);
+    return relativeFile === "build" || relativeFile.startsWith(`build${sep}`);
+  }
+
   function cacheTokensForFile(id: string, code: string, sourceScan = false): void {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
+    if (isGeneratedBuildOutput(fileId)) return;
     const rel = catalogSourcePath(fileId, root);
     const parsed = parseTokenCatalog(code, rel);
     if (sourceScan && root && fileId.startsWith(root) && !fileId.includes("/node_modules/")) {
@@ -311,11 +338,16 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
 
   async function refreshActiveStylesheetTokens(): Promise<void> {
     if (!devServer || !root) return;
-    const graph = await discoverCssImportGraph(scanCssFiles(root), {
+    const graph = await discoverCssImportGraph(scanCssFiles(root, [], root, buildOutputDirectory), {
       read: (id) => readFileSync(id, "utf8"),
       resolve: async (specifier, importer) => {
         const resolved = await devServer!.pluginContainer.resolveId(specifier, importer);
-        return resolved?.id ?? null;
+        if (resolved?.id) return resolved.id;
+        try {
+          return createRequire(importer).resolve(specifier);
+        } catch {
+          return null;
+        }
       },
     });
     const nextPackageFiles = new Set<string>();
@@ -340,7 +372,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     // passed through the normal plugin pipeline and reached our transform hook.
     postTransformPromise = (async () => {
       await refreshActiveStylesheetTokens();
-      await Promise.all(scanCssFiles(root).map(async (cssPath) => {
+      await Promise.all(scanCssFiles(root, [], root, buildOutputDirectory).map(async (cssPath) => {
         try {
           await devServer!.transformRequest(cssPath);
         } catch {
@@ -365,6 +397,9 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     configResolved(config: ResolvedConfig) {
       root = config.root;
       command = config.command;
+      buildOutputDirectory = config.build?.outDir
+        ? resolve(config.root, config.build.outDir)
+        : undefined;
     },
     configureServer(server) {
       if (!enabled || command !== "serve") return;
@@ -376,7 +411,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       // before styles.css is necessarily transformed, so transform-only
       // collection would yield an empty first load.
       if (!enabled || command !== "serve" || !root) return;
-      for (const cssPath of scanCssFiles(root)) {
+      for (const cssPath of scanCssFiles(root, [], root, buildOutputDirectory)) {
         try {
           const code = readFileSync(cssPath, "utf8");
           cacheTokensForFile(cssPath, code, true);

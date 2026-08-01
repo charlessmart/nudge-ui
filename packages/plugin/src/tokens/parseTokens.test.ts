@@ -121,6 +121,26 @@ describe("parseTokens", () => {
     expect(parseTokens(css, "src/b.css")).toEqual([]);
   });
 
+  it("extracts a class-scoped theme table without admitting local component variables", () => {
+    const css = `.theme-light {
+  --color-content-primary: #191919;
+  --color-content-secondary: #666666;
+  --color-surface-primary: #ffffff;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --radius-1: 4px;
+  --radius-2: 8px;
+}
+.button { --local: red; }`;
+
+    const catalog = parseTokenCatalog(css, "src/theme.css");
+    expect(catalog.map((definition) => definition.cssName)).toContain("--color-content-primary");
+    expect(catalog.map((definition) => definition.cssName)).not.toContain("--local");
+    expect(catalog.find((definition) => definition.cssName === "--color-content-primary")?.declarations[0])
+      .toMatchObject({ context: { selector: ".theme-light" } });
+  });
+
   it("records correct source line numbers for multi-line CSS", () => {
     const css = `/* header comment */
 
