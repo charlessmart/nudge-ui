@@ -11,7 +11,6 @@ import {
   makeSelected,
   mount,
   setInputValue,
-  setSelectValue,
   mockComputedStyle,
   restoreComputedStyle,
   sheetText,
@@ -71,6 +70,11 @@ describe("BorderEditor", () => {
     };
   }
 
+  function selectBorderStyle(style: string): void {
+    act(() => (handle.host.querySelector('[data-test="border-style-settings"]') as HTMLButtonElement).click());
+    act(() => (document.body.querySelector(`[data-test="border-style-setting-${style}"]`) as HTMLElement).click());
+  }
+
   it("writes border-width via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
@@ -118,12 +122,12 @@ describe("BorderEditor", () => {
     expect(raw.value).toBe("2px");
   });
 
-  it("changes border-style via the style select", () => {
+  it("changes border-style via the settings picker", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
-    const styleSelect = handle.host.querySelector('[data-test="border-style"]') as HTMLElement;
-    setSelectValue(styleSelect, "dashed");
+    expect(handle.host.querySelector('[data-test="border-style-settings"]')?.getAttribute("data-current-style")).toBe("solid");
+    selectBorderStyle("dashed");
     expect(sheetText()).toContain("border-style: dashed;");
   });
 
@@ -145,7 +149,7 @@ describe("BorderEditor", () => {
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES, tokenRows: [] }));
 
     expect(handle.host.querySelector('[data-test="add-border"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
-    expect(handle.host.querySelector('[data-test="border-style"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style-settings"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).toBeNull();
   });
 
@@ -218,7 +222,7 @@ describe("BorderEditor", () => {
     }));
 
     expect(handle.host.querySelector('[data-test="add-border"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
-    expect(handle.host.querySelector('[data-test="border-style"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style-settings"]')).toBeNull();
   });
 
   it("hides default solid style declarations when every border width is zero", () => {
@@ -256,7 +260,7 @@ describe("BorderEditor", () => {
     }));
 
     expect(handle.host.querySelector('[data-test="add-border"]')).not.toBeNull();
-    expect(handle.host.querySelector('[data-test="border-style"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style-settings"]')).toBeNull();
   });
 
   it("adds a default border when the add button is clicked", () => {
@@ -371,7 +375,7 @@ describe("BorderEditor", () => {
 
     expect(handle.host.querySelector('[data-test="add-border"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).not.toBeNull();
-    expect(handle.host.querySelector('[data-test="border-style"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style-settings"]')).not.toBeNull();
   });
 
   it("shows style for authored none borders and hides width/color until a drawn style is chosen", () => {
@@ -439,11 +443,11 @@ describe("BorderEditor", () => {
 
     // Authored `border: none` is still a border declaration — show style, hide width/color.
     expect(handle.host.querySelector('[data-test="add-border"]')).toBeNull();
-    expect(handle.host.querySelector('[data-test="border-style"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-style-settings"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-color"]')).toBeNull();
 
-    setSelectValue(handle.host.querySelector('[data-test="border-style"]') as HTMLElement, "solid");
+    selectBorderStyle("solid");
     expect(sheetText()).toContain("border-style: solid;");
   });
 

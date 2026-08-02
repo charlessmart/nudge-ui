@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { IconBorderSides, IconMinus, IconPlus } from "@tabler/icons-react";
+import { IconBorderSides, IconCheck, IconMinus, IconPlus, IconSettings } from "@tabler/icons-react";
 import { ToggleButton } from "../ui/ToggleButton.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
@@ -14,6 +14,7 @@ import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../stateValue.ts";
+import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 
 const BORDER_STYLES = ["none", "hidden", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"];
 const INVISIBLE_BORDER_STYLES = new Set(["none", "hidden"]);
@@ -360,26 +361,9 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             </FieldRow>
           ) : borderLinked ? (
             <div className="dt-border__linked-row">
-              <div className="dt-border__linked-control">
-                <BorderStyleControl
-                  property="border-style"
-                  tokenRow={linkedTokenRow(tokenRows, "border-style", borderStyleProperties)}
-                  domElement={el}
-                  onAfterEdit={onAfterEdit}
-                />
-              </div>
               {showWidthAndColor ? (
                 <>
-                  <div className="dt-border__linked-control">
-                    <TokenField
-                      property="border-width"
-                      tokenRow={linkedTokenRow(tokenRows, "border-width", borderWidthProperties)}
-                      domElement={el}
-                      entries={allEntries}
-                      onAfterEdit={onAfterEdit}
-                    />
-                  </div>
-                  <div className="dt-border__linked-control">
+                  <div className="dt-border__linked-control dt-border__linked-control--color">
                     <TokenField
                       property="border-color"
                       tokenRow={linkedTokenRow(tokenRows, "border-color", borderColorProperties)}
@@ -388,8 +372,23 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                       onAfterEdit={onAfterEdit}
                     />
                   </div>
+                  <div className="dt-border__linked-control dt-border__linked-control--width">
+                    <TokenField
+                      property="border-width"
+                      tokenRow={linkedTokenRow(tokenRows, "border-width", borderWidthProperties)}
+                      domElement={el}
+                      entries={allEntries}
+                      onAfterEdit={onAfterEdit}
+                    />
+                  </div>
                 </>
               ) : null}
+              <BorderStyleSettingsMenu
+                property="border-style"
+                tokenRow={linkedTokenRow(tokenRows, "border-style", borderStyleProperties)}
+                domElement={el}
+                onAfterEdit={onAfterEdit}
+              />
               <ToggleButton
                 variant="secondary"
                 size="default"
@@ -440,6 +439,62 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
       </div>
       )}
     </div>
+  );
+}
+
+interface BorderStyleSettingsMenuProps {
+  property: string;
+  tokenRow?: ResolvedProperty | null;
+  domElement: HTMLElement;
+  onAfterEdit?: () => void;
+}
+
+function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, onAfterEdit }: BorderStyleSettingsMenuProps): ReactElement {
+  const structured = tokenRow?.structure?.style?.trim().toLowerCase() ?? "";
+  const initial = structured || getStateStyleValue(el, property, "none") || "none";
+  const [value, setValue] = useState(initial);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setValue(structured || getStateStyleValue(el, property, "none") || "none");
+  }, [el, property, structured]);
+
+  function handleChange(next: string): void {
+    if (!BORDER_STYLES.includes(next)) return;
+    setValue(next);
+    setStyle(el, property, next);
+    setOpen(false);
+    onAfterEdit?.();
+  }
+
+  return (
+    <PopoverListbox
+      query=""
+      value={null}
+      open={open}
+      triggerElement={(
+        <IconButton
+          variant="quiet"
+          size="compact"
+          label={`Border style: ${formatInspectorLabel(value)}`}
+          data-test="border-style-settings"
+          data-current-style={value}
+        >
+          <IconSettings size={16} stroke={1.8} aria-hidden="true" />
+        </IconButton>
+      )}
+      triggerDataTest="border-style-settings"
+      triggerAriaLabel="Border style settings"
+      items={BORDER_STYLES.map((style) => ({
+        value: style,
+        label: formatInspectorLabel(style),
+        leading: style === value ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : undefined,
+        "data-test": `border-style-setting-${style}`,
+      }))}
+      onQueryChange={() => undefined}
+      onOpenChange={setOpen}
+      onSelect={handleChange}
+    />
   );
 }
 

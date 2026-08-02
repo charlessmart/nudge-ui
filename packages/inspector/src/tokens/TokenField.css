@@ -45,6 +45,27 @@
   min-width: 0;
 }
 
+.dt-token-field__chip-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.dt-token-field__chip-wrap > .dt-popover-listbox {
+  flex: 1;
+  min-width: 0;
+}
+
+.dt-token-field__chip-wrap--small {
+  flex: 0 1 auto;
+}
+
+.dt-token-field__chip-wrap--small > .dt-popover-listbox {
+  width: auto;
+  flex: 0 1 auto;
+}
+
 .dt-token-field__attribution {
   flex: 0 1 34%;
   min-width: 0;
@@ -165,7 +186,7 @@
 }
 
 .dt-token-chip--with-swatch {
-  padding-left: var(--dt-space-8);
+  padding-left: var(--dt-space-4);
 }
 
 .dt-token-field--color-chip {
@@ -187,16 +208,20 @@
   box-shadow: none;
 }
 
-.dt-token-field--color .dt-token-field__delink {
-  flex: 0 0 auto;
-}
-
-.dt-token-field__delink--small {
+.dt-token-field__chip-wrap > .dt-token-field__delink {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
   opacity: 0;
+  background: var(--dt-surface-raised);
+  box-shadow: -6px 0 6px var(--dt-surface-raised);
   transition: opacity 100ms ease;
 }
 
-.dt-token-field:hover .dt-token-field__delink--small {
+.dt-token-field__chip-wrap:hover > .dt-token-field__delink,
+.dt-token-field__chip-wrap:focus-within > .dt-token-field__delink {
   opacity: 1;
 }
 

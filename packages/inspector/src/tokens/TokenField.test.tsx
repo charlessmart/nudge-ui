@@ -378,6 +378,20 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
   });
 
+  it("places the unlink action inside the token chip wrapper", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: tokenRow(),
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+    }));
+
+    const delink = handle.host.querySelector('[data-test="delink-btn"]') as HTMLButtonElement;
+    expect(delink.parentElement?.classList.contains("dt-token-field__chip-wrap")).toBe(true);
+    expect(delink.parentElement?.querySelector('[data-test="token-chip"]')).not.toBeNull();
+  });
+
   it("promotes a matching raw-value suggestion into a token chip", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {

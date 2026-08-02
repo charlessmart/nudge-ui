@@ -9,6 +9,23 @@
   min-width: 0;
 }
 
+.dt-border__linked-control--color {
+  flex: 3 1 0;
+}
+
+.dt-border__linked-control--width {
+  flex: 1 1 0;
+}
+
+.dt-border__linked-row > .dt-popover-listbox,
+.dt-border__linked-row > .dt-toggle-button {
+  flex: 0 0 auto;
+}
+
+.dt-border__linked-row > .dt-popover-listbox {
+  width: auto;
+}
+
 .dt-border__expanded {
   display: flex;
   flex-direction: column;
