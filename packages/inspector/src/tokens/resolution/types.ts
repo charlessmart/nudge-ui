@@ -83,6 +83,8 @@ export interface MatchedRule {
   selectorText: string;
   declarations: StyleDeclaration[];
   specificity: number;
+  /** Runtime stylesheet identity, such as Vite's data-vite-dev-id. */
+  source?: string;
   sourceOrder?: number;
   layer?: string;
   active?: boolean;

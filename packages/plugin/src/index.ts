@@ -609,3 +609,5 @@ export { createTokenAdapterRegistry } from "./adapters/registry.ts";
 export { createSprinklesAdapter, createVanillaExtractAdapter, extractVanillaExtractTokens, resolveSprinklesClassName } from "./adapters/vanillaExtract.ts";
 export type { TokenAdapter, TokenMapping } from "./adapters/types.ts";
 export type { ThemeContract, SprinklesClassMap, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
+export { materializeVanillaExtractContract, mergeVanillaExtractContract } from "./adapters/vanillaExtractRuntime.ts";
+export type { MaterializedTokenCatalog, MaterializeVanillaExtractOptions } from "./adapters/vanillaExtractRuntime.ts";

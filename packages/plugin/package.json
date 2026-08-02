@@ -5,7 +5,8 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./tokens": "./src/virtual/design-tokens.ts"
+    "./tokens": "./src/virtual/design-tokens.ts",
+    "./vanilla-extract-runtime": "./src/adapters/vanillaExtractRuntime.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

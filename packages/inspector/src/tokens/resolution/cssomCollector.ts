@@ -336,6 +336,7 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
     layer?: string,
     atRules: AtRuleContext[] = [],
     inheritedSelector?: string,
+    source?: string,
   ): void => {
     for (const rule of Array.from(rules)) {
       if (isStyleRuleInDocument(rule, doc)) {
@@ -344,13 +345,14 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
             selectorText: rule.selectorText,
             specificity: computeSpecificityCore(rule.selectorText),
             declarations: declarationsFromCssom(rule.style),
+            source,
             sourceOrder: sourceOrder++,
             active,
             layer,
             atRules: atRules.length > 0 ? atRules : undefined,
           });
           const nested = (rule as unknown as { cssRules?: CSSRuleList }).cssRules;
-          if (nested?.length) walkRules(nested, active, layer, atRules, rule.selectorText);
+          if (nested?.length) walkRules(nested, active, layer, atRules, rule.selectorText, source);
         } catch {
           continue;
         }
@@ -361,6 +363,7 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
             selectorText: inheritedSelector,
             specificity: computeSpecificityCore(inheritedSelector),
             declarations: declarationsFromCssom(rule.style),
+            source,
             sourceOrder: sourceOrder++,
             active,
             layer,
@@ -397,6 +400,7 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
             childLayer,
             context ? [...atRules, context] : atRules,
             inheritedSelector,
+            source,
           );
         } catch {
           continue;
@@ -405,9 +409,16 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
     }
   };
 
-  for (const sheet of Array.from(doc.styleSheets)) {
+  const stylesheetNodes = Array.from(doc.querySelectorAll<HTMLElement>('style, link[rel~="stylesheet"]'));
+  for (const [index, sheet] of Array.from(doc.styleSheets).entries()) {
     try {
-      walkRules(sheet.cssRules);
+      // jsdom does not currently expose CSSStyleSheet.ownerNode; the document
+      // stylesheet list and stylesheet element list retain the same order.
+      const owner = (sheet.ownerNode as HTMLElement | null) ?? stylesheetNodes[index] ?? null;
+      const source = owner?.dataset?.viteDevId
+        ?? sheet.href
+        ?? (owner?.id ? `#${owner.id}` : `stylesheet:${index + 1}`);
+      walkRules(sheet.cssRules, true, undefined, [], undefined, source);
     } catch {
       inaccessible = true;
     }

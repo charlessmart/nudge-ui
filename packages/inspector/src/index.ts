@@ -29,6 +29,7 @@ import { startStaleDetection } from "./canvas/staleChangeDetector.ts";
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./AppShell.tsx";
 import { clearDomMutations } from "./domMutations.ts";
+import { installInspectionBridge } from "./inspection.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -37,6 +38,7 @@ let listenerAttached = false;
 let beforeUnloadAttached = false;
 let persistenceSubscribed = false;
 let unsubscribeOwnership: (() => void) | null = null;
+let removeInspectionBridge: (() => void) | null = null;
 
 function onKeydown(e: KeyboardEvent): void {
   if (isInspectorToggleShortcut(e)) {
@@ -47,6 +49,9 @@ function onKeydown(e: KeyboardEvent): void {
 
 export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
   if (!import.meta.env.DEV) return;
+
+  removeInspectionBridge?.();
+  removeInspectionBridge = installInspectionBridge();
 
   if (isCanvasRenderer()) {
     bootstrapRenderer();
@@ -171,6 +176,8 @@ export function unmountInspector(): void {
   clearDomMutations(true);
   removeManagedSheet();
   clearInspectorLayout();
+  removeInspectionBridge?.();
+  removeInspectionBridge = null;
   hostElement = null;
 }
 
@@ -178,6 +185,8 @@ export { toggleInspector, setInspectorOpen } from "./InspectorShell.tsx";
 export { InspectorShell } from "./InspectorShell.tsx";
 export { FloatingToolbar } from "./FloatingToolbar.tsx";
 export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
+export { DESIGN_TOOL_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection.ts";
+export type { DesignToolInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection.ts";
 export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation, ConformanceProjectionExpectation, ConformanceProjectionFieldExpectation } from "./conformance/fixture.ts";
 export { TYPOGRAPHY_CASES } from "./conformance/typographyCases.ts";
 export { projectInspectorValues, projectionSides } from "./spacing/projection.ts";

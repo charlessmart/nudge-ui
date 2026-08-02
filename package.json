@@ -12,6 +12,7 @@
     "test:newvato": "node examples/sandbox/scripts/run-newvato-consumer.mjs",
     "perf": "pnpm --filter sandbox perf",
     "perf:baseline": "pnpm --filter sandbox perf:baseline",
+    "test:compat": "pnpm --filter @design-tool/compat-vanilla-extract test:compat",
     "build": "pnpm -r build",
     "dev:sandbox": "pnpm --filter sandbox dev",
     "dev:sandbox:remote": "pnpm --filter sandbox dev:remote"
