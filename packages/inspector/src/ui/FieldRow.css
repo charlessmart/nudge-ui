@@ -6,6 +6,10 @@
   min-height: var(--dt-control-height-large);
 }
 
+.dt-field-row--has-action {
+  grid-template-columns: var(--dt-label-column) minmax(0, 1fr) auto;
+}
+
 .dt-field-row__label {
   color: var(--dt-text-secondary);
   font-size: var(--dt-font-size-base);
@@ -15,6 +19,13 @@
 .dt-field-row__control {
   display: block;
   min-width: 0;
+}
+
+.dt-field-row__action {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .dt-field-row__control[data-has-at-rule="true"] {

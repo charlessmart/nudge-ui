@@ -380,10 +380,21 @@ describe("LayoutSection", () => {
     handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-flex-child"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-select-align-self"]')).toBeTruthy();
-    expect(handle.host.querySelectorAll('[data-test="layout-flex-child"] .dt-field-row__label')).toHaveLength(5);
+    expect(handle.host.querySelector('[data-test="layout-flex-child-settings"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-select-align-self"]')).toBeFalsy();
+    expect(handle.host.querySelectorAll('[data-test="layout-flex-child"] .dt-field-row__label')).toHaveLength(3);
+    expect(handle.host.querySelector('[data-test="layout-combo-input-flex-grow"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-combo-input-flex-shrink"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-combo-input-flex-basis"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-combo-select-flex-grow"]')).toBeFalsy();
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-flex-child-settings"]') as HTMLButtonElement).click();
+    });
+    expect(document.body.querySelector('[data-test="layout-flex-child-settings-content"]')).toBeTruthy();
+    expect(document.body.querySelector('[data-test="layout-select-align-self"]')).toBeTruthy();
+    expect(document.body.querySelector('[data-test="layout-combo-select-order"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-flex-child"]')?.textContent)
-      .toContain("Grow shares spare room");
+      .not.toContain("Grow shares spare room");
   });
 
   it("hides flex child properties when parent is not flex", () => {
@@ -410,22 +421,6 @@ describe("LayoutSection", () => {
       (handle.host.querySelector('[data-test="layout-position-individual-toggle"]') as HTMLButtonElement).click();
     });
     expect(handle.host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
-  });
-
-  it("shows inset grid when position is relative", () => {
-    const { selected } = makeSelected();
-    mockComputedStyle({ display: "block", position: "relative" });
-    handle = mount(createElement(LayoutSection, { element: selected }));
-
-    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeTruthy();
-  });
-
-  it("hides inset grid when position is static", () => {
-    const { selected } = makeSelected();
-    mockComputedStyle({ display: "block", position: "static" });
-    handle = mount(createElement(LayoutSection, { element: selected }));
-
-    expect(handle.host.querySelector('[data-test="layout-inset"]')).toBeFalsy();
   });
 
   it("displays both flex container and flex child when both apply", () => {

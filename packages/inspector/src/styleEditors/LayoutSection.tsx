@@ -6,7 +6,6 @@ import { tokens } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
-import { SIDE_NAMES, SideControls, type SideValueSlot } from "../ui/SideValuesField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { AspectRatioField } from "./AspectRatioField.tsx";
@@ -16,6 +15,7 @@ import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "./styleActions.ts";
 import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
+import { InspectorPopover } from "../ui/InspectorPopover.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { Select } from "../ui/Select.tsx";
@@ -173,19 +173,12 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
           <div className="dt-layout__group" data-test="layout-flex-child">
             <div className="dt-layout__group-title">Flex Child</div>
             <div className="dt-layout__flex-child-fields">
-              <LayoutDropdown
-                property="align-self"
-                options={ALIGN_SELF_OPTIONS}
-                domElement={el}
-                stacked
-                revision={layoutRevision}
-                onAfterEdit={notifyAfterEdit}
-              />
               <FlexChildValueField
                 label="Grow"
                 property="flex-grow"
                 presets={FLEX_GROW_PRESETS}
                 domElement={el}
+                inputOnly
                 revision={layoutRevision}
                 onAfterEdit={notifyAfterEdit}
               />
@@ -194,6 +187,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                 property="flex-shrink"
                 presets={FLEX_SHRINK_PRESETS}
                 domElement={el}
+                inputOnly
                 revision={layoutRevision}
                 onAfterEdit={notifyAfterEdit}
               />
@@ -202,21 +196,16 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                 property="flex-basis"
                 presets={FLEX_BASIS_PRESETS}
                 domElement={el}
+                inputOnly
                 revision={layoutRevision}
                 onAfterEdit={notifyAfterEdit}
               />
-              <FlexChildValueField
-                label="Order"
-                property="order"
-                presets={ORDER_PRESETS}
+              <FlexChildSettingsMenu
                 domElement={el}
                 revision={layoutRevision}
                 onAfterEdit={notifyAfterEdit}
               />
             </div>
-            <p className="dt-layout__flex-child-help">
-              Grow shares spare room · Shrink gives up room · Basis sets the starting size · Order changes visual position.
-            </p>
           </div>
         ) : null}
 
@@ -238,22 +227,6 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             revision={layoutRevision}
             onAfterEdit={notifyAfterEdit}
           />
-        ) : position === "relative" || position === "sticky" ? (
-          <div className="dt-layout__group" data-test="layout-inset">
-            <div className="dt-layout__group-title">Inset</div>
-            <SideControls label="Inset" sides={SIDE_NAMES.map((side): SideValueSlot => ({
-              side,
-              control: (
-                <TokenField
-                  property={side}
-                  tokenRow={tokenRows.find((row) => row.property === side) ?? null}
-                  domElement={el}
-                  entries={allEntries}
-                  onAfterEdit={notifyAfterEdit}
-                />
-              ),
-            }))} />
-          </div>
         ) : null}
       </div>
     </div>
@@ -305,7 +278,7 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
         </FieldRow>
         <IconButton
           className="dt-layout__size-cell dt-layout__size-cell--toggle"
-          variant="secondary"
+          variant="quiet"
           size="default"
           data-test={expanded ? "layout-size-collapse" : "layout-size-expand"}
           aria-label={expanded ? "Collapse Size Fields" : "Expand Size Fields"}
@@ -354,9 +327,10 @@ interface FlexChildValueFieldProps extends FlexControlProps {
   label: string;
   property: string;
   presets: string[];
+  inputOnly?: boolean;
 }
 
-function FlexChildValueField({ label, property, presets, domElement, revision = 0, onAfterEdit }: FlexChildValueFieldProps): ReactElement {
+function FlexChildValueField({ label, property, presets, inputOnly = false, domElement, revision = 0, onAfterEdit }: FlexChildValueFieldProps): ReactElement {
   return (
     <FieldRow label={label} className="dt-layout__flex-child-field">
       <LayoutComboField
@@ -364,10 +338,56 @@ function FlexChildValueField({ label, property, presets, domElement, revision = 
         presets={presets}
         domElement={domElement}
         compact
+        inputOnly={inputOnly}
         revision={revision}
         onAfterEdit={onAfterEdit}
       />
     </FieldRow>
+  );
+}
+
+function FlexChildSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <InspectorPopover
+      data-test="layout-flex-child-settings"
+      side="left"
+      align="start"
+      triggerElement={(
+        <IconButton
+          variant="quiet"
+          size="compact"
+          label="Flex child settings"
+          title="Flex child settings"
+          data-test="layout-flex-child-settings"
+        >
+          <IconSettings size={16} stroke={1.8} aria-hidden="true" />
+        </IconButton>
+      )}
+      open={open}
+      onOpenChange={setOpen}
+    >
+      <div className="dt-layout__flex-child-settings" data-test="layout-flex-child-settings-content">
+        <div className="dt-layout__flex-child-settings-title">Flex Child Settings</div>
+        <LayoutDropdown
+          property="align-self"
+          options={ALIGN_SELF_OPTIONS}
+          domElement={domElement}
+          stacked
+          revision={revision}
+          onAfterEdit={onAfterEdit}
+        />
+        <FlexChildValueField
+          label="Order"
+          property="order"
+          presets={ORDER_PRESETS}
+          domElement={domElement}
+          revision={revision}
+          onAfterEdit={onAfterEdit}
+        />
+      </div>
+    </InspectorPopover>
   );
 }
 

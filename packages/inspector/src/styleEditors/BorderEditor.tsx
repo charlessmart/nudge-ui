@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { IconBorderSides, IconCheck, IconMinus, IconPlus, IconSettings } from "@tabler/icons-react";
-import { ToggleButton } from "../ui/ToggleButton.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
@@ -389,33 +388,35 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                 domElement={el}
                 onAfterEdit={onAfterEdit}
               />
-              <ToggleButton
-                variant="secondary"
+              <IconButton
+                variant="quiet"
                 size="default"
                 data-test="border-expand"
                 label="Edit Individual Border Sides"
                 title="Edit Individual Border Sides"
-                pressed={!borderLinked}
-                onPressedChange={handleExpand}
+                aria-pressed={!borderLinked}
+                data-active={!borderLinked}
+                onClick={handleExpand}
               >
                 <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-              </ToggleButton>
+              </IconButton>
             </div>
           ) : (
             <div className="dt-border__expanded">
               <div className="dt-border__expanded-header">
                 <span className="dt-side-values__label">{formatInspectorLabel("Individual Sides")}</span>
-                <ToggleButton
-                  variant="secondary"
+                <IconButton
+                  variant="quiet"
                   size="default"
                   data-test="border-collapse"
                   label="Link All Border Sides"
                   title="Link All Border Sides"
-                  pressed={!borderLinked}
-                  onPressedChange={handleCollapse}
+                  aria-pressed={!borderLinked}
+                  data-active={!borderLinked}
+                  onClick={handleCollapse}
                 >
                   <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-                </ToggleButton>
+                </IconButton>
               </div>
               <div className="dt-border__side-group" data-test="border-style-sides" data-property="border-style">
                 <span className="dt-side-values__label">{formatInspectorLabel("Border Style")}</span>

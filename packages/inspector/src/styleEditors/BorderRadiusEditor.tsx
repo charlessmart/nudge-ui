@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { IconBorderCorners } from "@tabler/icons-react";
-import { ToggleButton } from "../ui/ToggleButton.tsx";
+import { IconButton } from "../ui/IconButton.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
@@ -114,17 +114,18 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
     <div className="dt-editor dt-border-radius-editor" data-test="border-radius-editor">
       <div className="dt-editor__title-row">
         <div className="dt-editor__title">Border Radius</div>
-        <ToggleButton
-          variant="secondary"
+        <IconButton
+          variant="quiet"
           size="default"
           data-test={isLinked ? "border-radius-expand" : "border-radius-collapse"}
           label={isLinked ? "Edit Individual Corners" : "Link All Corners"}
           title={isLinked ? "Edit Individual Corners" : "Link All Corners"}
-          pressed={!isLinked}
-          onPressedChange={isLinked ? handleExpand : handleCollapse}
+          aria-pressed={!isLinked}
+          data-active={!isLinked}
+          onClick={isLinked ? handleExpand : handleCollapse}
         >
           <IconBorderCorners size={"var(--dt-icon-size-small)"} stroke={1.8} aria-hidden="true" />
-        </ToggleButton>
+        </IconButton>
       </div>
       {isLinked ? (
         <div className="dt-border-radius__linked-row">

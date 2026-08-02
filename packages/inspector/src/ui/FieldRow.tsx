@@ -6,6 +6,7 @@ import { AtRuleIndicator, useFieldAtRules } from "./AtRuleContext.tsx";
 export interface FieldRowProps {
   label: ReactNode;
   children: ReactNode;
+  action?: ReactNode;
   hint?: ReactNode;
   property?: string;
   atRules?: readonly AtRuleContext[];
@@ -13,14 +14,19 @@ export interface FieldRowProps {
   "data-test"?: string;
 }
 
-export function FieldRow({ label, children, hint, property, atRules, className, "data-test": dataTest }: FieldRowProps): ReactElement {
+export function FieldRow({ label, children, action, hint, property, atRules, className, "data-test": dataTest }: FieldRowProps): ReactElement {
   const displayLabel = typeof label === "string" ? formatInspectorLabel(label) : label;
   const inheritedAtRules = useFieldAtRules(property ?? "");
   const fieldAtRules = atRules ?? inheritedAtRules;
   const hasAtRules = fieldAtRules.length > 0;
+  const rowClassName = [
+    "dt-field-row",
+    action ? "dt-field-row--has-action" : "",
+    className ?? "",
+  ].filter(Boolean).join(" ");
 
   return (
-    <label className={`dt-field-row${className ? ` ${className}` : ""}`} data-test={dataTest}>
+    <label className={rowClassName} data-test={dataTest}>
       <span className="dt-field-row__label">
         {displayLabel}
       </span>
@@ -29,6 +35,7 @@ export function FieldRow({ label, children, hint, property, atRules, className, 
         <AtRuleIndicator atRules={fieldAtRules} />
         {hint ? <span className="dt-field-row__hint">{hint}</span> : null}
       </span>
+      {action ? <span className="dt-field-row__action">{action}</span> : null}
     </label>
   );
 }
