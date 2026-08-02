@@ -126,9 +126,14 @@ async function persistBaseline(): Promise<void> {
   console.log(`perf | baseline written to test-results/perf-baseline.json`);
 }
 
+let fixtureStorageResetInstalled = false;
+
 async function loadFixture(page: Page): Promise<void> {
-  if (page.url().startsWith("http")) {
-    await page.evaluate(() => {
+  // Clear storage in an init script on the *next* document so a previous
+  // page's beforeunload autosave cannot repopulate localStorage after we
+  // intended a clean fixture load.
+  if (!fixtureStorageResetInstalled) {
+    await page.addInitScript(() => {
       try {
         localStorage.clear();
         sessionStorage.clear();
@@ -136,6 +141,7 @@ async function loadFixture(page: Page): Promise<void> {
         // ignore
       }
     });
+    fixtureStorageResetInstalled = true;
   }
   await page.goto(FIXTURE_URL);
   await page.waitForSelector('[data-perf-id="perf-0"]');

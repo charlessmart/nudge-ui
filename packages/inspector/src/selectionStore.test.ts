@@ -213,14 +213,27 @@ describe("hierarchy stepping", () => {
     expect(getSelectedElement()?.cid).toBe("Button");
   });
 
-  it("re-selecting the current element after stepping resets the hierarchy index", () => {
+  it("re-selecting the current element after stepping keeps the hierarchy index", () => {
     selectLeaf();
     stepUp();
     expect(getHierarchyIndex()).toBe(1);
     expect(getSelectedElement()?.cid).toBe("Card");
     setSelectedElement(resolveSelectionFromElement(mid)!);
-    expect(getHierarchyIndex()).toBe(0);
+    expect(getHierarchyIndex()).toBe(1);
     expect(getSelectedElement()?.cid).toBe("Card");
+  });
+
+  it("post-edit refresh after step-up does not reset hierarchy", () => {
+    selectLeaf();
+    stepUp();
+    let count = 0;
+    const unsub = subscribe(() => {
+      count++;
+    });
+    setSelectedElement(resolveSelectionFromElement(mid)!);
+    expect(count).toBe(0);
+    expect(getHierarchyIndex()).toBe(1);
+    unsub();
   });
 
   it("notifies listeners on step", () => {

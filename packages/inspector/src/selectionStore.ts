@@ -92,14 +92,13 @@ function sameResolvedMetadata(a: SelectedElement, b: SelectedElement): boolean {
 export function setSelectedElement(el: SelectedElement | null): void {
   if (current === el) return;
   // Re-clicks and post-edit refreshes re-resolve a fresh object with the same
-  // source-site identity. Keep the existing selection (and the hierarchy step)
-  // so the panel pipeline does not churn; edits still refresh the panel via
-  // the document revision subscription.
+  // source-site identity. Keep the existing selection and hierarchy step so
+  // the panel pipeline does not churn (including after step-up); edits still
+  // refresh the panel via the document revision subscription.
   if (el && current
     && current.cid === el.cid
     && current.src === el.src
-    && current.domElement === el.domElement
-    && index === 0) {
+    && current.domElement === el.domElement) {
     if (!sameResolvedMetadata(current, el)) {
       current = el;
       notify();
