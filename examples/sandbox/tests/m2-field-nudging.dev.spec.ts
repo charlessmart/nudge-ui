@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 async function panelOpen(page: import("@playwright/test").Page): Promise<string | null> {
   return page.evaluate(() => document
@@ -9,7 +10,7 @@ async function panelOpen(page: import("@playwright/test").Page): Promise<string 
 }
 
 async function managedSheet(page: import("@playwright/test").Page): Promise<string> {
-  return page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? "");
+  return managedSheetText(page);
 }
 
 test("dev: focused inspector text inputs keep arrow cursor navigation", async ({ page }) => {

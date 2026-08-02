@@ -15,8 +15,10 @@ import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./li
 import { readMargins } from "../overlayGeometry.ts";
 import { installInteractionStyles } from "../interactionStyles.ts";
 import { createFrameThrottle } from "../frameThrottle.ts";
+import { createCidIndex } from "./rendererCidIndex.ts";
 import { isEditableEvent } from "../shortcuts.ts";
 import { resolveSelectionTarget, selectionTargetMode } from "../selectionTarget.ts";
+import { escapeCssString } from "../cssEscapes.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -79,9 +81,9 @@ function getFiberInfo(el: HTMLElement): { file: string; line: number; component:
   return { file, line, component, src };
 }
 
-function buildSelector(el: HTMLElement): string {
+export function buildSelector(el: HTMLElement): string {
   const cid = el.getAttribute("data-cid");
-  if (cid) return `[data-cid="${cid}"]`;
+  if (cid) return `[data-cid="${escapeCssString(cid)}"]`;
   const tag = el.tagName.toLowerCase();
   const id = el.id ? `#${CSS.escape(el.id)}` : "";
   const classes = Array.from(el.classList).map((c) => `.${CSS.escape(c)}`).join("");
@@ -90,20 +92,16 @@ function buildSelector(el: HTMLElement): string {
 
 let installed = false;
 
-function instanceIndex(el: HTMLElement): number {
-  const cid = el.getAttribute("data-cid");
-  const src = el.getAttribute("data-src");
-  if (!cid) return 0;
-  return Array.from(document.querySelectorAll<HTMLElement>("[data-cid]")).filter((candidate) => (
-    candidate.getAttribute("data-cid") === cid && candidate.getAttribute("data-src") === src
-  )).indexOf(el);
-}
-
 export function installRendererElementSelector(): void {
   if (!import.meta.env.DEV) return;
   if (installed) return;
   installed = true;
   installInteractionStyles();
+
+  const cidIndex = createCidIndex(document);
+  const hoverUpdate = createFrameThrottle((msg: ElementHoverMessage) => {
+    sendToParent(msg);
+  });
 
   let measurePointerOverPage = false;
   let measureAltKey = false;
@@ -146,7 +144,7 @@ export function installRendererElementSelector(): void {
         cid,
         selector,
         src,
-        instanceIndex: instanceIndex(el),
+        elementId: cidIndex.elementId(el),
         rect: {
           left: rect.left,
           top: rect.top,
@@ -157,7 +155,7 @@ export function installRendererElementSelector(): void {
         ...identity,
       };
 
-      sendToParent(msg);
+      hoverUpdate.schedule(msg);
     },
     true,
   );
@@ -193,7 +191,7 @@ export function installRendererElementSelector(): void {
       const msg: ElementDragStartMessage = {
         type: "element-drag-start", protocolVersion: PROTOCOL_VERSION,
         cid: pendingDrag.element.getAttribute("data-cid")!, src: pendingDrag.element.getAttribute("data-src") ?? "",
-        instanceIndex: instanceIndex(pendingDrag.element), point, ...identity,
+        elementId: cidIndex.elementId(pendingDrag.element), point, ...identity,
       };
       sendToParent(msg);
     } else {
@@ -236,7 +234,7 @@ export function installRendererElementSelector(): void {
       const msg: ElementDeleteMessage = {
         type: "element-delete", protocolVersion: PROTOCOL_VERSION,
         cid: lastSelected.getAttribute("data-cid")!, src: lastSelected.getAttribute("data-src") ?? "",
-        instanceIndex: instanceIndex(lastSelected), ...identity,
+        elementId: cidIndex.elementId(lastSelected), ...identity,
       };
       sendToParent(msg);
       return;
@@ -246,7 +244,7 @@ export function installRendererElementSelector(): void {
     const msg: ElementNudgeMessage = {
       type: "element-nudge", protocolVersion: PROTOCOL_VERSION,
       cid: lastSelected.getAttribute("data-cid")!, src: lastSelected.getAttribute("data-src") ?? "",
-      instanceIndex: instanceIndex(lastSelected), key: event.key, ...identity,
+      elementId: cidIndex.elementId(lastSelected), key: event.key, ...identity,
     };
     sendToParent(msg);
   }, true);
@@ -288,13 +286,13 @@ export function installRendererElementSelector(): void {
         cid,
         selector,
         src,
-        instanceIndex: instanceIndex(el),
+        elementId: cidIndex.elementId(el),
         rect: null,
         margins: null,
         ...identity,
       };
 
-      sendToParent(msg);
+      hoverUpdate.schedule(msg);
     },
     true,
   );
@@ -339,6 +337,7 @@ export function installRendererElementSelector(): void {
         cid,
         selector,
         src,
+        elementId: cidIndex.elementId(el),
         file,
         line,
         component,

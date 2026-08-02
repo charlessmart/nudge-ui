@@ -1,5 +1,6 @@
 import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
 import { rulesToCssText, type StyleRule } from "../managedStylesheet.ts";
+import { invalidateStyleResolutionCache } from "../tokens/resolution.ts";
 
 const SHEET_ID = "design-tool-styles";
 
@@ -57,8 +58,8 @@ export function validateReplaceStyles(
     return { valid: false, reason: "card ID mismatch" };
   }
 
-  if (typeof m.revision !== "number") {
-    return { valid: false, reason: "revision is not a number" };
+  if (typeof m.revision !== "number" || !Number.isSafeInteger(m.revision) || m.revision < 0) {
+    return { valid: false, reason: "revision is not a non-negative safe integer" };
   }
 
   if (typeof m.css !== "string") {
@@ -87,10 +88,12 @@ export function handleReplaceStyles(
     document.head.appendChild(newEl);
     newEl.textContent = msg.css;
     lastAppliedRevision = msg.revision;
+    invalidateStyleResolutionCache(document);
     return true;
   }
 
   el.textContent = msg.css;
   lastAppliedRevision = msg.revision;
+  invalidateStyleResolutionCache(document);
   return true;
 }

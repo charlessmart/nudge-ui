@@ -5,7 +5,8 @@ import type { InteractionState } from "../styleState.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
 import {
   collectRules as collectCssomRules,
-  documentRevision as getDocumentRevision,
+  documentRevisions as getDocumentRevisions,
+  registerResolutionElement,
 } from "./resolution/cssomCollector.ts";
 import { computeSpecificity } from "./resolution/selectorSemantics.ts";
 export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
@@ -56,12 +57,17 @@ const BORDER_RADIUS_CORNERS: Record<string, readonly string[]> = {
   ],
 };
 
+const tokenTableMemo = new WeakMap<TokenEntry[], TokenTable>();
+
 export function buildTokenTable(entries: TokenEntry[]): TokenTable {
+  const cached = tokenTableMemo.get(entries);
+  if (cached) return cached;
   const table: TokenTable = {};
   for (const entry of entries) {
     table[entry.name] = entry;
     if (entry.cssName) table[entry.cssName] = entry;
   }
+  tokenTableMemo.set(entries, table);
   return table;
 }
 
@@ -189,16 +195,43 @@ function entryFromDefinition(definition: TokenDefinition, value: string): TokenE
   };
 }
 
+interface TokenEntriesCacheEntry {
+  elementRevision: number;
+  stylesheetRevision: number;
+  definitions: TokenDefinition[];
+  entries: TokenEntry[];
+  table: TokenTable;
+}
+
+const tokenEntriesCache = new WeakMap<HTMLElement, TokenEntriesCacheEntry>();
+
+function registerWithAncestors(el: HTMLElement): void {
+  let current: HTMLElement | null = el;
+  while (current) {
+    registerResolutionElement(current);
+    current = current.parentElement;
+  }
+}
+
 /**
  * The build-time catalog is intentionally an inventory of every project token.
  * Element edits must instead use only custom properties resolved in that
  * element's cascade; a token defined by a lazy stylesheet is not usable until
- * that stylesheet is attached to the document.
+ * that stylesheet is attached to the document. Entries (and their table) are
+ * cached per element until the element or stylesheet revision changes.
  */
 export function getAvailableTokenEntriesForElement(
   el: HTMLElement,
   definitions: TokenDefinition[] = tokenCatalog,
 ): TokenEntry[] {
+  const revisions = getDocumentRevisions(el.ownerDocument ?? document);
+  const cached = tokenEntriesCache.get(el);
+  if (cached && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet
+    && cached.definitions === definitions) {
+    return cached.entries;
+  }
+  registerWithAncestors(el);
   const computed = getElementComputedStyle(el);
   const available = definitions.flatMap((definition) => {
     if (!isCustomPropertyToken(definition)) {
@@ -209,11 +242,19 @@ export function getAvailableTokenEntriesForElement(
     const value = computed.getPropertyValue(definition.cssName).trim();
     return value ? [entryFromDefinition(definition, value)] : [];
   });
-  const table = buildTokenTable(available);
-  return available.map((entry) => ({
+  const intermediateTable = buildTokenTable(available);
+  const entries = available.map((entry) => ({
     ...entry,
-    value: resolveTokenValue(entry.value, table).resolvedValue,
+    value: resolveTokenValue(entry.value, intermediateTable).resolvedValue,
   }));
+  tokenEntriesCache.set(el, {
+    elementRevision: revisions.element,
+    stylesheetRevision: revisions.stylesheet,
+    definitions,
+    entries,
+    table: buildTokenTable(entries),
+  });
+  return entries;
 }
 
 /** @deprecated Use getAvailableTokenEntriesForElement for edit candidates. */
@@ -222,6 +263,13 @@ export function getTokenEntriesForElement(el: HTMLElement): TokenEntry[] {
 }
 
 export function getAvailableTokenTableForElement(el: HTMLElement): TokenTable {
+  const revisions = getDocumentRevisions(el.ownerDocument ?? document);
+  const cached = tokenEntriesCache.get(el);
+  if (cached && cached.definitions === tokenCatalog
+    && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet) {
+    return cached.table;
+  }
   return buildTokenTable(getAvailableTokenEntriesForElement(el));
 }
 
@@ -1262,6 +1310,13 @@ function compareCascade(
   return a.sourceOrder - b.sourceOrder;
 }
 
+function specificityForBranch(rule: Pick<MatchedRule, "selectorText" | "specificity">, branch: string): number {
+  // Single-branch selectors reuse the specificity collected from CSSOM; the
+  // matched branch is the whole selector. Multi-branch selectors need the
+  // matched branch's own weight, so recompute per branch.
+  return rule.selectorText.includes(",") ? computeSpecificity(branch) : rule.specificity;
+}
+
 function collectLocalAliases(
   el: HTMLElement,
   rules: MatchedRule[],
@@ -1288,7 +1343,7 @@ function collectLocalAliases(
       const branch = matchingSelectorBranch(element, rule.selectorText);
       if (!branch) return;
       const sourceOrder = rule.sourceOrder ?? index;
-      const specificity = computeSpecificity(branch);
+      const specificity = specificityForBranch(rule, branch);
       for (const declaration of rule.declarations) {
         if (!declaration.property.startsWith("--") || declaration.property.startsWith("--dt-")) continue;
         const candidate: LocalAliasCandidate = {
@@ -1324,14 +1379,36 @@ function collectLocalAliases(
   return aliases;
 }
 
-export function resolvePropertiesFromRules(
-  el: HTMLElement,
-  rules: MatchedRule[],
-  tokenTable: TokenTable,
-): ResolvedProperty[] {
-  const map = new Map<string, ResolvedProperty>();
+interface ElementMatch {
+  rule: MatchedRule;
+  /** The selector actually used for matching (state-stripped for interaction states). */
+  selectorText: string;
+  branch: string;
+  specificity: number;
+}
+
+interface ElementResolution {
+  element: HTMLElement;
+  matched: ElementMatch[];
+  aliases: ReadonlyMap<string, string>;
+}
+
+interface LineageResolution {
+  lineage: HTMLElement[];
+  byElement: Map<HTMLElement, ElementResolution>;
+}
+
+/**
+ * The selector set used by a resolution. Interaction states strip or drop
+ * pseudo-class rules, `live` keeps the raw CSSOM rules (used by
+ * `getResolvedProperties`), and `stable` drops transient rules (used by
+ * `getStableTokenProperty`).
+ */
+type CascadeTransform = InteractionState | "live" | "stable";
+
+function makeRuleApplies(el: HTMLElement): (rule: MatchedRule) => boolean {
   const matchingContexts = new Map<string, boolean>();
-  const ruleApplies = (rule: MatchedRule): boolean => {
+  return (rule: MatchedRule): boolean => {
     const atRules = rule.atRules;
     if (!atRules || atRules.length === 0) return true;
     const key = JSON.stringify(atRules);
@@ -1341,21 +1418,346 @@ export function resolvePropertiesFromRules(
     matchingContexts.set(key, result);
     return result;
   };
-  const localAliases = collectLocalAliases(el, rules, ruleApplies);
+}
 
-  // Sort by specificity ascending so rules are processed lowest-first.
+const TRANSIENT_SELECTOR = /:(?:hover|active|focus|focus-visible|focus-within|visited|target)(?:\b|\()/;
+
+const transformedRulesMemo = new WeakMap<MatchedRule[], Map<CascadeTransform, Array<{ rule: MatchedRule; selectorText: string }>>>();
+
+function rulesForTransform(rules: MatchedRule[], transform: CascadeTransform): Array<{ rule: MatchedRule; selectorText: string }> {
+  let byTransform = transformedRulesMemo.get(rules);
+  if (!byTransform) {
+    byTransform = new Map();
+    transformedRulesMemo.set(rules, byTransform);
+  }
+  const cached = byTransform.get(transform);
+  if (cached) return cached;
+  let transformed: Array<{ rule: MatchedRule; selectorText: string }>;
+  if (transform === "live") {
+    transformed = rules.map((rule) => ({ rule, selectorText: rule.selectorText }));
+  } else if (transform === "stable") {
+    transformed = rules
+      .filter((rule) => !TRANSIENT_SELECTOR.test(rule.selectorText))
+      .map((rule) => ({ rule, selectorText: rule.selectorText }));
+  } else {
+    transformed = rules.flatMap((rule) => {
+      const selectorText = selectorForState(rule.selectorText, transform);
+      return selectorText ? [{ rule, selectorText }] : [];
+    });
+  }
+  byTransform.set(transform, transformed);
+  return transformed;
+}
+
+function isElementSensitiveSelector(selector: string): boolean {
+  let attributeDepth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  for (let index = 0; index < selector.length; index++) {
+    const character = selector[index]!;
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (attributeDepth > 0) {
+      if (character === '"' || character === "'") quote = character;
+      else if (character === "[") attributeDepth++;
+      else if (character === "]") attributeDepth--;
+      continue;
+    }
+    if (character === "[") {
+      attributeDepth = 1;
+      continue;
+    }
+    if (character === "+" || character === "~") return true;
+    if (character !== ":") continue;
+    if (selector[index + 1] === ":") return true;
+    const pseudo = /^[A-Za-z-]+/.exec(selector.slice(index + 1))?.[0];
+    // :root is represented by the complete ancestor lineage. Other
+    // pseudo-classes can vary per concrete element without an attribute or
+    // sibling mutation (for example :checked, :visited, and :target).
+    if (pseudo && pseudo.toLowerCase() !== "root") return true;
+  }
+  return false;
+}
+
+interface SourceSiteMatchBuckets {
+  cacheable: Array<{ rule: MatchedRule; selectorText: string }>;
+  elementSensitive: Array<{ rule: MatchedRule; selectorText: string }>;
+}
+
+const sourceSiteMatchBucketsMemo = new WeakMap<MatchedRule[], Map<CascadeTransform, SourceSiteMatchBuckets>>();
+
+function sourceSiteMatchBuckets(rules: MatchedRule[], transform: CascadeTransform): SourceSiteMatchBuckets {
+  let byTransform = sourceSiteMatchBucketsMemo.get(rules);
+  if (!byTransform) {
+    byTransform = new Map();
+    sourceSiteMatchBucketsMemo.set(rules, byTransform);
+  }
+  const cached = byTransform.get(transform);
+  if (cached) return cached;
+  const cacheable: Array<{ rule: MatchedRule; selectorText: string }> = [];
+  const elementSensitive: Array<{ rule: MatchedRule; selectorText: string }> = [];
+  for (const entry of rulesForTransform(rules, transform)) {
+    (isElementSensitiveSelector(entry.selectorText) ? elementSensitive : cacheable).push(entry);
+  }
+  const buckets = { cacheable, elementSensitive };
+  byTransform.set(transform, buckets);
+  return buckets;
+}
+
+const SOURCE_SITE_CACHE_MAX = 4096;
+interface SourceSiteMatchCacheEntry {
+  elementRevision: number;
+  stylesheetRevision: number;
+  matched: ElementMatch[];
+}
+
+let sourceSiteMatchCaches = new WeakMap<Document, Map<string, SourceSiteMatchCacheEntry>>();
+let sourceSiteMatchCacheEntries = 0;
+const relationshipMatchCaches = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
+const concreteElementMatchCaches = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
+
+/** Test hook: clears the per-source-site matched-rule cache. */
+export function resetSourceSiteMatchCache(): void {
+  sourceSiteMatchCaches = new WeakMap();
+  sourceSiteMatchCacheEntries = 0;
+}
+
+/** Test hook: number of distinct cached source-site match sets. */
+export function sourceSiteMatchCacheSize(): number {
+  return sourceSiteMatchCacheEntries;
+}
+
+/**
+ * Captures selector-relevant state without serializing the whole document.
+ * Element and ancestor attributes cover the common source-site selectors while
+ * child/sibling-sensitive selectors are handled conservatively below.
+ */
+function sourceSiteContextKey(el: HTMLElement): string {
+  const lineage: string[] = [];
+  let current: HTMLElement | null = el;
+  while (current) {
+    const attributes = Array.from(current.attributes)
+      .filter((attribute) => attribute.name !== "data-dt-renderer-id")
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((attribute) => `${attribute.name}=${attribute.value}`)
+      .join("\u0002");
+    lineage.push(`${current.tagName}\u0003${attributes}`);
+    current = current.parentElement;
+  }
+  return lineage.join("\u0001");
+}
+
+/**
+ * Source-site identity key for the matched-rule cache. The element's class is
+ * part of the key because sibling instances of a source site can carry
+ * different classes (for example rows in a large list), which changes which
+ * rules match even though their `data-cid`/`data-src` are identical.
+ */
+function sourceSiteKey(el: HTMLElement, transform: CascadeTransform): string {
+  const cid = el.getAttribute("data-cid") ?? "";
+  const src = el.getAttribute("data-src") ?? "";
+  const instance = el.getAttribute("data-dt-instance") ?? "";
+  const className = typeof el.className === "string" ? el.className : "";
+  return `${cid}\u0000${src}\u0000${instance}\u0000${className}\u0000${transform}`;
+}
+
+function matchRuleForElement(el: HTMLElement, entry: { rule: MatchedRule; selectorText: string }): ElementMatch | null {
+  const branch = matchingSelectorBranch(el, entry.selectorText);
+  if (!branch) return null;
+  return {
+    rule: entry.rule,
+    selectorText: entry.selectorText,
+    branch,
+    specificity: specificityForBranch({ ...entry.rule, selectorText: entry.selectorText }, branch),
+  };
+}
+
+/**
+ * Matches every transformed rule against one element. For elements carrying a
+ * source-site identity (`data-cid`) the selector-match result is cached per
+ * `(document, data-cid, data-src, data-dt-instance, transform, element and
+ * stylesheet revision, context)` so repeated selections and equivalent sibling instances of the
+ * same source site reuse the matched rule set. Elements without a stable
+ * identity, or selectors that depend on unsupported relationships, are matched
+ * fresh on every call.
+ */
+function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transform: CascadeTransform): ElementMatch[] {
+  const { cacheable, elementSensitive } = sourceSiteMatchBuckets(rules, transform);
+  const collect = (entries: Array<{ rule: MatchedRule; selectorText: string }>): ElementMatch[] => {
+    const matched: ElementMatch[] = [];
+    for (const entry of entries) {
+      if (entry.rule.active === false) continue;
+      const match = matchRuleForElement(el, entry);
+      if (match) matched.push(match);
+    }
+    return matched;
+  };
+  const cid = el.getAttribute("data-cid");
+  const doc = el.ownerDocument ?? document;
+  const revisions = getDocumentRevisions(doc);
+  if (!cid || cacheable.length === 0) {
+    const entries = cacheable.length === 0 ? elementSensitive : [...cacheable, ...elementSensitive];
+    let cache = concreteElementMatchCaches.get(el);
+    if (!cache) {
+      cache = new Map();
+      concreteElementMatchCaches.set(el, cache);
+    }
+    const cached = cache.get(transform);
+    if (cached
+      && cached.elementRevision === revisions.element
+      && cached.stylesheetRevision === revisions.stylesheet) {
+      return cached.matched;
+    }
+    const matched = collect(entries);
+    cache.set(transform, {
+      elementRevision: revisions.element,
+      stylesheetRevision: revisions.stylesheet,
+      matched,
+    });
+    return matched;
+  }
+  const key = `${sourceSiteKey(el, transform)}\u0000${sourceSiteContextKey(el)}`;
+  let cache = sourceSiteMatchCaches.get(doc);
+  if (!cache) {
+    cache = new Map();
+    sourceSiteMatchCaches.set(doc, cache);
+  }
+  const cached = cache.get(key);
+  let cachedMatches: ElementMatch[];
+  if (cached
+    && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet) {
+    cachedMatches = cached.matched;
+  } else {
+    cachedMatches = collect(cacheable);
+    if (sourceSiteMatchCacheEntries >= SOURCE_SITE_CACHE_MAX) {
+      sourceSiteMatchCaches = new WeakMap();
+      sourceSiteMatchCacheEntries = 0;
+      cache = new Map();
+      sourceSiteMatchCaches.set(doc, cache);
+    }
+    if (!cache.has(key)) sourceSiteMatchCacheEntries++;
+    cache.set(key, {
+      elementRevision: revisions.element,
+      stylesheetRevision: revisions.stylesheet,
+      matched: cachedMatches,
+    });
+  }
+  // Element-sensitive selectors are cached per concrete element rather than
+  // by source-site identity. Their result can differ between siblings or
+  // interactive elements, while the document revision invalidates the entry
+  // after a relevant DOM or stylesheet change.
+  let elementMatches: ElementMatch[] = [];
+  if (elementSensitive.length > 0) {
+    let cache = relationshipMatchCaches.get(el);
+    if (!cache) {
+      cache = new Map();
+      relationshipMatchCaches.set(el, cache);
+    }
+    const cachedRelationship = cache.get(transform);
+    if (cachedRelationship
+      && cachedRelationship.elementRevision === revisions.element
+      && cachedRelationship.stylesheetRevision === revisions.stylesheet) {
+      elementMatches = cachedRelationship.matched;
+    } else {
+      elementMatches = collect(elementSensitive);
+      cache.set(transform, {
+        elementRevision: revisions.element,
+        stylesheetRevision: revisions.stylesheet,
+        matched: elementMatches,
+      });
+    }
+  }
+  return elementMatches.length === 0 ? cachedMatches : [...cachedMatches, ...elementMatches];
+}
+
+/**
+ * One matching pass over the rules for the element and its ancestors, with the
+ * selector-match results shared between the element's own resolution and the
+ * inherited phase. Local aliases are collected per element so no ancestor
+ * re-walks the lineage × rules.
+ */
+function resolveLineage(el: HTMLElement, rules: MatchedRule[], transform: CascadeTransform): LineageResolution {
+  const lineage: HTMLElement[] = [];
+  let current: HTMLElement | null = el;
+  while (current) {
+    lineage.push(current);
+    current = current.parentElement;
+  }
+  lineage.reverse();
+
+  const selectorMatches = new Map<HTMLElement, ElementMatch[]>();
+  for (const element of lineage) {
+    selectorMatches.set(element, getCachedElementMatches(element, rules, transform));
+  }
+
+  const byElement = new Map<HTMLElement, ElementResolution>();
+  for (let index = 0; index < lineage.length; index++) {
+    const element = lineage[index]!;
+    const ruleApplies = makeRuleApplies(element);
+    const aliases = new Map<string, string>();
+    for (const lineageElement of lineage.slice(0, index + 1)) {
+      const candidates = new Map<string, LocalAliasCandidate>();
+      for (const match of selectorMatches.get(lineageElement) ?? []) {
+        if (!ruleApplies(match.rule)) continue;
+        const sourceOrder = match.rule.sourceOrder ?? 0;
+        for (const declaration of match.rule.declarations) {
+          if (!declaration.property.startsWith("--") || declaration.property.startsWith("--dt-")) continue;
+          const candidate: LocalAliasCandidate = {
+            value: declaration.value.trim(),
+            important: declaration.important,
+            layer: match.rule.layer,
+            specificity: match.specificity,
+            sourceOrder,
+          };
+          const previous = candidates.get(declaration.property);
+          if (!previous || compareCascade(candidate, previous) >= 0) {
+            candidates.set(declaration.property, candidate);
+          }
+        }
+      }
+      for (const property of Array.from(lineageElement.style)) {
+        if (!property.startsWith("--") || property.startsWith("--dt-")) continue;
+        candidates.set(property, {
+          value: lineageElement.style.getPropertyValue(property).trim(),
+          important: lineageElement.style.getPropertyPriority(property) === "important",
+          specificity: 100000000,
+          sourceOrder: Number.MAX_SAFE_INTEGER,
+        });
+      }
+      for (const [name, candidate] of candidates) aliases.set(name, candidate.value);
+    }
+    const matched: ElementMatch[] = [];
+    for (const match of selectorMatches.get(element) ?? []) {
+      if (!ruleApplies(match.rule)) continue;
+      matched.push(match);
+    }
+    byElement.set(element, { element, matched, aliases });
+  }
+  return { lineage, byElement };
+}
+
+function rowsFromMatches(
+  el: HTMLElement,
+  matched: ElementMatch[],
+  aliases: ReadonlyMap<string, string>,
+  tokenTable: TokenTable,
+): ResolvedProperty[] {
+  const map = new Map<string, ResolvedProperty>();
+
+  // Sort by source order ascending so rules are processed lowest-first.
   // Map.set() naturally overwrites: higher specificity rules processed later win,
   // and equal-specificity rules get "last in stylesheet order wins" (stable sort).
-  const sorted = [...rules].sort((a, b) => (a.sourceOrder ?? 0) - (b.sourceOrder ?? 0));
+  const sorted = [...matched].sort((a, b) => (a.rule.sourceOrder ?? 0) - (b.rule.sourceOrder ?? 0));
 
-  for (const rule of sorted) {
-    if (rule.active === false) continue;
-    if (!ruleApplies(rule)) continue;
-    const branch = matchingSelectorBranch(el, rule.selectorText);
-    if (!branch) continue;
-    const specificity = computeSpecificity(branch);
+  for (const m of sorted) {
+    const { rule, branch, specificity } = m;
     for (const decl of rule.declarations) {
-      for (const resolved of resolveDeclaration(decl, tokenTable, localAliases, el)) {
+      for (const resolved of resolveDeclaration(decl, tokenTable, aliases, el)) {
         const candidate: ResolvedProperty = {
           property: resolved.property,
           tokenName: resolved.tokenName,
@@ -1398,6 +1800,23 @@ export function resolvePropertiesFromRules(
     row.capability = capabilityFor(row.property, numeric);
   }
   return rows;
+}
+
+export function resolvePropertiesFromRules(
+  el: HTMLElement,
+  rules: MatchedRule[],
+  tokenTable: TokenTable,
+): ResolvedProperty[] {
+  const ruleApplies = makeRuleApplies(el);
+  const matched: ElementMatch[] = [];
+  for (const rule of rules) {
+    if (rule.active === false) continue;
+    if (!ruleApplies(rule)) continue;
+    const match = matchRuleForElement(el, { rule, selectorText: rule.selectorText });
+    if (match) matched.push(match);
+  }
+  const localAliases = collectLocalAliases(el, rules, ruleApplies);
+  return rowsFromMatches(el, matched, localAliases, tokenTable);
 }
 
 function matchingSelectorBranch(el: Element, selectorText: string): string | null {
@@ -1483,11 +1902,13 @@ function splitTopLevel(s: string, sep?: string): string[] {
 }
 
 interface ResolvedPropertiesSnapshot {
-  revision: number;
+  elementRevision: number;
+  stylesheetRevision: number;
+  tokenTable: TokenTable;
   rows: ResolvedProperty[];
 }
 
-const stateResolutionSnapshots = new WeakMap<HTMLElement, WeakMap<TokenTable, Map<InteractionState, ResolvedPropertiesSnapshot>>>();
+const stateResolutionSnapshots = new WeakMap<HTMLElement, Map<InteractionState, ResolvedPropertiesSnapshot>>();
 
 const INHERITED_PROPERTIES = new Set([
   "color", "font", "font-family", "font-size", "font-style", "font-variant", "font-weight",
@@ -1497,30 +1918,32 @@ const INHERITED_PROPERTIES = new Set([
 
 function resolveInheritedProperties(
   el: HTMLElement,
-  rules: MatchedRule[],
   tokenTable: TokenTable,
+  lineage: LineageResolution,
   result: ResolvedProperty[],
   inaccessible: boolean,
 ): ResolvedProperty[] {
   const computed = getElementComputedStyle(el);
   const seenProperties = new Set(result.map((p) => p.property));
-  const rulesSorted = [...rules].sort((a, b) => b.specificity - a.specificity);
   let ancestor: HTMLElement | null = el.parentElement;
   while (ancestor) {
-    const ancestorComputed = getElementComputedStyle(ancestor);
-    for (const candidate of resolvePropertiesFromRules(ancestor, rulesSorted, tokenTable)) {
-      if (seenProperties.has(candidate.property)) continue;
-      if (!INHERITED_PROPERTIES.has(candidate.property) && !candidate.property.startsWith("--")) continue;
-      const ancestorVal = ancestorComputed.getPropertyValue(candidate.property).trim();
-      const elVal = computed.getPropertyValue(candidate.property).trim();
-      if (ancestorVal && ancestorVal === elVal) {
-        result.push({
-          ...candidate,
-          resolvedValue: elVal,
-          confidence: candidate.tokenName && candidateMatchesPainted(ancestor, candidate, ancestorVal) && !inaccessible && !candidate.evidence.layer ? "exact" : candidate.tokenName ? "probable" : "unknown",
-          evidence: { ...candidate.evidence, inheritedFrom: ancestor.tagName.toLowerCase(), inaccessibleStylesheet: inaccessible || undefined, reason: "inherited property traced through the ancestor cascade" },
-        });
-        seenProperties.add(candidate.property);
+    const entry = lineage.byElement.get(ancestor);
+    if (entry) {
+      const ancestorComputed = getElementComputedStyle(ancestor);
+      for (const candidate of rowsFromMatches(ancestor, entry.matched, entry.aliases, tokenTable)) {
+        if (seenProperties.has(candidate.property)) continue;
+        if (!INHERITED_PROPERTIES.has(candidate.property) && !candidate.property.startsWith("--")) continue;
+        const ancestorVal = ancestorComputed.getPropertyValue(candidate.property).trim();
+        const elVal = computed.getPropertyValue(candidate.property).trim();
+        if (ancestorVal && ancestorVal === elVal) {
+          result.push({
+            ...candidate,
+            resolvedValue: elVal,
+            confidence: candidate.tokenName && candidateMatchesPainted(ancestor, candidate, ancestorVal) && !inaccessible && !candidate.evidence.layer ? "exact" : candidate.tokenName ? "probable" : "unknown",
+            evidence: { ...candidate.evidence, inheritedFrom: ancestor.tagName.toLowerCase(), inaccessibleStylesheet: inaccessible || undefined, reason: "inherited property traced through the ancestor cascade" },
+          });
+          seenProperties.add(candidate.property);
+        }
       }
     }
     ancestor = ancestor.parentElement;
@@ -1535,7 +1958,9 @@ export function getResolvedProperties(
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
   const { rules, inaccessible } = collectCssomRules(doc);
-  const result = resolvePropertiesFromRules(el, rules, tokenTable);
+  const lineage = resolveLineage(el, rules, "live");
+  const entry = lineage.byElement.get(el)!;
+  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
   const computed = getElementComputedStyle(el);
   for (const prop of result) {
     const cv = computed.getPropertyValue(prop.property);
@@ -1602,7 +2027,7 @@ export function getResolvedProperties(
     prop.capability = capabilityFor(prop.property, numeric);
   }
 
-  return resolveInheritedProperties(el, rules, tokenTable, result, inaccessible);
+  return resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
 }
 
 const INTERACTION_SELECTOR = /:(hover|active|focus-visible|focus|disabled)(?:\b|\()/g;
@@ -1632,26 +2057,24 @@ export function getResolvedPropertiesForState(
   state: InteractionState,
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
-  const revision = getDocumentRevision(doc);
-  let tableSnapshots = stateResolutionSnapshots.get(el);
-  if (!tableSnapshots) {
-    tableSnapshots = new WeakMap();
-    stateResolutionSnapshots.set(el, tableSnapshots);
-  }
-  let snapshots = tableSnapshots.get(tokenTable);
+  const revisions = getDocumentRevisions(doc);
+  let snapshots = stateResolutionSnapshots.get(el);
   if (!snapshots) {
     snapshots = new Map();
-    tableSnapshots.set(tokenTable, snapshots);
+    stateResolutionSnapshots.set(el, snapshots);
   }
   const cached = snapshots.get(state);
-  if (cached?.revision === revision) return cached.rows;
+  if (cached
+    && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet
+    && cached.tokenTable === tokenTable) {
+    return cached.rows;
+  }
 
   const { rules, inaccessible } = collectCssomRules(doc);
-  const stateRules = rules.flatMap((rule) => {
-    const selectorText = selectorForState(rule.selectorText, state);
-    return selectorText ? [{ ...rule, selectorText }] : [];
-  });
-  const result = resolvePropertiesFromRules(el, stateRules, tokenTable);
+  const lineage = resolveLineage(el, rules, state);
+  const entry = lineage.byElement.get(el)!;
+  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
   const computed = getElementComputedStyle(el);
   for (const prop of result) {
     const cv = computed.getPropertyValue(prop.property);
@@ -1666,8 +2089,14 @@ export function getResolvedPropertiesForState(
         : "painted value has no attributable catalog token";
     }
   }
-  const rows = resolveInheritedProperties(el, stateRules, tokenTable, result, inaccessible);
-  snapshots.set(state, { revision, rows });
+  const rows = resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
+  registerWithAncestors(el);
+  snapshots.set(state, {
+    elementRevision: revisions.element,
+    stylesheetRevision: revisions.stylesheet,
+    tokenTable,
+    rows,
+  });
   return rows;
 }
 
@@ -1676,22 +2105,27 @@ export function getAvailableInteractionStates(el: HTMLElement): InteractionState
   const { rules } = collectCssomRules(doc);
   const available: InteractionState[] = ["base"];
   for (const state of INTERACTION_STATES) {
-    const relevant = rules.some((rule) => {
-      const selector = selectorForState(rule.selectorText, state);
-      return selector !== null && rule.selectorText.includes(`:${state}`) && matchingSelectorBranch(el, selector) !== null;
-    });
+    const matched = getCachedElementMatches(el, rules, state);
+    const relevant = matched.some((m) => m.rule.selectorText.includes(`:${state}`));
     if (relevant) available.push(state);
   }
   return available;
 }
 
-const TRANSIENT_SELECTOR = /:(?:hover|active|focus|focus-visible|focus-within|visited|target)(?:\b|\()/;
+const stableTokenCache = new WeakMap<HTMLElement, {
+  elementRevision: number;
+  stylesheetRevision: number;
+  tokenTable: TokenTable;
+  rows: ResolvedProperty[];
+}>();
 
 /**
  * Finds the authored token-backed declaration beneath a transient interaction
  * state. This keeps an editor linked to its stable token when selection occurs
  * while the element is hovered, while getResolvedProperties remains honest
- * about the value currently painted by that transient rule.
+ * about the value currently painted by that transient rule. The full resolution
+ * is memoized per (element, element/stylesheet revision, tokenTable) so the panel's background row
+ * no longer re-runs the cascade on every render.
  */
 export function getStableTokenProperty(
   el: HTMLElement,
@@ -1699,9 +2133,26 @@ export function getStableTokenProperty(
   tokenTable: TokenTable,
 ): ResolvedProperty | null {
   const doc = el.ownerDocument ?? document;
-  const { rules } = collectCssomRules(doc);
-  const stableRules = rules.filter((rule) => !TRANSIENT_SELECTOR.test(rule.selectorText));
-  const rows = resolvePropertiesFromRules(el, stableRules, tokenTable);
+  const revisions = getDocumentRevisions(doc);
+  const cached = stableTokenCache.get(el);
+  const rows = cached
+    && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet
+    && cached.tokenTable === tokenTable
+    ? cached.rows
+    : (() => {
+      const { rules } = collectCssomRules(doc);
+      const lineage = resolveLineage(el, rules, "stable");
+      const entry = lineage.byElement.get(el)!;
+      const fresh = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
+      stableTokenCache.set(el, {
+        elementRevision: revisions.element,
+        stylesheetRevision: revisions.stylesheet,
+        tokenTable,
+        rows: fresh,
+      });
+      return fresh;
+    })();
   for (const property of properties) {
     const row = rows.find((candidate) => candidate.property === property && candidate.tokenName);
     if (row) return row;

@@ -10,6 +10,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "./resolution.ts";
 import { resetPendingRules } from "./editActions.ts";
 import { selectOptionValues, setSelectValue } from "../styleEditors/_testUtils.ts";
+import { getManagedSheetText } from "../managedStylesheet.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -177,9 +178,9 @@ describe("TokenDropdown rendering", () => {
     });
     const select = host.querySelector('[data-test="token-promote-select"]') as HTMLElement;
     setSelectValue(select, "--radius-md");
-    const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
-    expect(sheet.textContent).toContain('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
-    expect(sheet.textContent).toContain("border-radius: var(--radius-md);");
+    const sheetText = getManagedSheetText();
+    expect(sheetText).toContain('[data-cid="Button"][data-src="src/Button.tsx:1:1"]');
+    expect(sheetText).toContain("border-radius: var(--radius-md);");
     btn.remove();
   });
 
@@ -196,8 +197,8 @@ describe("TokenDropdown rendering", () => {
     });
     const select = host.querySelector('[data-test="token-select"]') as HTMLElement;
     setSelectValue(select, "--color-surface-sunken");
-    const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement;
-    expect(sheet.textContent).toContain("background: var(--color-surface-sunken);");
+    const sheetText = getManagedSheetText();
+    expect(sheetText).toContain("background: var(--color-surface-sunken);");
     btn.remove();
   });
 });

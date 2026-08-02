@@ -556,6 +556,25 @@ describe("TokenField", () => {
     expect(colorValueToHex("#f008")).toBe("#ff0000");
   });
 
+  it("tags color-resolution probe elements so the cascade observer ignores them", () => {
+    const appended: Element[] = [];
+    const originalAppend = document.body.appendChild.bind(document.body);
+    const spy = vi.spyOn(document.body, "appendChild").mockImplementation((node: Node) => {
+      appended.push(node as Element);
+      return originalAppend(node);
+    });
+    try {
+      // A non-hex color forces the document probe path in colorValueToHex.
+      colorValueToHex("oklch(63% .2 25)");
+    } finally {
+      spy.mockRestore();
+    }
+    expect(appended.length).toBeGreaterThan(0);
+    for (const probe of appended) {
+      expect(probe.getAttribute("data-design-tool")).toBe("value-probe");
+    }
+  });
+
   it("renders browser-supported oklch values instead of the unresolved fallback", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenValueField, {

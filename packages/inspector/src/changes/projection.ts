@@ -47,18 +47,24 @@ export function buildManagedStyleRules(changes: ChangeRecord[]): StyleRule[] {
   return [...map.values()];
 }
 
-function verifyManagedStyleProjection(
+export function verifyManagedStyleProjection(
   change: PreviewableChangeRecord,
+  selectedElement?: HTMLElement | null,
 ): PreviewableChangeRecord {
-  const selected = getSelectedElement();
+  // Deferred verification must use the selection that existed when the
+  // projection was committed. Reading the live selection here can make a
+  // host-document change verify against a later canvas selection (or vice
+  // versa) and manufacture a conflict for the wrong document.
+  const selected = selectedElement === undefined
+    ? getSelectedElement()?.domElement ?? null
+    : selectedElement;
   const requestedValue = requestedStyleValue(change);
   // A Canvas-only selection belongs to an iframe. The controller stylesheet
   // cannot verify it synchronously; leave its result unknown until the frame
   // has received the canonical projection rather than claiming it is stale.
   if (
     selected
-    && selected.domElement.ownerDocument !== document
-    && selected.domElement.matches(change.selector)
+    && selected.ownerDocument !== document
   ) {
     return { ...change, previewResult: undefined };
   }
@@ -79,15 +85,18 @@ function verifyManagedStyleProjection(
   };
 }
 
+/**
+ * Applies the managed stylesheet and component override projections for a
+ * change set. Projection is synchronous and cheap; verification is never run
+ * here. Delta verification is scheduled by `changesLog` off the commit path so
+ * the commit handler returns before any `querySelectorAll`/probe work.
+ */
 export function applyChangeProjections(
   changes: ChangeRecord[],
-  verify = true,
 ): ChangeRecord[] {
   applyRules(buildManagedStyleRules(changes));
   replaceComponentOverrideProjection(
     changes.filter(isComponentChange).map(componentChangeToOverride),
   );
-  if (!verify) return changes;
-  return changes.map((change) =>
-    isComponentChange(change) ? change : verifyManagedStyleProjection(change));
+  return changes;
 }

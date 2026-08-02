@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
   isRendererMessageFor,
   type ElementClickMessage,
@@ -30,10 +30,15 @@ import { DropGuideOverlay, type ViewportDropGuide } from "../DropGuideOverlay.ts
 import { getMeasurementGeometry } from "../measurementGeometry.ts";
 import { MeasurementGuideOverlay } from "../MeasurementGuideOverlay.tsx";
 import { projectMeasurementSegments } from "./measurementProjection.ts";
+import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
+
+interface ElementIdentity {
+  elementId: string;
+}
 
 interface FrameOverlayState {
   iframe: HTMLIFrameElement;
-  element: HTMLElement | null;
+  identity: ElementIdentity;
   rect: Rect;
   margins: Margins;
   cardId: string;
@@ -80,13 +85,16 @@ function overlayStyle(rect: Rect): CSSProperties {
   };
 }
 
-function findFrameElement(iframe: HTMLIFrameElement, cid: string, src: string, instanceIndex: number): HTMLElement | null {
+function findFrameElement(iframe: HTMLIFrameElement, elementId: string, cid: string, src: string): HTMLElement | null {
   const doc = iframe.contentDocument;
   if (!doc) return null;
-  const matches = Array.from(doc.querySelectorAll<HTMLElement>("[data-cid]")).filter((candidate) => (
-    candidate.getAttribute("data-cid") === cid && candidate.getAttribute("data-src") === src
-  ));
-  return matches[instanceIndex] ?? null;
+  if (!/^r\d+$/.test(elementId)) return null;
+  const candidates = doc.querySelectorAll(`[${RENDERER_ELEMENT_ID_ATTR}="${elementId}"]`);
+  if (candidates.length !== 1) return null;
+  const candidate = candidates[0] ?? null;
+  if (!candidate || candidate.getAttribute("data-cid") !== cid || candidate.getAttribute("data-src") !== src) return null;
+  const frameWindow = doc.defaultView;
+  return frameWindow && candidate instanceof frameWindow.HTMLElement ? candidate : null;
 }
 
 function projectGuideToCanvas(guide: DropGuide | null, zoom: number): ViewportDropGuide | null {
@@ -130,6 +138,16 @@ export function CanvasElementOverlay(): ReactElement | null {
     ? projectRect(selectedFrame, selectedLocalRect, camera.zoom)
     : null;
 
+  // The selected element's identity is computed once per selection change
+  // (never per hover), so the measurement self-rulers exclusion can compare
+  // identities without a per-hover scan of the frame document.
+  const selectedIdentity = useMemo((): ElementIdentity | null => {
+    const el = selected?.domElement;
+    if (!el) return null;
+    const elementId = el.getAttribute(RENDERER_ELEMENT_ID_ATTR);
+    return elementId ? { elementId } : null;
+  }, [selected?.domElement]);
+
   useEffect(() => {
     function onMessage(event: MessageEvent): void {
       if (event.origin !== window.location.origin) return;
@@ -152,7 +170,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         }
         setHover({
           iframe: sourceIframe,
-          element: findFrameElement(sourceIframe, msg.cid, msg.src, msg.instanceIndex),
+          identity: { elementId: msg.elementId },
           rect: msg.rect,
           margins: msg.margins ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: sourceCardId,
@@ -170,7 +188,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         handleElementClick(msg, sourceIframe, sourceCardId);
       } else if (event.data.type === "element-drag-start") {
         const msg = event.data as ElementDragStartMessage;
-        const element = findFrameElement(sourceIframe, msg.cid, msg.src, msg.instanceIndex);
+        const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         if (!element) return;
         dragRef.current = { iframe: sourceIframe, element };
         const selectedElement = resolveSelectionFromElement(element);
@@ -191,12 +209,12 @@ export function CanvasElementOverlay(): ReactElement | null {
         clearDropGuide("canvas");
       } else if (event.data.type === "element-delete") {
         const msg = event.data as ElementDeleteMessage;
-        const element = findFrameElement(sourceIframe, msg.cid, msg.src, msg.instanceIndex);
+        const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         const selectedElement = element ? resolveSelectionFromElement(element) : null;
         if (selectedElement && deleteElement(selectedElement)) setSelectedElement(null);
       } else if (event.data.type === "element-nudge") {
         const msg = event.data as ElementNudgeMessage;
-        const element = findFrameElement(sourceIframe, msg.cid, msg.src, msg.instanceIndex);
+        const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         const record = element ? nudgeElement(element, msg.key) : null;
         if (element && record) {
           const selectedElement = resolveSelectionFromElement(element);
@@ -241,11 +259,16 @@ export function CanvasElementOverlay(): ReactElement | null {
     && measureStateForSelectedFrame?.altKey
     && measureStateForSelectedFrame.pointerOverPage,
   );
+  const isSelfHover = Boolean(
+    hoverInSelectedFrame
+    && selectedIdentity
+    && hoverInSelectedFrame.identity.elementId === selectedIdentity.elementId,
+  );
   const showMeasurement = Boolean(
     showGuideOverlay
     && selectedLocalRect
-    && hoverInSelectedFrame?.element
-    && hoverInSelectedFrame.element !== selected?.domElement,
+    && hoverInSelectedFrame
+    && !isSelfHover,
   );
   const measurementSegments = showMeasurement && selectedFrameRect && selectedLocalRect && hoverInSelectedFrame
     ? projectMeasurementSegments(

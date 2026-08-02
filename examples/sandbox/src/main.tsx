@@ -32,11 +32,21 @@ const DevBorderConformancePage = import.meta.env.DEV
 const DevPipelineConformancePage = import.meta.env.DEV
   ? lazy(() => import("./PipelineConformancePage").then(({ PipelineConformancePage }) => ({ default: PipelineConformancePage })))
   : null;
+const DevPerfFixturePage = import.meta.env.DEV
+  ? lazy(() => import("./perf-fixture/PerfFixturePage").then(({ PerfFixturePage }) => ({ default: PerfFixturePage })))
+  : null;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root not found");
 
 function Route() {
+  if (import.meta.env.DEV && window.location.search.includes("perf=large")) {
+    return DevPerfFixturePage ? (
+      <Suspense fallback={<main className="spacing-conformance-loading">Loading perf fixture…</main>}>
+        <DevPerfFixturePage />
+      </Suspense>
+    ) : <App />;
+  }
   if (window.location.pathname === "/spacing-conformance") {
     return DevSpacingConformancePage ? (
       <Suspense fallback={<main className="spacing-conformance-loading">Loading spacing corpus…</main>}>

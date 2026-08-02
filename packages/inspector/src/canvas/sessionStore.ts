@@ -393,14 +393,24 @@ export function serializeSession(): DurableSession {
   return buildSession();
 }
 
-export function persistSession(): void {
-  if (!canWriteWorkspace()) return;
-  if (!designToolProjectId) return;
+export function persistSession(): boolean {
+  if (!canWriteWorkspace()) return false;
+  return persistSessionUnchecked();
+}
+
+/**
+ * Serializes and writes the session without the write-lease gate. The public
+ * persistence path checks the lease before calling this helper.
+ */
+function persistSessionUnchecked(): boolean {
+  if (!designToolProjectId) return false;
   try {
     const session = buildSession();
     localStorage.setItem(storageKey(designToolProjectId), JSON.stringify(session));
+    return true;
   } catch {
     // Storage unavailable or quota exceeded — silently ignore
+    return false;
   }
 }
 
@@ -566,19 +576,60 @@ export function clearSession(): void {
   setBoardCamera({ x: 0, y: 0, zoom: 1 });
 
   applyRules([]);
+  autoSaveDirty = false;
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
 }
 
 let autoSaveEnabled = false;
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+let autoSaveDirty = false;
+const AUTOSAVE_DEBOUNCE_MS = 500;
 
 export function enableAutoSave(): void {
   if (autoSaveEnabled) return;
   autoSaveEnabled = true;
-  window.addEventListener("beforeunload", persistSession);
+  window.addEventListener("beforeunload", flushAutoSave);
 }
 
+/**
+ * Coalesces the synchronous full-session `JSON.stringify` + `localStorage`
+ * write behind a trailing timer so commits never block on persistence. A
+ * refresh or close inside the debounce window still flushes on `beforeunload`.
+ */
 export function scheduleAutoSave(): void {
   if (!autoSaveEnabled) return;
-  persistSession();
+  autoSaveDirty = true;
+  if (autosaveTimer !== null) clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    autosaveTimer = null;
+    if (!autoSaveDirty) return;
+    if (persistSession()) autoSaveDirty = false;
+  }, AUTOSAVE_DEBOUNCE_MS);
+}
+
+/**
+ * Canvas mode/card/camera changes persist immediately (synchronous) so a
+ * refresh always restores the workspace, even inside the edit-autosave
+ * debounce window. Edit autosave stays coalesced behind the trailing timer.
+ */
+export function scheduleCanvasSave(): void {
+  if (!autoSaveEnabled) return;
+  if (persistSession()) autoSaveDirty = false;
+}
+
+function flushAutoSave(): void {
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+  if (!autoSaveDirty) return;
+  // Keep the normal lease gate on the unload path. The controller registers
+  // this listener before releaseLease, so a current owner can flush a first
+  // write without allowing a stale tab to overwrite the new owner's session.
+  if (persistSession()) autoSaveDirty = false;
 }
 
 let restoreCount = 0;
@@ -597,7 +648,12 @@ export function clearRestoreCount(): void {
 
 export function resetAutoSave(): void {
   autoSaveEnabled = false;
-  window.removeEventListener("beforeunload", persistSession);
+  autoSaveDirty = false;
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+  window.removeEventListener("beforeunload", flushAutoSave);
 }
 
 export { storageKey, SCHEMA_VERSION, type SerializableCard as HydratedCard };

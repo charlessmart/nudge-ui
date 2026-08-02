@@ -2,6 +2,7 @@ import type { SelectedElement } from "../selectionStore.ts";
 import { setSelectedElement } from "../selectionStore.ts";
 import type { ElementClickMessage } from "./frameProtocol.ts";
 import { selectCard } from "./canvasStore.ts";
+import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 
 function isHtmlElementInDocument(node: Element | null, doc: Document): node is HTMLElement {
   const frameWindow = doc.defaultView;
@@ -11,41 +12,33 @@ function isHtmlElementInDocument(node: Element | null, doc: Document): node is H
 /**
  * Resolve the exact DOM element inside a card's iframe that matches an
  * element-click message. The renderer (running inside the iframe) tells us
- * the clicked element's `data-cid` and `data-src` strings; we re-find the
- * element by attribute equality so that the parent app can mutate the same
+ * the clicked element's renderer-owned `elementId`; we re-find the element by
+ * that stable data attribute so that the parent app can mutate the same
  * physical DOM node the user clicked.
  *
- * We match on the pair `(data-cid, data-src)` because `data-cid` alone is
- * shared by every element rendered by the same React component (e.g. every
- * element authored inside `App` carries `data-cid="App"`). Falling back to
- * `data-cid`-only would silently return the first matching element, which
- * could be the wrong one.
+ * The resolution uses a scoped ID query and never depends on document order.
  *
- * If an exact source-bearing element no longer exists, fail closed instead of
+ * If the exact renderer-owned node no longer exists, fail closed instead of
  * binding the copied component metadata to an unrelated DOM node.
  */
 function findClickedElement(
   doc: Document | null | undefined,
+  elementId: string,
   cid: string,
   src: string,
 ): HTMLElement | null {
   if (!doc) return null;
-
-  const cidMatches = Array.from(doc.querySelectorAll("[data-cid]"))
-    .filter((candidate): candidate is HTMLElement => (
-      isHtmlElementInDocument(candidate, doc) && candidate.getAttribute("data-cid") === cid
-    ));
-
-  if (src) {
-    return cidMatches.find((candidate) => candidate.getAttribute("data-src") === src) ?? null;
-  }
-
-  return cidMatches.length === 1 ? cidMatches[0] ?? null : null;
+  if (!/^r\d+$/.test(elementId)) return null;
+  const candidates = doc.querySelectorAll(`[${RENDERER_ELEMENT_ID_ATTR}="${elementId}"]`);
+  if (candidates.length !== 1) return null;
+  const candidate = candidates[0] ?? null;
+  if (!candidate || candidate.getAttribute("data-cid") !== cid || candidate.getAttribute("data-src") !== src) return null;
+  return isHtmlElementInDocument(candidate, doc) ? candidate : null;
 }
 
 export function handleElementClick(msg: ElementClickMessage, iframe: HTMLIFrameElement, cardId: string): void {
   const doc = iframe.contentDocument;
-  const el = findClickedElement(doc, msg.cid, msg.src);
+  const el = findClickedElement(doc, msg.elementId, msg.cid, msg.src);
 
   if (!el) {
     setSelectedElement(null);

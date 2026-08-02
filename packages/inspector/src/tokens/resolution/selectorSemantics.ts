@@ -34,8 +34,38 @@ function splitSelectorAtTopLevel(selector: string, separator?: string): string[]
   return parts;
 }
 
-/** Computes the cascade weight for a selector without asking the DOM to match it. */
+const SPECIFICITY_MEMO_LIMIT = 10_000;
+const specificityMemo = new Map<string, number>();
+let specificityComputations = 0;
+
+/** Number of unique selector strings actually computed (for tests). */
+export function specificityComputationCount(): number {
+  return specificityComputations;
+}
+
+/** Clears the specificity memo (for tests). */
+export function resetSpecificityMemo(): void {
+  specificityMemo.clear();
+  specificityComputations = 0;
+}
+
+/**
+ * Computes the cascade weight for a selector without asking the DOM to match
+ * it. Results are memoized per selector string for the resolution paths that
+ * still recompute branch specificity (multi-branch selectors).
+ */
 export function computeSpecificity(selectorText: string): number {
+  const cached = specificityMemo.get(selectorText);
+  if (cached !== undefined) return cached;
+  specificityComputations++;
+  const result = computeSpecificityCore(selectorText);
+  if (specificityMemo.size >= SPECIFICITY_MEMO_LIMIT) specificityMemo.clear();
+  specificityMemo.set(selectorText, result);
+  return result;
+}
+
+/** The unmemoized implementation, exposed for equivalence tests. */
+export function computeSpecificityCore(selectorText: string): number {
   const selector = selectorText.trim();
   const commaParts = splitSelectorAtTopLevel(selector, ",");
   if (commaParts.length > 1) {

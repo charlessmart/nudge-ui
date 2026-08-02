@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 async function sheetText(page: import("@playwright/test").Page): Promise<string> {
-  return await page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? "");
+  return managedSheetText(page);
 }
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
@@ -117,12 +118,17 @@ test("dev: style editors write through the managed stylesheet and update the .bt
     .toContain(expectedRgb ?? expectedColor);
 
   const sheet = await sheetText(page);
-  expect(sheet).toContain('[data-cid="Button"]');
-  expect(sheet).toMatch(/\[data-src="src\/Button\.tsx:\d+:\d+"\]/);
-  expect(sheet).toContain("padding-top: 24px");
-  expect(sheet).toContain("font-size: 18px");
-  expect(sheet).toContain("border-radius: 12px");
-  expect(sheet).toContain("color: var(--color-text-secondary);");
+  await expect
+    .poll(async () => {
+      const text = await sheetText(page);
+      return text.includes('[data-cid="Button"]')
+        && /\[data-src="src\/Button\.tsx:\d+:\d+"\]/.test(text)
+        && text.includes("padding-top: 24px")
+        && text.includes("font-size: 18px")
+        && text.includes("border-radius: 12px")
+        && text.includes("color: var(--color-text-secondary);");
+    }, { timeout: 5000 })
+    .toBe(true);
 });
 
 test("dev: color suggestions exclude unrelated tokens from the editor picker", async ({ page }) => {

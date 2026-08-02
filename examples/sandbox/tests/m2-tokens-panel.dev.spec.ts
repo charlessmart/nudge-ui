@@ -73,7 +73,9 @@ test("dev: token picker stays bounded and supports selection", async ({ page }) 
   const field = page.locator('[data-test="token-field"][data-property="color"]');
   const chip = field.locator('[data-test="token-chip"]');
   const raw = field.locator('[data-test="raw-input"]');
-  const hasChip = await chip.count() > 0;
+  await expect(field).toBeVisible();
+  await expect.poll(async () => (await chip.count()) > 0 ? "chip" : ((await raw.count()) > 0 ? "raw" : null)).toBeTruthy();
+  const hasChip = (await chip.count()) > 0;
   if (hasChip) await expect(chip).toBeVisible();
   else await expect(raw).toBeVisible();
 

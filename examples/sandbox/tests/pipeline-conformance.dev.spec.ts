@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 async function selectCase(page: import("@playwright/test").Page, id: string): Promise<void> {
   await page.locator(`[data-test="pipeline-case-${id}"]`).evaluate((element) => {
@@ -62,7 +63,7 @@ test("dev: a fallback expression remains authored and previews through the manag
 
   await setRawInput(page, "color", "#123456");
   await expect.poll(() => computed(page, "raw-fallback-color", "color")).toBe("rgb(18, 52, 86)");
-  await expect.poll(() => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+  await expect.poll(() => managedSheetText(page))
     .toContain("color: #123456;");
 });
 

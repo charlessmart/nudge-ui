@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect.poll(async () => page.evaluate(() => Boolean(
@@ -69,7 +70,7 @@ test("dev: typography raw expressions remain editable after CSSOM normalization"
   await setInput(page, "font-size", "24px");
 
   await expect.poll(async () => shorthand.evaluate((element) => getComputedStyle(element).fontSize)).toBe("24px");
-  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+  await expect.poll(() => managedSheetText(page))
     .toContain("font-size: 24px;");
   await expect(shorthand).not.toHaveAttribute("style", /.*/);
 });

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   persistSession,
   hydrateSession,
@@ -412,13 +412,21 @@ describe("sessionStore auto-save", () => {
   beforeEach(resetAllState);
   afterEach(resetAllState);
 
-  it("scheduleAutoSave persists when enabled", () => {
-    enableAutoSave();
-    appendChange(makeElementChange());
-    scheduleAutoSave();
+  it("scheduleAutoSave persists when enabled (after the debounce window)", () => {
+    vi.useFakeTimers();
+    try {
+      enableAutoSave();
+      appendChange(makeElementChange());
+      scheduleAutoSave();
 
-    const raw = localStorage.getItem(storageKey(designToolProjectId));
-    expect(raw).not.toBeNull();
+      // The write is coalesced behind a trailing timer so commits never block
+      // on serialization; it must land once the debounce window elapses.
+      expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+      vi.advanceTimersByTime(600);
+      expect(localStorage.getItem(storageKey(designToolProjectId))).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("scheduleAutoSave no-ops when not enabled", () => {
@@ -428,6 +436,54 @@ describe("sessionStore auto-save", () => {
 
     const raw = localStorage.getItem(storageKey(designToolProjectId));
     expect(raw).toBeNull();
+  });
+
+  it("flushes a first debounced edit on beforeunload", () => {
+    vi.useFakeTimers();
+    try {
+      enableAutoSave();
+      appendChange(makeElementChange());
+      scheduleAutoSave();
+
+      expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+      window.dispatchEvent(new Event("beforeunload"));
+      expect(localStorage.getItem(storageKey(designToolProjectId))).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not overwrite an externally updated session when clean", () => {
+    vi.useFakeTimers();
+    try {
+      enableAutoSave();
+      appendChange(makeElementChange());
+      scheduleAutoSave();
+      vi.advanceTimersByTime(600);
+
+      const externalSession = JSON.stringify({ source: "another-tab" });
+      localStorage.setItem(storageKey(designToolProjectId), externalSession);
+      window.dispatchEvent(new Event("beforeunload"));
+
+      expect(localStorage.getItem(storageKey(designToolProjectId))).toBe(externalSession);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels a pending autosave when the session is cleared", () => {
+    vi.useFakeTimers();
+    try {
+      enableAutoSave();
+      appendChange(makeElementChange());
+      scheduleAutoSave();
+      clearSession();
+      vi.advanceTimersByTime(600);
+
+      expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

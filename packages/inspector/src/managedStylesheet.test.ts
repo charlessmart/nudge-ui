@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { ensureManagedSheet, applyRules, escapeAttrValue, rulesToCssText, verifyPreview } from "./managedStylesheet.ts";
+import { ensureManagedSheet, applyRules, escapeAttrValue, rulesToCssText, verifyPreview, getManagedSheetText } from "./managedStylesheet.ts";
 import type { StyleRule } from "./managedStylesheet.ts";
 
 const SHEET_ID = "design-tool-styles";
@@ -48,28 +48,26 @@ describe("applyRules", () => {
         declarations: { background: "var(--color-surface-sunken)", "border-radius": "8px" },
       },
     ]);
-    const el = document.getElementById(SHEET_ID) as HTMLStyleElement;
-    expect(el.textContent).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
-    expect(el.textContent).toContain("background: var(--color-surface-sunken);");
-    expect(el.textContent).toContain("border-radius: 8px;");
+    expect(getManagedSheetText()).toContain('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+    expect(getManagedSheetText()).toContain("background: var(--color-surface-sunken);");
+    expect(getManagedSheetText()).toContain("border-radius: 8px;");
   });
 
   it("overwrites old rules entirely (does not append)", () => {
     applyRules([{ selector: ".a", declarations: { color: "red" } }]);
     applyRules([{ selector: ".b", declarations: { color: "blue" } }]);
-    const el = document.getElementById(SHEET_ID) as HTMLStyleElement;
-    expect(el.textContent).not.toContain(".a");
-    expect(el.textContent).not.toContain("color: red;");
-    expect(el.textContent).toContain(".b");
-    expect(el.textContent).toContain("color: blue;");
+    expect(getManagedSheetText()).not.toContain(".a");
+    expect(getManagedSheetText()).not.toContain("color: red;");
+    expect(getManagedSheetText()).toContain(".b");
+    expect(getManagedSheetText()).toContain("color: blue;");
   });
 
   it("is idempotent for identical input (replaceSync semantics, no duplicates)", () => {
     const rules: StyleRule[] = [{ selector: ".a", declarations: { color: "red" } }];
     applyRules(rules);
-    const before = (document.getElementById(SHEET_ID) as HTMLStyleElement).textContent;
+    const before = getManagedSheetText();
     applyRules(rules);
-    const after = (document.getElementById(SHEET_ID) as HTMLStyleElement).textContent;
+    const after = getManagedSheetText();
     expect(after).toBe(before);
     const matches = (after ?? "").split(".a").length - 1;
     expect(matches).toBe(1);
@@ -77,8 +75,8 @@ describe("applyRules", () => {
 
   it("omits entries with empty property or value", () => {
     applyRules([{ selector: ".a", declarations: { "": "red", color: "" } }]);
-    expect((document.getElementById(SHEET_ID) as HTMLStyleElement).textContent).not.toContain(": red");
-    expect((document.getElementById(SHEET_ID) as HTMLStyleElement).textContent).not.toContain("color:");
+    expect(getManagedSheetText()).not.toContain(": red");
+    expect(getManagedSheetText()).not.toContain("color:");
   });
 
   it("rulesToCssText emits each rule on its own line", () => {
@@ -122,12 +120,83 @@ describe("applyRules", () => {
 
     expect(css).toBe('@media (width > 600px) { @layer theme { @supports (color: oklch(0 0 0)) { @media (prefers-contrast: more) { :root { --surface: #111111; } } } } }');
   });
+
+  describe("rule-diffing round trip", () => {
+    it("updates a rule in place when its value changes, without duplicating it", () => {
+      const rule: StyleRule = { selector: ".a", declarations: { color: "red" } };
+      applyRules([rule]);
+      applyRules([{ selector: ".a", declarations: { color: "blue" } }]);
+      const sheet = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      expect(sheet.sheet?.cssRules.length).toBe(1);
+      const css = (sheet.sheet!.cssRules[0] as CSSStyleRule).style.getPropertyValue("color");
+      expect(css).toBe("blue");
+    });
+
+    it("removes a rule that is no longer projected and restores it afterwards", () => {
+      applyRules([
+        { selector: ".a", declarations: { color: "red" } },
+        { selector: ".b", declarations: { color: "blue" } },
+      ]);
+      let sheet = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      expect(sheet.sheet?.cssRules.length).toBe(2);
+
+      applyRules([{ selector: ".a", declarations: { color: "red" } }]);
+      sheet = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      expect(sheet.sheet?.cssRules.length).toBe(1);
+      expect((sheet.sheet!.cssRules[0] as CSSStyleRule).selectorText).toBe(".a");
+
+      applyRules([
+        { selector: ".a", declarations: { color: "red" } },
+        { selector: ".b", declarations: { color: "blue" } },
+      ]);
+      sheet = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      expect(sheet.sheet?.cssRules.length).toBe(2);
+      expect((sheet.sheet!.cssRules[1] as CSSStyleRule).selectorText).toBe(".b");
+    });
+
+    it("keeps distinct properties of the same selector as separate rules", () => {
+      applyRules([
+        { selector: ".a", declarations: { color: "red" } },
+        { selector: ".a", declarations: { padding: "4px" } },
+      ]);
+      const sheet = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      expect(sheet.sheet?.cssRules.length).toBe(2);
+      const props = Array.from(sheet.sheet!.cssRules).map((r) => (r as CSSStyleRule).style.getPropertyValue("color") || (r as CSSStyleRule).style.getPropertyValue("padding"));
+      expect(props.sort()).toEqual(["4px", "red"]);
+    });
+
+    it("restores canonical order when an existing rule moves later", () => {
+      applyRules([
+        { selector: ".a", declarations: { color: "red" } },
+        { selector: ".b", declarations: { color: "blue" } },
+      ]);
+      applyRules([
+        { selector: ".b", declarations: { color: "blue" } },
+        { selector: ".a", declarations: { color: "red" } },
+      ]);
+
+      const sheet = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      expect(Array.from(sheet.sheet!.cssRules).map((rule) => (rule as CSSStyleRule).selectorText))
+        .toEqual([".b", ".a"]);
+    });
+
+    it("reappends the managed sheet to stay last in <head> when a later style element is added", async () => {
+      applyRules([{ selector: ".a", declarations: { color: "red" } }]);
+      const later = document.createElement("style");
+      later.id = "author-style-after";
+      document.head.appendChild(later);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const el = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      expect(el).not.toBeNull();
+      expect(document.head.lastElementChild).toBe(el);
+    });
+  });
 });
 
 describe("escapeAttrValue", () => {
   it("escapes backslash, double-quote and closing bracket", () => {
-    expect(escapeAttrValue('But]ton"')).toBe('But\\]ton\\"');
-    expect(escapeAttrValue("a\\b")).toBe("a\\\\b");
+    expect(escapeAttrValue('But]ton"')).toBe("But\\5d ton\\22 ");
+    expect(escapeAttrValue("a\\b")).toBe("a\\5c b");
   });
 
   it("produces a selector round-trip that matches an element with the raw value", () => {
@@ -138,6 +207,17 @@ describe("escapeAttrValue", () => {
     const selector = `[data-cid="${escaped}"]`;
     expect(el.matches(selector)).toBe(true);
     document.body.innerHTML = "";
+  });
+
+  it("round-trips a quote-containing value without allowing selector injection", () => {
+    const el = document.createElement("button");
+    const value = 'Button"] ~ *[data-cid="Secret';
+    el.setAttribute("data-cid", value);
+    document.body.appendChild(el);
+    const selector = `[data-cid="${escapeAttrValue(value)}"]`;
+
+    expect(() => document.querySelector(selector)).not.toThrow();
+    expect(document.querySelector(selector)).toBe(el);
   });
 });
 

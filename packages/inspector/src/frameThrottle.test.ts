@@ -48,4 +48,18 @@ describe("createFrameThrottle", () => {
     expect(seen).toEqual([]);
     expect(fake.cancelled).toEqual([1]);
   });
+
+  it("flushes the newest queued value synchronously", () => {
+    const fake = scheduler();
+    const seen: number[] = [];
+    const throttle = createFrameThrottle((value: number) => seen.push(value), fake.scheduler);
+
+    throttle.schedule(1);
+    throttle.schedule(2);
+    throttle.flush();
+    fake.flush();
+
+    expect(seen).toEqual([2]);
+    expect(fake.cancelled).toEqual([1]);
+  });
 });

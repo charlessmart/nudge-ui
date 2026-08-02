@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export interface FrameMessage {
   type: string;
@@ -56,7 +56,7 @@ export interface ElementHoverMessage extends RendererMessage {
   cid: string;
   selector: string;
   src: string;
-  instanceIndex: number;
+  elementId: string;
   rect: { left: number; top: number; width: number; height: number } | null;
   margins: { top: number; right: number; bottom: number; left: number } | null;
 }
@@ -74,6 +74,7 @@ export interface ElementClickMessage extends RendererMessage {
   cid: string;
   selector: string;
   src: string;
+  elementId: string;
   file: string;
   line: number;
   component: string;
@@ -83,7 +84,7 @@ export interface ElementDragStartMessage extends RendererMessage {
   type: "element-drag-start";
   cid: string;
   src: string;
-  instanceIndex: number;
+  elementId: string;
   point: { x: number; y: number };
 }
 
@@ -101,14 +102,14 @@ export interface ElementDeleteMessage extends RendererMessage {
   type: "element-delete";
   cid: string;
   src: string;
-  instanceIndex: number;
+  elementId: string;
 }
 
 export interface ElementNudgeMessage extends RendererMessage {
   type: "element-nudge";
   cid: string;
   src: string;
-  instanceIndex: number;
+  elementId: string;
   key: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight";
 }
 
