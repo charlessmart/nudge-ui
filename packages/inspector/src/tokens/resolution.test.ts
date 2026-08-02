@@ -209,7 +209,7 @@ describe("source-site matched-rule cache", () => {
 
   it("shares one match set across sibling instances of the same source site", async () => {
     const style = document.createElement("style");
-    style.textContent = ".row { background: var(--color-a); }";
+    style.textContent = ":root { --global: var(--color-a); } .row { background: var(--color-a); }";
     document.head.appendChild(style);
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -300,6 +300,109 @@ describe("source-site matched-rule cache", () => {
       .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
     expect(getResolvedPropertiesForState(two, table, "base")
       .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+  });
+
+  it("does not share matches across same-source-site elements with different selector attributes", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".row[aria-current=\"true\"] { background: var(--color-a); }";
+    document.head.appendChild(style);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const current = mountRow(container);
+    current.setAttribute("aria-current", "true");
+    const inactive = mountRow(container);
+    inactive.setAttribute("aria-current", "false");
+    await flush();
+
+    expect(getResolvedPropertiesForState(current, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+    expect(getResolvedPropertiesForState(inactive, table, "base")
+      .find((row) => row.property === "background")).toBeUndefined();
+    expect(sourceSiteMatchCacheSize()).toBe(2);
+  });
+
+  it("does not confuse attribute tilde operators with sibling combinators", async () => {
+    const style = document.createElement("style");
+    style.textContent = '[data-kind~="row"] .row { background: var(--color-a); }';
+    document.head.appendChild(style);
+    const container = document.createElement("div");
+    container.setAttribute("data-kind", "row");
+    document.body.appendChild(container);
+    const first = mountRow(container);
+    await flush();
+
+    getResolvedPropertiesForState(first, table, "base");
+    expect(sourceSiteMatchCacheSize()).toBe(1);
+  });
+
+  it("keeps relationship-sensitive matches per concrete element", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".row { background: var(--color-a); } .row:first-child { background: var(--color-b); }";
+    document.head.appendChild(style);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const first = mountRow(container);
+    const second = mountRow(container);
+    await flush();
+
+    expect(getResolvedPropertiesForState(first, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+    expect(getResolvedPropertiesForState(second, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+
+    container.insertBefore(second, first);
+    await flush();
+    expect(getResolvedPropertiesForState(second, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+  });
+
+  it("keeps dynamic pseudo-class matches per concrete element", async () => {
+    const style = document.createElement("style");
+    style.textContent = "input.row { background: var(--color-a); } input.row:checked { background: var(--color-b); }";
+    document.head.appendChild(style);
+    const first = document.createElement("input");
+    first.type = "checkbox";
+    first.className = "row";
+    first.checked = true;
+    first.setAttribute("data-cid", "Row");
+    first.setAttribute("data-src", "Row.tsx:4:2");
+    const second = document.createElement("input");
+    second.type = "checkbox";
+    second.className = "row";
+    second.setAttribute("data-cid", "Row");
+    second.setAttribute("data-src", "Row.tsx:4:2");
+    document.body.append(first, second);
+    await flush();
+
+    expect(getResolvedPropertiesForState(first, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+    expect(getResolvedPropertiesForState(second, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+  });
+
+  it("keeps source-site match caches isolated between iframe documents", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".row { background: var(--color-a); }";
+    document.head.appendChild(style);
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    const frameDocument = iframe.contentDocument!;
+    const frameStyle = frameDocument.createElement("style");
+    frameStyle.textContent = ".row { background: var(--color-b); }";
+    frameDocument.head.appendChild(frameStyle);
+    const mainRow = mountRow(document.body);
+    const frameRow = frameDocument.createElement("div");
+    frameRow.className = "row";
+    frameRow.setAttribute("data-cid", "Row");
+    frameRow.setAttribute("data-src", "Row.tsx:4:2");
+    frameDocument.body.appendChild(frameRow);
+    await flush();
+
+    expect(getResolvedPropertiesForState(mainRow, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+    expect(getResolvedPropertiesForState(frameRow, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+    expect(sourceSiteMatchCacheSize()).toBe(2);
   });
 
   it("traces inherited token-backed properties through a multi-level lineage in one pass", () => {

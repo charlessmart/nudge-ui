@@ -1,6 +1,9 @@
 import { getElementComputedStyle } from "./domRealm.ts";
 import { invalidateStyleResolutionCache } from "./tokens/resolution.ts";
 import type { TokenContextWrapper } from "virtual:design-tokens";
+import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
+
+export { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 
 export interface StyleRule {
   selector: string;
@@ -22,6 +25,24 @@ export interface PreviewResult {
 }
 
 const SHEET_ID = "design-tool-styles";
+type ManagedDebugWindow = Window & {
+  __designToolGetManagedSheetText?: () => string;
+};
+
+let managedHeadGuardDocument: Document | null = null;
+let managedHeadGuard: MutationObserver | null = null;
+
+function installManagedHeadGuard(doc: Document): void {
+  const Observer = doc.defaultView?.MutationObserver;
+  if (!Observer || !doc.head || managedHeadGuardDocument === doc) return;
+  managedHeadGuard?.disconnect();
+  managedHeadGuardDocument = doc;
+  managedHeadGuard = new Observer(() => {
+    const managed = doc.getElementById(SHEET_ID);
+    if (managed && doc.head.lastElementChild !== managed) doc.head.appendChild(managed);
+  });
+  managedHeadGuard.observe(doc.head, { childList: true });
+}
 
 export function ensureManagedSheet(): CSSStyleSheet {
   const doc = document;
@@ -47,11 +68,14 @@ export function ensureManagedSheet(): CSSStyleSheet {
   if (!sheet) {
     throw new Error("design-tool managed stylesheet could not be initialised");
   }
+  if (doc.head.lastElementChild !== el) doc.head.appendChild(el);
+  installManagedHeadGuard(doc);
+  if (import.meta.env.DEV && doc.defaultView) {
+    // Keep authored CSS available to dev diagnostics without writing
+    // textContent on the live <style> element (which reparses CSSOM rules).
+    (doc.defaultView as ManagedDebugWindow).__designToolGetManagedSheetText = getManagedSheetText;
+  }
   return sheet;
-}
-
-export function escapeAttrValue(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\]/g, "\\]");
 }
 
 function buildDeclarationsBody(declarations: Record<string, string>): string {
@@ -153,47 +177,13 @@ function syncModelFromSheet(rules: StyleRule[], sheet: CSSStyleSheet): void {
   }
 }
 
-/**
- * Synchronous serialized view of the rules currently projected into the
- * managed sheet. Equivalent to what the deferred text mirror writes to
- * `textContent`; tests and debug tooling read this without waiting for the
- * coalesced text write.
- */
+function syncEntryIndexes(): void {
+  managedEntries.forEach((entry, index) => { entry.index = index; });
+}
+
+/** Synchronous serialized view of the rules currently projected into the managed sheet. */
 export function getManagedSheetText(): string {
   return rulesToCssText(managedEntries.map(entryToRule));
-}
-
-/**
- * The keep-last guard relies on `ensureManagedSheet`, but the author styles of
- * the document never see the managed element's text. A delayed text mirror is
- * kept purely so debugging tools and e2e assertions can read the projected
- * rules from `textContent`. It is coalesced behind a trailing timer so the
- * synchronous commit path only pays for CSSOM writes, never a text re-parse.
- */
-let sheetTextSyncHandle: ReturnType<typeof setTimeout> | null = null;
-const SHEET_TEXT_SYNC_DELAY_MS = 800;
-
-function scheduleSheetTextSync(): void {
-  if (sheetTextSyncHandle !== null) clearTimeout(sheetTextSyncHandle);
-  sheetTextSyncHandle = setTimeout(syncSheetText, SHEET_TEXT_SYNC_DELAY_MS);
-}
-
-function syncSheetText(): void {
-  sheetTextSyncHandle = null;
-  const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
-  if (!el || !el.sheet) return;
-  if (el !== managedSheetElement) {
-    // The element was recreated outside applyRules; the model is stale.
-    managedSheetElement = el;
-    managedEntries = [];
-    return;
-  }
-  const rules = managedEntries.map(entryToRule);
-  el.textContent = rulesToCssText(rules);
-  // The text write re-parses the sheet and re-creates the CSSOM rule objects.
-  // Cascade content is identical, so the CSSOM-derived resolution snapshots
-  // stay valid; only our live rule handles need re-syncing.
-  syncModelFromSheet(rules, el.sheet);
 }
 
 /**
@@ -222,9 +212,19 @@ export function applyRules(rules: StyleRule[]): void {
   const sheet = ensureManagedSheet();
   const el = document.getElementById(SHEET_ID) as HTMLElement | null;
   if (!el) return;
+  let mutated = false;
   if (el !== managedSheetElement) {
     managedSheetElement = el;
     managedEntries = [];
+    try {
+      for (let index = sheet.cssRules.length - 1; index >= 0; index--) sheet.deleteRule(index);
+    } catch {
+      // A foreign rule or a limited CSSOM may reject deletion; assigning an
+      // empty sheet remains recoverable and the desired rules are inserted
+      // below in their canonical order.
+      el.textContent = "";
+    }
+    mutated = true;
   }
 
   const desired: StyleRule[] = [];
@@ -237,8 +237,6 @@ export function applyRules(rules: StyleRule[]): void {
     desired.push(rule);
   }
 
-  let mutated = false;
-
   // Remove rules that no longer have a desired counterpart. Deleting in
   // descending index order keeps the surviving indexes stable while we go.
   const stale = managedEntries
@@ -249,56 +247,78 @@ export function applyRules(rules: StyleRule[]): void {
       try {
         sheet.deleteRule(entry.index);
       } catch {
-        // Sheet state diverged; the model is rebuilt below from survivors.
+        rebuildSheetText(desired);
+        return;
       }
     }
     managedEntries = managedEntries.filter((entry) => desiredIds.has(entry.id));
-    managedEntries.forEach((entry, index) => { entry.index = index; });
+    syncEntryIndexes();
     mutated = true;
   }
 
-  // Update declarations in place for rules that already exist.
-  const existingById = new Map(managedEntries.map((entry) => [entry.id, entry]));
-  for (const rule of desired) {
-    const entry = existingById.get(ruleIdentity(rule));
-    if (!entry) continue;
+  // Reconcile each desired rule at its canonical position. Existing rules are
+  // moved with CSSOM delete/insert when their order changes; new rules are
+  // inserted at the desired index rather than appended blindly.
+  for (let index = 0; index < desired.length; index++) {
+    const rule = desired[index]!;
+    const id = ruleIdentity(rule);
+    let currentIndex = managedEntries.findIndex((entry) => entry.id === id);
+
+    if (currentIndex < 0) {
+      const cssText = buildRuleText(rule);
+      let top: CSSRule | null = null;
+      try {
+        sheet.insertRule(cssText, index);
+        top = sheet.cssRules[index] ?? null;
+      } catch {
+        top = null;
+      }
+      if (!top) {
+        rebuildSheetText(desired);
+        return;
+      }
+      managedEntries.splice(index, 0, {
+        id,
+        selector: rule.selector,
+        wrappers: rule.context?.wrappers,
+        declarations: { ...rule.declarations },
+        index,
+        leaf: leafRule(top, rule.context?.wrappers?.length ?? 0),
+      });
+      syncEntryIndexes();
+      mutated = true;
+      currentIndex = index;
+    } else if (currentIndex !== index) {
+      const entry = managedEntries[currentIndex]!;
+      const cssText = buildRuleText(entryToRule(entry));
+      let top: CSSRule | null = null;
+      try {
+        sheet.deleteRule(currentIndex);
+        sheet.insertRule(cssText, index);
+        top = sheet.cssRules[index] ?? null;
+      } catch {
+        top = null;
+      }
+      if (!top) {
+        rebuildSheetText(desired);
+        return;
+      }
+      managedEntries.splice(currentIndex, 1);
+      managedEntries.splice(index, 0, entry);
+      entry.leaf = leafRule(top, entry.wrappers?.length ?? 0);
+      syncEntryIndexes();
+      mutated = true;
+      currentIndex = index;
+    }
+
+    const entry = managedEntries[currentIndex]!;
     if (declarationsEqual(entry.declarations, rule.declarations)) continue;
     if (!entry.leaf) {
-      rebuildSheetText(rules);
+      rebuildSheetText(desired);
       return;
     }
     entry.leaf.style.cssText = buildDeclarationsBody(rule.declarations);
     entry.declarations = { ...rule.declarations };
-    mutated = true;
-  }
-
-  // Insert new rules at the end, preserving desired order.
-  for (const rule of desired) {
-    const id = ruleIdentity(rule);
-    if (existingById.has(id)) continue;
-    const cssText = buildRuleText(rule);
-    const index = sheet.cssRules.length;
-    let top: CSSRule | null = null;
-    try {
-      sheet.insertRule(cssText, index);
-      top = sheet.cssRules[index] ?? null;
-    } catch {
-      top = null;
-    }
-    if (!top) {
-      rebuildSheetText(rules);
-      return;
-    }
-    const entry: ManagedRuleEntry = {
-      id,
-      selector: rule.selector,
-      wrappers: rule.context?.wrappers,
-      declarations: { ...rule.declarations },
-      index,
-      leaf: leafRule(top, rule.context?.wrappers?.length ?? 0),
-    };
-    managedEntries.push(entry);
-    existingById.set(id, entry);
     mutated = true;
   }
 
@@ -307,7 +327,6 @@ export function applyRules(rules: StyleRule[]): void {
     // resolution caches must be invalidated explicitly (ADR-0003 panel
     // refresh depends on this revision bump).
     invalidateStyleResolutionCache(document);
-    scheduleSheetTextSync();
   }
 }
 
@@ -365,5 +384,7 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
 export function removeManagedSheet(): void {
   const el = document.getElementById(SHEET_ID);
   if (el) el.remove();
+  managedSheetElement = null;
+  managedEntries = [];
   invalidateStyleResolutionCache(document);
 }

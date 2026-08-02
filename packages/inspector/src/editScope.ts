@@ -1,4 +1,4 @@
-import { escapeAttrValue } from "./managedStylesheet.ts";
+import { escapeAttrValue } from "./cssEscapes.ts";
 
 export type EditScope = "source-site" | "instance-preview";
 
@@ -11,11 +11,11 @@ export interface InstanceEvidence {
 const INSTANCE_ATTR = "data-dt-instance";
 let nextInstanceId = 1;
 
-const sourceSiteMatchCounts = new Map<string, number>();
+let sourceSiteMatchCounts = new WeakMap<Document, Map<string, number>>();
 
 /** Test hook: clears the memoized source-site match counts. */
 export function resetSourceSiteMatchCounts(): void {
-  sourceSiteMatchCounts.clear();
+  sourceSiteMatchCounts = new WeakMap();
 }
 
 export function sourceSiteSelector(cid: string, src: string): string | null {
@@ -38,16 +38,21 @@ export function countSourceSiteMatches(el: HTMLElement, revision = 0): number {
   const src = el.getAttribute("data-src") ?? "";
   const instance = el.getAttribute(INSTANCE_ATTR) ?? "";
   const doc = el.ownerDocument ?? document;
-  const key = `${cid}\u0000${src}\u0000${instance}\u0000${revision}\u0000${doc === document ? "doc" : "frame"}`;
-  const cached = sourceSiteMatchCounts.get(key);
+  const key = `${cid}\u0000${src}\u0000${instance}\u0000${revision}`;
+  let cache = sourceSiteMatchCounts.get(doc);
+  if (!cache) {
+    cache = new Map();
+    sourceSiteMatchCounts.set(doc, cache);
+  }
+  const cached = cache.get(key);
   if (cached !== undefined) return cached;
   const selector = sourceSiteSelector(cid, src);
   let count = 0;
   if (selector) {
     try { count = doc.querySelectorAll(selector).length; } catch { count = 0; }
   }
-  if (sourceSiteMatchCounts.size >= 4096) sourceSiteMatchCounts.clear();
-  sourceSiteMatchCounts.set(key, count);
+  if (cache.size >= 4096) cache.clear();
+  cache.set(key, count);
   return count;
 }
 

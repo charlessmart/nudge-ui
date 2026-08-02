@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect
@@ -12,7 +13,7 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
 }
 
 async function sheetText(page: import("@playwright/test").Page): Promise<string> {
-  return await page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? "");
+  return managedSheetText(page);
 }
 
 async function setSelect(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {

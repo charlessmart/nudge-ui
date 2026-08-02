@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 test("dev: a blocked managed preview remains visible in the change log", async ({ page }) => {
   await page.goto("/");
@@ -24,9 +25,9 @@ test("dev: a blocked managed preview remains visible in the change log", async (
   })).toContain("important");
 
   await expect
-    .poll(async () => page.locator("#design-tool-styles").textContent(), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .toContain("font-size: 22px");
   await expect
-    .poll(async () => page.locator("#design-tool-styles").textContent(), { timeout: 5000 })
+    .poll(async () => managedSheetText(page), { timeout: 5000 })
     .not.toContain("!important");
 });

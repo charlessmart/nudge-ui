@@ -6,7 +6,7 @@ import type {
   PreviewableChangeRecord,
   TokenChangeRecord,
 } from "../changesLog.ts";
-import { escapeAttrValue } from "../managedStylesheet.ts";
+import { escapeAttrValue } from "../cssEscapes.ts";
 import type { DomMutationRecord } from "../domMutations.ts";
 import { canonicalizeChanges } from "../changes/model.ts";
 import {

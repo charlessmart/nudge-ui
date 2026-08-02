@@ -9,20 +9,20 @@ const identity = {
 };
 
 describe("ElementClickMessage schema", () => {
-  it("carries instanceIndex for scoped controller resolution", () => {
+  it("carries a stable element ID for controller resolution", () => {
     const msg: ElementClickMessage = {
       type: "element-click",
       protocolVersion: PROTOCOL_VERSION,
       cid: "Button",
       selector: '[data-cid="Button"]',
       src: "/src/Button.tsx:32:5",
-      instanceIndex: 3,
+      elementId: "r3",
       file: "/src/Button.tsx",
       line: 32,
       component: "Button",
       ...identity,
     };
-    expect(msg.instanceIndex).toBe(3);
+    expect(msg.elementId).toBe("r3");
   });
 });
 

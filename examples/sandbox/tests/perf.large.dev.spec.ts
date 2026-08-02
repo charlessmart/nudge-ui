@@ -161,7 +161,7 @@ async function revealMs(page: Page, perfId: number): Promise<number> {
     }, { capture: true, once: true });
   });
   await page.click(`[data-perf-id="perf-${perfId}"]`);
-  return await page.evaluate(({ cands, pollTimeoutMs }) => {
+  const result = await page.evaluate(({ cands, pollTimeoutMs }) => {
     return new Promise<number>((resolve) => {
       const w = window as unknown as { __perfProbe?: Probe };
       const probe = w.__perfProbe;
@@ -199,6 +199,7 @@ async function revealMs(page: Page, perfId: number): Promise<number> {
       requestAnimationFrame(check);
     });
   }, { cands: candidates, pollTimeoutMs: POLL_TIMEOUT_MS });
+  return result;
 }
 
 async function commitMs(page: Page, perfId: number, property: string, hostProperty: string, value: string): Promise<number> {
@@ -206,13 +207,28 @@ async function commitMs(page: Page, perfId: number, property: string, hostProper
     const el = document.querySelector(`[data-perf-id="perf-${id}"]`);
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
     const raw = sr?.querySelector(`[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`);
-    if (!el) return { host: "", panel: "" };
+    if (!(el instanceof HTMLElement)) return { host: "", panel: "", expectedHost: "" };
     return {
-      host: getComputedStyle(el).getPropertyValue(hostProp),
+      host: getComputedStyle(el).getPropertyValue(hostProp).trim(),
       panel: (raw?.getAttribute("value") ?? "").trim(),
+      expectedHost: "",
     };
   }, { id: perfId, prop: property, hostProp: hostProperty });
-  return await page.evaluate(({ id, prop, hostProp, value, preHost, prePanel, pollTimeoutMs }) => {
+  const expectedHost = await page.evaluate(({ id, hostProp, value }) => {
+    const el = document.querySelector(`[data-perf-id="perf-${id}"]`);
+    if (!(el instanceof HTMLElement)) return "";
+    // Compute the browser-normalized target value on a same-class clone. This
+    // catches a commit that merely changes the panel while leaving the host
+    // element unchanged, including values such as percentages and colors.
+    const probe = el.cloneNode(false) as HTMLElement;
+    probe.removeAttribute("data-perf-id");
+    probe.style.setProperty(hostProp, value);
+    document.body.appendChild(probe);
+    const result = getComputedStyle(probe).getPropertyValue(hostProp).trim();
+    probe.remove();
+    return result;
+  }, { id: perfId, hostProp: hostProperty, value });
+  const result = await page.evaluate(({ id, prop, hostProp, value, preHost, prePanel, expectedHost: targetHost, pollTimeoutMs }) => {
     return new Promise<number>((resolve) => {
       const sr = document.getElementById("design-tool-root")?.shadowRoot;
       const raw = sr?.querySelector(
@@ -237,9 +253,9 @@ async function commitMs(page: Page, perfId: number, property: string, hostProper
         const raw2 = sr2?.querySelector(
           `[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`,
         );
-        const host = el ? getComputedStyle(el).getPropertyValue(hostProp) : "";
+        const host = el ? getComputedStyle(el).getPropertyValue(hostProp).trim() : "";
         const panel = (raw2?.getAttribute("value") ?? "").trim();
-        if (host !== "" && host !== preHost && panel !== "" && panel !== prePanel) {
+        if (host !== "" && host !== preHost && host === targetHost && panel === value && panel !== prePanel) {
           const probe = w.__perfProbe;
           if (probe) {
             probe.done = true;
@@ -256,7 +272,8 @@ async function commitMs(page: Page, perfId: number, property: string, hostProper
       };
       requestAnimationFrame(check);
     });
-  }, { id: perfId, prop: property, hostProp: hostProperty, value, preHost: pre.host, prePanel: pre.panel, pollTimeoutMs: POLL_TIMEOUT_MS });
+  }, { id: perfId, prop: property, hostProp: hostProperty, value, preHost: pre.host, prePanel: pre.panel, expectedHost, pollTimeoutMs: POLL_TIMEOUT_MS });
+  return result;
 }
 
 async function expandSpacingSides(page: Page, group: "padding" | "margin"): Promise<void> {

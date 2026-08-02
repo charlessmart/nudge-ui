@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 async function selectCase(page: import("@playwright/test").Page, id: string): Promise<void> {
   const target = page.locator(`[data-test="border-case-${id}"]`);
@@ -144,7 +145,7 @@ test("dev: border longhands edit produces managed stylesheet updates", async ({ 
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("5px");
   await setInput(page, "border-top-width", "10px");
   await expect.poll(() => computedValue(page, "border-top-width-longhand", "border-top-width")).toBe("10px");
-  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+  await expect.poll(() => managedSheetText(page))
     .toContain("border-top-width: 10px;");
   await expect(page.locator('[data-test="border-case-border-top-width-longhand"]')).not.toHaveAttribute("style", /.*/);
 });

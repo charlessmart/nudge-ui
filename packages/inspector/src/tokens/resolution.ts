@@ -1449,17 +1449,106 @@ function rulesForTransform(rules: MatchedRule[], transform: CascadeTransform): A
   return transformed;
 }
 
+function isElementSensitiveSelector(selector: string): boolean {
+  let attributeDepth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  for (let index = 0; index < selector.length; index++) {
+    const character = selector[index]!;
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (attributeDepth > 0) {
+      if (character === '"' || character === "'") quote = character;
+      else if (character === "[") attributeDepth++;
+      else if (character === "]") attributeDepth--;
+      continue;
+    }
+    if (character === "[") {
+      attributeDepth = 1;
+      continue;
+    }
+    if (character === "+" || character === "~") return true;
+    if (character !== ":") continue;
+    if (selector[index + 1] === ":") return true;
+    const pseudo = /^[A-Za-z-]+/.exec(selector.slice(index + 1))?.[0];
+    // :root is represented by the complete ancestor lineage. Other
+    // pseudo-classes can vary per concrete element without an attribute or
+    // sibling mutation (for example :checked, :visited, and :target).
+    if (pseudo && pseudo.toLowerCase() !== "root") return true;
+  }
+  return false;
+}
+
+interface SourceSiteMatchBuckets {
+  cacheable: Array<{ rule: MatchedRule; selectorText: string }>;
+  elementSensitive: Array<{ rule: MatchedRule; selectorText: string }>;
+}
+
+const sourceSiteMatchBucketsMemo = new WeakMap<MatchedRule[], Map<CascadeTransform, SourceSiteMatchBuckets>>();
+
+function sourceSiteMatchBuckets(rules: MatchedRule[], transform: CascadeTransform): SourceSiteMatchBuckets {
+  let byTransform = sourceSiteMatchBucketsMemo.get(rules);
+  if (!byTransform) {
+    byTransform = new Map();
+    sourceSiteMatchBucketsMemo.set(rules, byTransform);
+  }
+  const cached = byTransform.get(transform);
+  if (cached) return cached;
+  const cacheable: Array<{ rule: MatchedRule; selectorText: string }> = [];
+  const elementSensitive: Array<{ rule: MatchedRule; selectorText: string }> = [];
+  for (const entry of rulesForTransform(rules, transform)) {
+    (isElementSensitiveSelector(entry.selectorText) ? elementSensitive : cacheable).push(entry);
+  }
+  const buckets = { cacheable, elementSensitive };
+  byTransform.set(transform, buckets);
+  return buckets;
+}
+
 const SOURCE_SITE_CACHE_MAX = 4096;
-const sourceSiteMatchCache = new Map<string, { revision: number; matched: ElementMatch[] }>();
+interface SourceSiteMatchCacheEntry {
+  elementRevision: number;
+  stylesheetRevision: number;
+  matched: ElementMatch[];
+}
+
+let sourceSiteMatchCaches = new WeakMap<Document, Map<string, SourceSiteMatchCacheEntry>>();
+let sourceSiteMatchCacheEntries = 0;
+const relationshipMatchCaches = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
+const concreteElementMatchCaches = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
 
 /** Test hook: clears the per-source-site matched-rule cache. */
 export function resetSourceSiteMatchCache(): void {
-  sourceSiteMatchCache.clear();
+  sourceSiteMatchCaches = new WeakMap();
+  sourceSiteMatchCacheEntries = 0;
 }
 
 /** Test hook: number of distinct cached source-site match sets. */
 export function sourceSiteMatchCacheSize(): number {
-  return sourceSiteMatchCache.size;
+  return sourceSiteMatchCacheEntries;
+}
+
+/**
+ * Captures selector-relevant state without serializing the whole document.
+ * Element and ancestor attributes cover the common source-site selectors while
+ * child/sibling-sensitive selectors are handled conservatively below.
+ */
+function sourceSiteContextKey(el: HTMLElement): string {
+  const lineage: string[] = [];
+  let current: HTMLElement | null = el;
+  while (current) {
+    const attributes = Array.from(current.attributes)
+      .filter((attribute) => attribute.name !== "data-dt-renderer-id")
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((attribute) => `${attribute.name}=${attribute.value}`)
+      .join("\u0002");
+    lineage.push(`${current.tagName}\u0003${attributes}`);
+    current = current.parentElement;
+  }
+  return lineage.join("\u0001");
 }
 
 /**
@@ -1490,14 +1579,17 @@ function matchRuleForElement(el: HTMLElement, entry: { rule: MatchedRule; select
 /**
  * Matches every transformed rule against one element. For elements carrying a
  * source-site identity (`data-cid`) the selector-match result is cached per
- * `(data-cid, data-src, data-dt-instance, transform, revision)` so repeated
- * selections and sibling instances of the same source site reuse the matched
- * rule set. Elements without a stable identity are matched fresh on every call.
+ * `(document, data-cid, data-src, data-dt-instance, transform, element and
+ * stylesheet revision, context)` so repeated selections and equivalent sibling instances of the
+ * same source site reuse the matched rule set. Elements without a stable
+ * identity, or selectors that depend on unsupported relationships, are matched
+ * fresh on every call.
  */
 function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transform: CascadeTransform): ElementMatch[] {
-  const collect = (): ElementMatch[] => {
+  const { cacheable, elementSensitive } = sourceSiteMatchBuckets(rules, transform);
+  const collect = (entries: Array<{ rule: MatchedRule; selectorText: string }>): ElementMatch[] => {
     const matched: ElementMatch[] = [];
-    for (const entry of rulesForTransform(rules, transform)) {
+    for (const entry of entries) {
       if (entry.rule.active === false) continue;
       const match = matchRuleForElement(el, entry);
       if (match) matched.push(match);
@@ -1505,15 +1597,82 @@ function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transfor
     return matched;
   };
   const cid = el.getAttribute("data-cid");
-  if (!cid) return collect();
-  const revision = getDocumentRevisions(el.ownerDocument ?? document).element;
-  const key = sourceSiteKey(el, transform);
-  const cached = sourceSiteMatchCache.get(key);
-  if (cached && cached.revision === revision) return cached.matched;
-  const matched = collect();
-  if (sourceSiteMatchCache.size >= SOURCE_SITE_CACHE_MAX) sourceSiteMatchCache.clear();
-  sourceSiteMatchCache.set(key, { revision, matched });
-  return matched;
+  const doc = el.ownerDocument ?? document;
+  const revisions = getDocumentRevisions(doc);
+  if (!cid || cacheable.length === 0) {
+    const entries = cacheable.length === 0 ? elementSensitive : [...cacheable, ...elementSensitive];
+    let cache = concreteElementMatchCaches.get(el);
+    if (!cache) {
+      cache = new Map();
+      concreteElementMatchCaches.set(el, cache);
+    }
+    const cached = cache.get(transform);
+    if (cached
+      && cached.elementRevision === revisions.element
+      && cached.stylesheetRevision === revisions.stylesheet) {
+      return cached.matched;
+    }
+    const matched = collect(entries);
+    cache.set(transform, {
+      elementRevision: revisions.element,
+      stylesheetRevision: revisions.stylesheet,
+      matched,
+    });
+    return matched;
+  }
+  const key = `${sourceSiteKey(el, transform)}\u0000${sourceSiteContextKey(el)}`;
+  let cache = sourceSiteMatchCaches.get(doc);
+  if (!cache) {
+    cache = new Map();
+    sourceSiteMatchCaches.set(doc, cache);
+  }
+  const cached = cache.get(key);
+  let cachedMatches: ElementMatch[];
+  if (cached
+    && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet) {
+    cachedMatches = cached.matched;
+  } else {
+    cachedMatches = collect(cacheable);
+    if (sourceSiteMatchCacheEntries >= SOURCE_SITE_CACHE_MAX) {
+      sourceSiteMatchCaches = new WeakMap();
+      sourceSiteMatchCacheEntries = 0;
+      cache = new Map();
+      sourceSiteMatchCaches.set(doc, cache);
+    }
+    if (!cache.has(key)) sourceSiteMatchCacheEntries++;
+    cache.set(key, {
+      elementRevision: revisions.element,
+      stylesheetRevision: revisions.stylesheet,
+      matched: cachedMatches,
+    });
+  }
+  // Element-sensitive selectors are cached per concrete element rather than
+  // by source-site identity. Their result can differ between siblings or
+  // interactive elements, while the document revision invalidates the entry
+  // after a relevant DOM or stylesheet change.
+  let elementMatches: ElementMatch[] = [];
+  if (elementSensitive.length > 0) {
+    let cache = relationshipMatchCaches.get(el);
+    if (!cache) {
+      cache = new Map();
+      relationshipMatchCaches.set(el, cache);
+    }
+    const cachedRelationship = cache.get(transform);
+    if (cachedRelationship
+      && cachedRelationship.elementRevision === revisions.element
+      && cachedRelationship.stylesheetRevision === revisions.stylesheet) {
+      elementMatches = cachedRelationship.matched;
+    } else {
+      elementMatches = collect(elementSensitive);
+      cache.set(transform, {
+        elementRevision: revisions.element,
+        stylesheetRevision: revisions.stylesheet,
+        matched: elementMatches,
+      });
+    }
+  }
+  return elementMatches.length === 0 ? cachedMatches : [...cachedMatches, ...elementMatches];
 }
 
 /**
@@ -1743,11 +1902,13 @@ function splitTopLevel(s: string, sep?: string): string[] {
 }
 
 interface ResolvedPropertiesSnapshot {
-  revision: number;
+  elementRevision: number;
+  stylesheetRevision: number;
+  tokenTable: TokenTable;
   rows: ResolvedProperty[];
 }
 
-const stateResolutionSnapshots = new WeakMap<HTMLElement, WeakMap<TokenTable, Map<InteractionState, ResolvedPropertiesSnapshot>>>();
+const stateResolutionSnapshots = new WeakMap<HTMLElement, Map<InteractionState, ResolvedPropertiesSnapshot>>();
 
 const INHERITED_PROPERTIES = new Set([
   "color", "font", "font-family", "font-size", "font-style", "font-variant", "font-weight",
@@ -1896,19 +2057,19 @@ export function getResolvedPropertiesForState(
   state: InteractionState,
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
-  const revision = getDocumentRevisions(doc).element;
-  let tableSnapshots = stateResolutionSnapshots.get(el);
-  if (!tableSnapshots) {
-    tableSnapshots = new WeakMap();
-    stateResolutionSnapshots.set(el, tableSnapshots);
-  }
-  let snapshots = tableSnapshots.get(tokenTable);
+  const revisions = getDocumentRevisions(doc);
+  let snapshots = stateResolutionSnapshots.get(el);
   if (!snapshots) {
     snapshots = new Map();
-    tableSnapshots.set(tokenTable, snapshots);
+    stateResolutionSnapshots.set(el, snapshots);
   }
   const cached = snapshots.get(state);
-  if (cached?.revision === revision) return cached.rows;
+  if (cached
+    && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet
+    && cached.tokenTable === tokenTable) {
+    return cached.rows;
+  }
 
   const { rules, inaccessible } = collectCssomRules(doc);
   const lineage = resolveLineage(el, rules, state);
@@ -1930,7 +2091,12 @@ export function getResolvedPropertiesForState(
   }
   const rows = resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
   registerWithAncestors(el);
-  snapshots.set(state, { revision, rows });
+  snapshots.set(state, {
+    elementRevision: revisions.element,
+    stylesheetRevision: revisions.stylesheet,
+    tokenTable,
+    rows,
+  });
   return rows;
 }
 
@@ -1946,14 +2112,19 @@ export function getAvailableInteractionStates(el: HTMLElement): InteractionState
   return available;
 }
 
-const stableTokenCache = new WeakMap<HTMLElement, { revision: number; tokenTable: TokenTable; rows: ResolvedProperty[] }>();
+const stableTokenCache = new WeakMap<HTMLElement, {
+  elementRevision: number;
+  stylesheetRevision: number;
+  tokenTable: TokenTable;
+  rows: ResolvedProperty[];
+}>();
 
 /**
  * Finds the authored token-backed declaration beneath a transient interaction
  * state. This keeps an editor linked to its stable token when selection occurs
  * while the element is hovered, while getResolvedProperties remains honest
  * about the value currently painted by that transient rule. The full resolution
- * is memoized per (element, revision, tokenTable) so the panel's background row
+ * is memoized per (element, element/stylesheet revision, tokenTable) so the panel's background row
  * no longer re-runs the cascade on every render.
  */
 export function getStableTokenProperty(
@@ -1962,16 +2133,24 @@ export function getStableTokenProperty(
   tokenTable: TokenTable,
 ): ResolvedProperty | null {
   const doc = el.ownerDocument ?? document;
-  const revision = getDocumentRevisions(doc).element;
+  const revisions = getDocumentRevisions(doc);
   const cached = stableTokenCache.get(el);
-  const rows = cached && cached.revision === revision && cached.tokenTable === tokenTable
+  const rows = cached
+    && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet
+    && cached.tokenTable === tokenTable
     ? cached.rows
     : (() => {
       const { rules } = collectCssomRules(doc);
       const lineage = resolveLineage(el, rules, "stable");
       const entry = lineage.byElement.get(el)!;
       const fresh = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
-      stableTokenCache.set(el, { revision, tokenTable, rows: fresh });
+      stableTokenCache.set(el, {
+        elementRevision: revisions.element,
+        stylesheetRevision: revisions.stylesheet,
+        tokenTable,
+        rows: fresh,
+      });
       return fresh;
     })();
   for (const property of properties) {

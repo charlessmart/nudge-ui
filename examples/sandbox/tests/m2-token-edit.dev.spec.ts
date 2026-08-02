@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 type RowInfo = {
   property: string;
@@ -40,7 +41,7 @@ async function expandSpacing(page: import("@playwright/test").Page): Promise<voi
 }
 
 async function sheetText(page: import("@playwright/test").Page): Promise<string> {
-  return await page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? "");
+  return managedSheetText(page);
 }
 
 async function btnBackground(page: import("@playwright/test").Page): Promise<string> {

@@ -36,39 +36,71 @@ export function useResolvedPropertiesDebounced(
 ): ResolvedProperty[] {
   const [rows, setRows] = useState<ResolvedProperty[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revisionFrameRef = useRef<number | null>(null);
+  const revisionSecondFrameRef = useRef<number | null>(null);
 
   const latest = useRef({ selected, state, tokenTable });
   latest.current = { selected, state, tokenTable };
 
-  function resolve(): void {
+  function cancelScheduledResolution(): void {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (revisionFrameRef.current !== null) {
+      cancelAnimationFrame(revisionFrameRef.current);
+      revisionFrameRef.current = null;
+    }
+    if (revisionSecondFrameRef.current !== null) {
+      cancelAnimationFrame(revisionSecondFrameRef.current);
+      revisionSecondFrameRef.current = null;
+    }
+  }
+
+  function resolve(refreshTokenTable = false): void {
     const current = latest.current;
     if (!current.selected) {
       setRows([]);
       return;
     }
+    const tokenTable = refreshTokenTable
+      ? getAvailableTokenTableForElement(current.selected.domElement)
+      : current.tokenTable ?? getAvailableTokenTableForElement(current.selected.domElement);
     setRows(getResolvedPropertiesForState(
       current.selected.domElement,
-      current.tokenTable ?? getAvailableTokenTableForElement(current.selected.domElement),
+      tokenTable,
       current.state,
     ));
   }
 
   function scheduleResolution(): void {
-    if (timerRef.current !== null) clearTimeout(timerRef.current);
+    cancelScheduledResolution();
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       resolve();
     }, DEBOUNCE_MS);
   }
 
+  function scheduleRevisionResolution(): void {
+    cancelScheduledResolution();
+    // Let the host commit paint first. The second frame refreshes the
+    // attribution rows and token table without blocking the edit's first
+    // frame on a full cascade walk.
+    revisionFrameRef.current = requestAnimationFrame(() => {
+      revisionFrameRef.current = null;
+      revisionSecondFrameRef.current = requestAnimationFrame(() => {
+        revisionSecondFrameRef.current = null;
+        resolve(true);
+      });
+    });
+  }
+
   useEffect(() => {
     scheduleResolution();
-    return () => {
-      if (timerRef.current !== null) clearTimeout(timerRef.current);
-    };
+    return cancelScheduledResolution;
   }, [selected, state, tokenTable]);
 
-  useEffect(() => subscribeGlobalRevision(scheduleResolution), []);
+  useEffect(() => subscribeGlobalRevision(scheduleRevisionResolution), []);
 
   return rows;
 }

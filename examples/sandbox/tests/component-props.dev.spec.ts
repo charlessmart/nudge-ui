@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
@@ -33,7 +34,7 @@ test("edits typed React component props through the real component invocation", 
   await changes.locator('[data-test="changes-toggle"]').click();
   await expect(changes.locator('[data-test="change-row"]')).toHaveCount(3);
 
-  const managedCss = await page.locator("#design-tool-styles").textContent();
+  const managedCss = await managedSheetText(page);
   expect(managedCss).not.toContain("variant");
   expect(managedCss).not.toContain("component-callsite");
 

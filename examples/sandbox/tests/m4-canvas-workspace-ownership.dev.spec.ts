@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
   await expect
@@ -33,7 +34,7 @@ async function waitForLockedNotice(page: import("@playwright/test").Page): Promi
 }
 
 async function managedSheetContent(page: import("@playwright/test").Page): Promise<string> {
-  return page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? "");
+  return managedSheetText(page);
 }
 
 async function setInput(
@@ -172,7 +173,7 @@ test.describe("Canvas workspace — stale change detection", () => {
     // Now inject a fake "stale" change into the session — one that won't match any DOM element
     await page.evaluate(() => {
       const keys = Object.keys(localStorage).filter((k) =>
-        k.startsWith("design-tool:") && k.endsWith(":v2"),
+        k.startsWith("design-tool:") && k.endsWith(":v3"),
       );
       if (keys.length === 0) return;
       const raw = localStorage.getItem(keys[0]!);
@@ -240,7 +241,7 @@ test.describe("Canvas workspace — stale change detection", () => {
       if (!leaseKey) throw new Error("expected a workspace lease");
       const id = leaseKey.slice("design-tool:".length, -":lease".length);
       const session = {
-        schemaVersion: 2,
+        schemaVersion: 3,
         projectId: id,
         mode: "inspect",
         inspectUrl: window.location.href,
@@ -261,7 +262,7 @@ test.describe("Canvas workspace — stale change detection", () => {
           },
         ],
       };
-      const prefixedKey = `design-tool:${id}:v2`;
+      const prefixedKey = `design-tool:${id}:v3`;
       localStorage.setItem(prefixedKey, JSON.stringify(session));
     });
 
@@ -308,7 +309,7 @@ test.describe("Canvas workspace — stale change detection", () => {
       if (!leaseKey) throw new Error("expected a workspace lease");
       const id = leaseKey.slice("design-tool:".length, -":lease".length);
       const session = {
-        schemaVersion: 2,
+        schemaVersion: 3,
         projectId: id,
         mode: "inspect",
         inspectUrl: window.location.href,
@@ -330,7 +331,7 @@ test.describe("Canvas workspace — stale change detection", () => {
           },
         ],
       };
-      const prefixedKey = `design-tool:${id}:v2`;
+      const prefixedKey = `design-tool:${id}:v3`;
       localStorage.setItem(prefixedKey, JSON.stringify(session));
     });
 

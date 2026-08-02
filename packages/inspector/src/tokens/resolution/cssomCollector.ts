@@ -76,27 +76,47 @@ function isProbeNode(node: Node): boolean {
 }
 
 const CONTAINER_PROBE_MARKER = /^data-dt-container-probe-/;
+const MANAGED_SHEET_ID = "design-tool-styles";
+
+function isManagedStylesheetNode(node: Node | null): boolean {
+  return isStylesheetNode(node) && (node as Element).id === MANAGED_SHEET_ID;
+}
 
 /**
  * Records that cannot affect cascade outcomes are skipped: mutations made by
- * the tool's own probes (attribution, container-query, value, managed sheet),
- * attribute churn on elements outside the resolution registry, and the
- * container-query marker attribute set on registered elements.
+ * the tool's own probes (attribution, container-query, and value), attribute
+ * churn on elements outside the resolution registry, and the container-query
+ * marker attribute set on registered elements. Managed stylesheet text is
+ * intentionally observed because it is a real cascade input.
  */
 function isProbeMutation(record: MutationRecord): boolean {
   if (record.type === "attributes") {
     const target = record.target as Element;
-    if (!registeredElements.has(target)) return true;
+    // Stylesheet attributes change which rules are present or active even when
+    // the stylesheet element has never been registered as a resolution target.
+    // Handle them before the generic unregistered-element fast path.
+    if (isStylesheetNode(target)) {
+      const name = record.attributeName ?? "";
+      if (isManagedStylesheetNode(target)) return name !== "data-design-tool";
+      return name.startsWith("data-design-tool");
+    }
     const name = record.attributeName ?? "";
-    return name.startsWith("data-design-tool") || CONTAINER_PROBE_MARKER.test(name);
+    // Renderer-owned IDs are lookup metadata, not authored cascade inputs.
+    // Ignore them before the registry check so hovering an unregistered canvas
+    // node does not invalidate the selected element's resolution snapshot.
+    if (name === "data-dt-renderer-id") return true;
+    if (!registeredElements.has(target)) return true;
+    return name.startsWith("data-design-tool")
+      || CONTAINER_PROBE_MARKER.test(name);
   }
   if (record.type === "characterData") {
-    return isProbeNode(record.target);
+    return isProbeNode(record.target) && !isManagedStylesheetNode(record.target.parentElement);
   }
-  if (isProbeNode(record.target)) return true;
+  if (isProbeNode(record.target) && !isManagedStylesheetNode(record.target)) return true;
   // Removed nodes are already disconnected, so their ancestor chain is gone;
   // check the record's target subtree and the nodes themselves instead.
   const nodes = [...record.addedNodes, ...record.removedNodes];
+  if (nodes.some(isManagedStylesheetNode)) return false;
   return nodes.length > 0 && nodes.every((node) =>
     node.nodeType === node.ELEMENT_NODE && (node as Element).hasAttribute("data-design-tool"));
 }

@@ -90,6 +90,18 @@ describe("selectionStore", () => {
     unsub();
   });
 
+  it("publishes refreshed metadata for the same DOM identity", () => {
+    const el = makeEl();
+    setSelectedElement(el);
+    let count = 0;
+    const unsub = subscribe(() => { count++; });
+    const refreshed = { ...el, cprops: "variant:secondary", line: 13 };
+    setSelectedElement(refreshed);
+    expect(count).toBe(1);
+    expect(getSelectedElement()).toBe(refreshed);
+    unsub();
+  });
+
   it("updates when the identity changes even if the DOM element matches", () => {
     const domElement = document.createElement("button");
     const el = makeEl({ domElement });

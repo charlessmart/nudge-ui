@@ -43,6 +43,52 @@ function notify(): void {
   listeners.forEach((l) => l());
 }
 
+function sameComponentTargets(a: RuntimeComponentTarget[], b: RuntimeComponentTarget[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((left, index) => {
+    const right = b[index];
+    if (!right || left.framework !== right.framework) return false;
+    const leftMeta = left.meta;
+    const rightMeta = right.meta;
+    if (leftMeta.callsiteId !== rightMeta.callsiteId
+      || leftMeta.componentId !== rightMeta.componentId
+      || leftMeta.componentName !== rightMeta.componentName
+      || leftMeta.file !== rightMeta.file
+      || leftMeta.line !== rightMeta.line
+      || leftMeta.column !== rightMeta.column
+      || JSON.stringify(leftMeta.authoredProps) !== JSON.stringify(rightMeta.authoredProps)) {
+      return false;
+    }
+    // Runtime props can contain React elements and fibers with circular or
+    // intentionally unstable object identities. Only primitive values are
+    // consumed by the editable component-prop controls, so compare those and
+    // ignore opaque values that cannot affect this panel.
+    const keys = new Set([...Object.keys(left.props), ...Object.keys(right.props)]);
+    for (const key of keys) {
+      const leftValue = left.props[key];
+      const rightValue = right.props[key];
+      const leftPrimitive = typeof leftValue === "string"
+        || typeof leftValue === "number"
+        || typeof leftValue === "boolean";
+      const rightPrimitive = typeof rightValue === "string"
+        || typeof rightValue === "number"
+        || typeof rightValue === "boolean";
+      if (leftPrimitive || rightPrimitive) {
+        if (leftValue !== rightValue) return false;
+      }
+    }
+    return true;
+  });
+}
+
+function sameResolvedMetadata(a: SelectedElement, b: SelectedElement): boolean {
+  return a.cprops === b.cprops
+    && a.file === b.file
+    && a.line === b.line
+    && a.column === b.column
+    && sameComponentTargets(a.componentTargets, b.componentTargets);
+}
+
 export function setSelectedElement(el: SelectedElement | null): void {
   if (current === el) return;
   // Re-clicks and post-edit refreshes re-resolve a fresh object with the same
@@ -54,6 +100,10 @@ export function setSelectedElement(el: SelectedElement | null): void {
     && current.src === el.src
     && current.domElement === el.domElement
     && index === 0) {
+    if (!sameResolvedMetadata(current, el)) {
+      current = el;
+      notify();
+    }
     return;
   }
   current = el;

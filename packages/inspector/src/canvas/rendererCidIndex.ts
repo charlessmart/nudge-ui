@@ -1,59 +1,27 @@
-/**
- * Document-order index from `(data-cid, data-src)` pairs to the ordered list
- * of elements carrying that identity. The index is built lazily on first
- * access and invalidated by a document-wide MutationObserver, so reorders,
- * additions, removals and attribute edits refresh it without scanning the
- * frame document per pointer event.
- */
-const KEY_SEPARATOR = "\u0000";
+/** Renderer-owned identity that survives DOM reorders for the lifetime of a node. */
+export const RENDERER_ELEMENT_ID_ATTR = "data-dt-renderer-id";
 
 export interface CidIndex {
-  instanceIndex(el: HTMLElement): number;
-  invalidate(): void;
+  elementId(el: HTMLElement): string;
 }
 
-export function createCidIndex(doc: Document): CidIndex {
-  let cached: Map<string, HTMLElement[]> | null = null;
+/**
+ * Retains the historical factory name while replacing positional indexes with
+ * node identities. IDs are attached to the actual DOM node, so reorders and
+ * sibling insertions cannot redirect a delayed controller message.
+ */
+export function createCidIndex(_doc: Document): CidIndex {
+  let nextId = 1;
+  const ids = new WeakMap<HTMLElement, string>();
 
-  const observer = new MutationObserver(() => {
-    cached = null;
-  });
-  observer.observe(doc, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ["data-cid", "data-src"],
-  });
-
-  function build(): Map<string, HTMLElement[]> {
-    const index = new Map<string, HTMLElement[]>();
-    for (const el of doc.querySelectorAll<HTMLElement>("[data-cid]")) {
-      const cid = el.getAttribute("data-cid");
-      if (!cid) continue;
-      const key = cid + KEY_SEPARATOR + (el.getAttribute("data-src") ?? "");
-      const list = index.get(key);
-      if (list) {
-        list.push(el);
-      } else {
-        index.set(key, [el]);
-      }
-    }
-    return index;
+  function elementId(el: HTMLElement): string {
+    const existing = ids.get(el);
+    if (existing) return existing;
+    const id = `r${nextId++}`;
+    ids.set(el, id);
+    el.setAttribute(RENDERER_ELEMENT_ID_ATTR, id);
+    return id;
   }
 
-  function instanceIndex(el: HTMLElement): number {
-    const cid = el.getAttribute("data-cid");
-    if (!cid) return 0;
-    if (cached === null) cached = build();
-    const key = cid + KEY_SEPARATOR + (el.getAttribute("data-src") ?? "");
-    const list = cached.get(key);
-    if (!list) return 0;
-    return list.indexOf(el);
-  }
-
-  function invalidate(): void {
-    cached = null;
-  }
-
-  return { instanceIndex, invalidate };
+  return { elementId };
 }

@@ -393,23 +393,24 @@ export function serializeSession(): DurableSession {
   return buildSession();
 }
 
-export function persistSession(): void {
-  if (!canWriteWorkspace()) return;
-  persistSessionUnchecked();
+export function persistSession(): boolean {
+  if (!canWriteWorkspace()) return false;
+  return persistSessionUnchecked();
 }
 
 /**
- * Serializes and writes the session without the write-lease gate. Used by the
- * synchronous canvas persistence path and the timer-backed debounced autosave,
- * where the caller has already checked the lease.
+ * Serializes and writes the session without the write-lease gate. The public
+ * persistence path checks the lease before calling this helper.
  */
-function persistSessionUnchecked(): void {
-  if (!designToolProjectId) return;
+function persistSessionUnchecked(): boolean {
+  if (!designToolProjectId) return false;
   try {
     const session = buildSession();
     localStorage.setItem(storageKey(designToolProjectId), JSON.stringify(session));
+    return true;
   } catch {
     // Storage unavailable or quota exceeded — silently ignore
+    return false;
   }
 }
 
@@ -575,10 +576,16 @@ export function clearSession(): void {
   setBoardCamera({ x: 0, y: 0, zoom: 1 });
 
   applyRules([]);
+  autoSaveDirty = false;
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
 }
 
 let autoSaveEnabled = false;
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+let autoSaveDirty = false;
 const AUTOSAVE_DEBOUNCE_MS = 500;
 
 export function enableAutoSave(): void {
@@ -594,10 +601,12 @@ export function enableAutoSave(): void {
  */
 export function scheduleAutoSave(): void {
   if (!autoSaveEnabled) return;
+  autoSaveDirty = true;
   if (autosaveTimer !== null) clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => {
     autosaveTimer = null;
-    persistSession();
+    if (!autoSaveDirty) return;
+    if (persistSession()) autoSaveDirty = false;
   }, AUTOSAVE_DEBOUNCE_MS);
 }
 
@@ -608,27 +617,19 @@ export function scheduleAutoSave(): void {
  */
 export function scheduleCanvasSave(): void {
   if (!autoSaveEnabled) return;
-  persistSession();
+  if (persistSession()) autoSaveDirty = false;
 }
 
 function flushAutoSave(): void {
-  const pending = autosaveTimer !== null;
   if (autosaveTimer !== null) {
     clearTimeout(autosaveTimer);
     autosaveTimer = null;
   }
-  if (!pending) return;
-  // Persist the pending debounced write only when a session already exists. A
-  // missing key means the storage was deliberately cleared (for example the
-  // perf harness resets localStorage before reloading); re-writing would undo
-  // that reset. The concurrent lease release on unload would also block the
-  // guarded write, so persist unconditionally of the lease here.
-  try {
-    if (!localStorage.getItem(storageKey(designToolProjectId))) return;
-  } catch {
-    return;
-  }
-  persistSessionUnchecked();
+  if (!autoSaveDirty) return;
+  // Keep the normal lease gate on the unload path. The controller registers
+  // this listener before releaseLease, so a current owner can flush a first
+  // write without allowing a stale tab to overwrite the new owner's session.
+  if (persistSession()) autoSaveDirty = false;
 }
 
 let restoreCount = 0;
@@ -647,6 +648,7 @@ export function clearRestoreCount(): void {
 
 export function resetAutoSave(): void {
   autoSaveEnabled = false;
+  autoSaveDirty = false;
   if (autosaveTimer !== null) {
     clearTimeout(autosaveTimer);
     autosaveTimer = null;

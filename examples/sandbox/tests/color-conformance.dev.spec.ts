@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect.poll(async () => page.evaluate(() => Boolean(
@@ -134,7 +135,7 @@ test("dev: color fixture tokens render as chips with type suggestions", async ({
   await expect(bg.locator('[data-test="color-opacity-input"]')).toHaveValue("100%");
 
   await setOpacityInput(page, "color", "50%");
-  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+  await expect.poll(() => managedSheetText(page))
     .toContain("color: color-mix(in srgb, var(--color-text-primary) 50%, transparent);");
 });
 
@@ -197,7 +198,7 @@ test("dev: opacity tokens stay separate from the color token chrome", async ({ p
   await expect(bg.locator('[data-test="token-chip"]')).toHaveCount(0);
 
   await setOpacityInput(page, "color", "60%");
-  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+  await expect.poll(() => managedSheetText(page))
     .toContain("color-mix(in srgb, var(--color-primary) 60%, transparent)");
 });
 
@@ -208,7 +209,7 @@ test("dev: literal opacity edits preserve the color format", async ({ page }) =>
   await hex.click();
   await waitForEditors(page);
   await setOpacityInput(page, "color", "25%");
-  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+  await expect.poll(() => managedSheetText(page))
     .toContain("color: rgba(255, 0, 0, 25%);");
 
   const rgb = page.locator('[data-test="color-case-color-rgb-legacy"]');
@@ -217,7 +218,7 @@ test("dev: literal opacity edits preserve the color format", async ({ page }) =>
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
     .toHaveValue(/^rgba\(/);
   await setOpacityInput(page, "background-color", "50%");
-  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+  await expect.poll(() => managedSheetText(page))
     .toContain("background-color: rgba(0, 0, 0, 50%);");
 });
 
@@ -269,7 +270,7 @@ test("dev: color value edits round-trip through the managed stylesheet", async (
 
   await expect.poll(async () => hex.evaluate((element) => getComputedStyle(element).color))
     .toBe("rgb(239, 68, 68)");
-  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+  await expect.poll(() => managedSheetText(page))
     .toContain("color: #ef4444;");
   await expect(hex).not.toHaveAttribute("style", /.*/);
 });

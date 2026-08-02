@@ -185,8 +185,13 @@ function installRendererPanProxy(): void {
     if (event.code === "Space") spaceHeld = false;
   });
   function endPan(): void {
-    panMoveUpdate.cancel();
-    if (!panning) return;
+    if (!panning) {
+      panMoveUpdate.cancel();
+      return;
+    }
+    // Pointer-up can arrive before the next animation frame. Deliver the
+    // latest point before pan-end so the final drag position is not lost.
+    panMoveUpdate.flush();
     panning = false;
     const identity = getRendererIdentity();
     if (!identity) return;

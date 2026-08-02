@@ -89,6 +89,25 @@ async function loadCanvas(page: Page): Promise<FrameLocator> {
   await expect(page.locator(".dt-canvas-card__iframe").first()).toBeAttached();
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
   await expect(frame.locator("body")).toBeVisible({ timeout: 20_000 });
+  // A visible frame can still be between document load and renderer bootstrap.
+  // Establish readiness with one real hover message before measuring or
+  // counting subsequent events.
+  await page.evaluate(() => {
+    const w = window as unknown as { __canvasRendererReady?: boolean };
+    w.__canvasRendererReady = false;
+    const onMessage = (event: MessageEvent): void => {
+      if (event.data && typeof event.data === "object" && event.data.type === "element-hover") {
+        w.__canvasRendererReady = true;
+        window.removeEventListener("message", onMessage);
+      }
+    };
+    window.addEventListener("message", onMessage);
+  });
+  await frame.locator(`[data-perf-id="perf-${HOVER_LEAF}"]`).hover();
+  await expect.poll(() => page.evaluate(() => (
+    window as unknown as { __canvasRendererReady?: boolean }
+  ).__canvasRendererReady ?? false), { timeout: 20_000 }).toBe(true);
+  await page.mouse.move(0, 0);
   return frame;
 }
 

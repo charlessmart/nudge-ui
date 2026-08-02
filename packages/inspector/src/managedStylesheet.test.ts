@@ -165,27 +165,38 @@ describe("applyRules", () => {
       expect(props.sort()).toEqual(["4px", "red"]);
     });
 
-    it("reappends the managed sheet to stay last in <head> when a later style element is added", () => {
+    it("restores canonical order when an existing rule moves later", () => {
+      applyRules([
+        { selector: ".a", declarations: { color: "red" } },
+        { selector: ".b", declarations: { color: "blue" } },
+      ]);
+      applyRules([
+        { selector: ".b", declarations: { color: "blue" } },
+        { selector: ".a", declarations: { color: "red" } },
+      ]);
+
+      const sheet = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      expect(Array.from(sheet.sheet!.cssRules).map((rule) => (rule as CSSStyleRule).selectorText))
+        .toEqual([".b", ".a"]);
+    });
+
+    it("reappends the managed sheet to stay last in <head> when a later style element is added", async () => {
       applyRules([{ selector: ".a", declarations: { color: "red" } }]);
       const later = document.createElement("style");
       later.id = "author-style-after";
       document.head.appendChild(later);
-      applyRules([{ selector: ".a", declarations: { color: "red" } }]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
       const el = document.getElementById(SHEET_ID) as HTMLStyleElement;
       expect(el).not.toBeNull();
-      expect(el.nextElementSibling).toBe(later);
-      // Re-running projection restores the keep-last ordering.
-      const managed = document.getElementById(SHEET_ID) as HTMLStyleElement;
-      document.head.appendChild(managed);
-      expect(document.head.lastElementChild).toBe(managed);
+      expect(document.head.lastElementChild).toBe(el);
     });
   });
 });
 
 describe("escapeAttrValue", () => {
   it("escapes backslash, double-quote and closing bracket", () => {
-    expect(escapeAttrValue('But]ton"')).toBe('But\\]ton\\"');
-    expect(escapeAttrValue("a\\b")).toBe("a\\\\b");
+    expect(escapeAttrValue('But]ton"')).toBe("But\\5d ton\\22 ");
+    expect(escapeAttrValue("a\\b")).toBe("a\\5c b");
   });
 
   it("produces a selector round-trip that matches an element with the raw value", () => {
@@ -196,6 +207,17 @@ describe("escapeAttrValue", () => {
     const selector = `[data-cid="${escaped}"]`;
     expect(el.matches(selector)).toBe(true);
     document.body.innerHTML = "";
+  });
+
+  it("round-trips a quote-containing value without allowing selector injection", () => {
+    const el = document.createElement("button");
+    const value = 'Button"] ~ *[data-cid="Secret';
+    el.setAttribute("data-cid", value);
+    document.body.appendChild(el);
+    const selector = `[data-cid="${escapeAttrValue(value)}"]`;
+
+    expect(() => document.querySelector(selector)).not.toThrow();
+    expect(document.querySelector(selector)).toBe(el);
   });
 });
 

@@ -14,6 +14,7 @@ import {
 import type { ChangeRecord, ComponentChangeRecord, ElementChangeRecord } from "./changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "./changes/_testUtils.ts";
+import { setSelectedElement } from "./selectionStore.ts";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
@@ -323,6 +324,42 @@ describe("changesLog", () => {
     expect(verified.previewResult).toBeDefined();
     expect(verified.previewResult!.status).toBe("applied");
     btn.remove();
+  });
+
+  it("deferred verification stays bound to the document selected at commit time", async () => {
+    const hostButton = document.createElement("button");
+    hostButton.setAttribute("data-cid", "Button");
+    hostButton.setAttribute("data-src", "src/Button.tsx:1:1");
+    document.body.appendChild(hostButton);
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    const frameButton = iframe.contentDocument!.createElement("button");
+    frameButton.setAttribute("data-cid", "Button");
+    frameButton.setAttribute("data-src", "src/Button.tsx:1:1");
+    iframe.contentDocument!.body.appendChild(frameButton);
+
+    const selected = (domElement: HTMLElement) => ({
+      cid: "Button",
+      src: "src/Button.tsx:1:1",
+      cprops: null,
+      file: "src/Button.tsx",
+      line: 1,
+      column: 1,
+      domElement,
+      componentTargets: [],
+    });
+    setSelectedElement(selected(hostButton));
+    appendChange(makeRecord("background", COLOR_B, COLOR_A));
+    // Simulate a user switching to Canvas before the deferred idle pass.
+    setSelectedElement(selected(frameButton));
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const verified = getChangesList()[0] as ElementChangeRecord;
+    expect(verified.previewResult?.status).toBe("applied");
+
+    setSelectedElement(null);
+    hostButton.remove();
+    iframe.remove();
   });
 
   it("returning to the original baseline removes the canonical delta", () => {

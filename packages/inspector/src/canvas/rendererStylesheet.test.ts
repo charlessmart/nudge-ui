@@ -99,7 +99,19 @@ describe("validateReplaceStyles", () => {
     delete (msg as Record<string, unknown>).revision;
     const result = validateReplaceStyles(msg as unknown as ReplaceStylesMessage, TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID);
     expect(result.valid).toBe(false);
-    if (!result.valid) expect(result.reason).toBe("revision is not a number");
+    if (!result.valid) expect(result.reason).toBe("revision is not a non-negative safe integer");
+  });
+
+  it("rejects non-finite and negative revisions", () => {
+    for (const revision of [Number.NaN, Number.POSITIVE_INFINITY, -1, Number.MAX_SAFE_INTEGER + 1]) {
+      const result = validateReplaceStyles(
+        makeMsg({ revision }),
+        TEST_PROJECT,
+        TEST_WORKSPACE,
+        TEST_CARD_ID,
+      );
+      expect(result.valid).toBe(false);
+    }
   });
 
   it("rejects missing css", () => {

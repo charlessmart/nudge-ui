@@ -22,7 +22,7 @@ import { BoxShadowEditor } from "./styleEditors/BoxShadowEditor.tsx";
 import { LayoutSection } from "./styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
 import { discardChangesForSelector, undo, redo } from "./changesLog.ts";
-import { countSourceSiteMatches, getEditScope, relinkElement, selectorForElement, unlinkElement } from "./editScope.ts";
+import { countSourceSiteMatches, getEditScope, relinkElement, selectorForElement, sourceSiteSelector, unlinkElement } from "./editScope.ts";
 import { Button } from "./ui/Button.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
@@ -39,6 +39,7 @@ import { getElementWindow } from "./domRealm.ts";
 import { deleteElement, nudgeElement, undoDomMutation, redoDomMutation, useDomMutations } from "./domMutations.ts";
 import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
+import { documentRevision, subscribeGlobalRevision } from "./tokens/resolution/cssomCollector.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -69,16 +70,83 @@ function resolveHost(): HTMLElement {
   return inspectorHost ?? document.getElementById("design-tool-root") ?? document.body;
 }
 
+function nodeMatchesSelector(node: Node, selector: string | null): boolean {
+  if (!selector || node.nodeType !== node.ELEMENT_NODE) return false;
+  const element = node as Element;
+  try {
+    return element.matches(selector) || element.querySelector(selector) !== null;
+  } catch {
+    return false;
+  }
+}
+
+function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTMLElement): boolean {
+  const selector = sourceSiteSelector(
+    selected.getAttribute("data-cid") ?? "",
+    selected.getAttribute("data-src") ?? "",
+  );
+  return records.some((record) => {
+    if (record.type === "attributes") {
+      return record.target === selected || record.attributeName !== "data-dt-instance";
+    }
+    return [...record.addedNodes, ...record.removedNodes]
+      .some((node) => nodeMatchesSelector(node, selector));
+  });
+}
+
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const canvasMode = useCanvasMode();
   const selected = useSelectedElement();
+  const selectedDocument = selected?.domElement.ownerDocument ?? document;
   const [scopeRevision, refreshScope] = useState(0);
+  const [resolutionRevision, setResolutionRevision] = useState(() => documentRevision(selectedDocument));
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const [restoreCount, setShowRestore] = useState<number>(getRestoreCount());
   const domMutations = useDomMutations();
+
+  useEffect(() => {
+    let idleHandle: number | null = null;
+    let timerHandle: ReturnType<typeof setTimeout> | null = null;
+    const cancelRefresh = (): void => {
+      if (idleHandle !== null) {
+        const idleWindow = window as Window & {
+          cancelIdleCallback?: (handle: number) => void;
+        };
+        idleWindow.cancelIdleCallback?.(idleHandle);
+        idleHandle = null;
+      }
+      if (timerHandle !== null) {
+        clearTimeout(timerHandle);
+        timerHandle = null;
+      }
+    };
+    const flushResolutionRevision = (): void => {
+      idleHandle = null;
+      timerHandle = null;
+      const next = documentRevision(selectedDocument);
+      setResolutionRevision((current) => current === next ? current : next);
+    };
+    const scheduleResolutionRevision = (): void => {
+      cancelRefresh();
+      const idleWindow = window as Window & {
+        requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      };
+      if (idleWindow.requestIdleCallback) {
+        idleHandle = idleWindow.requestIdleCallback(flushResolutionRevision, { timeout: 200 });
+      } else {
+        timerHandle = setTimeout(flushResolutionRevision, 32);
+      }
+    };
+    flushResolutionRevision();
+    const unsubscribe = subscribeGlobalRevision(scheduleResolutionRevision);
+    return () => {
+      unsubscribe();
+      cancelRefresh();
+    };
+  }, [selectedDocument]);
 
   useEffect(() => {
     setInspectorLayoutOpen(isOpen);
@@ -103,12 +171,20 @@ export function InspectorShell(): ReactElement {
     const OwnerMutationObserver = (getElementWindow(selected.domElement) as unknown as {
       MutationObserver: typeof MutationObserver;
     }).MutationObserver;
-    const observer = new OwnerMutationObserver(() => {
+    const observer = new OwnerMutationObserver((records) => {
+      if (scopeMutationAffectsSelection(records, selected.domElement)) {
+        refreshScope((revision) => revision + 1);
+      }
       if (selected.domElement.isConnected) return;
       if (instancePreview) setInstancePreviewLost(true);
       else setSelectedElement(null);
     });
-    observer.observe(ownerRoot, { childList: true, subtree: true });
+    observer.observe(ownerRoot, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-cid", "data-src", "data-dt-instance"],
+    });
     return () => observer.disconnect();
   }, [selected, scopeRevision]);
 
@@ -157,7 +233,7 @@ export function InspectorShell(): ReactElement {
 
   const tokenEntries: TokenEntry[] = useMemo(
     () => selected ? getTokenEntriesForElement(selected.domElement) : [],
-    [selected],
+    [selected, resolutionRevision],
   );
   const tokenTable: TokenTable = useMemo(() => buildTokenTable(tokenEntries), [tokenEntries]);
   const tokenRows = useResolvedPropertiesDebounced(selected, styleState, tokenTable);

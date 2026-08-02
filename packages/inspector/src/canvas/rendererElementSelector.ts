@@ -17,6 +17,7 @@ import { installInteractionStyles } from "../interactionStyles.ts";
 import { createFrameThrottle } from "../frameThrottle.ts";
 import { createCidIndex } from "./rendererCidIndex.ts";
 import { isEditableEvent } from "../shortcuts.ts";
+import { escapeCssString } from "../cssEscapes.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -79,9 +80,9 @@ function getFiberInfo(el: HTMLElement): { file: string; line: number; component:
   return { file, line, component, src };
 }
 
-function buildSelector(el: HTMLElement): string {
+export function buildSelector(el: HTMLElement): string {
   const cid = el.getAttribute("data-cid");
-  if (cid) return `[data-cid="${cid}"]`;
+  if (cid) return `[data-cid="${escapeCssString(cid)}"]`;
   const tag = el.tagName.toLowerCase();
   const id = el.id ? `#${CSS.escape(el.id)}` : "";
   const classes = Array.from(el.classList).map((c) => `.${CSS.escape(c)}`).join("");
@@ -142,7 +143,7 @@ export function installRendererElementSelector(): void {
         cid,
         selector,
         src,
-        instanceIndex: cidIndex.instanceIndex(el),
+        elementId: cidIndex.elementId(el),
         rect: {
           left: rect.left,
           top: rect.top,
@@ -188,7 +189,7 @@ export function installRendererElementSelector(): void {
       const msg: ElementDragStartMessage = {
         type: "element-drag-start", protocolVersion: PROTOCOL_VERSION,
         cid: pendingDrag.element.getAttribute("data-cid")!, src: pendingDrag.element.getAttribute("data-src") ?? "",
-        instanceIndex: cidIndex.instanceIndex(pendingDrag.element), point, ...identity,
+        elementId: cidIndex.elementId(pendingDrag.element), point, ...identity,
       };
       sendToParent(msg);
     } else {
@@ -231,7 +232,7 @@ export function installRendererElementSelector(): void {
       const msg: ElementDeleteMessage = {
         type: "element-delete", protocolVersion: PROTOCOL_VERSION,
         cid: lastSelected.getAttribute("data-cid")!, src: lastSelected.getAttribute("data-src") ?? "",
-        instanceIndex: cidIndex.instanceIndex(lastSelected), ...identity,
+        elementId: cidIndex.elementId(lastSelected), ...identity,
       };
       sendToParent(msg);
       return;
@@ -241,7 +242,7 @@ export function installRendererElementSelector(): void {
     const msg: ElementNudgeMessage = {
       type: "element-nudge", protocolVersion: PROTOCOL_VERSION,
       cid: lastSelected.getAttribute("data-cid")!, src: lastSelected.getAttribute("data-src") ?? "",
-      instanceIndex: cidIndex.instanceIndex(lastSelected), key: event.key, ...identity,
+      elementId: cidIndex.elementId(lastSelected), key: event.key, ...identity,
     };
     sendToParent(msg);
   }, true);
@@ -282,7 +283,7 @@ export function installRendererElementSelector(): void {
         cid,
         selector,
         src,
-        instanceIndex: cidIndex.instanceIndex(el),
+        elementId: cidIndex.elementId(el),
         rect: null,
         margins: null,
         ...identity,
@@ -327,7 +328,7 @@ export function installRendererElementSelector(): void {
         cid,
         selector,
         src,
-        instanceIndex: cidIndex.instanceIndex(el),
+        elementId: cidIndex.elementId(el),
         file,
         line,
         component,

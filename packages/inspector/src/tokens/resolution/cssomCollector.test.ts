@@ -137,7 +137,7 @@ describe("document revision observer", () => {
     expect(revisionsSnapshot()).toEqual(before);
   });
 
-  it("ignores managed-sheet writes (explicit invalidation covers them)", async () => {
+  it("counts managed-sheet writes as stylesheet changes", async () => {
     const managed = document.createElement("style");
     managed.setAttribute("data-design-tool", "managed");
     managed.id = "design-tool-styles";
@@ -148,7 +148,7 @@ describe("document revision observer", () => {
     managed.textContent = ".dt-row { color: red; }";
     managed.textContent = ".dt-row { color: blue; }";
     await flushObserver();
-    expect(revisionsSnapshot()).toEqual(before);
+    expect(revisionsSnapshot().stylesheet).toBeGreaterThan(before.stylesheet);
   });
 
   it("ignores attribute churn on elements outside the resolution registry", async () => {
@@ -162,6 +162,19 @@ describe("document revision observer", () => {
     busy.removeAttribute("data-busy");
     busy.className = "changing";
     await flushObserver();
+    expect(revisionsSnapshot()).toEqual(before);
+  });
+
+  it("ignores renderer identity attributes before an element is registered", async () => {
+    const canvasNode = document.createElement("div");
+    document.body.appendChild(canvasNode);
+    await flushObserver();
+
+    const before = revisionsSnapshot();
+    canvasNode.setAttribute("data-dt-renderer-id", "r1");
+    canvasNode.setAttribute("data-dt-renderer-id", "r2");
+    await flushObserver();
+
     expect(revisionsSnapshot()).toEqual(before);
   });
 
@@ -201,6 +214,20 @@ describe("document revision observer", () => {
 
     const before = revisionsSnapshot();
     style.textContent = ".a { color: blue; }";
+    await flushObserver();
+
+    const after = revisionsSnapshot();
+    expect(after.stylesheet).toBeGreaterThan(before.stylesheet);
+  });
+
+  it("counts stylesheet attribute changes even when the stylesheet is unregistered", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".a { color: red; }";
+    document.head.appendChild(style);
+    await flushObserver();
+
+    const before = revisionsSnapshot();
+    style.media = "screen and (min-width: 1px)";
     await flushObserver();
 
     const after = revisionsSnapshot();

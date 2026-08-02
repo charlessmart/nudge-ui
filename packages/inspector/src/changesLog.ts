@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { canWriteWorkspace } from "./canvas/workspaceLease.ts";
+import { getSelectedElement } from "./selectionStore.ts";
 import {
   changeKey,
   mergeChange,
@@ -40,7 +41,7 @@ const listeners = new Set<() => void>();
  * re-verified, and the probe work runs coalesced off the synchronous commit
  * path (requestIdleCallback, falling back to rAF / a macrotask).
  */
-let pendingVerificationKeys = new Set<string>();
+let pendingVerificationTargets = new Map<string, HTMLElement | null>();
 let verificationHandle: number | null = null;
 
 function subscribe(cb: () => void): () => void {
@@ -80,17 +81,19 @@ function samePreviewResult(
 
 function flushVerification(): void {
   verificationHandle = null;
-  const keys = pendingVerificationKeys;
-  pendingVerificationKeys = new Set<string>();
-  if (keys.size === 0) return;
+  const targets = pendingVerificationTargets;
+  pendingVerificationTargets = new Map<string, HTMLElement | null>();
+  if (targets.size === 0) return;
   const current = changes;
   let updated: ChangeRecord[] | null = null;
   for (let i = 0; i < current.length; i++) {
     const change = current[i]!;
     if (isComponentChange(change)) continue;
-    if (!keys.has(changeKey(change))) continue;
+    const key = changeKey(change);
+    if (!targets.has(key)) continue;
     const verified = verifyManagedStyleProjection(
       change as PreviewableChangeRecord,
+      targets.get(key) ?? null,
     );
     if (samePreviewResult(change.previewResult, verified.previewResult)) continue;
     if (!updated) updated = current.slice();
@@ -126,11 +129,13 @@ function scheduleVerification(): void {
  * a plain commit re-verifies only the records it introduced or merged.
  */
 function markForVerification(keys: Iterable<string>): void {
+  const selectedElement = getSelectedElement()?.domElement ?? null;
   let added = false;
   for (const key of keys) {
-    if (pendingVerificationKeys.has(key)) continue;
-    pendingVerificationKeys.add(key);
-    added = true;
+    if (!pendingVerificationTargets.has(key)) added = true;
+    // Keep the latest commit context for a merged key. The element may be in
+    // an iframe, so this is also the document boundary for verification.
+    pendingVerificationTargets.set(key, selectedElement);
   }
   if (added) scheduleVerification();
 }
@@ -209,6 +214,10 @@ export function redo(): boolean {
 }
 
 export function loadChanges(incoming: ChangeRecord[]): void {
+  // A restored session replaces the change set and may also switch the active
+  // document. Do not let a deferred verification from the previous session
+  // inspect a newly loaded record with its old selection context.
+  pendingVerificationTargets.clear();
   changes = [...incoming];
   undoStack.length = 0;
   redoStack.length = 0;
@@ -220,6 +229,7 @@ export function clearChanges(): void {
   changes = [];
   undoStack.length = 0;
   redoStack.length = 0;
+  pendingVerificationTargets.clear();
   applyChangeProjections([]);
   notify();
 }

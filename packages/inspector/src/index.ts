@@ -74,11 +74,6 @@ function startController(inspectorHost: HTMLElement): void {
     lockedRoot = null;
   }
 
-  if (!beforeUnloadAttached) {
-    window.addEventListener("beforeunload", releaseLease);
-    beforeUnloadAttached = true;
-  }
-
   unsubscribeOwnership?.();
   unsubscribeOwnership = subscribeOwnership((hasLease) => {
     if (!hasLease) mountLockedNotice(inspectorHost);
@@ -96,6 +91,13 @@ function startController(inspectorHost: HTMLElement): void {
   mountInspector(inspectorHost);
 
   enableAutoSave();
+  if (!beforeUnloadAttached) {
+    // enableAutoSave registers its flush listener first. Release the lease only
+    // after the pending session write has had a chance to pass the ownership
+    // gate during beforeunload.
+    window.addEventListener("beforeunload", releaseLease);
+    beforeUnloadAttached = true;
+  }
   if (!persistenceSubscribed) {
     subscribeChanges(() => scheduleAutoSave());
     subscribeCanvas(() => scheduleCanvasSave());
