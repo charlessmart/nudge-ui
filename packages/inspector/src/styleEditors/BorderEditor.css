@@ -18,7 +18,7 @@
 }
 
 .dt-border__linked-row > .dt-popover-listbox,
-.dt-border__linked-row > .dt-toggle-button {
+.dt-border__linked-row > .dt-icon-button {
   flex: 0 0 auto;
 }
 

@@ -40,6 +40,10 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
+.dt-side-values__linked-row--no-label {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .dt-side-values__linked-row .dt-side-values__label {
   white-space: nowrap;
 }

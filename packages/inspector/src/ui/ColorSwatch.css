@@ -5,7 +5,7 @@
   height: var(--dt-control-height-small);
   background: var(--dt-swatch-color);
   border: 2px solid #ffffff;
-  border-radius: 8px;
+  border-radius: var(--dt-radius-control);
   box-shadow: 0 0 0 1px var(--dt-border-subtle);
 }
 

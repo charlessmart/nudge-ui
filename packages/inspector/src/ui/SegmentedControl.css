@@ -9,7 +9,7 @@
   padding: 2px;
   box-sizing: border-box;
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: var(--dt-radius-control);
   background: var(--dt-surface-well);
 }
 
@@ -20,7 +20,7 @@
   height: auto;
   padding: 0 var(--dt-space-8);
   border: 0;
-  border-radius: var(--dt-radius-control);
+  border-radius: 6px;
   background: transparent;
   color: var(--dt-text-muted);
   font-size: var(--dt-font-size-base);

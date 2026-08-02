@@ -451,9 +451,14 @@
 
 .dt-layout__flex-child-fields {
   display: grid;
-  grid-template-columns: minmax(76px, 1.1fr) minmax(52px, 0.74fr) minmax(56px, 0.8fr) minmax(68px, 1fr) minmax(52px, 0.7fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(0, 1fr) auto;
   gap: 5px;
   align-items: start;
+}
+
+.dt-layout__flex-child-fields > .dt-icon-button {
+  align-self: end;
+  justify-self: end;
 }
 
 .dt-layout__flex-child-fields > .dt-field-row {
@@ -482,9 +487,34 @@
   min-width: 0;
 }
 
-.dt-layout__flex-child-help {
-  margin: 7px 0 0;
-  color: var(--dt-text-muted);
+.dt-layout__flex-child-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dt-layout__flex-child-settings-title {
+  color: var(--dt-text-primary);
+  font-size: var(--dt-font-size-base);
+  font-weight: var(--dt-font-weight-base);
+}
+
+.dt-layout__flex-child-settings .dt-field-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-height: 0;
+}
+
+.dt-layout__flex-child-settings .dt-field-row__label {
+  color: var(--dt-text-secondary);
   font-size: 10px;
-  line-height: 1.35;
+  line-height: 1.2;
+}
+
+.dt-layout__flex-child-settings .dt-field-row__control,
+.dt-layout__flex-child-settings .dt-layout-combo {
+  width: 100%;
+  min-width: 0;
 }

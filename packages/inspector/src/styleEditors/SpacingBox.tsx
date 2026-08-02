@@ -1,16 +1,25 @@
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
+import { IconMinus, IconPlus } from "@tabler/icons-react";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
 import { SideValuesField, SIDE_NAMES, type SideValuePairSlot, type SideValueSlot } from "../ui/SideValuesField.tsx";
+import { IconButton } from "../ui/IconButton.tsx";
 import { promoteToToken, setStyle, swapToken } from "../tokens/editActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
-import { projectInspectorValues, type InspectorAxisProjection } from "../spacing/projection.ts";
+import { projectInspectorValues, type InspectorAxisProjection, type InspectorSpacingProjection } from "../spacing/projection.ts";
+import { InsetSection } from "./InsetSection.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
+}
+
+function isZeroSpacingValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return !normalized || /^-?0(?:\.0+)?(?:[a-z%]+)?$/.test(normalized);
 }
 
 export interface SpacingBoxProps {
@@ -25,68 +34,174 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
   const el = element.domElement;
   const allEntries = entries ?? [];
   const projection = projectInspectorValues(el, tokenRows);
-  const spacingGroups = [
-    { label: "padding", property: "padding" },
-    { label: "margin", property: "margin" },
-  ] as const;
 
   return (
-    <div className="dt-editor" data-test="spacing-box">
-      <div className="dt-editor__title">Spacing</div>
-      <div className="dt-spacing">
-        {spacingGroups.map(({ label, property }) => {
-          const pairDefinitions = [
-            { axis: "horizontal", sideProperties: [`${property}-left`, `${property}-right`] as const },
-            { axis: "vertical", sideProperties: [`${property}-top`, `${property}-bottom`] as const },
-          ] as const;
-          const sideSlots: SideValueSlot[] = SIDE_NAMES.map((side) => ({
-            side,
-            control: (
-              <TokenField
-                property={`${property}-${side}`}
-                tokenRow={findTokenRow(tokenRows, `${property}-${side}`)}
-                domElement={el}
-                entries={allEntries}
-                editMetadata={metadataFor(findTokenRow(tokenRows, `${property}-${side}`))}
-                onAfterEdit={onAfterEdit}
-                chipVariant="small"
-              />
-            ),
-          }));
-          const spacingProjection = projection.spacing[property];
-          const forceExpanded = pairDefinitions.some(({ axis }) => (
-            spacingProjection.axes[axis].fields[0].value !== spacingProjection.axes[axis].fields[1].value
-          ));
-          const pairSlots: SideValuePairSlot[] = pairDefinitions.map(({ axis, sideProperties }) => ({
-            axis,
-            control: (
-              <PairedTokenField
-                displayProperty={`${property}-${axis}`}
-                sideProperties={sideProperties}
-                domElement={el}
-                axisProjection={spacingProjection.axes[axis]}
-                entries={allEntries}
-                onAfterEdit={onAfterEdit}
-                chipVariant="small"
-              />
-            ),
-          }));
-
-          return (
-            <SideValuesField
-              key={property}
-              label={label}
-              data-test={`spacing-${property}`}
-              data-property={property}
-              resetKey={el}
-              pairedControls={pairSlots}
-              defaultExpanded={forceExpanded}
-              forceExpanded={forceExpanded}
-              sides={sideSlots}
-            />
-          );
-        })}
+    <>
+      <div className="dt-editor" data-test="spacing-box">
+        <div className="dt-editor__title">Padding</div>
+        <div className="dt-spacing">
+          <SpacingField
+            property="padding"
+            projection={projection.spacing.padding}
+            domElement={el}
+            entries={allEntries}
+            tokenRows={tokenRows}
+            onAfterEdit={onAfterEdit}
+          />
+        </div>
       </div>
+      <MarginSection
+        domElement={el}
+        entries={allEntries}
+        tokenRows={tokenRows}
+        projection={projection.spacing.margin}
+        onAfterEdit={onAfterEdit}
+      />
+      <InsetSection
+        element={element}
+        entries={allEntries}
+        tokenRows={tokenRows}
+        onAfterEdit={onAfterEdit}
+      />
+    </>
+  );
+}
+
+interface SpacingFieldProps {
+  property: "padding" | "margin";
+  projection: InspectorSpacingProjection;
+  domElement: HTMLElement;
+  entries: TokenEntry[];
+  tokenRows: ResolvedProperty[];
+  onAfterEdit?: () => void;
+  showLabel?: boolean;
+}
+
+function SpacingField({
+  property,
+  projection: spacingProjection,
+  domElement: el,
+  entries,
+  tokenRows,
+  onAfterEdit,
+  showLabel = true,
+}: SpacingFieldProps): ReactElement {
+  const pairDefinitions = [
+    { axis: "horizontal", sideProperties: [`${property}-left`, `${property}-right`] as const },
+    { axis: "vertical", sideProperties: [`${property}-top`, `${property}-bottom`] as const },
+  ] as const;
+  const sideSlots: SideValueSlot[] = SIDE_NAMES.map((side) => ({
+    side,
+    control: (
+      <TokenField
+        property={`${property}-${side}`}
+        tokenRow={findTokenRow(tokenRows, `${property}-${side}`)}
+        domElement={el}
+        entries={entries}
+        editMetadata={metadataFor(findTokenRow(tokenRows, `${property}-${side}`))}
+        onAfterEdit={onAfterEdit}
+        chipVariant="small"
+      />
+    ),
+  }));
+  const forceExpanded = pairDefinitions.some(({ axis }) => (
+    spacingProjection.axes[axis].fields[0].value !== spacingProjection.axes[axis].fields[1].value
+  ));
+  const pairSlots: SideValuePairSlot[] = pairDefinitions.map(({ axis, sideProperties }) => ({
+    axis,
+    control: (
+      <PairedTokenField
+        displayProperty={`${property}-${axis}`}
+        sideProperties={sideProperties}
+        domElement={el}
+        axisProjection={spacingProjection.axes[axis]}
+        entries={entries}
+        onAfterEdit={onAfterEdit}
+        chipVariant="small"
+      />
+    ),
+  }));
+
+  return (
+    <SideValuesField
+      label={property}
+      data-test={`spacing-${property}`}
+      data-property={property}
+      resetKey={el}
+      pairedControls={pairSlots}
+      defaultExpanded={forceExpanded}
+      forceExpanded={forceExpanded}
+      showLabel={showLabel}
+      sides={sideSlots}
+    />
+  );
+}
+
+interface MarginSectionProps {
+  domElement: HTMLElement;
+  entries: TokenEntry[];
+  tokenRows: ResolvedProperty[];
+  projection: InspectorSpacingProjection;
+  onAfterEdit?: () => void;
+}
+
+function MarginSection({
+  domElement: el,
+  entries,
+  tokenRows,
+  projection,
+  onAfterEdit,
+}: MarginSectionProps): ReactElement {
+  const [fieldsAdded, setFieldsAdded] = useState(false);
+  const marginIsEmpty = SIDE_NAMES.every((side) => isZeroSpacingValue(projection.fields[side].value));
+  const showFields = !marginIsEmpty || fieldsAdded;
+
+  useEffect(() => {
+    setFieldsAdded(false);
+  }, [el]);
+
+  useEffect(() => {
+    if (!marginIsEmpty) setFieldsAdded(false);
+  }, [marginIsEmpty]);
+
+  function removeValues(): void {
+    setStyle(el, "margin", "0");
+    setFieldsAdded(false);
+    onAfterEdit?.();
+  }
+
+  return (
+    <div className="dt-editor" data-test="margin-section" data-empty={showFields ? undefined : "true"}>
+      <div className="dt-editor__title-row">
+        <div className="dt-editor__title">Margin</div>
+        <IconButton
+          variant="quiet"
+          size="default"
+          data-test={showFields ? "remove-margin" : "add-margin"}
+          label={showFields ? "Remove Margin Values" : "Add Margin Values"}
+          title={showFields ? "Remove Margin Values" : "Add Margin Values"}
+          onClick={showFields ? removeValues : () => setFieldsAdded(true)}
+        >
+          {showFields ? (
+            <IconMinus size={16} stroke={1.8} aria-hidden="true" />
+          ) : (
+            <IconPlus size={16} stroke={1.8} aria-hidden="true" />
+          )}
+        </IconButton>
+      </div>
+      {showFields ? (
+        <div className="dt-spacing">
+          <SpacingField
+            property="margin"
+            projection={projection}
+            domElement={el}
+            entries={entries}
+            tokenRows={tokenRows}
+            onAfterEdit={onAfterEdit}
+            showLabel={false}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

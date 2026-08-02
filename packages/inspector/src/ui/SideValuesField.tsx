@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { IconBorderSides } from "@tabler/icons-react";
-import { ToggleButton } from "./ToggleButton.tsx";
+import { IconBorderSides, IconPlus } from "@tabler/icons-react";
 import { IconButton } from "./IconButton.tsx";
 import { formatInspectorLabel } from "./labels.ts";
 
@@ -30,6 +29,9 @@ export interface SideValuesFieldProps {
   defaultExpanded?: boolean;
   forceExpanded?: boolean;
   expanded?: boolean;
+  showLabel?: boolean;
+  empty?: boolean;
+  onAdd?: () => void;
   resetKey?: unknown;
   onLinkedChange?: (linked: boolean) => void;
   onExpandedChange?: (expanded: boolean) => void;
@@ -53,6 +55,9 @@ export function SideValuesField({
   defaultExpanded = false,
   forceExpanded = false,
   expanded: controlledExpanded,
+  showLabel = true,
+  empty = false,
+  onAdd,
   resetKey,
   onLinkedChange,
   onExpandedChange,
@@ -71,7 +76,7 @@ export function SideValuesField({
     : controlledExpanded ?? uncontrolledExpanded);
   const hasPairedControls = Boolean(pairedControls && pairedControls.length > 0);
   const labelText = typeof label === "string" ? formatInspectorLabel(label) : String(label);
-  const displayLabel = typeof label === "string" ? labelText : label;
+  const displayLabel = showLabel ? (typeof label === "string" ? labelText : label) : null;
 
   useEffect(() => {
     // `defaultLinked` describes the newly selected element, not the current
@@ -102,15 +107,32 @@ export function SideValuesField({
       className="dt-side-values"
       data-test={dataTest}
       data-property={dataProperty}
+      data-empty={empty ? "true" : undefined}
       {...(hasPairedControls
         ? { "data-expanded": isExpanded ? "true" : "false" }
         : { "data-linked": isLinked ? "true" : "false" })}
     >
-      {hasPairedControls ? (
+      {empty ? (
+        <div className="dt-side-values__header">
+          <span className="dt-side-values__label">{displayLabel}</span>
+          <IconButton
+            variant="quiet"
+            size="default"
+            data-test="add-value"
+            label={`Add ${labelText}`}
+            title={`Add ${labelText}`}
+            onClick={onAdd}
+          >
+            <IconPlus size={16} stroke={1.8} aria-hidden="true" />
+          </IconButton>
+        </div>
+      ) : hasPairedControls ? (
         <>
-          <div className="dt-side-values__header">
-            <span className="dt-side-values__label">{displayLabel}</span>
-          </div>
+          {showLabel ? (
+            <div className="dt-side-values__header">
+              <span className="dt-side-values__label">{displayLabel}</span>
+            </div>
+          ) : null}
           <div className="dt-side-values__value-row">
             {isExpanded ? (
               <SideControls label={label} sides={sides} />
@@ -131,8 +153,8 @@ export function SideValuesField({
                 ))}
               </div>
             )}
-            <ToggleButton
-              variant="secondary"
+            <IconButton
+              variant="quiet"
               size="default"
               data-test="individual-sides"
               label={forceExpanded
@@ -142,44 +164,47 @@ export function SideValuesField({
                 ? "Individual Sides Stay Open While Values Differ"
                 : isExpanded ? "Collapse To Grouped Sides" : "Expand To Individual Sides"}
               disabled={forceExpanded}
-              pressed={isExpanded}
-              onPressedChange={toggleExpanded}
+              aria-pressed={isExpanded}
+              data-active={isExpanded}
+              onClick={toggleExpanded}
             >
               <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-            </ToggleButton>
+            </IconButton>
           </div>
         </>
       ) : isLinked ? (
-        <div className="dt-side-values__value-row dt-side-values__linked-row">
-          <span className="dt-side-values__label">{displayLabel}</span>
+        <div className={`dt-side-values__value-row dt-side-values__linked-row${showLabel ? "" : " dt-side-values__linked-row--no-label"}`}>
+          {showLabel ? <span className="dt-side-values__label">{displayLabel}</span> : null}
           <div className="dt-side-values__linked">{linkedControl}</div>
-          <ToggleButton
-            variant="secondary"
+          <IconButton
+            variant="quiet"
             size="default"
             data-test="individual-sides"
             label={`Edit Individual ${labelText} Sides`}
             title={`Edit Individual ${labelText} Sides`}
-            pressed={!isLinked}
-            onPressedChange={toggleLinked}
+            aria-pressed={!isLinked}
+            data-active={!isLinked}
+            onClick={toggleLinked}
           >
             <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-          </ToggleButton>
+          </IconButton>
         </div>
       ) : (
         <>
           <div className="dt-side-values__header">
             <span className="dt-side-values__label">{displayLabel}</span>
-            <ToggleButton
-              variant="secondary"
+            <IconButton
+              variant="quiet"
               size="default"
               data-test="individual-sides"
               label={`Link ${labelText} Sides`}
               title={`Link ${labelText} Sides`}
-              pressed={!isLinked}
-              onPressedChange={toggleLinked}
+              aria-pressed={!isLinked}
+              data-active={!isLinked}
+              onClick={toggleLinked}
             >
               <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-            </ToggleButton>
+            </IconButton>
           </div>
           <SideControls label={label} sides={sides} />
         </>

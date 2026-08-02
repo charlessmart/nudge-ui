@@ -167,7 +167,8 @@ test("dev: linked border values expand into icon-labelled individual side fields
   const borderSection = page.locator('.dt-border');
   await expect(borderSection).toHaveAttribute("data-expanded", "false");
   await expect(borderSection.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(1);
-  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-toggle-button/);
+  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-icon-button/);
+  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-icon-button--quiet/);
   await expect(borderSection.locator('.dt-border__linked-row')).toHaveCount(1);
 
   await borderSection.locator('[data-test="border-expand"]').click();
@@ -319,6 +320,7 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   expect(editorOrder).toEqual([
     "layout-section",
     "spacing-box",
+    "margin-section",
     "typography",
     "color-picker",
     "color-picker",
@@ -374,7 +376,8 @@ test("dev: spacing expansion resets when selecting a symmetric element", async (
 
   await page.locator(".btn").first().click();
   await expect(page.locator('[data-test="spacing-padding"]')).toHaveAttribute("data-expanded", "false");
-  await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "false");
+  await expect(page.locator('[data-test="margin-section"]')).toHaveAttribute("data-empty", "true");
+  await expect(page.locator('[data-test="spacing-margin"]')).toHaveCount(0);
 });
 
 function hexToRgbString(raw: string): string | null {

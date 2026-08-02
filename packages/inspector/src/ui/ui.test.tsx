@@ -229,7 +229,8 @@ describe("shared inspector UI", () => {
     expect(field.getAttribute("data-expanded")).toBe("false");
     expect(field.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
     expect(field.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
-    expect(field.querySelector('[data-test="individual-sides"]')?.className).toContain("dt-toggle-button");
+    expect(field.querySelector('[data-test="individual-sides"]')?.className).toContain("dt-icon-button");
+    expect(field.querySelector('[data-test="individual-sides"]')?.className).toContain("dt-icon-button--quiet");
     expect(field.querySelector('[data-test="individual-sides"]')?.getAttribute("aria-label")).toBe("Expand Padding Sides");
 
     act(() => (field.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click());

@@ -44,16 +44,6 @@ async function setLayoutInput(page: import("@playwright/test").Page, testId: str
   await input.blur();
 }
 
-async function selectValues(page: import("@playwright/test").Page, testId: string): Promise<string[]> {
-  const trigger = page.locator(`[data-test="${testId}"]`);
-  await trigger.click();
-  const items = page.locator(".dt-select__item:visible");
-  await expect(items.first()).toBeVisible();
-  const values = await items.evaluateAll((elements) => elements.map((item) => item.getAttribute("data-value") ?? ""));
-  await trigger.click();
-  return values;
-}
-
 async function computedPropOn(page: import("@playwright/test").Page, testId: string, prop: string): Promise<string> {
   return await page.evaluate(({ t, p }) => {
     const el = document.querySelector(`[data-test="${t}"]`) as HTMLElement | null;
@@ -287,21 +277,26 @@ test("dev: layout section shows flex child controls when selecting a child of a 
   expect(await shadowQueryExists(page, "layout-flex-child")).toBe(true);
 
   // Flex child properties should be present
-  const hasAlignSelf = await shadowQueryExists(page, "layout-select-align-self");
-  expect(hasAlignSelf).toBe(true);
+  const hasFlexChildSettings = await shadowQueryExists(page, "layout-flex-child-settings");
+  expect(hasFlexChildSettings).toBe(true);
 
-  // Flex-grow combo field should be present
-  const hasFlexGrow = await shadowQueryExists(page, "layout-combo-select-flex-grow");
+  // Frequently used flex child fields are direct text inputs.
+  const hasFlexGrow = await shadowQueryExists(page, "layout-combo-input-flex-grow");
   expect(hasFlexGrow).toBe(true);
+
+  await page.locator('[data-test="layout-flex-child-settings"]').click();
+  await expect(page.locator('[data-test="layout-select-align-self"]')).toBeVisible();
+  await expect(page.locator('[data-test="layout-combo-select-order"]')).toBeVisible();
 
   const positionSelect = page.locator('[data-test="layout-select-position"]');
   await positionSelect.focus();
   await positionSelect.press("r");
   await expect(positionSelect).toContainText("Relative");
 
-  const flexBasisOptions = await selectValues(page, "layout-combo-select-flex-basis");
-  expect(flexBasisOptions).toContain("auto");
-  await setSelect(page, "layout-combo-select-flex-basis", "auto");
+  const flexBasisInput = page.locator('[data-test="layout-combo-input-flex-basis"]');
+  await expect(flexBasisInput).toBeVisible();
+  await flexBasisInput.fill("auto");
+  await flexBasisInput.blur();
   await expect
     .poll(async () => (await sheetText(page)).includes("flex-basis: auto"), { timeout: 5000 })
     .toBe(true);
@@ -309,7 +304,9 @@ test("dev: layout section shows flex child controls when selecting a child of a 
   await page.mouse.move(0, 0);
 
   // Change flex-grow to 2
-  await setSelect(page, "layout-combo-select-flex-grow", "2");
+  const flexGrowInput = page.locator('[data-test="layout-combo-input-flex-grow"]');
+  await flexGrowInput.fill("2");
+  await flexGrowInput.blur();
 
   // Computed style should update
   await expect
@@ -333,6 +330,16 @@ test("dev: layout section shows inset controls for a positioned element", async 
 
   // Inset sub-section should be visible (position is relative)
   expect(await shadowQueryExists(page, "layout-inset")).toBe(true);
+  const editorOrder = await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    return Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="style-editors"] > .dt-editor') ?? [])
+      .map((editor) => editor.getAttribute("data-test"));
+  });
+  expect(editorOrder.indexOf("margin-section")).toBeLessThan(editorOrder.indexOf("layout-inset"));
+
+  // Empty relative insets stay compact until explicitly added.
+  await expect(page.locator('[data-test="add-inset"]')).toBeVisible();
+  await page.locator('[data-test="add-inset"]').click();
 
   // Top inset should use the regular token/raw input.
   await expect(page.locator('[data-test="token-field"][data-property="top"] [data-test="raw-input"]')).toBeVisible();
@@ -360,6 +367,7 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
   await page.click('[data-test="positioned-box"]');
   await waitForEditors(page);
 
+  await page.locator('[data-test="add-inset"]').click();
   await setInput(page, "left", "50%");
 
   await expect
