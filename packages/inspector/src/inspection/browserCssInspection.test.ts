@@ -87,6 +87,35 @@ describe("BrowserCssInspection", () => {
     });
   });
 
+  it("accepts explicit compiler entries without widening runtime availability", () => {
+    const style = document.createElement("style");
+    style.textContent = ".card { font-weight: var(--type-weight-strong, 600); }";
+    document.head.appendChild(style);
+    const card = document.createElement("article");
+    card.className = "card";
+    document.body.appendChild(card);
+
+    const snapshot = createBrowserCssInspection({
+      document,
+      tokenKnowledge: {
+        definitions: [{
+          name: "type.weight.strong",
+          cssName: "--type-weight-strong",
+          declarations: [{ value: "650", source: "tokens.css", important: false, context: {} }],
+        }],
+        entries: [{ name: "type.weight.strong", cssName: "--type-weight-strong", value: "650", source: "tokens.css" }],
+        generation: "test-entries",
+      },
+    });
+    sessions.push(snapshot);
+    const inspection = snapshot.inspect(card);
+
+    expect(inspection.availableTokens).toEqual([]);
+    expect(inspection.properties.find((row) => row.property === "font-weight")).toMatchObject({
+      tokenName: "type.weight.strong",
+    });
+  });
+
   it("reports document ownership and unsupported state as structured diagnostics", () => {
     const session = createSession();
     const foreignDocument = document.implementation.createHTMLDocument("foreign");

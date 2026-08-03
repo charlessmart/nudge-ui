@@ -1,10 +1,10 @@
-import type { TokenDefinition } from "virtual:design-tokens";
+import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 import { buildTokenCatalogRows } from "../tokens/catalog.ts";
-import { getResolvedProperties } from "../tokens/resolution.ts";
 import type { EditCapability, ResolvedProperty, TokenOrigin } from "../tokens/resolution.ts";
 import { applyRules, verifyPreview } from "../managedStylesheet.ts";
 import type { PreviewResult } from "../managedStylesheet.ts";
 import { projectInspectorValues, type InspectorProjection, type ProjectionAxis, type ProjectionGroup, type ProjectionSide, type ProjectionState } from "../spacing/projection.ts";
+import { createBrowserCssInspection } from "../inspection/browserCssInspection.ts";
 
 export interface ConformancePropertyExpectation {
   authored: string;
@@ -78,12 +78,23 @@ export function runConformanceFixture(
   if (!selected) throw new Error(`Conformance fixture ${fixture.id} selected no element: ${fixture.selected}`);
 
   const rows = buildTokenCatalogRows(fixture.catalog, doc.documentElement);
-  const properties = getResolvedProperties(selected, Object.fromEntries(
-    fixture.catalog.flatMap((definition) => [
-      [definition.cssName, { name: definition.name, cssName: definition.cssName, value: definition.declarations[0]?.value ?? "", source: definition.declarations[0]?.source ?? "", adapter: definition.adapter, origin: definition.origin, editable: definition.editable }],
-      [definition.name, { name: definition.name, cssName: definition.cssName, value: definition.declarations[0]?.value ?? "", source: definition.declarations[0]?.source ?? "", adapter: definition.adapter, origin: definition.origin, editable: definition.editable }],
-    ]),
-  ));
+  const inspection = createBrowserCssInspection({
+    document: doc,
+    tokenKnowledge: {
+      definitions: fixture.catalog,
+      entries: fixture.catalog.map((definition): TokenEntry => ({
+        name: definition.name,
+        cssName: definition.cssName,
+        value: definition.declarations[0]?.value ?? "",
+        source: definition.declarations[0]?.source ?? "",
+        adapter: definition.adapter,
+        origin: definition.origin,
+        editable: definition.editable,
+      })),
+      generation: fixture.id,
+    },
+  });
+  const properties: ResolvedProperty[] = [...inspection.inspect(selected).properties];
   const projection = projectInspectorValues(selected, properties);
 
   let preview: PreviewResult | null = null;
@@ -100,6 +111,7 @@ export function runConformanceFixture(
     projection,
     preview,
     cleanup() {
+      inspection.dispose();
       style.remove();
       mount.remove();
       if (doc.getElementById("design-tool-styles")) doc.getElementById("design-tool-styles")?.remove();

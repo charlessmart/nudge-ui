@@ -19,6 +19,9 @@ import {
 export interface BrowserTokenKnowledge {
   /** Build-time definitions normalized by a build-tool Adapter. */
   definitions: readonly TokenDefinition[];
+  /** Optional compiler entries used to resolve authored references that are
+   * intentionally not mounted as custom properties in the current document. */
+  entries?: readonly TokenEntry[];
   /** Changes whenever the Adapter publishes a new token inventory. */
   generation: string | number;
 }
@@ -172,6 +175,7 @@ export function createBrowserCssInspection(
   config: BrowserCssInspectionConfig,
 ): BrowserCssInspection {
   const definitions = [...config.tokenKnowledge.definitions];
+  const knowledgeEntries = [...(config.tokenKnowledge.entries ?? [])];
   const tokenGeneration = config.tokenKnowledge.generation;
   let disposed = false;
   const revisionUnsubscribers = new Set<() => void>();
@@ -197,7 +201,10 @@ export function createBrowserCssInspection(
 
       try {
         const availableTokens = getAvailableTokenEntriesForElement(element, definitions);
-        const table = buildTokenTable(availableTokens);
+        // Runtime availability remains the snapshot's public list. Compiler
+        // entries are an explicit resolution hint for adapters such as
+        // conformance fixtures and literal framework tokens.
+        const table = buildTokenTable([...knowledgeEntries, ...availableTokens]);
         const availableStates = getAvailableInteractionStates(element);
         if (state !== "base" && !availableStates.includes(state)) {
           diagnostics.push({
