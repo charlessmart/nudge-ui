@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  bindBrowserCssInspection,
   disposeBrowserCssInspection,
   getBrowserCssInspection,
 } from "./browserCssInspectionRegistry.ts";
 
 afterEach(() => {
   disposeBrowserCssInspection(document);
+  document.body.innerHTML = "";
 });
 
 describe("browser CSS inspection registry", () => {
@@ -28,5 +30,25 @@ describe("browser CSS inspection registry", () => {
     disposeBrowserCssInspection(document);
 
     expect(getBrowserCssInspection(document)).not.toBe(first);
+  });
+
+  it("recreates the document session when token knowledge generation changes", () => {
+    const first = bindBrowserCssInspection(document, {
+      definitions: [],
+      generation: 1,
+    });
+    const same = bindBrowserCssInspection(document, {
+      definitions: [],
+      generation: 1,
+    });
+    const next = bindBrowserCssInspection(document, {
+      definitions: [],
+      generation: 2,
+    });
+
+    expect(same).toBe(first);
+    expect(next).not.toBe(first);
+    expect(first.inspect(document.createElement("div")).target.status).toBe("disposed");
+    expect(next.inspect(document.createElement("div")).target.status).toBe("detached");
   });
 });

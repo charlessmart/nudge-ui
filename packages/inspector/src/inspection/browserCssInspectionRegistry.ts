@@ -2,16 +2,22 @@ import { tokenCatalog } from "virtual:design-tokens";
 import {
   createBrowserCssInspection,
   type BrowserCssInspection,
+  type BrowserTokenKnowledge,
 } from "./browserCssInspection.ts";
 
-const sessions = new WeakMap<Document, BrowserCssInspection>();
+interface DocumentSession {
+  session: BrowserCssInspection;
+  generation: string | number;
+}
+
+const sessions = new WeakMap<Document, DocumentSession>();
 let catalogReference = tokenCatalog;
 let catalogGeneration = 0;
 
-function currentTokenKnowledge(): { definitions: typeof tokenCatalog; generation: number } {
+function currentTokenKnowledge(): BrowserTokenKnowledge {
   // Vite replaces the virtual export when token inventory changes. The
-  // generation makes that replacement visible to snapshots without exposing
-  // the build tool's module identity to browser callers.
+  // generation makes that replacement visible so document sessions recreate
+  // with the new definitions instead of freezing the first catalog snapshot.
   if (catalogReference !== tokenCatalog) {
     catalogReference = tokenCatalog;
     catalogGeneration++;
@@ -19,22 +25,39 @@ function currentTokenKnowledge(): { definitions: typeof tokenCatalog; generation
   return { definitions: tokenCatalog, generation: catalogGeneration };
 }
 
-/** Returns the one browser inspection session owned by a document. */
-export function getBrowserCssInspection(doc: Document = document): BrowserCssInspection {
+/**
+ * Binds a document to token knowledge. When generation changes, the previous
+ * session is disposed and replaced so callers never keep a stale catalog.
+ */
+export function bindBrowserCssInspection(
+  doc: Document,
+  knowledge: BrowserTokenKnowledge,
+): BrowserCssInspection {
   const existing = sessions.get(doc);
-  if (existing) return existing;
+  if (existing && existing.generation === knowledge.generation) {
+    return existing.session;
+  }
+  if (existing) {
+    existing.session.dispose();
+    sessions.delete(doc);
+  }
   const session = createBrowserCssInspection({
     document: doc,
-    tokenKnowledge: currentTokenKnowledge(),
+    tokenKnowledge: knowledge,
   });
-  sessions.set(doc, session);
+  sessions.set(doc, { session, generation: knowledge.generation });
   return session;
+}
+
+/** Returns the one browser inspection session owned by a document. */
+export function getBrowserCssInspection(doc: Document = document): BrowserCssInspection {
+  return bindBrowserCssInspection(doc, currentTokenKnowledge());
 }
 
 /** Releases a document session when its inspector/Canvas lifecycle ends. */
 export function disposeBrowserCssInspection(doc: Document): void {
-  const session = sessions.get(doc);
-  if (!session) return;
-  session.dispose();
+  const entry = sessions.get(doc);
+  if (!entry) return;
+  entry.session.dispose();
   sessions.delete(doc);
 }

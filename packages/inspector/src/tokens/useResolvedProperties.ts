@@ -62,7 +62,10 @@ export function useResolvedPropertiesDebounced(
       setRows([]);
       return;
     }
-    setRows([...current.session.inspect(current.selected.domElement, { state: current.state }).properties]);
+    setRows([...current.session.inspect(current.selected.domElement, {
+      state: current.state,
+      cascade: "authored",
+    }).properties]);
   }
 
   function scheduleResolution(): void {

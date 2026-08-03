@@ -15,6 +15,8 @@ import {
   resolvePropertiesFromRules,
   getAvailableInteractionStates,
   getResolvedPropertiesForState,
+  getResolvedPropertiesStable,
+  getStableTokenProperty,
   invalidateStyleResolutionCache,
   resetSourceSiteMatchCache,
   sourceSiteMatchCacheSize,
@@ -791,6 +793,25 @@ describe("interaction-state resolution", () => {
     expect(getAvailableInteractionStates(button)).toEqual(["base", "hover"]);
     expect(getResolvedPropertiesForState(button, table, "base").find((row) => row.property === "background")?.resolvedValue).toBe("#ffffff");
     expect(getResolvedPropertiesForState(button, table, "hover").find((row) => row.property === "background")?.resolvedValue).toBe("#c4f36b");
+  });
+
+  it("stable resolution keeps the token under transient hover rules", () => {
+    const style = document.createElement("style");
+    style.textContent = ".button { background: var(--surface); } .button:hover { background: #c4f36b; }";
+    document.head.appendChild(style);
+    const button = document.createElement("button");
+    button.className = "button";
+    document.body.appendChild(button);
+    const table = makeTable([{ name: "--surface", cssName: "--surface", value: "#ffffff", source: "styles.css:1" }]);
+
+    const stable = getResolvedPropertiesStable(button, table);
+    expect(stable.find((row) => row.property === "background")).toMatchObject({
+      tokenName: "--surface",
+      declaredValue: "var(--surface)",
+    });
+    expect(getStableTokenProperty(button, ["background", "background-color"], table)).toMatchObject({
+      tokenName: "--surface",
+    });
   });
 
   it("traces inherited token-backed properties from an ancestor", () => {

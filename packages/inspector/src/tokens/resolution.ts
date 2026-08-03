@@ -2026,6 +2026,18 @@ export function getResolvedProperties(
     }
   }
 
+  applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
+  promoteNumericCalcRows(result);
+  return resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
+}
+
+function applyInlineDeclarations(
+  el: HTMLElement,
+  result: ResolvedProperty[],
+  tokenTable: TokenTable,
+  computed: CSSStyleDeclaration,
+  inaccessible: boolean,
+): void {
   // Inline declarations participate in the cascade and are explicit evidence,
   // but token attribution is only exact when the authored inline value uses a known token.
   for (const property of Array.from(el.style)) {
@@ -2063,7 +2075,9 @@ export function getResolvedProperties(
       if (index >= 0) result[index] = row; else result.push(row);
     }
   }
+}
 
+function promoteNumericCalcRows(result: ResolvedProperty[]): void {
   // When a calc() expression only references static tokens the browser has
   // already resolved it to a pixel value.  Reclassify the row so the UI
   // shows the pixel value instead of the raw calc() string and allows
@@ -2076,8 +2090,6 @@ export function getResolvedProperties(
     if (!numeric) continue;
     prop.capability = capabilityFor(prop.property, numeric);
   }
-
-  return resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
 }
 
 const INTERACTION_SELECTOR = /:(hover|active|focus-visible|focus|disabled)(?:\b|\()/g;
@@ -2139,6 +2151,8 @@ export function getResolvedPropertiesForState(
         : "painted value has no attributable catalog token";
     }
   }
+  applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
+  promoteNumericCalcRows(result);
   const rows = resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
   registerWithAncestors(el);
   snapshots.set(state, {
@@ -2170,39 +2184,52 @@ const stableTokenCache = new WeakMap<HTMLElement, {
 }>();
 
 /**
+ * Resolves the cascade with transient interaction selectors removed. Used when
+ * an editor must stay linked to the stable token beneath a live :hover/:focus
+ * paint. Memoized per (element, revisions, tokenTable).
+ */
+export function getResolvedPropertiesStable(
+  el: HTMLElement,
+  tokenTable: TokenTable,
+): ResolvedProperty[] {
+  const doc = el.ownerDocument ?? document;
+  const revisions = getDocumentRevisions(doc);
+  const cached = stableTokenCache.get(el);
+  if (cached
+    && cached.elementRevision === revisions.element
+    && cached.stylesheetRevision === revisions.stylesheet
+    && cached.tokenTable === tokenTable) {
+    return cached.rows;
+  }
+  const { rules, inaccessible } = collectCssomRules(doc);
+  const lineage = resolveLineage(el, rules, "stable");
+  const entry = lineage.byElement.get(el)!;
+  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
+  const computed = getElementComputedStyle(el);
+  applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
+  promoteNumericCalcRows(result);
+  const rows = resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
+  stableTokenCache.set(el, {
+    elementRevision: revisions.element,
+    stylesheetRevision: revisions.stylesheet,
+    tokenTable,
+    rows,
+  });
+  return rows;
+}
+
+/**
  * Finds the authored token-backed declaration beneath a transient interaction
  * state. This keeps an editor linked to its stable token when selection occurs
  * while the element is hovered, while getResolvedProperties remains honest
- * about the value currently painted by that transient rule. The full resolution
- * is memoized per (element, element/stylesheet revision, tokenTable) so the panel's background row
- * no longer re-runs the cascade on every render.
+ * about the value currently painted by that transient rule.
  */
 export function getStableTokenProperty(
   el: HTMLElement,
   properties: string[],
   tokenTable: TokenTable,
 ): ResolvedProperty | null {
-  const doc = el.ownerDocument ?? document;
-  const revisions = getDocumentRevisions(doc);
-  const cached = stableTokenCache.get(el);
-  const rows = cached
-    && cached.elementRevision === revisions.element
-    && cached.stylesheetRevision === revisions.stylesheet
-    && cached.tokenTable === tokenTable
-    ? cached.rows
-    : (() => {
-      const { rules } = collectCssomRules(doc);
-      const lineage = resolveLineage(el, rules, "stable");
-      const entry = lineage.byElement.get(el)!;
-      const fresh = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
-      stableTokenCache.set(el, {
-        elementRevision: revisions.element,
-        stylesheetRevision: revisions.stylesheet,
-        tokenTable,
-        rows: fresh,
-      });
-      return fresh;
-    })();
+  const rows = getResolvedPropertiesStable(el, tokenTable);
   for (const property of properties) {
     const row = rows.find((candidate) => candidate.property === property && candidate.tokenName);
     if (row) return row;

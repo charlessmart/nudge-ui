@@ -15,6 +15,15 @@ const definitions: TokenDefinition[] = [{
     important: false,
     context: { selector: ":root" },
   }],
+}, {
+  name: "theme.color.surface",
+  cssName: "--surface",
+  declarations: [{
+    value: "#ffffff",
+    source: "theme.css",
+    important: false,
+    context: { selector: ":root" },
+  }],
 }];
 
 let sessions: BrowserCssInspection[] = [];
@@ -26,10 +35,10 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-function createSession(): BrowserCssInspection {
+function createSession(generation: string | number = "test-1"): BrowserCssInspection {
   const session = createBrowserCssInspection({
     document,
-    tokenKnowledge: { definitions, generation: "test-1" },
+    tokenKnowledge: { definitions, generation },
   });
   sessions.push(session);
   return session;
@@ -38,8 +47,10 @@ function createSession(): BrowserCssInspection {
 function mount(): HTMLElement {
   const style = document.createElement("style");
   style.textContent = `
-    .card { --color-brand: #123456; color: var(--color-brand); }
+    .card { --color-brand: #123456; --surface: #ffffff; color: var(--color-brand); }
     .card:hover { color: var(--color-brand); }
+    .button { --surface: #ffffff; background: var(--surface); }
+    .button:hover { background: #c4f36b; }
   `;
   document.head.appendChild(style);
   const card = document.createElement("article");
@@ -48,11 +59,20 @@ function mount(): HTMLElement {
   return card;
 }
 
+function mountButton(): HTMLElement {
+  mount();
+  const button = document.createElement("button");
+  button.className = "button";
+  document.body.appendChild(button);
+  return button;
+}
+
 describe("BrowserCssInspection", () => {
   it("returns one read-only snapshot containing token availability, authored state, and browser rows", () => {
     const snapshot = createSession().inspect(mount());
 
     expect(snapshot.target.status).toBe("attached");
+    expect(snapshot.cascade).toBe("authored");
     expect(snapshot.requestedState).toBe("base");
     expect(snapshot.authoredState).toBe("base");
     expect(snapshot.paintedState).toBe("current");
@@ -67,12 +87,41 @@ describe("BrowserCssInspection", () => {
   });
 
   it("keeps hypothetical interaction state separate from the painted browser state", () => {
-    const snapshot = createSession().inspect(mount(), { state: "hover" });
+    const snapshot = createSession().inspect(mount(), { state: "hover", cascade: "authored" });
 
+    expect(snapshot.cascade).toBe("authored");
     expect(snapshot.requestedState).toBe("hover");
     expect(snapshot.authoredState).toBe("hover");
     expect(snapshot.paintedState).toBe("current");
     expect(snapshot.diagnostics).toEqual([]);
+  });
+
+  it("uses authored-base cascade so base ignores hover declarations", () => {
+    const button = mountButton();
+    const session = createSession();
+
+    const base = session.inspect(button, { state: "base", cascade: "authored" });
+    const hover = session.inspect(button, { state: "hover", cascade: "authored" });
+
+    expect(base.properties.find((row) => row.property === "background")).toMatchObject({
+      authored: "var(--surface)",
+      tokenName: "theme.color.surface",
+    });
+    expect(hover.properties.find((row) => row.property === "background")).toMatchObject({
+      authored: "#c4f36b",
+    });
+  });
+
+  it("stable cascade exposes non-transient token rows for editor linking", () => {
+    const button = mountButton();
+    const snapshot = createSession().inspect(button, { cascade: "stable" });
+
+    expect(snapshot.cascade).toBe("stable");
+    expect(snapshot.authoredState).toBe("base");
+    expect(snapshot.properties.find((row) => row.property === "background" && row.tokenName)).toMatchObject({
+      tokenName: "theme.color.surface",
+      authored: "var(--surface)",
+    });
   });
 
   it("retains inline declarations in the base snapshot", () => {
@@ -113,6 +162,25 @@ describe("BrowserCssInspection", () => {
     expect(inspection.availableTokens).toEqual([]);
     expect(inspection.properties.find((row) => row.property === "font-weight")).toMatchObject({
       tokenName: "type.weight.strong",
+    });
+  });
+
+  it("reuses the resolver token table across inspect calls until the document revision changes", () => {
+    const button = mountButton();
+    const session = createSession();
+
+    const first = session.inspect(button, { state: "base", cascade: "authored" });
+    const second = session.inspect(button, { state: "base", cascade: "authored" });
+    // Snapshot properties are cloned defensively, but attribution must stay
+    // identical when the cascade inputs have not changed.
+    expect(second.properties).toEqual(first.properties);
+    expect(second.revision).toEqual(first.revision);
+
+    session.notifyStylesheetChange();
+    const third = session.inspect(button, { state: "base", cascade: "authored" });
+    expect(third.revision.stylesheet).toBeGreaterThan(first.revision.stylesheet);
+    expect(third.properties.find((row) => row.property === "background")).toMatchObject({
+      tokenName: "theme.color.surface",
     });
   });
 

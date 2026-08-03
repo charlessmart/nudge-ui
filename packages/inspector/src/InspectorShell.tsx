@@ -231,11 +231,11 @@ export function InspectorShell(): ReactElement {
   }, [isOpen, selected, domMutations.length]);
 
   const inspectionSnapshot = useMemo(
-    () => selected ? inspection.inspect(selected.domElement, { state: styleState }) : null,
+    () => selected ? inspection.inspect(selected.domElement, { state: styleState, cascade: "authored" }) : null,
     [inspection, selected, styleState, resolutionRevision],
   );
-  const baseInspectionSnapshot = useMemo(
-    () => selected ? inspection.inspect(selected.domElement, { state: "base" }) : null,
+  const stableInspectionSnapshot = useMemo(
+    () => selected ? inspection.inspect(selected.domElement, { cascade: "stable" }) : null,
     [inspection, selected, resolutionRevision],
   );
   const tokenEntries: TokenEntry[] = useMemo(
@@ -249,10 +249,10 @@ export function InspectorShell(): ReactElement {
   const backgroundTokenRow = useMemo(() => {
     if (!selected) return null;
     if (paintedBackgroundRow?.tokenName || styleState !== "base") return paintedBackgroundRow;
-    return baseInspectionSnapshot?.properties.find((row) =>
+    return stableInspectionSnapshot?.properties.find((row) =>
       (row.property === "background-color" || row.property === "background") && row.tokenName,
     ) ?? paintedBackgroundRow;
-  }, [baseInspectionSnapshot, paintedBackgroundRow, selected, styleState]);
+  }, [paintedBackgroundRow, selected, stableInspectionSnapshot, styleState]);
   const editScope = selected ? getEditScope(selected.domElement) : null;
   const sourceSiteMatchCount = selected && editScope === "source-site"
     ? countSourceSiteMatches(selected.domElement, scopeRevision)

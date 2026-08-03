@@ -1,5 +1,4 @@
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
-import { INTERACTION_STATES } from "../styleState.ts";
 import type { InteractionState } from "../styleState.ts";
 import {
   buildTokenTable,
@@ -7,9 +6,10 @@ import {
   getAvailableTokenEntriesForElement,
   getResolvedProperties,
   getResolvedPropertiesForState,
+  getResolvedPropertiesStable,
   invalidateStyleResolutionCache,
 } from "../tokens/resolution.ts";
-import type { ResolvedProperty } from "../tokens/resolution.ts";
+import type { ResolvedProperty, TokenTable } from "../tokens/resolution.ts";
 import {
   documentRevisions,
   subscribeDocumentRevision,
@@ -31,8 +31,17 @@ export interface BrowserCssInspectionConfig {
   tokenKnowledge: BrowserTokenKnowledge;
 }
 
+/**
+ * Cascade transform owned exclusively by this module:
+ * - authored: interaction-state attribution (default; state defaults to base)
+ * - live: raw CSSOM matching as currently painted
+ * - stable: drops transient pseudo-class rules for editor token linking
+ */
+export type InspectionCascade = "authored" | "live" | "stable";
+
 export interface BrowserCssInspectionOptions {
   state?: InteractionState;
+  cascade?: InspectionCascade;
 }
 
 export type InspectionTargetStatus =
@@ -63,6 +72,7 @@ export interface InspectionRevision {
 
 export interface InspectionSnapshot {
   target: { status: InspectionTargetStatus };
+  cascade: InspectionCascade;
   requestedState: InteractionState;
   authoredState: InteractionState;
   /** Computed values describe what the browser is currently painting. */
@@ -83,6 +93,13 @@ export interface BrowserCssInspection {
   /** Integration hook for managed CSSOM writes. */
   notifyStylesheetChange(): void;
   dispose(): void;
+}
+
+interface ElementTableCache {
+  elementRevision: number;
+  stylesheetRevision: number;
+  availableTokens: readonly TokenEntry[];
+  table: TokenTable;
 }
 
 function revisionSnapshot(
@@ -130,12 +147,14 @@ function targetDiagnostic(status: InspectionTargetStatus): InspectionDiagnostic 
 
 function emptySnapshot(
   status: InspectionTargetStatus,
+  cascade: InspectionCascade,
   state: InteractionState,
   revision: InspectionRevision,
   diagnostics: readonly InspectionDiagnostic[],
 ): InspectionSnapshot {
   return {
     target: { status },
+    cascade,
     requestedState: state,
     authoredState: state,
     paintedState: "current",
@@ -171,6 +190,17 @@ function notifyRevision(
   listener(revisionSnapshot(revisions, tokenGeneration));
 }
 
+function resolveCascadeProperties(
+  element: HTMLElement,
+  table: TokenTable,
+  cascade: InspectionCascade,
+  state: InteractionState,
+): ResolvedProperty[] {
+  if (cascade === "live") return getResolvedProperties(element, table);
+  if (cascade === "stable") return getResolvedPropertiesStable(element, table);
+  return getResolvedPropertiesForState(element, table, state);
+}
+
 export function createBrowserCssInspection(
   config: BrowserCssInspectionConfig,
 ): BrowserCssInspection {
@@ -179,13 +209,57 @@ export function createBrowserCssInspection(
   const tokenGeneration = config.tokenKnowledge.generation;
   let disposed = false;
   const revisionUnsubscribers = new Set<() => void>();
+  const elementTables = new WeakMap<HTMLElement, ElementTableCache>();
+  // When compiler entries are merged ahead of runtime availability, keep one
+  // table per availableTokens identity so resolver caches stay warm.
+  const mergedTables = new WeakMap<readonly TokenEntry[], TokenTable>();
 
   const currentRevision = (): InspectionRevision =>
     revisionSnapshot(documentRevisions(config.document), tokenGeneration);
 
+  function tokenTableFor(element: HTMLElement): {
+    availableTokens: readonly TokenEntry[];
+    table: TokenTable;
+  } {
+    const availableTokens = getAvailableTokenEntriesForElement(element, definitions);
+    const revisions = documentRevisions(config.document);
+    const cached = elementTables.get(element);
+    if (
+      cached
+      && cached.elementRevision === revisions.element
+      && cached.stylesheetRevision === revisions.stylesheet
+      && cached.availableTokens === availableTokens
+    ) {
+      return { availableTokens: cached.availableTokens, table: cached.table };
+    }
+
+    let table: TokenTable;
+    if (knowledgeEntries.length === 0) {
+      // Same array identity as the availability cache → buildTokenTable hits.
+      table = buildTokenTable(availableTokens);
+    } else {
+      const merged = mergedTables.get(availableTokens);
+      if (merged) {
+        table = merged;
+      } else {
+        table = buildTokenTable([...knowledgeEntries, ...availableTokens]);
+        mergedTables.set(availableTokens, table);
+      }
+    }
+
+    elementTables.set(element, {
+      elementRevision: revisions.element,
+      stylesheetRevision: revisions.stylesheet,
+      availableTokens,
+      table,
+    });
+    return { availableTokens, table };
+  }
+
   const session: BrowserCssInspection = {
     inspect(element, options = {}) {
       const state = options.state ?? "base";
+      const cascade = options.cascade ?? "authored";
       const status = disposed ? "disposed" : targetStatus(element, config.document);
       const diagnostics: InspectionDiagnostic[] = [];
       if (disposed) diagnostics.push({ code: "session-disposed", message: "This inspection session has been disposed." });
@@ -196,29 +270,24 @@ export function createBrowserCssInspection(
 
       const revision = currentRevision();
       if (status !== "attached" && status !== "detached") {
-        return emptySnapshot(status, state, revision, diagnostics);
+        return emptySnapshot(status, cascade, state, revision, diagnostics);
       }
 
       try {
-        const availableTokens = getAvailableTokenEntriesForElement(element, definitions);
-        // Runtime availability remains the snapshot's public list. Compiler
-        // entries are an explicit resolution hint for adapters such as
-        // conformance fixtures and literal framework tokens.
-        const table = buildTokenTable([...knowledgeEntries, ...availableTokens]);
+        const { availableTokens, table } = tokenTableFor(element);
         const availableStates = getAvailableInteractionStates(element);
-        if (state !== "base" && !availableStates.includes(state)) {
+        if (cascade === "authored" && state !== "base" && !availableStates.includes(state)) {
           diagnostics.push({
             code: "state-unavailable",
             message: `The ${state} interaction state has no matching authored rule for this element.`,
           });
         }
-        const properties = state === "base"
-          ? getResolvedProperties(element, table)
-          : getResolvedPropertiesForState(element, table, state);
+        const properties = resolveCascadeProperties(element, table, cascade, state);
         return {
           target: { status },
+          cascade,
           requestedState: state,
-          authoredState: state,
+          authoredState: cascade === "authored" ? state : "base",
           paintedState: "current",
           properties: cloneProperties(properties),
           availableTokens: cloneEntries(availableTokens),
@@ -231,7 +300,7 @@ export function createBrowserCssInspection(
           code: "inspection-failed",
           message: error instanceof Error ? error.message : "Browser CSS inspection failed.",
         });
-        return emptySnapshot(status, state, revision, diagnostics);
+        return emptySnapshot(status, cascade, state, revision, diagnostics);
       }
     },
 
