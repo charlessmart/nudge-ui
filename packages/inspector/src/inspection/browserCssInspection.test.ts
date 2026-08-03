@@ -75,6 +75,18 @@ describe("BrowserCssInspection", () => {
     expect(snapshot.diagnostics).toEqual([]);
   });
 
+  it("retains inline declarations in the base snapshot", () => {
+    const element = mount();
+    element.style.setProperty("border-color", "var(--color-brand)");
+
+    const row = createSession().inspect(element).properties.find((candidate) => candidate.property === "border-color");
+
+    expect(row).toMatchObject({
+      authored: "var(--color-brand)",
+      evidence: { selector: "[style]" },
+    });
+  });
+
   it("reports document ownership and unsupported state as structured diagnostics", () => {
     const session = createSession();
     const foreignDocument = document.implementation.createHTMLDocument("foreign");

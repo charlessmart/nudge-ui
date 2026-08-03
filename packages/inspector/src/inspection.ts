@@ -7,13 +7,15 @@ import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { projectInspectorValues } from "./spacing/projection.ts";
 import type { InspectorProjection } from "./spacing/projection.ts";
 import {
-  buildTokenTable,
   getAvailableTokenCatalog,
-  getAvailableTokenEntriesForElement,
-  getResolvedProperties,
 } from "./tokens/resolution.ts";
 import type { ResolvedProperty } from "./tokens/resolution.ts";
 import { getAlternativeTokens } from "./tokens/tokenSuggestions.ts";
+import {
+  createBrowserCssInspection,
+  type InspectionSnapshot,
+} from "./inspection/browserCssInspection.ts";
+import { getBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
 
 export const DESIGN_TOOL_INSPECTION_VERSION = 1 as const;
 
@@ -71,6 +73,29 @@ export interface InspectElementOptions {
   tokens?: TokenEntry[];
 }
 
+function inspectBrowserFacts(
+  element: HTMLElement,
+  definitions: TokenDefinition[],
+): InspectionSnapshot {
+  const doc = element.ownerDocument ?? document;
+  if (definitions === tokenCatalog) {
+    return getBrowserCssInspection(doc).inspect(element);
+  }
+
+  // Compatibility callers may provide a fixture-local catalog. Keep that
+  // Adapter isolated from the document registry so one caller cannot replace
+  // the token knowledge used by the live inspector session.
+  const session = createBrowserCssInspection({
+    document: doc,
+    tokenKnowledge: { definitions, generation: "compatibility" },
+  });
+  try {
+    return session.inspect(element);
+  } finally {
+    session.dispose();
+  }
+}
+
 function catalogEntry(definition: TokenDefinition): InspectionCatalogEntry {
   return {
     name: definition.name,
@@ -97,9 +122,9 @@ export function inspectElement(
   options: InspectElementOptions = {},
 ): ElementInspection {
   const definitions = options.catalog ?? tokenCatalog;
-  const availableTokens = options.tokens
-    ?? getAvailableTokenEntriesForElement(element, definitions);
-  const properties = getResolvedProperties(element, buildTokenTable(availableTokens));
+  const browserFacts = inspectBrowserFacts(element, definitions);
+  const availableTokens = options.tokens ?? [...browserFacts.availableTokens];
+  const properties: ResolvedProperty[] = [...browserFacts.properties];
   const selection = resolveSelectionFromElement(element);
   const changes = getChangesList();
   const managedPreview = {

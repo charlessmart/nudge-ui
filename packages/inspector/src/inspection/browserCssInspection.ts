@@ -5,6 +5,7 @@ import {
   buildTokenTable,
   getAvailableInteractionStates,
   getAvailableTokenEntriesForElement,
+  getResolvedProperties,
   getResolvedPropertiesForState,
   invalidateStyleResolutionCache,
 } from "../tokens/resolution.ts";
@@ -204,7 +205,9 @@ export function createBrowserCssInspection(
             message: `The ${state} interaction state has no matching authored rule for this element.`,
           });
         }
-        const properties = getResolvedPropertiesForState(element, table, state);
+        const properties = state === "base"
+          ? getResolvedProperties(element, table)
+          : getResolvedPropertiesForState(element, table, state);
         return {
           target: { status },
           requestedState: state,
