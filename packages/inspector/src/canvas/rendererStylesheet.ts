@@ -1,8 +1,12 @@
 import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
 import { rulesToCssText, type StyleRule } from "../managedStylesheet.ts";
-import { invalidateStyleResolutionCache } from "../tokens/resolution.ts";
+import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 
 const SHEET_ID = "design-tool-styles";
+
+function notifyStylesheetChange(doc: Document = document): void {
+  getBrowserCssInspection(doc).notifyStylesheetChange();
+}
 
 let lastAppliedRevision = -1;
 
@@ -88,12 +92,12 @@ export function handleReplaceStyles(
     document.head.appendChild(newEl);
     newEl.textContent = msg.css;
     lastAppliedRevision = msg.revision;
-    invalidateStyleResolutionCache(document);
+    notifyStylesheetChange(document);
     return true;
   }
 
   el.textContent = msg.css;
   lastAppliedRevision = msg.revision;
-  invalidateStyleResolutionCache(document);
+  notifyStylesheetChange(document);
   return true;
 }
