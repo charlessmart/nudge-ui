@@ -1421,6 +1421,36 @@ describe("resolvePropertiesFromRules", () => {
     expect(result[0]?.evidence).toMatchObject({ important: true, layer: "theme", sourceOrder: 0 });
   });
 
+  it("shares named layer precedence with catalog declaration selection", () => {
+    const table = makeTable([
+      { name: "--base", value: "red", source: "s:1" },
+      { name: "--theme", value: "blue", source: "s:2" },
+    ]);
+    const rules: MatchedRule[] = [
+      {
+        selectorText: ".btn",
+        specificity: 10_000,
+        sourceOrder: 0,
+        layer: "base",
+        layerOrder: 0,
+        declarations: [{ property: "color", value: "var(--base)" }],
+      },
+      {
+        selectorText: ".btn",
+        specificity: 10_000,
+        sourceOrder: 1,
+        layer: "theme",
+        layerOrder: 1,
+        declarations: [{ property: "color", value: "var(--theme)" }],
+      },
+    ];
+
+    expect(resolvePropertiesFromRules(btn, rules, table)[0]?.tokenName).toBe("--theme");
+
+    rules.forEach((rule) => { rule.declarations[0]!.important = true; });
+    expect(resolvePropertiesFromRules(btn, rules, table)[0]?.tokenName).toBe("--base");
+  });
+
   it("expands single-value border-radius to four corner longhands", () => {
     const result = resolvePropertiesFromRules(btn, [{
       selectorText: ".btn",

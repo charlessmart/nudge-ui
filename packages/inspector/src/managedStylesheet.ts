@@ -1,5 +1,5 @@
 import { getElementComputedStyle } from "./domRealm.ts";
-import { getBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
+import { notifyBrowserStylesheetChange } from "./inspection/browserCssInspectionRegistry.ts";
 import type { TokenContextWrapper } from "virtual:design-tokens";
 import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 
@@ -128,10 +128,6 @@ interface ManagedRuleEntry {
 let managedSheetElement: HTMLElement | null = null;
 let managedEntries: ManagedRuleEntry[] = [];
 
-function notifyStylesheetChange(doc: Document = document): void {
-  getBrowserCssInspection(doc).notifyStylesheetChange();
-}
-
 /** A rule is uniquely identified by its selector + wrappers + declared properties. */
 function ruleIdentity(rule: StyleRule): string {
   const properties = Object.keys(rule.declarations).sort().join(",");
@@ -202,7 +198,7 @@ function rebuildSheetText(rules: StyleRule[]): void {
   managedSheetElement = el;
   if (el.sheet) syncModelFromSheet(rules, el.sheet);
   else managedEntries = [];
-  notifyStylesheetChange(document);
+  notifyBrowserStylesheetChange(document);
 }
 
 /**
@@ -330,7 +326,7 @@ export function applyRules(rules: StyleRule[]): void {
     // CSSOM writes do not produce MutationRecords, so the revision-based
     // resolution caches must be invalidated explicitly (ADR-0003 panel
     // refresh depends on this revision bump).
-    notifyStylesheetChange(document);
+    notifyBrowserStylesheetChange(document);
   }
 }
 
@@ -390,5 +386,5 @@ export function removeManagedSheet(): void {
   if (el) el.remove();
   managedSheetElement = null;
   managedEntries = [];
-  notifyStylesheetChange(document);
+  notifyBrowserStylesheetChange(document);
 }

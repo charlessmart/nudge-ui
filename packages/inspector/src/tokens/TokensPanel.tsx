@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { tokenCatalog } from "virtual:design-tokens";
 import { isTokenChange, useChanges } from "../changesLog.ts";
 import type { TokenChangeRecord } from "../changesLog.ts";
 import { TextInput } from "../ui/TextInput.tsx";
@@ -10,42 +9,12 @@ import {
   TOKEN_GROUP_LABELS,
   TOKEN_GROUP_ORDER,
   aliasName,
-  buildTokenCatalogRows,
   compatibleTokenNames,
   contextLabel,
   filterTokenRows,
 } from "./catalog.ts";
 import type { TokenCatalogRow } from "./catalog.ts";
 import { setGlobalTokenValue } from "./tokenEdits.ts";
-import { getAvailableTokenCatalog } from "./resolution.ts";
-
-function useHostContextRevision(): number {
-  const [revision, setRevision] = useState(0);
-
-  useEffect(() => {
-    const refresh = () => setRevision((value) => value + 1);
-    const observer = new MutationObserver(refresh);
-    observer.observe(document.documentElement, { attributes: true });
-    observer.observe(document.head, { attributes: true, childList: true, subtree: true });
-
-    const media = [...new Set(tokenCatalog.flatMap((definition) =>
-      definition.declarations.flatMap((declaration) =>
-        (declaration.context.wrappers ?? [])
-          .filter((wrapper) => wrapper.kind === "media")
-          .map((wrapper) => wrapper.params)),
-    ))];
-    const queries = typeof window.matchMedia === "function"
-      ? media.map((query) => window.matchMedia(query))
-      : [];
-    queries.forEach((query) => query.addEventListener?.("change", refresh));
-    return () => {
-      observer.disconnect();
-      queries.forEach((query) => query.removeEventListener?.("change", refresh));
-    };
-  }, []);
-
-  return revision;
-}
 
 function rowChange(
   row: TokenCatalogRow,
@@ -58,14 +27,8 @@ function rowChange(
     && change.line === row.line);
 }
 
-export function TokensPanel(): ReactElement {
+export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): ReactElement {
   const [query, setQuery] = useState("");
-  const revision = useHostContextRevision();
-  const changes = useChanges();
-  const rows = useMemo(
-    () => buildTokenCatalogRows(getAvailableTokenCatalog()),
-    [revision, changes],
-  );
   const visibleRows = useMemo(() => filterTokenRows(rows, query), [query, rows]);
   const entries: TokenEntry[] = useMemo(() => rows.map((row) => ({
     name: row.definition.cssName,
@@ -118,7 +81,7 @@ function TokenCatalogItem({
   entries,
 }: {
   row: TokenCatalogRow;
-  rows: TokenCatalogRow[];
+  rows: readonly TokenCatalogRow[];
   entries: TokenEntry[];
 }): ReactElement {
   const changes = useChanges();

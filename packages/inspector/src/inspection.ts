@@ -6,13 +6,11 @@ import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { projectInspectorValues } from "./spacing/projection.ts";
 import type { InspectorProjection } from "./spacing/projection.ts";
-import {
-  getAvailableTokenCatalog,
-} from "./tokens/resolution.ts";
 import type { ResolvedProperty } from "./tokens/resolution.ts";
 import { getAlternativeTokens } from "./tokens/tokenSuggestions.ts";
 import {
   createBrowserCssInspection,
+  type DocumentTokenInspectionSnapshot,
   type InspectionSnapshot,
 } from "./inspection/browserCssInspection.ts";
 import { getBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
@@ -76,10 +74,18 @@ export interface InspectElementOptions {
 function inspectBrowserFacts(
   element: HTMLElement,
   definitions: TokenDefinition[],
-): InspectionSnapshot {
+  entries?: TokenEntry[],
+): {
+  element: InspectionSnapshot;
+  tokens: DocumentTokenInspectionSnapshot;
+} {
   const doc = element.ownerDocument ?? document;
-  if (definitions === tokenCatalog) {
-    return getBrowserCssInspection(doc).inspect(element);
+  if (definitions === tokenCatalog && entries === undefined) {
+    const session = getBrowserCssInspection(doc);
+    return {
+      element: session.inspect(element, { cascade: "live" }),
+      tokens: session.inspectTokens(element),
+    };
   }
 
   // Compatibility callers may provide a fixture-local catalog. Keep that
@@ -87,10 +93,13 @@ function inspectBrowserFacts(
   // the token knowledge used by the live inspector session.
   const session = createBrowserCssInspection({
     document: doc,
-    tokenKnowledge: { definitions, generation: "compatibility" },
+    tokenKnowledge: { definitions, entries, generation: "compatibility" },
   });
   try {
-    return session.inspect(element);
+    return {
+      element: session.inspect(element, { cascade: "live" }),
+      tokens: session.inspectTokens(element),
+    };
   } finally {
     session.dispose();
   }
@@ -122,9 +131,9 @@ export function inspectElement(
   options: InspectElementOptions = {},
 ): ElementInspection {
   const definitions = options.catalog ?? tokenCatalog;
-  const browserFacts = inspectBrowserFacts(element, definitions);
-  const availableTokens = options.tokens ?? [...browserFacts.availableTokens];
-  const properties: ResolvedProperty[] = [...browserFacts.properties];
+  const browserFacts = inspectBrowserFacts(element, definitions, options.tokens);
+  const availableTokens = options.tokens ?? [...browserFacts.element.availableTokens];
+  const properties: ResolvedProperty[] = [...browserFacts.element.properties];
   const selection = resolveSelectionFromElement(element);
   const changes = getChangesList();
   const managedPreview = {
@@ -137,7 +146,6 @@ export function inspectElement(
   // Local vanilla-extract themes attach contract variables to a theme class,
   // not necessarily :root. The selected element is therefore the correct
   // availability context for an element inspection.
-  const visibleCatalog = getAvailableTokenCatalog(element, definitions);
   const controls = properties
     .filter((property) => !property.property.startsWith("--"))
     .map((property): InspectionControl => ({
@@ -159,7 +167,7 @@ export function inspectElement(
       line: selection?.line ?? 0,
       column: selection?.column ?? 0,
     },
-    catalog: visibleCatalog.map(catalogEntry),
+    catalog: browserFacts.tokens.tokens.map((row) => catalogEntry(row.definition)),
     availableTokens,
     properties,
     projection: projectInspectorValues(element, properties),

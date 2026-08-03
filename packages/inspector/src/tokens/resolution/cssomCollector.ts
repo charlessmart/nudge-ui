@@ -1,8 +1,10 @@
-import { computeSpecificityCore } from "./selectorSemantics.ts";import type { AtRuleContext, MatchedRule, StyleDeclaration } from "./types.ts";
+import { computeSpecificityCore } from "./selectorSemantics.ts";
+import type { AtRuleContext, MatchedRule, StyleDeclaration } from "./types.ts";
 
 interface RuleSnapshot {
   revision: number;
   rules: MatchedRule[];
+  layerOrder: ReadonlyMap<string, number>;
   inaccessible: boolean;
 }
 
@@ -17,31 +19,6 @@ const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
 const registeredElements = new WeakSet<Element>();
 const documentRevisionListeners = new WeakMap<Document, Set<(revisions: Readonly<DocumentRevisions>) => void>>();
 
-let globalRevision = 0;
-const globalRevisionListeners = new Set<() => void>();
-
-/**
- * A monotonically increasing counter bumped whenever any document's cascade
- * inputs change (host mutations, stylesheet writes, explicit invalidation).
- * The inspector's debounced panel resolution subscribes to this so it can
- * refresh after an edit without churning the selection identity.
- */
-export function getGlobalRevision(): number {
-  return globalRevision;
-}
-
-export function subscribeGlobalRevision(cb: () => void): () => void {
-  globalRevisionListeners.add(cb);
-  return () => {
-    globalRevisionListeners.delete(cb);
-  };
-}
-
-function bumpGlobalRevision(): void {
-  globalRevision++;
-  globalRevisionListeners.forEach((cb) => cb());
-}
-
 function notifyDocumentRevision(doc: Document): void {
   const revisions = documentRevisions(doc);
   documentRevisionListeners.get(doc)?.forEach((cb) => cb({ ...revisions }));
@@ -49,8 +26,7 @@ function notifyDocumentRevision(doc: Document): void {
 
 /**
  * Subscribes to cascade revisions for one document. This is the narrow
- * document-scoped seam used by the browser inspection Module; the older
- * global subscription remains for compatibility while callers migrate.
+ * document-scoped seam used by the browser inspection Module.
  */
 export function subscribeDocumentRevision(
   doc: Document,
@@ -163,7 +139,6 @@ export function documentRevisions(doc: Document): DocumentRevisions {
         record!.element++;
         if (relevant.some(changesStylesheet)) record!.stylesheet++;
         notifyDocumentRevision(doc);
-        bumpGlobalRevision();
       });
       observer.observe(root, {
         attributes: true,
@@ -176,15 +151,10 @@ export function documentRevisions(doc: Document): DocumentRevisions {
         record!.element++;
         record!.stylesheet++;
         notifyDocumentRevision(doc);
-        bumpGlobalRevision();
       });
     }
   }
   return record;
-}
-
-export function documentRevision(doc: Document): number {
-  return documentRevisions(doc).element;
 }
 
 function stylesheetRevision(doc: Document): number {
@@ -193,14 +163,11 @@ function stylesheetRevision(doc: Document): number {
 
 /** Invalidates CSSOM-derived snapshots after programmatic stylesheet edits. */
 export function invalidateStyleResolutionCache(doc: Document = document): void {
-  const record = revisionRecords.get(doc);
-  if (record) {
-    record.element++;
-    record.stylesheet++;
-  }
+  const record = documentRevisions(doc);
+  record.element++;
+  record.stylesheet++;
   ruleSnapshots.delete(doc);
   notifyDocumentRevision(doc);
-  bumpGlobalRevision();
 }
 
 function isStyleRuleInDocument(rule: CSSRule, doc: Document): rule is CSSStyleRule {
@@ -350,16 +317,36 @@ function isNestedDeclarations(rule: CSSRule, doc: Document): rule is CSSRule & {
   return !/^\s*@/.test(rule.cssText ?? "") && typeof (rule as { style?: unknown }).style === "object";
 }
 
-export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessible: boolean } {
+export function collectRules(doc: Document): {
+  rules: MatchedRule[];
+  layerOrder: ReadonlyMap<string, number>;
+  inaccessible: boolean;
+} {
   const revision = stylesheetRevision(doc);
   const cached = ruleSnapshots.get(doc);
   if (cached?.revision === revision) {
-    return { rules: cached.rules, inaccessible: cached.inaccessible };
+    return {
+      rules: cached.rules,
+      layerOrder: cached.layerOrder,
+      inaccessible: cached.inaccessible,
+    };
   }
 
   const out: MatchedRule[] = [];
+  const layerOrder = new Map<string, number>();
   let inaccessible = false;
   let sourceOrder = 0;
+  const registerLayer = (name: string): string | undefined => {
+    const normalized = name.trim();
+    if (!normalized) return undefined;
+    if (!layerOrder.has(normalized)) layerOrder.set(normalized, layerOrder.size);
+    return normalized;
+  };
+  const nestedLayerName = (parent: string | undefined, child: string): string | undefined => {
+    const normalized = child.trim();
+    if (!normalized) return parent;
+    return registerLayer(parent ? `${parent}.${normalized}` : normalized);
+  };
   const walkRules = (
     rules: CSSRuleList,
     active = true,
@@ -369,6 +356,12 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
     source?: string,
   ): void => {
     for (const rule of Array.from(rules)) {
+      const serializedRule = rule.cssText ?? "";
+      const layerStatement = /^\s*@layer\s+([^;{]+)\s*;/i.exec(serializedRule);
+      if (layerStatement && !("cssRules" in rule)) {
+        layerStatement[1]!.split(",").forEach((name) => nestedLayerName(layer, name));
+        continue;
+      }
       if (isStyleRuleInDocument(rule, doc)) {
         try {
           out.push({
@@ -379,6 +372,7 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
             sourceOrder: sourceOrder++,
             active,
             layer,
+            layerOrder: layer ? layerOrder.get(layer) : undefined,
             atRules: atRules.length > 0 ? atRules : undefined,
           });
           const nested = (rule as unknown as { cssRules?: CSSRuleList }).cssRules;
@@ -397,6 +391,7 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
             sourceOrder: sourceOrder++,
             active,
             layer,
+            layerOrder: layer ? layerOrder.get(layer) : undefined,
             atRules: atRules.length > 0 ? atRules : undefined,
           });
         } catch {
@@ -423,7 +418,9 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
           // Resolution evaluates its retained context against the selected
           // element using a harmless browser probe.
           const context = contextForRule(cssText, record);
-          const childLayer = isLayer ? record.name ?? cssText.slice(6, cssText.indexOf("{")).trim() : layer;
+          const childLayer = isLayer
+            ? nestedLayerName(layer, record.name ?? cssText.slice(6, cssText.indexOf("{")).trim())
+            : layer;
           walkRules(
             record.cssRules,
             childActive,
@@ -453,7 +450,11 @@ export function collectRules(doc: Document): { rules: MatchedRule[]; inaccessibl
       inaccessible = true;
     }
   }
-  const snapshot = { revision, rules: out, inaccessible };
+  const snapshot = { revision, rules: out, layerOrder, inaccessible };
   ruleSnapshots.set(doc, snapshot);
   return snapshot;
+}
+
+export function cascadeLayerOrder(doc: Document, name: string): number | undefined {
+  return collectRules(doc).layerOrder.get(name);
 }

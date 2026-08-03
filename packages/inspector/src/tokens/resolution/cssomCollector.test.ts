@@ -4,11 +4,9 @@ import {
   collectRules,
   declarationsFromCssom,
   documentRevisions,
-  getGlobalRevision,
   invalidateStyleResolutionCache,
   registerResolutionElement,
   subscribeDocumentRevision,
-  subscribeGlobalRevision,
 } from "./cssomCollector.ts";
 
 function flushObserver(): Promise<void> {
@@ -243,28 +241,6 @@ describe("document revision observer", () => {
     await flushObserver();
     const after = revisionsSnapshot();
     expect(after.element).toBeGreaterThan(before.element);
-  });
-
-  it("bumps the global revision and notifies subscribers on relevant mutations", async () => {
-    const before = getGlobalRevision();
-    const seen: number[] = [];
-    const unsub = subscribeGlobalRevision(() => seen.push(getGlobalRevision()));
-    const node = document.createElement("div");
-    document.body.appendChild(node);
-    await flushObserver();
-    expect(getGlobalRevision()).toBeGreaterThan(before);
-    expect(seen.length).toBeGreaterThan(0);
-    unsub();
-  });
-
-  it("bumps the global revision on explicit invalidation", () => {
-    const before = getGlobalRevision();
-    const seen: number[] = [];
-    const unsub = subscribeGlobalRevision(() => seen.push(getGlobalRevision()));
-    invalidateStyleResolutionCache(document);
-    expect(getGlobalRevision()).toBeGreaterThan(before);
-    expect(seen).toHaveLength(1);
-    unsub();
   });
 
   it("notifies only subscribers for the document whose cascade changed", () => {

@@ -55,6 +55,7 @@ export interface AttributionEvidence {
   specificity?: number;
   important?: boolean;
   layer?: string;
+  layerOrder?: number;
   inheritedFrom?: string;
   inaccessibleStylesheet?: boolean;
   reason: string;
@@ -87,6 +88,8 @@ export interface MatchedRule {
   source?: string;
   sourceOrder?: number;
   layer?: string;
+  /** First-declaration order of the named cascade layer in this document. */
+  layerOrder?: number;
   active?: boolean;
   atRules?: AtRuleContext[];
 }

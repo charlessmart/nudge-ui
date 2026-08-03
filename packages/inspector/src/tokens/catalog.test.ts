@@ -20,6 +20,7 @@ function runtime(overrides: Partial<TokenRuntime> = {}): TokenRuntime {
     computedToken: () => "rgb(17, 17, 17)",
     selectorMatches: (selector) => selector === ":root",
     scopeMatches: () => true,
+    layerOrder: () => undefined,
     ...overrides,
   };
 }
@@ -98,6 +99,37 @@ describe("token catalog", () => {
       mediaMatches: (query) => query === "(width > 600px)",
     }))[0]!;
     expect(inactive.activeDeclaration).toBeNull();
+  });
+
+  it("uses named layer order, including the reversed important cascade", () => {
+    const catalog: TokenDefinition[] = [{
+      cssName: "--surface",
+      name: "--surface",
+      declarations: [
+        {
+          value: "red",
+          source: "x.css:1",
+          order: 1,
+          important: false,
+          context: { selector: ":root", wrappers: [{ kind: "layer", params: "base" }] },
+        },
+        {
+          value: "blue",
+          source: "x.css:2",
+          order: 2,
+          important: false,
+          context: { selector: ":root", wrappers: [{ kind: "layer", params: "theme" }] },
+        },
+      ],
+    }];
+    const layeredRuntime = runtime({
+      layerOrder: (name) => ({ base: 0, theme: 1 })[name],
+    });
+
+    expect(buildTokenCatalogRows(catalog, document.documentElement, layeredRuntime)[0]?.authoredValue).toBe("blue");
+
+    catalog[0]!.declarations.forEach((declaration) => { declaration.important = true; });
+    expect(buildTokenCatalogRows(catalog, document.documentElement, layeredRuntime)[0]?.authoredValue).toBe("red");
   });
 
   it("filters by name and any authored variant value", () => {

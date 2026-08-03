@@ -197,6 +197,7 @@ export type {
   BrowserCssInspectionConfig,
   BrowserCssInspectionOptions,
   BrowserTokenKnowledge,
+  DocumentTokenInspectionSnapshot,
   InspectionCascade,
   InspectionDiagnostic,
   InspectionDiagnosticCode,

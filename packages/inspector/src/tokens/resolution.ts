@@ -9,6 +9,7 @@ import {
   registerResolutionElement,
 } from "./resolution/cssomCollector.ts";
 import { computeSpecificity } from "./resolution/selectorSemantics.ts";
+import { compareAuthorCascade } from "./resolution/cascade.ts";
 export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
 export { computeSpecificity } from "./resolution/selectorSemantics.ts";
 import type {
@@ -1298,7 +1299,9 @@ function resolveDeclaration(
 interface LocalAliasCandidate {
   value: string;
   important?: boolean;
+  inline?: boolean;
   layer?: string;
+  layerOrder?: number;
   specificity: number;
   sourceOrder: number;
 }
@@ -1342,24 +1345,6 @@ function atRulesApplyToElement(el: HTMLElement, atRules: readonly AtRuleContext[
   });
 }
 
-function compareCascade(
-  a: { important?: boolean; layer?: string; specificity: number; sourceOrder: number },
-  b: { important?: boolean; layer?: string; specificity: number; sourceOrder: number },
-): number {
-  const ai = a.important ? 1 : 0;
-  const bi = b.important ? 1 : 0;
-  if (ai !== bi) return ai - bi;
-
-  // Unlayered author rules outrank layered author rules. This mirrors the
-  // declaration comparison below and is sufficient for the local aliases
-  // emitted by Tailwind's utility layers.
-  const al = a.layer ? 0 : 1;
-  const bl = b.layer ? 0 : 1;
-  if (al !== bl) return al - bl;
-  if (a.specificity !== b.specificity) return a.specificity - b.specificity;
-  return a.sourceOrder - b.sourceOrder;
-}
-
 function specificityForBranch(rule: Pick<MatchedRule, "selectorText" | "specificity">, branch: string): number {
   // Single-branch selectors reuse the specificity collected from CSSOM; the
   // matched branch is the whole selector. Multi-branch selectors need the
@@ -1400,11 +1385,12 @@ function collectLocalAliases(
           value: declaration.value.trim(),
           important: declaration.important,
           layer: rule.layer,
+          layerOrder: rule.layerOrder,
           specificity,
           sourceOrder,
         };
         const previous = candidates.get(declaration.property);
-        if (!previous || compareCascade(candidate, previous) >= 0) {
+        if (!previous || compareAuthorCascade(candidate, previous) >= 0) {
           candidates.set(declaration.property, candidate);
         }
       }
@@ -1415,12 +1401,17 @@ function collectLocalAliases(
     // specificity without changing the managed-style rule contract.
     for (const property of Array.from(element.style)) {
       if (!property.startsWith("--") || property.startsWith("--dt-")) continue;
-      candidates.set(property, {
+      const candidate: LocalAliasCandidate = {
         value: element.style.getPropertyValue(property).trim(),
         important: element.style.getPropertyPriority(property) === "important",
+        inline: true,
         specificity: 100000000,
         sourceOrder: Number.MAX_SAFE_INTEGER,
-      });
+      };
+      const previous = candidates.get(property);
+      if (!previous || compareAuthorCascade(candidate, previous) >= 0) {
+        candidates.set(property, candidate);
+      }
     }
 
     for (const [name, candidate] of candidates) aliases.set(name, candidate.value);
@@ -1761,23 +1752,29 @@ function resolveLineage(el: HTMLElement, rules: MatchedRule[], transform: Cascad
             value: declaration.value.trim(),
             important: declaration.important,
             layer: match.rule.layer,
+            layerOrder: match.rule.layerOrder,
             specificity: match.specificity,
             sourceOrder,
           };
           const previous = candidates.get(declaration.property);
-          if (!previous || compareCascade(candidate, previous) >= 0) {
+          if (!previous || compareAuthorCascade(candidate, previous) >= 0) {
             candidates.set(declaration.property, candidate);
           }
         }
       }
       for (const property of Array.from(lineageElement.style)) {
         if (!property.startsWith("--") || property.startsWith("--dt-")) continue;
-        candidates.set(property, {
+        const candidate: LocalAliasCandidate = {
           value: lineageElement.style.getPropertyValue(property).trim(),
           important: lineageElement.style.getPropertyPriority(property) === "important",
+          inline: true,
           specificity: 100000000,
           sourceOrder: Number.MAX_SAFE_INTEGER,
-        });
+        };
+        const previous = candidates.get(property);
+        if (!previous || compareAuthorCascade(candidate, previous) >= 0) {
+          candidates.set(property, candidate);
+        }
       }
       for (const [name, candidate] of candidates) aliases.set(name, candidate.value);
     }
@@ -1831,6 +1828,7 @@ function rowsFromMatches(
             specificity,
             important: Boolean(resolved.important),
             layer: rule.layer,
+            layerOrder: rule.layerOrder,
             reason: resolved.tokenName ? "authored declaration references a catalog token" : "no catalog token reference",
           },
         };
@@ -1879,16 +1877,20 @@ function matchingSelectorBranch(el: Element, selectorText: string): string | nul
 }
 
 function compareCandidate(a: ResolvedProperty, b: ResolvedProperty): number {
-  return compareCascade(
+  return compareAuthorCascade(
     {
       important: a.evidence.important,
+      inline: a.evidence.selector === "[style]",
       layer: a.evidence.layer,
+      layerOrder: a.evidence.layerOrder,
       specificity: a.evidence.specificity ?? 0,
       sourceOrder: a.evidence.sourceOrder ?? 0,
     },
     {
       important: b.evidence.important,
+      inline: b.evidence.selector === "[style]",
       layer: b.evidence.layer,
+      layerOrder: b.evidence.layerOrder,
       specificity: b.evidence.specificity ?? 0,
       sourceOrder: b.evidence.sourceOrder ?? 0,
     },
@@ -2072,7 +2074,8 @@ function applyInlineDeclarations(
         row.evidence.reason = "inline token declaration validated against computed style";
       }
       const index = result.findIndex((item) => item.property === declaration.property);
-      if (index >= 0) result[index] = row; else result.push(row);
+      if (index < 0) result.push(row);
+      else if (compareCandidate(row, result[index]!) >= 0) result[index] = row;
     }
   }
 }

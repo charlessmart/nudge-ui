@@ -1,12 +1,8 @@
 import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
 import { rulesToCssText, type StyleRule } from "../managedStylesheet.ts";
-import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
 
 const SHEET_ID = "design-tool-styles";
-
-function notifyStylesheetChange(doc: Document = document): void {
-  getBrowserCssInspection(doc).notifyStylesheetChange();
-}
 
 let lastAppliedRevision = -1;
 
@@ -92,12 +88,12 @@ export function handleReplaceStyles(
     document.head.appendChild(newEl);
     newEl.textContent = msg.css;
     lastAppliedRevision = msg.revision;
-    notifyStylesheetChange(document);
+    notifyBrowserStylesheetChange(document);
     return true;
   }
 
   el.textContent = msg.css;
   lastAppliedRevision = msg.revision;
-  notifyStylesheetChange(document);
+  notifyBrowserStylesheetChange(document);
   return true;
 }

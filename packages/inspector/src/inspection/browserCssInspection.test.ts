@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TokenDefinition } from "virtual:design-tokens";
 import {
   createBrowserCssInspection,
@@ -29,6 +29,8 @@ const definitions: TokenDefinition[] = [{
 let sessions: BrowserCssInspection[] = [];
 
 afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   sessions.forEach((session) => session.dispose());
   sessions = [];
   document.head.innerHTML = "";
@@ -136,6 +138,23 @@ describe("BrowserCssInspection", () => {
     });
   });
 
+  it("keeps inline declarations inside the shared important cascade", () => {
+    const element = mount();
+    const style = document.createElement("style");
+    style.textContent = ".card { border-color: red !important; }";
+    document.head.appendChild(style);
+    element.style.setProperty("border-color", "blue");
+    const session = createSession();
+
+    expect(session.inspect(element, { cascade: "live" }).properties
+      .find((row) => row.property === "border-color")?.authored).toBe("red");
+
+    element.style.setProperty("border-color", "blue", "important");
+    session.notifyStylesheetChange();
+    expect(session.inspect(element, { cascade: "live" }).properties
+      .find((row) => row.property === "border-color")?.authored).toBe("blue");
+  });
+
   it("accepts explicit compiler entries without widening runtime availability", () => {
     const style = document.createElement("style");
     style.textContent = ".card { font-weight: var(--type-weight-strong, 600); }";
@@ -163,6 +182,44 @@ describe("BrowserCssInspection", () => {
     expect(inspection.properties.find((row) => row.property === "font-weight")).toMatchObject({
       tokenName: "type.weight.strong",
     });
+  });
+
+  it("returns the revision-aware document token catalog through the same interface", () => {
+    const root = document.documentElement;
+    root.style.setProperty("--color-brand", "#123456");
+    const snapshot = createSession().inspectTokens(root);
+
+    expect(snapshot.tokens).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        authoredValue: "#123456",
+        definition: expect.objectContaining({ name: "theme.color.brand" }),
+      }),
+    ]));
+    expect(snapshot.inventory.map((row) => row.definition.name)).toEqual([
+      "theme.color.brand",
+      "theme.color.surface",
+    ]);
+    expect(snapshot.tokens.map((row) => row.definition.name)).toEqual([
+      "theme.color.brand",
+    ]);
+    expect(snapshot.revision.tokenGeneration).toBe("test-1");
+  });
+
+  it("is inert when the dev-only contract is disabled", () => {
+    vi.stubEnv("DEV", false);
+    const session = createBrowserCssInspection({
+      document,
+      tokenKnowledge: { definitions, generation: "production" },
+    });
+    sessions.push(session);
+
+    expect(session.inspect(mount()).target.status).toBe("disabled");
+    expect(session.inspectTokens().inventory).toEqual([]);
+    expect(session.inspectTokens().tokens).toEqual([]);
+    const listener = vi.fn();
+    session.subscribe(listener);
+    session.notifyStylesheetChange();
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it("reuses the resolver token table across inspect calls until the document revision changes", () => {
@@ -200,11 +257,13 @@ describe("BrowserCssInspection", () => {
 
   it("notifies subscribers for document revisions and stops after disposal", () => {
     const session = createSession();
+    const before = session.inspect(mount()).revision.stylesheet;
     const seen: Array<{ stylesheet: number; tokenGeneration: string | number }> = [];
     const unsubscribe = session.subscribe((revision) => seen.push(revision));
 
     session.notifyStylesheetChange();
     expect(seen).toHaveLength(1);
+    expect(seen[0]!.stylesheet).toBeGreaterThan(before);
     expect(seen[0]?.tokenGeneration).toBe("test-1");
 
     unsubscribe();
@@ -213,5 +272,42 @@ describe("BrowserCssInspection", () => {
 
     session.dispose();
     expect(session.inspect(mount()).target.status).toBe("disposed");
+  });
+
+  it("owns media-query invalidation for document token and element snapshots", () => {
+    let onMediaChange: (() => void) | undefined;
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      matches: false,
+      media: "(prefers-color-scheme: dark)",
+      onchange: null,
+      addEventListener: (_type: string, listener: () => void) => { onMediaChange = listener; },
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+    const session = createBrowserCssInspection({
+      document,
+      tokenKnowledge: {
+        definitions: [{
+          ...definitions[0]!,
+          declarations: [{
+            ...definitions[0]!.declarations[0]!,
+            context: {
+              selector: ":root",
+              wrappers: [{ kind: "media", params: "(prefers-color-scheme: dark)" }],
+            },
+          }],
+        }],
+        generation: "media",
+      },
+    });
+    sessions.push(session);
+    const listener = vi.fn();
+    session.subscribe(listener);
+
+    onMediaChange?.();
+
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });

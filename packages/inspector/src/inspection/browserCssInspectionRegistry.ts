@@ -54,6 +54,11 @@ export function getBrowserCssInspection(doc: Document = document): BrowserCssIns
   return bindBrowserCssInspection(doc, currentTokenKnowledge());
 }
 
+/** Invalidates every browser-inspection snapshot affected by a CSSOM write. */
+export function notifyBrowserStylesheetChange(doc: Document = document): void {
+  getBrowserCssInspection(doc).notifyStylesheetChange();
+}
+
 /** Releases a document session when its inspector/Canvas lifecycle ends. */
 export function disposeBrowserCssInspection(doc: Document): void {
   const entry = sessions.get(doc);

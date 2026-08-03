@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TokenDefinition } from "virtual:design-tokens";
 import { clearChanges } from "./changesLog.ts";
 import { inspectElement, installInspectionBridge } from "./inspection.ts";
@@ -93,5 +93,42 @@ describe("structured inspection contract", () => {
 
     remove();
     expect(window.__designTool).toBeUndefined();
+  });
+
+  it("keeps compiler token entries in compatibility attribution", () => {
+    document.head.innerHTML = `<style>.card { font-weight: var(--type-weight-strong, 600); }</style>`;
+    document.body.innerHTML = '<article class="card"></article>';
+    const element = document.querySelector<HTMLElement>(".card")!;
+
+    const inspection = inspectElement(element, {
+      catalog: [],
+      tokens: [{
+        name: "type.weight.strong",
+        cssName: "--type-weight-strong",
+        value: "650",
+        source: "tokens.css",
+      }],
+    });
+
+    expect(inspection.properties.find((row) => row.property === "font-weight")).toMatchObject({
+      authored: "var(--type-weight-strong, 600)",
+      tokenName: "type.weight.strong",
+    });
+  });
+
+  it("keeps the compatibility bridge on the live browser cascade", () => {
+    document.head.innerHTML = `<style>
+      .card { color: red; }
+      .card:hover { color: blue; }
+    </style>`;
+    document.body.innerHTML = '<article class="card"></article>';
+    const element = document.querySelector<HTMLElement>(".card")!;
+    const nativeMatches = element.matches.bind(element);
+    vi.spyOn(element, "matches").mockImplementation((selector) =>
+      selector === ".card:hover" || nativeMatches(selector));
+
+    const inspection = inspectElement(element, { catalog: [] });
+
+    expect(inspection.properties.find((row) => row.property === "color")?.authored).toBe("blue");
   });
 });

@@ -9,9 +9,8 @@ import {
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
 import type { ResolvedProperty } from "./tokens/resolution.ts";
-import { useResolvedPropertiesDebounced } from "./tokens/useResolvedProperties.ts";
 import type { TokenEntry } from "virtual:design-tokens";
-import { getBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
+import { useBrowserCssInspection } from "./inspection/useBrowserCssInspection.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { SpacingBox } from "./styleEditors/SpacingBox.tsx";
 import { Typography } from "./styleEditors/Typography.tsx";
@@ -97,55 +96,15 @@ export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const canvasMode = useCanvasMode();
   const selected = useSelectedElement();
-  const selectedDocument = selected?.domElement.ownerDocument ?? document;
-  const inspection = getBrowserCssInspection(selectedDocument);
   const [scopeRevision, refreshScope] = useState(0);
-  const [resolutionRevision, setResolutionRevision] = useState(0);
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const [restoreCount, setShowRestore] = useState<number>(getRestoreCount());
   const domMutations = useDomMutations();
-
-  useEffect(() => {
-    let idleHandle: number | null = null;
-    let timerHandle: ReturnType<typeof setTimeout> | null = null;
-    const cancelRefresh = (): void => {
-      if (idleHandle !== null) {
-        const idleWindow = window as Window & {
-          cancelIdleCallback?: (handle: number) => void;
-        };
-        idleWindow.cancelIdleCallback?.(idleHandle);
-        idleHandle = null;
-      }
-      if (timerHandle !== null) {
-        clearTimeout(timerHandle);
-        timerHandle = null;
-      }
-    };
-    const flushResolutionRevision = (): void => {
-      idleHandle = null;
-      timerHandle = null;
-      setResolutionRevision((current) => current + 1);
-    };
-    const scheduleResolutionRevision = (): void => {
-      cancelRefresh();
-      const idleWindow = window as Window & {
-        requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      };
-      if (idleWindow.requestIdleCallback) {
-        idleHandle = idleWindow.requestIdleCallback(flushResolutionRevision, { timeout: 200 });
-      } else {
-        timerHandle = setTimeout(flushResolutionRevision, 32);
-      }
-    };
-    flushResolutionRevision();
-    const unsubscribe = inspection.subscribe(scheduleResolutionRevision);
-    return () => {
-      unsubscribe();
-      cancelRefresh();
-    };
-  }, [inspection, selectedDocument]);
+  const cssInspection = useBrowserCssInspection(selected, styleState, {
+    includeDocumentTokens: activeTab === "tokens",
+  });
 
   useEffect(() => {
     setInspectorLayoutOpen(isOpen);
@@ -230,29 +189,25 @@ export function InspectorShell(): ReactElement {
     return () => window.removeEventListener("keydown", onKeydown);
   }, [isOpen, selected, domMutations.length]);
 
-  const inspectionSnapshot = useMemo(
-    () => selected ? inspection.inspect(selected.domElement, { state: styleState, cascade: "authored" }) : null,
-    [inspection, selected, styleState, resolutionRevision],
-  );
-  const stableInspectionSnapshot = useMemo(
-    () => selected ? inspection.inspect(selected.domElement, { cascade: "stable" }) : null,
-    [inspection, selected, resolutionRevision],
-  );
+  const inspectionSnapshot = cssInspection.element;
   const tokenEntries: TokenEntry[] = useMemo(
     () => inspectionSnapshot ? [...inspectionSnapshot.availableTokens] : [],
     [inspectionSnapshot],
   );
-  const tokenRows = useResolvedPropertiesDebounced(selected, styleState, inspection);
+  const tokenRows: ResolvedProperty[] = useMemo(
+    () => inspectionSnapshot ? [...inspectionSnapshot.properties] : [],
+    [inspectionSnapshot],
+  );
   const availableInteractionStates = inspectionSnapshot?.availableStates ?? [];
   const showInteractionState = availableInteractionStates.length > 2;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
   const backgroundTokenRow = useMemo(() => {
     if (!selected) return null;
     if (paintedBackgroundRow?.tokenName || styleState !== "base") return paintedBackgroundRow;
-    return stableInspectionSnapshot?.properties.find((row) =>
+    return cssInspection.stableProperties.find((row) =>
       (row.property === "background-color" || row.property === "background") && row.tokenName,
     ) ?? paintedBackgroundRow;
-  }, [paintedBackgroundRow, selected, stableInspectionSnapshot, styleState]);
+  }, [cssInspection.stableProperties, paintedBackgroundRow, selected, styleState]);
   const editScope = selected ? getEditScope(selected.domElement) : null;
   const sourceSiteMatchCount = selected && editScope === "source-site"
     ? countSourceSiteMatches(selected.domElement, scopeRevision)
@@ -308,7 +263,7 @@ export function InspectorShell(): ReactElement {
         </div>
         <div className="dt-panel__body">
           {activeTab === "tokens" ? (
-            <TokensPanel />
+            <TokensPanel rows={cssInspection.documentTokens?.tokens ?? []} />
           ) : selected ? (
             <>
               <div

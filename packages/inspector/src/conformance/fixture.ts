@@ -1,5 +1,5 @@
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
-import { buildTokenCatalogRows } from "../tokens/catalog.ts";
+import type { TokenCatalogRow } from "../tokens/catalog.ts";
 import type { EditCapability, ResolvedProperty, TokenOrigin } from "../tokens/resolution.ts";
 import { applyRules, verifyPreview } from "../managedStylesheet.ts";
 import type { PreviewResult } from "../managedStylesheet.ts";
@@ -49,7 +49,7 @@ export interface ConformanceFixture {
 export interface ConformanceResult {
   fixture: string;
   selected: HTMLElement;
-  catalog: ReturnType<typeof buildTokenCatalogRows>;
+  catalog: readonly TokenCatalogRow[];
   properties: ResolvedProperty[];
   projection: InspectorProjection;
   preview: PreviewResult | null;
@@ -77,7 +77,6 @@ export function runConformanceFixture(
   const selected = mount.querySelector<HTMLElement>(fixture.selected);
   if (!selected) throw new Error(`Conformance fixture ${fixture.id} selected no element: ${fixture.selected}`);
 
-  const rows = buildTokenCatalogRows(fixture.catalog, doc.documentElement);
   const inspection = createBrowserCssInspection({
     document: doc,
     tokenKnowledge: {
@@ -94,6 +93,7 @@ export function runConformanceFixture(
       generation: fixture.id,
     },
   });
+  const rows = inspection.inspectTokens(doc.documentElement).inventory;
   const properties: ResolvedProperty[] = [...inspection.inspect(selected).properties];
   const projection = projectInspectorValues(selected, properties);
 

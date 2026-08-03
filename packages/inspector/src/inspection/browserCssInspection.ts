@@ -3,6 +3,7 @@ import type { InteractionState } from "../styleState.ts";
 import {
   buildTokenTable,
   getAvailableInteractionStates,
+  getAvailableTokenCatalog,
   getAvailableTokenEntriesForElement,
   getResolvedProperties,
   getResolvedPropertiesForState,
@@ -10,8 +11,10 @@ import {
   invalidateStyleResolutionCache,
 } from "../tokens/resolution.ts";
 import type { ResolvedProperty, TokenTable } from "../tokens/resolution.ts";
+import { buildTokenCatalogRows, type TokenCatalogRow } from "../tokens/catalog.ts";
 import {
   documentRevisions,
+  registerResolutionElement,
   subscribeDocumentRevision,
   type DocumentRevisions,
 } from "../tokens/resolution/cssomCollector.ts";
@@ -49,6 +52,7 @@ export type InspectionTargetStatus =
   | "detached"
   | "foreign-document"
   | "unsupported"
+  | "disabled"
   | "disposed";
 
 export type InspectionDiagnosticCode =
@@ -57,6 +61,7 @@ export type InspectionDiagnosticCode =
   | "target-unsupported"
   | "state-unavailable"
   | "inspection-failed"
+  | "production-disabled"
   | "session-disposed";
 
 export interface InspectionDiagnostic {
@@ -84,11 +89,21 @@ export interface InspectionSnapshot {
   diagnostics: readonly InspectionDiagnostic[];
 }
 
+export interface DocumentTokenInspectionSnapshot {
+  /** Complete authored inventory supplied by the build-tool Adapter. */
+  inventory: readonly TokenCatalogRow[];
+  /** Tokens currently available below the inspected document root. */
+  tokens: readonly TokenCatalogRow[];
+  revision: InspectionRevision;
+  diagnostics: readonly InspectionDiagnostic[];
+}
+
 export interface BrowserCssInspection {
   inspect(
     element: HTMLElement,
     options?: BrowserCssInspectionOptions,
   ): InspectionSnapshot;
+  inspectTokens(root?: HTMLElement): DocumentTokenInspectionSnapshot;
   subscribe(listener: (revision: InspectionRevision) => void): () => void;
   /** Integration hook for managed CSSOM writes. */
   notifyStylesheetChange(): void;
@@ -156,7 +171,7 @@ function emptySnapshot(
     target: { status },
     cascade,
     requestedState: state,
-    authoredState: state,
+    authoredState: cascade === "authored" ? state : "base",
     paintedState: "current",
     properties: [],
     availableTokens: [],
@@ -182,6 +197,62 @@ function cloneEntries(entries: readonly TokenEntry[]): readonly TokenEntry[] {
   return entries.map((entry) => ({ ...entry }));
 }
 
+function cloneCatalogRows(rows: readonly TokenCatalogRow[]): readonly TokenCatalogRow[] {
+  return rows.map((row) => {
+    const activeIndex = row.activeDeclaration
+      ? row.definition.declarations.indexOf(row.activeDeclaration)
+      : -1;
+    const definition = {
+      ...row.definition,
+      declarations: row.definition.declarations.map((declaration) => ({
+        ...declaration,
+        context: {
+          ...declaration.context,
+          wrappers: declaration.context.wrappers?.map((wrapper) => ({ ...wrapper })),
+        },
+      })),
+    };
+    return {
+      ...row,
+      definition,
+      activeDeclaration: activeIndex >= 0 ? definition.declarations[activeIndex] ?? null : null,
+      styleContext: {
+        ...row.styleContext,
+        wrappers: row.styleContext.wrappers?.map((wrapper) => ({ ...wrapper })),
+      },
+    };
+  });
+}
+
+function disabledInspection(config: BrowserCssInspectionConfig): BrowserCssInspection {
+  const revision: InspectionRevision = {
+    element: 0,
+    stylesheet: 0,
+    tokenGeneration: config.tokenKnowledge.generation,
+  };
+  const diagnostics: readonly InspectionDiagnostic[] = [{
+    code: "production-disabled",
+    message: "Browser CSS inspection is disabled outside development.",
+  }];
+  return {
+    inspect(_element, options = {}) {
+      return emptySnapshot(
+        "disabled",
+        options.cascade ?? "authored",
+        options.state ?? "base",
+        revision,
+        diagnostics,
+      );
+    },
+    inspectTokens() {
+      return { inventory: [], tokens: [], revision, diagnostics };
+    },
+    subscribe() { return () => undefined; },
+    notifyStylesheetChange() {},
+    dispose() {},
+  };
+}
+
 function notifyRevision(
   listener: (revision: InspectionRevision) => void,
   revisions: DocumentRevisions,
@@ -204,6 +275,8 @@ function resolveCascadeProperties(
 export function createBrowserCssInspection(
   config: BrowserCssInspectionConfig,
 ): BrowserCssInspection {
+  if (!import.meta.env.DEV) return disabledInspection(config);
+
   const definitions = [...config.tokenKnowledge.definitions];
   const knowledgeEntries = [...(config.tokenKnowledge.entries ?? [])];
   const tokenGeneration = config.tokenKnowledge.generation;
@@ -213,6 +286,29 @@ export function createBrowserCssInspection(
   // When compiler entries are merged ahead of runtime availability, keep one
   // table per availableTokens identity so resolver caches stay warm.
   const mergedTables = new WeakMap<readonly TokenEntry[], TokenTable>();
+  const mediaCleanup: Array<() => void> = [];
+
+  const mediaQueries = new Set(definitions.flatMap((definition) =>
+    definition.declarations.flatMap((declaration) =>
+      (declaration.context.wrappers ?? [])
+        .filter((wrapper) => wrapper.kind === "media")
+        .map((wrapper) => wrapper.params))));
+  const ownerWindow = config.document.defaultView;
+  if (ownerWindow && typeof ownerWindow.matchMedia === "function") {
+    for (const query of mediaQueries) {
+      const media = ownerWindow.matchMedia(query);
+      const onChange = (): void => {
+        if (!disposed) invalidateStyleResolutionCache(config.document);
+      };
+      if (typeof media.addEventListener === "function") {
+        media.addEventListener("change", onChange);
+        mediaCleanup.push(() => media.removeEventListener("change", onChange));
+      } else if (typeof media.addListener === "function") {
+        media.addListener(onChange);
+        mediaCleanup.push(() => media.removeListener(onChange));
+      }
+    }
+  }
 
   const currentRevision = (): InspectionRevision =>
     revisionSnapshot(documentRevisions(config.document), tokenGeneration);
@@ -304,6 +400,38 @@ export function createBrowserCssInspection(
       }
     },
 
+    inspectTokens(root = config.document.documentElement) {
+      const diagnostics: InspectionDiagnostic[] = [];
+      const revision = currentRevision();
+      if (disposed) {
+        diagnostics.push({ code: "session-disposed", message: "This inspection session has been disposed." });
+        return { inventory: [], tokens: [], revision, diagnostics };
+      }
+      if (root.ownerDocument !== config.document) {
+        diagnostics.push({
+          code: "target-document-mismatch",
+          message: "The token inspection root belongs to a different document than this session.",
+        });
+        return { inventory: [], tokens: [], revision, diagnostics };
+      }
+      try {
+        registerResolutionElement(root);
+        const catalog = getAvailableTokenCatalog(root, definitions);
+        return {
+          inventory: cloneCatalogRows(buildTokenCatalogRows(definitions, root)),
+          tokens: cloneCatalogRows(buildTokenCatalogRows(catalog, root)),
+          revision,
+          diagnostics,
+        };
+      } catch (error) {
+        diagnostics.push({
+          code: "inspection-failed",
+          message: error instanceof Error ? error.message : "Browser token inspection failed.",
+        });
+        return { inventory: [], tokens: [], revision, diagnostics };
+      }
+    },
+
     subscribe(listener) {
       if (disposed) return () => undefined;
       const unsubscribe = subscribeDocumentRevision(config.document, (revisions) => {
@@ -325,6 +453,8 @@ export function createBrowserCssInspection(
       disposed = true;
       revisionUnsubscribers.forEach((unsubscribe) => unsubscribe());
       revisionUnsubscribers.clear();
+      mediaCleanup.forEach((cleanup) => cleanup());
+      mediaCleanup.length = 0;
     },
   };
 

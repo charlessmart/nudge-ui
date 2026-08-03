@@ -7,6 +7,9 @@ import type { StyleRuleContext } from "../managedStylesheet.ts";
 import { getElementComputedStyle, getElementWindow } from "../domRealm.ts";
 import { presentationForToken } from "./compatibility.ts";
 import type { TokenGroup } from "./compatibility.ts";
+import { cascadeLayerOrder } from "./resolution/cssomCollector.ts";
+import { compareAuthorCascade } from "./resolution/cascade.ts";
+import { computeSpecificityCore } from "./resolution/selectorSemantics.ts";
 
 export type TokenCatalogGroup = TokenGroup;
 export { TOKEN_GROUP_LABELS, TOKEN_GROUP_ORDER } from "./compatibility.ts";
@@ -31,6 +34,7 @@ export interface TokenRuntime {
   computedToken(name: string): string;
   selectorMatches(selector: string): boolean;
   scopeMatches(scope: string): boolean;
+  layerOrder(name: string): number | undefined;
 }
 
 function defaultRuntime(root: HTMLElement): TokenRuntime {
@@ -60,6 +64,7 @@ function defaultRuntime(root: HTMLElement): TokenRuntime {
         return false;
       }
     },
+    layerOrder: (name) => cascadeLayerOrder(ownerDocument, name),
   };
 }
 
@@ -77,25 +82,38 @@ function pickWinningDeclaration(
   declarations: TokenDeclaration[],
   runtime: TokenRuntime,
 ): TokenDeclaration | null {
-  const applicable = declarations.filter((declaration) => isTokenContextActive(declaration.context, runtime));
-  if (applicable.length === 0) return null;
-
-  const important = applicable.filter((declaration) => declaration.important);
-  const candidates = important.length > 0 ? important : applicable;
-  const layered = candidates.filter((declaration) =>
-    declaration.context.wrappers?.some((wrapper) => wrapper.kind === "layer"));
-  const unlayered = candidates.filter((declaration) =>
-    !declaration.context.wrappers?.some((wrapper) => wrapper.kind === "layer"));
-
-  // Normal unlayered declarations outrank layered declarations. For important
-  // declarations the layer order is reversed, so retain the applicable layered
-  // candidates when present. Source order remains the final tiebreaker.
-  const cascadePool = important.length > 0
-    ? (layered.length > 0 ? layered : unlayered)
-    : (unlayered.length > 0 ? unlayered : layered);
-  return [...cascadePool].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).at(-1)
-    ?? candidates.at(-1)
-    ?? null;
+  const priority = (declaration: TokenDeclaration, index: number) => {
+    const layers = (declaration.context.wrappers ?? [])
+      .filter((wrapper) => wrapper.kind === "layer")
+      .map((wrapper) => wrapper.params.trim())
+      .filter(Boolean);
+    const layer = layers.length > 0 ? layers.join(".") : undefined;
+    return {
+      important: declaration.important,
+      layer,
+      layerOrder: layer ? runtime.layerOrder(layer) : undefined,
+      specificity: declaration.context.selector
+        ? computeSpecificityCore(declaration.context.selector)
+        : 0,
+      sourceOrder: declaration.order ?? index,
+    };
+  };
+  let winner: TokenDeclaration | null = null;
+  let winnerIndex = -1;
+  declarations.forEach((candidate, candidateIndex) => {
+    if (!isTokenContextActive(candidate.context, runtime)) return;
+    if (
+      !winner
+      || compareAuthorCascade(
+        priority(candidate, candidateIndex),
+        priority(winner, winnerIndex),
+      ) >= 0
+    ) {
+      winner = candidate;
+      winnerIndex = candidateIndex;
+    }
+  });
+  return winner;
 }
 
 export function contextLabel(context: TokenContext): string {
@@ -156,9 +174,9 @@ export function buildTokenCatalogRows(
     .sort((a, b) => a.definition.name.localeCompare(b.definition.name));
 }
 
-export function filterTokenRows(rows: TokenCatalogRow[], query: string): TokenCatalogRow[] {
+export function filterTokenRows(rows: readonly TokenCatalogRow[], query: string): TokenCatalogRow[] {
   const needle = query.trim().toLowerCase();
-  if (!needle) return rows;
+  if (!needle) return [...rows];
   return rows.filter((row) =>
     row.definition.name.toLowerCase().includes(needle)
     || row.definition.cssName.toLowerCase().includes(needle)
@@ -187,7 +205,7 @@ export function createsAliasCycle(
   return false;
 }
 
-export function compatibleTokenNames(row: TokenCatalogRow, rows: TokenCatalogRow[]): Set<string> {
+export function compatibleTokenNames(row: TokenCatalogRow, rows: readonly TokenCatalogRow[]): Set<string> {
   const authored = new Map(rows.map((candidate) => [candidate.definition.cssName, candidate.authoredValue]));
   return new Set(rows
     .filter((candidate) => candidate.group === row.group)
