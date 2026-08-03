@@ -1,7 +1,7 @@
 import { getActiveStyleState } from "../styleState.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
-import { getResolvedPropertiesForState, getTokenTable } from "../tokens/resolution.ts";
+import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 
 const DEFAULT_LAYOUT_VALUES: Record<string, string> = {
   width: "auto",
@@ -34,7 +34,8 @@ export function meaningfulLayoutValue(el: HTMLElement, property: string): string
 export function readAuthoredStyleValue(el: HTMLElement, property: string): string | null {
   try {
     const state = getActiveStyleState();
-    const row = getResolvedPropertiesForState(el, getTokenTable(), state)
+    const row = getBrowserCssInspection(el.ownerDocument ?? document)
+      .inspect(el, { state }).properties
       .find((candidate) => candidate.property === property);
     const authored = row?.authored ?? row?.declaredValue;
     if (authored?.trim()) return authored.trim();
