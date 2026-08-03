@@ -5,7 +5,7 @@ import {
   getBrowserCssInspection,
 } from "../inspection/browserCssInspectionRegistry.ts";
 import type { BrowserCssInspection } from "../inspection/browserCssInspection.ts";
-import type { ResolvedProperty, TokenTable } from "./resolution.ts";
+import type { ResolvedProperty } from "./resolution.ts";
 
 /**
  * Trailing-edge debounce window for panel resolution. Rapid re-selections
@@ -14,14 +14,6 @@ import type { ResolvedProperty, TokenTable } from "./resolution.ts";
  * host edits still batch into one resolution.
  */
 const DEBOUNCE_MS = 8;
-
-function isBrowserCssInspection(
-  value: BrowserCssInspection | TokenTable | undefined,
-): value is BrowserCssInspection {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as { inspect?: unknown; subscribe?: unknown };
-  return typeof candidate.inspect === "function" && typeof candidate.subscribe === "function";
-}
 
 /**
  * React adapter for the resolution engine. Keeping this outside the engine
@@ -37,16 +29,14 @@ function isBrowserCssInspection(
 export function useResolvedPropertiesDebounced(
   selected: SelectedElement | null,
   state: InteractionState = "base",
-  inspectionOrLegacyTable?: BrowserCssInspection | TokenTable,
+  inspection?: BrowserCssInspection,
 ): ResolvedProperty[] {
   const [rows, setRows] = useState<ResolvedProperty[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revisionFrameRef = useRef<number | null>(null);
   const revisionSecondFrameRef = useRef<number | null>(null);
   const selectedDocument = selected?.domElement.ownerDocument ?? document;
-  const session = isBrowserCssInspection(inspectionOrLegacyTable)
-    ? inspectionOrLegacyTable
-    : getBrowserCssInspection(selectedDocument);
+  const session = inspection ?? getBrowserCssInspection(selectedDocument);
 
   const latest = useRef({ selected, state, session });
   latest.current = { selected, state, session };
