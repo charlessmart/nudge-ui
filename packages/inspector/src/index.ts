@@ -191,3 +191,15 @@ export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectat
 export { TYPOGRAPHY_CASES } from "./conformance/typographyCases.ts";
 export { projectInspectorValues, projectionSides } from "./spacing/projection.ts";
 export type { InspectorAxisProjection, InspectorFieldProjection, InspectorProjection, InspectorSpacingProjection, ProjectionAxis, ProjectionGroup, ProjectionSide, ProjectionState } from "./spacing/projection.ts";
+export { createBrowserCssInspection } from "./inspection/browserCssInspection.ts";
+export type {
+  BrowserCssInspection,
+  BrowserCssInspectionConfig,
+  BrowserCssInspectionOptions,
+  BrowserTokenKnowledge,
+  InspectionDiagnostic,
+  InspectionDiagnosticCode,
+  InspectionRevision,
+  InspectionSnapshot,
+  InspectionTargetStatus,
+} from "./inspection/browserCssInspection.ts";

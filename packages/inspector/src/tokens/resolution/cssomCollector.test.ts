@@ -7,6 +7,7 @@ import {
   getGlobalRevision,
   invalidateStyleResolutionCache,
   registerResolutionElement,
+  subscribeDocumentRevision,
   subscribeGlobalRevision,
 } from "./cssomCollector.ts";
 
@@ -264,5 +265,20 @@ describe("document revision observer", () => {
     expect(getGlobalRevision()).toBeGreaterThan(before);
     expect(seen).toHaveLength(1);
     unsub();
+  });
+
+  it("notifies only subscribers for the document whose cascade changed", () => {
+    const otherDocument = document.implementation.createHTMLDocument("other");
+    const seen: number[] = [];
+    const unsubscribe = subscribeDocumentRevision(document, (revisions) => seen.push(revisions.stylesheet));
+    const otherUnsubscribe = subscribeDocumentRevision(otherDocument, () => seen.push(-1));
+
+    invalidateStyleResolutionCache(document);
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toBe(documentRevisions(document).stylesheet);
+
+    unsubscribe();
+    otherUnsubscribe();
   });
 });

@@ -6,7 +6,7 @@ interface RuleSnapshot {
   inaccessible: boolean;
 }
 
-interface DocumentRevisions {
+export interface DocumentRevisions {
   element: number;
   stylesheet: number;
 }
@@ -15,6 +15,7 @@ const revisionRecords = new WeakMap<Document, DocumentRevisions>();
 const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
 
 const registeredElements = new WeakSet<Element>();
+const documentRevisionListeners = new WeakMap<Document, Set<(revisions: Readonly<DocumentRevisions>) => void>>();
 
 let globalRevision = 0;
 const globalRevisionListeners = new Set<() => void>();
@@ -39,6 +40,32 @@ export function subscribeGlobalRevision(cb: () => void): () => void {
 function bumpGlobalRevision(): void {
   globalRevision++;
   globalRevisionListeners.forEach((cb) => cb());
+}
+
+function notifyDocumentRevision(doc: Document): void {
+  const revisions = documentRevisions(doc);
+  documentRevisionListeners.get(doc)?.forEach((cb) => cb({ ...revisions }));
+}
+
+/**
+ * Subscribes to cascade revisions for one document. This is the narrow
+ * document-scoped seam used by the browser inspection Module; the older
+ * global subscription remains for compatibility while callers migrate.
+ */
+export function subscribeDocumentRevision(
+  doc: Document,
+  cb: (revisions: Readonly<DocumentRevisions>) => void,
+): () => void {
+  let listeners = documentRevisionListeners.get(doc);
+  if (!listeners) {
+    listeners = new Set();
+    documentRevisionListeners.set(doc, listeners);
+  }
+  listeners.add(cb);
+  return () => {
+    listeners?.delete(cb);
+    if (listeners?.size === 0) documentRevisionListeners.delete(doc);
+  };
 }
 
 /**
@@ -135,6 +162,7 @@ export function documentRevisions(doc: Document): DocumentRevisions {
         if (relevant.length === 0) return;
         record!.element++;
         if (relevant.some(changesStylesheet)) record!.stylesheet++;
+        notifyDocumentRevision(doc);
         bumpGlobalRevision();
       });
       observer.observe(root, {
@@ -147,6 +175,7 @@ export function documentRevisions(doc: Document): DocumentRevisions {
       doc.defaultView?.addEventListener("resize", () => {
         record!.element++;
         record!.stylesheet++;
+        notifyDocumentRevision(doc);
         bumpGlobalRevision();
       });
     }
@@ -170,6 +199,7 @@ export function invalidateStyleResolutionCache(doc: Document = document): void {
     record.stylesheet++;
   }
   ruleSnapshots.delete(doc);
+  notifyDocumentRevision(doc);
   bumpGlobalRevision();
 }
 
