@@ -2,13 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { SelectedElement } from "../selectionStore.ts";
 import type { InteractionState } from "../styleState.ts";
 import {
-  getAvailableTokenTableForElement,
-  getResolvedPropertiesForState,
-} from "./resolution.ts";
+  getBrowserCssInspection,
+} from "../inspection/browserCssInspectionRegistry.ts";
+import type { BrowserCssInspection } from "../inspection/browserCssInspection.ts";
 import type { ResolvedProperty, TokenTable } from "./resolution.ts";
-import {
-  subscribeGlobalRevision,
-} from "./resolution/cssomCollector.ts";
 
 /**
  * Trailing-edge debounce window for panel resolution. Rapid re-selections
@@ -17,6 +14,14 @@ import {
  * host edits still batch into one resolution.
  */
 const DEBOUNCE_MS = 8;
+
+function isBrowserCssInspection(
+  value: BrowserCssInspection | TokenTable | undefined,
+): value is BrowserCssInspection {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as { inspect?: unknown; subscribe?: unknown };
+  return typeof candidate.inspect === "function" && typeof candidate.subscribe === "function";
+}
 
 /**
  * React adapter for the resolution engine. Keeping this outside the engine
@@ -32,15 +37,19 @@ const DEBOUNCE_MS = 8;
 export function useResolvedPropertiesDebounced(
   selected: SelectedElement | null,
   state: InteractionState = "base",
-  tokenTable?: TokenTable,
+  inspectionOrLegacyTable?: BrowserCssInspection | TokenTable,
 ): ResolvedProperty[] {
   const [rows, setRows] = useState<ResolvedProperty[]>([]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revisionFrameRef = useRef<number | null>(null);
   const revisionSecondFrameRef = useRef<number | null>(null);
+  const selectedDocument = selected?.domElement.ownerDocument ?? document;
+  const session = isBrowserCssInspection(inspectionOrLegacyTable)
+    ? inspectionOrLegacyTable
+    : getBrowserCssInspection(selectedDocument);
 
-  const latest = useRef({ selected, state, tokenTable });
-  latest.current = { selected, state, tokenTable };
+  const latest = useRef({ selected, state, session });
+  latest.current = { selected, state, session };
 
   function cancelScheduledResolution(): void {
     if (timerRef.current !== null) {
@@ -57,20 +66,13 @@ export function useResolvedPropertiesDebounced(
     }
   }
 
-  function resolve(refreshTokenTable = false): void {
+  function resolve(): void {
     const current = latest.current;
     if (!current.selected) {
       setRows([]);
       return;
     }
-    const tokenTable = refreshTokenTable
-      ? getAvailableTokenTableForElement(current.selected.domElement)
-      : current.tokenTable ?? getAvailableTokenTableForElement(current.selected.domElement);
-    setRows(getResolvedPropertiesForState(
-      current.selected.domElement,
-      tokenTable,
-      current.state,
-    ));
+    setRows([...current.session.inspect(current.selected.domElement, { state: current.state }).properties]);
   }
 
   function scheduleResolution(): void {
@@ -84,13 +86,13 @@ export function useResolvedPropertiesDebounced(
   function scheduleRevisionResolution(): void {
     cancelScheduledResolution();
     // Let the host commit paint first. The second frame refreshes the
-    // attribution rows and token table without blocking the edit's first
-    // frame on a full cascade walk.
+    // attribution rows and available token snapshot without blocking the
+    // edit's first frame on a full cascade walk.
     revisionFrameRef.current = requestAnimationFrame(() => {
       revisionFrameRef.current = null;
       revisionSecondFrameRef.current = requestAnimationFrame(() => {
         revisionSecondFrameRef.current = null;
-        resolve(true);
+        resolve();
       });
     });
   }
@@ -98,9 +100,9 @@ export function useResolvedPropertiesDebounced(
   useEffect(() => {
     scheduleResolution();
     return cancelScheduledResolution;
-  }, [selected, state, tokenTable]);
+  }, [selected, state, session]);
 
-  useEffect(() => subscribeGlobalRevision(scheduleRevisionResolution), []);
+  useEffect(() => session.subscribe(scheduleRevisionResolution), [session]);
 
   return rows;
 }
