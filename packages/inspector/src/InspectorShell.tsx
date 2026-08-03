@@ -8,10 +8,10 @@ import {
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
-import { buildTokenTable, getAvailableInteractionStates, getStableTokenProperty, getTokenEntriesForElement } from "./tokens/resolution.ts";
-import type { ResolvedProperty, TokenTable } from "./tokens/resolution.ts";
+import type { ResolvedProperty } from "./tokens/resolution.ts";
 import { useResolvedPropertiesDebounced } from "./tokens/useResolvedProperties.ts";
 import type { TokenEntry } from "virtual:design-tokens";
+import { getBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { SpacingBox } from "./styleEditors/SpacingBox.tsx";
 import { Typography } from "./styleEditors/Typography.tsx";
@@ -39,7 +39,6 @@ import { getElementWindow } from "./domRealm.ts";
 import { deleteElement, nudgeElement, undoDomMutation, redoDomMutation, useDomMutations } from "./domMutations.ts";
 import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
-import { documentRevision, subscribeGlobalRevision } from "./tokens/resolution/cssomCollector.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -99,8 +98,9 @@ export function InspectorShell(): ReactElement {
   const canvasMode = useCanvasMode();
   const selected = useSelectedElement();
   const selectedDocument = selected?.domElement.ownerDocument ?? document;
+  const inspection = getBrowserCssInspection(selectedDocument);
   const [scopeRevision, refreshScope] = useState(0);
-  const [resolutionRevision, setResolutionRevision] = useState(() => documentRevision(selectedDocument));
+  const [resolutionRevision, setResolutionRevision] = useState(0);
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
@@ -126,8 +126,7 @@ export function InspectorShell(): ReactElement {
     const flushResolutionRevision = (): void => {
       idleHandle = null;
       timerHandle = null;
-      const next = documentRevision(selectedDocument);
-      setResolutionRevision((current) => current === next ? current : next);
+      setResolutionRevision((current) => current + 1);
     };
     const scheduleResolutionRevision = (): void => {
       cancelRefresh();
@@ -141,12 +140,12 @@ export function InspectorShell(): ReactElement {
       }
     };
     flushResolutionRevision();
-    const unsubscribe = subscribeGlobalRevision(scheduleResolutionRevision);
+    const unsubscribe = inspection.subscribe(scheduleResolutionRevision);
     return () => {
       unsubscribe();
       cancelRefresh();
     };
-  }, [selectedDocument]);
+  }, [inspection, selectedDocument]);
 
   useEffect(() => {
     setInspectorLayoutOpen(isOpen);
@@ -231,26 +230,29 @@ export function InspectorShell(): ReactElement {
     return () => window.removeEventListener("keydown", onKeydown);
   }, [isOpen, selected, domMutations.length]);
 
+  const inspectionSnapshot = useMemo(
+    () => selected ? inspection.inspect(selected.domElement, { state: styleState }) : null,
+    [inspection, selected, styleState, resolutionRevision],
+  );
+  const baseInspectionSnapshot = useMemo(
+    () => selected ? inspection.inspect(selected.domElement, { state: "base" }) : null,
+    [inspection, selected, resolutionRevision],
+  );
   const tokenEntries: TokenEntry[] = useMemo(
-    () => selected ? getTokenEntriesForElement(selected.domElement) : [],
-    [selected, resolutionRevision],
+    () => inspectionSnapshot ? [...inspectionSnapshot.availableTokens] : [],
+    [inspectionSnapshot],
   );
-  const tokenTable: TokenTable = useMemo(() => buildTokenTable(tokenEntries), [tokenEntries]);
-  const tokenRows = useResolvedPropertiesDebounced(selected, styleState, tokenTable);
-  const availableInteractionStates = useMemo(
-    () => selected ? getAvailableInteractionStates(selected.domElement) : [],
-    [selected],
-  );
+  const tokenRows = useResolvedPropertiesDebounced(selected, styleState, inspection);
+  const availableInteractionStates = inspectionSnapshot?.availableStates ?? [];
   const showInteractionState = availableInteractionStates.length > 2;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
-  const backgroundTokenRow = useMemo(() => selected
-    ? paintedBackgroundRow?.tokenName
-      ? paintedBackgroundRow
-      : styleState === "base" ? getStableTokenProperty(selected.domElement, ["background-color", "background"], tokenTable)
-        ?? paintedBackgroundRow
-        : paintedBackgroundRow
-    : null,
-  [selected, paintedBackgroundRow, styleState, tokenTable]);
+  const backgroundTokenRow = useMemo(() => {
+    if (!selected) return null;
+    if (paintedBackgroundRow?.tokenName || styleState !== "base") return paintedBackgroundRow;
+    return baseInspectionSnapshot?.properties.find((row) =>
+      (row.property === "background-color" || row.property === "background") && row.tokenName,
+    ) ?? paintedBackgroundRow;
+  }, [baseInspectionSnapshot, paintedBackgroundRow, selected, styleState]);
   const editScope = selected ? getEditScope(selected.domElement) : null;
   const sourceSiteMatchCount = selected && editScope === "source-site"
     ? countSourceSiteMatches(selected.domElement, scopeRevision)
