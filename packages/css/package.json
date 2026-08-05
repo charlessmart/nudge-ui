@@ -3,17 +3,21 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "files": ["src/index.ts", "src/model", "src/value-semantics"],
+  "files": ["src/index.ts", "src/model", "src/value-semantics", "src/token-inventory"],
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
     "./model": "./src/model/index.ts",
-    "./value-semantics": "./src/value-semantics/index.ts"
+    "./value-semantics": "./src/value-semantics/index.ts",
+    "./token-inventory": "./src/token-inventory/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest"
+  },
+  "dependencies": {
+    "postcss": "^8.4.47"
   },
   "devDependencies": {
     "jsdom": "^25.0.0",
