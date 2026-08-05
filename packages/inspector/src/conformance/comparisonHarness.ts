@@ -1,12 +1,16 @@
 /**
- * Migration comparison harness (plan slice 3.1).
+ * Migration comparison harness (plan slices 3.1–3.6).
  *
  * Runs the "old" and "new" value interpretations against the existing
- * conformance corpus. The new value-semantics Interface does not exist yet:
- * the harness accepts any `ValueInterpreter` and, today, the only interpreter
- * that can reproduce current behavior is a legacy-delegating one. Later slices
- * (3.2–3.6) replace the delegation with real interpretations and this harness
- * becomes the guardrail that catches behavioral drift against the corpus.
+ * conformance corpus. The "new" side runs the real
+ * `@design-tool/css/value-semantics` token interpreter for token references,
+ * aliases, leaf-token selection, cycles, origins, and modifiers, and the
+ * unified property/value policy for capability classification (plan slice
+ * 3.3). The integration policies it needs (Tailwind v3 direct attribution,
+ * the color/opacity resolver, adapter-derived origins, and the `--tw-*` alias
+ * policy) come from the resolution integration. Color/opacity and structured
+ * values still come from the legacy path and migrate in slices 3.4–3.5. This
+ * harness is the guardrail that catches behavioral drift against the corpus.
  *
  * The comparison is value-level: it projects every `ResolvedProperty` row the
  * legacy cascade produces onto the same structured outcome the interpretation
@@ -18,11 +22,11 @@
 import type { TokenEntry } from "virtual:design-tokens";
 import type { EditCapability, ResolvedProperty } from "@design-tool/css/model";
 import type { ValueInterpretation, ValueInterpreter, InterpretationContext } from "@design-tool/css/value-semantics";
+import { classifyEditCapability, interpretTokenValue } from "@design-tool/css/value-semantics";
 import {
   buildTokenTable,
-  classifyValue,
+  createTokenInterpretationContext,
   parseBorderShorthand,
-  resolveTokenValue,
 } from "../tokens/resolution.ts";
 import { runConformanceFixture } from "./fixture.ts";
 import type { ConformanceFixture } from "./fixture.ts";
@@ -87,14 +91,16 @@ function isBorderShorthandSource(property: string): boolean {
 }
 
 /**
- * The provisional "new" interpretation for this slice: it reimplements the
- * current resolver's per-row dispatch using only the exported value helpers,
- * so both sides are identical today. The source declaration property comes
- * through `ctx.sourceProperty` so projected shorthand longhands (for example
- * `border-top-width` from `border: 2px solid red`) are distinguished from
- * directly-authored longhands (`border-width: var(--border-size)`).
+ * The "new" interpretation for this slice: token references, aliases,
+ * leaf-token selection, cycles, origins, and modifiers come from the real
+ * `@design-tool/css` value-semantics Module; color/opacity resolution,
+ * capability, and border structure still come from the legacy integration
+ * helpers (slices 3.3–3.5 migrate those). The source declaration property
+ * comes through `ctx.sourceProperty` so projected shorthand longhands (for
+ * example `border-top-width` from `border: 2px solid red`) are distinguished
+ * from directly-authored longhands (`border-width: var(--border-size)`).
  */
-export function createLegacyDelegatingInterpreter(): ValueInterpreter {
+export function createValueSemanticsInterpreter(): ValueInterpreter {
   return (property, authored, ctx): ValueInterpretation => {
     const table = ctx.table;
     const localAliases = ctx.localAliases ?? new Map();
@@ -106,7 +112,7 @@ export function createLegacyDelegatingInterpreter(): ValueInterpreter {
       if (structure) {
         const isColorRow = propertyLower.endsWith("color");
         const colorResult = isColorRow
-          ? resolveTokenValue(structure.color, table, localAliases)
+          ? interpretTokenValue(structure.color, createTokenInterpretationContext(table, localAliases))
           : null;
         return {
           authored,
@@ -122,17 +128,17 @@ export function createLegacyDelegatingInterpreter(): ValueInterpreter {
       }
     }
 
-    const resolved = resolveTokenValue(authored, table, localAliases);
+    const interpretation = interpretTokenValue(authored, createTokenInterpretationContext(table, localAliases));
     return {
       authored,
-      tokenName: resolved.tokenName,
-      tokens: resolved.tokens.map((token) => token.name),
-      opacity: resolved.opacity?.value ?? null,
-      opacityTokenName: resolved.opacity?.tokenName ?? null,
-      capability: propertyLower === "border" ? "raw" : classifyValue(property, authored),
-      modifiers: resolved.modifiers,
+      tokenName: interpretation.tokenName,
+      tokens: interpretation.tokens.map((token) => token.name),
+      opacity: interpretation.opacity?.value ?? null,
+      opacityTokenName: interpretation.opacity?.tokenName ?? null,
+      capability: propertyLower === "border" ? "raw" : classifyEditCapability(property, authored),
+      modifiers: interpretation.modifiers,
       structure: null,
-      confidence: attributionConfidence(resolved.tokenName),
+      confidence: attributionConfidence(interpretation.tokenName),
     };
   };
 }

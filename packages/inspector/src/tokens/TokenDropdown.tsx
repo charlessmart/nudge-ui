@@ -9,13 +9,13 @@ import {
   getCompatibleTokenCandidates,
   TOKEN_GROUP_LABELS,
   TOKEN_GROUP_ORDER,
-} from "./compatibility.ts";
+} from "@design-tool/css/value-semantics";
 import type {
   CssValueGrammar,
   TokenCandidate,
   TokenGroup,
   TokenSemanticSlot,
-} from "./compatibility.ts";
+} from "@design-tool/css/value-semantics";
 
 function groupTokens(entries: TokenCandidate[]): Map<TokenGroup, TokenCandidate[]> {
   const map = new Map<TokenGroup, TokenCandidate[]>();

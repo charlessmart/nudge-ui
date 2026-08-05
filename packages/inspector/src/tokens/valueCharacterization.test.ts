@@ -9,7 +9,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 import {
   buildTokenTable,
-  classifyValue,
   normalizeColorOpacity,
   parseBorderShorthand,
   replaceColorOpacity,
@@ -20,12 +19,14 @@ import {
 import type { TokenTable } from "./resolution.ts";
 import {
   browserCssGrammar,
+  classifyEditCapability,
+  classifyToken,
   getCompatibleTokenCandidates,
   groupForProperty,
   presentationForToken,
   semanticSlotForProperty,
   type CssValueGrammar,
-} from "./compatibility.ts";
+} from "@design-tool/css/value-semantics";
 import {
   aliasName,
   buildTokenCatalogRows,
@@ -36,7 +37,6 @@ import {
   sourceParts,
   type TokenRuntime,
 } from "./catalog.ts";
-import { classifyToken, getAlternativeTokens, groupOfProperty } from "./tokenSuggestions.ts";
 import { runConformanceFixture } from "../conformance/fixture.ts";
 import type { ConformanceFixture } from "../conformance/fixture.ts";
 import type { ResolvedProperty } from "@design-tool/css/model";
@@ -83,7 +83,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-describe("classifyValue (edit capability classifier)", () => {
+describe("classifyEditCapability (edit capability classifier)", () => {
   it("classifies each EditCapability the UI renders", () => {
     const cases: Array<[string, string, string]> = [
       // atomic
@@ -127,21 +127,21 @@ describe("classifyValue (edit capability classifier)", () => {
       ["border-style", "solid dashed", "raw"],
     ];
     for (const [property, authored, expected] of cases) {
-      expect(classifyValue(property, authored), `${property}: ${authored}`).toBe(expected);
+      expect(classifyEditCapability(property, authored), `${property}: ${authored}`).toBe(expected);
     }
   });
 
   it("keeps the raw-function check ahead of spacing/border classification", () => {
-    expect(classifyValue("margin", "clamp(8px, 2vw, 24px)")).toBe("raw");
-    expect(classifyValue("border", "color-mix(in srgb, red 10%, transparent)")).toBe("structured");
+    expect(classifyEditCapability("margin", "clamp(8px, 2vw, 24px)")).toBe("raw");
+    expect(classifyEditCapability("border", "color-mix(in srgb, red 10%, transparent)")).toBe("structured");
   });
 
   it("does not classify border-side shorthands as structured (the resolution branch upgrades them)", () => {
-    // `classifyValue` is the raw per-(property, value) classifier. The border
-    // resolution branch upgrades rows projected from `border`/`border-side`
+    // `classifyEditCapability` is the raw per-(property, value) classifier. The
+    // border resolution branch upgrades rows projected from `border`/`border-side`
     // shorthands to "structured"; the standalone classifier keeps them raw.
-    expect(classifyValue("border-top", "1px solid var(--color-accent)")).toBe("raw");
-    expect(classifyValue("border-top-width", "5px")).toBe("atomic");
+    expect(classifyEditCapability("border-top", "1px solid var(--color-accent)")).toBe("raw");
+    expect(classifyEditCapability("border-top-width", "5px")).toBe("atomic");
   });
 });
 
@@ -550,7 +550,7 @@ describe("catalog helpers", () => {
   });
 });
 
-describe("tokenSuggestions helpers", () => {
+describe("tokenSuggestions helpers (unified value semantics)", () => {
   it("classifies token names and values into the agreed groups", () => {
     expect(classifyToken("--color-red-500", "#dc2626")).toBe("color");
     expect(classifyToken("--space-4", "16px")).toBe("spacing");
@@ -565,27 +565,19 @@ describe("tokenSuggestions helpers", () => {
     expect(classifyToken("unrelated", "16px")).toBe("generic");
   });
 
-  it("groups properties for the picker", () => {
-    expect(groupOfProperty("color")).toBe("color");
-    expect(groupOfProperty("box-shadow")).toBe("color");
-    expect(groupOfProperty("border-radius")).toBe("radius");
-    expect(groupOfProperty("font-size")).toBe("typography");
-    expect(groupOfProperty("padding")).toBe("spacing");
-    expect(groupOfProperty("display")).toBe("generic");
-  });
-
-  it("returns same-group alternatives and always keeps the current token", () => {
+  it("returns same-group candidates and always keeps the current token", () => {
     const entries = [
       entry("--color-red", "#dc2626"),
       entry("--space-4", "16px"),
       entry("--color-blue", "#2563eb"),
     ];
-    const colorOnly = getAlternativeTokens(entries, { property: "color", currentToken: null });
-    expect(colorOnly.map((e) => e.name)).toEqual(["--color-red", "--color-blue"]);
+    const colorOnly = getCompatibleTokenCandidates({ property: "color", entries, currentToken: null });
+    // Grammar eligibility with the name-based label sort (unified ordering).
+    expect(colorOnly.map((c) => c.entry.name)).toEqual(["--color-blue", "--color-red"]);
 
-    const withCurrent = getAlternativeTokens(entries, { property: "margin", currentToken: "--color-red" });
-    // Source order is preserved; the current token is always retained.
-    expect(withCurrent.map((e) => e.name)).toEqual(["--color-red", "--space-4"]);
+    const withCurrent = getCompatibleTokenCandidates({ property: "margin", entries, currentToken: "--color-red" });
+    // The current token is always retained even when it is not eligible for the slot.
+    expect(withCurrent.map((c) => c.entry.name)).toEqual(["--color-red", "--space-4"]);
   });
 });
 

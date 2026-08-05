@@ -5,14 +5,18 @@ import type {
 } from "virtual:design-tokens";
 import type { StyleRuleContext } from "../managedStylesheet.ts";
 import { getElementComputedStyle, getElementWindow } from "../domRealm.ts";
-import { presentationForToken } from "./compatibility.ts";
-import type { TokenGroup } from "./compatibility.ts";
+import {
+  presentationForToken,
+  TOKEN_GROUP_LABELS,
+  TOKEN_GROUP_ORDER,
+} from "@design-tool/css/value-semantics";
+import type { TokenGroup } from "@design-tool/css/value-semantics";
 import { cascadeLayerOrder } from "./resolution/cssomCollector.ts";
 import { compareAuthorCascade } from "./resolution/cascade.ts";
 import { computeSpecificityCore } from "./resolution/selectorSemantics.ts";
 
 export type TokenCatalogGroup = TokenGroup;
-export { TOKEN_GROUP_LABELS, TOKEN_GROUP_ORDER } from "./compatibility.ts";
+export { TOKEN_GROUP_LABELS, TOKEN_GROUP_ORDER } from "@design-tool/css/value-semantics";
 
 export interface TokenCatalogRow {
   definition: TokenDefinition;
