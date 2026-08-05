@@ -22,9 +22,9 @@ function artifactRank(artifact: StylesheetArtifact): [number, string] {
 }
 
 function compareArtifacts(a: StylesheetArtifact, b: StylesheetArtifact): number {
-  const [ao, ai] = artifactRank(a);
-  const [bo, bi] = artifactRank(b);
-  return ao - bo || ai.localeCompare(bi);
+  const [aOrder, aId] = artifactRank(a);
+  const [bOrder, bId] = artifactRank(b);
+  return aOrder - bOrder || aId.localeCompare(bId);
 }
 
 function sameArtifactFacts(a: StylesheetArtifact, b: StylesheetArtifact): boolean {
@@ -68,7 +68,7 @@ function canonicalSnapshotFacts(
     );
     for (const declaration of definition.declarations) {
       parts.push(
-        ` \x00${declaration.id ?? ""}\x00${String(declaration.order ?? "")}`
+        `d\x00${declaration.id ?? ""}\x00${String(declaration.order ?? "")}`
         + `\x00${declaration.value}\x00${declaration.source}\x00${String(declaration.important)}`
         + `\x00${JSON.stringify(declaration.context)}`,
       );
@@ -82,8 +82,12 @@ function canonicalSnapshotFacts(
 
 function deepFreeze<T>(value: T): T {
   if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
-  for (const key of Object.keys(value as Record<string, unknown>)) {
-    deepFreeze((value as Record<string, unknown>)[key]);
+  if (Array.isArray(value)) {
+    for (const item of value) deepFreeze(item);
+  } else {
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      deepFreeze((value as Record<string, unknown>)[key]);
+    }
   }
   return Object.freeze(value);
 }
