@@ -1,4 +1,4 @@
-import type { ResolvedProperty } from "../tokens/resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import { getStateStyleValue } from "../stateValue.ts";
 
 export type ProjectionSide = "top" | "right" | "bottom" | "left";

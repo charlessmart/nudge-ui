@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SelectedElement } from "../selectionStore.ts";
 import type { InteractionState } from "../styleState.ts";
-import type { ResolvedProperty } from "../tokens/resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import type {
   BrowserCssInspection,
   DocumentTokenInspectionSnapshot,

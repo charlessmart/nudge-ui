@@ -4,7 +4,7 @@ import { act } from "react";
 import { createElement } from "react";
 import { colorValueToHex, TokenField, TokenValueField } from "./TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "./resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import { resetPendingRules, getChangeRecords } from "./editActions.ts";
 import {
   makeSelected,

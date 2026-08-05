@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, createElement } from "react";
 import { SpacingBox } from "./SpacingBox.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
-import type { ResolvedProperty } from "../tokens/resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import {
   makeSelected,
   mount,

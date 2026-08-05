@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { IconBorderSides } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
-import type { ResolvedProperty } from "../tokens/resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";

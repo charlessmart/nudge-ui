@@ -4,7 +4,7 @@ import { act, createElement } from "react";
 import { ColorPicker, isEmptyColorValue } from "./ColorPicker.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "../tokens/resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import {
   makeSelected,
   mount,

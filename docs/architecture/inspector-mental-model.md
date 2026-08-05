@@ -112,14 +112,15 @@ flowchart LR
   P --> CAT["Token catalogue\nname, value, source, context"]
 
   CAT --> VM["virtual:design-tokens"]
-  VM --> UI["Token choices in the inspector"]
+  VM --> BCI["Browser CSS inspection\ncascade + token table + computed evidence"]
 
   CSS --> B["Browser's active stylesheets"]
   B --> O["Runtime CSSOM collection\naccepted rules + contexts"]
   O --> A["Attribution\nwhich matching declaration wins?"]
-  A --> R["Token resolution\nfollow var() aliases"]
-  R --> X["Computed-style check\ndoes it match what was painted?"]
-  X --> UI
+  A --> VS["CSS value semantics\ninterpret var() refs, modifiers,\ncapability, structure, edits"]
+  VS --> X["Computed-style check\ndoes it match what was painted?"]
+  X --> UI["Token choices and fields in the inspector"]
+  BCI --> UI
 ```
 
 ### Parsing: “what token definitions exist?”
@@ -157,15 +158,27 @@ flowchart TB
 Attribution is the part that prevents the inspector from saying “the element
 uses token X” just because token X exists somewhere in the project.
 
-### Token resolution: “what does that winning declaration mean?”
+### Token resolution: "what does that winning declaration mean?"
 
-Once a declaration is found, the inspector follows `var(...)` references,
-including local aliases and framework-generated aliases such as Tailwind’s
-`--tw-*` variables. It also understands useful structures such as shorthands,
-logical spacing, borders, color opacity, and interaction states.
+Once a declaration is found, the CSS value-semantics Module
+(`packages/css/src/value-semantics/`) interprets the authored value: it follows
+`var(...)` references (including local aliases and framework-generated aliases
+such as Tailwind's `--tw-*` variables), attributes modifiers, classifies edit
+capability, selects compatible tokens, and performs meaning-preserving edits. It
+also understands useful structures such as shorthands, logical spacing, borders,
+color opacity, and interaction states. The neutral Module knows nothing about
+React, Vite, or the DOM; the resolver feeds it an explicit token table, local
+aliases, and writing-mode facts.
 
-Finally it compares the candidate against the browser’s computed value. That
-lets the UI communicate confidence:
+The legacy `packages/inspector/src/tokens/resolution.ts` no longer interprets CSS
+values itself. It coordinates cascade facts — matching, specificity, layers,
+inline declarations, and interaction states — and projects the Module's
+interpretation onto `ResolvedProperty` rows. UI callers reach value semantics
+only through `BrowserCssInspection` (for interpretation) and the semantic edit
+Interface (for edits and candidates).
+
+Finally the inspector compares the candidate against the browser's computed
+value. That lets the UI communicate confidence:
 
 - **Exact:** the authored token path agrees with the value the browser painted.
 - **Probable:** the token is a good authored match, but the browser cannot prove
@@ -309,7 +322,10 @@ CSS. Record the uncertainty and give the agent a selector/source fallback.
 - CSS token parsing: [`packages/plugin/src/tokens/parseTokens.ts`](../../packages/plugin/src/tokens/parseTokens.ts)
 - Styling adapters: [`packages/plugin/src/adapters/`](../../packages/plugin/src/adapters/)
 - Runtime bootstrap and Shadow DOM mount: [`packages/inspector/src/index.ts`](../../packages/inspector/src/index.ts)
+- Browser CSS inspection seam (sole browser inspection authority): [`packages/inspector/src/inspection/browserCssInspection.ts`](../../packages/inspector/src/inspection/browserCssInspection.ts)
 - CSSOM collection and attribution: [`packages/inspector/src/tokens/resolution/cssomCollector.ts`](../../packages/inspector/src/tokens/resolution/cssomCollector.ts) and [`packages/inspector/src/tokens/resolution.ts`](../../packages/inspector/src/tokens/resolution.ts)
+- CSS value semantics (interpret, suggest, edit; browser-safe, no Vite/React/PostCSS): [`packages/css/src/value-semantics/`](../../packages/css/src/value-semantics/)
+- Shared CSS/token model: [`packages/css/src/model/`](../../packages/css/src/model/)
 - Temporary CSS projection: [`packages/inspector/src/managedStylesheet.ts`](../../packages/inspector/src/managedStylesheet.ts) and [`packages/inspector/src/changes/projection.ts`](../../packages/inspector/src/changes/projection.ts)
 - Semantic component props: [`packages/inspector/src/componentSemantics/`](../../packages/inspector/src/componentSemantics/)
 - Canvas controller/renderer boundary: [`packages/inspector/src/canvas/`](../../packages/inspector/src/canvas/)

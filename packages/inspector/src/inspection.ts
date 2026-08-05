@@ -6,7 +6,7 @@ import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { projectInspectorValues } from "./spacing/projection.ts";
 import type { InspectorProjection } from "./spacing/projection.ts";
-import type { ResolvedProperty } from "./tokens/resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import { getCompatibleTokenCandidates } from "@design-tool/css/value-semantics";
 import {
   createBrowserCssInspection,

@@ -11,7 +11,6 @@ import {
 import { computeSpecificity } from "./resolution/selectorSemantics.ts";
 import { compareAuthorCascade } from "./resolution/cascade.ts";
 export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
-export { computeSpecificity } from "./resolution/selectorSemantics.ts";
 import type {
   AtRuleContext,
   BorderStructure,
@@ -24,47 +23,21 @@ import type {
   TokenReference,
   TokenTable,
   ValueModifier,
-} from "./resolution/types.ts";
+} from "@design-tool/css/model";
 import {
   classifyEditCapability,
+  interpretStructuredValue,
   interpretTokenValue,
   type AliasAttribution,
   type AliasInnerResult,
+  type Directionality,
   type TokenInterpretationContext,
   type TokenValueInterpretation,
 } from "@design-tool/css/value-semantics";
 
-export type {
-  AttributionEvidence,
-  AtRuleContext,
-  BorderStructure,
-  ColorOpacity,
-  EditCapability,
-  MatchedRule,
-  ResolvedProperty,
-  StyleDeclaration,
-  TokenOrigin,
-  TokenReference,
-  TokenTable,
-  ValueModifier,
-} from "./resolution/types.ts";
-
 const MAX_PROPERTIES = 100;
 const VAR_REF = /var\(\s*(--[\w-]+)/g;
 const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
-const SPACING_SIDES: Record<string, readonly string[]> = {
-  margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
-  padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
-  inset: ["top", "right", "bottom", "left"],
-};
-const BORDER_RADIUS_CORNERS: Record<string, readonly string[]> = {
-  "border-radius": [
-    "border-top-left-radius",
-    "border-top-right-radius",
-    "border-bottom-right-radius",
-    "border-bottom-left-radius",
-  ],
-};
 
 const tokenTableMemo = new WeakMap<TokenEntry[], TokenTable>();
 
@@ -158,7 +131,6 @@ interface TokenEntriesCacheEntry {
   stylesheetRevision: number;
   definitions: TokenDefinition[];
   entries: TokenEntry[];
-  table: TokenTable;
 }
 
 const tokenEntriesCache = new WeakMap<HTMLElement, TokenEntriesCacheEntry>();
@@ -175,8 +147,9 @@ function registerWithAncestors(el: HTMLElement): void {
  * The build-time catalog is intentionally an inventory of every project token.
  * Element edits must instead use only custom properties resolved in that
  * element's cascade; a token defined by a lazy stylesheet is not usable until
- * that stylesheet is attached to the document. Entries (and their table) are
- * cached per element until the element or stylesheet revision changes.
+ * that stylesheet is attached to the document. Entries are cached per element
+ * until the element or stylesheet revision changes; the derived table reuses
+ * `buildTokenTable`'s input-identity memo.
  */
 export function getAvailableTokenEntriesForElement(
   el: HTMLElement,
@@ -210,32 +183,17 @@ export function getAvailableTokenEntriesForElement(
     stylesheetRevision: revisions.stylesheet,
     definitions,
     entries,
-    table: buildTokenTable(entries),
   });
   return entries;
 }
 
-/** @deprecated Use getAvailableTokenEntriesForElement for edit candidates. */
-export function getTokenEntriesForElement(el: HTMLElement): TokenEntry[] {
-  return getAvailableTokenEntriesForElement(el);
-}
 
-export function getAvailableTokenTableForElement(el: HTMLElement): TokenTable {
-  const revisions = getDocumentRevisions(el.ownerDocument ?? document);
-  const cached = tokenEntriesCache.get(el);
-  if (cached && cached.definitions === tokenCatalog
-    && cached.elementRevision === revisions.element
-    && cached.stylesheetRevision === revisions.stylesheet) {
-    return cached.table;
-  }
-  return buildTokenTable(getAvailableTokenEntriesForElement(el));
-}
 
 /**
  * Replaces build-time token declaration hints with declarations serialized by
  * the browser from the stylesheets currently attached to this document.
  */
-export function hydrateTokenCatalogFromCssom(
+function hydrateTokenCatalogFromCssom(
   definitions: TokenDefinition[],
   doc: Document = document,
 ): TokenDefinition[] {
@@ -390,7 +348,12 @@ export function createTokenInterpretationContext(
   };
 }
 
-export function resolveTokenValue(
+/**
+ * Resolves one authored value through the value-semantics Module using the
+ * inspector's integration context. Used by the token-availability path; the
+ * value Module is the sole interpretation authority.
+ */
+function resolveTokenValue(
   value: string,
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
@@ -398,241 +361,13 @@ export function resolveTokenValue(
   return interpretTokenValue(value, createTokenInterpretationContext(tokenTable, localAliases));
 }
 
-function splitTopLevelWhitespace(value: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let quote: string | null = null;
-  let start = 0;
-
-  for (let i = 0; i < value.length; i++) {
-    const char = value[i];
-    if (quote) {
-      if (char === quote && value[i - 1] !== "\\") quote = null;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-    } else if (char === "(" || char === "[") {
-      depth++;
-    } else if (char === ")" || char === "]") {
-      depth = Math.max(0, depth - 1);
-    } else if (depth === 0 && /\s/.test(char ?? "")) {
-      if (i > start) parts.push(value.slice(start, i));
-      start = i + 1;
-    }
-  }
-
-  if (start < value.length) parts.push(value.slice(start));
-  return parts;
-}
-
-const BORDER_STYLES = new Set(["none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"]);
-const BORDER_WIDTHS = new Set(["thin", "medium", "thick"]);
-const COLOR_KEYWORDS = new Set(["transparent", "currentcolor", "black", "silver", "gray", "white", "maroon", "red", "purple", "fuchsia", "green", "lime", "olive", "yellow", "navy", "blue", "teal", "aqua", "orange"]);
-const BORDER_CSS_WIDE = new Set(["inherit", "initial", "unset", "revert", "revert-layer"]);
-/** CSS initial values for omitted `border` / `border-*` shorthand components. */
-const BORDER_INITIAL = { width: "medium", style: "none", color: "currentcolor" } as const;
-
-export function parseBorderShorthand(value: string, tokenTable: TokenTable): BorderStructure | null {
-  const trimmed = value.trim();
-  if (!trimmed || BORDER_CSS_WIDE.has(trimmed.toLowerCase())) return null;
-
-  const parts = splitTopLevelWhitespace(trimmed);
-  // One to three components in any order; more is multi-value / junk.
-  if (parts.length === 0 || parts.length > 3) return null;
-
-  let width = "";
-  let style = "";
-  let color = "";
-  for (const part of parts) {
-    const lower = part.toLowerCase();
-    // Reject image layers and non-token slash forms (e.g. `red / 10%`).
-    if (/^(?:url|image|cross-fade|element|image-set|linear-gradient|radial-gradient|conic-gradient|repeating-linear-gradient|repeating-radial-gradient|repeating-conic-gradient)\(/i.test(part)) {
-      return null;
-    }
-    if (part.includes("/") && !/^var\(/i.test(part)) return null;
-
-    const varName = /^var\(\s*(--[\w-]+)/i.exec(part)?.[1];
-    const varValue = varName ? tokenTable[varName]?.value ?? "" : "";
-    const isWidth = BORDER_WIDTHS.has(lower)
-      || /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(part)
-      || (varName !== undefined && /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(varValue.trim()));
-    const isStyle = BORDER_STYLES.has(lower);
-    const isColor = COLOR_KEYWORDS.has(lower)
-      || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|hwb\(|lab\(|lch\(|oklab\(|oklch\(|var\(\s*--)/i.test(part);
-
-    if (!width && isWidth) width = part;
-    else if (!style && isStyle) style = part;
-    else if (!color && isColor) color = part;
-    else return null;
-  }
-
-  // Omitted components take the CSS initial for that longhand (not inherited).
-  if (!width) width = BORDER_INITIAL.width;
-  if (!style) style = BORDER_INITIAL.style;
-  if (!color) color = BORDER_INITIAL.color;
-
-  const colorResult = resolveTokenValue(color, tokenTable);
+function elementDirectionality(el?: HTMLElement): Directionality | undefined {
+  if (!el) return undefined;
+  const computed = getElementComputedStyle(el);
   return {
-    kind: "border",
-    sourceProperty: "border",
-    width,
-    style,
-    color,
-    colorTokenName: colorResult.tokenName,
+    direction: computed?.direction || el?.dir || "ltr",
+    writingMode: computed?.getPropertyValue("writing-mode").trim() || "horizontal-tb",
   };
-}
-
-function expandFourValueShorthand<T>(values: readonly T[]): [T, T, T, T] | null {
-  if (values.length === 0 || values.length > 4) return null;
-  const top = values[0]!;
-  const right = values[1] ?? top;
-  const bottom = values[2] ?? top;
-  const left = values[3] ?? right;
-  if (values.length === 3) return [top, right, bottom, right];
-  if (values.length === 2) return [top, right, top, right];
-  return [top, right, bottom, left];
-}
-
-function expandTwoValueShorthand<T>(values: readonly T[]): [T, T] | null {
-  if (values.length === 0 || values.length > 2) return null;
-  return values.length === 1 ? [values[0]!, values[0]!] : [values[0]!, values[1]!];
-}
-
-const FONT_SYSTEM_KEYWORDS = new Set([
-  "caption", "icon", "menu", "message-box", "small-caption", "status-bar",
-]);
-const FONT_SIZE_KEYWORDS = new Set([
-  "xx-small", "x-small", "small", "medium", "large", "x-large", "xx-large", "xxx-large",
-  "larger", "smaller",
-]);
-const FONT_WEIGHT_KEYWORDS = new Set(["normal", "bold", "bolder", "lighter"]);
-const FONT_STYLE_KEYWORDS = new Set(["normal", "italic", "oblique"]);
-
-interface FontShorthandParts {
-  "font-family": string;
-  "font-size": string;
-  "font-style"?: string;
-  "font-weight"?: string;
-  "line-height"?: string;
-}
-
-/**
- * Splits a font shorthand without losing quoted family names or functions.
- * The slash is a token only at top level, which lets us distinguish the
- * optional `font-size / line-height` portion from a slash in a URL/function.
- */
-function splitFontShorthand(value: string): string[] {
-  const parts: string[] = [];
-  let start = -1;
-  let depth = 0;
-  let quote: "'" | '"' | null = null;
-  for (let index = 0; index < value.length; index++) {
-    const char = value[index]!;
-    if (quote) {
-      if (char === "\\") index++;
-      else if (char === quote) quote = null;
-      continue;
-    }
-    if (char === "'" || char === '"') {
-      quote = char;
-      if (start < 0) start = index;
-      continue;
-    }
-    if (char === "(") {
-      depth++;
-      if (start < 0) start = index;
-      continue;
-    }
-    if (char === ")") {
-      depth = Math.max(0, depth - 1);
-      continue;
-    }
-    if (depth === 0 && (char === "/" || /\s/.test(char))) {
-      if (start >= 0) {
-        parts.push(value.slice(start, index));
-        start = -1;
-      }
-      if (char === "/") parts.push(char);
-      continue;
-    }
-    if (start < 0) start = index;
-  }
-  if (start >= 0) parts.push(value.slice(start));
-  return parts;
-}
-
-function isFontSize(value: string): boolean {
-  const lower = value.toLowerCase();
-  return FONT_SIZE_KEYWORDS.has(lower)
-    || /^(?:[+-]?(?:\d*\.)?\d+(?:[a-z]+|%)|(?:var|calc|min|max|clamp|env)\()/i.test(value);
-}
-
-/**
- * Returns only the typography longhands that are explicitly present in an
- * unambiguous `font` shorthand. System-font shorthands and percentage-sized
- * variants are deliberately left raw: their individual intent cannot be
- * recovered without changing the author's meaning.
- */
-function parseFontShorthand(value: string): FontShorthandParts | null {
-  const source = value.trim();
-  if (!source || FONT_SYSTEM_KEYWORDS.has(source.toLowerCase())) return null;
-  const parts = splitFontShorthand(source);
-  const sizeIndex = parts.findIndex(isFontSize);
-  if (sizeIndex < 0) return null;
-  const fontSize = parts[sizeIndex]!;
-  // Percentages may be a preceding font-stretch component or the required
-  // size. Keep this uncommon form raw rather than choose arbitrarily.
-  if (/^[+-]?(?:\d*\.)?\d+%$/.test(fontSize) && sizeIndex > 0) return null;
-
-  let cursor = sizeIndex + 1;
-  let lineHeight: string | undefined;
-  if (parts[cursor] === "/") {
-    lineHeight = parts[cursor + 1];
-    if (!lineHeight) return null;
-    cursor += 2;
-  }
-  const family = parts.slice(cursor).join(" ").trim();
-  if (!family) return null;
-
-  const weight = parts.slice(0, sizeIndex).find((part) => (
-    FONT_WEIGHT_KEYWORDS.has(part.toLowerCase()) || /^(?:[1-9]\d{0,2}|1000)$/.test(part)
-  ));
-  const style = parts.slice(0, sizeIndex).find((part) => FONT_STYLE_KEYWORDS.has(part.toLowerCase()));
-  return {
-    "font-family": family,
-    "font-size": fontSize,
-    ...(style ? { "font-style": style } : {}),
-    ...(weight ? { "font-weight": weight } : {}),
-    ...(lineHeight ? { "line-height": lineHeight } : {}),
-  };
-}
-
-function logicalPhysicalSides(property: string, el?: HTMLElement): string[] | null {
-  const match = /^(margin|padding|inset)-(inline|block)(?:-(start|end))?$/.exec(property.toLowerCase());
-  if (!match) return null;
-
-  const [family, axis, edge] = [match[1]!, match[2]!, match[3]];
-  const physicalPrefix = family === "inset" ? "" : `${family}-`;
-  const computed = el ? getElementComputedStyle(el) : null;
-  const direction = computed?.direction || el?.dir || "ltr";
-  const writingMode = computed?.getPropertyValue("writing-mode").trim() || "horizontal-tb";
-  const vertical = writingMode.startsWith("vertical") || writingMode.startsWith("sideways");
-  let sides: [string, string];
-
-  if (!vertical) {
-    sides = axis === "inline"
-      ? direction === "rtl" ? [`${physicalPrefix}right`, `${physicalPrefix}left`] : [`${physicalPrefix}left`, `${physicalPrefix}right`]
-      : [`${physicalPrefix}top`, `${physicalPrefix}bottom`];
-  } else if (axis === "block") {
-    sides = writingMode.includes("-rl")
-      ? [`${physicalPrefix}right`, `${physicalPrefix}left`]
-      : [`${physicalPrefix}left`, `${physicalPrefix}right`];
-  } else {
-    sides = direction === "rtl" ? [`${physicalPrefix}bottom`, `${physicalPrefix}top`] : [`${physicalPrefix}top`, `${physicalPrefix}bottom`];
-  }
-
-  return edge ? [edge === "start" ? sides[0] : sides[1]] : sides;
 }
 
 interface ResolvedDeclaration {
@@ -652,250 +387,38 @@ interface ResolvedDeclaration {
   structure?: BorderStructure;
 }
 
+/**
+ * Coordinates cascade facts with the value-semantics Module. All property-family
+ * decomposition (logical sides, border, font, radius corners, physical spacing)
+ * lives in `interpretStructuredValue`; this function only supplies the token
+ * context and directionality facts, then projects the Module's fields onto the
+ * `ResolvedDeclaration` shape.
+ */
 function resolveDeclaration(
   declaration: StyleDeclaration,
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
   el?: HTMLElement,
 ): ResolvedDeclaration[] {
-  const logicalSides = logicalPhysicalSides(declaration.property, el);
-  if (logicalSides) {
-    const rawValues = splitTopLevelWhitespace(declaration.value);
-    const values = logicalSides.length === 1
-      ? rawValues.length === 1 ? [rawValues[0]!] : null
-      : expandTwoValueShorthand(rawValues);
-    if (values) {
-      return logicalSides.map((property, index) => {
-        const declaredValue = values[index]!;
-        const resolved = resolveTokenValue(declaredValue, tokenTable, localAliases);
-        return {
-          property,
-          declaredValue,
-          sourceProperty: declaration.property,
-          tokenName: resolved.tokenName,
-          resolvedValue: resolved.resolvedValue,
-          important: declaration.important,
-          tokens: resolved.tokens,
-          opacity: resolved.opacity,
-          color: resolved.color,
-          modifiers: resolved.modifiers,
-          capability: classifyEditCapability(property, declaredValue),
-          resolvedTokenValue: resolved.resolvedValue,
-          diagnostic: resolved.cycle ? `custom-property alias cycle includes ${resolved.cycle}` : undefined,
-        };
-      });
-    }
-  }
-
-  const borderProperty = declaration.property.toLowerCase();
-  if (borderProperty === "border" || /^border-(top|right|bottom|left)$/.test(borderProperty)) {
-    const structure = parseBorderShorthand(declaration.value, tokenTable);
-    if (structure) {
-      const sourceProperty = borderProperty as BorderStructure["sourceProperty"];
-      const sidePrefix = sourceProperty === "border" ? "" : `${sourceProperty}-`;
-      const scopedStructure = { ...structure, sourceProperty };
-      const colorResult = resolveTokenValue(structure.color, tokenTable, localAliases);
-      const authored = declaration.value.trim();
-      const base = [
-        ...(sidePrefix ? [[`${sidePrefix}width`, structure.width], [`${sidePrefix}style`, structure.style], [`${sidePrefix}color`, structure.color]] as const : [
-          ["border-width", structure.width], ["border-style", structure.style], ["border-color", structure.color],
-          ["border-top-width", structure.width], ["border-right-width", structure.width], ["border-bottom-width", structure.width], ["border-left-width", structure.width],
-          ["border-top-style", structure.style], ["border-right-style", structure.style], ["border-bottom-style", structure.style], ["border-left-style", structure.style],
-          ["border-top-color", structure.color], ["border-right-color", structure.color], ["border-bottom-color", structure.color], ["border-left-color", structure.color],
-        ]),
-      ] as const;
-      return base.map(([property, component]) => {
-        const isColor = property.endsWith("color");
-        const resolved = isColor ? colorResult : { tokenName: null, resolvedValue: component, tokens: [], modifiers: [], cycle: undefined };
-        return {
-          property,
-          declaredValue: authored,
-          sourceProperty: declaration.property,
-          tokenName: resolved.tokenName,
-          resolvedValue: resolved.resolvedValue,
-          important: declaration.important,
-          tokens: isColor ? colorResult.tokens : [],
-          opacity: isColor ? colorResult.opacity : undefined,
-          color: isColor ? colorResult.color : undefined,
-          modifiers: isColor ? colorResult.modifiers : [],
-          capability: "structured" as const,
-          resolvedTokenValue: resolved.resolvedValue,
-          diagnostic: colorResult.cycle ? `custom-property alias cycle includes ${colorResult.cycle}` : undefined,
-          structure: scopedStructure,
-        };
-      });
-    }
-  }
-  if (borderProperty === "font") {
-    const parts = parseFontShorthand(declaration.value);
-    if (parts) {
-      return Object.entries(parts).map(([property, declaredValue]) => {
-        const resolved = resolveTokenValue(declaredValue, tokenTable, localAliases);
-        return {
-          property,
-          declaredValue,
-          sourceProperty: "font",
-          tokenName: resolved.tokenName,
-          resolvedValue: resolved.resolvedValue,
-          important: declaration.important,
-          tokens: resolved.tokens,
-          opacity: resolved.opacity,
-          color: resolved.color,
-          modifiers: resolved.modifiers,
-          capability: classifyEditCapability(property, declaredValue),
-          resolvedTokenValue: resolved.resolvedValue,
-          diagnostic: resolved.cycle ? `custom-property alias cycle includes ${resolved.cycle}` : undefined,
-        };
-      });
-    }
-  }
-  const borderRadiusCorners = BORDER_RADIUS_CORNERS[declaration.property.toLowerCase()];
-  if (borderRadiusCorners) {
-    const rawValues = splitTopLevelWhitespace(declaration.value);
-    if (rawValues.length === 0 || rawValues.length > 4) {
-      const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
-      return [{
-        property: declaration.property,
-        declaredValue: declaration.value.trim(),
-        sourceProperty: declaration.property,
-        tokenName: res.tokenName,
-        resolvedValue: res.resolvedValue,
-        important: declaration.important,
-        tokens: res.tokens,
-        opacity: res.opacity,
-        color: res.color,
-        modifiers: res.modifiers,
-        capability: classifyEditCapability(declaration.property, declaration.value),
-        resolvedTokenValue: res.resolvedValue,
-        diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
-      }];
-    }
-
-    const resolvedValues = rawValues.flatMap((rawValue) => {
-      const res = resolveTokenValue(rawValue, tokenTable, localAliases);
-      const tokenValues = res.tokenName ? splitTopLevelWhitespace(res.resolvedValue) : [];
-      if (res.tokenName && /^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(rawValue) && tokenValues.length > 1) {
-        return tokenValues.map((resolvedValue) => ({
-          declaredValue: rawValue,
-          tokenName: res.tokenName,
-          resolvedValue,
-        }));
-      }
-      return [{ declaredValue: rawValue, tokenName: res.tokenName, resolvedValue: res.resolvedValue }];
-    });
-    const cornerValues = expandFourValueShorthand(resolvedValues);
-    if (!cornerValues) {
-      const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
-      return [{
-        property: declaration.property,
-        declaredValue: declaration.value.trim(),
-        tokenName: res.tokenName,
-        resolvedValue: res.resolvedValue,
-        important: declaration.important,
-        tokens: res.tokens,
-        opacity: res.opacity,
-        color: res.color,
-        modifiers: res.modifiers,
-        capability: classifyEditCapability(declaration.property, declaration.value),
-        resolvedTokenValue: res.resolvedValue,
-        diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
-      }];
-    }
-
-    return borderRadiusCorners.map((property, index) => ({
-      property,
-      ...cornerValues[index]!,
-      sourceProperty: declaration.property,
-      important: declaration.important,
-      tokens: resolveTokenValue(cornerValues[index]!.declaredValue, tokenTable, localAliases).tokens,
-      opacity: resolveTokenValue(cornerValues[index]!.declaredValue, tokenTable, localAliases).opacity,
-      modifiers: resolveTokenValue(cornerValues[index]!.declaredValue, tokenTable, localAliases).modifiers,
-      capability: classifyEditCapability(property, cornerValues[index]!.declaredValue),
-      resolvedTokenValue: cornerValues[index]!.resolvedValue,
-    }));
-  }
-  const sides = SPACING_SIDES[declaration.property.toLowerCase()];
-  if (!sides) {
-    const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
-    return [{
-      property: declaration.property,
-      declaredValue: declaration.value.trim(),
-      sourceProperty: declaration.property,
-      tokenName: res.tokenName,
-      resolvedValue: res.resolvedValue,
-      important: declaration.important,
-      tokens: res.tokens,
-      opacity: res.opacity,
-      color: res.color,
-      modifiers: res.modifiers,
-      capability: declaration.property.toLowerCase() === "border" ? "raw" : classifyEditCapability(declaration.property, declaration.value),
-      resolvedTokenValue: res.resolvedValue,
-      diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
-    }];
-  }
-
-  const rawValues = splitTopLevelWhitespace(declaration.value);
-  if (rawValues.length === 0 || rawValues.length > 4) {
-    const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
-    return [{
-      property: declaration.property,
-      declaredValue: declaration.value.trim(),
-      tokenName: res.tokenName,
-      resolvedValue: res.resolvedValue,
-      important: declaration.important,
-      tokens: res.tokens,
-      opacity: res.opacity,
-      color: res.color,
-      modifiers: res.modifiers,
-      capability: classifyEditCapability(declaration.property, declaration.value),
-      resolvedTokenValue: res.resolvedValue,
-      diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
-    }];
-  }
-
-  // A custom property can itself contain a shorthand value, for example
-  // `margin: var(--space-set)`. Expand that value before assigning sides.
-  const resolvedValues = rawValues.flatMap((rawValue) => {
-    const res = resolveTokenValue(rawValue, tokenTable, localAliases);
-    const tokenValues = res.tokenName ? splitTopLevelWhitespace(res.resolvedValue) : [];
-    if (res.tokenName && /^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(rawValue) && tokenValues.length > 1) {
-      return tokenValues.map((resolvedValue) => ({
-        declaredValue: rawValue,
-        tokenName: res.tokenName,
-        resolvedValue,
-      }));
-    }
-    return [{ declaredValue: rawValue, tokenName: res.tokenName, resolvedValue: res.resolvedValue }];
+  const fields = interpretStructuredValue(declaration.property, declaration.value, {
+    tokenContext: createTokenInterpretationContext(tokenTable, localAliases),
+    ...(el ? { directionality: elementDirectionality(el) } : {}),
   });
-  const sideValues = expandFourValueShorthand(resolvedValues);
-  if (!sideValues) {
-    const res = resolveTokenValue(declaration.value, tokenTable, localAliases);
-    return [{
-      property: declaration.property,
-      declaredValue: declaration.value.trim(),
-      tokenName: res.tokenName,
-      resolvedValue: res.resolvedValue,
-      important: declaration.important,
-      tokens: res.tokens,
-      opacity: res.opacity,
-      color: res.color,
-      modifiers: res.modifiers,
-      capability: classifyEditCapability(declaration.property, declaration.value),
-      resolvedTokenValue: res.resolvedValue,
-      diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
-    }];
-  }
-
-  return sides.map((property, index) => ({
-    property,
-    ...sideValues[index]!,
-    sourceProperty: declaration.property,
+  return fields.map((field) => ({
+    property: field.property,
+    declaredValue: field.declaredValue,
+    sourceProperty: field.sourceProperty,
+    tokenName: field.tokenName,
+    resolvedValue: field.resolvedValue,
     important: declaration.important,
-    tokens: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).tokens,
-    opacity: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).opacity,
-    modifiers: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).modifiers,
-    capability: classifyEditCapability(property, sideValues[index]!.declaredValue),
-    resolvedTokenValue: sideValues[index]!.resolvedValue,
+    tokens: field.tokens,
+    opacity: field.opacity,
+    color: field.color,
+    modifiers: field.modifiers,
+    capability: field.capability,
+    resolvedTokenValue: field.resolvedValue,
+    ...(field.structure ? { structure: field.structure } : {}),
+    ...(field.diagnostic ? { diagnostic: field.diagnostic } : {}),
   }));
 }
 
@@ -1046,7 +569,7 @@ interface LineageResolution {
  * The selector set used by a resolution. Interaction states strip or drop
  * pseudo-class rules, `live` keeps the raw CSSOM rules (used by
  * `getResolvedProperties`), and `stable` drops transient rules (used by
- * `getStableTokenProperty`).
+ * `getResolvedPropertiesStable`).
  */
 type CascadeTransform = InteractionState | "live" | "stable";
 
@@ -1454,6 +977,13 @@ function rowsFromMatches(
   return rows;
 }
 
+/**
+ * Cascade-coordination seam: resolves a hand-supplied matched-rule set for one
+ * element without touching CSSOM. Kept as an internal seam for direct cascade
+ * tests (specificity, layers, importance, interaction transforms); it consumes
+ * the value-semantics Module through `resolveDeclaration` and is not a
+ * value-parsing bypass.
+ */
 export function resolvePropertiesFromRules(
   el: HTMLElement,
   rules: MatchedRule[],
@@ -1826,23 +1356,4 @@ export function getResolvedPropertiesStable(
     rows,
   });
   return rows;
-}
-
-/**
- * Finds the authored token-backed declaration beneath a transient interaction
- * state. This keeps an editor linked to its stable token when selection occurs
- * while the element is hovered, while getResolvedProperties remains honest
- * about the value currently painted by that transient rule.
- */
-export function getStableTokenProperty(
-  el: HTMLElement,
-  properties: string[],
-  tokenTable: TokenTable,
-): ResolvedProperty | null {
-  const rows = getResolvedPropertiesStable(el, tokenTable);
-  for (const property of properties) {
-    const row = rows.find((candidate) => candidate.property === property && candidate.tokenName);
-    if (row) return row;
-  }
-  return null;
 }

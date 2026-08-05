@@ -1,5 +1,5 @@
 import { computeSpecificityCore } from "./selectorSemantics.ts";
-import type { AtRuleContext, MatchedRule, StyleDeclaration } from "./types.ts";
+import type { AtRuleContext, MatchedRule, StyleDeclaration } from "@design-tool/css/model";
 
 interface RuleSnapshot {
   revision: number;

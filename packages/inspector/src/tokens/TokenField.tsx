@@ -8,8 +8,7 @@ import {
   interpretColorValue,
   normalizeOpacityPercent,
 } from "@design-tool/css/value-semantics";
-import type { ColorValueFacts } from "@design-tool/css/model";
-import type { AtRuleContext, ColorOpacity, ResolvedProperty } from "./resolution.ts";
+import type { AtRuleContext, ColorOpacity, ColorValueFacts, ResolvedProperty } from "@design-tool/css/model";
 import {
   getCompatibleTokenCandidates,
   groupForProperty,

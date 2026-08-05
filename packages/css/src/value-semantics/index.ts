@@ -1,25 +1,32 @@
 /**
  * Browser-safe value-semantics seam for `@design-tool/css`.
  *
- * Slices 3.2–3.4 ship the real implementations behind this seam: the token
+ * Slices 3.2–3.5 ship the real implementations behind this seam: the token
  * interpreter (`tokenInterpretation.ts`) owns token references, aliases,
  * leaf-token selection, cycles, and modifiers; the property/value policy
  * (`propertyPolicy.ts`) owns capability classification, property→semantic-slot
  * knowledge, presentation grouping, and compatible-token candidate selection;
  * the color semantics (`colorSemantics.ts`) owns color format recognition,
  * embedded alpha, opacity modifiers, `color-mix()` handling, and
- * meaning-preserving opacity/token edits. The migration comparison harness in
+ * meaning-preserving opacity/token edits; the structured-values Module
+ * (`structuredValues.ts`) owns box, border, border-radius, logical-side, and
+ * supported font decomposition. The migration comparison harness in
  * `@design-tool/inspector` exercises the seam against the conformance corpus.
- * Later slices (3.5–3.6) migrate structured values.
  *
  * Browser-safe contract: this module imports only the shared model and must
  * never pull React, Vite, PostCSS, Node, or filesystem code into a bundle.
  */
 import type { EditCapability, TokenTable, ValueModifier } from "../model/index.ts";
+import type { Directionality } from "./boxSemantics.ts";
 
 export * from "./tokenInterpretation.ts";
 export * from "./propertyPolicy.ts";
 export * from "./colorSemantics.ts";
+export * from "./borderSemantics.ts";
+export * from "./boxSemantics.ts";
+export * from "./fontSemantics.ts";
+export * from "./structuredValues.ts";
+export { splitTopLevel, splitTopLevelWhitespace, topLevelSlashIndex } from "./cssSyntax.ts";
 
 export type AttributionConfidence = "exact" | "probable" | "unknown";
 
@@ -76,6 +83,12 @@ export interface InterpretationContext {
    * `border-top-width` field). Defaults to `property`.
    */
   sourceProperty?: string;
+  /**
+   * Explicit writing-mode/direction facts used by the structured-values Module
+   * to map logical sides. Supplied by the integration from the selected
+   * element's computed style; the Module never reads the DOM.
+   */
+  directionality?: Directionality;
 }
 
 /**

@@ -11,7 +11,7 @@ import {
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
-import type { ResolvedProperty } from "./tokens/resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import type { TokenEntry } from "virtual:design-tokens";
 import { useBrowserCssInspection } from "./inspection/useBrowserCssInspection.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { getTokenTable } from "./resolution.ts";
-import type { ResolvedProperty } from "./resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import { swapToken, promoteToToken } from "./editActions.ts";
 import { Select } from "../ui/Select.tsx";
 import {

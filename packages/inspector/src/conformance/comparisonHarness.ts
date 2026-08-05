@@ -5,12 +5,15 @@
  * conformance corpus. The "new" side runs the real
  * `@design-tool/css/value-semantics` interpreter for token references,
  * aliases, leaf-token selection, cycles, origins, modifiers, and color/opacity
- * interpretation (plan slice 3.4), plus the unified property/value policy for
- * capability classification (plan slice 3.3). The integration policies it
- * needs (Tailwind v3 direct attribution, adapter-derived origins, and the
- * `--tw-*` alias policy) come from the resolution integration. Structured
- * values still come from the legacy path and migrate in slice 3.5. This
- * harness is the guardrail that catches behavioral drift against the corpus.
+ * interpretation (plan slice 3.4), the unified property/value policy for
+ * capability classification (plan slice 3.3), and the structured-values Module
+ * for box, border, border-radius, logical-side, and font decomposition (plan
+ * slice 3.5). The integration policies it needs (Tailwind v3 direct
+ * attribution, adapter-derived origins, and the `--tw-*` alias policy) come
+ * from the resolution integration; writing-mode/direction facts come from the
+ * fixture's selected element so logical→physical mapping matches the legacy
+ * cascade. This harness is the guardrail that catches behavioral drift against
+ * the corpus.
  *
  * The comparison is value-level: it projects every `ResolvedProperty` row the
  * legacy cascade produces onto the same structured outcome the interpretation
@@ -20,14 +23,20 @@
  * `attributionConfidence`, matching the base rule the current resolver uses.
  */
 import type { TokenEntry } from "virtual:design-tokens";
-import type { EditCapability, ResolvedProperty } from "@design-tool/css/model";
+import type { EditCapability, ResolvedProperty, TokenTable } from "@design-tool/css/model";
 import type { ValueInterpretation, ValueInterpreter, InterpretationContext } from "@design-tool/css/value-semantics";
-import { classifyEditCapability, interpretTokenValue } from "@design-tool/css/value-semantics";
+import {
+  classifyEditCapability,
+  interpretStructuredValue,
+  interpretTokenValue,
+  type Directionality,
+  type StructuredField,
+} from "@design-tool/css/value-semantics";
 import {
   buildTokenTable,
   createTokenInterpretationContext,
-  parseBorderShorthand,
 } from "../tokens/resolution.ts";
+import { getElementComputedStyle } from "../domRealm.ts";
 import { runConformanceFixture } from "./fixture.ts";
 import type { ConformanceFixture } from "./fixture.ts";
 
@@ -90,52 +99,100 @@ function isBorderShorthandSource(property: string): boolean {
   return p === "border" || BORDER_SIDE_PROPERTY.test(p);
 }
 
+function isSpacingShorthandSource(property: string): boolean {
+  const p = property.toLowerCase();
+  return p === "margin" || p === "padding" || p === "inset"
+    || /^(?:margin|padding|inset)-(?:inline|block)(?:-(?:start|end))?$/.test(p);
+}
+
+/**
+ * Properties whose whole authored value is decomposed by the structured-values
+ * Module. For these, the row's authored value is the full shorthand (or a
+ * projected component) and the Module must run once per source shorthand.
+ */
+function isStructuredSource(sourceProperty: string): boolean {
+  return isBorderShorthandSource(sourceProperty)
+    || isSpacingShorthandSource(sourceProperty)
+    || sourceProperty.toLowerCase() === "border-radius"
+    || sourceProperty.toLowerCase() === "font";
+}
+
+function directionalityForElement(el: HTMLElement): Directionality {
+  const computed = getElementComputedStyle(el);
+  return {
+    direction: computed?.direction || el?.dir || "ltr",
+    writingMode: computed?.getPropertyValue("writing-mode").trim() || "horizontal-tb",
+  };
+}
+
+function structuredInterpretation(
+  field: StructuredField,
+  authored: string,
+): ValueInterpretation {
+  return {
+    authored,
+    tokenName: field.tokenName,
+    tokens: field.tokens.map((token) => token.name),
+    opacity: field.opacity?.value ?? null,
+    opacityTokenName: field.opacity?.tokenName ?? null,
+    capability: field.capability,
+    modifiers: field.modifiers,
+    structure: field.structure
+      ? { width: field.structure.width, style: field.structure.style, color: field.structure.color }
+      : null,
+    confidence: attributionConfidence(field.tokenName),
+  };
+}
+
 /**
  * The "new" interpretation for this slice: token references, aliases,
  * leaf-token selection, cycles, origins, modifiers, and color/opacity
  * interpretation come from the real `@design-tool/css` value-semantics Module;
- * capability and border structure still come from the legacy integration
- * helpers (slices 3.3/3.5). The source declaration property
- * comes through `ctx.sourceProperty` so projected shorthand longhands (for
- * example `border-top-width` from `border: 2px solid red`) are distinguished
- * from directly-authored longhands (`border-width: var(--border-size)`).
+ * capability comes from the unified property/value policy (slice 3.3); and box,
+ * border, radius, and font decomposition comes from the structured-values
+ * Module (slice 3.5). The source declaration property comes through
+ * `ctx.sourceProperty` so projected shorthand longhands (for example
+ * `border-top-width` from `border: 2px solid red`) are distinguished from
+ * directly-authored longhands (`border-width: var(--border-size)`), and
+ * `ctx.directionality` supplies the writing-mode facts for logical sides.
+ *
+ * Structured projections are cached per fixture table so the same authored
+ * shorthand is interpreted once and every projected row reuses that one
+ * interpretation tree.
  */
 export function createValueSemanticsInterpreter(): ValueInterpreter {
+  const structuredCache = new WeakMap<TokenTable, Map<string, StructuredField[]>>();
   return (property, authored, ctx): ValueInterpretation => {
     const table = ctx.table;
     const localAliases = ctx.localAliases ?? new Map();
     const sourceProperty = ctx.sourceProperty ?? property;
-    const propertyLower = property.toLowerCase();
+    const tokenContext = createTokenInterpretationContext(table, localAliases);
 
-    if (isBorderShorthandSource(sourceProperty)) {
-      const structure = parseBorderShorthand(authored, table);
-      if (structure) {
-        const isColorRow = propertyLower.endsWith("color");
-        const colorResult = isColorRow
-          ? interpretTokenValue(structure.color, createTokenInterpretationContext(table, localAliases))
-          : null;
-        return {
-          authored,
-          tokenName: colorResult?.tokenName ?? null,
-          tokens: colorResult?.tokens.map((token) => token.name) ?? [],
-          opacity: colorResult?.opacity?.value ?? null,
-          opacityTokenName: colorResult?.opacity?.tokenName ?? null,
-          capability: "structured",
-          modifiers: colorResult?.modifiers ?? [],
-          structure: { width: structure.width, style: structure.style, color: structure.color },
-          confidence: attributionConfidence(colorResult?.tokenName ?? null),
-        };
+    if (isStructuredSource(sourceProperty)) {
+      const directionality = ctx.directionality;
+      const cacheKey = `${sourceProperty}\u0000${authored}\u0000${directionality?.direction ?? ""}\u0000${directionality?.writingMode ?? ""}`;
+      let byKey = structuredCache.get(table);
+      if (!byKey) {
+        byKey = new Map();
+        structuredCache.set(table, byKey);
       }
+      let fields = byKey.get(cacheKey);
+      if (!fields) {
+        fields = interpretStructuredValue(sourceProperty, authored, { tokenContext, directionality });
+        byKey.set(cacheKey, fields);
+      }
+      const field = fields.find((candidate) => candidate.property === property);
+      if (field) return structuredInterpretation(field, authored);
     }
 
-    const interpretation = interpretTokenValue(authored, createTokenInterpretationContext(table, localAliases));
+    const interpretation = interpretTokenValue(authored, tokenContext);
     return {
       authored,
       tokenName: interpretation.tokenName,
       tokens: interpretation.tokens.map((token) => token.name),
       opacity: interpretation.opacity?.value ?? null,
       opacityTokenName: interpretation.opacity?.tokenName ?? null,
-      capability: propertyLower === "border" ? "raw" : classifyEditCapability(property, authored),
+      capability: property.toLowerCase() === "border" ? "raw" : classifyEditCapability(property, authored),
       modifiers: interpretation.modifiers,
       structure: null,
       confidence: attributionConfidence(interpretation.tokenName),
@@ -185,7 +242,8 @@ export function compareFixtureInterpretation(
 ): ComparisonDiff[] {
   const result = runConformanceFixture(fixture, doc);
   try {
-    const ctx: InterpretationContext = { table: tableForFixture(fixture), localAliases: new Map() };
+    const directionality = directionalityForElement(result.selected);
+    const ctx: InterpretationContext = { table: tableForFixture(fixture), localAliases: new Map(), directionality };
     const diffs: ComparisonDiff[] = [];
     for (const row of result.properties) {
       const authored = row.authored ?? row.declaredValue ?? "";

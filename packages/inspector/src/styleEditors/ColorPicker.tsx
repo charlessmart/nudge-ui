@@ -5,7 +5,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import { getStateStyleValue } from "../stateValue.ts";
 import type { SelectedElement } from "../selectionStore.ts";
-import type { ResolvedProperty } from "../tokens/resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { IconButton } from "../ui/IconButton.tsx";

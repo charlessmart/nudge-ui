@@ -2,24 +2,23 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   buildTokenTable,
-  resolveTokenValue,
+  createTokenInterpretationContext,
   getAvailableTokenCatalog,
   getAvailableTokenEntriesForElement,
-  getAvailableTokenTableForElement,
-  getTokenEntriesForElement,
   getResolvedProperties,
   resolvePropertiesFromRules,
   getAvailableInteractionStates,
   getResolvedPropertiesForState,
   getResolvedPropertiesStable,
-  getStableTokenProperty,
   invalidateStyleResolutionCache,
   resetSourceSiteMatchCache,
   sourceSiteMatchCacheSize,
-  parseBorderShorthand,
-  type MatchedRule,
-  type TokenTable,
 } from "./resolution.ts";
+import {
+  interpretTokenValue,
+  parseBorderShorthand,
+} from "@design-tool/css/value-semantics";
+import type { MatchedRule, TokenTable } from "@design-tool/css/model";
 import { unlinkElement } from "../editScope.ts";
 import {
   computeSpecificity,
@@ -31,6 +30,19 @@ import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 
 function makeTable(entries: TokenEntry[]): TokenTable {
   return buildTokenTable(entries);
+}
+
+/**
+ * Local projection of the value-semantics Module with the resolution
+ * integration context. Mirrors the resolver's internal `resolveTokenValue`
+ * without depending on the legacy resolver re-exporting it.
+ */
+function resolveTokenValue(
+  value: string,
+  table: TokenTable,
+  localAliases: ReadonlyMap<string, string> = new Map(),
+): ReturnType<typeof interpretTokenValue> {
+  return interpretTokenValue(value, createTokenInterpretationContext(table, localAliases));
 }
 
 describe("buildTokenTable", () => {
@@ -480,25 +492,21 @@ describe("token entries cache identity", () => {
     element.style.setProperty("--color-live", "#224466");
     document.body.appendChild(element);
 
-    const first = getTokenEntriesForElement(element);
-    expect(getTokenEntriesForElement(element)).toBe(first);
+    const first = getAvailableTokenEntriesForElement(element);
     expect(getAvailableTokenEntriesForElement(element)).toBe(first);
-    expect(getAvailableTokenTableForElement(element)).toBe(buildTokenTable(first));
     expect(buildTokenTable(first)).toBe(buildTokenTable(first));
   });
 
-  it("returns fresh entries and table after an element revision bump", async () => {
+  it("returns fresh entries after an element revision bump", async () => {
     const element = document.createElement("div");
     element.style.setProperty("--color-live", "#224466");
     document.body.appendChild(element);
 
-    const first = getTokenEntriesForElement(element);
+    const first = getAvailableTokenEntriesForElement(element);
     element.setAttribute("data-attrs", "1");
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const second = getTokenEntriesForElement(element);
-    expect(second).not.toBe(first);
-    expect(getAvailableTokenTableForElement(element)).not.toBe(buildTokenTable(first));
+    expect(getAvailableTokenEntriesForElement(element)).not.toBe(first);
   });
 
   it("returns fresh entries after a stylesheet revision bump", () => {
@@ -506,10 +514,10 @@ describe("token entries cache identity", () => {
     element.style.setProperty("--color-live", "#224466");
     document.body.appendChild(element);
 
-    const first = getTokenEntriesForElement(element);
+    const first = getAvailableTokenEntriesForElement(element);
     invalidateStyleResolutionCache(document);
 
-    expect(getTokenEntriesForElement(element)).not.toBe(first);
+    expect(getAvailableTokenEntriesForElement(element)).not.toBe(first);
   });
 });
 
@@ -764,7 +772,7 @@ describe("interaction-state resolution", () => {
       tokenName: "--surface",
       declaredValue: "var(--surface)",
     });
-    expect(getStableTokenProperty(button, ["background", "background-color"], table)).toMatchObject({
+    expect(stable.find((row) => row.property === "background" || row.property === "background-color")).toMatchObject({
       tokenName: "--surface",
     });
   });

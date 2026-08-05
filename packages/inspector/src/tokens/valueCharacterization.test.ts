@@ -2,18 +2,20 @@
 // Characterization baseline for every exported value helper and every
 // UI-consumed ResolvedProperty field (plan slice 3.1). Helpers that are pure
 // cascade/orchestration concerns — getTokenTable, getAvailableTokenEntriesForElement,
-// getAvailableInteractionStates, getStableTokenProperty, filterTokenRows,
-// isTokenContextActive — are covered through the conformance harness and the
-// existing resolution/cssomCollector specs rather than duplicated here.
+// getAvailableInteractionStates, filterTokenRows, isTokenContextActive — are
+// covered through the conformance harness and the existing
+// resolution/cssomCollector specs rather than duplicated here.
 import { afterEach, describe, expect, it } from "vitest";
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 import {
   buildTokenTable,
-  parseBorderShorthand,
+  createTokenInterpretationContext,
   resolvePropertiesFromRules,
-  resolveTokenValue,
 } from "./resolution.ts";
-import type { TokenTable } from "./resolution.ts";
+import type { TokenTable } from "@design-tool/css/model";
+import {
+  parseBorderShorthand,
+} from "@design-tool/css/value-semantics";
 import {
   applyColorOpacity,
   applyColorTokenReplacement,
@@ -22,6 +24,7 @@ import {
   classifyToken,
   getCompatibleTokenCandidates,
   groupForProperty,
+  interpretTokenValue,
   normalizeOpacityPercent,
   presentationForToken,
   semanticSlotForProperty,
@@ -71,6 +74,19 @@ const TABLE: TokenTable = buildTokenTable([
 
 function colorToken(name: string, value: string): TokenEntry {
   return entry(name, value, { cssName: name });
+}
+
+/**
+ * Local projection of the value-semantics Module with the resolution
+ * integration context. Mirrors the resolver's internal `resolveTokenValue`
+ * without depending on the legacy resolver re-exporting it.
+ */
+function resolveTokenValue(
+  value: string,
+  table: TokenTable,
+  localAliases: ReadonlyMap<string, string> = new Map(),
+): ReturnType<typeof interpretTokenValue> {
+  return interpretTokenValue(value, createTokenInterpretationContext(table, localAliases));
 }
 
 function grammar(accepted: ReadonlyArray<readonly [string, string]>): CssValueGrammar {
