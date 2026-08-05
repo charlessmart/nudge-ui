@@ -1,6 +1,6 @@
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
+import type { EditCapability, ResolvedProperty, TokenOrigin } from "@design-tool/css/model";
 import type { TokenCatalogRow } from "../tokens/catalog.ts";
-import type { EditCapability, ResolvedProperty, TokenOrigin } from "../tokens/resolution.ts";
 import { applyRules, verifyPreview } from "../managedStylesheet.ts";
 import type { PreviewResult } from "../managedStylesheet.ts";
 import { projectInspectorValues, type InspectorProjection, type ProjectionAxis, type ProjectionGroup, type ProjectionSide, type ProjectionState } from "../spacing/projection.ts";

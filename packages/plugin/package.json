@@ -14,6 +14,7 @@
     "test:unit:watch": "vitest"
   },
   "dependencies": {
+    "@design-tool/css": "workspace:*",
     "@design-tool/inspector": "workspace:*",
     "@babel/parser": "^7.25.0",
     "magic-string": "^0.30.11",
