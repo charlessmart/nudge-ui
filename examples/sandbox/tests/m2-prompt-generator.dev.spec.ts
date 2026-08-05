@@ -98,6 +98,11 @@ test.describe("clipboard permissions", () => {
     await waitForRow(page);
     await waitForEditors(page);
 
+    await expect(page.locator("button").first()).toHaveAttribute(
+      "data-src",
+      "src/Button.tsx:13:6",
+    );
+
     await selectBackground(page, "--color-surface-sunken");
     await expect.poll(async () => changeCount(page), { timeout: 5000 }).toBe(1);
 
@@ -124,7 +129,7 @@ test.describe("clipboard permissions", () => {
     expect(text).toContain("Design changes for Button.tsx");
     expect(text).toContain("Framework: React + vanilla-extract (sprinkles)");
     expect(text).toContain("--color-surface-sunken");
-    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:32"]');
+    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:13"]');
     expect(text).toContain("border-radius");
     expect(text).toContain("12px");
     expect(text).toContain("(not a token — consider adding one)");

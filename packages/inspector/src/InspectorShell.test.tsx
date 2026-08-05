@@ -51,6 +51,47 @@ describe("InspectorShell", () => {
     expect(shadow.querySelector(".dt-panel__state")).toBeNull();
   });
 
+  it("shows a bounded DOM tree and selects its parent and child layers", () => {
+    const layers = Array.from({ length: 7 }, (_, index) => {
+      const node = document.createElement(index === 0 ? "button" : "div");
+      node.setAttribute("data-cid", `Layer${index}`);
+      node.setAttribute("data-src", `fixtures/layer${index}.tsx:1:1`);
+      return node;
+    });
+    for (let index = 1; index < layers.length; index++) layers[index]!.appendChild(layers[index - 1]!);
+    document.body.appendChild(layers[6]!);
+
+    act(() => {
+      setSelectedElement(resolveSelectionFromElement(layers[0]!));
+      mountInspector(host);
+    });
+
+    const shadow = host.shadowRoot!;
+    const steps = [...shadow.querySelectorAll<HTMLButtonElement>('[data-test="breadcrumb-step"]')];
+    expect(steps).toHaveLength(5);
+    expect(steps.map((step) => step.dataset.cid)).toEqual([
+      "Layer4",
+      "Layer3",
+      "Layer2",
+      "Layer1",
+      "Layer0",
+    ]);
+    expect(shadow.querySelector('[data-test="breadcrumb"]')?.getAttribute("aria-label")).toBe("DOM tree");
+
+    act(() => {
+      shadow.querySelector<HTMLButtonElement>('[data-test="breadcrumb-step"][data-index="2"]')!.click();
+    });
+    expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Layer2");
+
+    act(() => {
+      shadow.querySelector<HTMLButtonElement>('[data-test="breadcrumb-step"][data-index="0"]')!.click();
+    });
+    expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Layer0");
+
+    setSelectedElement(null);
+    layers[6]!.remove();
+  });
+
   it("keeps session clearing below the changes accordion without restore-count copy", () => {
     setRestoreCount(7);
     act(() => {

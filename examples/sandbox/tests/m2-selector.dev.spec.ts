@@ -57,7 +57,7 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
     };
   });
   expect(hasSelection.hasSelection).toBe(true);
-  expect(hasSelection.hasBreadcrumb).toBe(false);
+  expect(hasSelection.hasBreadcrumb).toBe(true);
   expect(hasSelection.hasMetadataRows).toBe(0);
   expect(hasSelection.hasStateControls).toBe(false);
   expect(hasSelection.labels).toEqual(expect.arrayContaining(["Layout", "Display", "Position"]));

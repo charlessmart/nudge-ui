@@ -73,6 +73,13 @@ describe("transformIndexHtmlHtml", () => {
 });
 
 describe("designTool plugin virtual inspector module", () => {
+  it("orders identity transforms before other pre transforms", () => {
+    const plugin = designTool() as unknown as {
+      transform?: { order?: string };
+    };
+    expect(plugin.transform).toMatchObject({ order: "pre" });
+  });
+
   it("resolveId maps both bare and resolved forms of the inspector virtual id", () => {
     const plugin = designTool() as unknown as {
       resolveId?: (id: string) => string | null;

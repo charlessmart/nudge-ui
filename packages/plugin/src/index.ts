@@ -500,23 +500,30 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       }
       return null;
     },
-    transform(code, id) {
-      if (!enabled) return null;
-      if (command === "build") return null; // dev-only per ADR-0002
-      if (CSS_EXT.test(id)) {
-        cacheTokensForFile(id, code);
-        return null; // let Vite's CSS pipeline handle the actual stylesheet
-      }
-      const instrumentComponents = isHostApplicationSource(id, root);
-      if (COMPONENT_EXT.test(id) && instrumentComponents) {
-        cacheComponentsForFile(id, code);
-      }
-      return injectIdentity(code, id, root, {
-        // Runtime component boundaries belong to host application callsites.
-        // Workspace packages and the inspector itself sit outside the Vite
-        // application root and are therefore excluded without layout knowledge.
-        instrumentComponents,
-      });
+    // React's Vite plugin is also an `enforce: "pre"` plugin. Its transform
+    // hook is declared without an explicit order, so use Vite's hook-level
+    // `order: "pre"` to ensure we parse the authored TSX before React/Babel
+    // prepends refresh helpers and shifts the AST locations used by data-src.
+    transform: {
+      order: "pre",
+      handler(code, id) {
+        if (!enabled) return null;
+        if (command === "build") return null; // dev-only per ADR-0002
+        if (CSS_EXT.test(id)) {
+          cacheTokensForFile(id, code);
+          return null; // let Vite's CSS pipeline handle the actual stylesheet
+        }
+        const instrumentComponents = isHostApplicationSource(id, root);
+        if (COMPONENT_EXT.test(id) && instrumentComponents) {
+          cacheComponentsForFile(id, code);
+        }
+        return injectIdentity(code, id, root, {
+          // Runtime component boundaries belong to host application callsites.
+          // Workspace packages and the inspector itself sit outside the Vite
+          // application root and are therefore excluded without layout knowledge.
+          instrumentComponents,
+        });
+      },
     },
     transformIndexHtml(html) {
       if (!enabled) return;

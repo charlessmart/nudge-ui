@@ -8,6 +8,7 @@ export interface BreadcrumbItem {
   "data-test"?: string;
   "data-index"?: number;
   "data-cid"?: string;
+  title?: string;
 }
 
 export interface BreadcrumbProps {
@@ -30,6 +31,7 @@ export function Breadcrumb({ items, label = "Selection hierarchy", className, "d
             data-test={item["data-test"]}
             data-index={item["data-index"]}
             data-cid={item["data-cid"]}
+            title={item.title}
             aria-current={item.active ? "location" : undefined}
             onClick={item.onSelect}
           >

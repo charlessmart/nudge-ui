@@ -12,6 +12,7 @@ import badgeStyles from "./Badge.css?inline";
 import colorSwatchStyles from "./ColorSwatch.css?inline";
 import popoverListboxStyles from "./PopoverListbox.css?inline";
 import inspectorPopoverStyles from "./InspectorPopover.css?inline";
+import breadcrumbStyles from "./Breadcrumb.css?inline";
 import sideValuesFieldStyles from "./SideValuesField.css?inline";
 import inspectorShellStyles from "../InspectorShell.css?inline";
 import styleEditorStyles from "../styleEditors/StyleEditor.css?inline";
@@ -41,6 +42,7 @@ export const UI_STYLES = [
   colorSwatchStyles,
   popoverListboxStyles,
   inspectorPopoverStyles,
+  breadcrumbStyles,
   sideValuesFieldStyles,
   inspectorShellStyles,
   styleEditorStyles,

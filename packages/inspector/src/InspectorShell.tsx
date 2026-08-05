@@ -4,6 +4,9 @@ import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand } from "@t
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
+  useHierarchy,
+  useHierarchyIndex,
+  setHierarchyIndex,
   setSelectedElement,
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
@@ -25,6 +28,7 @@ import { countSourceSiteMatches, getEditScope, relinkElement, selectorForElement
 import { Button } from "./ui/Button.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
+import { Breadcrumb } from "./ui/Breadcrumb.tsx";
 import { UI_STYLES } from "./ui/styles.ts";
 import { TokensPanel } from "./tokens/TokensPanel.tsx";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
@@ -53,6 +57,18 @@ function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): Reso
     if (row) return row;
   }
   return null;
+}
+
+const MAX_DOM_TREE_NODES = 5;
+
+function nodeDescription(node: HTMLElement): string {
+  const tag = node.localName;
+  const id = node.id ? `#${node.id}` : "";
+  const className = typeof node.className === "string"
+    ? node.className.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((name) => `.${name}`).join("")
+    : "";
+  const source = node.getAttribute("data-src");
+  return `${tag}${id}${className}${source ? ` — ${source}` : ""}`;
 }
 
 export { toggleInspector, setInspectorOpen };
@@ -96,6 +112,8 @@ export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const canvasMode = useCanvasMode();
   const selected = useSelectedElement();
+  const hierarchy = useHierarchy();
+  const hierarchyIndex = useHierarchyIndex();
   const [scopeRevision, refreshScope] = useState(0);
   const [instancePreviewLost, setInstancePreviewLost] = useState(false);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
@@ -212,6 +230,23 @@ export function InspectorShell(): ReactElement {
   const sourceSiteMatchCount = selected && editScope === "source-site"
     ? countSourceSiteMatches(selected.domElement, scopeRevision)
     : 0;
+  const visibleHierarchy = hierarchy.slice(0, MAX_DOM_TREE_NODES).reverse();
+  const hierarchyItems = selected
+    ? visibleHierarchy.map((node, index) => {
+        const realIndex = visibleHierarchy.length - 1 - index;
+        const cid = node.getAttribute("data-cid") ?? node.localName;
+        return {
+          id: `${realIndex}-${cid}`,
+          label: cid,
+          title: nodeDescription(node),
+          active: realIndex === hierarchyIndex,
+          onSelect: () => setHierarchyIndex(realIndex),
+          "data-test": "breadcrumb-step",
+          "data-index": realIndex,
+          "data-cid": cid,
+        };
+      })
+    : [];
 
   function refreshSelected(): void {
     if (!selected) return;
@@ -266,6 +301,17 @@ export function InspectorShell(): ReactElement {
             <TokensPanel rows={cssInspection.documentTokens?.tokens ?? []} />
           ) : selected ? (
             <>
+              {hierarchyItems.length > 0 ? (
+                <div className="dt-dom-tree" data-test="dom-tree">
+                  <div className="dt-dom-tree__header">
+                    <span className="dt-selection__label">DOM Tree</span>
+                    {hierarchy.length > MAX_DOM_TREE_NODES ? (
+                      <span className="dt-dom-tree__hint">Nearest {MAX_DOM_TREE_NODES} tracked nodes</span>
+                    ) : null}
+                  </div>
+                  <Breadcrumb items={hierarchyItems} label="DOM tree" data-test="breadcrumb" />
+                </div>
+              ) : null}
               <div
                 className="dt-selection"
                 data-test="selection"
