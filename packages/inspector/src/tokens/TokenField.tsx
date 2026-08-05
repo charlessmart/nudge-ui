@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { colorValueHasEmbeddedAlpha, normalizeColorOpacity, replaceColorOpacity, replaceColorToken } from "./resolution.ts";
+import {
+  applyColorOpacity,
+  applyColorTokenReplacement,
+  colorValueHasEmbeddedAlpha,
+  normalizeOpacityPercent,
+} from "@design-tool/css/value-semantics";
 import type { AtRuleContext, ColorOpacity, ResolvedProperty } from "./resolution.ts";
 import {
   getCompatibleTokenCandidates,
@@ -374,7 +379,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   function commitOpacityValue(value = opacityValue): void {
     if (!showOpacity || !onCommitOpacity) return;
-    const normalized = normalizeColorOpacity(value);
+    const normalized = normalizeOpacityPercent(value);
     if (normalized === null) {
       setOpacityValue(opacity?.value ?? "100%");
       return;
@@ -574,14 +579,14 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       }}
       onCommitOpacity={(value) => {
         const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? committedValue;
-        const next = replaceColorOpacity(authored, value);
-        if (next && setStyle(el, property, next, editMetadata)) onAfterEdit?.();
+        const result = applyColorOpacity(authored, value);
+        if (result.ok && setStyle(el, property, result.value, editMetadata)) onAfterEdit?.();
       }}
       onSelectToken={(chosen) => {
         const targetProperty = tokenRow?.property ?? property;
         if (activeTokenName && tokenBackedOpacityName && currentToken) {
-          const next = replaceColorToken(authored, currentToken, chosen);
-          if (next && setStyle(el, targetProperty, next, editMetadata)) {
+          const result = applyColorTokenReplacement(authored, currentToken, chosen);
+          if (result.ok && setStyle(el, targetProperty, result.value, editMetadata)) {
             onAfterEdit?.();
             return;
           }

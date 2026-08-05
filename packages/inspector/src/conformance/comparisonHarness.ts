@@ -3,13 +3,13 @@
  *
  * Runs the "old" and "new" value interpretations against the existing
  * conformance corpus. The "new" side runs the real
- * `@design-tool/css/value-semantics` token interpreter for token references,
- * aliases, leaf-token selection, cycles, origins, and modifiers, and the
- * unified property/value policy for capability classification (plan slice
- * 3.3). The integration policies it needs (Tailwind v3 direct attribution,
- * the color/opacity resolver, adapter-derived origins, and the `--tw-*` alias
- * policy) come from the resolution integration. Color/opacity and structured
- * values still come from the legacy path and migrate in slices 3.4–3.5. This
+ * `@design-tool/css/value-semantics` interpreter for token references,
+ * aliases, leaf-token selection, cycles, origins, modifiers, and color/opacity
+ * interpretation (plan slice 3.4), plus the unified property/value policy for
+ * capability classification (plan slice 3.3). The integration policies it
+ * needs (Tailwind v3 direct attribution, adapter-derived origins, and the
+ * `--tw-*` alias policy) come from the resolution integration. Structured
+ * values still come from the legacy path and migrate in slice 3.5. This
  * harness is the guardrail that catches behavioral drift against the corpus.
  *
  * The comparison is value-level: it projects every `ResolvedProperty` row the
@@ -92,10 +92,10 @@ function isBorderShorthandSource(property: string): boolean {
 
 /**
  * The "new" interpretation for this slice: token references, aliases,
- * leaf-token selection, cycles, origins, and modifiers come from the real
- * `@design-tool/css` value-semantics Module; color/opacity resolution,
- * capability, and border structure still come from the legacy integration
- * helpers (slices 3.3–3.5 migrate those). The source declaration property
+ * leaf-token selection, cycles, origins, modifiers, and color/opacity
+ * interpretation come from the real `@design-tool/css` value-semantics Module;
+ * capability and border structure still come from the legacy integration
+ * helpers (slices 3.3/3.5). The source declaration property
  * comes through `ctx.sourceProperty` so projected shorthand longhands (for
  * example `border-top-width` from `border: 2px solid red`) are distinguished
  * from directly-authored longhands (`border-width: var(--border-size)`).

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import type { ColorOpacity, TokenEntry, TokenTable } from "../model/index.ts";
+import type { TokenEntry, TokenTable } from "../model/index.ts";
 import {
   defaultTokenOrigin,
   extractVarCalls,
@@ -30,16 +30,6 @@ function table(entries: TokenEntry[]): TokenTable {
 
 function ctx(partial: Partial<TokenInterpretationContext> & { table: TokenTable }): TokenInterpretationContext {
   return partial;
-}
-
-function resolveOpacityStub(value: string): ColorOpacity | undefined {
-  if (!value.includes("var(--opacity-muted)")) return undefined;
-  return {
-    value: "35%",
-    authoredValue: "var(--opacity-muted)",
-    source: value.startsWith("color-mix") ? "color-mix" : "rgb",
-    tokenName: "--opacity-muted",
-  };
 }
 
 describe("extractVarCalls (balanced var() scanning)", () => {
@@ -268,7 +258,6 @@ describe("interpretTokenValue (primary vs alpha token)", () => {
   it("keeps an alpha-only token reference out of the primary token", () => {
     const res = interpretTokenValue("rgb(37 99 235 / var(--opacity-muted))", ctx({
       table: TABLE,
-      resolveOpacity: resolveOpacityStub,
     }));
     expect(res.tokenName).toBeNull();
     expect(res.resolvedValue).toBe("rgb(37 99 235 / var(--opacity-muted))");
@@ -280,7 +269,6 @@ describe("interpretTokenValue (primary vs alpha token)", () => {
   it("keeps the color token primary when an opacity token is also referenced", () => {
     const res = interpretTokenValue("color-mix(in srgb, var(--color-primary) var(--opacity-muted), transparent)", ctx({
       table: table([entry("--color-primary", "#2563eb"), entry("--opacity-muted", "0.35")]),
-      resolveOpacity: resolveOpacityStub,
     }));
     expect(res.tokenName).toBe("--color-primary");
     expect(res.resolvedValue).toBe("#2563eb");

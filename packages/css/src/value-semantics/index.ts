@@ -1,14 +1,16 @@
 /**
  * Browser-safe value-semantics seam for `@design-tool/css`.
  *
- * Slices 3.2–3.3 ship the real implementations behind this seam: the token
+ * Slices 3.2–3.4 ship the real implementations behind this seam: the token
  * interpreter (`tokenInterpretation.ts`) owns token references, aliases,
  * leaf-token selection, cycles, and modifiers; the property/value policy
  * (`propertyPolicy.ts`) owns capability classification, property→semantic-slot
- * knowledge, presentation grouping, and compatible-token candidate selection.
- * The migration comparison harness in `@design-tool/inspector` exercises the
- * seam against the conformance corpus. Later slices (3.4–3.6) migrate color
- * and structured values.
+ * knowledge, presentation grouping, and compatible-token candidate selection;
+ * the color semantics (`colorSemantics.ts`) owns color format recognition,
+ * embedded alpha, opacity modifiers, `color-mix()` handling, and
+ * meaning-preserving opacity/token edits. The migration comparison harness in
+ * `@design-tool/inspector` exercises the seam against the conformance corpus.
+ * Later slices (3.5–3.6) migrate structured values.
  *
  * Browser-safe contract: this module imports only the shared model and must
  * never pull React, Vite, PostCSS, Node, or filesystem code into a bundle.
@@ -17,6 +19,7 @@ import type { EditCapability, TokenTable, ValueModifier } from "../model/index.t
 
 export * from "./tokenInterpretation.ts";
 export * from "./propertyPolicy.ts";
+export * from "./colorSemantics.ts";
 
 export type AttributionConfidence = "exact" | "probable" | "unknown";
 

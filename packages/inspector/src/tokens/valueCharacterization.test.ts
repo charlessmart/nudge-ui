@@ -9,20 +9,20 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 import {
   buildTokenTable,
-  normalizeColorOpacity,
   parseBorderShorthand,
-  replaceColorOpacity,
-  replaceColorToken,
   resolvePropertiesFromRules,
   resolveTokenValue,
 } from "./resolution.ts";
 import type { TokenTable } from "./resolution.ts";
 import {
+  applyColorOpacity,
+  applyColorTokenReplacement,
   browserCssGrammar,
   classifyEditCapability,
   classifyToken,
   getCompatibleTokenCandidates,
   groupForProperty,
+  normalizeOpacityPercent,
   presentationForToken,
   semanticSlotForProperty,
   type CssValueGrammar,
@@ -145,20 +145,20 @@ describe("classifyEditCapability (edit capability classifier)", () => {
   });
 });
 
-describe("normalizeColorOpacity", () => {
+describe("normalizeOpacityPercent", () => {
   it("normalises fractions and percentages to clamped percents", () => {
-    expect(normalizeColorOpacity("0.5")).toBe("50%");
-    expect(normalizeColorOpacity("50%")).toBe("50%");
-    expect(normalizeColorOpacity("0.35")).toBe("35%");
-    expect(normalizeColorOpacity(".5")).toBe("50%");
-    expect(normalizeColorOpacity("1")).toBe("100%");
-    expect(normalizeColorOpacity("0")).toBe("0%");
-    expect(normalizeColorOpacity("0.33333")).toBe("33.333%");
-    expect(normalizeColorOpacity("-0.5")).toBe("0%");
-    expect(normalizeColorOpacity("1.5")).toBe("100%");
-    expect(normalizeColorOpacity("150%")).toBe("100%");
-    expect(normalizeColorOpacity("abc")).toBeNull();
-    expect(normalizeColorOpacity("")).toBeNull();
+    expect(normalizeOpacityPercent("0.5")).toBe("50%");
+    expect(normalizeOpacityPercent("50%")).toBe("50%");
+    expect(normalizeOpacityPercent("0.35")).toBe("35%");
+    expect(normalizeOpacityPercent(".5")).toBe("50%");
+    expect(normalizeOpacityPercent("1")).toBe("100%");
+    expect(normalizeOpacityPercent("0")).toBe("0%");
+    expect(normalizeOpacityPercent("0.33333")).toBe("33.333%");
+    expect(normalizeOpacityPercent("-0.5")).toBe("0%");
+    expect(normalizeOpacityPercent("1.5")).toBe("100%");
+    expect(normalizeOpacityPercent("150%")).toBe("100%");
+    expect(normalizeOpacityPercent("abc")).toBeNull();
+    expect(normalizeOpacityPercent("")).toBeNull();
   });
 });
 
@@ -255,89 +255,89 @@ describe("resolveTokenValue", () => {
   });
 });
 
-describe("replaceColorOpacity", () => {
+describe("applyColorOpacity", () => {
   it("replaces 8-digit hex alpha", () => {
-    expect(replaceColorOpacity("#ff000088", "20%")).toBe("#ff000033");
+    expect(applyColorOpacity("#ff000088", "20%")).toEqual({ ok: true, value: "#ff000033" });
   });
 
   it("replaces 4-digit hex alpha", () => {
-    expect(replaceColorOpacity("#f008", "20%")).toBe("#f003");
+    expect(applyColorOpacity("#f008", "20%")).toEqual({ ok: true, value: "#f003" });
   });
 
   it("round-trips a 4-digit hex alpha", () => {
-    expect(replaceColorOpacity("#f008", "53.3333%")).toBe("#f008");
+    expect(applyColorOpacity("#f008", "53.3333%")).toEqual({ ok: true, value: "#f008" });
   });
 
   it("replaces modern rgb slash alpha", () => {
-    expect(replaceColorOpacity("rgb(255 0 0 / 80%)", "50%")).toBe("rgb(255 0 0 / 50%)");
+    expect(applyColorOpacity("rgb(255 0 0 / 80%)", "50%")).toEqual({ ok: true, value: "rgb(255 0 0 / 50%)" });
   });
 
   it("replaces legacy comma alpha", () => {
-    expect(replaceColorOpacity("rgba(0, 0, 0, 0.8)", "20%")).toBe("rgba(0, 0, 0, 20%)");
+    expect(applyColorOpacity("rgba(0, 0, 0, 0.8)", "20%")).toEqual({ ok: true, value: "rgba(0, 0, 0, 20%)" });
   });
 
   it("replaces modern hsl slash alpha", () => {
-    expect(replaceColorOpacity("hsl(240 100% 50% / 40%)", "80%")).toBe("hsl(240 100% 50% / 80%)");
+    expect(applyColorOpacity("hsl(240 100% 50% / 40%)", "80%")).toEqual({ ok: true, value: "hsl(240 100% 50% / 80%)" });
   });
 
   it("replaces a color-mix percentage", () => {
-    expect(replaceColorOpacity("color-mix(in oklab, var(--color-primary) 50%, transparent)", "20%"))
-      .toBe("color-mix(in oklab, var(--color-primary) 20%, transparent)");
+    expect(applyColorOpacity("color-mix(in oklab, var(--color-primary) 50%, transparent)", "20%"))
+      .toEqual({ ok: true, value: "color-mix(in oklab, var(--color-primary) 20%, transparent)" });
   });
 
   it("replaces a token-backed color-mix percentage", () => {
-    expect(replaceColorOpacity("color-mix(in srgb, var(--color-primary) var(--opacity-muted), transparent)", "50%"))
-      .toBe("color-mix(in srgb, var(--color-primary) 50%, transparent)");
+    expect(applyColorOpacity("color-mix(in srgb, var(--color-primary) var(--opacity-muted), transparent)", "50%"))
+      .toEqual({ ok: true, value: "color-mix(in srgb, var(--color-primary) 50%, transparent)" });
   });
 
   it("wraps a plain var() in color-mix and unwraps at 100%", () => {
-    expect(replaceColorOpacity("var(--color-primary)", "50%"))
-      .toBe("color-mix(in srgb, var(--color-primary) 50%, transparent)");
-    expect(replaceColorOpacity("var(--color-primary)", "100%")).toBe("var(--color-primary)");
+    expect(applyColorOpacity("var(--color-primary)", "50%"))
+      .toEqual({ ok: true, value: "color-mix(in srgb, var(--color-primary) 50%, transparent)" });
+    expect(applyColorOpacity("var(--color-primary)", "100%")).toEqual({ ok: true, value: "var(--color-primary)" });
   });
 
   it("rejects invalid opacities and unsupported value shapes", () => {
-    expect(replaceColorOpacity("var(--color-primary)", "abc")).toBeNull();
-    expect(replaceColorOpacity("1px solid red", "50%")).toBeNull();
-    expect(replaceColorOpacity("transparent", "50%")).toBeNull();
+    expect(applyColorOpacity("var(--color-primary)", "abc")).toEqual({ ok: false, reason: "invalid-opacity" });
+    expect(applyColorOpacity("1px solid red", "50%")).toEqual({ ok: false, reason: "unsupported" });
+    expect(applyColorOpacity("transparent", "50%")).toEqual({ ok: false, reason: "unsupported" });
   });
 });
 
-describe("replaceColorToken", () => {
+describe("applyColorTokenReplacement", () => {
   const oldRed = colorToken("--color-red", "#dc2626");
   const newBlue = colorToken("--color-blue", "#2563eb");
 
   it("replaces a bare var() reference by cssName", () => {
-    expect(replaceColorToken("var(--color-red)", oldRed, newBlue)).toBe("var(--color-blue)");
+    expect(applyColorTokenReplacement("var(--color-red)", oldRed, newBlue)).toEqual({ ok: true, value: "var(--color-blue)" });
   });
 
   it("preserves the alpha modifier inside color-mix", () => {
     const oldRed500 = colorToken("--color-red-500", "#dc2626");
     const newBlue500 = colorToken("--color-blue-500", "#2563eb");
-    expect(replaceColorToken("color-mix(in srgb, var(--color-red-500) 10%, transparent)", oldRed500, newBlue500))
-      .toBe("color-mix(in srgb, var(--color-blue-500) 10%, transparent)");
+    expect(applyColorTokenReplacement("color-mix(in srgb, var(--color-red-500) 10%, transparent)", oldRed500, newBlue500))
+      .toEqual({ ok: true, value: "color-mix(in srgb, var(--color-blue-500) 10%, transparent)" });
   });
 
   it("prefers the cssName identity over the human name", () => {
     const oldWithName = { ...oldRed, cssName: "--color-red-impl", name: "--color-red" };
-    expect(replaceColorToken("var(--color-red-impl)", oldWithName, newBlue)).toBe("var(--color-blue)");
+    expect(applyColorTokenReplacement("var(--color-red-impl)", oldWithName, newBlue)).toEqual({ ok: true, value: "var(--color-blue)" });
   });
 
   it("falls back to literal value replacement when the reference is absent", () => {
-    expect(replaceColorToken("color: #dc2626", oldRed, newBlue)).toBe("color: #2563eb");
+    expect(applyColorTokenReplacement("color: #dc2626", oldRed, newBlue)).toEqual({ ok: true, value: "color: #2563eb" });
   });
 
-  it("returns null when the new token has no CSS reference name", () => {
+  it("returns an unsupported result when the new token has no CSS reference name", () => {
     const literalOnly = { name: "blue", value: "#2563eb", source: "x.css:1" };
-    expect(replaceColorToken("var(--color-red)", oldRed, literalOnly)).toBeNull();
+    expect(applyColorTokenReplacement("var(--color-red)", oldRed, literalOnly)).toEqual({ ok: false, reason: "unsupported" });
   });
 
   it("does not substitute a shorter token name inside a longer reference", () => {
-    expect(replaceColorToken("color-mix(in srgb, var(--color-red-500) 10%, transparent)", oldRed, newBlue)).toBeNull();
+    expect(applyColorTokenReplacement("color-mix(in srgb, var(--color-red-500) 10%, transparent)", oldRed, newBlue)).toEqual({ ok: false, reason: "unsupported" });
   });
 
-  it("returns null when neither reference nor literal matches", () => {
-    expect(replaceColorToken("var(--unrelated)", oldRed, newBlue)).toBeNull();
+  it("returns an unsupported result when neither reference nor literal matches", () => {
+    expect(applyColorTokenReplacement("var(--unrelated)", oldRed, newBlue)).toEqual({ ok: false, reason: "unsupported" });
   });
 });
 

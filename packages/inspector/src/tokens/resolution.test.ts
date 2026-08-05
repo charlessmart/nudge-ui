@@ -2,11 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   buildTokenTable,
-  colorValueHasEmbeddedAlpha,
   resolveTokenValue,
-  replaceColorOpacity,
-  replaceColorToken,
-  normalizeColorOpacity,
   getAvailableTokenCatalog,
   getAvailableTokenEntriesForElement,
   getAvailableTokenTableForElement,
@@ -571,47 +567,6 @@ describe("resolveTokenValue", () => {
 
   it("does not mistake a visible color mix target for opacity", () => {
     expect(resolveTokenValue("color-mix(in srgb, #2563eb 10%, white)", makeTable([])).opacity).toBeUndefined();
-  });
-
-  it("normalizes and rewrites supported color opacity values", () => {
-    expect(normalizeColorOpacity("0.35")).toBe("35%");
-    expect(replaceColorOpacity("var(--color-primary)", "50%")).toBe(
-      "color-mix(in srgb, var(--color-primary) 50%, transparent)",
-    );
-    expect(replaceColorOpacity("var(--color-primary)", "100%")).toBe("var(--color-primary)");
-    expect(replaceColorOpacity("#ff000088", "25%")).toBe("#ff000040");
-    expect(replaceColorOpacity("rgba(0, 0, 0, 0.8)", "40%")).toBe("rgba(0, 0, 0, 40%)");
-    expect(replaceColorOpacity("hsl(240 100% 50% / 40%)", "20%")).toBe("hsl(240 100% 50% / 20%)");
-    expect(replaceColorOpacity("color-mix(in srgb, var(--color-primary) 50%, transparent)", "30%")).toBe(
-      "color-mix(in srgb, var(--color-primary) 30%, transparent)",
-    );
-    expect(replaceColorToken(
-      "color-mix(in srgb, var(--color-primary) 50%, transparent)",
-      { name: "--color-primary", value: "#2563eb", source: "s:1" },
-      { name: "--color-secondary", value: "#7c3aed", source: "s:2" },
-    )).toBe("color-mix(in srgb, var(--color-secondary) 50%, transparent)");
-  });
-
-  it.each([
-    ["#1234", true],
-    ["#11223344", true],
-    ["transparent", true],
-    ["rgba(17, 34, 51, 0.5)", true],
-    ["hsl(210 50% 20% / 50%)", true],
-    ["hwb(210 20% 10% / 50%)", true],
-    ["lab(65 10 -25 / 50%)", true],
-    ["lch(65 27 290 / 50%)", true],
-    ["oklab(50% 0.1 0.1 / 0.5)", true],
-    ["oklch(63% 0.2 25 / 0.5)", true],
-    ["color(srgb 1 0 0 / 50%)", true],
-    ["color-mix(in srgb, red 50%, transparent)", true],
-    ["#112233", false],
-    ["rgb(17 34 51)", false],
-    ["oklch(63% 0.2 25)", false],
-    ["hsl(210 50% 20%)", false],
-    ["color-mix(in srgb, red 50%, white)", false],
-  ] as const)("detects embedded alpha in %s", (value, expected) => {
-    expect(colorValueHasEmbeddedAlpha(value)).toBe(expected);
   });
 
   it("attributes Tailwind v3 direct RGB helpers to config tokens and opacity aliases", () => {

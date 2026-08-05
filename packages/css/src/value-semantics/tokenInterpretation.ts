@@ -27,6 +27,12 @@ import type {
   TokenTable,
   ValueModifier,
 } from "../model/index.ts";
+import {
+  interpretColorOpacity,
+  type ColorComponentResolution,
+} from "./colorSemantics.ts";
+export { extractVarCalls } from "./cssSyntax.ts";
+import { extractVarCalls } from "./cssSyntax.ts";
 
 /** The structured token interpretation of one authored CSSOM value. */
 export interface TokenValueInterpretation {
@@ -80,12 +86,6 @@ export interface TokenInterpretationContext {
    * tokens). Absent when no direct attribution applies.
    */
   resolveDirectToken?: (value: string) => TokenEntry | undefined;
-  /**
-   * Color/alpha interpretation for the authored value. Slice 3.4 migrates the
-   * color resolver into this Module; until then the integration supplies it.
-   * Absent → no opacity or alpha modifier is derived.
-   */
-  resolveOpacity?: (value: string) => ColorOpacity | undefined;
   /** Token-origin derivation. Default: `entry.origin ?? "project"` (undefined → "runtime"). */
   resolveOrigin?: (entry: TokenEntry | undefined) => TokenOrigin;
   /** Local-alias attribution policy. Default attributes the alias reference itself. */
@@ -114,35 +114,9 @@ function defaultAliasAttribution(ref: string, inner: AliasInnerResult): AliasAtt
 }
 
 /**
- * Balanced `var()` scanning. Handles nested parentheses and takes the first
- * top-level comma as the fallback separator.
+ * Balanced `var()` scanning lives in `cssSyntax.ts` (shared internal seam) and
+ * is re-exported here to keep the public token-interpretation API stable.
  */
-export function extractVarCalls(value: string): Array<{ name: string; fallback?: string }> {
-  const calls: Array<{ name: string; fallback?: string }> = [];
-  let i = 0;
-  while (i < value.length) {
-    const start = value.indexOf("var(", i);
-    if (start < 0) break;
-    let depth = 1;
-    let j = start + 4;
-    let comma = -1;
-    while (j < value.length && depth > 0) {
-      const char = value[j];
-      if (char === "(") depth++;
-      else if (char === ")") depth--;
-      else if (char === "," && depth === 1 && comma < 0) comma = j;
-      j++;
-    }
-    const body = value.slice(start + 4, Math.max(start + 4, j - 1)).trim();
-    const name = (body.slice(0, comma < 0 ? body.length : comma - start - 4).trim().match(/^--[\w-]+/) ?? [])[0];
-    if (name) {
-      const fallback = comma >= 0 ? value.slice(comma + 1, Math.max(comma + 1, j - 1)).trim() : undefined;
-      calls.push({ name, fallback });
-    }
-    i = Math.max(j, start + 4);
-  }
-  return calls;
-}
 
 interface RefResult {
   known: boolean;
@@ -263,7 +237,11 @@ export function interpretTokenValue(
     }
   }
 
-  const opacity = ctx.resolveOpacity?.(authored);
+  const opacity = interpretColorOpacity(authored, {
+    tokenTable: table,
+    localAliases,
+    resolveTokenReference: (value) => resolveComponentReference(value, ctx),
+  });
   const modifiers: ValueModifier[] = calls.flatMap((call) => call.fallback ? [{ kind: "fallback" as const, value: call.fallback }] : []);
   if (opacity) modifiers.push({ kind: "alpha", value: opacity.value });
 
@@ -286,4 +264,49 @@ export function interpretTokenValue(
     leafTokenName: primary?.leafTokenName ?? primary?.tokenName ?? null,
     cycle: primary?.cycle,
   };
+}
+
+/**
+ * Resolves a `var()` component of a color expression (for example an opacity
+ * token) through the same interpretation context as the authored value. This
+ * is what the color Module's `interpretColorOpacity` uses to attribute
+ * token-backed alpha components, keeping alias and framework attribution in
+ * the token interpretation.
+ */
+function resolveComponentReference(
+  value: string,
+  ctx: TokenInterpretationContext,
+): ColorComponentResolution | null {
+  const calls = extractVarCalls(value);
+  if (calls.length === 0) return null;
+  const table = ctx.table;
+  const localAliases = ctx.localAliases ?? EMPTY_LOCAL_ALIASES;
+  const resolveOrigin = ctx.resolveOrigin ?? defaultTokenOrigin;
+  const references: TokenReference[] = [];
+  let firstKnown: { tokenName: string; resolvedValue: string } | null = null;
+  for (const call of calls) {
+    const result = resolveRef(call.name, table, new Set(), localAliases, ctx);
+    if (result.known) {
+      if (!references.some((token) => token.name === result.tokenName)) {
+        references.push({
+          name: result.tokenName ?? call.name,
+          origin: resolveOrigin(table[call.name] ?? table[result.tokenName ?? ""]),
+        });
+      }
+      if (!firstKnown) {
+        firstKnown = { tokenName: result.tokenName ?? call.name, resolvedValue: result.resolvedValue };
+      }
+    }
+    if (call.fallback) {
+      const fallback = call.fallback.trim();
+      if (fallback) {
+        const fallbackResult = interpretTokenValue(fallback, ctx);
+        references.push(...fallbackResult.tokens.filter((token) => !references.some((seen) => seen.name === token.name)));
+        if (!firstKnown && fallbackResult.tokenName) {
+          firstKnown = { tokenName: fallbackResult.tokenName, resolvedValue: fallbackResult.resolvedValue };
+        }
+      }
+    }
+  }
+  return firstKnown ? { tokenName: firstKnown.tokenName, resolvedValue: firstKnown.resolvedValue, tokens: references } : null;
 }
