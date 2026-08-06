@@ -27,7 +27,6 @@ import type {
 } from "./resolution/types.ts";
 import {
   classifyEditCapability,
-  interpretColorOpacity,
   interpretTokenValue,
   type AliasAttribution,
   type AliasInnerResult,
@@ -645,6 +644,7 @@ interface ResolvedDeclaration {
   important?: boolean;
   tokens: TokenReference[];
   opacity?: ColorOpacity;
+  color?: TokenValueInterpretation["color"];
   modifiers: ValueModifier[];
   capability: EditCapability;
   resolvedTokenValue: string;
@@ -677,6 +677,7 @@ function resolveDeclaration(
           important: declaration.important,
           tokens: resolved.tokens,
           opacity: resolved.opacity,
+          color: resolved.color,
           modifiers: resolved.modifiers,
           capability: classifyEditCapability(property, declaredValue),
           resolvedTokenValue: resolved.resolvedValue,
@@ -715,6 +716,7 @@ function resolveDeclaration(
           important: declaration.important,
           tokens: isColor ? colorResult.tokens : [],
           opacity: isColor ? colorResult.opacity : undefined,
+          color: isColor ? colorResult.color : undefined,
           modifiers: isColor ? colorResult.modifiers : [],
           capability: "structured" as const,
           resolvedTokenValue: resolved.resolvedValue,
@@ -738,6 +740,7 @@ function resolveDeclaration(
           important: declaration.important,
           tokens: resolved.tokens,
           opacity: resolved.opacity,
+          color: resolved.color,
           modifiers: resolved.modifiers,
           capability: classifyEditCapability(property, declaredValue),
           resolvedTokenValue: resolved.resolvedValue,
@@ -760,6 +763,7 @@ function resolveDeclaration(
         important: declaration.important,
         tokens: res.tokens,
         opacity: res.opacity,
+        color: res.color,
         modifiers: res.modifiers,
         capability: classifyEditCapability(declaration.property, declaration.value),
         resolvedTokenValue: res.resolvedValue,
@@ -790,6 +794,7 @@ function resolveDeclaration(
         important: declaration.important,
         tokens: res.tokens,
         opacity: res.opacity,
+        color: res.color,
         modifiers: res.modifiers,
         capability: classifyEditCapability(declaration.property, declaration.value),
         resolvedTokenValue: res.resolvedValue,
@@ -821,6 +826,7 @@ function resolveDeclaration(
       important: declaration.important,
       tokens: res.tokens,
       opacity: res.opacity,
+      color: res.color,
       modifiers: res.modifiers,
       capability: declaration.property.toLowerCase() === "border" ? "raw" : classifyEditCapability(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
@@ -839,6 +845,7 @@ function resolveDeclaration(
       important: declaration.important,
       tokens: res.tokens,
       opacity: res.opacity,
+      color: res.color,
       modifiers: res.modifiers,
       capability: classifyEditCapability(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
@@ -871,6 +878,7 @@ function resolveDeclaration(
       important: declaration.important,
       tokens: res.tokens,
       opacity: res.opacity,
+      color: res.color,
       modifiers: res.modifiers,
       capability: classifyEditCapability(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
@@ -1410,6 +1418,7 @@ function rowsFromMatches(
           computed: "",
           tokens: resolved.tokens,
           opacity: resolved.opacity,
+          color: resolved.color,
           modifiers: resolved.modifiers,
           capability: resolved.capability,
           resolvedTokenValue: resolved.resolvedTokenValue,
@@ -1513,7 +1522,9 @@ function inferTailwindV4ColorOpacity(
     row.declaredValue = authored;
     row.authored = authored;
     row.tokens = [{ name: baseName, origin: tokenOrigin(entry) }];
-    row.opacity = interpretColorOpacity(authored, { tokenTable, localAliases: EMPTY_LOCAL_ALIASES });
+    const colorInterpretation = resolveTokenValue(authored, tokenTable, EMPTY_LOCAL_ALIASES);
+    row.opacity = colorInterpretation.opacity;
+    row.color = colorInterpretation.color;
     row.modifiers = [{ kind: "alpha", value: alpha }];
     row.capability = "color";
     row.resolvedTokenValue = entry.value;
@@ -1656,6 +1667,7 @@ function applyInlineDeclarations(
         computed: painted,
         tokens: declaration.tokens,
         opacity: declaration.opacity,
+        color: declaration.color,
         modifiers: declaration.modifiers,
         capability: declaration.capability,
         resolvedTokenValue: declaration.resolvedValue,

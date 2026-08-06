@@ -334,6 +334,52 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-attribution"]')).toBeNull();
   });
 
+  it("does not fall back to a lossy token swap when semantic replacement is unsupported", () => {
+    const { selected } = makeSelected();
+    const current: TokenEntry = {
+      name: "theme.colors.red",
+      value: "#ff0000",
+      cssValue: "#ff0000",
+      source: "tailwind.config.js:1",
+      adapter: "tailwind-v3",
+    };
+    const unsupported: TokenEntry = {
+      name: "theme.colors.current",
+      value: "currentColor",
+      cssValue: "currentColor",
+      source: "tailwind.config.js:2",
+      adapter: "tailwind-v3",
+    };
+    handle = mount(createElement(TokenField, {
+      property: "color",
+      tokenRow: {
+        property: "color",
+        tokenName: current.name,
+        declaredValue: "rgb(255 0 0 / var(--tw-text-opacity))",
+        authored: "rgb(255 0 0 / var(--tw-text-opacity))",
+        resolvedValue: "rgba(255, 0, 0, 0.5)",
+        tokens: [{ name: current.name, origin: "framework" }],
+        opacity: { value: "50%", authoredValue: "var(--tw-text-opacity)", source: "rgb", tokenName: null },
+        color: { hasEmbeddedAlpha: true, isExpression: false, opacityEditable: true },
+        modifiers: [{ kind: "alpha", value: "50%" }],
+        capability: "color",
+        confidence: "exact",
+        evidence: { reason: "test fixture" },
+      },
+      domElement: selected.domElement,
+      entries: [current, unsupported],
+    }));
+
+    act(() => (handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement).click());
+    const option = Array.from(document.body.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]'))
+      .find((item) => item.textContent?.includes(unsupported.name));
+    expect(option).toBeDefined();
+    act(() => option!.click());
+
+    expect(sheetText()).toBe("");
+    expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain(current.name);
+  });
+
   it("shows authored functional CSS and token attribution instead of computed pixels", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {
@@ -419,6 +465,7 @@ describe("TokenField", () => {
       resolvedValue: "#112233",
       entries: [],
       isColor: true,
+      color: { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: true },
       onCommitOpacity: vi.fn(),
       onCommitRaw,
       onSelectToken: vi.fn(),
@@ -527,6 +574,34 @@ describe("TokenField", () => {
 
     expect(onCommitOpacity).toHaveBeenCalledWith("40%");
     selected.domElement.remove();
+  });
+
+  it("restores the committed opacity when the semantic edit is unsupported", () => {
+    const onCommitOpacity = vi.fn(() => false);
+    handle = mount(createElement(TokenValueField, {
+      property: "color",
+      committedValue: "#ff0000",
+      resolvedValue: "#ff0000",
+      entries: [],
+      isColor: true,
+      color: { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: true },
+      onCommitOpacity,
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+
+    const opacityInput = handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement;
+    act(() => {
+      opacityInput.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(opacityInput, "50%");
+      opacityInput.dispatchEvent(new Event("change", { bubbles: true }));
+      opacityInput.blur();
+    });
+
+    expect(onCommitOpacity).toHaveBeenCalledWith("50%");
+    expect(opacityInput.value).toBe("100%");
   });
 
   it("nudges opacity by one percent, or ten percent with Shift", () => {

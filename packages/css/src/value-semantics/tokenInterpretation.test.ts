@@ -278,6 +278,25 @@ describe("interpretTokenValue (primary vs alpha token)", () => {
     ]);
     expect(res.opacity).toMatchObject({ value: "35%", tokenName: "--opacity-muted", source: "color-mix" });
     expect(res.modifiers).toEqual([{ kind: "alpha", value: "35%" }]);
+    expect(res.color).toMatchObject({ isExpression: true, opacityEditable: true });
+  });
+
+  it("projects embedded-alpha and opacity-editability facts for UI consumers", () => {
+    const embedded = interpretTokenValue("var(--color-muted)", ctx({
+      table: table([entry("--color-muted", "rgba(37, 99, 235, 0.5)")]),
+    }));
+    expect(embedded.color).toEqual({
+      hasEmbeddedAlpha: true,
+      isExpression: false,
+      opacityEditable: false,
+    });
+
+    const opaque = interpretTokenValue("#2563eb", ctx({ table: table([]) }));
+    expect(opaque.color).toEqual({
+      hasEmbeddedAlpha: false,
+      isExpression: false,
+      opacityEditable: true,
+    });
   });
 });
 

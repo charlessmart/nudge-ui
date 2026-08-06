@@ -26,6 +26,16 @@ export interface ColorOpacity {
   token?: TokenReference;
 }
 
+/** UI-relevant color facts derived by value semantics, never by React fields. */
+export interface ColorValueFacts {
+  /** The authored or resolved color already carries an alpha channel. */
+  hasEmbeddedAlpha: boolean;
+  /** The authored color is a compound expression that must remain raw unless separable. */
+  isExpression: boolean;
+  /** The authored shape can represent an opacity edit without losing meaning. */
+  opacityEditable: boolean;
+}
+
 export interface BorderStructure {
   kind: "border";
   sourceProperty: "border" | "border-top" | "border-right" | "border-bottom" | "border-left";
@@ -159,6 +169,7 @@ export interface ResolvedProperty {
   computed?: string;
   tokens?: TokenReference[];
   opacity?: ColorOpacity;
+  color?: ColorValueFacts;
   modifiers?: ValueModifier[];
   capability?: EditCapability;
   resolvedTokenValue?: string;

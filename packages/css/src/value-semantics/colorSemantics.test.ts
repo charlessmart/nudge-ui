@@ -127,6 +127,13 @@ describe("interpretColorOpacity (color-mix against transparent)", () => {
     expect(interpretColorOpacity("color-mix(in srgb, #2563eb 10%, white)", plainCtx())).toBeUndefined();
     expect(interpretColorOpacity("color-mix(in srgb, red 10%, white)", plainCtx())).toBeUndefined();
   });
+
+  it("normalizes two explicit color-mix weights before reporting opacity", () => {
+    expect(interpretColorOpacity("color-mix(in srgb, red 80%, transparent 80%)", plainCtx()))
+      .toMatchObject({ value: "50%", source: "color-mix" });
+    expect(interpretColorOpacity("color-mix(in srgb, red 20%, transparent 20%)", plainCtx()))
+      .toMatchObject({ value: "20%", source: "color-mix" });
+  });
 });
 
 describe("interpretColorOpacity (token-backed opacity components)", () => {
@@ -146,6 +153,14 @@ describe("interpretColorOpacity (token-backed opacity components)", () => {
   it("falls back to the authored fallback for an unknown opacity reference", () => {
     const opacity = interpretColorOpacity("rgb(0 0 0 / var(--unknown-opacity, 0.4))", plainCtx());
     expect(opacity).toMatchObject({ value: "40%", tokenName: null, source: "rgb" });
+  });
+
+  it("does not discard an expression around an opacity token", () => {
+    const aliases = new Map([["--opacity", "0.5"]]);
+    expect(interpretColorOpacity(
+      "rgb(0 0 0 / calc(var(--opacity) * 0.5))",
+      ctx(table([]), aliases, makeResolver(table([]), aliases)),
+    )).toBeUndefined();
   });
 });
 
@@ -200,6 +215,8 @@ describe("applyColorOpacity (meaning-preserving rewrites)", () => {
       .toEqual({ ok: true, value: "color-mix(in srgb,  red, transparent 50%)" });
     expect(applyColorOpacity("color-mix(in srgb, var(--color-primary), transparent)", "30%"))
       .toEqual({ ok: true, value: "color-mix(in srgb, var(--color-primary) 30%, transparent)" });
+    expect(applyColorOpacity("color-mix(in srgb, red 80%, transparent 80%)", "25%"))
+      .toEqual({ ok: true, value: "color-mix(in srgb, red 25%, transparent 75%)" });
   });
 
   it("wraps a bare var() in color-mix and unwraps at 100%", () => {
@@ -208,10 +225,30 @@ describe("applyColorOpacity (meaning-preserving rewrites)", () => {
     expect(applyColorOpacity("var(--color-primary)", "100%")).toEqual({ ok: true, value: "var(--color-primary)" });
   });
 
+  it("wraps an opaque hex color without discarding its color meaning", () => {
+    expect(applyColorOpacity("#ff0000", "50%"))
+      .toEqual({ ok: true, value: "color-mix(in srgb, #ff0000 50%, transparent)" });
+    expect(applyColorOpacity("#f00", "100%")).toEqual({ ok: true, value: "#f00" });
+  });
+
+  it.each(["rgb(17, 17, 17)", "rgb(17 17 17)", "hsl(210 20% 30%)"])(
+    "wraps opaque functional color %s without discarding its color meaning",
+    (value) => {
+      expect(applyColorOpacity(value, "40%")).toEqual({
+        ok: true,
+        value: `color-mix(in srgb, ${value} 40%, transparent)`,
+      });
+    },
+  );
+
+  it("keeps an opaque functional color unchanged at full opacity", () => {
+    expect(applyColorOpacity("rgb(17, 17, 17)", "100%"))
+      .toEqual({ ok: true, value: "rgb(17, 17, 17)" });
+  });
+
   it("returns an unsupported result for value shapes it cannot rewrite faithfully", () => {
     expect(applyColorOpacity("transparent", "50%")).toEqual({ ok: false, reason: "unsupported" });
     expect(applyColorOpacity("1px solid red", "50%")).toEqual({ ok: false, reason: "unsupported" });
-    expect(applyColorOpacity("rgb(255 0 0)", "50%")).toEqual({ ok: false, reason: "unsupported" });
     expect(applyColorOpacity("linear-gradient(red, blue)", "50%")).toEqual({ ok: false, reason: "unsupported" });
     expect(applyColorOpacity("color-mix(in srgb, red 50%, white)", "50%")).toEqual({ ok: false, reason: "unsupported" });
     expect(applyColorOpacity("url(a.png)", "50%")).toEqual({ ok: false, reason: "unsupported" });
@@ -265,6 +302,27 @@ describe("applyColorTokenReplacement", () => {
       entry("--color-red", "#dc2626", { cssName: "--color-red" }),
       literalOnly,
     )).toEqual({ ok: false, reason: "unsupported" });
+  });
+
+  it("replaces literal Tailwind RGB channels while preserving its opacity expression", () => {
+    expect(applyColorTokenReplacement(
+      "rgb(255 0 0 / var(--tw-bg-opacity))",
+      entry("theme.colors.red", "#ff0000", { adapter: "tailwind-v3", cssValue: "#ff0000" }),
+      entry("theme.colors.blue", "#0000ff", { adapter: "tailwind-v3", cssValue: "#0000ff" }),
+    )).toEqual({ ok: true, value: "rgb(0 0 255 / var(--tw-bg-opacity))" });
+  });
+
+  it("never replaces a token value inside another color token", () => {
+    expect(applyColorTokenReplacement(
+      "color-mix(in srgb, darkred 50%, transparent)",
+      entry("--red", "red", { cssName: "--red" }),
+      entry("--blue", "blue", { cssName: "--blue" }),
+    )).toEqual({ ok: false, reason: "unsupported" });
+    expect(applyColorTokenReplacement(
+      "#ffffff",
+      entry("--white-short", "#fff", { cssName: "--white-short" }),
+      entry("--black", "#000", { cssName: "--black" }),
+    )).toEqual({ ok: true, value: "var(--black)" });
   });
 });
 

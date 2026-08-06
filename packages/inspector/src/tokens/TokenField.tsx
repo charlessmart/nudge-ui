@@ -5,9 +5,10 @@ import type { TokenEntry } from "virtual:design-tokens";
 import {
   applyColorOpacity,
   applyColorTokenReplacement,
-  colorValueHasEmbeddedAlpha,
+  interpretColorValue,
   normalizeOpacityPercent,
 } from "@design-tool/css/value-semantics";
+import type { ColorValueFacts } from "@design-tool/css/model";
 import type { AtRuleContext, ColorOpacity, ResolvedProperty } from "./resolution.ts";
 import {
   getCompatibleTokenCandidates,
@@ -42,7 +43,7 @@ export interface TokenValueFieldProps {
   disabled?: boolean;
   formatRawValue?: (value: string) => string;
   onCommitRaw(value: string): void;
-  onSelectToken(token: TokenEntry): void;
+  onSelectToken(token: TokenEntry): unknown;
   onUnlink(value: string): void;
   attributionTokens?: string[];
   leading?: ReactNode;
@@ -50,7 +51,8 @@ export interface TokenValueFieldProps {
   className?: string;
   label?: string;
   opacity?: ColorOpacity;
-  onCommitOpacity?(value: string): void;
+  color?: ColorValueFacts;
+  onCommitOpacity?(value: string): unknown;
   atRules?: readonly AtRuleContext[];
   chipVariant?: "default" | "small";
 }
@@ -72,6 +74,9 @@ export interface TokenFieldProps {
   label?: string;
   chipVariant?: "default" | "small";
 }
+
+const EMPTY_COLOR_CONTEXT = { tokenTable: {} } as const;
+const NON_COLOR_FACTS: ColorValueFacts = { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: false };
 
 function computedRaw(el: HTMLElement, property: string): string {
   const value = getStateStyleValue(el, property);
@@ -233,6 +238,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     className,
     label,
     opacity,
+    color,
     onCommitOpacity,
     atRules,
     chipVariant = "default",
@@ -240,9 +246,14 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const inheritedAtRules = useFieldAtRules(property);
   const fieldAtRules = atRules ?? inheritedAtRules;
   const controlledToken = controlledTokenName ? entries.find((entry) => entry.name === controlledTokenName) : null;
-  const controlledTokenHasEmbeddedAlpha = Boolean(isColor && controlledTokenName && (
-    colorValueHasEmbeddedAlpha(controlledToken?.value ?? "") || (!opacity && colorValueHasEmbeddedAlpha(resolvedValue ?? ""))
-  ));
+  const authoredColor = isColor
+    ? color ?? interpretColorValue(committedValue, EMPTY_COLOR_CONTEXT).facts
+    : NON_COLOR_FACTS;
+  const controlledTokenColor = isColor && controlledToken
+    ? interpretColorValue(controlledToken.value, EMPTY_COLOR_CONTEXT).facts
+    : null;
+  const controlledTokenHasEmbeddedAlpha = Boolean(isColor && controlledTokenName
+    && (controlledTokenColor?.hasEmbeddedAlpha || (!opacity && authoredColor.hasEmbeddedAlpha)));
   const defaultOpacityValue = isColor && !controlledTokenHasEmbeddedAlpha ? "100%" : "";
   const [rawValue, setRawValue] = useState(committedValue);
   const [opacityValue, setOpacityValue] = useState(opacity?.value ?? defaultOpacityValue);
@@ -263,10 +274,13 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const activeToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? { name: activeTokenName, value: resolvedValue, source: "runtime" }
     : null;
-  const activeTokenHasEmbeddedAlpha = Boolean(isColor && activeToken && (
-    colorValueHasEmbeddedAlpha(activeToken.value) || (!opacity && colorValueHasEmbeddedAlpha(resolvedValue ?? ""))
-  ));
+  const activeTokenColor = isColor && activeToken
+    ? interpretColorValue(activeToken.value, EMPTY_COLOR_CONTEXT).facts
+    : null;
+  const activeTokenHasEmbeddedAlpha = Boolean(isColor && activeToken
+    && (activeTokenColor?.hasEmbeddedAlpha || (!opacity && activeTokenName === controlledTokenName && authoredColor.hasEmbeddedAlpha)));
   const showOpacity = isColor && !activeTokenHasEmbeddedAlpha
+    && authoredColor.opacityEditable
     && (Boolean(activeTokenName) || attributionTokens.length === 0 || Boolean(opacity));
   const relevantTokens = useMemo(() => {
     const candidates = allowedTokenNames
@@ -328,9 +342,9 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   function handleTokenSelect(chosen: TokenEntry): void {
     selectedFromPopover.current = true;
     cancelOnBlur.current = false;
+    if (onSelectToken(chosen) === false) return;
     setActiveTokenName(chosen.name);
     setRawValue(chosen.value);
-    onSelectToken(chosen);
   }
 
   function handleRawBlur(): void {
@@ -384,8 +398,11 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       setOpacityValue(opacity?.value ?? "100%");
       return;
     }
+    if (onCommitOpacity(normalized) === false) {
+      setOpacityValue(opacity?.value ?? defaultOpacityValue);
+      return;
+    }
     setOpacityValue(normalized);
-    onCommitOpacity(normalized);
   }
 
   const opacityControl = showOpacity ? (
@@ -536,7 +553,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     : null;
   const expression = Boolean(tokenRow && (tokenRow.capability === "raw" || tokenRow.capability === "composite"
     || tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha")
-    || /\bcolor-mix\s*\(/i.test(tokenRow.authored ?? tokenRow.declaredValue)));
+    || tokenRow.color?.isExpression));
   const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? "";
   const isCalcAuthored = /\bcalc\s*\(/i.test(authored);
   const activeTokenName = tokenBackedOpacityName ?? (expression || isCalcAuthored ? null : tokenRow?.tokenName ?? null);
@@ -569,6 +586,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
         ? tokenRow?.tokens?.filter((token) => token.name !== tokenRow.opacity?.tokenName).map((token) => token.name)
         : undefined}
       opacity={tokenRow?.opacity}
+      color={tokenRow?.color}
       entries={entries}
       suggestions={suggestions}
       inputDataTest={inputDataTest}
@@ -580,20 +598,24 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       onCommitOpacity={(value) => {
         const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? committedValue;
         const result = applyColorOpacity(authored, value);
-        if (result.ok && setStyle(el, property, result.value, editMetadata)) onAfterEdit?.();
+        if (!result.ok || !setStyle(el, property, result.value, editMetadata)) return false;
+        onAfterEdit?.();
+        return true;
       }}
       onSelectToken={(chosen) => {
         const targetProperty = tokenRow?.property ?? property;
         if (activeTokenName && tokenBackedOpacityName && currentToken) {
           const result = applyColorTokenReplacement(authored, currentToken, chosen);
-          if (result.ok && setStyle(el, targetProperty, result.value, editMetadata)) {
-            onAfterEdit?.();
-            return;
-          }
+          if (!result.ok || !setStyle(el, targetProperty, result.value, editMetadata)) return false;
+          onAfterEdit?.();
+          return true;
         }
-        if (activeTokenName) swapToken(el, targetProperty, chosen, currentToken, editMetadata);
-        else promoteToToken(el, property, chosen, editMetadata);
+        const change = activeTokenName
+          ? swapToken(el, targetProperty, chosen, currentToken, editMetadata)
+          : promoteToToken(el, property, chosen, editMetadata);
+        if (!change) return false;
         onAfterEdit?.();
+        return true;
       }}
       onUnlink={(value) => {
         setStyle(el, property, value, editMetadata);

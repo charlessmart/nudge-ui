@@ -323,8 +323,8 @@ describe("applyColorTokenReplacement", () => {
     expect(applyColorTokenReplacement("var(--color-red-impl)", oldWithName, newBlue)).toEqual({ ok: true, value: "var(--color-blue)" });
   });
 
-  it("falls back to literal value replacement when the reference is absent", () => {
-    expect(applyColorTokenReplacement("color: #dc2626", oldRed, newBlue)).toEqual({ ok: true, value: "color: #2563eb" });
+  it("rejects literal replacement outside an exact color component", () => {
+    expect(applyColorTokenReplacement("color: #dc2626", oldRed, newBlue)).toEqual({ ok: false, reason: "unsupported" });
   });
 
   it("returns an unsupported result when the new token has no CSS reference name", () => {

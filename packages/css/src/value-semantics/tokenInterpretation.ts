@@ -21,6 +21,7 @@
  */
 import type {
   ColorOpacity,
+  ColorValueFacts,
   TokenEntry,
   TokenOrigin,
   TokenReference,
@@ -28,7 +29,7 @@ import type {
   ValueModifier,
 } from "../model/index.ts";
 import {
-  interpretColorOpacity,
+  interpretColorValue,
   type ColorComponentResolution,
 } from "./colorSemantics.ts";
 export { extractVarCalls } from "./cssSyntax.ts";
@@ -44,6 +45,8 @@ export interface TokenValueInterpretation {
   tokens: TokenReference[];
   /** Normalized opacity when the value carries an alpha component. */
   opacity?: ColorOpacity;
+  /** Color-shape facts projected to UI without reparsing authored expressions there. */
+  color: ColorValueFacts;
   /** Explicit fallback and alpha modifiers derived from the authored value. */
   modifiers: ValueModifier[];
   /** The token reached after traversing chained aliases from `tokenName`. */
@@ -237,11 +240,13 @@ export function interpretTokenValue(
     }
   }
 
-  const opacity = interpretColorOpacity(authored, {
+  const colorContext = {
     tokenTable: table,
     localAliases,
-    resolveTokenReference: (value) => resolveComponentReference(value, ctx),
-  });
+    resolveTokenReference: (value: string) => resolveComponentReference(value, ctx),
+  };
+  const authoredColor = interpretColorValue(authored, colorContext);
+  const opacity = authoredColor.opacity;
   const modifiers: ValueModifier[] = calls.flatMap((call) => call.fallback ? [{ kind: "fallback" as const, value: call.fallback }] : []);
   if (opacity) modifiers.push({ kind: "alpha", value: opacity.value });
 
@@ -255,11 +260,19 @@ export function interpretTokenValue(
   const baseKnown = firstKnown && firstKnown.tokenName !== alphaTokenName ? firstKnown : null;
   const baseInner = inner.tokenName && inner.tokenName !== alphaTokenName ? inner : null;
   const primary = baseKnown ?? baseInner;
+  const resolvedColor = primary?.resolvedValue
+    ? interpretColorValue(primary.resolvedValue, colorContext)
+    : null;
   return {
     tokenName: primary?.tokenName ?? (alphaTokenName ? null : firstKnown?.tokenName ?? inner.tokenName),
     resolvedValue: primary?.resolvedValue ?? (alphaTokenName ? authored : inner.resolvedValue),
     tokens: references,
     opacity,
+    color: {
+      hasEmbeddedAlpha: authoredColor.facts.hasEmbeddedAlpha || Boolean(resolvedColor?.facts.hasEmbeddedAlpha),
+      isExpression: authoredColor.facts.isExpression,
+      opacityEditable: authoredColor.facts.opacityEditable && !resolvedColor?.facts.hasEmbeddedAlpha,
+    },
     modifiers,
     leafTokenName: primary?.leafTokenName ?? primary?.tokenName ?? null,
     cycle: primary?.cycle,

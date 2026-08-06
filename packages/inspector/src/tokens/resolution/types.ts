@@ -13,6 +13,7 @@ export type {
   AttributionEvidence,
   BorderStructure,
   ColorOpacity,
+  ColorValueFacts,
   EditCapability,
   MatchedRule,
   ResolvedProperty,
