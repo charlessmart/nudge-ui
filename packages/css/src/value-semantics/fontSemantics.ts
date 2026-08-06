@@ -103,10 +103,24 @@ export function parseFontShorthand(value: string): FontShorthandParts | null {
   const family = parts.slice(cursor).join(" ").trim();
   if (!family) return null;
 
-  const weight = parts.slice(0, sizeIndex).find((part) => (
-    FONT_WEIGHT_KEYWORDS.has(part.toLowerCase()) || /^(?:[1-9]\d{0,2}|1000)$/.test(part)
-  ));
-  const style = parts.slice(0, sizeIndex).find((part) => FONT_STYLE_KEYWORDS.has(part.toLowerCase()));
+  let weight: string | undefined;
+  let style: string | undefined;
+  for (const part of parts.slice(0, sizeIndex)) {
+    const lower = part.toLowerCase();
+    if (!style && FONT_STYLE_KEYWORDS.has(lower)) {
+      style = part;
+      continue;
+    }
+    if (!weight && (FONT_WEIGHT_KEYWORDS.has(lower) || /^(?:[1-9]\d{0,2}|1000)$/.test(part))) {
+      weight = part;
+      continue;
+    }
+    // Variant, stretch, angle-bearing oblique, duplicate, and unknown prefix
+    // components are valid in wider font grammar but outside this supported
+    // projection. Keep the whole shorthand conservative instead of dropping
+    // their meaning.
+    return null;
+  }
   return {
     "font-family": family,
     "font-size": fontSize,

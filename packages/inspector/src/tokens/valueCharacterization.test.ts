@@ -14,9 +14,6 @@ import {
 } from "./resolution.ts";
 import type { TokenTable } from "@design-tool/css/model";
 import {
-  parseBorderShorthand,
-} from "@design-tool/css/value-semantics";
-import {
   applyColorOpacity,
   applyColorTokenReplacement,
   browserCssGrammar,
@@ -354,43 +351,6 @@ describe("applyColorTokenReplacement", () => {
 
   it("returns an unsupported result when neither reference nor literal matches", () => {
     expect(applyColorTokenReplacement("var(--unrelated)", oldRed, newBlue)).toEqual({ ok: false, reason: "unsupported" });
-  });
-});
-
-describe("parseBorderShorthand", () => {
-  it("parses a full shorthand", () => {
-    const result = parseBorderShorthand("2px solid #334455", {});
-    expect(result).toMatchObject({ kind: "border", sourceProperty: "border", width: "2px", style: "solid", color: "#334455", colorTokenName: null });
-  });
-
-  it("fills omitted components with CSS initials", () => {
-    expect(parseBorderShorthand("2px solid", {})).toMatchObject({ width: "2px", style: "solid", color: "currentcolor" });
-    expect(parseBorderShorthand("none", {})).toMatchObject({ width: "medium", style: "none", color: "currentcolor" });
-    expect(parseBorderShorthand("hidden", {})).toMatchObject({ style: "hidden" });
-  });
-
-  it("accepts any component order", () => {
-    expect(parseBorderShorthand("#9b4dca double 3px", {})).toMatchObject({ width: "3px", style: "double", color: "#9b4dca" });
-  });
-
-  it("resolves a token color and reports its token name", () => {
-    const result = parseBorderShorthand("1px solid var(--color-border)", buildTokenTable([colorToken("--color-border", "#334455")]));
-    expect(result).toMatchObject({ width: "1px", style: "solid", color: "var(--color-border)", colorTokenName: "--color-border" });
-  });
-
-  it("rejects css-wide keywords", () => {
-    for (const value of ["inherit", "initial", "unset", "revert", "revert-layer"]) {
-      expect(parseBorderShorthand(value, {})).toBeNull();
-    }
-  });
-
-  it("rejects ambiguous, slash, image, and multi-value forms", () => {
-    expect(parseBorderShorthand("1px 2px", {})).toBeNull();
-    expect(parseBorderShorthand("solid dashed", {})).toBeNull();
-    expect(parseBorderShorthand("1px solid red 2px", {})).toBeNull();
-    expect(parseBorderShorthand("red / 10%", {})).toBeNull();
-    expect(parseBorderShorthand("linear-gradient(red, blue) 2px solid", {})).toBeNull();
-    expect(parseBorderShorthand("url(a.png) solid", {})).toBeNull();
   });
 });
 

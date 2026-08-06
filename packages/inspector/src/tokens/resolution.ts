@@ -361,13 +361,19 @@ function resolveTokenValue(
   return interpretTokenValue(value, createTokenInterpretationContext(tokenTable, localAliases));
 }
 
-function elementDirectionality(el?: HTMLElement): Directionality | undefined {
-  if (!el) return undefined;
-  const computed = getElementComputedStyle(el);
+function directionalityFromComputed(el: HTMLElement, computed: CSSStyleDeclaration): Directionality {
   return {
     direction: computed?.direction || el?.dir || "ltr",
     writingMode: computed?.getPropertyValue("writing-mode").trim() || "horizontal-tb",
   };
+}
+
+function elementDirectionality(el: HTMLElement): Directionality {
+  return directionalityFromComputed(el, getElementComputedStyle(el));
+}
+
+function isLogicalBoxProperty(property: string): boolean {
+  return /^(?:margin|padding|inset)-(?:inline|block)(?:-(?:start|end))?$/i.test(property);
 }
 
 interface ResolvedDeclaration {
@@ -398,11 +404,11 @@ function resolveDeclaration(
   declaration: StyleDeclaration,
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
-  el?: HTMLElement,
+  directionality?: Directionality,
 ): ResolvedDeclaration[] {
   const fields = interpretStructuredValue(declaration.property, declaration.value, {
     tokenContext: createTokenInterpretationContext(tokenTable, localAliases),
-    ...(el ? { directionality: elementDirectionality(el) } : {}),
+    ...(directionality ? { directionality } : {}),
   });
   return fields.map((field) => ({
     property: field.property,
@@ -926,11 +932,14 @@ function rowsFromMatches(
   // Map.set() naturally overwrites: higher specificity rules processed later win,
   // and equal-specificity rules get "last in stylesheet order wins" (stable sort).
   const sorted = [...matched].sort((a, b) => (a.rule.sourceOrder ?? 0) - (b.rule.sourceOrder ?? 0));
+  const needsDirectionality = sorted.some(({ rule }) =>
+    rule.declarations.some(({ property }) => isLogicalBoxProperty(property)));
+  const directionality = needsDirectionality ? elementDirectionality(el) : undefined;
 
   for (const m of sorted) {
     const { rule, branch, specificity } = m;
     for (const decl of rule.declarations) {
-      for (const resolved of resolveDeclaration(decl, tokenTable, aliases, el)) {
+      for (const resolved of resolveDeclaration(decl, tokenTable, aliases, directionality)) {
         const candidate: ResolvedProperty = {
           property: resolved.property,
           tokenName: resolved.tokenName,
@@ -967,7 +976,7 @@ function rowsFromMatches(
   const rows = Array.from(map.values()).slice(0, MAX_PROPERTIES);
   inferTailwindV4ColorOpacity(el, tokenTable, rows);
   for (const row of rows) {
-    if (row.capability !== "raw") continue;
+    if (row.capability !== "raw" || row.diagnostic) continue;
     const value = row.authored ?? row.declaredValue ?? "";
     if (!canBecomeNumeric(value)) continue;
     const numeric = row.resolvedValue ?? row.computed ?? "";
@@ -1178,13 +1187,17 @@ function applyInlineDeclarations(
 ): void {
   // Inline declarations participate in the cascade and are explicit evidence,
   // but token attribution is only exact when the authored inline value uses a known token.
-  for (const property of Array.from(el.style)) {
+  const inlineProperties = Array.from(el.style);
+  const directionality = inlineProperties.some(isLogicalBoxProperty)
+    ? directionalityFromComputed(el, computed)
+    : undefined;
+  for (const property of inlineProperties) {
     const value = el.style.getPropertyValue(property);
     const declarations = resolveDeclaration({
       property,
       value,
       important: el.style.getPropertyPriority(property) === "important",
-    }, tokenTable, EMPTY_LOCAL_ALIASES, el);
+    }, tokenTable, EMPTY_LOCAL_ALIASES, directionality);
     for (const declaration of declarations) {
       const painted = computed.getPropertyValue(declaration.property);
       const row: ResolvedProperty = {
@@ -1201,7 +1214,7 @@ function applyInlineDeclarations(
         modifiers: declaration.modifiers,
         capability: declaration.capability,
         resolvedTokenValue: declaration.resolvedValue,
-        diagnostic: undefined,
+        diagnostic: declaration.diagnostic,
         structure: declaration.structure,
         confidence: "unknown",
         evidence: { selector: "[style]", specificity: 100000000, important: Boolean(declaration.important), inaccessibleStylesheet: inaccessible || undefined, reason: declaration.tokenName ? "inline token declaration validated against computed style" : "inline declaration contains no catalog token" },
@@ -1223,7 +1236,7 @@ function promoteNumericCalcRows(result: ResolvedProperty[]): void {
   // shows the pixel value instead of the raw calc() string and allows
   // numeric editing (nudge / token swap).
   for (const prop of result) {
-    if (prop.capability !== "raw") continue;
+    if (prop.capability !== "raw" || prop.diagnostic) continue;
     const value = prop.authored ?? prop.declaredValue ?? "";
     if (!canBecomeNumeric(value)) continue;
     const numeric = prop.computed ?? prop.resolvedValue ?? "";

@@ -101,6 +101,15 @@ function rawField(property: string, authored: string, ctx: StructuredValuesConte
   };
 }
 
+function unsupportedField(property: string, authored: string, ctx: StructuredValuesContext): StructuredField {
+  const field = rawField(property, authored, ctx);
+  return {
+    ...field,
+    capability: "raw",
+    diagnostic: field.diagnostic ?? `unsupported structured value for ${property}`,
+  };
+}
+
 function fieldFor(property: string, declaredValue: string, sourceProperty: string, ctx: StructuredValuesContext): StructuredField {
   const resolved = interpretTokenValue(declaredValue, ctx.tokenContext);
   return {
@@ -141,18 +150,18 @@ function expandPositionValues(rawValues: string[], ctx: StructuredValuesContext)
 }
 
 function expandLogicalSides(
-  lower: string,
   sides: readonly string[],
   property: string,
   authored: string,
   ctx: StructuredValuesContext,
 ): StructuredField[] | null {
   const rawValues = splitTopLevelWhitespace(authored);
+  const positions = expandPositionValues(rawValues, ctx);
   const values = sides.length === 1
-    ? rawValues.length === 1 ? [rawValues[0]!] : null
-    : expandTwoValueShorthand(rawValues);
+    ? positions.length === 1 ? [positions[0]!] : null
+    : expandTwoValueShorthand(positions);
   if (!values) return null;
-  return sides.map((side, index) => fieldFor(side, values[index]!, property, ctx));
+  return sides.map((side, index) => projectPositionField(side, property, values[index]!));
 }
 
 function expandBorder(
@@ -161,13 +170,13 @@ function expandBorder(
   authored: string,
   ctx: StructuredValuesContext,
 ): StructuredField[] | null {
-  const components: BorderComponents | null = parseBorderComponents(authored.trim(), ctx.tokenContext.table);
+  const components: BorderComponents | null = parseBorderComponents(authored.trim(), ctx.tokenContext);
   if (!components) return null;
   const sourceProperty = lower as BorderStructure["sourceProperty"];
   const sidePrefix = sourceProperty === "border" ? "" : `${sourceProperty}-`;
-  // One interpretation of the color component feeds every projected color
-  // longhand and the structure's colorTokenName (one interpretation tree).
-  const colorResult = interpretTokenValue(components.color, ctx.tokenContext);
+  // Interpret each distinct component once; every projected longhand reuses
+  // that component result rather than resolving the same token repeatedly.
+  const { widthResult, styleResult, colorResult } = components;
   const scopedStructure: BorderStructure = {
     kind: "border",
     sourceProperty,
@@ -186,19 +195,21 @@ function expandBorder(
       ["border-top-color", components.color], ["border-right-color", components.color], ["border-bottom-color", components.color], ["border-left-color", components.color],
     ];
   return entries.map(([longhand, component]) => {
-    const isColor = longhand.endsWith("color");
+    const result = longhand.endsWith("color")
+      ? colorResult
+      : longhand.endsWith("style") ? styleResult : widthResult;
     return {
       property: longhand,
       declaredValue: authoredValue,
       sourceProperty: property,
-      tokenName: isColor ? colorResult.tokenName : null,
-      resolvedValue: isColor ? colorResult.resolvedValue : component,
-      tokens: isColor ? colorResult.tokens : [],
-      opacity: isColor ? colorResult.opacity : undefined,
-      color: isColor ? colorResult.color : undefined,
-      modifiers: isColor ? colorResult.modifiers : [],
+      tokenName: result.tokenName,
+      resolvedValue: result.resolvedValue || component,
+      tokens: result.tokens,
+      opacity: result.opacity,
+      color: result.color,
+      modifiers: result.modifiers,
       capability: "structured" as const,
-      diagnostic: colorResult.cycle ? cycleDiagnostic(colorResult.cycle) : undefined,
+      diagnostic: result.cycle ? cycleDiagnostic(result.cycle) : undefined,
       structure: scopedStructure,
     };
   });
@@ -215,7 +226,6 @@ function expandFont(
 }
 
 function expandCorners(
-  lower: string,
   property: string,
   corners: readonly string[],
   authored: string,
@@ -224,26 +234,27 @@ function expandCorners(
   const rawValues = splitTopLevelWhitespace(authored);
   // Slash-separated radius forms stay conservative: a single raw row.
   if (topLevelSlashIndex(authored) >= 0 || rawValues.length === 0 || rawValues.length > 4) {
-    return [rawField(property, authored, ctx)];
+    return [unsupportedField(property, authored, ctx)];
   }
   const cornerValues = expandFourValueShorthand(expandPositionValues(rawValues, ctx));
-  if (!cornerValues) return [rawField(property, authored, ctx)];
-  return corners.map((longhand, index) => {
-    const value = cornerValues[index]!;
-    return {
-      property: longhand,
-      declaredValue: value.declaredValue,
-      sourceProperty: property,
-      tokenName: value.tokenName,
-      resolvedValue: value.resolvedValue,
-      tokens: value.interpretation.tokens,
-      opacity: value.interpretation.opacity,
-      color: value.interpretation.color,
-      modifiers: value.interpretation.modifiers,
-      capability: classifyEditCapability(longhand, value.declaredValue),
-      diagnostic: value.interpretation.cycle ? cycleDiagnostic(value.interpretation.cycle) : undefined,
-    };
-  });
+  if (!cornerValues) return [unsupportedField(property, authored, ctx)];
+  return corners.map((longhand, index) => projectPositionField(longhand, property, cornerValues[index]!));
+}
+
+function projectPositionField(longhand: string, sourceProperty: string, value: PositionValue): StructuredField {
+  return {
+    property: longhand,
+    declaredValue: value.declaredValue,
+    sourceProperty,
+    tokenName: value.tokenName,
+    resolvedValue: value.resolvedValue,
+    tokens: value.interpretation.tokens,
+    opacity: value.interpretation.opacity,
+    color: value.interpretation.color,
+    modifiers: value.interpretation.modifiers,
+    capability: classifyEditCapability(longhand, value.declaredValue),
+    diagnostic: value.interpretation.cycle ? cycleDiagnostic(value.interpretation.cycle) : undefined,
+  };
 }
 
 function expandSides(
@@ -256,22 +267,7 @@ function expandSides(
   if (rawValues.length === 0 || rawValues.length > 4) return null;
   const sideValues = expandFourValueShorthand(expandPositionValues(rawValues, ctx));
   if (!sideValues) return null;
-  return sides.map((longhand, index) => {
-    const value = sideValues[index]!;
-    return {
-      property: longhand,
-      declaredValue: value.declaredValue,
-      sourceProperty: property,
-      tokenName: value.tokenName,
-      resolvedValue: value.resolvedValue,
-      tokens: value.interpretation.tokens,
-      opacity: value.interpretation.opacity,
-      color: value.interpretation.color,
-      modifiers: value.interpretation.modifiers,
-      capability: classifyEditCapability(longhand, value.declaredValue),
-      diagnostic: value.interpretation.cycle ? cycleDiagnostic(value.interpretation.cycle) : undefined,
-    };
-  });
+  return sides.map((longhand, index) => projectPositionField(longhand, property, sideValues[index]!));
 }
 
 /**
@@ -290,27 +286,31 @@ export function interpretStructuredValue(
 
   const logicalSides = logicalPhysicalSides(lower, ctx.directionality);
   if (logicalSides) {
-    const fields = expandLogicalSides(lower, logicalSides, property, authored, ctx);
+    const fields = expandLogicalSides(logicalSides, property, authored, ctx);
     if (fields) return fields;
+    return [unsupportedField(property, authored, ctx)];
   }
 
   if (lower === "border" || /^border-(?:top|right|bottom|left)$/.test(lower)) {
     const fields = expandBorder(lower, property, authored, ctx);
     if (fields) return fields;
+    return [unsupportedField(property, authored, ctx)];
   }
 
   if (lower === "font") {
     const fields = expandFont(property, authored, ctx);
     if (fields) return fields;
+    return [unsupportedField(property, authored, ctx)];
   }
 
   const corners = BORDER_RADIUS_CORNERS[lower];
-  if (corners) return expandCorners(lower, property, corners, authored, ctx);
+  if (corners) return expandCorners(property, corners, authored, ctx);
 
   const sides = SPACING_SIDES[lower];
   if (sides) {
     const fields = expandSides(property, sides, authored, ctx);
     if (fields) return fields;
+    return [unsupportedField(property, authored, ctx)];
   }
 
   return [rawField(property, authored, ctx)];

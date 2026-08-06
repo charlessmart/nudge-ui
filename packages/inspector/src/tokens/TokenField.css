@@ -225,6 +225,16 @@
   opacity: 1;
 }
 
+.dt-token-field__chip-wrap--small > .dt-token-field__delink--small {
+  position: relative;
+  top: auto;
+  right: auto;
+  flex: 0 0 auto;
+  margin-left: 2px;
+  transform: none;
+  box-shadow: none;
+}
+
 .dt-token-chip__name {
   min-width: 0;
   flex: 1;

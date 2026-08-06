@@ -48,6 +48,7 @@ const RTL: Directionality = { direction: "rtl", writingMode: "horizontal-tb" };
 const VERTICAL_RL: Directionality = { direction: "ltr", writingMode: "vertical-rl" };
 const VERTICAL_LR: Directionality = { direction: "ltr", writingMode: "vertical-lr" };
 const SIDEWAYS_RL: Directionality = { direction: "ltr", writingMode: "sideways-rl" };
+const SIDEWAYS_LR: Directionality = { direction: "ltr", writingMode: "sideways-lr" };
 
 describe("interpretStructuredValue — box/spacing expansion", () => {
   it.each([
@@ -126,7 +127,11 @@ describe("interpretStructuredValue — box/spacing expansion", () => {
   it("falls back to a single raw row for too many spacing values", () => {
     const fields = interpretStructuredValue("padding", "8px 16px 24px 32px 40px", ctx(table([])));
     expect(fields).toHaveLength(1);
-    expect(fields[0]).toMatchObject({ property: "padding", capability: "box-sides" });
+    expect(fields[0]).toMatchObject({
+      property: "padding",
+      capability: "raw",
+      diagnostic: "unsupported structured value for padding",
+    });
   });
 });
 
@@ -179,10 +184,20 @@ describe("interpretStructuredValue — logical sides under directionality", () =
     expect(fields.map((field) => field.property)).toEqual(["right"]);
   });
 
+  it("maps sideways-lr inline start from the physical bottom", () => {
+    const ltr = interpretStructuredValue("padding-inline-start", "4px", ctx(table([]), { directionality: SIDEWAYS_LR }));
+    expect(ltr.map((field) => field.property)).toEqual(["padding-bottom"]);
+
+    const rtl = interpretStructuredValue("padding-inline-start", "4px", ctx(table([]), {
+      directionality: { direction: "rtl", writingMode: "sideways-lr" },
+    }));
+    expect(rtl.map((field) => field.property)).toEqual(["padding-top"]);
+  });
+
   it("falls back when a single-edge logical property gets multiple values", () => {
     const fields = interpretStructuredValue("padding-inline-start", "8px 16px", ctx(table([]), { directionality: LTR }));
     expect(fields).toHaveLength(1);
-    expect(fields[0]).toMatchObject({ property: "padding-inline-start", capability: "box-sides" });
+    expect(fields[0]).toMatchObject({ property: "padding-inline-start", capability: "raw" });
   });
 
   it("defaults to ltr/horizontal-tb when no directionality is supplied", () => {
@@ -240,6 +255,24 @@ describe("interpretStructuredValue — border shorthand", () => {
     expect(fieldMap(fields).get("border-top-width")?.tokens).toEqual([]);
   });
 
+  it("resolves width and style tokens once and reuses their attribution", () => {
+    const fields = interpretStructuredValue("border", "var(--border-width) var(--border-style) red", ctx(table([
+      entry("--border-width", "2px"),
+      entry("--border-style", "dashed"),
+    ])));
+    expect(fieldMap(fields).get("border-width")).toMatchObject({ tokenName: "--border-width", resolvedValue: "2px" });
+    expect(fieldMap(fields).get("border-top-width")).toMatchObject({ tokenName: "--border-width", resolvedValue: "2px" });
+    expect(fieldMap(fields).get("border-style")).toMatchObject({ tokenName: "--border-style", resolvedValue: "dashed" });
+  });
+
+  it("uses local aliases to classify border components", () => {
+    const localAliases = new Map([["--local-width", "3px"]]);
+    const fields = interpretStructuredValue("border", "var(--local-width) solid red", ctx(table([]), {
+      tokenContext: tokenContext(table([]), localAliases),
+    }));
+    expect(fieldMap(fields).get("border-width")).toMatchObject({ tokenName: "--local-width", resolvedValue: "3px" });
+  });
+
   it("projects a border-side shorthand into three longhands", () => {
     const fields = interpretStructuredValue("border-top", "3px dotted var(--color-accent)", ctx(table([
       entry("--color-accent", "#ee1166"),
@@ -269,10 +302,14 @@ describe("interpretStructuredValue — border shorthand", () => {
     }
   });
 
-  it("keeps an unresolved token color structured but unattributed", () => {
+  it("keeps an unresolved variable border conservative", () => {
     const fields = interpretStructuredValue("border", "2px solid var(--missing-token)", ctx(table([])));
-    expect(fields).toHaveLength(15);
-    expect(fieldMap(fields).get("border-color")).toMatchObject({ tokenName: null, structure: { color: "var(--missing-token)" } });
+    expect(fields).toHaveLength(1);
+    expect(fields[0]).toMatchObject({
+      property: "border",
+      capability: "raw",
+      diagnostic: "unsupported structured value for border",
+    });
   });
 });
 
@@ -333,7 +370,7 @@ describe("interpretStructuredValue — supported font decomposition", () => {
   it("keeps system-font shorthands raw", () => {
     const fields = interpretStructuredValue("font", "menu", ctx(table([])));
     expect(fields).toHaveLength(1);
-    expect(fields[0]).toMatchObject({ property: "font", declaredValue: "menu", capability: "composite" });
+    expect(fields[0]).toMatchObject({ property: "font", declaredValue: "menu", capability: "raw" });
   });
 
   it("keeps percentage-sized variants raw", () => {
@@ -346,6 +383,18 @@ describe("interpretStructuredValue — supported font decomposition", () => {
     const fields = interpretStructuredValue("font", 'italic 700 "Aster Display", Georgia', ctx(table([])));
     expect(fields).toHaveLength(1);
     expect(fields[0]?.property).toBe("font");
+  });
+
+  it("keeps unsupported font prefix components conservative", () => {
+    for (const value of ["small-caps 16px serif", "condensed 16px serif", "italic oblique 16px serif"]) {
+      const fields = interpretStructuredValue("font", value, ctx(table([])));
+      expect(fields, value).toHaveLength(1);
+      expect(fields[0], value).toMatchObject({
+        property: "font",
+        capability: "raw",
+        diagnostic: "unsupported structured value for font",
+      });
+    }
   });
 });
 
@@ -384,6 +433,21 @@ describe("one interpretation tree", () => {
     expect(fieldMap(fields).get("padding-right")?.tokenName).toBe("--space-2");
     expect(fieldMap(fields).get("padding-bottom")?.tokenName).toBe("--space-1");
     expect(fieldMap(fields).get("padding-left")?.tokenName).toBe("--space-2");
+  });
+
+  it("interprets a logical-side token once and reuses it across physical sides", () => {
+    let resolutions = 0;
+    const tokenCtx: TokenInterpretationContext = {
+      table: table([entry("--space-inline", "4px")]),
+      resolveOrigin: () => {
+        resolutions += 1;
+        return "project";
+      },
+    };
+    const fields = interpretStructuredValue("padding-inline", "var(--space-inline)", { tokenContext: tokenCtx });
+    expect(fields).toHaveLength(2);
+    expect(resolutions).toBe(1);
+    expect(fields.every((field) => field.tokenName === "--space-inline")).toBe(true);
   });
 
   it("interprets a multi-value radius token once for every corner", () => {

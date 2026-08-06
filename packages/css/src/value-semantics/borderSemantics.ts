@@ -9,9 +9,12 @@
  * Browser-safe contract: this module imports only the shared model and the
  * value-semantics token interpreter. It never touches the DOM or CSSOM.
  */
-import type { BorderStructure, TokenTable } from "../model/index.ts";
 import { splitTopLevelWhitespace } from "./cssSyntax.ts";
-import { interpretTokenValue } from "./tokenInterpretation.ts";
+import {
+  interpretTokenValue,
+  type TokenInterpretationContext,
+  type TokenValueInterpretation,
+} from "./tokenInterpretation.ts";
 
 export const BORDER_STYLES = new Set(["none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"]);
 export const BORDER_WIDTHS = new Set(["thin", "medium", "thick"]);
@@ -25,16 +28,19 @@ export interface BorderComponents {
   width: string;
   style: string;
   color: string;
+  widthResult: TokenValueInterpretation;
+  styleResult: TokenValueInterpretation;
+  colorResult: TokenValueInterpretation;
 }
 
 /**
- * Pure border-shorthand classification: splits the authored value into
- * width/style/color components with CSS initial values for omitted parts, or
- * returns null when the value cannot be decomposed faithfully (ambiguous
- * component order, image layers, non-token slash forms, css-wide keywords, or
- * multi-value junk). Performs no token interpretation.
+ * Conservative border-shorthand classification: splits the authored value
+ * into width/style/color components with CSS initial values for omitted parts,
+ * and interprets each distinct component once. Returns null when the value
+ * cannot be decomposed faithfully (ambiguous component order, image layers,
+ * non-token slash forms, css-wide keywords, or multi-value junk).
  */
-export function parseBorderComponents(value: string, tokenTable: TokenTable): BorderComponents | null {
+export function parseBorderComponents(value: string, tokenContext: TokenInterpretationContext): BorderComponents | null {
   const trimmed = value.trim();
   if (!trimmed || BORDER_CSS_WIDE.has(trimmed.toLowerCase())) return null;
 
@@ -45,22 +51,33 @@ export function parseBorderComponents(value: string, tokenTable: TokenTable): Bo
   let width = "";
   let style = "";
   let color = "";
+  const interpretations = new Map<string, TokenValueInterpretation>();
+  const interpret = (component: string): TokenValueInterpretation => {
+    const cached = interpretations.get(component);
+    if (cached) return cached;
+    const result = interpretTokenValue(component, tokenContext);
+    interpretations.set(component, result);
+    return result;
+  };
   for (const part of parts) {
-    const lower = part.toLowerCase();
     // Reject image layers and non-token slash forms (e.g. `red / 10%`).
     if (/^(?:url|image|cross-fade|element|image-set|linear-gradient|radial-gradient|conic-gradient|repeating-linear-gradient|repeating-radial-gradient|repeating-conic-gradient)\(/i.test(part)) {
       return null;
     }
     if (part.includes("/") && !/^var\(/i.test(part)) return null;
 
-    const varName = /^var\(\s*(--[\w-]+)/i.exec(part)?.[1];
-    const varValue = varName ? tokenTable[varName]?.value ?? "" : "";
-    const isWidth = BORDER_WIDTHS.has(lower)
-      || /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(part)
-      || (varName !== undefined && /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(varValue.trim()));
-    const isStyle = BORDER_STYLES.has(lower);
-    const isColor = COLOR_KEYWORDS.has(lower)
-      || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|hwb\(|lab\(|lch\(|oklab\(|oklch\(|var\(\s*--)/i.test(part);
+    const isVariable = /^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/i.test(part);
+    const interpreted = isVariable ? interpret(part).resolvedValue.trim() : part;
+    // A custom property can substitute an entire shorthand. If its grammar is
+    // unresolved or expands to multiple components, assigning it to one slot
+    // would invent structure that the authored declaration does not prove.
+    if (isVariable && (/^var\(/i.test(interpreted) || splitTopLevelWhitespace(interpreted).length !== 1)) return null;
+    const candidate = interpreted.toLowerCase();
+    const isWidth = BORDER_WIDTHS.has(candidate)
+      || /^(?:0|[+-]?(?:\d*\.)?\d+(?:px|rem|em|%)?)$/i.test(interpreted);
+    const isStyle = BORDER_STYLES.has(candidate);
+    const isColor = COLOR_KEYWORDS.has(candidate)
+      || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|hwb\(|lab\(|lch\(|oklab\(|oklch\(|color\(|color-mix\()/i.test(interpreted);
 
     if (!width && isWidth) width = part;
     else if (!style && isStyle) style = part;
@@ -73,25 +90,12 @@ export function parseBorderComponents(value: string, tokenTable: TokenTable): Bo
   if (!style) style = BORDER_INITIAL.style;
   if (!color) color = BORDER_INITIAL.color;
 
-  return { width, style, color };
-}
-
-/**
- * Parses a `border` / `border-side` shorthand into its width/style/color
- * structure, or returns null when the value cannot be decomposed faithfully.
- * The color token name is resolved against the given table without local-alias
- * or framework policy; the structured interpretation (`interpretStructuredValue`)
- * reuses one full-context interpretation for the projected color longhands and
- * is the sole interpreter in the production projection path.
- */
-export function parseBorderShorthand(value: string, tokenTable: TokenTable): BorderStructure | null {
-  const components = parseBorderComponents(value, tokenTable);
-  if (!components) return null;
-  const colorResult = interpretTokenValue(components.color, { table: tokenTable });
   return {
-    kind: "border",
-    sourceProperty: "border",
-    ...components,
-    colorTokenName: colorResult.tokenName,
+    width,
+    style,
+    color,
+    widthResult: interpret(width),
+    styleResult: interpret(style),
+    colorResult: interpret(color),
   };
 }

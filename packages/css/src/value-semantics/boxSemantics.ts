@@ -78,7 +78,11 @@ export function logicalPhysicalSides(property: string, directionality?: Directio
       ? [`${physicalPrefix}right`, `${physicalPrefix}left`]
       : [`${physicalPrefix}left`, `${physicalPrefix}right`];
   } else {
-    sides = direction === "rtl" ? [`${physicalPrefix}bottom`, `${physicalPrefix}top`] : [`${physicalPrefix}top`, `${physicalPrefix}bottom`];
+    const ltrStartsAtBottom = writingMode === "sideways-lr";
+    const startsAtBottom = direction === "rtl" ? !ltrStartsAtBottom : ltrStartsAtBottom;
+    sides = startsAtBottom
+      ? [`${physicalPrefix}bottom`, `${physicalPrefix}top`]
+      : [`${physicalPrefix}top`, `${physicalPrefix}bottom`];
   }
 
   return edge ? [edge === "start" ? sides[0] : sides[1]] : sides;

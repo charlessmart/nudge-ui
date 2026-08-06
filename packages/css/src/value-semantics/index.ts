@@ -22,11 +22,9 @@ import type { Directionality } from "./boxSemantics.ts";
 export * from "./tokenInterpretation.ts";
 export * from "./propertyPolicy.ts";
 export * from "./colorSemantics.ts";
-export * from "./borderSemantics.ts";
-export * from "./boxSemantics.ts";
-export * from "./fontSemantics.ts";
-export * from "./structuredValues.ts";
-export { splitTopLevel, splitTopLevelWhitespace, topLevelSlashIndex } from "./cssSyntax.ts";
+export { interpretStructuredValue } from "./structuredValues.ts";
+export type { StructuredField, StructuredValuesContext } from "./structuredValues.ts";
+export type { Directionality } from "./boxSemantics.ts";
 
 export type AttributionConfidence = "exact" | "probable" | "unknown";
 

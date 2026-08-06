@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   buildTokenTable,
   createTokenInterpretationContext,
@@ -14,10 +14,7 @@ import {
   resetSourceSiteMatchCache,
   sourceSiteMatchCacheSize,
 } from "./resolution.ts";
-import {
-  interpretTokenValue,
-  parseBorderShorthand,
-} from "@design-tool/css/value-semantics";
+import { interpretTokenValue } from "@design-tool/css/value-semantics";
 import type { MatchedRule, TokenTable } from "@design-tool/css/model";
 import { unlinkElement } from "../editScope.ts";
 import {
@@ -961,7 +958,7 @@ describe("resolvePropertiesFromRules", () => {
       declarations: [{ property: "font", value: "menu" }],
     }], makeTable([]));
 
-    expect(rows).toEqual([expect.objectContaining({ property: "font", authored: "menu", capability: "composite" })]);
+    expect(rows).toEqual([expect.objectContaining({ property: "font", authored: "menu", capability: "raw" })]);
   });
 
   it("collects var() declarations, resolving tokens vs hardcoded values", () => {
@@ -1022,16 +1019,14 @@ describe("resolvePropertiesFromRules", () => {
     ["solid", "medium", "solid", "currentcolor"],
     ["2px", "2px", "none", "currentcolor"],
     ["thin dashed red", "thin", "dashed", "red"],
-    ["2px solid var(--unknown)", "2px", "solid", "var(--unknown)"],
   ])("decomposes safe border shorthand %s", (value, width, style, color) => {
     const table = makeTable([
       { name: "--color-border", value: "#334455", source: "s:1" },
       { name: "--width", value: "1px", source: "s:2" },
     ]);
-    const structure = parseBorderShorthand(value, table);
-    expect(structure).toMatchObject({ width, style, color });
     const rows = resolvePropertiesFromRules(btn, [{ selectorText: ".btn", specificity: 10000, declarations: [{ property: "border", value }] }], table);
-    expect(rows.find((row) => row.property === "border-width")?.resolvedValue).toBe(width);
+    expect(rows.find((row) => row.property === "border-width")?.structure).toMatchObject({ width, style, color });
+    expect(rows.find((row) => row.property === "border-width")?.resolvedValue).toBe(width === "var(--width)" ? "1px" : width);
     expect(rows.find((row) => row.property === "border-style")?.resolvedValue).toBe(style);
     expect(rows.find((row) => row.property === "border-color")?.tokenName).toBe(
       color === "var(--color-border)" ? "--color-border" : null,
@@ -1039,15 +1034,65 @@ describe("resolvePropertiesFromRules", () => {
     expect(rows.find((row) => row.property === "border-top-width")?.authored).toBe(value);
   });
 
-  it.each(["2px solid red / 10%", "inherit", "2px solid red url(x)"])(
+  it("retains width-token attribution from a border shorthand", () => {
+    const rows = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [{ property: "border", value: "var(--width) solid red" }],
+    }], makeTable([{ name: "--width", value: "2px", source: "s:1" }]));
+    expect(rows.find((row) => row.property === "border-width")).toMatchObject({
+      tokenName: "--width",
+      resolvedValue: "2px",
+    });
+  });
+
+  it("reads directionality at most once and only when logical properties need it", () => {
+    const getComputedStyle = vi.spyOn(window, "getComputedStyle");
+    try {
+      resolvePropertiesFromRules(btn, [{
+        selectorText: ".btn",
+        specificity: 10000,
+        declarations: Array.from({ length: 20 }, (_, index) => ({ property: `--plain-${index}`, value: `${index}px` })),
+      }], makeTable([]));
+      expect(getComputedStyle).not.toHaveBeenCalled();
+
+      resolvePropertiesFromRules(btn, [{
+        selectorText: ".btn",
+        specificity: 10000,
+        declarations: [
+          { property: "padding-inline", value: "4px 8px" },
+          { property: "margin-block", value: "2px 6px" },
+        ],
+      }], makeTable([]));
+      expect(getComputedStyle).toHaveBeenCalledTimes(1);
+    } finally {
+      getComputedStyle.mockRestore();
+    }
+  });
+
+  it.each(["2px solid red / 10%", "inherit", "2px solid red url(x)", "2px solid var(--unknown)"])(
     "keeps ambiguous border value %s raw",
     (value) => {
-      expect(parseBorderShorthand(value, makeTable([]))).toBeNull();
       const row = resolvePropertiesFromRules(btn, [{ selectorText: ".btn", specificity: 10000, declarations: [{ property: "border", value }] }], makeTable([])).find((candidate) => candidate.property === "border");
       expect(row?.capability).toBe("raw");
       expect(row?.authored).toBe(value);
+      expect(row?.diagnostic).toContain("unsupported structured value");
     },
   );
+
+  it("does not promote a diagnosed structured fallback into an editable value", () => {
+    const value = "calc(var(--space) * 2) 2px 3px 4px 5px";
+    const row = resolvePropertiesFromRules(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [{ property: "padding", value }],
+    }], makeTable([{ name: "--space", value: "4px", source: "s:1" }]))[0];
+    expect(row).toMatchObject({
+      property: "padding",
+      capability: "raw",
+      diagnostic: "unsupported structured value for padding",
+    });
+  });
 
   it("classifies a simple calc() as atomic when variables resolve and the property is not spacing", () => {
     const value = "calc(var(--space-1) * 2)";
