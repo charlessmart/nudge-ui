@@ -24,4 +24,7 @@ export const tokenTable: Record<string, TokenEntry> = {};
 export const tokenCatalog: TokenDefinition[] = [];
 export const tokenDiagnostics: TokenCatalogDiagnostic[] = [];
 
+/** Inventory snapshot fingerprint; browser inspection refreshes on change. */
+export const tokenGeneration: string = "";
+
 export default tokenTable;
