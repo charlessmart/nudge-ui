@@ -519,7 +519,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       if (id === RESOLVED_TOKENS_ID) {
         // ADR-0002: production builds receive an empty token table.
         if (command === "build") {
-          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const tokenDiagnostics = [];\nexport const designToolProjectId = "";\nexport default tokens;\n`;
+          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const tokenDiagnostics = [];\nexport const tokenGeneration = "";\nexport const designToolProjectId = "";\nexport default tokens;\n`;
         }
         await ensurePostTransformCss();
         await ensurePublishedThemeContract();
