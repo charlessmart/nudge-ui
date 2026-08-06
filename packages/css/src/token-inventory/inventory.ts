@@ -424,6 +424,11 @@ export function createTokenInventory(): TokenInventory {
         }
       }
 
+      // Definition-level enrichment by cssName: contributed declarations
+      // append, `name`/`adapter` win, and
+      // `origin`/`editable` are applied only when the stylesheet-derived
+      // definition has none. Unmatched entries are ignored (a contract
+      // variable absent from active CSS adds no row).
       for (const definition of contribution.definitions ?? []) {
         const existing = merged.get(definition.cssName);
         if (!existing) continue;
