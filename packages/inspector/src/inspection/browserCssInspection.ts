@@ -1,4 +1,5 @@
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
+import type { ResolvedProperty, TokenTable } from "@design-tool/css/model";
 import type { InteractionState } from "../styleState.ts";
 import {
   buildTokenTable,
@@ -10,7 +11,6 @@ import {
   getResolvedPropertiesStable,
   invalidateStyleResolutionCache,
 } from "../tokens/resolution.ts";
-import type { ResolvedProperty, TokenTable } from "../tokens/resolution.ts";
 import { buildTokenCatalogRows, type TokenCatalogRow } from "../tokens/catalog.ts";
 import {
   documentRevisions,
