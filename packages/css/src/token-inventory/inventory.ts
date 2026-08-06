@@ -1,103 +1,248 @@
 /**
- * The token inventory engine.
- *
- * Aggregates stylesheet artifacts and Adapter-contributed literal tokens into
- * deterministic, immutable snapshots. It never reads the filesystem, invokes
- * Vite, resolves modules, executes user configuration, loads runtime
- * documents, or serializes a virtual module — those are Adapter
- * responsibilities (Stage 2 plan, "Responsibilities behind the seam").
+ * Build-tool-neutral token inventory with authored/transformed reconciliation
+ * and normalized styling contributions.
  */
 import type { TokenDefinition, TokenEntry } from "../model/index.ts";
 import { parseStylesheetArtifact, type ParsedContribution } from "./parseStylesheet.ts";
 import type {
   AdapterContributions,
+  InventoryContribution,
   InventoryDiagnostic,
   InventoryOrderEvidence,
   InventorySnapshot,
   InventoryTokenDeclaration,
   InventoryTokenDefinition,
   StylesheetArtifact,
+  TokenContribution,
 } from "./types.ts";
 
-interface StoredRow {
+interface StoredObservation {
   readonly artifact: StylesheetArtifact;
   readonly contribution: ParsedContribution;
 }
 
-function artifactKey(artifact: Pick<StylesheetArtifact, "buildTool" | "id" | "stage">): string {
-  return `${artifact.buildTool}\u0000${artifact.id}\u0000${artifact.stage}`;
+interface StoredArtifact {
+  readonly buildTool: string;
+  readonly id: string;
+  authored?: StoredObservation;
+  transformed?: StoredObservation;
+  transformFailed?: boolean;
 }
 
-function compareArtifacts(a: StylesheetArtifact, b: StylesheetArtifact): number {
-  const aHasStylesheetOrder = a.order !== undefined;
-  const bHasStylesheetOrder = b.order !== undefined;
-  if (aHasStylesheetOrder !== bHasStylesheetOrder) return aHasStylesheetOrder ? -1 : 1;
-  if (aHasStylesheetOrder && bHasStylesheetOrder && a.order !== b.order) return a.order! - b.order!;
-  const discoveryOrder = (a.discoveryOrder ?? Infinity) - (b.discoveryOrder ?? Infinity);
-  return discoveryOrder || artifactKey(a).localeCompare(artifactKey(b));
+type DefinitionBase = Omit<TokenDefinition, "declarations">;
+interface MutableDefinition {
+  base: DefinitionBase;
+  declarations: InventoryTokenDeclaration[];
 }
 
-function sameArtifactFacts(a: StylesheetArtifact, b: StylesheetArtifact): boolean {
-  return a.buildTool === b.buildTool
-    && a.id === b.id
-    && a.stage === b.stage
-    && a.provenance === b.provenance
-    && a.order === b.order
-    && a.discoveryOrder === b.discoveryOrder
-    && a.content === b.content
-    && JSON.stringify(a.diagnostics ?? []) === JSON.stringify(b.diagnostics ?? []);
+function artifactKey(value: Pick<StylesheetArtifact, "buildTool" | "id">): string {
+  return `${value.buildTool}\u0000${value.id}`;
+}
+
+function effectiveObservation(entry: StoredArtifact): StoredObservation | undefined {
+  return entry.transformFailed ? entry.authored : (entry.transformed ?? entry.authored);
+}
+
+function compareArtifacts(a: StoredArtifact, b: StoredArtifact): number {
+  const aArtifact = effectiveObservation(a)?.artifact;
+  const bArtifact = effectiveObservation(b)?.artifact;
+  const aHasOrder = aArtifact?.order !== undefined;
+  const bHasOrder = bArtifact?.order !== undefined;
+  if (aHasOrder !== bHasOrder) return aHasOrder ? -1 : 1;
+  if (aHasOrder && bHasOrder && aArtifact!.order !== bArtifact!.order) {
+    return aArtifact!.order! - bArtifact!.order!;
+  }
+  const discovery = (aArtifact?.discoveryOrder ?? Infinity) - (bArtifact?.discoveryOrder ?? Infinity);
+  return discovery || artifactKey(a).localeCompare(artifactKey(b));
+}
+
+function compareContributions(a: TokenContribution, b: TokenContribution): number {
+  const order = (a.order ?? Infinity) - (b.order ?? Infinity);
+  return order || a.id.localeCompare(b.id);
 }
 
 function copyArtifact(artifact: StylesheetArtifact): StylesheetArtifact {
   return {
     ...artifact,
-    ...(artifact.diagnostics
-      ? { diagnostics: artifact.diagnostics.map((diagnostic) => ({ ...diagnostic })) }
-      : {}),
+    diagnostics: artifact.diagnostics?.map((diagnostic) => ({ ...diagnostic })),
   };
 }
 
-function copyAdapterContributions(contributions: AdapterContributions): AdapterContributions {
+function copyToken(entry: TokenEntry): TokenEntry {
+  return { ...entry };
+}
+
+function copyDefinition(definition: TokenDefinition): TokenDefinition {
   return {
-    tokens: contributions.tokens.map((entry) => ({ ...entry })),
-    diagnostics: contributions.diagnostics?.map((diagnostic) => ({ ...diagnostic })) ?? [],
+    ...definition,
+    declarations: definition.declarations.map((declaration) => ({
+      ...declaration,
+      context: {
+        ...declaration.context,
+        wrappers: declaration.context.wrappers?.map((wrapper) => ({ ...wrapper })),
+      },
+    })),
   };
+}
+
+function copyContribution(contribution: TokenContribution): TokenContribution {
+  return {
+    ...contribution,
+    tokens: contribution.tokens?.map(copyToken),
+    definitions: contribution.definitions?.map(copyDefinition),
+    diagnostics: contribution.diagnostics?.map((diagnostic) => ({ ...diagnostic })),
+  };
+}
+
+function sameObservationFacts(observation: StoredObservation, artifact: StylesheetArtifact): boolean {
+  return JSON.stringify(observation.artifact) === JSON.stringify(artifact);
+}
+
+function sameContributionFacts(a: TokenContribution, b: TokenContribution): boolean {
+  if (a.overlay !== b.overlay) return false;
+  const withoutOverlay = ({ overlay: _overlay, ...rest }: TokenContribution) => rest;
+  return JSON.stringify(withoutOverlay(a)) === JSON.stringify(withoutOverlay(b));
 }
 
 function sameAdapterContributions(a: AdapterContributions, b: AdapterContributions): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function artifactOrderEvidence(sortedRows: readonly StoredRow[]): ReadonlyMap<string, InventoryOrderEvidence> {
-  const discoveryRows = sortedRows.filter(({ artifact }) => artifact.order === undefined);
-  const explicitDiscoveryIndexes = discoveryRows.flatMap(({ artifact }) =>
-    artifact.discoveryOrder === undefined ? [] : [artifact.discoveryOrder]);
-  let nextDerivedIndex = explicitDiscoveryIndexes.length > 0
-    ? Math.max(...explicitDiscoveryIndexes) + 1
-    : 0;
-  const evidence = new Map<string, InventoryOrderEvidence>();
-  for (const { artifact } of sortedRows) {
-    evidence.set(artifactKey(artifact), artifact.order !== undefined
-      ? { kind: "stylesheet", index: artifact.order }
-      : { kind: "discovery", index: artifact.discoveryOrder ?? nextDerivedIndex++ });
-  }
-  return evidence;
+function parseObservation(artifact: StylesheetArtifact): StoredObservation {
+  const storedArtifact = copyArtifact(artifact);
+  const parsed = artifact.content === undefined
+    ? { definitions: [], diagnostics: [] }
+    : parseStylesheetArtifact(storedArtifact);
+  const adapterDiagnostics: InventoryDiagnostic[] = (artifact.diagnostics ?? []).map(
+    (diagnostic) => ({ ...diagnostic, artifact: artifact.id }),
+  );
+  return {
+    artifact: storedArtifact,
+    contribution: {
+      definitions: parsed.definitions,
+      diagnostics: [...adapterDiagnostics, ...parsed.diagnostics],
+    },
+  };
 }
 
-/** FNV-1a 32-bit hash; a small pure-JS fingerprint with no Node dependency. */
+function orderEvidence(entries: readonly StoredArtifact[]): ReadonlyMap<string, InventoryOrderEvidence> {
+  const discoveryEntries = entries.filter((entry) => effectiveObservation(entry)?.artifact.order === undefined);
+  const explicit = discoveryEntries.flatMap((entry) => {
+    const value = effectiveObservation(entry)?.artifact.discoveryOrder;
+    return value === undefined ? [] : [value];
+  });
+  let next = explicit.length > 0 ? Math.max(...explicit) + 1 : 0;
+  const result = new Map<string, InventoryOrderEvidence>();
+  for (const entry of entries) {
+    const artifact = effectiveObservation(entry)?.artifact;
+    if (!artifact) continue;
+    result.set(artifactKey(entry), artifact.order !== undefined
+      ? { kind: "stylesheet", index: artifact.order }
+      : { kind: "discovery", index: artifact.discoveryOrder ?? next++ });
+  }
+  return result;
+}
+
+/** Preserve an authored declaration id when the transform retains its position. */
+function reconciledDeclarationId(
+  authored: StoredObservation | undefined,
+  cssName: string,
+  declaration: TokenDefinition["declarations"][number],
+): string | undefined {
+  const authoredDefinition = authored?.contribution.definitions.find(
+    (definition) => definition.cssName === cssName,
+  );
+  const match = authoredDefinition?.declarations.find((candidate) =>
+    candidate.order === declaration.order
+    && candidate.source === declaration.source
+    && JSON.stringify(candidate.context) === JSON.stringify(declaration.context));
+  return match?.id ?? declaration.id;
+}
+
+function reconcileObservations(entry: StoredArtifact): Array<{
+  definition: TokenDefinition;
+  artifact: StylesheetArtifact;
+}> {
+  const authored = entry.authored;
+  const facts = effectiveObservation(entry);
+  if (!facts) return [];
+  const authoredNames = new Set(
+    authored?.contribution.definitions.map((definition) => definition.cssName) ?? [],
+  );
+  return facts.contribution.definitions.map((definition) => {
+    const transformOnly = authored !== undefined && !authoredNames.has(definition.cssName);
+    const origin = transformOnly ? "generated" : facts.artifact.provenance;
+    const base: TokenDefinition = {
+      ...definition,
+      origin,
+      declarations: definition.declarations.map((declaration) => ({
+        ...declaration,
+        id: facts.artifact.stage === "transformed"
+          ? reconciledDeclarationId(authored, definition.cssName, declaration)
+          : declaration.id,
+      })),
+    };
+    if (origin === "package" || origin === "generated") base.editable = false;
+    if (facts.artifact.adapter && origin !== "package") base.adapter = facts.artifact.adapter;
+    return { definition: base, artifact: facts.artifact };
+  });
+}
+
+function adapterDeclaration(
+  entry: TokenEntry,
+  contributionId: string,
+  contributionOrder: number,
+  order: number,
+): InventoryTokenDeclaration {
+  const key = entry.cssName ?? entry.name;
+  return {
+    id: `adapter\x00${contributionId}\x00${key}\x00${entry.source}\x00${entry.value}`,
+    order,
+    value: entry.value,
+    source: entry.source,
+    important: false,
+    context: {},
+    contribution: {
+      kind: "adapter",
+      id: contributionId,
+      provenance: entry.origin,
+      editable: entry.editable,
+      order: contributionOrder,
+    },
+  };
+}
+
+function setLiteralToken(
+  merged: Map<string, MutableDefinition>,
+  entry: TokenEntry,
+  contributionId: string,
+  contributionOrder: number,
+  order: number,
+): void {
+  const key = entry.cssName ?? entry.name;
+  merged.set(key, {
+    base: {
+      cssName: key,
+      name: entry.name,
+      cssValue: entry.cssValue,
+      adapter: entry.adapter,
+      origin: entry.origin,
+      editable: entry.editable,
+    },
+    declarations: [adapterDeclaration(entry, contributionId, contributionOrder, order)],
+  });
+}
+
+/** FNV-1a 32-bit fingerprint. */
 function fnv1a(input: string): string {
   let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i);
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return hash.toString(16).padStart(8, "0");
 }
 
-/**
- * Canonical serialization of the observable inventory facts. Only these facts
- * feed the generation fingerprint, so generation changes exactly when they do.
- */
 function canonicalSnapshotFacts(
   definitions: readonly InventoryTokenDefinition[],
   diagnostics: readonly InventoryDiagnostic[],
@@ -111,7 +256,7 @@ function canonicalSnapshotFacts(
     );
     for (const declaration of definition.declarations) {
       parts.push(
-        `d\x00${declaration.id ?? ""}\x00${String(declaration.order ?? "")}`
+        `d\x00${declaration.id ?? ""}\x00${declaration.order}`
         + `\x00${declaration.value}\x00${declaration.source}\x00${String(declaration.important)}`
         + `\x00${JSON.stringify(declaration.context)}\x00${JSON.stringify(declaration.contribution)}`,
       );
@@ -139,75 +284,87 @@ function deepFreeze<T>(value: T): T {
 }
 
 export interface TokenInventory {
-  /** Create, update, or remove rows for one artifact. */
   apply(artifact: StylesheetArtifact): void;
-  /** Immutable snapshot with deterministic order and generation. */
   snapshot(): InventorySnapshot;
-  /** Replace normalized literal-token and diagnostic contributions from styling Adapters. */
   setAdapterContributions(contributions: AdapterContributions): void;
+  applyContribution(contribution: TokenContribution): void;
+  removeContribution(id: string): void;
 }
 
 export function createTokenInventory(): TokenInventory {
-  const rows = new Map<string, StoredRow>();
-  let adapterContributions: AdapterContributions = { tokens: [], diagnostics: [] };
+  const artifacts = new Map<string, StoredArtifact>();
+  const contributions = new Map<string, TokenContribution>();
+  let legacyAdapterContributions: AdapterContributions = { tokens: [], diagnostics: [] };
   let snapshotCache: InventorySnapshot | null = null;
 
-  function invalidate(): void {
-    snapshotCache = null;
-  }
+  const invalidate = (): void => { snapshotCache = null; };
 
   function apply(artifact: StylesheetArtifact): void {
     const key = artifactKey(artifact);
     const hasDiagnostics = (artifact.diagnostics?.length ?? 0) > 0;
-    if (artifact.content === undefined && !hasDiagnostics) {
-      if (rows.delete(key)) invalidate();
+    if (artifact.content === undefined && !artifact.failed && !hasDiagnostics) {
+      if (artifacts.delete(key)) invalidate();
       return;
     }
-    const storedArtifact = copyArtifact(artifact);
-    const existing = rows.get(key);
-    if (existing && sameArtifactFacts(existing.artifact, artifact)) return;
-    const parsed = artifact.content === undefined
-      ? { definitions: [], diagnostics: [] }
-      : parseStylesheetArtifact(storedArtifact);
-    const contributedDiagnostics: InventoryDiagnostic[] = (storedArtifact.diagnostics ?? []).map(
-      (diagnostic) => ({ ...diagnostic, artifact: storedArtifact.id }),
-    );
-    rows.set(key, {
-      artifact: storedArtifact,
-      contribution: {
-        definitions: parsed.definitions,
-        diagnostics: [...contributedDiagnostics, ...parsed.diagnostics],
-      },
-    });
+
+    const entry = artifacts.get(key) ?? { buildTool: artifact.buildTool, id: artifact.id };
+    if (artifact.failed) {
+      if (artifact.stage !== "transformed" || entry.transformFailed === true) return;
+      entry.transformFailed = true;
+      artifacts.set(key, entry);
+      invalidate();
+      return;
+    }
+
+    const observation = parseObservation(artifact);
+    const current = artifact.stage === "authored" ? entry.authored : entry.transformed;
+    if (current && sameObservationFacts(current, observation.artifact)
+      && !(artifact.stage === "transformed" && entry.transformFailed)) return;
+    if (artifact.stage === "authored") entry.authored = observation;
+    else {
+      entry.transformed = observation;
+      entry.transformFailed = false;
+    }
+    artifacts.set(key, entry);
     invalidate();
   }
 
-  function setAdapterContributions(contributions: AdapterContributions): void {
-    if (sameAdapterContributions(adapterContributions, contributions)) return;
-    adapterContributions = copyAdapterContributions(contributions);
+  function setAdapterContributions(next: AdapterContributions): void {
+    if (sameAdapterContributions(legacyAdapterContributions, next)) return;
+    legacyAdapterContributions = {
+      tokens: next.tokens.map(copyToken),
+      diagnostics: next.diagnostics?.map((diagnostic) => ({ ...diagnostic })) ?? [],
+    };
     invalidate();
+  }
+
+  function applyContribution(contribution: TokenContribution): void {
+    const copied = copyContribution(contribution);
+    const existing = contributions.get(copied.id);
+    if (existing && sameContributionFacts(existing, copied)) return;
+    contributions.set(copied.id, copied);
+    invalidate();
+  }
+
+  function removeContribution(id: string): void {
+    if (contributions.delete(id)) invalidate();
   }
 
   function snapshot(): InventorySnapshot {
     if (snapshotCache) return snapshotCache;
-
-    const sortedRows = [...rows.values()].sort((a, b) => compareArtifacts(a.artifact, b.artifact));
-    const orderEvidence = artifactOrderEvidence(sortedRows);
-
-    // Group by cssName in artifact order; later artifacts append declarations.
-    // Definition-level provenance/editability come from the FIRST declaring
-    // artifact (legacy `load()` parity: the first file wins). Every declaration
-    // also retains its own contribution evidence so later origins are not lost.
-    // Package artifacts are non-editable; every other provenance is editable.
-    type DefinitionBase = Omit<TokenDefinition, "declarations">;
-    const merged = new Map<string, { base: DefinitionBase; declarations: InventoryTokenDeclaration[] }>();
+    const sortedArtifacts = [...artifacts.values()].sort(compareArtifacts);
+    const sortedContributions = [...contributions.values()].sort(compareContributions);
+    const evidence = orderEvidence(sortedArtifacts);
+    const merged = new Map<string, MutableDefinition>();
     let provisionalOrder = 0;
-    for (const { artifact, contribution } of sortedRows) {
-      const declarations = contribution.definitions
-        .flatMap((definition) => definition.declarations.map((declaration) => ({ definition, declaration })))
+
+    for (const entry of sortedArtifacts) {
+      const rows = reconcileObservations(entry)
+        .flatMap(({ definition, artifact }) => definition.declarations.map(
+          (declaration) => ({ definition, declaration, artifact }),
+        ))
         .sort((a, b) => (a.declaration.order ?? 0) - (b.declaration.order ?? 0));
-      for (const { definition, declaration } of declarations) {
-        const existing = merged.get(definition.cssName);
+      for (const { definition, declaration, artifact } of rows) {
         const enriched: InventoryTokenDeclaration = {
           ...declaration,
           order: provisionalOrder++,
@@ -216,75 +373,94 @@ export function createTokenInventory(): TokenInventory {
             buildTool: artifact.buildTool,
             id: artifact.id,
             stage: artifact.stage,
-            provenance: artifact.provenance,
-            editable: artifact.provenance !== "package",
-            orderEvidence: orderEvidence.get(artifactKey(artifact))!,
+            provenance: definition.origin ?? artifact.provenance,
+            editable: definition.editable ?? artifact.provenance !== "package",
+            orderEvidence: evidence.get(artifactKey(artifact))!,
           },
         };
-        if (existing) {
-          existing.declarations.push(enriched);
-        } else {
-          const { declarations: _declarations, ...definitionBase } = definition;
-          const base: DefinitionBase = {
-            ...definitionBase,
-            origin: artifact.provenance,
-          };
-          if (artifact.provenance === "package") base.editable = false;
+        const existing = merged.get(definition.cssName);
+        if (existing) existing.declarations.push(enriched);
+        else {
+          const { declarations: _declarations, ...base } = definition;
           merged.set(definition.cssName, { base, declarations: [enriched] });
         }
       }
     }
 
-    // Adapter literal tokens merge last, replacing any stylesheet definition
-    // with the same key (legacy `load()` parity for Tailwind v3 config tokens).
-    const sortedAdapterTokens = [...adapterContributions.tokens]
+    const legacyTokens = [...legacyAdapterContributions.tokens]
       .sort((a, b) => (a.cssName ?? a.name).localeCompare(b.cssName ?? b.name));
-    for (const [adapterOrder, entry] of sortedAdapterTokens.entries()) {
-      const key = entry.cssName ?? entry.name;
-      merged.set(key, {
-        base: {
-          cssName: key,
-          name: entry.name,
-          cssValue: entry.cssValue,
-          adapter: entry.adapter,
-          origin: entry.origin,
-          editable: entry.editable,
-        },
-        declarations: [{
-          id: `adapter\x00${key}\x00${entry.source}\x00${entry.value}`,
-          order: provisionalOrder++,
-          value: entry.value,
-          source: entry.source,
-          important: false,
-          context: {},
-          contribution: {
-            kind: "adapter",
-            id: entry.adapter ?? entry.source,
-            provenance: entry.origin,
-            editable: entry.editable,
-            order: adapterOrder,
-          },
-        }],
-      });
+    for (const [index, token] of legacyTokens.entries()) {
+      setLiteralToken(merged, token, "legacy-adapters", index, provisionalOrder++);
     }
 
-    // Adapter replacement can remove an earlier stylesheet definition. Remap
-    // surviving provisional positions so the public global order is compact.
-    const survivingDeclarations = [...merged.values()]
-      .flatMap(({ declarations }) => declarations)
+    for (const [contributionIndex, contribution] of sortedContributions.entries()) {
+      const contributionOrder = contribution.order ?? contributionIndex;
+      const tokens = [...(contribution.tokens ?? [])]
+        .sort((a, b) => (a.cssName ?? a.name).localeCompare(b.cssName ?? b.name));
+      for (const token of tokens) {
+        setLiteralToken(merged, token, contribution.id, contributionOrder, provisionalOrder++);
+      }
+
+      if (contribution.overlay) {
+        for (const entry of merged.values()) {
+          const next = contribution.overlay({
+            ...entry.base,
+            declarations: entry.declarations.map((declaration) => ({ ...declaration })),
+          });
+          const { declarations, ...base } = next;
+          entry.base = base;
+          entry.declarations = declarations.map((declaration) => {
+            const existing = declaration as Partial<InventoryTokenDeclaration>;
+            return {
+              ...declaration,
+              order: declaration.order ?? provisionalOrder++,
+              contribution: existing.contribution ?? {
+                kind: "adapter",
+                id: contribution.id,
+                order: contributionOrder,
+              } satisfies InventoryContribution,
+            };
+          });
+        }
+      }
+
+      for (const definition of contribution.definitions ?? []) {
+        const existing = merged.get(definition.cssName);
+        if (!existing) continue;
+        for (const declaration of definition.declarations) {
+          existing.declarations.push({
+            ...declaration,
+            order: provisionalOrder++,
+            contribution: {
+              kind: "adapter",
+              id: contribution.id,
+              provenance: definition.origin,
+              editable: definition.editable,
+              order: contributionOrder,
+            },
+          });
+        }
+        existing.base = {
+          ...existing.base,
+          name: definition.name,
+          adapter: definition.adapter ?? existing.base.adapter,
+          origin: existing.base.origin ?? definition.origin,
+          editable: existing.base.editable ?? definition.editable,
+        };
+      }
+    }
+
+    const allDeclarations = [...merged.values()]
+      .flatMap((entry) => entry.declarations)
       .sort((a, b) => a.order - b.order);
-    const finalOrder = new Map(survivingDeclarations.map((declaration, order) => [declaration, order]));
-    const definitions: InventoryTokenDefinition[] = [];
-    for (const { base, declarations } of merged.values()) {
-      definitions.push({
-        ...base,
-        declarations: declarations.map((declaration) => ({
-          ...declaration,
-          order: finalOrder.get(declaration)!,
-        })),
-      });
-    }
-
+    const compactOrder = new Map(allDeclarations.map((declaration, index) => [declaration, index]));
+    const definitions: InventoryTokenDefinition[] = [...merged.values()].map(({ base, declarations }) => ({
+      ...base,
+      declarations: declarations.map((declaration) => ({
+        ...declaration,
+        order: compactOrder.get(declaration)!,
+      })),
+    }));
     const tokens: TokenEntry[] = definitions.map((definition) => ({
       name: definition.name,
       cssName: definition.cssName,
@@ -297,14 +473,25 @@ export function createTokenInventory(): TokenInventory {
     }));
 
     const diagnostics: InventoryDiagnostic[] = [];
-    for (const { contribution } of sortedRows) {
-      diagnostics.push(...contribution.diagnostics);
+    for (const entry of sortedArtifacts) {
+      const facts = effectiveObservation(entry);
+      if (facts) diagnostics.push(...facts.contribution.diagnostics);
+      if (entry.transformFailed) {
+        diagnostics.push({
+          code: "transform-observation-failed",
+          artifact: entry.id,
+          message: `The transformed observation for "${entry.id}" is unavailable or failed; `
+            + "the last valid authored observation is retained.",
+        });
+      }
     }
-    diagnostics.push(...(adapterContributions.diagnostics ?? []));
+    diagnostics.push(...(legacyAdapterContributions.diagnostics ?? []));
+    for (const contribution of sortedContributions) {
+      diagnostics.push(...(contribution.diagnostics ?? []));
+    }
 
-    const generation = `g${fnv1a(canonicalSnapshotFacts(definitions, diagnostics))}`;
     snapshotCache = deepFreeze({
-      generation,
+      generation: `g${fnv1a(canonicalSnapshotFacts(definitions, diagnostics))}`,
       definitions,
       tokens,
       diagnostics,
@@ -312,5 +499,5 @@ export function createTokenInventory(): TokenInventory {
     return snapshotCache;
   }
 
-  return { apply, snapshot, setAdapterContributions };
+  return { apply, snapshot, setAdapterContributions, applyContribution, removeContribution };
 }

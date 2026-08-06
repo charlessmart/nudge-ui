@@ -121,7 +121,8 @@ export type TokenCatalogDiagnosticCode =
   | "stylesheet-unreadable"
   | "stylesheet-unresolved"
   | "stylesheet-unsupported"
-  | "stylesheet-parse-failed";
+  | "stylesheet-parse-failed"
+  | "transform-observation-failed";
 
 export interface TokenCatalogDiagnostic {
   code: TokenCatalogDiagnosticCode;

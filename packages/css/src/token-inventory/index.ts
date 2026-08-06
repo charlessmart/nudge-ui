@@ -27,6 +27,7 @@ export type {
   InventoryTokenDeclaration,
   InventoryTokenDefinition,
   StylesheetArtifact,
+  TokenContribution,
 } from "./types.ts";
 
 export { parseTokenCatalog, parseTokens } from "./compat.ts";

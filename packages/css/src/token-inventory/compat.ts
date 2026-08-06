@@ -1,20 +1,18 @@
 /**
  * Temporary compatibility projections for the legacy flat parsing API.
  *
- * @deprecated Since S2-A. These exist only while the Vite plugin still needs
- * the flat projection for Tailwind v4 provenance bookkeeping (see
- * `packages/plugin/src/tokens/parseTokens.ts`, which is now a thin re-export).
- * They preserve the exact legacy behavior — most importantly the silent empty
- * catalog for malformed CSS. Remove both in S2-C once the styling Adapter /
- * inventory contribution seam replaces the plugin's per-file Tailwind v4
- * name tracking.
+ * @deprecated Since S2-A. These exist only for callers that still import the
+ * flat projection before S2-D removes them (the plugin's Tailwind v4
+ * bookkeeping that used them was replaced by the inventory's authored/
+ * transformed reconciliation in S2-C). They preserve the exact legacy behavior
+ * — most importantly the silent empty catalog for malformed CSS.
  */
 import type { TokenDefinition, TokenEntry } from "../model/index.ts";
 import { parseStylesheetArtifact } from "./parseStylesheet.ts";
 
 /**
  * @deprecated Temporary compatibility projection. Prefer feeding artifacts to
- * `createTokenInventory()`; removal tracked in S2-C.
+ * `createTokenInventory()`; removal tracked in S2-D.
  */
 export function parseTokenCatalog(css: string, sourceId: string): TokenDefinition[] {
   const contribution = parseStylesheetArtifact({
@@ -34,7 +32,7 @@ export function parseTokenCatalog(css: string, sourceId: string): TokenDefinitio
 
 /**
  * @deprecated Temporary compatibility projection. Prefer the inventory
- * snapshot's `tokens`; removal tracked in S2-C.
+ * snapshot's `tokens`; removal tracked in S2-D.
  */
 export function parseTokens(css: string, sourceId: string): TokenEntry[] {
   return parseTokenCatalog(css, sourceId).map((token) => ({

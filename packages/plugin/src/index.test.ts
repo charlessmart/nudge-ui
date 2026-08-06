@@ -2,11 +2,14 @@ import { describe, it, expect } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createTokenInventory } from "@design-tool/css/token-inventory";
 import {
   designTool,
   isHostApplicationSource,
   transformIndexHtmlHtml,
 } from "./index.ts";
+import { createTailwindV4NamingContribution } from "./adapters/tailwindV4.ts";
+import { materializeVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
 
 const SAMPLE_HTML = `<!doctype html>
 <html lang="en">
@@ -512,6 +515,294 @@ describe("designTool token catalog compiler", () => {
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reconciles authored and transformed observations independent of feed order", async () => {
+    const build = async (transformFirst: boolean) => {
+      const parent = mkdtempSync(join(tmpdir(), "design-tool-reconcile-order-"));
+      const root = join(parent, "app");
+      const appCss = join(root, "app.css");
+      try {
+        mkdirSync(root, { recursive: true });
+        const authored = '@theme { --color-brand: #123456; }';
+        const transformed = ':root, :host { --color-brand: #123456; --tw-brand-opacity: 1; }';
+        writeFileSync(appCss, authored);
+        const plugin = designTool() as unknown as {
+          configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+          buildStart?: () => void;
+          load?: (id: string) => string | null | Promise<string | null>;
+          transform?: { handler: (code: string, id: string) => unknown };
+        };
+        plugin.configResolved!({ root, command: "serve" });
+        if (transformFirst) {
+          plugin.transform!.handler(transformed, appCss);
+          plugin.buildStart!();
+        } else {
+          plugin.buildStart!();
+          plugin.transform!.handler(transformed, appCss);
+        }
+        const code = (await plugin.load!("\0virtual:design-tokens"))!;
+        return JSON.parse(code.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]") as Array<{
+          cssName: string;
+          origin?: string;
+          editable?: boolean;
+          adapter?: string;
+          declarations: Array<{ value: string; context?: { selector?: string } }>;
+        }>;
+      } finally {
+        rmSync(parent, { recursive: true, force: true });
+      }
+    };
+
+    const authoredFirst = await build(false);
+    const transformFirst = await build(true);
+
+    // Cold-start output is identical regardless of which observation lands
+    // first — the inventory reconciles the artifact pair deterministically.
+    expect(transformFirst).toEqual(authoredFirst);
+
+    // The transformed observation is the browser-relevant fact set...
+    expect(authoredFirst.find((entry) => entry.cssName === "--color-brand"))
+      .toMatchObject({ declarations: [expect.objectContaining({ value: "#123456", context: { selector: ":root, :host" } })] });
+    // ...while authored names keep project provenance and become editable.
+    expect(authoredFirst.find((entry) => entry.cssName === "--color-brand"))
+      .toMatchObject({ origin: "project", editable: true, adapter: "tailwind-v4" });
+    // Compiler-emitted names that have no authored counterpart are framework.
+    expect(authoredFirst.find((entry) => entry.cssName === "--tw-brand-opacity"))
+      .toMatchObject({ origin: "framework", editable: false, adapter: "tailwind-v4" });
+  });
+
+  it("retains the authored snapshot with a recoverable diagnostic when the post-transform request fails", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-transform-failure-"));
+    const root = join(parent, "app");
+    const appCss = join(root, "app.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      writeFileSync(appCss, ':root { --color-brand: #123456; }');
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => { throw new Error("transform unavailable"); },
+      };
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+
+      const code = await plugin.load!("\0virtual:design-tokens");
+      const catalog = JSON.parse(code!.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]") as Array<{
+        cssName: string;
+        origin?: string;
+        declarations: Array<{ value: string }>;
+      }>;
+
+      // The authored observation is retained as the browser-relevant facts.
+      expect(catalog.find((definition) => definition.cssName === "--color-brand"))
+        .toMatchObject({ origin: "project", declarations: [expect.objectContaining({ value: "#123456" })] });
+      // ...and the failed transform surfaces as a recoverable diagnostic.
+      expect(code).toContain("transform-observation-failed");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("records a failed-transform diagnostic on HMR and clears it on recovery", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-transform-hmr-recovery-"));
+    const root = join(parent, "app");
+    const appCss = join(root, "app.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      writeFileSync(appCss, ':root { --color-brand: #123456; }');
+      let transformFails = true;
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => {
+          if (transformFails) throw new Error("transform unavailable");
+          return null;
+        },
+        moduleGraph: {
+          getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
+          invalidateModule: () => undefined,
+        },
+      };
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+        transform?: { handler: (code: string, id: string) => unknown };
+        handleHotUpdate?: (context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }) => Promise<unknown>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+
+      // HMR for an edited file whose post-transform request fails: the authored
+      // facts are retained alongside a recoverable diagnostic.
+      writeFileSync(appCss, ':root { --color-brand: #abcdef; }');
+      await plugin.handleHotUpdate!({
+        file: appCss,
+        read: async () => ':root { --color-brand: #abcdef; }',
+        server,
+        modules: [],
+      });
+      let code = await plugin.load!("\0virtual:design-tokens");
+      expect(code).toContain("transform-observation-failed");
+      expect(code).toContain("#abcdef");
+
+      // The transform recovers: the pipeline feeds the transformed observation,
+      // which clears the diagnostic and keeps the authored facts as the facts.
+      transformFails = false;
+      await plugin.handleHotUpdate!({
+        file: appCss,
+        read: async () => ':root { --color-brand: #abcdef; }',
+        server,
+        modules: [],
+      });
+      plugin.transform!.handler(':root { --color-brand: #abcdef; }', appCss);
+      code = await plugin.load!("\0virtual:design-tokens");
+      expect(code).not.toContain("transform-observation-failed");
+      expect(code).toContain("#abcdef");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("treats an unreadable HMR file as a removal, not a failed transform", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-transform-removal-"));
+    const root = join(parent, "app");
+    const appCss = join(root, "app.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      writeFileSync(appCss, ':root { --color-brand: #123456; }');
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => { throw new Error("gone"); },
+        moduleGraph: {
+          getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
+          invalidateModule: () => undefined,
+        },
+      };
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+        handleHotUpdate?: (context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }) => Promise<unknown>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+      expect(await plugin.load!("\0virtual:design-tokens")).toContain("--color-brand");
+
+      // The file is deleted: ctx.read() throws and the disk scan no longer sees
+      // it, so rows are removed and NO transform-observation-failed diagnostic
+      // is recorded for the removal.
+      rmSync(appCss);
+      await plugin.handleHotUpdate!({
+        file: appCss,
+        read: async () => { throw new Error("ENOENT"); },
+        server,
+        modules: [],
+      });
+      const code = await plugin.load!("\0virtual:design-tokens");
+      expect(code).not.toContain("--color-brand");
+      expect(code).not.toContain("transform-observation-failed");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("publishes the inventory snapshot verbatim, with styling contributions merged inside it", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-snapshot-verbatim-"));
+    const root = join(parent, "app");
+    const appCss = join(root, "app.css");
+    const packageRoot = join(parent, "node_modules", "@fixture");
+    const themeCss = join(packageRoot, "theme.css");
+    const contractId = join(packageRoot, "contract.ts");
+    const appContent = '@import "@fixture/theme.css"; @theme { --color-brand: #123456; }';
+    const themeContent = ':root { --color-content-primary: #20211f; }';
+    const contract = { vars: { color: { content: { primary: "var(--color-content-primary)" } } } };
+    try {
+      mkdirSync(root, { recursive: true });
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(appCss, appContent);
+      writeFileSync(themeCss, themeContent);
+      const server = {
+        pluginContainer: {
+          resolveId: async (specifier: string) => {
+            if (specifier === "@fixture/theme.css") return { id: themeCss };
+            if (specifier === "@fixture/contract") return { id: contractId };
+            return null;
+          },
+        },
+        ssrLoadModule: async () => contract,
+        transformRequest: async () => null,
+      };
+      const plugin = designTool({
+        vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
+      }) as unknown as {
+        configResolved?: (config: { root: string; command: "serve" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+
+      const code = (await plugin.load!("\0virtual:design-tokens"))!;
+      const published = {
+        catalog: JSON.parse(code.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]"),
+        tokens: JSON.parse(code.match(/^export const tokens = (.*);$/m)?.[1] ?? "[]"),
+        generation: JSON.parse(code.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""'),
+      };
+
+      // Rebuild the inventory from the same observable facts and contributions.
+      // If load() still post-processed the snapshot, the published catalog,
+      // tokens, or generation would diverge from this engine output.
+      const expected = createTokenInventory();
+      expected.apply({
+        buildTool: "vite",
+        id: "app.css",
+        stage: "authored",
+        provenance: "project",
+        adapter: "tailwind-v4",
+        content: appContent,
+      });
+      expected.apply({
+        buildTool: "vite",
+        id: "@fixture/theme.css",
+        stage: "authored",
+        provenance: "package",
+        content: themeContent,
+      });
+      expected.setAdapterContributions({ tokens: [] });
+      expected.applyContribution(createTailwindV4NamingContribution());
+      expected.applyContribution(materializeVanillaExtractContribution(contract.vars, {
+        source: "@fixture/contract",
+        origin: "package",
+      }));
+      const snapshot = expected.snapshot();
+
+      expect(published.catalog).toEqual(snapshot.definitions);
+      expect(published.tokens).toEqual(snapshot.tokens);
+      expect(published.generation).toBe(snapshot.generation);
+      // The merged labels live inside the snapshot, not a post-snapshot pass.
+      const catalog = published.catalog as Array<{ cssName: string; name: string; adapter?: string; origin?: string; editable?: boolean }>;
+      expect(catalog.find((entry) => entry.cssName === "--color-brand"))
+        .toMatchObject({ adapter: "tailwind-v4", origin: "project", editable: true });
+      expect(catalog.find((entry) => entry.cssName === "--color-content-primary"))
+        .toMatchObject({ name: "theme.color.content.primary", adapter: "vanilla-extract", origin: "package", editable: false });
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
     }
   });
 });
