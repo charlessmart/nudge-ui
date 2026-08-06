@@ -8,8 +8,8 @@ import {
   getCompatibleTokenCandidates,
   groupForProperty,
   presentationForToken,
-} from "./compatibility.ts";
-import type { TokenSemanticSlot } from "./compatibility.ts";
+} from "@design-tool/css/value-semantics";
+import type { TokenSemanticSlot } from "@design-tool/css/value-semantics";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";

@@ -25,6 +25,15 @@ import type {
   TokenTable,
   ValueModifier,
 } from "./resolution/types.ts";
+import {
+  classifyEditCapability,
+  extractVarCalls,
+  interpretTokenValue,
+  type AliasAttribution,
+  type AliasInnerResult,
+  type TokenInterpretationContext,
+  type TokenValueInterpretation,
+} from "@design-tool/css/value-semantics";
 
 export type {
   AttributionEvidence,
@@ -84,53 +93,6 @@ function tokenOrigin(entry: TokenEntry | undefined): TokenOrigin {
   return "project";
 }
 
-function extractVarCalls(value: string): Array<{ name: string; fallback?: string }> {
-  const calls: Array<{ name: string; fallback?: string }> = [];
-  let i = 0;
-  while (i < value.length) {
-    const start = value.indexOf("var(", i);
-    if (start < 0) break;
-    let depth = 1;
-    let j = start + 4;
-    let comma = -1;
-    while (j < value.length && depth > 0) {
-      const char = value[j];
-      if (char === "(") depth++;
-      else if (char === ")") depth--;
-      else if (char === "," && depth === 1 && comma < 0) comma = j;
-      j++;
-    }
-    const body = value.slice(start + 4, Math.max(start + 4, j - 1)).trim();
-    const name = (body.slice(0, comma < 0 ? body.length : comma - start - 4).trim().match(/^--[\w-]+/) ?? [])[0];
-    if (name) {
-      const fallback = comma >= 0 ? value.slice(comma + 1, Math.max(comma + 1, j - 1)).trim() : undefined;
-      calls.push({ name, fallback });
-    }
-    i = Math.max(j, start + 4);
-  }
-  return calls;
-}
-
-function capabilityFor(property: string, value: string): EditCapability {
-  const p = property.toLowerCase();
-  const v = value.trim().toLowerCase();
-  // Functions whose authored expression cannot be represented faithfully by
-  // a numeric side control remain raw even when the property itself is a
-  // spacing property. The computed value is still available as a preview.
-  if (/\b(?:min|max|clamp|env|anchor-size)\s*\(/.test(v)) return "raw";
-  if (["margin", "padding", "inset", "inset-block", "inset-inline"].includes(p)
-    || p.startsWith("margin-") || p.startsWith("padding-") || p.startsWith("inset-")) return "box-sides";
-  if (p === "border" || p.endsWith("-border") || p === "border-color" || p.endsWith("-border-color")) return "structured";
-  if (p === "color" || /(^|-)color$/.test(p) || p === "background-color" || p === "fill" || p === "stroke") return "color";
-  if (/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v)) return "atomic";
-  if (p === "font" || /(gradient|shadow|transform|transition|animation|grid|background)/.test(p)
-    || (v.includes(",") && !/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v))) return "composite";
-  if (/\b(min|max|clamp|color-mix)\s*\(/.test(v)) return "raw";
-  if (/^[+-]?(?:\d*\.)?\d+(?:[a-z%]+)?$/i.test(v)
-    || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|oklch\(|oklab\(|transparent|currentcolor)/.test(v)) return "atomic";
-  return "raw";
-}
-
 /**
  * Returns true when a `calc()` expression is safe to treat as a simple
  * numeric value.  We exclude percentages, viewport units, and font-relative
@@ -163,10 +125,6 @@ function directFrameworkColor(value: string, tokenTable: TokenTable): TokenEntry
   const tuple = colorTuple(value);
   if (!tuple) return null;
   return Object.values(tokenTable).find((entry) => entry.adapter === "tailwind-v3" && colorTuple(entry.value) === tuple) ?? null;
-}
-
-export function classifyValue(property: string, authored: string): EditCapability {
-  return capabilityFor(property, authored);
 }
 
 let tableCache: TokenTable | null = null;
@@ -389,72 +347,6 @@ function normalizeInElementContext(el: HTMLElement, property: string, value: str
 function candidateMatchesPainted(el: HTMLElement, row: ResolvedProperty, painted: string): boolean {
   if (!row.tokenName || !/^var\(\s*--[\w-]+\s*\)$/.test(row.declaredValue)) return false;
   return normalizeInElementContext(el, row.property, row.declaredValue) === painted.trim();
-}
-
-function resolveRef(
-  ref: string,
-  tokenTable: TokenTable,
-  visited: Set<string>,
-  localAliases: ReadonlyMap<string, string>,
-): { known: boolean; tokenName: string | null; resolvedValue: string; leafTokenName: string | null; cycle?: string } {
-  if (visited.has(ref)) {
-    const entry = tokenTable[ref];
-    return {
-      known: entry !== undefined,
-      tokenName: entry ? entry.name : null,
-      resolvedValue: entry ? entry.value : `var(${ref})`,
-      leafTokenName: entry ? entry.name : null,
-      cycle: ref,
-    };
-  }
-  const entry = tokenTable[ref];
-  if (entry) {
-    const nextVisited = new Set(visited);
-    nextVisited.add(ref);
-    const inner = resolveTokenValueInner(entry.value, tokenTable, nextVisited, localAliases);
-    return { known: true, tokenName: entry.name, resolvedValue: inner.resolvedValue, leafTokenName: inner.leafTokenName ?? entry.name, cycle: inner.cycle };
-  }
-
-  const localValue = localAliases.get(ref);
-  if (localValue === undefined) {
-    return { known: false, tokenName: null, resolvedValue: `var(${ref})`, leafTokenName: null };
-  }
-
-  const nextVisited = new Set(visited);
-  nextVisited.add(ref);
-  const inner = resolveTokenValueInner(localValue, tokenTable, nextVisited, localAliases);
-  // Tailwind's generated --tw-* properties are implementation aliases. Keep
-  // attributing those to the catalog token they point at. Other local custom
-  // properties are authored tokens in the selected element's scope, even when
-  // their leaf value is a literal and therefore has no catalog entry.
-  if (ref.startsWith("--tw-")) {
-    return inner.tokenName
-      ? { known: true, tokenName: inner.tokenName, resolvedValue: inner.resolvedValue, leafTokenName: inner.leafTokenName ?? null, cycle: inner.cycle }
-      : { known: false, tokenName: null, resolvedValue: `var(${ref})`, leafTokenName: null, cycle: inner.cycle };
-  }
-  return {
-    known: true,
-    tokenName: ref,
-    resolvedValue: inner.resolvedValue,
-    leafTokenName: inner.leafTokenName ?? ref,
-    cycle: inner.cycle,
-  };
-}
-
-function resolveTokenValueInner(
-  value: string,
-  tokenTable: TokenTable,
-  visited: Set<string>,
-  localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
-): { tokenName: string | null; resolvedValue: string; leafTokenName?: string | null; cycle?: string } {
-  const trimmed = value.trim();
-  const refs = extractVarCalls(trimmed).map((call) => call.name);
-  if (refs.length === 0) return { tokenName: null, resolvedValue: trimmed, leafTokenName: null };
-  for (const ref of refs) {
-    const res = resolveRef(ref, tokenTable, visited, localAliases);
-    if (res.known) return { tokenName: res.tokenName, resolvedValue: res.resolvedValue, leafTokenName: res.leafTokenName, cycle: res.cycle };
-  }
-  return { tokenName: null, resolvedValue: trimmed, leafTokenName: null };
 }
 
 const MIX_PERCENTAGE_OR_TOKEN = /^(?:\d+\.?\d*|\.\d+)%$|^var\([\s\S]+\)$/i;
@@ -742,66 +634,54 @@ export function replaceColorToken(value: string, oldToken: TokenEntry, newToken:
   return null;
 }
 
+/**
+ * Tailwind's generated `--tw-*` custom properties are implementation aliases.
+ * Attribution follows the catalog token such an alias points at. Other local
+ * custom properties are authored tokens in the selected element's scope, even
+ * when their leaf value is a literal and therefore has no catalog entry. This
+ * policy stays in the resolution integration; the value Module stays neutral.
+ */
+function twLocalAliasPolicy(ref: string, inner: AliasInnerResult): AliasAttribution {
+  if (!ref.startsWith("--tw-")) {
+    return {
+      known: true,
+      tokenName: ref,
+      resolvedValue: inner.resolvedValue,
+      leafTokenName: inner.leafTokenName ?? ref,
+      cycle: inner.cycle,
+    };
+  }
+  return inner.tokenName
+    ? { known: true, tokenName: inner.tokenName, resolvedValue: inner.resolvedValue, leafTokenName: inner.leafTokenName ?? null, cycle: inner.cycle }
+    : { known: false, tokenName: null, resolvedValue: `var(${ref})`, leafTokenName: null, cycle: inner.cycle };
+}
+
+/**
+ * Builds the value-semantics interpretation context for the inspector's token
+ * knowledge, wiring the integration policies the neutral Module must not own:
+ * Tailwind v3 direct-literal attribution, the color/opacity resolver (migrates
+ * in slice 3.4), adapter-derived token origins, and the `--tw-*` alias policy.
+ */
+export function createTokenInterpretationContext(
+  tokenTable: TokenTable,
+  localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
+): TokenInterpretationContext {
+  return {
+    table: tokenTable,
+    localAliases,
+    resolveDirectToken: (value) => directFrameworkColor(value, tokenTable) ?? undefined,
+    resolveOpacity: (value) => resolveColorOpacity(value, tokenTable, localAliases),
+    resolveOrigin: tokenOrigin,
+    resolveAlias: twLocalAliasPolicy,
+  };
+}
+
 export function resolveTokenValue(
   value: string,
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
-): { tokenName: string | null; resolvedValue: string; tokens: TokenReference[]; opacity?: ColorOpacity; modifiers: ValueModifier[]; leafTokenName: string | null; cycle?: string } {
-  const authored = value.trim();
-  const calls = extractVarCalls(authored);
-  const references: TokenReference[] = [];
-  let firstKnown: { tokenName: string; leafTokenName: string | null; resolvedValue: string; cycle?: string } | null = null;
-  const directToken = calls.length === 0 ? directFrameworkColor(authored, tokenTable) : directFrameworkColor(authored, tokenTable);
-  if (directToken) {
-    firstKnown = { tokenName: directToken.name, leafTokenName: directToken.name, resolvedValue: directToken.value };
-    references.push({ name: directToken.name, origin: tokenOrigin(directToken) });
-  }
-  for (const call of calls) {
-    const result = resolveRef(call.name, tokenTable, new Set(), localAliases);
-    if (result.known) {
-      if (!references.some((token) => token.name === result.tokenName)) {
-        references.push({ name: result.tokenName ?? call.name, origin: tokenOrigin(tokenTable[call.name] ?? tokenTable[result.tokenName ?? ""]!) });
-      }
-      if (!firstKnown) firstKnown = { tokenName: result.tokenName ?? call.name, leafTokenName: result.leafTokenName, resolvedValue: result.resolvedValue, cycle: result.cycle };
-    }
-    if (call.fallback) {
-      const fallback = call.fallback.trim();
-      if (fallback) {
-        const fallbackResult = resolveTokenValue(fallback, tokenTable, localAliases);
-        references.push(...fallbackResult.tokens.filter((token) => !references.some((seen) => seen.name === token.name)));
-        if (!firstKnown && fallbackResult.tokenName) {
-          firstKnown = {
-            tokenName: fallbackResult.tokenName,
-            leafTokenName: fallbackResult.leafTokenName,
-            resolvedValue: fallbackResult.resolvedValue,
-            cycle: fallbackResult.cycle,
-          };
-        }
-      }
-    }
-  }
-  const opacity = resolveColorOpacity(authored, tokenTable, localAliases);
-  const modifiers: ValueModifier[] = calls.flatMap((call) => call.fallback ? [{ kind: "fallback" as const, value: call.fallback }] : []);
-  if (opacity) modifiers.push({ kind: "alpha", value: opacity.value });
-  const inner = resolveTokenValueInner(authored, tokenTable, new Set(), localAliases);
-  // An alpha variable is still a token reference, but it is not the color
-  // token represented by the field. For example, in
-  // `rgb(37 99 235 / var(--opacity-muted))`, the color is literal and only
-  // the opacity is token-backed. Keep that distinction in `tokenName` so the
-  // UI can render a base color chip only when one actually exists.
-  const alphaTokenName = opacity?.tokenName;
-  const baseKnown = firstKnown && firstKnown.tokenName !== alphaTokenName ? firstKnown : null;
-  const baseInner = inner.tokenName && inner.tokenName !== alphaTokenName ? inner : null;
-  const primary = baseKnown ?? baseInner;
-  return {
-    tokenName: primary?.tokenName ?? (alphaTokenName ? null : firstKnown?.tokenName ?? inner.tokenName),
-    resolvedValue: primary?.resolvedValue ?? (alphaTokenName ? authored : inner.resolvedValue),
-    tokens: references,
-    opacity,
-    modifiers,
-    leafTokenName: primary?.leafTokenName ?? primary?.tokenName ?? null,
-    cycle: primary?.cycle,
-  };
+): TokenValueInterpretation {
+  return interpretTokenValue(value, createTokenInterpretationContext(tokenTable, localAliases));
 }
 
 function splitTopLevelWhitespace(value: string): string[] {
@@ -1083,7 +963,7 @@ function resolveDeclaration(
           tokens: resolved.tokens,
           opacity: resolved.opacity,
           modifiers: resolved.modifiers,
-          capability: capabilityFor(property, declaredValue),
+          capability: classifyEditCapability(property, declaredValue),
           resolvedTokenValue: resolved.resolvedValue,
           diagnostic: resolved.cycle ? `custom-property alias cycle includes ${resolved.cycle}` : undefined,
         };
@@ -1144,7 +1024,7 @@ function resolveDeclaration(
           tokens: resolved.tokens,
           opacity: resolved.opacity,
           modifiers: resolved.modifiers,
-          capability: capabilityFor(property, declaredValue),
+          capability: classifyEditCapability(property, declaredValue),
           resolvedTokenValue: resolved.resolvedValue,
           diagnostic: resolved.cycle ? `custom-property alias cycle includes ${resolved.cycle}` : undefined,
         };
@@ -1166,7 +1046,7 @@ function resolveDeclaration(
         tokens: res.tokens,
         opacity: res.opacity,
         modifiers: res.modifiers,
-        capability: capabilityFor(declaration.property, declaration.value),
+        capability: classifyEditCapability(declaration.property, declaration.value),
         resolvedTokenValue: res.resolvedValue,
         diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
       }];
@@ -1196,7 +1076,7 @@ function resolveDeclaration(
         tokens: res.tokens,
         opacity: res.opacity,
         modifiers: res.modifiers,
-        capability: capabilityFor(declaration.property, declaration.value),
+        capability: classifyEditCapability(declaration.property, declaration.value),
         resolvedTokenValue: res.resolvedValue,
         diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
       }];
@@ -1210,7 +1090,7 @@ function resolveDeclaration(
       tokens: resolveTokenValue(cornerValues[index]!.declaredValue, tokenTable, localAliases).tokens,
       opacity: resolveTokenValue(cornerValues[index]!.declaredValue, tokenTable, localAliases).opacity,
       modifiers: resolveTokenValue(cornerValues[index]!.declaredValue, tokenTable, localAliases).modifiers,
-      capability: capabilityFor(property, cornerValues[index]!.declaredValue),
+      capability: classifyEditCapability(property, cornerValues[index]!.declaredValue),
       resolvedTokenValue: cornerValues[index]!.resolvedValue,
     }));
   }
@@ -1227,7 +1107,7 @@ function resolveDeclaration(
       tokens: res.tokens,
       opacity: res.opacity,
       modifiers: res.modifiers,
-      capability: declaration.property.toLowerCase() === "border" ? "raw" : capabilityFor(declaration.property, declaration.value),
+      capability: declaration.property.toLowerCase() === "border" ? "raw" : classifyEditCapability(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
       diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
     }];
@@ -1245,7 +1125,7 @@ function resolveDeclaration(
       tokens: res.tokens,
       opacity: res.opacity,
       modifiers: res.modifiers,
-      capability: capabilityFor(declaration.property, declaration.value),
+      capability: classifyEditCapability(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
       diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
     }];
@@ -1277,7 +1157,7 @@ function resolveDeclaration(
       tokens: res.tokens,
       opacity: res.opacity,
       modifiers: res.modifiers,
-      capability: capabilityFor(declaration.property, declaration.value),
+      capability: classifyEditCapability(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
       diagnostic: res.cycle ? `custom-property alias cycle includes ${res.cycle}` : undefined,
     }];
@@ -1291,7 +1171,7 @@ function resolveDeclaration(
     tokens: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).tokens,
     opacity: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).opacity,
     modifiers: resolveTokenValue(sideValues[index]!.declaredValue, tokenTable, localAliases).modifiers,
-    capability: capabilityFor(property, sideValues[index]!.declaredValue),
+    capability: classifyEditCapability(property, sideValues[index]!.declaredValue),
     resolvedTokenValue: sideValues[index]!.resolvedValue,
   }));
 }
@@ -1845,7 +1725,7 @@ function rowsFromMatches(
     if (!canBecomeNumeric(value)) continue;
     const numeric = row.resolvedValue ?? row.computed ?? "";
     if (!numeric) continue;
-    row.capability = capabilityFor(row.property, numeric);
+    row.capability = classifyEditCapability(row.property, numeric);
   }
   return rows;
 }
@@ -2091,7 +1971,7 @@ function promoteNumericCalcRows(result: ResolvedProperty[]): void {
     if (!canBecomeNumeric(value)) continue;
     const numeric = prop.computed ?? prop.resolvedValue ?? "";
     if (!numeric) continue;
-    prop.capability = capabilityFor(prop.property, numeric);
+    prop.capability = classifyEditCapability(prop.property, numeric);
   }
 }
 

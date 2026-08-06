@@ -1,13 +1,18 @@
-import type { TokenEntry } from "virtual:design-tokens";
-import { getElementComputedStyle } from "../domRealm.ts";
-
 /**
- * The presentation category is intentionally separate from eligibility. A
- * category may make a long picker easier to scan, but only CSS grammar decides
- * whether a token can replace a value.
+ * Property/value policy (plan slice 3.3).
+ *
+ * One implementation owns capability classification, property→semantic-slot
+ * knowledge, token presentation grouping, and compatible-token candidate
+ * selection for value semantics. Eligibility always uses the resolved concrete
+ * value plus browser grammar; a token name is a presentation preference and
+ * never grants eligibility.
+ *
+ * Browser-safe contract: this module imports only the shared model and must
+ * never pull React, Vite, PostCSS, Node, or filesystem code into a bundle.
  */
-export type TokenGroup = "color" | "spacing" | "radius" | "typography" | "shadow" | "generic";
+import type { EditCapability, TokenEntry } from "../model/index.ts";
 
+/** Semantic slot vocabulary for a CSS property. */
 export type TokenSemanticSlot =
   | "color"
   | "length"
@@ -18,6 +23,9 @@ export type TokenSemanticSlot =
   | "line-height"
   | "letter-spacing"
   | "shadow";
+
+/** Presentation category for token pickers and catalog rows. */
+export type TokenGroup = "color" | "spacing" | "radius" | "typography" | "shadow" | "generic";
 
 export const TOKEN_GROUP_LABELS: Record<TokenGroup, string> = {
   color: "Color",
@@ -37,7 +45,7 @@ export const TOKEN_GROUP_ORDER: TokenGroup[] = [
   "generic",
 ];
 
-/** Browser grammar is injectable so the compatibility module stays unit-testable. */
+/** Browser grammar is injectable so the policy stays unit-testable. */
 export interface CssValueGrammar {
   supports(property: string, value: string): boolean;
 }
@@ -158,6 +166,50 @@ export function groupForProperty(property: string, slot?: TokenSemanticSlot): To
   return "generic";
 }
 
+/**
+ * Edit-capability classification for a property and its authored value.
+ * Preserves the resolver's original precedence exactly: raw functions first,
+ * then spacing families, border structure, colors, atomic var(), composites,
+ * then literal atomic values.
+ */
+export function classifyEditCapability(property: string, value: string): EditCapability {
+  const p = property.toLowerCase();
+  const v = value.trim().toLowerCase();
+  // Functions whose authored expression cannot be represented faithfully by
+  // a numeric side control remain raw even when the property itself is a
+  // spacing property. The computed value is still available as a preview.
+  if (/\b(?:min|max|clamp|env|anchor-size)\s*\(/.test(v)) return "raw";
+  if (["margin", "padding", "inset", "inset-block", "inset-inline"].includes(p)
+    || p.startsWith("margin-") || p.startsWith("padding-") || p.startsWith("inset-")) return "box-sides";
+  if (p === "border" || p.endsWith("-border") || p === "border-color" || p.endsWith("-border-color")) return "structured";
+  if (p === "color" || /(^|-)color$/.test(p) || p === "background-color" || p === "fill" || p === "stroke") return "color";
+  if (/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v)) return "atomic";
+  if (p === "font" || /(gradient|shadow|transform|transition|animation|grid|background)/.test(p)
+    || (v.includes(",") && !/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(v))) return "composite";
+  if (/\b(min|max|clamp|color-mix)\s*\(/.test(v)) return "raw";
+  if (/^[+-]?(?:\d*\.)?\d+(?:[a-z%]+)?$/i.test(v)
+    || /^(?:#|rgb\(|rgba\(|hsl\(|hsla\(|oklch\(|oklab\(|transparent|currentcolor)/.test(v)) return "atomic";
+  return "raw";
+}
+
+/**
+ * Name-prefix presentation hint. This is a display preference only: it never
+ * makes an invalid value eligible for a slot. `value` is a secondary hint used
+ * for concrete values with an unfamiliar name.
+ */
+export function classifyToken(name: string, value = ""): TokenGroup {
+  if (name.startsWith("--color-")) return "color";
+  if (name.startsWith("--space-")) return "spacing";
+  if (name.startsWith("--radius-")) return "radius";
+  if (name.startsWith("--font-") || name.startsWith("--text-") || name.startsWith("--type-")
+    || name.startsWith("--leading-") || name.startsWith("--tracking-")) return "typography";
+  const humanPath = name.toLowerCase();
+  if (/(^|\.)(color|colors|surface|background|foreground)(\.|$)/.test(humanPath) || /^(?:#|rgb\(|hsl\(|oklch\(|oklab\(|transparent)/i.test(value.trim())) return "color";
+  if (/(^|\.)(space|spacing|size|gap)(\.|$)/.test(humanPath)) return "spacing";
+  if (/(^|\.)(font|typography|lineheight|letterspacing)(\.|$)/.test(humanPath)) return "typography";
+  return "generic";
+}
+
 function tokenVariableName(entry: TokenEntry): string {
   return entry.cssName ?? entry.name;
 }
@@ -169,8 +221,11 @@ function hasUnresolvedVariable(value: string): boolean {
 function resolveValueInElement(entry: TokenEntry, element?: HTMLElement): string {
   const variableName = tokenVariableName(entry);
   if (element && variableName.startsWith("--")) {
-    const computed = getElementComputedStyle(element).getPropertyValue(variableName).trim();
-    if (computed) return computed;
+    const view = element.ownerDocument.defaultView;
+    if (view && typeof view.getComputedStyle === "function") {
+      const computed = view.getComputedStyle(element).getPropertyValue(variableName).trim();
+      if (computed) return computed;
+    }
   }
   return entry.value.trim();
 }
@@ -208,6 +263,10 @@ function fallbackSupports(property: string, value: string): boolean {
   return false;
 }
 
+/**
+ * Host-realm grammar factory. Uses the element's window CSS when available,
+ * then `globalThis.CSS`, and falls back to a conservative non-browser matcher.
+ */
 export function browserCssGrammar(element?: HTMLElement): CssValueGrammar {
   const css = browserCss(element);
   return {
@@ -263,9 +322,10 @@ function compareCandidates(preferred: TokenGroup) {
 }
 
 /**
- * The single candidate-selection seam for every token-editing control.
- * Concrete values are checked in the selected element's cascade, then the
- * browser grammar decides eligibility. Presentation labels only rank results.
+ * The single candidate-selection seam for every token-editing control and the
+ * inspection bridge. Concrete values are checked in the selected element's
+ * cascade, then the browser grammar decides eligibility. Presentation labels
+ * only rank results.
  */
 export function getCompatibleTokenCandidates(request: TokenCompatibilityRequest): TokenCandidate[] {
   const grammar = request.grammar ?? browserCssGrammar(request.element);

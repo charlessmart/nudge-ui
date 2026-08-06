@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { TokenDropdown } from "./TokenDropdown.tsx";
-import { getCompatibleTokenCandidates, presentationForToken } from "./compatibility.ts";
+import { getCompatibleTokenCandidates, presentationForToken } from "@design-tool/css/value-semantics";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "./resolution.ts";
 import { resetPendingRules } from "./editActions.ts";

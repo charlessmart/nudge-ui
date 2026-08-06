@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..");
-const TEST_FILE = "importGraph.test.ts";
 
 const FORBIDDEN_SPECIFIERS = [
   /^node:/,
@@ -29,7 +28,7 @@ function sourceFiles(dir: string): string[] {
     const full = join(dir, name);
     if (statSync(full).isDirectory()) {
       files.push(...sourceFiles(full));
-    } else if (name.endsWith(".ts") && !name.endsWith(".d.ts") && name !== TEST_FILE) {
+    } else if (name.endsWith(".ts") && !name.endsWith(".d.ts") && !name.endsWith(".test.ts")) {
       files.push(full);
     }
   }
