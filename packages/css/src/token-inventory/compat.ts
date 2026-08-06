@@ -1,13 +1,13 @@
 /**
  * Temporary compatibility projections for the legacy flat parsing API.
  *
- * @deprecated Since S2-A. These exist only while the Vite plugin still calls
- * `parseTokenCatalog`/`parseTokens` (see `packages/plugin/src/tokens/
- * parseTokens.ts`, which is now a thin re-export). They preserve the exact
- * legacy behavior — most importantly the silent empty catalog for malformed
- * CSS — so the plugin can adopt the inventory without a behavior change.
- * Remove both in S2-B once the Vite adapter feeds artifacts to the inventory
- * engine instead of calling the parser directly.
+ * @deprecated Since S2-A. These exist only while the Vite plugin still needs
+ * the flat projection for Tailwind v4 provenance bookkeeping (see
+ * `packages/plugin/src/tokens/parseTokens.ts`, which is now a thin re-export).
+ * They preserve the exact legacy behavior — most importantly the silent empty
+ * catalog for malformed CSS. Remove both in S2-C once the styling Adapter /
+ * inventory contribution seam replaces the plugin's per-file Tailwind v4
+ * name tracking.
  */
 import type { TokenDefinition, TokenEntry } from "../model/index.ts";
 import { parseStylesheetArtifact } from "./parseStylesheet.ts";

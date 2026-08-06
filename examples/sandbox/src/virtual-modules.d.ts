@@ -24,7 +24,8 @@ declare module "virtual:design-tokens" {
   }
   export const tokens: TokenEntry[];
   export const tokenCatalog: TokenDefinition[];
-  export interface TokenCatalogDiagnostic { code: "vanilla-extract-contract-unresolved" | "vanilla-extract-contract-missing-export" | "vanilla-extract-contract-unsupported-shape"; message: string; module: string; exportName?: string }
+  export interface TokenCatalogDiagnostic { code: "vanilla-extract-contract-unresolved" | "vanilla-extract-contract-missing-export" | "vanilla-extract-contract-unsupported-shape" | "stylesheet-parse-failed"; message: string; module: string; exportName?: string }
   export const tokenDiagnostics: TokenCatalogDiagnostic[];
+  export const tokenGeneration: string;
   export default tokens;
 }

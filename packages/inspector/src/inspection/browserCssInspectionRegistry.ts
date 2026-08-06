@@ -1,4 +1,4 @@
-import { tokenCatalog } from "virtual:design-tokens";
+import { tokenCatalog, tokenGeneration } from "virtual:design-tokens";
 import {
   createBrowserCssInspection,
   type BrowserCssInspection,
@@ -12,17 +12,24 @@ interface DocumentSession {
 
 const sessions = new WeakMap<Document, DocumentSession>();
 let catalogReference = tokenCatalog;
-let catalogGeneration = 0;
+let referenceFallbackGeneration = 0;
 
 function currentTokenKnowledge(): BrowserTokenKnowledge {
-  // Vite replaces the virtual export when token inventory changes. The
-  // generation makes that replacement visible so document sessions recreate
-  // with the new definitions instead of freezing the first catalog snapshot.
+  // The inventory snapshot generation is the authoritative fingerprint: when
+  // observable inventory facts change, the virtual module re-evaluates and
+  // `tokenGeneration` carries a new value, so document sessions recreate with
+  // the new definitions instead of freezing the first catalog snapshot.
+  //
+  // The reference-equality guard is a fallback only: it still catches a module
+  // replacement whose generation string happens to be empty (stubs, older
+  // transports) so the completed browser inspection session never caches a
+  // stale catalog on a module-reference change.
   if (catalogReference !== tokenCatalog) {
     catalogReference = tokenCatalog;
-    catalogGeneration++;
+    referenceFallbackGeneration++;
   }
-  return { definitions: tokenCatalog, generation: catalogGeneration };
+  const generation = tokenGeneration !== "" ? tokenGeneration : referenceFallbackGeneration;
+  return { definitions: tokenCatalog, generation };
 }
 
 /**
