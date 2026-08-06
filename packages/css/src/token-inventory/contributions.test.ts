@@ -65,7 +65,7 @@ describe("token inventory normalized contributions", () => {
     expect(definition.declarations[0]!.source).toBe("src/theme.css:1");
     // ...`name`/`adapter` win, while the stylesheet-derived origin is
     // preserved. A project CSS row has no editability of its own, so the
-    // contributed editability applies (matching enrichVanillaExtractCatalog).
+    // contributed editability applies (legacy contract-merge semantics).
     expect(definition).toMatchObject({
       name: "theme.x",
       adapter: "vanilla-extract",

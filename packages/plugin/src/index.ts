@@ -8,7 +8,7 @@ import {
   resolve,
   sep,
 } from "node:path";
-import type { Alias, Plugin, ResolvedConfig, ViteDevServer } from "vite";
+import type { Alias, ModuleNode, Plugin, ResolvedConfig, ViteDevServer } from "vite";
 // Vite 5 externalizes bare dependencies while bundling its TypeScript config,
 // which would leave Node to execute this workspace package's uncompiled `.ts`
 // export. Reach the same public source entry directly until the package has a
@@ -213,6 +213,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
   let contractDiagnostics: TokenCatalogDiagnostic[] = [];
   let activeGraphDiagnostics: InventoryDiagnostic[] = [];
   const sourceScanDiagnostics = new Map<string, InventoryDiagnostic>();
+  /** Generation of the last snapshot actually serialized into the virtual module. */
+  let lastPublishedGeneration: string | null = null;
   const componentContracts = new Map<string, ComponentContract[]>();
   if (options.componentMetadata?.length) {
     componentContracts.set("package-manifests", options.componentMetadata.map((contract) => ({
@@ -383,9 +385,9 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
    * inventory. Contract failures become contribution diagnostics (so they flow
    * through the final `tokenDiagnostics` without making ordinary CSS
    * unavailable); a loaded contract becomes a definition-level enrichment
-   * merged by cssName with the exact legacy `enrichVanillaExtractCatalog`
-   * semantics. Id-keyed and replaceable, so a refreshed contract replaces the
-   * prior contribution without duplicates.
+   * merged by cssName (name/adapter overlay, CSS-derived origin/editability
+   * preserved when present). Id-keyed and replaceable, so a refreshed contract
+   * replaces the prior contribution without duplicates.
    */
   function buildPublishedThemeContractContribution(): TokenContribution {
     const moduleSpecifier = options.vanillaExtract?.themeContractModule;
@@ -411,6 +413,48 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
         ? "package"
         : "project",
     });
+  }
+
+  /**
+   * Merge every styling-Adapter contribution INSIDE the inventory so the
+   * snapshot already carries the final adapter/origin/editable labels: literal
+   * tokens (Tailwind v3 config, Sprinkles), Tailwind v4 relabellings, and the
+   * published vanilla-extract theme-contract
+   * enrichment as id-keyed contributions. Every call is idempotent (identical
+   * facts are no-ops), so load() and the HMR exactly-once guard share one path.
+   */
+  function syncInventoryContributions(): void {
+    inventory.applyContribution({
+      id: "adapter-registry",
+      order: -1,
+      tokens: adapterRegistry.extractTokens(),
+      diagnostics: [
+        ...sourceScanDiagnostics.values(),
+        ...activeGraphDiagnostics,
+      ],
+    });
+    inventory.applyContribution(createTailwindV4NamingContribution());
+    inventory.applyContribution(buildPublishedThemeContractContribution());
+  }
+
+  /**
+   * Publish the virtual token module exactly once per observable snapshot
+   * change. All HMR feeds for one event settle before this is called, so the
+   * snapshot reflects the final facts; a no-op follow-up (identical facts) does
+   * not bump the generation again. Contributions are synced first so the guard
+   * compares against the same facts load() would serialize (idempotent).
+   */
+  function invalidateTokensIfChanged(server: ViteDevServer): {
+    changed: boolean;
+    virtual?: ModuleNode;
+  } {
+    syncInventoryContributions();
+    const generation = inventory.snapshot().generation;
+    if (generation === lastPublishedGeneration) return { changed: false };
+    lastPublishedGeneration = generation;
+    const virtual = server.moduleGraph.getModuleById(RESOLVED_TOKENS_ID);
+    if (virtual) server.moduleGraph.invalidateModule(virtual);
+    return virtual ? { changed: true, virtual } : { changed: true };
   }
 
   async function refreshActiveStylesheetTokens(): Promise<void> {
@@ -547,20 +591,13 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
         }
         await ensurePostTransformCss();
         await ensurePublishedThemeContract();
-        // Styling contributions merge inside the inventory, so the snapshot
-        // already contains final labels, diagnostics, definitions, and order.
-        inventory.applyContribution({
-          id: "adapter-registry",
-          order: -1,
-          tokens: adapterRegistry.extractTokens(),
-          diagnostics: [
-            ...sourceScanDiagnostics.values(),
-            ...activeGraphDiagnostics,
-          ],
-        });
-        inventory.applyContribution(createTailwindV4NamingContribution());
-        inventory.applyContribution(buildPublishedThemeContractContribution());
+        // Styling contributions merge INSIDE the inventory (see
+        // `syncInventoryContributions`). load() takes ONE immutable snapshot
+        // and serializes it verbatim — there is no post-snapshot enrichment and
+        // no TOCTOU between the snapshot call and serialization.
+        syncInventoryContributions();
         const snapshot = inventory.snapshot();
+        lastPublishedGeneration = snapshot.generation;
         // Inventory diagnostics carry the offending artifact id; the virtual
         // transport's diagnostic shape calls that field `module`.
         const diagnostics: TokenCatalogDiagnostic[] = snapshot.diagnostics.map((diagnostic) => ({
@@ -623,11 +660,10 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
       if (publishedThemeContractModuleId && stripCssQuery(ctx.file) === publishedThemeContractModuleId) {
         publishedThemeContractLoaded = false;
         await ensurePublishedThemeContract();
-        const virtual = ctx.server.moduleGraph.getModuleById(RESOLVED_TOKENS_ID);
-        if (virtual) {
-          ctx.server.moduleGraph.invalidateModule(virtual);
-          return [...ctx.modules, virtual];
-        }
+        // Same exactly-once path as the CSS branch: invalidate the virtual
+        // module only when the refreshed contract changed the snapshot.
+        const { changed, virtual } = invalidateTokensIfChanged(ctx.server);
+        if (changed && virtual) return [...ctx.modules, virtual];
         return;
       }
       if (COMPONENT_EXT.test(ctx.file)) {
@@ -658,14 +694,13 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
         await ensurePostTransformCss();
 
         const virtualComponents = ctx.server.moduleGraph.getModuleById(RESOLVED_COMPONENTS_ID);
-        const virtualTokens = ctx.server.moduleGraph.getModuleById(RESOLVED_TOKENS_ID);
+        const { changed, virtual: virtualTokens } = invalidateTokensIfChanged(ctx.server);
         const modules = [...ctx.modules];
         if (virtualComponents) {
           ctx.server.moduleGraph.invalidateModule(virtualComponents);
           modules.push(virtualComponents);
         }
-        if (virtualTokens) {
-          ctx.server.moduleGraph.invalidateModule(virtualTokens);
+        if (changed && virtualTokens) {
           modules.push(virtualTokens);
         }
         return modules.length > 0 ? [...new Set(modules)] : undefined;
@@ -699,18 +734,13 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
         if (hasAuthoredObservation) feedCssTransformFailure(ctx.file);
       }
 
-      // Invalidate the virtual module and let Vite propagate HMR to importers
-      // (App.tsx via React Refresh). Returning the virtual module alongside
-      // the affected CSS module(s) replaces Vite's default module list so BOTH
-      // the stylesheet's visual update and the tokens list refresh fire.
-      const virtual = ctx.server.moduleGraph.getModuleById(
-        RESOLVED_TOKENS_ID,
-      );
+      // Exactly-once publish: with every feed for this event settled, invalidate
+      // the virtual module only when the snapshot generation actually changed.
+      // A no-op follow-up (identical facts) is a no-op here too, while Vite's
+      // own CSS update below still refreshes the edited stylesheet visually.
+      const { changed, virtual } = invalidateTokensIfChanged(ctx.server);
       const modules: NonNullable<ReturnType<typeof ctx.server.moduleGraph.getModuleById>>[] = [];
-      if (virtual) {
-        ctx.server.moduleGraph.invalidateModule(virtual);
-        modules.push(virtual);
-      }
+      if (changed && virtual) modules.push(virtual);
       for (const m of ctx.modules) {
         if (m) modules.push(m);
       }
@@ -743,9 +773,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
 
 export { injectIdentity, injectDataCid } from "./transform/injectDataCid.ts";
 export type { InjectResult } from "./transform/injectDataCid.ts";
-export { parseTokens, parseTokenCatalog } from "./tokens/parseTokens.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
-export { annotateTailwindV4Catalog, createTailwindV4Adapter, createTailwindV4NamingContribution, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
+export { createTailwindV4Adapter, createTailwindV4NamingContribution, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
 export type { TailwindAlphaMapping } from "./adapters/tailwindV4.ts";
 export { createTailwindV3Adapter, detectTailwindV3Config, extractTailwindV3Tokens, resolveTailwindV3ClassName, tailwindV3ColorDeclaration } from "./adapters/tailwindV3.ts";
 export type { TailwindV3Config, TailwindV3Mapping } from "./adapters/tailwindV3.ts";

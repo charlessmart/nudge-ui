@@ -66,7 +66,8 @@ flowchart LR
   S --> C["Component contract scan"]
 
   T --> I["data-cid + data-src\n+ optional data-cprops\n+ React component boundary"]
-  P --> V["virtual:design-tokens"]
+  P --> INV["token inventory\n@design-tool/css/token-inventory"]
+  INV --> V["virtual:design-tokens"]
   C --> M["virtual:design-tool-components"]
   H["HTML response"] --> B["dev-only inspector bootstrap"]
 ```
@@ -75,12 +76,21 @@ In plain language:
 
 - It gives rendered elements a stable name and source location. Those
   `data-*` attributes are the identity layer that survives React re-renders.
-- It builds a token catalogue from CSS and styling-system adapters. This is a
-  useful inventory, not yet proof that a selected element is using a token.
+- It discovers and feeds stylesheet artifacts to the token inventory Module
+  (`@design-tool/css/token-inventory`), which aggregates them into the token
+  catalogue published through `virtual:design-tokens`. This is a useful
+  inventory, not yet proof that a selected element is using a token.
 - It discovers typed component props where it can, so a semantic edit can be
   represented as “change this component prop” rather than as a pile of guessed
   CSS changes.
 - It adds the inspector mount point and bootstrap script to dev HTML only.
+
+The Vite plugin is deliberately a thin Adapter: it scans files, resolves the
+active CSS import graph, runs transforms, watches for changes, and feeds
+observations (authored, transformed, removed, failed) to the inventory. Parsing,
+declaration identity, ordering, provenance, merging, diagnostics, and the
+generation fingerprint all live in the inventory Module — never in Vite
+lifecycle code.
 
 The plugin deliberately does nothing for a production build. Production gets
 an empty token module, no inspector bootstrap, and no injected identity.
@@ -125,9 +135,13 @@ flowchart LR
 
 ### Parsing: “what token definitions exist?”
 
-`packages/plugin/src/tokens/parseTokens.ts` parses global custom-property
-definitions from CSS. It keeps source location and context such as a theme
-selector, `@media`, `@supports`, `@scope`, or `@layer` wrapper.
+`@design-tool/css/token-inventory` is the build-time aggregator. It parses
+global custom-property definitions from stylesheet artifacts, keeps source
+location and context such as a theme selector, `@media`, `@supports`, `@scope`,
+or `@layer` wrapper, reconciles authored and compiler-transformed observations
+of the same file, assigns deterministic declaration identity and order, and
+produces one immutable snapshot whose `generation` fingerprint changes exactly
+when the observable facts change.
 
 Adapters add knowledge that cannot be recovered from plain CSS alone:
 
@@ -137,6 +151,19 @@ Adapters add knowledge that cannot be recovered from plain CSS alone:
   `theme.color.brand`.
 
 Think of this catalogue as the inspector’s **dictionary**.
+
+#### Why the inventory is a Module, not a Vite helper
+
+The token inventory passes the deletion test: deleting
+`@design-tool/css/token-inventory` would force the Vite Adapter to re-own
+PostCSS parsing, authored/transformed reconciliation, declaration identity and
+ordering, project/package/generated provenance, contribution merging, structured
+diagnostics, and the generation fingerprint that `BrowserTokenKnowledge` uses to
+refresh inspection sessions. The Adapter would also have to re-solve the
+determinism and no-op guarantees that keep equivalent HMR event batches from
+churning the snapshot. Because all of that behavior is behind one build-tool
+neutral Interface, a future Webpack/Rollup/esbuild integration can feed ordered
+artifacts and publish the same snapshot without reimplementing any of it.
 
 ### Attribution: “why does this element look like this?”
 
@@ -317,10 +344,10 @@ CSS. Record the uncertainty and give the agent a selector/source fallback.
 
 ## Where to trace this in the repository
 
-- Build/plugin boundary: [`packages/plugin/src/index.ts`](../../packages/plugin/src/index.ts)
+- Build/plugin boundary (thin Vite Adapter: discover, transform, watch, publish): [`packages/plugin/src/index.ts`](../../packages/plugin/src/index.ts)
 - JSX identity and React callsite instrumentation: [`packages/plugin/src/transform/injectDataCid.ts`](../../packages/plugin/src/transform/injectDataCid.ts)
-- CSS token parsing: [`packages/plugin/src/tokens/parseTokens.ts`](../../packages/plugin/src/tokens/parseTokens.ts)
-- Styling adapters: [`packages/plugin/src/adapters/`](../../packages/plugin/src/adapters/)
+- Token inventory (build-time aggregator: parse, reconcile, order, provenance, diagnose, generate): [`packages/css/src/token-inventory/`](../../packages/css/src/token-inventory/)
+- Styling adapters (framework-specific extraction into inventory contributions): [`packages/plugin/src/adapters/`](../../packages/plugin/src/adapters/)
 - Runtime bootstrap and Shadow DOM mount: [`packages/inspector/src/index.ts`](../../packages/inspector/src/index.ts)
 - Browser CSS inspection seam (sole browser inspection authority): [`packages/inspector/src/inspection/browserCssInspection.ts`](../../packages/inspector/src/inspection/browserCssInspection.ts)
 - CSSOM collection and attribution: [`packages/inspector/src/tokens/resolution/cssomCollector.ts`](../../packages/inspector/src/tokens/resolution/cssomCollector.ts) and [`packages/inspector/src/tokens/resolution.ts`](../../packages/inspector/src/tokens/resolution.ts)

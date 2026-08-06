@@ -1,3 +1,8 @@
+/**
+ * Consumer contract for the Design Tool virtual modules. Types are re-exported
+ * from the canonical shared model (`@design-tool/css/model`); the plugin package
+ * keeps the mirror producer declaration in `src/virtual-design-tokens.d.ts`.
+ */
 declare module "virtual:design-tokens" {
   export type {
     TokenCatalogDiagnostic,

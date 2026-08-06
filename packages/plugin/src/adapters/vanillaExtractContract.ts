@@ -1,11 +1,6 @@
-import type { TokenDeclaration, TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
+import type { TokenEntry } from "../virtual/design-tokens.ts";
 import type { TokenContribution } from "@design-tool/css/token-inventory";
 import type { ThemeContract } from "./vanillaExtract.ts";
-
-/** Token transport view accepted from immutable inventory snapshots. */
-export interface CatalogTokenDefinition extends Omit<TokenDefinition, "declarations"> {
-  readonly declarations: readonly TokenDeclaration[];
-}
 
 export interface MaterializeVanillaExtractContractOptions {
   prefix?: string;
@@ -52,10 +47,9 @@ export function materializeVanillaExtractContract(
  * Builds the normalized inventory contribution for a published theme contract.
  * The contract entries are contributed as a definition-level enrichment: the
  * inventory merges them by cssName against the aggregated stylesheet
- * definitions with the exact `enrichVanillaExtractCatalog` semantics (name /
- * adapter enrichment, CSS-derived origin/editability preserved when present,
- * unmatched entries ignored). Id-keyed and replaceable so a refreshed contract
- * replaces the prior contribution without duplicates.
+ * definitions (name/adapter enrichment, CSS-derived origin/editability preserved
+ * when present, unmatched entries ignored). Id-keyed and replaceable so a
+ * refreshed contract replaces the prior contribution without duplicates.
  */
 export function materializeVanillaExtractContribution(
   contract: ThemeContract,
@@ -76,36 +70,4 @@ export function materializeVanillaExtractContribution(
       declarations: [],
     })),
   };
-}
-
-/**
- * Contract paths enrich declarations already discovered from active CSS. The
- * CSS catalog keeps value, source, context, origin, and editability authority.
- *
- * @deprecated Compatibility projection used by the pre-2.5 post-snapshot
- * enrichment. The plugin now feeds `materializeVanillaExtractContribution`
- * through the inventory contribution seam; this function remains for callers
- * of the legacy shape.
- */
-export function enrichVanillaExtractCatalog(
-  catalog: readonly CatalogTokenDefinition[],
-  contractEntries: TokenEntry[],
-): CatalogTokenDefinition[] {
-  const contractByCssName = new Map(contractEntries
-    .filter((entry): entry is TokenEntry & { cssName: string } => Boolean(entry.cssName))
-    .map((entry) => [entry.cssName, entry]));
-
-  return catalog.map((definition) => {
-    const contract = contractByCssName.get(definition.cssName);
-    if (!contract) return definition;
-    return {
-      ...definition,
-      // Preserve CSS-derived origin/editability when those records exist. A
-      // package contract must never turn a third-party declaration editable.
-      name: contract.name,
-      adapter: contract.adapter,
-      origin: definition.origin ?? contract.origin,
-      editable: definition.editable ?? contract.editable,
-    };
-  });
 }

@@ -9,8 +9,17 @@
  *
  * The deep Interface is `createTokenInventory()` — feed ordered stylesheet
  * artifacts and Adapter literal tokens, read immutable deterministic snapshots.
- * `parseStylesheetArtifact` is an internal seam used by the engine, tests, and
- * the temporary compatibility projections.
+ * `parseStylesheetArtifact` is an internal seam used by the engine and tests.
+ *
+ * ## Deletion test
+ *
+ * This Module earns its seam: deleting it would force the Vite Adapter to
+ * re-own PostCSS parsing, authored/transformed reconciliation, declaration
+ * identity and ordering, project/package/generated provenance, contribution
+ * merging, structured diagnostics, and the generation fingerprint that
+ * `BrowserTokenKnowledge` uses to refresh inspection sessions. The Adapter
+ * would also have to re-solve the determinism/no-op guarantees that keep
+ * equivalent HMR event batches from churning the snapshot.
  */
 export { createTokenInventory } from "./inventory.ts";
 export type { TokenInventory } from "./inventory.ts";
@@ -30,4 +39,12 @@ export type {
   TokenContribution,
 } from "./types.ts";
 
-export { parseTokenCatalog, parseTokens } from "./compat.ts";
+export { parseStylesheetArtifact } from "./parseStylesheet.ts";
+export type { ParsedContribution } from "./parseStylesheet.ts";
+
+export {
+  GLOBAL_TOKEN_AT_RULES,
+  MIN_THEME_TABLE_DECLARATIONS,
+  SCOPED_THEME_TABLE_POLICY,
+} from "./policy.ts";
+export type { ScopedThemeTablePolicy } from "./policy.ts";
