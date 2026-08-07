@@ -28,7 +28,7 @@ export function parseTokenCatalog(css: string, sourceId: string): TokenDefinitio
   if (contribution.diagnostics.length > 0) return [];
   return contribution.definitions.map((definition) => ({
     ...definition,
-    declarations: definition.declarations.map(({ id: _id, order: _order, ...rest }) => rest),
+    declarations: definition.declarations.map(({ id: _id, order: _localOrder, ...rest }) => rest),
   }));
 }
 

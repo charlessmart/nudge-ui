@@ -18,19 +18,15 @@ export type { TokenInventory } from "./inventory.ts";
 export type {
   ArtifactProvenance,
   ArtifactStage,
+  AdapterContributions,
+  ArtifactDiagnosticInput,
+  InventoryContribution,
   InventoryDiagnostic,
+  InventoryOrderEvidence,
   InventorySnapshot,
+  InventoryTokenDeclaration,
+  InventoryTokenDefinition,
   StylesheetArtifact,
 } from "./types.ts";
-
-export { parseStylesheetArtifact } from "./parseStylesheet.ts";
-export type { ParsedContribution } from "./parseStylesheet.ts";
-
-export {
-  GLOBAL_TOKEN_AT_RULES,
-  MIN_THEME_TABLE_DECLARATIONS,
-  SCOPED_THEME_TABLE_POLICY,
-} from "./policy.ts";
-export type { ScopedThemeTablePolicy } from "./policy.ts";
 
 export { parseTokenCatalog, parseTokens } from "./compat.ts";

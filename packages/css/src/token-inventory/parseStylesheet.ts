@@ -42,12 +42,14 @@ export interface ParsedContribution {
  * the same facts always produce the same ids.
  */
 function declarationId(
+  artifact: StylesheetArtifact,
   cssName: string,
   source: string,
   context: TokenContext,
   localOrder: number,
 ): string {
-  return `${cssName}\u0000${source}\u0000${JSON.stringify(context)}\u0000${localOrder}`;
+  return `${artifact.buildTool}\u0000${artifact.id}\u0000${artifact.stage}`
+    + `\u0000${cssName}\u0000${source}\u0000${JSON.stringify(context)}\u0000${localOrder}`;
 }
 
 function isRootSelectorPart(sel: string): boolean {
@@ -162,7 +164,8 @@ export function parseStylesheetArtifact(artifact: StylesheetArtifact): ParsedCon
     const source = `${artifact.id}:${line}`;
     const context = declarationContext(decl);
     const declaration: TokenDeclaration = {
-      id: declarationId(decl.prop, source, context, localOrder),
+      id: declarationId(artifact, decl.prop, source, context, localOrder),
+      order: localOrder,
       value,
       source,
       important: Boolean(decl.important),

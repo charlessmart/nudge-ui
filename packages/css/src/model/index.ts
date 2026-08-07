@@ -118,6 +118,9 @@ export type TokenCatalogDiagnosticCode =
   | "vanilla-extract-contract-unresolved"
   | "vanilla-extract-contract-missing-export"
   | "vanilla-extract-contract-unsupported-shape"
+  | "stylesheet-unreadable"
+  | "stylesheet-unresolved"
+  | "stylesheet-unsupported"
   | "stylesheet-parse-failed";
 
 export interface TokenCatalogDiagnostic {

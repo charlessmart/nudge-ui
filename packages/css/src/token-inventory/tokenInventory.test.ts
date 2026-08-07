@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as publicInventoryApi from "./index.ts";
 import { createTokenInventory } from "./inventory.ts";
 import type { StylesheetArtifact } from "./types.ts";
 
@@ -12,6 +13,14 @@ function artifact(overrides: Partial<StylesheetArtifact> & Pick<StylesheetArtifa
 }
 
 describe("token inventory contract", () => {
+  it("keeps parsing and policy helpers behind the public inventory Interface", () => {
+    expect(Object.keys(publicInventoryApi).sort()).toEqual([
+      "createTokenInventory",
+      "parseTokenCatalog",
+      "parseTokens",
+    ]);
+  });
+
   it("creates an artifact and returns grouped definitions with deterministic declaration ids", () => {
     const inventory = createTokenInventory();
     inventory.apply(artifact({
@@ -25,9 +34,9 @@ describe("token inventory contract", () => {
     const definition = snapshot.definitions[0]!;
     expect(definition).toMatchObject({ cssName: "--color-surface", name: "--color-surface" });
     expect(definition.declarations).toHaveLength(1);
-    // id = cssName + source(artifact:line) + JSON context + local order
+    // id = artifact identity + cssName + source(artifact:line) + context + local order
     expect(definition.declarations[0]!.id).toBe(
-      `--color-surface\u0000src/theme.css:2\u0000{"selector":":root"}\u00000`,
+      `vite\u0000src/theme.css\u0000authored\u0000--color-surface\u0000src/theme.css:2\u0000{"selector":":root"}\u00000`,
     );
     expect(definition.declarations[0]!.order).toBe(0);
     expect(definition.declarations[0]!.value).toBe("#fff");
@@ -95,6 +104,93 @@ describe("token inventory contract", () => {
     expect(definition.declarations[0]!.id).not.toBe(definition.declarations[1]!.id);
   });
 
+  it("assigns global declaration order from source order before grouping duplicate names", () => {
+    const inventory = createTokenInventory();
+    inventory.apply(artifact({
+      id: "source-order.css",
+      content: ":root { --a: 1px; --b: 2px; --a: 3px; }",
+    }));
+
+    const snapshot = inventory.snapshot();
+    const a = snapshot.definitions.find((definition) => definition.cssName === "--a")!;
+    const b = snapshot.definitions.find((definition) => definition.cssName === "--b")!;
+    expect(a.declarations.map((declaration) => declaration.order)).toEqual([0, 2]);
+    expect(b.declarations.map((declaration) => declaration.order)).toEqual([1]);
+  });
+
+  it("uses build tool and stage in artifact identity and removes only the matching observation", () => {
+    const inventory = createTokenInventory();
+    inventory.apply(artifact({ id: "theme.css", buildTool: "vite", stage: "authored", content: ":root { --vite-authored: 1px; }" }));
+    inventory.apply(artifact({ id: "theme.css", buildTool: "vite", stage: "transformed", content: ":root { --vite-transformed: 2px; }" }));
+    inventory.apply(artifact({ id: "theme.css", buildTool: "webpack", stage: "authored", content: ":root { --webpack-authored: 3px; }" }));
+
+    expect(inventory.snapshot().definitions.map((definition) => definition.cssName).sort())
+      .toEqual(["--vite-authored", "--vite-transformed", "--webpack-authored"]);
+
+    inventory.apply(artifact({ id: "theme.css", buildTool: "vite", stage: "authored" }));
+    expect(inventory.snapshot().definitions.map((definition) => definition.cssName).sort())
+      .toEqual(["--vite-transformed", "--webpack-authored"]);
+  });
+
+  it("retains per-declaration provenance and whether ordering evidence is authoritative", () => {
+    const inventory = createTokenInventory();
+    inventory.apply(artifact({
+      id: "package.css",
+      provenance: "package",
+      order: 1,
+      content: ":root { --shared: package; }",
+    }));
+    inventory.apply(artifact({
+      id: "project.css",
+      provenance: "project",
+      discoveryOrder: 4,
+      content: ":root { --shared: project; }",
+    }));
+
+    const declarations = inventory.snapshot().definitions[0]!.declarations;
+    expect(declarations[0]!.contribution).toMatchObject({
+      kind: "stylesheet",
+      provenance: "package",
+      editable: false,
+      orderEvidence: { kind: "stylesheet", index: 1 },
+    });
+    expect(declarations[1]!.contribution).toMatchObject({
+      kind: "stylesheet",
+      provenance: "project",
+      editable: true,
+      orderEvidence: { kind: "discovery", index: 4 },
+    });
+  });
+
+  it("retains caller-contributed artifact and Adapter diagnostics alongside valid knowledge", () => {
+    const inventory = createTokenInventory();
+    inventory.apply(artifact({ id: "good.css", content: ":root { --good: 1px; }" }));
+    inventory.apply(artifact({
+      id: "missing.css",
+      diagnostics: [{ code: "stylesheet-unreadable", message: "permission denied" }],
+    }));
+    inventory.setAdapterContributions({
+      tokens: [],
+      diagnostics: [{
+        code: "vanilla-extract-contract-unsupported-shape",
+        message: "unsupported contract",
+        module: "theme.css.ts",
+        exportName: "theme",
+      }],
+    });
+
+    const snapshot = inventory.snapshot();
+    expect(snapshot.definitions.map((definition) => definition.cssName)).toEqual(["--good"]);
+    expect(snapshot.diagnostics).toEqual([
+      expect.objectContaining({ code: "stylesheet-unreadable", artifact: "missing.css" }),
+      expect.objectContaining({
+        code: "vanilla-extract-contract-unsupported-shape",
+        module: "theme.css.ts",
+        exportName: "theme",
+      }),
+    ]);
+  });
+
   it("preserves provenance and editability per artifact", () => {
     const inventory = createTokenInventory();
     inventory.apply(artifact({
@@ -116,9 +212,11 @@ describe("token inventory contract", () => {
   it("merges Adapter literal tokens with their provenance", () => {
     const inventory = createTokenInventory();
     inventory.apply(artifact({ id: "src/theme.css", content: ":root { --from-css: 1px; }" }));
-    inventory.setAdapterTokens([
-      { name: "primary", cssName: "--tw-primary", value: "#3b82f6", source: "tailwind.config", adapter: "tailwind-v3", origin: "framework", editable: false },
-    ]);
+    inventory.setAdapterContributions({
+      tokens: [
+        { name: "primary", cssName: "--tw-primary", value: "#3b82f6", source: "tailwind.config", adapter: "tailwind-v3", origin: "framework", editable: false },
+      ],
+    });
 
     const snapshot = inventory.snapshot();
     const adapter = snapshot.definitions.find((entry) => entry.cssName === "--tw-primary")!;
@@ -183,11 +281,11 @@ describe("token inventory contract", () => {
     expect(inventory.snapshot().generation).not.toBe(first);
 
     const second = inventory.snapshot().generation;
-    inventory.setAdapterTokens([{ name: "--y", value: "3px", source: "adapter" }]);
+    inventory.setAdapterContributions({ tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
     expect(inventory.snapshot().generation).not.toBe(second);
 
     const third = inventory.snapshot().generation;
-    inventory.setAdapterTokens([{ name: "--y", value: "3px", source: "adapter" }]);
+    inventory.setAdapterContributions({ tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
     expect(inventory.snapshot().generation).toBe(third);
 
     // removal changes observable facts

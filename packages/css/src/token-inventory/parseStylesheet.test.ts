@@ -136,8 +136,8 @@ describe("parseStylesheetArtifact — ordinary CSS parsing", () => {
     expect(declarations[0]!.context).toEqual({ selector: ":root" });
     expect(declarations[1]!.context).toEqual({ selector: ':root[data-theme="dark"]' });
     expect(declarations[0]!.id).not.toBe(declarations[1]!.id);
-    expect(declarations[0]!.id!.startsWith("--surface\u0000src/theme.css:1\u0000")).toBe(true);
-    expect(declarations[1]!.id!.startsWith("--surface\u0000src/theme.css:2\u0000")).toBe(true);
+    expect(declarations[0]!.id).toContain("\u0000--surface\u0000src/theme.css:1\u0000");
+    expect(declarations[1]!.id).toContain("\u0000--surface\u0000src/theme.css:2\u0000");
   });
 
   it("preserves alias tokens literally without resolving them", () => {
