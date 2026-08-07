@@ -13,12 +13,8 @@ function artifact(overrides: Partial<StylesheetArtifact> & Pick<StylesheetArtifa
 }
 
 describe("token inventory contract", () => {
-  it("keeps parsing and policy helpers behind the public inventory Interface", () => {
-    expect(Object.keys(publicInventoryApi).sort()).toEqual([
-      "createTokenInventory",
-      "parseTokenCatalog",
-      "parseTokens",
-    ]);
+  it("keeps the public inventory API focused on the inventory engine", () => {
+    expect(Object.keys(publicInventoryApi)).toEqual(["createTokenInventory"]);
   });
 
   it("creates an artifact and returns grouped definitions with deterministic declaration ids", () => {
@@ -248,10 +244,18 @@ describe("token inventory contract", () => {
       source: "tailwind.config",
       adapter: "tailwind-v3",
     };
-    inventory.setAdapterContributions({ tokens: [{ ...token, value: "#3b82f6" }] });
+    inventory.applyContribution({
+      id: "adapter-registry",
+      order: -1,
+      tokens: [{ ...token, value: "#3b82f6" }],
+    });
     const firstId = inventory.snapshot().definitions[0]!.declarations[0]!.id;
 
-    inventory.setAdapterContributions({ tokens: [{ ...token, value: "#2563eb" }] });
+    inventory.applyContribution({
+      id: "adapter-registry",
+      order: -1,
+      tokens: [{ ...token, value: "#2563eb" }],
+    });
     const updated = inventory.snapshot().definitions[0]!.declarations[0]!;
 
     expect(updated.id).toBe(firstId);

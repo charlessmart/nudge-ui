@@ -774,7 +774,6 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
 
 export { injectIdentity, injectDataCid } from "./transform/injectDataCid.ts";
 export type { InjectResult } from "./transform/injectDataCid.ts";
-export { parseTokens, parseTokenCatalog } from "./tokens/parseTokens.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
 export { annotateTailwindV4Catalog, createTailwindV4Adapter, createTailwindV4NamingContribution, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
 export type { TailwindAlphaMapping } from "./adapters/tailwindV4.ts";
