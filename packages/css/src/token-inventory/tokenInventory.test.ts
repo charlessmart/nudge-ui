@@ -13,8 +13,10 @@ function artifact(overrides: Partial<StylesheetArtifact> & Pick<StylesheetArtifa
 }
 
 describe("token inventory contract", () => {
-  it("keeps the public inventory API focused on the inventory engine", () => {
-    expect(Object.keys(publicInventoryApi)).toEqual(["createTokenInventory"]);
+  it("exposes only the explicit S2-D inventory runtime API", () => {
+    expect(Object.keys(publicInventoryApi).sort()).toEqual([
+      "createTokenInventory",
+    ]);
   });
 
   it("creates an artifact and returns grouped definitions with deterministic declaration ids", () => {

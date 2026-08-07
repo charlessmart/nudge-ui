@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { TokenDefinition } from "../virtual/design-tokens.ts";
 import {
-  enrichVanillaExtractCatalog,
+  createPublishedVanillaExtractContribution,
   materializeVanillaExtractContract,
 } from "./vanillaExtractContract.ts";
 
@@ -19,39 +18,47 @@ describe("published vanilla-extract contracts", () => {
     })]);
   });
 
-  it("enriches a CSS declaration without replacing CSS value, source, or package provenance", () => {
-    const catalog: TokenDefinition[] = [{
-      name: "--color-content-primary",
-      cssName: "--color-content-primary",
-      origin: "package",
-      editable: false,
-      declarations: [{
-        value: "#20211f",
-        source: "@fixture/theme.css:4",
-        important: false,
-        context: { selector: ":root" },
-      }],
-    }];
-    const contract = materializeVanillaExtractContract({
-      color: { content: { primary: "var(--color-content-primary)" } },
-    }, { source: "@fixture/contract" });
+  it("normalizes Vite contract facts into package provenance", () => {
+    const contribution = createPublishedVanillaExtractContribution({
+      moduleSpecifier: "@fixture/theme-contract",
+      loaded: true,
+      contract: { color: { primary: "var(--primary__hash)" } },
+      diagnostics: [],
+      resolvedModuleId: "/repo/app/node_modules/@fixture/theme-contract/index.js",
+      projectRoot: "/repo/app",
+    });
 
-    const enriched = enrichVanillaExtractCatalog(catalog, contract);
-    expect(enriched).toEqual([expect.objectContaining({
-      name: "theme.color.content.primary",
-      cssName: "--color-content-primary",
-      adapter: "vanilla-extract",
-      origin: "package",
-      editable: false,
-      declarations: [expect.objectContaining({ value: "#20211f", source: "@fixture/theme.css:4" })],
-    })]);
+    expect(contribution).toMatchObject({
+      id: "vanilla-extract-contract",
+      order: 1,
+      definitions: [expect.objectContaining({
+        name: "theme.color.primary",
+        cssName: "--primary__hash",
+        origin: "package",
+      })],
+    });
   });
 
-  it("does not create a candidate for a contract variable absent from active CSS", () => {
-    const entries = materializeVanillaExtractContract({
-      color: { missing: "var(--not-in-the-page)" },
-    }, { source: "@fixture/contract" });
-
-    expect(enrichVanillaExtractCatalog([], entries)).toEqual([]);
+  it("normalizes loader failures without exposing Vite assembly to the entrypoint", () => {
+    expect(createPublishedVanillaExtractContribution({
+      moduleSpecifier: "@fixture/theme-contract",
+      loaded: true,
+      contract: null,
+      diagnostics: [{
+        code: "vanilla-extract-contract-missing-export",
+        module: "@fixture/theme-contract",
+        exportName: "vars",
+        message: "Missing vars.",
+      }],
+      resolvedModuleId: "/repo/app/theme-contract.ts",
+      projectRoot: "/repo/app",
+    })).toMatchObject({
+      diagnostics: [{
+        code: "vanilla-extract-contract-missing-export",
+        artifact: "@fixture/theme-contract",
+        exportName: "vars",
+        message: "Missing vars.",
+      }],
+    });
   });
 });

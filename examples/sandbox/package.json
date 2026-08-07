@@ -24,6 +24,7 @@
     "react-dom": "^18.3.0"
   },
   "devDependencies": {
+    "@design-tool/css": "workspace:*",
     "@playwright/test": "^1.48.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^18.3.0",

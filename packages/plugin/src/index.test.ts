@@ -30,6 +30,10 @@ const SAMPLE_HTML = `<!doctype html>
   </body>
 </html>`;
 
+function codeContainsName(code: string | null | undefined, name: string): boolean {
+  return code?.includes(JSON.stringify(name)) ?? false;
+}
+
 describe("isHostApplicationSource", () => {
   const root = join(tmpdir(), "design-tool-app");
 
@@ -183,6 +187,20 @@ describe("designTool component contract catalog", () => {
 });
 
 describe("designTool token catalog compiler", () => {
+  it("emits the empty token module in production builds (ADR-0002)", async () => {
+    const plugin = designTool() as unknown as {
+      configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+      load?: (id: string) => string | null | Promise<string | null>;
+    };
+    plugin.configResolved!({ root: "/project", command: "build" });
+    const code = await plugin.load!("\0virtual:design-tokens");
+    expect(code).toContain("tokenCatalog = []");
+    expect(code).toContain("tokens = []");
+    expect(code).toContain("tokenDiagnostics = []");
+    expect(code).toContain("tokenGeneration = \"\"");
+    expect(code).toContain("designToolProjectId = \"\"");
+  });
+
   it("discovers only Vite-resolved package CSS imports with package provenance", async () => {
     const parent = mkdtempSync(join(tmpdir(), "design-tool-package-css-"));
     const root = join(parent, "app");
@@ -1054,6 +1072,228 @@ describe("designTool token catalog compiler", () => {
         .toMatchObject({ adapter: "tailwind-v4", origin: "project", editable: true });
       expect(catalog.find((entry) => entry.cssName === "--color-content-primary"))
         .toMatchObject({ name: "theme.color.content.primary", adapter: "vanilla-extract", origin: "package", editable: false });
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("bumps the published generation exactly once per observable HMR change and treats an identical follow-up as a no-op", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-hmr-once-"));
+    const root = join(parent, "app");
+    const appCss = join(root, "app.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      writeFileSync(appCss, ':root { --color-brand: #123456; }');
+      const invalidations: string[] = [];
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => null,
+        moduleGraph: {
+          getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
+          invalidateModule: (m: { id: string }) => { invalidations.push(m.id); },
+        },
+      };
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+        handleHotUpdate?: (context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }) => Promise<unknown>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+
+      const generation = async () => {
+        const code = (await plugin.load!("\0virtual:design-tokens"))!;
+        return JSON.parse(code.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""') as string;
+      };
+
+      const first = await generation();
+      expect(first).toMatch(/^g[0-9a-f]+$/);
+
+      // Change: one observable snapshot change -> exactly one invalidation and
+      // a new generation, even though the event feeds authored + graph facts.
+      writeFileSync(appCss, ':root { --color-brand: #abcdef; --extra-token: 4px; }');
+      await plugin.handleHotUpdate!({
+        file: appCss,
+        read: async () => ':root { --color-brand: #abcdef; --extra-token: 4px; }',
+        server,
+        modules: [],
+      });
+      expect(invalidations).toHaveLength(1);
+      const changed = await generation();
+      expect(changed).not.toBe(first);
+
+      // An identical follow-up HMR is a no-op: no invalidation, no bump.
+      await plugin.handleHotUpdate!({
+        file: appCss,
+        read: async () => ':root { --color-brand: #abcdef; --extra-token: 4px; }',
+        server,
+        modules: [],
+      });
+      expect(invalidations).toHaveLength(1);
+      expect(await generation()).toBe(changed);
+
+      // Genuinely different content bumps exactly once more.
+      writeFileSync(appCss, ':root { --color-brand: #ffffff; }');
+      await plugin.handleHotUpdate!({
+        file: appCss,
+        read: async () => ':root { --color-brand: #ffffff; }',
+        server,
+        modules: [],
+      });
+      expect(invalidations).toHaveLength(2);
+      const bumped = await generation();
+      expect(bumped).not.toBe(changed);
+      expect(bumped).not.toBe(first);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("publishes real watcher add and unlink events exactly once", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-watch-hmr-"));
+    const addedCss = join(root, "added.css");
+    try {
+      const callbacks: Partial<Record<"add" | "unlink", (file: string) => Promise<void>>> = {};
+      const watcher = {
+        on(event: "add" | "unlink", listener: (file: string) => Promise<void>) {
+          callbacks[event] = listener;
+          return watcher;
+        },
+      };
+      const invalidations: string[] = [];
+      const reloads: string[] = [];
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => null,
+        watcher,
+        ws: { send: (message: { type: string }) => { reloads.push(message.type); } },
+        moduleGraph: {
+          getModuleById: (id: string) => id === virtual.id ? virtual : undefined,
+          invalidateModule: (module: { id: string }) => { invalidations.push(module.id); },
+          onFileDelete: () => undefined,
+        },
+      };
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+      const initial = (await plugin.load(virtual.id))!;
+      const initialGeneration = JSON.parse(
+        initial.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""',
+      ) as string;
+
+      writeFileSync(addedCss, ":root { --added-token: 8px; }");
+      await callbacks.add!(addedCss);
+      const added = (await plugin.load(virtual.id))!;
+      const addedGeneration = JSON.parse(
+        added.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""',
+      ) as string;
+      expect(added).toContain("--added-token");
+      expect(addedGeneration).not.toBe(initialGeneration);
+      expect(invalidations).toEqual([virtual.id]);
+      expect(reloads).toEqual(["full-reload"]);
+
+      rmSync(addedCss);
+      await callbacks.unlink!(addedCss);
+      const removed = (await plugin.load(virtual.id))!;
+      const removedGeneration = JSON.parse(
+        removed.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""',
+      ) as string;
+      expect(removed).not.toContain("--added-token");
+      expect(removedGeneration).not.toBe(addedGeneration);
+      expect(invalidations).toEqual([virtual.id, virtual.id]);
+      expect(reloads).toEqual(["full-reload", "full-reload"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("bumps the published generation exactly once for a theme-contract HMR change and ignores an identical refresh", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-contract-hmr-once-"));
+    const root = join(parent, "app");
+    const contractId = join(root, "contract.ts");
+    try {
+      mkdirSync(root, { recursive: true });
+      writeFileSync(join(root, "app.css"), ':root { --color-content-primary: #20211f; --color-content-secondary: #6d6e69; }');
+      let contract: Record<string, unknown> = {
+        vars: { color: { content: { primary: "var(--color-content-primary)" } } },
+      };
+      let cachedContract = contract;
+      const invalidations: string[] = [];
+      const virtual = { id: "\0virtual:design-tokens" };
+      const contractModule = { id: contractId };
+      const server = {
+        pluginContainer: {
+          resolveId: async (specifier: string) => {
+            if (specifier === "@fixture/contract") return { id: contractId };
+            return null;
+          },
+        },
+        ssrLoadModule: async () => cachedContract,
+        transformRequest: async () => null,
+        moduleGraph: {
+          getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
+          invalidateModule: (module: { id: string }) => {
+            if (module === contractModule) cachedContract = contract;
+            else invalidations.push(module.id);
+          },
+        },
+      };
+      const plugin = designTool({
+        vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
+      }) as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+        handleHotUpdate?: (context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }) => Promise<unknown>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+
+      const generation = async () => {
+        const code = (await plugin.load!("\0virtual:design-tokens"))!;
+        return JSON.parse(code.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""') as string;
+      };
+
+      const first = await generation();
+      expect(codeContainsName(await plugin.load!("\0virtual:design-tokens"), "theme.color.content.primary")).toBe(true);
+
+      // Contract refresh with genuinely different facts bumps exactly once.
+      contract = { vars: { color: { content: { secondary: "var(--color-content-secondary)" } } } };
+      await plugin.handleHotUpdate!({
+        file: contractId,
+        read: async () => "export const vars = {};",
+        server,
+        modules: [contractModule],
+      });
+      expect(invalidations).toHaveLength(1);
+      const changed = await generation();
+      expect(changed).not.toBe(first);
+      const changedCode = (await plugin.load!("\0virtual:design-tokens"))!;
+      expect(codeContainsName(changedCode, "theme.color.content.secondary")).toBe(true);
+      expect(codeContainsName(changedCode, "theme.color.content.primary")).toBe(false);
+
+      // An identical contract reload is a no-op.
+      await plugin.handleHotUpdate!({
+        file: contractId,
+        read: async () => "export const vars = {};",
+        server,
+        modules: [contractModule],
+      });
+      expect(invalidations).toHaveLength(1);
+      expect(await generation()).toBe(changed);
     } finally {
       rmSync(parent, { recursive: true, force: true });
     }

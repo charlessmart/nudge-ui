@@ -1,16 +1,23 @@
-import type { TokenDeclaration, TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
 import type { TokenContribution } from "@design-tool/css/token-inventory";
+import { isPackageStylesheet } from "../tokens/viteStylesheetArtifacts.ts";
+import type { TokenCatalogDiagnostic, TokenEntry } from "../virtual/design-tokens.ts";
 import type { ThemeContract } from "./vanillaExtract.ts";
-
-/** Token transport view accepted from immutable inventory snapshots. */
-export interface CatalogTokenDefinition extends Omit<TokenDefinition, "declarations"> {
-  readonly declarations: readonly TokenDeclaration[];
-}
 
 export interface MaterializeVanillaExtractContractOptions {
   prefix?: string;
   source: string;
   origin?: TokenEntry["origin"];
+}
+
+export interface PublishedVanillaExtractContributionOptions {
+  moduleSpecifier?: string;
+  loaded: boolean;
+  contract: ThemeContract | null;
+  diagnostics: readonly TokenCatalogDiagnostic[];
+  resolvedModuleId: string | null;
+  projectRoot?: string;
+  prefix?: string;
+  source?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -52,10 +59,9 @@ export function materializeVanillaExtractContract(
  * Builds the normalized inventory contribution for a published theme contract.
  * The contract entries are contributed as a definition-level enrichment: the
  * inventory merges them by cssName against the aggregated stylesheet
- * definitions with the exact `enrichVanillaExtractCatalog` semantics (name /
- * adapter enrichment, CSS-derived origin/editability preserved when present,
- * unmatched entries ignored). Id-keyed and replaceable so a refreshed contract
- * replaces the prior contribution without duplicates.
+ * definitions (name/adapter enrichment, CSS-derived origin/editability preserved
+ * when present, unmatched entries ignored). Id-keyed and replaceable so a
+ * refreshed contract replaces the prior contribution without duplicates.
  */
 export function materializeVanillaExtractContribution(
   contract: ThemeContract,
@@ -78,34 +84,33 @@ export function materializeVanillaExtractContribution(
   };
 }
 
-/**
- * Contract paths enrich declarations already discovered from active CSS. The
- * CSS catalog keeps value, source, context, origin, and editability authority.
- *
- * @deprecated Compatibility projection used by the pre-2.5 post-snapshot
- * enrichment. The plugin now feeds `materializeVanillaExtractContribution`
- * through the inventory contribution seam; this function remains for callers
- * of the legacy shape.
- */
-export function enrichVanillaExtractCatalog(
-  catalog: readonly CatalogTokenDefinition[],
-  contractEntries: TokenEntry[],
-): CatalogTokenDefinition[] {
-  const contractByCssName = new Map(contractEntries
-    .filter((entry): entry is TokenEntry & { cssName: string } => Boolean(entry.cssName))
-    .map((entry) => [entry.cssName, entry]));
-
-  return catalog.map((definition) => {
-    const contract = contractByCssName.get(definition.cssName);
-    if (!contract) return definition;
+/** Convert Vite loader facts into the replaceable inventory contribution. */
+export function createPublishedVanillaExtractContribution(
+  options: PublishedVanillaExtractContributionOptions,
+): TokenContribution {
+  if (!options.moduleSpecifier || !options.loaded) {
+    return { id: "vanilla-extract-contract", order: 1 };
+  }
+  if (options.diagnostics.length > 0) {
     return {
-      ...definition,
-      // Preserve CSS-derived origin/editability when those records exist. A
-      // package contract must never turn a third-party declaration editable.
-      name: contract.name,
-      adapter: contract.adapter,
-      origin: definition.origin ?? contract.origin,
-      editable: definition.editable ?? contract.editable,
+      id: "vanilla-extract-contract",
+      order: 1,
+      diagnostics: options.diagnostics.map((diagnostic) => ({
+        code: diagnostic.code,
+        artifact: diagnostic.module,
+        message: diagnostic.message,
+        ...(diagnostic.exportName !== undefined ? { exportName: diagnostic.exportName } : {}),
+      })),
     };
+  }
+  if (!options.contract) return { id: "vanilla-extract-contract", order: 1 };
+
+  return materializeVanillaExtractContribution(options.contract, {
+    prefix: options.prefix,
+    source: options.source ?? options.moduleSpecifier,
+    origin: options.resolvedModuleId
+      && isPackageStylesheet(options.resolvedModuleId, options.projectRoot)
+      ? "package"
+      : "project",
   });
 }

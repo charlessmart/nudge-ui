@@ -14,13 +14,6 @@ export function detectTailwindV4(css: string): boolean {
   return /@(?:import\s+["']tailwindcss|theme\b)/i.test(css) || /--tw-[\w-]+/.test(css);
 }
 
-export function annotateTailwindV4Catalog(catalog: TokenDefinition[], options: { projectTokenNames?: ReadonlySet<string> } = {}): TokenDefinition[] {
-  return catalog.map((definition) => {
-    const project = options.projectTokenNames?.has(definition.cssName) ?? false;
-    return { ...definition, adapter: "tailwind-v4", origin: project ? "project" : "framework", editable: project };
-  });
-}
-
 /**
  * The Tailwind v4 naming contribution. Id-keyed and replaceable, so repeated
  * applications are no-ops and the inventory generation only bumps when the
