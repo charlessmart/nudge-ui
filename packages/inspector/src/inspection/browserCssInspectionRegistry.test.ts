@@ -5,8 +5,10 @@ import {
   disposeBrowserCssInspection,
   getBrowserCssInspection,
 } from "./browserCssInspectionRegistry.ts";
+import { setDesignTokensStub } from "../__stubs__/design-tokens.ts";
 
 afterEach(() => {
+  setDesignTokensStub([], "");
   disposeBrowserCssInspection(document);
   document.body.innerHTML = "";
 });
@@ -50,5 +52,24 @@ describe("browser CSS inspection registry", () => {
     expect(next).not.toBe(first);
     expect(first.inspect(document.createElement("div")).target.status).toBe("disposed");
     expect(next.inspect(document.createElement("div")).target.status).toBe("detached");
+  });
+
+  it("recreates for post-snapshot catalog enrichment without churning on identical transport", () => {
+    setDesignTokensStub([], "g-same");
+    const first = getBrowserCssInspection(document);
+    const enriched = [{
+      cssName: "--surface",
+      name: "theme.surface",
+      adapter: "vanilla-extract",
+      declarations: [{ value: "#fff", source: "theme.css:1", important: false, context: {} }],
+    }];
+
+    setDesignTokensStub(enriched, "g-same");
+    const next = getBrowserCssInspection(document);
+    setDesignTokensStub(enriched.map((definition) => ({ ...definition })), "g-same");
+
+    expect(next).not.toBe(first);
+    expect(getBrowserCssInspection(document)).toBe(next);
+    expect(first.inspect(document.createElement("div")).target.status).toBe("disposed");
   });
 });

@@ -1,5 +1,10 @@
-import type { TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
+import type { TokenDeclaration, TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
 import type { ThemeContract } from "./vanillaExtract.ts";
+
+/** Token transport view accepted from immutable inventory snapshots. */
+export interface CatalogTokenDefinition extends Omit<TokenDefinition, "declarations"> {
+  readonly declarations: readonly TokenDeclaration[];
+}
 
 export interface MaterializeVanillaExtractContractOptions {
   prefix?: string;
@@ -47,9 +52,9 @@ export function materializeVanillaExtractContract(
  * CSS catalog keeps value, source, context, origin, and editability authority.
  */
 export function enrichVanillaExtractCatalog(
-  catalog: TokenDefinition[],
+  catalog: readonly CatalogTokenDefinition[],
   contractEntries: TokenEntry[],
-): TokenDefinition[] {
+): CatalogTokenDefinition[] {
   const contractByCssName = new Map(contractEntries
     .filter((entry): entry is TokenEntry & { cssName: string } => Boolean(entry.cssName))
     .map((entry) => [entry.cssName, entry]));

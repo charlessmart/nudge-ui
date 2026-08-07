@@ -52,7 +52,10 @@ describe("designTool plain-CSS token inventory transport", () => {
       });
       expect(publishedGeneration).toBe(expected.snapshot().generation);
       const tracer = catalog.find((definition) => definition.cssName === "--color-tracer");
-      expect(tracer?.declarations[0]).toMatchObject({ id: `--color-tracer\u0000tracer.css:3\u0000{"selector":":root"}\u00001`, order: 1 });
+      expect(tracer?.declarations[0]).toMatchObject({
+        id: `vite\u0000tracer.css\u0000authored\u0000--color-tracer\u0000tracer.css:3\u0000{"selector":":root"}\u00001`,
+        order: 1,
+      });
 
       // Identical reloads publish the identical generation (deterministic).
       const again = (await plugin.load!("\0virtual:design-tokens"))!;
@@ -102,6 +105,85 @@ describe("designTool plain-CSS token inventory transport", () => {
       expect(second).toContain("--extra-tracer");
       expect(second).toContain("#abcdef");
       expect(second).not.toContain("--space-tracer");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("replaces authored rows with transformed rows and removes both stages on deletion", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-tracer-stages-"));
+    const cssPath = join(root, "tracer.css");
+    try {
+      writeFileSync(cssPath, PLAIN_CSS);
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => { throw new Error("deleted"); },
+        moduleGraph: {
+          getModuleById: (id: string) => id === virtual.id ? virtual : undefined,
+          invalidateModule: () => undefined,
+        },
+      };
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" | "build" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        transform: { handler(code: string, id: string): unknown };
+        load(id: string): string | null | Promise<string | null>;
+        handleHotUpdate(context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }): Promise<unknown>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+      await plugin.load("\0virtual:design-tokens");
+      plugin.transform.handler(":root { --transformed-only: 8px; }", cssPath);
+
+      const transformed = (await plugin.load("\0virtual:design-tokens"))!;
+      expect(transformed).toContain("--transformed-only");
+      expect(transformed).not.toContain("--space-tracer");
+
+      rmSync(cssPath);
+      await plugin.handleHotUpdate({
+        file: cssPath,
+        read: async () => { throw new Error("deleted"); },
+        server,
+        modules: [],
+      });
+      const removed = (await plugin.load("\0virtual:design-tokens"))!;
+      expect(removed).not.toContain("--transformed-only");
+      expect(removed).not.toContain("--space-tracer");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("publishes unresolved active-import diagnostics without dropping valid CSS", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-tracer-diagnostics-"));
+    try {
+      writeFileSync(join(root, "tracer.css"), '@import "./missing.css"; :root { --still-valid: 1rem; }');
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" | "build" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer({
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => null,
+      });
+      plugin.buildStart();
+
+      const code = (await plugin.load("\0virtual:design-tokens"))!;
+      const diagnostics = JSON.parse(extract(code, "tokenDiagnostics")) as Array<{
+        code: string;
+        module?: string;
+      }>;
+      expect(code).toContain("--still-valid");
+      expect(diagnostics).toContainEqual(expect.objectContaining({
+        code: "stylesheet-unresolved",
+        module: "./missing.css",
+      }));
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
