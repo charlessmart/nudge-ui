@@ -206,7 +206,7 @@ function adapterDeclaration(
 ): InventoryTokenDeclaration {
   const key = entry.cssName ?? entry.name;
   return {
-    id: `adapter\x00${contributionId}\x00${key}\x00${entry.source}\x00${entry.value}`,
+    id: `adapter\x00${contributionId}\x00${key}\x00${entry.source}`,
     order,
     value: entry.value,
     source: entry.source,
@@ -298,6 +298,11 @@ export interface TokenInventory {
   snapshot(): InventorySnapshot;
   applyContribution(contribution: TokenContribution): void;
   removeContribution(id: string): void;
+  /** Compatibility projection for callers that still provide one adapter batch. */
+  setAdapterContributions(contributions: {
+    readonly tokens: readonly TokenEntry[];
+    readonly diagnostics?: readonly InventoryDiagnostic[];
+  }): void;
 }
 
 export function createTokenInventory(): TokenInventory {
@@ -347,6 +352,18 @@ export function createTokenInventory(): TokenInventory {
 
   function removeContribution(id: string): void {
     if (contributions.delete(id)) invalidate();
+  }
+
+  function setAdapterContributions(contributions: {
+    readonly tokens: readonly TokenEntry[];
+    readonly diagnostics?: readonly InventoryDiagnostic[];
+  }): void {
+    applyContribution({
+      id: "adapter-registry",
+      order: -1,
+      tokens: contributions.tokens,
+      diagnostics: contributions.diagnostics,
+    });
   }
 
   function snapshot(): InventorySnapshot {
@@ -485,5 +502,5 @@ export function createTokenInventory(): TokenInventory {
     return snapshotCache;
   }
 
-  return { apply, snapshot, applyContribution, removeContribution };
+  return { apply, snapshot, applyContribution, removeContribution, setAdapterContributions };
 }

@@ -166,6 +166,48 @@ describe("designTool plain-CSS token inventory transport", () => {
     }
   });
 
+  it("keeps the last valid token rows when an existing stylesheet cannot be read during HMR", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-tracer-unreadable-"));
+    const cssPath = join(root, "tracer.css");
+    try {
+      writeFileSync(cssPath, PLAIN_CSS);
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => null,
+        moduleGraph: {
+          idToModuleMap: new Map(),
+          getModuleById: (id: string) => id === virtual.id ? virtual : undefined,
+          invalidateModule: () => undefined,
+        },
+      };
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" | "build" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+        handleHotUpdate(context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }): Promise<unknown>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+      await plugin.load("\0virtual:design-tokens");
+
+      await plugin.handleHotUpdate({
+        file: cssPath,
+        read: async () => { throw new Error("temporarily unreadable"); },
+        server,
+        modules: [],
+      });
+
+      const code = (await plugin.load("\0virtual:design-tokens"))!;
+      expect(code).toContain("--color-tracer");
+      expect(code).toContain("stylesheet-unreadable");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("publishes unresolved active-import diagnostics without dropping valid CSS", async () => {
     const root = mkdtempSync(join(tmpdir(), "design-tool-tracer-diagnostics-"));
     try {

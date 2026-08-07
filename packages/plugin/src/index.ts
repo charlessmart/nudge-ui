@@ -699,7 +699,17 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
         hasAuthoredObservation = true;
         feedCssArtifact(ctx.file, code, "authored");
       } catch {
-        feedCssRemoval(ctx.file);
+        const fileId = stripCssQuery(ctx.file);
+        if (!existsSync(fileId)) {
+          feedCssRemoval(ctx.file);
+        } else {
+          const rel = catalogSourcePath(fileId, root);
+          sourceScanDiagnostics.set(rel, {
+            code: "stylesheet-unreadable",
+            artifact: rel,
+            message: `Could not read stylesheet ${rel}. Keeping its last valid token inventory entry.`,
+          });
+        }
       }
 
       await refreshActiveStylesheetTokens();

@@ -668,6 +668,7 @@ describe("designTool token catalog compiler", () => {
       plugin.buildStart!();
 
       let code = await plugin.load!("\0virtual:design-tokens");
+      const firstGeneration = JSON.parse(/export const tokenGeneration = (.*);/.exec(code!)![1]!) as string;
       expect(code).toContain('"name":"theme.color.content.primary"');
       expect(code).toContain('"value":"#20211f"');
       expect(code).toContain('"origin":"package"');
@@ -681,8 +682,10 @@ describe("designTool token catalog compiler", () => {
         modules: [],
       });
       code = await plugin.load!("\0virtual:design-tokens");
+      const secondGeneration = JSON.parse(/export const tokenGeneration = (.*);/.exec(code!)![1]!) as string;
       expect(code).toContain('"name":"theme.color.content.secondary"');
       expect(code).not.toContain('"name":"theme.color.content.primary"');
+      expect(secondGeneration).not.toBe(firstGeneration);
     } finally {
       rmSync(parent, { recursive: true, force: true });
     }
