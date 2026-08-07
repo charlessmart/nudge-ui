@@ -238,6 +238,24 @@ describe("token inventory contract", () => {
     });
   });
 
+  it("keeps an Adapter declaration id stable across a value-only update", () => {
+    const inventory = createTokenInventory();
+    const token = {
+      name: "primary",
+      cssName: "--tw-primary",
+      source: "tailwind.config",
+      adapter: "tailwind-v3",
+    };
+    inventory.setAdapterContributions({ tokens: [{ ...token, value: "#3b82f6" }] });
+    const firstId = inventory.snapshot().definitions[0]!.declarations[0]!.id;
+
+    inventory.setAdapterContributions({ tokens: [{ ...token, value: "#2563eb" }] });
+    const updated = inventory.snapshot().definitions[0]!.declarations[0]!;
+
+    expect(updated.id).toBe(firstId);
+    expect(updated.value).toBe("#2563eb");
+  });
+
   it("reports malformed CSS as a diagnostic plus an empty contribution", () => {
     const inventory = createTokenInventory();
     inventory.apply(artifact({ id: "broken.css", content: ":root { --x: red;" }));

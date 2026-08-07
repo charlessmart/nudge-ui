@@ -251,7 +251,7 @@ export function createTokenInventory(): TokenInventory {
           editable: entry.editable,
         },
         declarations: [{
-          id: `adapter\x00${key}\x00${entry.source}\x00${entry.value}`,
+          id: `adapter\x00${entry.adapter ?? ""}\x00${key}\x00${entry.source}`,
           order: provisionalOrder++,
           value: entry.value,
           source: entry.source,
