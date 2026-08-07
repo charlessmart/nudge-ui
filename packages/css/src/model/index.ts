@@ -113,8 +113,18 @@ export interface TokenDefinition {
   editable?: boolean;
 }
 
+/** Diagnostic codes emitted by token sources and the token inventory Module. */
+export type TokenCatalogDiagnosticCode =
+  | "vanilla-extract-contract-unresolved"
+  | "vanilla-extract-contract-missing-export"
+  | "vanilla-extract-contract-unsupported-shape"
+  | "stylesheet-unreadable"
+  | "stylesheet-unresolved"
+  | "stylesheet-unsupported"
+  | "stylesheet-parse-failed";
+
 export interface TokenCatalogDiagnostic {
-  code: "vanilla-extract-contract-unresolved" | "vanilla-extract-contract-missing-export" | "vanilla-extract-contract-unsupported-shape";
+  code: TokenCatalogDiagnosticCode;
   message: string;
   module: string;
   exportName?: string;
