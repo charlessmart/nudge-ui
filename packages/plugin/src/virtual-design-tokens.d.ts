@@ -11,4 +11,5 @@ declare module "virtual:design-tokens" {
   export const tokens: TokenEntry[];
   export const tokenCatalog: TokenDefinition[];
   export const tokenDiagnostics: TokenCatalogDiagnostic[];
+  export const tokenGeneration: string;
 }

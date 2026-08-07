@@ -1,4 +1,4 @@
-import { tokenCatalog } from "virtual:design-tokens";
+import { tokenCatalog, tokenGeneration } from "virtual:design-tokens";
 import {
   createBrowserCssInspection,
   type BrowserCssInspection,
@@ -12,17 +12,31 @@ interface DocumentSession {
 
 const sessions = new WeakMap<Document, DocumentSession>();
 let catalogReference = tokenCatalog;
-let catalogGeneration = 0;
+let catalogSignature = JSON.stringify(tokenCatalog);
+let catalogRevision = 0;
 
 function currentTokenKnowledge(): BrowserTokenKnowledge {
-  // Vite replaces the virtual export when token inventory changes. The
-  // generation makes that replacement visible so document sessions recreate
-  // with the new definitions instead of freezing the first catalog snapshot.
+  // The inventory snapshot generation is the authoritative fingerprint: when
+  // observable inventory facts change, the virtual module re-evaluates and
+  // `tokenGeneration` carries a new value, so document sessions recreate with
+  // the new definitions instead of freezing the first catalog snapshot.
+  //
+  // A catalog signature supplements the inventory generation because S2-B
+  // still has temporary post-snapshot Tailwind/vanilla-extract enrichment.
+  // It advances only when those observable transport definitions change, not
+  // for a no-op virtual-module replacement.
   if (catalogReference !== tokenCatalog) {
     catalogReference = tokenCatalog;
-    catalogGeneration++;
+    const nextSignature = JSON.stringify(tokenCatalog);
+    if (nextSignature !== catalogSignature) {
+      catalogSignature = nextSignature;
+      catalogRevision++;
+    }
   }
-  return { definitions: tokenCatalog, generation: catalogGeneration };
+  const generation = tokenGeneration === ""
+    ? catalogRevision
+    : catalogRevision === 0 ? tokenGeneration : `${tokenGeneration}:${catalogRevision}`;
+  return { definitions: tokenCatalog, generation };
 }
 
 /**

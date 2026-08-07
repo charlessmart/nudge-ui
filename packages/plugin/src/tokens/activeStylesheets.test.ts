@@ -44,11 +44,14 @@ describe("discoverCssImportGraph", () => {
   it("records missing and unreadable imports without failing the reachable catalog", async () => {
     const graph = await discoverCssImportGraph(["/app/styles.css"], {
       read: (id) => {
-        if (id === "/app/styles.css") return '@import "missing.css"; @import "unreadable.css";';
+        if (id === "/app/styles.css") {
+          return '@import "missing.css"; @import "unreadable.css"; @import "tailwindcss";';
+        }
         throw new Error("unreadable");
       },
       resolve: async (specifier) => {
         if (specifier === "unreadable.css") return "/app/unreadable.css";
+        if (specifier === "tailwindcss") return "/app/node_modules/tailwindcss/dist/lib.js";
         return null;
       },
     });
