@@ -27,7 +27,7 @@ const MARKUP =
  * fingerprint.
  */
 function serializeTransport(
-  definitions: readonly TokenDefinition[],
+  definitions: readonly unknown[],
   generation: string,
 ): string {
   return [

@@ -67,10 +67,14 @@ export async function discoverCssImportGraph(
       } catch {
         // An unresolved package must not prevent the host token catalog loading.
       }
-      if (!resolved || !isCssStylesheet(resolved)) {
+      if (!resolved) {
         unresolved.push({ importer: fileId, specifier });
         continue;
       }
+      // A processor-owned import such as Tailwind's package entry may resolve
+      // to JavaScript and later emit CSS during transform. It is outside this
+      // ordinary-CSS graph, but it is not an unresolved stylesheet failure.
+      if (!isCssStylesheet(resolved)) continue;
       await visit(resolved);
     }
   }

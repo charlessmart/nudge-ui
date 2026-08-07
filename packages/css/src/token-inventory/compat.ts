@@ -14,7 +14,7 @@ import { parseStylesheetArtifact } from "./parseStylesheet.ts";
 
 /**
  * @deprecated Temporary compatibility projection. Prefer feeding artifacts to
- * `createTokenInventory()`; removal tracked in S2-B.
+ * `createTokenInventory()`; removal tracked in S2-C.
  */
 export function parseTokenCatalog(css: string, sourceId: string): TokenDefinition[] {
   const contribution = parseStylesheetArtifact({
@@ -34,7 +34,7 @@ export function parseTokenCatalog(css: string, sourceId: string): TokenDefinitio
 
 /**
  * @deprecated Temporary compatibility projection. Prefer the inventory
- * snapshot's `tokens`; removal tracked in S2-B.
+ * snapshot's `tokens`; removal tracked in S2-C.
  */
 export function parseTokens(css: string, sourceId: string): TokenEntry[] {
   return parseTokenCatalog(css, sourceId).map((token) => ({

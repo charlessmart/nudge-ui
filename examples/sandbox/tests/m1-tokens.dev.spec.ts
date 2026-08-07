@@ -1,4 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
+
+test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
 test("dev: virtual:design-tokens module renders populated token table", async ({ page }) => {
   await page.goto("/");
@@ -77,4 +80,43 @@ test("dev: a published vanilla-extract contract enriches its active package CSS 
     declarations: [expect.objectContaining({ value: "#20211f", source: expect.stringMatching(/package-css-fixture\/theme\.css:4$/) })],
   })]);
   expect(token.diagnostics).toEqual([]);
+});
+
+test("dev: ordinary CSS inventory reaches browser inspection, managed preview, and prompt", async ({ page }) => {
+  await page.goto("/");
+
+  const inventoryEvidence = await page.evaluate(() => {
+    const catalog = (window as unknown as {
+      __designTokenCatalog?: Array<{
+        cssName: string;
+        declarations: Array<{ contribution?: { kind?: string; buildTool?: string } }>;
+      }>;
+    }).__designTokenCatalog ?? [];
+    return catalog.find((definition) => definition.cssName === "--color-surface-sunken")
+      ?.declarations[0]?.contribution;
+  });
+  expect(inventoryEvidence).toMatchObject({ kind: "stylesheet", buildTool: "vite" });
+
+  await page.getByRole("button", { name: "Save" }).click();
+  const chip = page.locator(
+    '[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]',
+  );
+  await expect(chip).toBeVisible();
+  await chip.click();
+  await expect.poll(async () => page.evaluate(() => {
+    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    return Array.from(root?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
+      .some((item) => item.textContent?.includes("--color-surface-sunken"));
+  })).toBe(true);
+  await page.evaluate(() => {
+    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    Array.from(root?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
+      .find((item) => item.textContent?.includes("--color-surface-sunken"))?.click();
+  });
+
+  await expect.poll(() => managedSheetText(page)).toContain("var(--color-surface-sunken)");
+  await page.locator('[data-test="copy-prompt"]').click();
+  const prompt = await page.evaluate(() => navigator.clipboard.readText());
+  expect(prompt).toContain("`--color-surface-raised` → `--color-surface-sunken`");
+  expect(prompt).toContain("## Selectors (fallback)");
 });

@@ -19,8 +19,18 @@ export type {
 } from "@design-tool/css/model";
 
 export const tokens: TokenEntry[] = [];
-export const tokenCatalog: TokenDefinition[] = [];
+export let tokenCatalog: TokenDefinition[] = [];
 export const tokenDiagnostics: TokenCatalogDiagnostic[] = [];
-export const tokenGeneration = "";
+export let tokenGeneration = "";
 export const designToolProjectId = "/stub/project";
+
+/** Test-only live-binding update that mirrors Vite replacing the virtual module. */
+export function setDesignTokensStub(
+  catalog: TokenDefinition[],
+  generation: string,
+): void {
+  tokenCatalog = catalog;
+  tokenGeneration = generation;
+}
+
 export default tokens;

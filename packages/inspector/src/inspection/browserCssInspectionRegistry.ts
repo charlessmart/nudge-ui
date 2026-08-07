@@ -12,7 +12,8 @@ interface DocumentSession {
 
 const sessions = new WeakMap<Document, DocumentSession>();
 let catalogReference = tokenCatalog;
-let referenceFallbackGeneration = 0;
+let catalogSignature = JSON.stringify(tokenCatalog);
+let catalogRevision = 0;
 
 function currentTokenKnowledge(): BrowserTokenKnowledge {
   // The inventory snapshot generation is the authoritative fingerprint: when
@@ -20,15 +21,21 @@ function currentTokenKnowledge(): BrowserTokenKnowledge {
   // `tokenGeneration` carries a new value, so document sessions recreate with
   // the new definitions instead of freezing the first catalog snapshot.
   //
-  // The reference-equality guard is a fallback only: it still catches a module
-  // replacement whose generation string happens to be empty (stubs, older
-  // transports) so the completed browser inspection session never caches a
-  // stale catalog on a module-reference change.
+  // A catalog signature supplements the inventory generation because S2-B
+  // still has temporary post-snapshot Tailwind/vanilla-extract enrichment.
+  // It advances only when those observable transport definitions change, not
+  // for a no-op virtual-module replacement.
   if (catalogReference !== tokenCatalog) {
     catalogReference = tokenCatalog;
-    referenceFallbackGeneration++;
+    const nextSignature = JSON.stringify(tokenCatalog);
+    if (nextSignature !== catalogSignature) {
+      catalogSignature = nextSignature;
+      catalogRevision++;
+    }
   }
-  const generation = tokenGeneration !== "" ? tokenGeneration : referenceFallbackGeneration;
+  const generation = tokenGeneration === ""
+    ? catalogRevision
+    : catalogRevision === 0 ? tokenGeneration : `${tokenGeneration}:${catalogRevision}`;
   return { definitions: tokenCatalog, generation };
 }
 
