@@ -27,7 +27,6 @@ import type {
 } from "./resolution/types.ts";
 import {
   classifyEditCapability,
-  extractVarCalls,
   interpretTokenValue,
   type AliasAttribution,
   type AliasInnerResult,
@@ -349,291 +348,6 @@ function candidateMatchesPainted(el: HTMLElement, row: ResolvedProperty, painted
   return normalizeInElementContext(el, row.property, row.declaredValue) === painted.trim();
 }
 
-const MIX_PERCENTAGE_OR_TOKEN = /^(?:\d+\.?\d*|\.\d+)%$|^var\([\s\S]+\)$/i;
-
-function formatOpacityPercent(value: number): string {
-  return `${String(Number(value.toFixed(4)))}%`;
-}
-
-function parseOpacityPercent(value: string): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const isPercent = trimmed.endsWith("%");
-  const numeric = Number(isPercent ? trimmed.slice(0, -1).trim() : trimmed);
-  if (!Number.isFinite(numeric)) return null;
-  const percent = isPercent ? numeric : numeric * 100;
-  return Math.max(0, Math.min(100, percent));
-}
-
-export function normalizeColorOpacity(value: string): string | null {
-  const percent = parseOpacityPercent(value);
-  return percent === null ? null : formatOpacityPercent(percent);
-}
-
-function topLevelSlashIndex(value: string): number {
-  let depth = 0;
-  for (let index = 0; index < value.length; index++) {
-    const char = value[index];
-    if (char === "(") depth++;
-    else if (char === ")") depth = Math.max(0, depth - 1);
-    else if (char === "/" && depth === 0) return index;
-  }
-  return -1;
-}
-
-function resolveOpacityComponent(
-  authoredValue: string,
-  tokenTable: TokenTable,
-  localAliases: ReadonlyMap<string, string>,
-): Pick<ColorOpacity, "value" | "authoredValue" | "tokenName" | "token"> | null {
-  const trimmed = authoredValue.trim();
-  const tokenResult = /^var\(/i.test(trimmed) ? resolveTokenValue(trimmed, tokenTable, localAliases) : null;
-  const localName = extractVarCalls(trimmed)[0]?.name;
-  const localValue = localName ? localAliases.get(localName) : undefined;
-  const fallback = extractVarCalls(trimmed)[0]?.fallback;
-  const resolved = localValue
-    ?? (tokenResult?.resolvedValue && !/^var\(/i.test(tokenResult.resolvedValue)
-    ? tokenResult.resolvedValue
-    : fallback ?? trimmed);
-  const value = normalizeColorOpacity(resolved);
-  if (value === null) return null;
-  const token = tokenResult?.tokens.find((candidate) => candidate.name === tokenResult.tokenName)
-    ?? tokenResult?.tokens[0];
-  return {
-    value,
-    authoredValue: trimmed,
-    tokenName: tokenResult?.tokenName ?? null,
-    token: localName?.startsWith("--tw-") ? undefined : token,
-  };
-}
-
-interface ColorMixItem {
-  color: string;
-  percentage: string | null;
-}
-
-function parseColorMixItem(value: string): ColorMixItem {
-  const parts = splitTopLevelWhitespace(value.trim());
-  if (parts.length > 1 && MIX_PERCENTAGE_OR_TOKEN.test(parts.at(-1)!)) {
-    return { color: parts.slice(0, -1).join(" "), percentage: parts.at(-1)! };
-  }
-  if (parts.length > 1 && MIX_PERCENTAGE_OR_TOKEN.test(parts[0]!)) {
-    return { color: parts.slice(1).join(" "), percentage: parts[0]! };
-  }
-  return { color: value.trim(), percentage: null };
-}
-
-const COLOR_FUNCTIONS_WITH_ALPHA_SYNTAX = new Set(["rgb", "hsl", "hwb", "lab", "lch", "oklab", "oklch", "color"]);
-
-/** Returns whether a color value carries its own alpha channel. */
-export function colorValueHasEmbeddedAlpha(value: string): boolean {
-  const trimmed = value.trim();
-  if (/^transparent$/i.test(trimmed)) return true;
-  if (/^#(?:[\da-f]{4}|[\da-f]{8})$/i.test(trimmed)) return true;
-
-  const colorFunction = /^([a-z-]+)\(([\s\S]*)\)$/i.exec(trimmed);
-  if (!colorFunction) return false;
-  const name = colorFunction[1]!.toLowerCase();
-  const body = colorFunction[2]!;
-  if (name === "rgba" || name === "hsla") return true;
-  if (COLOR_FUNCTIONS_WITH_ALPHA_SYNTAX.has(name)) {
-    if (topLevelSlashIndex(body) >= 0) return true;
-    if ((name === "rgb" || name === "hsl") && splitTopLevel(body, ",").length >= 4) return true;
-  }
-  if (name !== "color-mix") return false;
-
-  const parts = splitTopLevel(body, ",");
-  return parts.length === 3 && parts.slice(1).some((part) => {
-    const item = parseColorMixItem(part);
-    return item.color.toLowerCase() === "transparent" || colorValueHasEmbeddedAlpha(item.color);
-  });
-}
-
-function resolveColorMixOpacity(
-  value: string,
-  tokenTable: TokenTable,
-  localAliases: ReadonlyMap<string, string>,
-): ColorOpacity | undefined {
-  const open = value.indexOf("(");
-  const close = value.lastIndexOf(")");
-  if (open < 0 || close <= open) return undefined;
-  const parts = splitTopLevel(value.slice(open + 1, close), ",");
-  if (parts.length !== 3 || !/^\s*in\s+/i.test(parts[0]!)) return undefined;
-
-  const items = parts.slice(1).map(parseColorMixItem);
-  const transparentIndex = items.findIndex((item) => item.color.toLowerCase() === "transparent");
-  if (transparentIndex < 0 || items.filter((item) => item.color.toLowerCase() === "transparent").length !== 1) return undefined;
-  const colorIndex = transparentIndex === 0 ? 1 : 0;
-  const colorItem = items[colorIndex]!;
-  const transparentItem = items[transparentIndex]!;
-
-  let component = colorItem.percentage
-    ? resolveOpacityComponent(colorItem.percentage, tokenTable, localAliases)
-    : null;
-  if (!component && transparentItem.percentage) {
-    const transparentOpacity = resolveOpacityComponent(transparentItem.percentage, tokenTable, localAliases);
-    const transparentPercent = transparentOpacity ? parseOpacityPercent(transparentOpacity.value) : null;
-    if (transparentPercent !== null) {
-      component = {
-        value: formatOpacityPercent(100 - transparentPercent),
-        authoredValue: transparentItem.percentage,
-        tokenName: transparentOpacity?.tokenName ?? null,
-        token: transparentOpacity?.token,
-      };
-    }
-  }
-  if (!component) {
-    component = { value: "50%", authoredValue: "50%", tokenName: null, token: undefined };
-  }
-  return { ...component, source: "color-mix" };
-}
-
-function resolveColorOpacity(
-  value: string,
-  tokenTable: TokenTable,
-  localAliases: ReadonlyMap<string, string>,
-): ColorOpacity | undefined {
-  const trimmed = value.trim();
-  const hex = /^#([\da-f]{4}|[\da-f]{8})$/i.exec(trimmed);
-  if (hex) {
-    const raw = hex[1]!;
-    const alpha = raw.length === 4 ? raw.slice(-1) : raw.slice(-2);
-    const max = raw.length === 4 ? 15 : 255;
-    return {
-      value: formatOpacityPercent((Number.parseInt(alpha, 16) / max) * 100),
-      authoredValue: alpha,
-      source: "hex",
-      tokenName: null,
-    };
-  }
-
-  const colorFunction = /^(rgba?|hsla?)\(([\s\S]*)\)$/i.exec(trimmed);
-  if (colorFunction) {
-    const body = colorFunction[2]!;
-    const commaParts = splitTopLevel(body, ",");
-    const alpha = commaParts.length >= 4
-      ? commaParts[3]!
-      : (() => {
-        const slash = topLevelSlashIndex(body);
-        return slash >= 0 ? body.slice(slash + 1).trim() : null;
-      })();
-    if (alpha) {
-      const component = resolveOpacityComponent(alpha, tokenTable, localAliases);
-      if (component) {
-        return { ...component, source: colorFunction[1]!.toLowerCase().startsWith("rgb") ? "rgb" : "hsl" };
-      }
-    }
-  }
-
-  if (/^color-mix\(/i.test(trimmed)) return resolveColorMixOpacity(trimmed, tokenTable, localAliases);
-  return undefined;
-}
-
-function replaceFunctionOpacity(value: string, opacity: string): string | null {
-  const open = value.indexOf("(");
-  const close = value.lastIndexOf(")");
-  if (open < 0 || close <= open) return null;
-  const body = value.slice(open + 1, close);
-  const commaParts = splitTopLevel(body, ",");
-  if (commaParts.length >= 4) {
-    return `${value.slice(0, open + 1)}${commaParts.slice(0, 3).map((part) => part.trim()).join(", ")}, ${opacity}${value.slice(close)}`;
-  }
-  const slash = topLevelSlashIndex(body);
-  if (slash < 0) return null;
-  return `${value.slice(0, open + 1)}${body.slice(0, slash).trim()} / ${opacity}${value.slice(close)}`;
-}
-
-function replaceColorMixOpacity(value: string, opacity: string): string | null {
-  const open = value.indexOf("(");
-  const close = value.lastIndexOf(")");
-  if (open < 0 || close <= open) return null;
-  const parts = splitTopLevel(value.slice(open + 1, close), ",");
-  if (parts.length !== 3 || !/^\s*in\s+/i.test(parts[0]!)) return null;
-  const items = parts.slice(1).map(parseColorMixItem);
-  const transparentIndex = items.findIndex((item) => item.color.toLowerCase() === "transparent");
-  if (transparentIndex < 0 || items.filter((item) => item.color.toLowerCase() === "transparent").length !== 1) return null;
-  const colorIndex = transparentIndex === 0 ? 1 : 0;
-  const updated = [...parts];
-  const colorItem = items[colorIndex]!;
-  const transparentItem = items[transparentIndex]!;
-  if (colorItem.percentage) {
-    updated[colorIndex + 1] = replaceColorMixItemPercentage(parts[colorIndex + 1]!, opacity);
-  } else if (transparentItem.percentage) {
-    const percent = parseOpacityPercent(opacity);
-    if (percent === null) return null;
-    updated[transparentIndex + 1] = replaceColorMixItemPercentage(parts[transparentIndex + 1]!, formatOpacityPercent(100 - percent));
-  } else {
-    updated[colorIndex + 1] = `${parts[colorIndex + 1]!.trim()} ${opacity}`;
-  }
-  return `${value.slice(0, open + 1)}${updated.join(", ")}${value.slice(close)}`;
-}
-
-function replaceColorMixItemPercentage(item: string, opacity: string): string {
-  const parts = splitTopLevelWhitespace(item.trim());
-  if (parts.length > 1 && MIX_PERCENTAGE_OR_TOKEN.test(parts.at(-1)!)) {
-    return [...parts.slice(0, -1), opacity].join(" ");
-  }
-  if (parts.length > 1 && MIX_PERCENTAGE_OR_TOKEN.test(parts[0]!)) {
-    return [opacity, ...parts.slice(1)].join(" ");
-  }
-  return `${item.trim()} ${opacity}`;
-}
-
-export function replaceColorOpacity(value: string, opacity: string): string | null {
-  const normalized = normalizeColorOpacity(opacity);
-  if (normalized === null) return null;
-  const trimmed = value.trim();
-  if (/^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/i.test(trimmed)) {
-    return normalized === "100%" ? trimmed : `color-mix(in srgb, ${trimmed} ${normalized}, transparent)`;
-  }
-  const hex = /^#([\da-f]{4}|[\da-f]{8})$/i.exec(trimmed);
-  if (hex) {
-    const raw = hex[1]!;
-    const max = raw.length === 4 ? 15 : 255;
-    const digits = raw.length === 4 ? 1 : 2;
-    const alpha = Math.round((parseOpacityPercent(normalized)! / 100) * max).toString(16).padStart(digits, "0");
-    return `${trimmed.slice(0, -digits)}${alpha}`;
-  }
-  if (/^(?:rgba?|hsla?)\(/i.test(trimmed)) return replaceFunctionOpacity(trimmed, normalized);
-  if (/^color-mix\(/i.test(trimmed)) return replaceColorMixOpacity(trimmed, normalized);
-  return null;
-}
-
-function tokenReferenceName(entry: TokenEntry): string | null {
-  const name = entry.cssName ?? entry.name;
-  return name.startsWith("--") ? name : null;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/**
- * Replaces only the color token in a separable color expression. Keeping this
- * separate from `swapToken` is important for values such as Tailwind's
- * `color-mix(... var(--color-red-500) 10%, transparent)`: a token swap must
- * retain the authored alpha modifier.
- */
-export function replaceColorToken(value: string, oldToken: TokenEntry, newToken: TokenEntry): string | null {
-  const nextName = tokenReferenceName(newToken);
-  if (!nextName) return null;
-
-  for (const oldName of [oldToken.cssName, oldToken.name].filter((name): name is string => Boolean(name))) {
-    const reference = new RegExp(`var\\(\\s*${escapeRegExp(oldName)}(?=\\s*(?:,|\\)))`, "i");
-    if (reference.test(value)) {
-      return value.replace(
-        new RegExp(`var\\(\\s*${escapeRegExp(oldName)}(?=\\s*(?:,|\\)))`, "gi"),
-        `var(${nextName}`,
-      );
-    }
-  }
-
-  const oldValue = oldToken.cssValue?.trim() || oldToken.value.trim();
-  const nextValue = newToken.cssValue?.trim() || newToken.value.trim();
-  if (oldValue && nextValue && value.includes(oldValue)) return value.replace(oldValue, nextValue);
-  return null;
-}
-
 /**
  * Tailwind's generated `--tw-*` custom properties are implementation aliases.
  * Attribution follows the catalog token such an alias points at. Other local
@@ -659,8 +373,9 @@ function twLocalAliasPolicy(ref: string, inner: AliasInnerResult): AliasAttribut
 /**
  * Builds the value-semantics interpretation context for the inspector's token
  * knowledge, wiring the integration policies the neutral Module must not own:
- * Tailwind v3 direct-literal attribution, the color/opacity resolver (migrates
- * in slice 3.4), adapter-derived token origins, and the `--tw-*` alias policy.
+ * Tailwind v3 direct-literal attribution, adapter-derived token origins, and
+ * the `--tw-*` alias policy. Color/opacity interpretation lives inside the
+ * value-semantics Module and needs no injection from the integration.
  */
 export function createTokenInterpretationContext(
   tokenTable: TokenTable,
@@ -670,7 +385,6 @@ export function createTokenInterpretationContext(
     table: tokenTable,
     localAliases,
     resolveDirectToken: (value) => directFrameworkColor(value, tokenTable) ?? undefined,
-    resolveOpacity: (value) => resolveColorOpacity(value, tokenTable, localAliases),
     resolveOrigin: tokenOrigin,
     resolveAlias: twLocalAliasPolicy,
   };
@@ -930,6 +644,7 @@ interface ResolvedDeclaration {
   important?: boolean;
   tokens: TokenReference[];
   opacity?: ColorOpacity;
+  color?: TokenValueInterpretation["color"];
   modifiers: ValueModifier[];
   capability: EditCapability;
   resolvedTokenValue: string;
@@ -962,6 +677,7 @@ function resolveDeclaration(
           important: declaration.important,
           tokens: resolved.tokens,
           opacity: resolved.opacity,
+          color: resolved.color,
           modifiers: resolved.modifiers,
           capability: classifyEditCapability(property, declaredValue),
           resolvedTokenValue: resolved.resolvedValue,
@@ -1000,6 +716,7 @@ function resolveDeclaration(
           important: declaration.important,
           tokens: isColor ? colorResult.tokens : [],
           opacity: isColor ? colorResult.opacity : undefined,
+          color: isColor ? colorResult.color : undefined,
           modifiers: isColor ? colorResult.modifiers : [],
           capability: "structured" as const,
           resolvedTokenValue: resolved.resolvedValue,
@@ -1023,6 +740,7 @@ function resolveDeclaration(
           important: declaration.important,
           tokens: resolved.tokens,
           opacity: resolved.opacity,
+          color: resolved.color,
           modifiers: resolved.modifiers,
           capability: classifyEditCapability(property, declaredValue),
           resolvedTokenValue: resolved.resolvedValue,
@@ -1045,6 +763,7 @@ function resolveDeclaration(
         important: declaration.important,
         tokens: res.tokens,
         opacity: res.opacity,
+        color: res.color,
         modifiers: res.modifiers,
         capability: classifyEditCapability(declaration.property, declaration.value),
         resolvedTokenValue: res.resolvedValue,
@@ -1075,6 +794,7 @@ function resolveDeclaration(
         important: declaration.important,
         tokens: res.tokens,
         opacity: res.opacity,
+        color: res.color,
         modifiers: res.modifiers,
         capability: classifyEditCapability(declaration.property, declaration.value),
         resolvedTokenValue: res.resolvedValue,
@@ -1106,6 +826,7 @@ function resolveDeclaration(
       important: declaration.important,
       tokens: res.tokens,
       opacity: res.opacity,
+      color: res.color,
       modifiers: res.modifiers,
       capability: declaration.property.toLowerCase() === "border" ? "raw" : classifyEditCapability(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
@@ -1124,6 +845,7 @@ function resolveDeclaration(
       important: declaration.important,
       tokens: res.tokens,
       opacity: res.opacity,
+      color: res.color,
       modifiers: res.modifiers,
       capability: classifyEditCapability(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
@@ -1156,6 +878,7 @@ function resolveDeclaration(
       important: declaration.important,
       tokens: res.tokens,
       opacity: res.opacity,
+      color: res.color,
       modifiers: res.modifiers,
       capability: classifyEditCapability(declaration.property, declaration.value),
       resolvedTokenValue: res.resolvedValue,
@@ -1695,6 +1418,7 @@ function rowsFromMatches(
           computed: "",
           tokens: resolved.tokens,
           opacity: resolved.opacity,
+          color: resolved.color,
           modifiers: resolved.modifiers,
           capability: resolved.capability,
           resolvedTokenValue: resolved.resolvedTokenValue,
@@ -1798,7 +1522,9 @@ function inferTailwindV4ColorOpacity(
     row.declaredValue = authored;
     row.authored = authored;
     row.tokens = [{ name: baseName, origin: tokenOrigin(entry) }];
-    row.opacity = resolveColorOpacity(authored, tokenTable, EMPTY_LOCAL_ALIASES);
+    const colorInterpretation = resolveTokenValue(authored, tokenTable, EMPTY_LOCAL_ALIASES);
+    row.opacity = colorInterpretation.opacity;
+    row.color = colorInterpretation.color;
     row.modifiers = [{ kind: "alpha", value: alpha }];
     row.capability = "color";
     row.resolvedTokenValue = entry.value;
@@ -1941,6 +1667,7 @@ function applyInlineDeclarations(
         computed: painted,
         tokens: declaration.tokens,
         opacity: declaration.opacity,
+        color: declaration.color,
         modifiers: declaration.modifiers,
         capability: declaration.capability,
         resolvedTokenValue: declaration.resolvedValue,

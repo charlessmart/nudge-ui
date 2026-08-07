@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { managedSheetText } from "./managedSheet.ts";
 
 test("dev: Tailwind v3 fixture exposes config provenance, literal spacing values, and opacity helper", async ({ page }) => {
   await page.goto("/tailwind-v3");
@@ -12,6 +13,11 @@ test("dev: Tailwind v3 fixture exposes config provenance, literal spacing values
   expect(catalog.find((entry) => entry.name === "theme.spacing.3")).toMatchObject({ adapter: "tailwind-v3", cssValue: "0.75rem" });
   expect(await card.evaluate((element) => getComputedStyle(element).backgroundColor)).toContain("rgba");
   await card.click();
-  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]'))
-    .toContainText("theme.colors.brand");
+  const field = page.locator('[data-test="token-field"][data-property="background-color"]');
+  await expect(field.locator('[data-test="token-chip"]')).toContainText("theme.colors.brand");
+
+  await field.locator('[data-test="token-chip"]').click();
+  await page.getByRole("option", { name: /theme\.colors\.accent/ }).click();
+  await expect.poll(() => managedSheetText(page))
+    .toContain("background-color: rgba(171, 205, 239, 0.1);");
 });

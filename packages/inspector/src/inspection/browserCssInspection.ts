@@ -187,6 +187,7 @@ function cloneProperties(properties: readonly ResolvedProperty[]): readonly Reso
     tokens: property.tokens?.map((token) => ({ ...token })),
     modifiers: property.modifiers?.map((modifier) => ({ ...modifier })),
     opacity: property.opacity ? { ...property.opacity, token: property.opacity.token && { ...property.opacity.token } } : undefined,
+    color: property.color && { ...property.color },
     structure: property.structure && { ...property.structure },
     atRules: property.atRules?.map((atRule) => ({ ...atRule })),
     evidence: { ...property.evidence },

@@ -9,7 +9,7 @@ export default defineConfig({
   // @design-tool/plugin is a workspace package with Vite in its own dependency
   // graph. The cast keeps Vite's plugin typing local to this app's Vite instance.
   plugins: [react(), tailwindcss(), designTool({
-    tailwindV3: { config: { theme: { colors: { brand: "#123456" }, spacing: { 3: "0.75rem" } } } },
+    tailwindV3: { config: { theme: { colors: { brand: "#123456", accent: "#abcdef" }, spacing: { 3: "0.75rem" } } } },
     vanillaExtract: {
       themeContract: { color: { brand: "var(--color-brand__hash)", accent: "var(--color-accent__hash)" } },
       themeContractModule: "@design-tool/package-css-fixture/contract",
