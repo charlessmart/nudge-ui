@@ -3,7 +3,16 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createTokenInventory } from "@design-tool/css/token-inventory";
-import { designTool } from "./index.ts";
+import { designTool as createDesignToolPlugins } from "./index.ts";
+
+const designTool = (...args: Parameters<typeof createDesignToolPlugins>) =>
+  createDesignToolPlugins(...args)[0]!;
+
+function activeModuleGraph(...ids: string[]) {
+  return {
+    idToModuleMap: new Map(ids.map((id) => [id, { id, importers: new Set([{}]) }])),
+  };
+}
 
 const PLAIN_CSS = `:root {
   --space-tracer: 24px;
@@ -38,9 +47,9 @@ describe("designTool plain-CSS token inventory transport", () => {
       expect(catalog.find((definition) => definition.cssName === "--color-tracer"))
         .toMatchObject({ origin: "project" });
 
-      // The serialized generation retains the inventory fingerprint and adds
-      // a catalog revision for post-snapshot transport enrichment. Declaration
-      // identity still comes from the inventory (not reassigned inside load()).
+      // The serialized generation is the inventory snapshot fingerprint for
+      // the exact artifact the plugin fed, and the declaration identity comes
+      // from the inventory (not reassigned inside load()).
       const publishedGeneration = JSON.parse(extract(code, "tokenGeneration")) as string;
       const expected = createTokenInventory();
       expected.apply({
@@ -50,7 +59,7 @@ describe("designTool plain-CSS token inventory transport", () => {
         provenance: "project",
         content: PLAIN_CSS,
       });
-      expect(publishedGeneration).toMatch(new RegExp(`^${expected.snapshot().generation}:\\d+$`));
+      expect(publishedGeneration).toBe(expected.snapshot().generation);
       const tracer = catalog.find((definition) => definition.cssName === "--color-tracer");
       expect(tracer?.declarations[0]).toMatchObject({
         id: `vite\u0000tracer.css\u0000authored\u0000--color-tracer\u0000tracer.css:3\u0000{"selector":":root"}\u00001`,
@@ -120,23 +129,23 @@ describe("designTool plain-CSS token inventory transport", () => {
         pluginContainer: { resolveId: async () => null },
         transformRequest: async () => { throw new Error("deleted"); },
         moduleGraph: {
+          ...activeModuleGraph(cssPath),
           getModuleById: (id: string) => id === virtual.id ? virtual : undefined,
           invalidateModule: () => undefined,
         },
       };
-      const plugin = designTool() as unknown as {
+      const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
         configResolved(config: { root: string; command: "serve" | "build" }): void;
         configureServer(server: unknown): void;
         buildStart(): void;
-        transform: { handler(code: string, id: string): unknown };
         load(id: string): string | null | Promise<string | null>;
         handleHotUpdate(context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }): Promise<unknown>;
-      };
+      }, { transform(code: string, id: string): unknown }];
       plugin.configResolved({ root, command: "serve" });
       plugin.configureServer(server);
       plugin.buildStart();
       await plugin.load("\0virtual:design-tokens");
-      plugin.transform.handler(":root { --transformed-only: 8px; }", cssPath);
+      transformedObserver.transform(":root { --transformed-only: 8px; }", cssPath);
 
       const transformed = (await plugin.load("\0virtual:design-tokens"))!;
       expect(transformed).toContain("--transformed-only");
@@ -163,25 +172,31 @@ describe("designTool plain-CSS token inventory transport", () => {
     try {
       writeFileSync(cssPath, PLAIN_CSS);
       const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => null,
+        moduleGraph: {
+          idToModuleMap: new Map(),
+          getModuleById: (id: string) => id === virtual.id ? virtual : undefined,
+          invalidateModule: () => undefined,
+        },
+      };
       const plugin = designTool() as unknown as {
         configResolved(config: { root: string; command: "serve" | "build" }): void;
+        configureServer(server: unknown): void;
         buildStart(): void;
         load(id: string): string | null | Promise<string | null>;
         handleHotUpdate(context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }): Promise<unknown>;
       };
       plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
       plugin.buildStart();
       await plugin.load("\0virtual:design-tokens");
 
       await plugin.handleHotUpdate({
         file: cssPath,
         read: async () => { throw new Error("temporarily unreadable"); },
-        server: {
-          moduleGraph: {
-            getModuleById: (id: string) => id === virtual.id ? virtual : undefined,
-            invalidateModule: () => undefined,
-          },
-        },
+        server,
         modules: [],
       });
 
@@ -207,6 +222,7 @@ describe("designTool plain-CSS token inventory transport", () => {
       plugin.configureServer({
         pluginContainer: { resolveId: async () => null },
         transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(join(root, "tracer.css")),
       });
       plugin.buildStart();
 

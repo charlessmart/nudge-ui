@@ -17,21 +17,17 @@ import {
   createTokenInventory,
   type ArtifactStage,
   type InventoryDiagnostic,
+  type TokenContribution,
 } from "../../css/src/token-inventory/index.ts";
 import { injectIdentity } from "./transform/injectDataCid.ts";
-import { parseTokenCatalog } from "./tokens/parseTokens.ts";
 import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
-import type { TokenCatalogDiagnostic, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
-import { detectTailwindV4 } from "./adapters/tailwindV4.ts";
+import type { TokenCatalogDiagnostic } from "./virtual/design-tokens.ts";
+import { createTailwindV4NamingContribution, detectTailwindV4 } from "./adapters/tailwindV4.ts";
 import { createTailwindV3Adapter } from "./adapters/tailwindV3.ts";
 import type { TailwindV3Config } from "./adapters/tailwindV3.ts";
 import { createSprinklesAdapter } from "./adapters/vanillaExtract.ts";
 import type { ThemeContract, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
-import {
-  enrichVanillaExtractCatalog,
-  materializeVanillaExtractContract,
-  type CatalogTokenDefinition,
-} from "./adapters/vanillaExtractContract.ts";
+import { materializeVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
 import { createTokenAdapterRegistry } from "./adapters/registry.ts";
 import { extractComponentContracts } from "./components/extractContracts.ts";
 import type { ComponentContract } from "./components/types.ts";
@@ -201,7 +197,7 @@ export function transformIndexHtmlHtml(
   return html + inject;
 }
 
-export function designTool(options: DesignToolOptions = {}): Plugin {
+export function designTool(options: DesignToolOptions = {}): Plugin[] {
   const enabled = options.enabled ?? true;
   let root: string | undefined;
   let buildOutputDirectory: string | undefined;
@@ -209,8 +205,14 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   let devServer: ViteDevServer | undefined;
   let postTransformPromise: Promise<void> | null = null;
   const inventory = createTokenInventory();
-  let publishedCatalogSignature = "";
-  let publishedCatalogRevision = 0;
+  const activeHostCssFiles = new Set<string>();
+  // Before Vite has built its module graph, these are the discovered host CSS
+  // candidates that can supply a transformed first virtual-module snapshot.
+  const discoveredHostCssFiles = new Set<string>();
+  // Ordering belongs to the stylesheet artifact, rather than to one particular
+  // authored/transformed observation. A transform hook has no import-graph
+  // ordering information of its own.
+  const stylesheetOrdering = new Map<string, { order?: number; discoveryOrder?: number }>();
   let activePackageCssFiles = new Set<string>();
   let publishedThemeContract: ThemeContract | null = null;
   let publishedThemeContractModuleId: string | null = null;
@@ -225,14 +227,6 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       provenance: "package-manifest",
     })));
   }
-  const projectTailwindTokenNamesByFile = new Map<string, Set<string>>();
-  /**
-   * cssNames observed in Tailwind v4-detected content, keyed by normalized
-   * artifact id. Kept separate from the inventory so the temporary provenance
-   * annotation (see `applyTailwindV4ProvenanceAnnotation`) can relabel
-   * compiler-emitted rows without the inventory knowing about Tailwind.
-   */
-  const tailwindAnnotatedNamesByRel = new Map<string, Set<string>>();
   const adapterRegistry = createTokenAdapterRegistry([
     ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config)] : []),
     ...(options.vanillaExtract ? [createSprinklesAdapter(options.vanillaExtract)] : []),
@@ -256,48 +250,34 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
    * normalized catalog source path so declaration `source` strings keep their
    * project/package-relative form.
    *
-   * Reconciliation policy for 2.3: one row per artifact id. A later
-   * observation for the same id REPLACES the earlier row, so feeding the same
-   * file authored-then-transformed yields the transformed content at
-   * `stage: "transformed"` with the transformed artifact's own provenance.
-   * The full authored/transformed reconciliation is S2-C (plan slice 2.4).
+   * Authored and transformed observations for the SAME id are fed as two
+   * artifacts (stage authored / stage transformed). The inventory keeps both
+   * and reconciles them deterministically: the transformed observation is the
+   * browser-relevant fact set, while names authored in the same artifact keep
+   * project provenance. Tailwind v4 files are tagged `adapter: "tailwind-v4"`
+   * at feed time (content-based, no hook-timing maps); the Tailwind v4 naming
+   * contribution relabels the reconciled rows inside the inventory snapshot.
    */
-  function feedCssArtifact(id: string, code: string, stage: ArtifactStage, sourceScan = false): void {
+  function feedCssArtifact(
+    id: string,
+    code: string,
+    stage: ArtifactStage,
+    ordering: { order?: number; discoveryOrder?: number } = {},
+  ): void {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     if (isGeneratedBuildOutput(fileId)) return;
+    if (ordering.order !== undefined || ordering.discoveryOrder !== undefined) {
+      stylesheetOrdering.set(fileId, { ...ordering });
+    }
     const rel = catalogSourcePath(fileId, root);
-    let parsedCssNames: Set<string> | undefined;
-    const cssNames = (): Set<string> => {
-      parsedCssNames ??= new Set(
-        parseTokenCatalog(code, rel).map((definition) => definition.cssName),
-      );
-      return parsedCssNames;
-    };
-    if (sourceScan && root && fileId.startsWith(root) && !fileId.includes("/node_modules/")) {
-      // The initial source scan sees authored CSS before Tailwind expands its
-      // import. Remember those names so the emitted catalog can retain project
-      // provenance instead of labelling every v4 variable framework.
-      projectTailwindTokenNamesByFile.set(fileId, new Set(cssNames()));
-    }
-    if (detectTailwindV4(code)) {
-      tailwindAnnotatedNamesByRel.set(rel, new Set(cssNames()));
-    }
-    const provenance = isHostApplicationSource(fileId, root) ? "project" : "package";
-    // S2-B keeps one observation per stylesheet. The inventory's stage-keyed
-    // identity is reserved for S2-C reconciliation, so replace the opposite
-    // stage explicitly until that policy lands.
-    inventory.apply({
-      buildTool: "vite",
-      id: rel,
-      stage: stage === "authored" ? "transformed" : "authored",
-      provenance,
-    });
     inventory.apply({
       buildTool: "vite",
       id: rel,
       stage,
-      provenance,
+      provenance: isHostApplicationSource(fileId, root) ? "project" : "package",
+      ...(stylesheetOrdering.get(fileId) ?? ordering),
+      adapter: detectTailwindV4(code) ? "tailwind-v4" : undefined,
       content: code,
     });
     sourceScanDiagnostics.delete(rel);
@@ -307,72 +287,36 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   function feedCssRemoval(id: string): void {
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     const rel = catalogSourcePath(fileId, root);
-    tailwindAnnotatedNamesByRel.delete(rel);
-    projectTailwindTokenNamesByFile.delete(fileId);
+    stylesheetOrdering.delete(fileId);
+    discoveredHostCssFiles.delete(fileId);
     sourceScanDiagnostics.delete(rel);
-    const provenance = isHostApplicationSource(fileId, root) ? "project" : "package";
-    for (const stage of ["authored", "transformed"] as const) {
-      inventory.apply({ buildTool: "vite", id: rel, stage, provenance });
-    }
-  }
-
-  /**
-   * Temporary Tailwind v4 provenance annotation applied to the inventory
-   * snapshot before serialization. Tailwind v4's tokens already exist in the
-   * emitted CSS, so this only relabels rows: names the project authored stay
-   * editable project tokens; everything else is framework-owned. Package rows
-   * are never relabelled (a package artifact must not become editable).
-   *
-   * TODO(S2-C): move this into the styling Adapter / inventory contribution
-   * seam so the plugin stops mapping individual token provenance after the
-   * snapshot is built.
-   */
-  function applyTailwindV4ProvenanceAnnotation(
-    definitions: readonly CatalogTokenDefinition[],
-  ): readonly CatalogTokenDefinition[] {
-    if (tailwindAnnotatedNamesByRel.size === 0) return definitions;
-    const tailwindAnnotatedCssNames = new Set<string>();
-    for (const names of tailwindAnnotatedNamesByRel.values()) {
-      for (const name of names) tailwindAnnotatedCssNames.add(name);
-    }
-    const projectTokenNames = new Set<string>();
-    for (const names of projectTailwindTokenNamesByFile.values()) {
-      for (const name of names) projectTokenNames.add(name);
-    }
-    return definitions.map((definition) => {
-      if (!tailwindAnnotatedCssNames.has(definition.cssName)) return definition;
-      if (definition.origin === "package") return definition;
-      const project = projectTokenNames.has(definition.cssName);
-      return {
-        ...definition,
-        adapter: "tailwind-v4",
-        origin: project ? "project" : "framework",
-        editable: project,
-      };
+    inventory.apply({
+      buildTool: "vite",
+      id: rel,
+      stage: "authored",
+      provenance: isHostApplicationSource(fileId, root) ? "project" : "package",
     });
   }
 
-  function definitionToTokenEntry(definition: CatalogTokenDefinition): TokenEntry {
-    return {
-      name: definition.name,
-      cssName: definition.cssName,
-      value: definition.declarations[0]?.value ?? "",
-      source: definition.declarations[0]?.source ?? "",
-      cssValue: definition.cssValue,
-      adapter: definition.adapter,
-      origin: definition.origin,
-      editable: definition.editable,
-    };
+  /**
+   * Report a failed or unavailable transform for one stylesheet. The inventory
+   * retains the last valid authored observation for the id and records a
+   * recoverable `transform-observation-failed` diagnostic instead of dropping
+   * rows (see `StylesheetArtifact.failed`).
+   */
+  function feedCssTransformFailure(id: string): void {
+    if (!CSS_EXT.test(id)) return;
+    const fileId = id.split(/[?#]/, 1)[0] ?? id;
+    if (isGeneratedBuildOutput(fileId)) return;
+    const rel = catalogSourcePath(fileId, root);
+    inventory.apply({
+      buildTool: "vite",
+      id: rel,
+      stage: "transformed",
+      provenance: isHostApplicationSource(fileId, root) ? "project" : "package",
+      failed: true,
+    });
   }
-
-  function generationForPublishedCatalog(snapshotGeneration: string, catalogJson: string): string {
-    if (catalogJson !== publishedCatalogSignature) {
-      publishedCatalogSignature = catalogJson;
-      publishedCatalogRevision += 1;
-    }
-    return `${snapshotGeneration}:${publishedCatalogRevision}`;
-  }
-
   function cacheComponentsForFile(id: string, code: string): void {
     if (!COMPONENT_EXT.test(id) || !isHostApplicationSource(id, root)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
@@ -446,24 +390,53 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     await refreshPublishedThemeContract();
   }
 
-  function enrichCatalogWithPublishedThemeContract(
-    catalog: readonly CatalogTokenDefinition[],
-  ): readonly CatalogTokenDefinition[] {
-    if (!publishedThemeContract) return catalog;
+  /**
+   * Build the normalized published theme-contract contribution for the token
+   * inventory. Contract failures become contribution diagnostics (so they flow
+   * through the final `tokenDiagnostics` without making ordinary CSS
+   * unavailable); a loaded contract becomes a definition-level enrichment
+   * merged by cssName with the exact legacy `enrichVanillaExtractCatalog`
+   * semantics. Id-keyed and replaceable, so a refreshed contract replaces the
+   * prior contribution without duplicates.
+   */
+  function buildPublishedThemeContractContribution(): TokenContribution {
     const moduleSpecifier = options.vanillaExtract?.themeContractModule;
-    if (!moduleSpecifier) return catalog;
-    return enrichVanillaExtractCatalog(catalog, materializeVanillaExtractContract(publishedThemeContract, {
+    if (!moduleSpecifier) return { id: "vanilla-extract-contract", order: 1 };
+    if (!publishedThemeContractLoaded) return { id: "vanilla-extract-contract", order: 1 };
+    if (contractDiagnostics.length > 0) {
+      return {
+        id: "vanilla-extract-contract",
+        order: 1,
+        diagnostics: contractDiagnostics.map((diagnostic) => ({
+          code: diagnostic.code,
+          artifact: diagnostic.module,
+          message: diagnostic.message,
+          ...(diagnostic.exportName !== undefined ? { exportName: diagnostic.exportName } : {}),
+        })),
+      };
+    }
+    if (!publishedThemeContract) return { id: "vanilla-extract-contract", order: 1 };
+    return materializeVanillaExtractContribution(publishedThemeContract, {
       prefix: options.vanillaExtract?.themeContractPrefix,
       source: options.vanillaExtract?.source ?? moduleSpecifier,
       origin: publishedThemeContractModuleId && isPackageStylesheet(publishedThemeContractModuleId, root)
         ? "package"
         : "project",
-    }));
+    });
   }
 
   async function refreshActiveStylesheetTokens(): Promise<void> {
     if (!devServer || !root) return;
-    const graph = await discoverCssImportGraph(scanCssFiles(root, [], root, buildOutputDirectory), {
+    const graphModules = devServer.moduleGraph?.idToModuleMap;
+    if (graphModules) {
+      activeHostCssFiles.clear();
+      for (const module of graphModules.values()) {
+        const id = module.id && stripCssQuery(module.id);
+        if (id && CSS_EXT.test(id) && isHostApplicationSource(id, root)
+          && module.importers.size > 0) activeHostCssFiles.add(id);
+      }
+    }
+    const graph = await discoverCssImportGraph([...activeHostCssFiles], {
       read: (id) => readFileSync(id, "utf8"),
       resolve: async (specifier, importer) => {
         const resolved = await devServer!.pluginContainer.resolveId(specifier, importer);
@@ -476,9 +449,13 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       },
     });
     const nextPackageFiles = new Set<string>();
-    for (const [id, code] of graph.files) {
+    const hasProvenRootOrder = activeHostCssFiles.size === 1;
+    for (const [order, id] of graph.order.entries()) {
+      const code = graph.files.get(id)!;
       const fileId = stripCssQuery(id);
-      feedCssArtifact(fileId, code, "authored", isHostApplicationSource(fileId, root));
+      feedCssArtifact(fileId, code, "authored", hasProvenRootOrder
+        ? { order }
+        : { discoveryOrder: order });
       if (isPackageStylesheet(fileId, root)) nextPackageFiles.add(fileId);
     }
     for (const previous of activePackageCssFiles) {
@@ -504,25 +481,26 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     if (!devServer || !root || command !== "serve") return Promise.resolve();
     if (postTransformPromise) return postTransformPromise;
 
-    // The virtual module can be requested before the browser requests its CSS
-    // imports. Ask Vite to transform every authored stylesheet first so
-    // Tailwind's generated CSS (rather than just `@import "tailwindcss"`) has
-    // passed through the normal plugin pipeline and reached our transform hook.
+    // The Vite module graph is the source of truth for reachable stylesheet
+    // entries. Asking Vite to transform only those entries drives them through
+    // the companion observer plugin below without activating dead CSS files.
     postTransformPromise = (async () => {
       await refreshActiveStylesheetTokens();
-      await Promise.all(scanCssFiles(root, [], root, buildOutputDirectory).map(async (cssPath) => {
+      const cssPaths = activeHostCssFiles.size > 0
+        ? activeHostCssFiles
+        : discoveredHostCssFiles;
+      await Promise.all([...cssPaths].map(async (cssPath) => {
         try {
           await devServer!.transformRequest(cssPath);
         } catch {
-          // The regular source scan remains available when a stylesheet cannot
-          // be transformed yet (for example while it is being deleted).
+          if (existsSync(cssPath)) feedCssTransformFailure(cssPath);
         }
       }));
     })();
     return postTransformPromise;
   }
 
-  return {
+  const plugin: Plugin = {
     name: "design-tool",
     enforce: "pre",
     config(userConfig, env) {
@@ -552,7 +530,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       for (const cssPath of scanCssFiles(root, [], root, buildOutputDirectory)) {
         try {
           const code = readFileSync(cssPath, "utf8");
-          feedCssArtifact(cssPath, code, "authored", true);
+          if (isHostApplicationSource(cssPath, root)) discoveredHostCssFiles.add(cssPath);
+          feedCssArtifact(cssPath, code, "authored");
         } catch {
           const rel = catalogSourcePath(cssPath, root);
           sourceScanDiagnostics.set(rel, {
@@ -584,46 +563,30 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         }
         await ensurePostTransformCss();
         await ensurePublishedThemeContract();
-        // Styling-Adapter literal tokens (Tailwind v3 config, Sprinkles
-        // contracts) merge as inventory contributions; the engine replaces any
-        // stylesheet definition with the same key, matching legacy load().
-        inventory.setAdapterContributions({
+        // Styling contributions merge inside the inventory, so the snapshot
+        // already contains final labels, diagnostics, definitions, and order.
+        inventory.applyContribution({
+          id: "adapter-registry",
+          order: -1,
           tokens: adapterRegistry.extractTokens(),
           diagnostics: [
             ...sourceScanDiagnostics.values(),
             ...activeGraphDiagnostics,
-            ...contractDiagnostics.map((diagnostic): InventoryDiagnostic => ({
-              code: diagnostic.code,
-              message: diagnostic.message,
-              module: diagnostic.module,
-              exportName: diagnostic.exportName,
-            })),
           ],
         });
+        inventory.applyContribution(createTailwindV4NamingContribution());
+        inventory.applyContribution(buildPublishedThemeContractContribution());
         const snapshot = inventory.snapshot();
-        // The inventory snapshot is the authoritative definitions/order. Only
-        // additive contributions may follow: the Tailwind v4 provenance
-        // annotation and the published vanilla-extract theme-contract
-        // enrichment. Both stay here as temporary post-snapshot stages until
-        // S2-C moves them into the Adapter/inventory contribution seam.
-        const catalog = enrichCatalogWithPublishedThemeContract(
-          applyTailwindV4ProvenanceAnnotation([...snapshot.definitions]),
-        );
-        const catalogJson = JSON.stringify(catalog);
-        const publishedGeneration = generationForPublishedCatalog(snapshot.generation, catalogJson);
-        const all: TokenEntry[] = catalog.map(definitionToTokenEntry);
-        const diagnostics: TokenCatalogDiagnostic[] = [
-          // Inventory diagnostics carry the offending artifact id; the virtual
-          // transport's diagnostic shape calls that field `module`.
-          ...snapshot.diagnostics.map((diagnostic) => ({
-            code: diagnostic.code,
-            message: diagnostic.message,
-            module: diagnostic.module ?? diagnostic.artifact ?? "token-inventory",
-            exportName: diagnostic.exportName,
-          })),
-        ];
+        // Inventory diagnostics carry the offending artifact id; the virtual
+        // transport's diagnostic shape calls that field `module`.
+        const diagnostics: TokenCatalogDiagnostic[] = snapshot.diagnostics.map((diagnostic) => ({
+          code: diagnostic.code,
+          message: diagnostic.message,
+          module: diagnostic.module ?? diagnostic.artifact ?? "token-inventory",
+          ...(diagnostic.exportName !== undefined ? { exportName: diagnostic.exportName } : {}),
+        }));
         const projectId = JSON.stringify(options.projectId ?? (root ? basename(root) : ""));
-        return `export const tokenCatalog = ${catalogJson};\nexport const tokens = ${JSON.stringify(all)};\nexport const tokenDiagnostics = ${JSON.stringify(diagnostics)};\nexport const tokenGeneration = ${JSON.stringify(publishedGeneration)};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
+        return `export const tokenCatalog = ${JSON.stringify(snapshot.definitions)};\nexport const tokens = ${JSON.stringify(snapshot.tokens)};\nexport const tokenDiagnostics = ${JSON.stringify(diagnostics)};\nexport const tokenGeneration = ${JSON.stringify(snapshot.generation)};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {
         // ADR-0002: no inspector bootstrap in production builds.
@@ -649,7 +612,12 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         if (!enabled) return null;
         if (command === "build") return null; // dev-only per ADR-0002
         if (CSS_EXT.test(id)) {
-          feedCssArtifact(id, code, "transformed");
+          const fileId = stripCssQuery(id);
+          if (isHostApplicationSource(fileId, root)) {
+            activeHostCssFiles.add(fileId);
+            discoveredHostCssFiles.add(fileId);
+          }
+          feedCssArtifact(id, code, "authored");
           return null; // let Vite's CSS pipeline handle the actual stylesheet
         }
         const instrumentComponents = isHostApplicationSource(id, root);
@@ -687,20 +655,49 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         } catch {
           componentContracts.set(ctx.file, []);
         }
+        // Re-transform the changed module so Vite updates its importer edges
+        // before package-CSS reachability is rebuilt. A component can add or
+        // remove a stylesheet import while every CSS file remains on disk.
+        const invalidated = new Set<(typeof ctx.modules)[number]>();
+        for (const module of ctx.modules) {
+          ctx.server.moduleGraph.invalidateModule(
+            module,
+            invalidated,
+            ctx.timestamp,
+            true,
+          );
+        }
+        try {
+          await ctx.server.transformRequest(ctx.file);
+        } catch {
+          // Component metadata still refreshes; the next successful transform
+          // will rebuild the active stylesheet roots.
+        }
+        postTransformPromise = null;
+        await ensurePostTransformCss();
+
         const virtualComponents = ctx.server.moduleGraph.getModuleById(RESOLVED_COMPONENTS_ID);
+        const virtualTokens = ctx.server.moduleGraph.getModuleById(RESOLVED_TOKENS_ID);
+        const modules = [...ctx.modules];
         if (virtualComponents) {
           ctx.server.moduleGraph.invalidateModule(virtualComponents);
-          return [...ctx.modules, virtualComponents];
+          modules.push(virtualComponents);
         }
-        return;
+        if (virtualTokens) {
+          ctx.server.moduleGraph.invalidateModule(virtualTokens);
+          modules.push(virtualTokens);
+        }
+        return modules.length > 0 ? [...new Set(modules)] : undefined;
       }
       if (!CSS_EXT.test(ctx.file)) return;
 
       // Refresh the token inventory immediately so the next virtual-module load
       // sees the updated tokens (Vite's own CSS reload happens in parallel).
+      let hasAuthoredObservation = false;
       try {
         const code = await ctx.read();
-        feedCssArtifact(ctx.file, code, "authored", true);
+        hasAuthoredObservation = true;
+        feedCssArtifact(ctx.file, code, "authored");
       } catch {
         const fileId = stripCssQuery(ctx.file);
         if (!existsSync(fileId)) {
@@ -724,7 +721,11 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       try {
         await ctx.server.transformRequest(ctx.file);
       } catch {
-        // Keep the authored snapshot if the post-transform request fails.
+        // Keep the authored snapshot if the post-transform request fails: feed
+        // a failed-transform marker so the inventory retains the authored rows
+        // plus a recoverable diagnostic. A deleted file (no authored read) is a
+        // removal, not a transform failure.
+        if (hasAuthoredObservation) feedCssTransformFailure(ctx.file);
       }
 
       // Invalidate the virtual module and let Vite propagate HMR to importers
@@ -751,13 +752,30 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       });
     },
   };
+
+  // Tailwind's generator is a pre-transform hook. This companion stays in
+  // Vite's normal group, which places it after every pre plugin regardless of
+  // user configuration order and before Vite's CSS-post JavaScript wrapper.
+  // The main plugin above remains pre-ordered for TSX source locations.
+  const transformedCssObserver: Plugin = {
+    name: "design-tool:transformed-css",
+    apply: "serve",
+    transform(code, id) {
+      if (!enabled || command !== "serve" || !CSS_EXT.test(id)) return null;
+      feedCssArtifact(id, code, "transformed");
+      const virtual = devServer?.moduleGraph.getModuleById(RESOLVED_TOKENS_ID);
+      if (virtual) devServer?.moduleGraph.invalidateModule(virtual);
+      return null;
+    },
+  };
+
+  return [plugin, transformedCssObserver];
 }
 
 export { injectIdentity, injectDataCid } from "./transform/injectDataCid.ts";
 export type { InjectResult } from "./transform/injectDataCid.ts";
-export { parseTokens, parseTokenCatalog } from "./tokens/parseTokens.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
-export { annotateTailwindV4Catalog, createTailwindV4Adapter, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
+export { annotateTailwindV4Catalog, createTailwindV4Adapter, createTailwindV4NamingContribution, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
 export type { TailwindAlphaMapping } from "./adapters/tailwindV4.ts";
 export { createTailwindV3Adapter, detectTailwindV3Config, extractTailwindV3Tokens, resolveTailwindV3ClassName, tailwindV3ColorDeclaration } from "./adapters/tailwindV3.ts";
 export type { TailwindV3Config, TailwindV3Mapping } from "./adapters/tailwindV3.ts";
@@ -767,3 +785,5 @@ export type { TokenAdapter, TokenMapping } from "./adapters/types.ts";
 export type { ThemeContract, SprinklesClassMap, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
 export { materializeVanillaExtractContract, mergeVanillaExtractContract } from "./adapters/vanillaExtractRuntime.ts";
 export type { MaterializedTokenCatalog, MaterializeVanillaExtractOptions } from "./adapters/vanillaExtractRuntime.ts";
+export { materializeVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
+export type { MaterializeVanillaExtractContractOptions } from "./adapters/vanillaExtractContract.ts";

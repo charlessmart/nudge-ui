@@ -5,6 +5,8 @@
  */
 export interface CssImportGraph {
   files: Map<string, string>;
+  /** CSS cascade order: imported sheets precede the sheet that imports them. */
+  order: string[];
   unresolved: Array<{ importer: string; specifier: string }>;
   unreadable: string[];
 }
@@ -44,18 +46,22 @@ export async function discoverCssImportGraph(
   dependencies: CssImportGraphDependencies,
 ): Promise<CssImportGraph> {
   const files = new Map<string, string>();
+  const order: string[] = [];
+  const visiting = new Set<string>();
   const unresolved: CssImportGraph["unresolved"] = [];
   const unreadable: string[] = [];
 
   async function visit(id: string): Promise<void> {
     const fileId = stripCssQuery(id);
-    if (files.has(fileId) || unreadable.includes(fileId)) return;
+    if (files.has(fileId) || visiting.has(fileId) || unreadable.includes(fileId)) return;
+    visiting.add(fileId);
 
     let css: string;
     try {
       css = dependencies.read(fileId);
     } catch {
       unreadable.push(fileId);
+      visiting.delete(fileId);
       return;
     }
     files.set(fileId, css);
@@ -77,8 +83,10 @@ export async function discoverCssImportGraph(
       if (!isCssStylesheet(resolved)) continue;
       await visit(resolved);
     }
+    visiting.delete(fileId);
+    order.push(fileId);
   }
 
   for (const entry of entryFiles) await visit(entry);
-  return { files, unresolved, unreadable };
+  return { files, order, unresolved, unreadable };
 }

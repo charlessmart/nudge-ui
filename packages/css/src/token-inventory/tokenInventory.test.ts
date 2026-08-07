@@ -13,12 +13,8 @@ function artifact(overrides: Partial<StylesheetArtifact> & Pick<StylesheetArtifa
 }
 
 describe("token inventory contract", () => {
-  it("keeps parsing and policy helpers behind the public inventory Interface", () => {
-    expect(Object.keys(publicInventoryApi).sort()).toEqual([
-      "createTokenInventory",
-      "parseTokenCatalog",
-      "parseTokens",
-    ]);
+  it("keeps the public inventory API focused on the inventory engine", () => {
+    expect(Object.keys(publicInventoryApi)).toEqual(["createTokenInventory"]);
   });
 
   it("creates an artifact and returns grouped definitions with deterministic declaration ids", () => {
@@ -118,18 +114,18 @@ describe("token inventory contract", () => {
     expect(b.declarations.map((declaration) => declaration.order)).toEqual([1]);
   });
 
-  it("uses build tool and stage in artifact identity and removes only the matching observation", () => {
+  it("reconciles stages within one build-tool identity without crossing build tools", () => {
     const inventory = createTokenInventory();
     inventory.apply(artifact({ id: "theme.css", buildTool: "vite", stage: "authored", content: ":root { --vite-authored: 1px; }" }));
     inventory.apply(artifact({ id: "theme.css", buildTool: "vite", stage: "transformed", content: ":root { --vite-transformed: 2px; }" }));
     inventory.apply(artifact({ id: "theme.css", buildTool: "webpack", stage: "authored", content: ":root { --webpack-authored: 3px; }" }));
 
     expect(inventory.snapshot().definitions.map((definition) => definition.cssName).sort())
-      .toEqual(["--vite-authored", "--vite-transformed", "--webpack-authored"]);
+      .toEqual(["--vite-transformed", "--webpack-authored"]);
 
     inventory.apply(artifact({ id: "theme.css", buildTool: "vite", stage: "authored" }));
     expect(inventory.snapshot().definitions.map((definition) => definition.cssName).sort())
-      .toEqual(["--vite-transformed", "--webpack-authored"]);
+      .toEqual(["--webpack-authored"]);
   });
 
   it("retains per-declaration provenance and whether ordering evidence is authoritative", () => {
@@ -169,7 +165,8 @@ describe("token inventory contract", () => {
       id: "missing.css",
       diagnostics: [{ code: "stylesheet-unreadable", message: "permission denied" }],
     }));
-    inventory.setAdapterContributions({
+    inventory.applyContribution({
+      id: "adapter-diagnostics",
       tokens: [],
       diagnostics: [{
         code: "vanilla-extract-contract-unsupported-shape",
@@ -212,7 +209,8 @@ describe("token inventory contract", () => {
   it("merges Adapter literal tokens with their provenance", () => {
     const inventory = createTokenInventory();
     inventory.apply(artifact({ id: "src/theme.css", content: ":root { --from-css: 1px; }" }));
-    inventory.setAdapterContributions({
+    inventory.applyContribution({
+      id: "adapter-tokens",
       tokens: [
         { name: "primary", cssName: "--tw-primary", value: "#3b82f6", source: "tailwind.config", adapter: "tailwind-v3", origin: "framework", editable: false },
       ],
@@ -246,10 +244,18 @@ describe("token inventory contract", () => {
       source: "tailwind.config",
       adapter: "tailwind-v3",
     };
-    inventory.setAdapterContributions({ tokens: [{ ...token, value: "#3b82f6" }] });
+    inventory.applyContribution({
+      id: "adapter-registry",
+      order: -1,
+      tokens: [{ ...token, value: "#3b82f6" }],
+    });
     const firstId = inventory.snapshot().definitions[0]!.declarations[0]!.id;
 
-    inventory.setAdapterContributions({ tokens: [{ ...token, value: "#2563eb" }] });
+    inventory.applyContribution({
+      id: "adapter-registry",
+      order: -1,
+      tokens: [{ ...token, value: "#2563eb" }],
+    });
     const updated = inventory.snapshot().definitions[0]!.declarations[0]!;
 
     expect(updated.id).toBe(firstId);
@@ -299,11 +305,11 @@ describe("token inventory contract", () => {
     expect(inventory.snapshot().generation).not.toBe(first);
 
     const second = inventory.snapshot().generation;
-    inventory.setAdapterContributions({ tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
+    inventory.applyContribution({ id: "adapter", tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
     expect(inventory.snapshot().generation).not.toBe(second);
 
     const third = inventory.snapshot().generation;
-    inventory.setAdapterContributions({ tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
+    inventory.applyContribution({ id: "adapter", tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
     expect(inventory.snapshot().generation).toBe(third);
 
     // removal changes observable facts

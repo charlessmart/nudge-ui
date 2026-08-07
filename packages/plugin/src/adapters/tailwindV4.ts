@@ -1,4 +1,5 @@
 import type { TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
+import type { TokenContribution } from "@design-tool/css/token-inventory";
 import type { TokenAdapter } from "./types.ts";
 
 export interface TailwindAlphaMapping {
@@ -18,6 +19,22 @@ export function annotateTailwindV4Catalog(catalog: TokenDefinition[], options: {
     const project = options.projectTokenNames?.has(definition.cssName) ?? false;
     return { ...definition, adapter: "tailwind-v4", origin: project ? "project" : "framework", editable: project };
   });
+}
+
+/**
+ * The Tailwind v4 naming contribution. Id-keyed and replaceable, so repeated
+ * applications are no-ops and the inventory generation only bumps when the
+ * reconciled facts actually change.
+ */
+export function createTailwindV4NamingContribution(): TokenContribution {
+  return {
+    id: "tailwind-v4-naming",
+    order: 0,
+    relabellings: [
+      { adapter: "tailwind-v4", fromOrigin: "project", origin: "project", editable: true },
+      { adapter: "tailwind-v4", fromOrigin: "generated", origin: "framework", editable: false },
+    ],
+  };
 }
 
 export function entriesFromTailwindV4Catalog(catalog: TokenDefinition[]): TokenEntry[] {

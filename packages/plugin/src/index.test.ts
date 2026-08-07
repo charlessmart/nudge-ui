@@ -1,12 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createTokenInventory } from "@design-tool/css/token-inventory";
 import {
-  designTool,
+  designTool as createDesignToolPlugins,
   isHostApplicationSource,
   transformIndexHtmlHtml,
 } from "./index.ts";
+import { createTailwindV4NamingContribution } from "./adapters/tailwindV4.ts";
+import { materializeVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
+
+const designTool = (...args: Parameters<typeof createDesignToolPlugins>) =>
+  createDesignToolPlugins(...args)[0]!;
+
+function activeModuleGraph(...ids: string[]) {
+  return {
+    idToModuleMap: new Map(ids.map((id) => [id, { id, importers: new Set([{}]) }])),
+  };
+}
 
 const SAMPLE_HTML = `<!doctype html>
 <html lang="en">
@@ -73,11 +85,15 @@ describe("transformIndexHtmlHtml", () => {
 });
 
 describe("designTool plugin virtual inspector module", () => {
-  it("orders identity transforms before other pre transforms", () => {
-    const plugin = designTool() as unknown as {
+  it("orders identity transforms before pre plugins and CSS observation after them", () => {
+    const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
+      enforce?: string;
       transform?: { order?: string };
-    };
+    }, { enforce?: string; transform?: unknown }];
+    expect(plugin.enforce).toBe("pre");
     expect(plugin.transform).toMatchObject({ order: "pre" });
+    expect(transformedObserver.enforce).toBeUndefined();
+    expect(typeof transformedObserver.transform).toBe("function");
   });
 
   it("resolveId maps both bare and resolved forms of the inspector virtual id", () => {
@@ -191,6 +207,7 @@ describe("designTool token catalog compiler", () => {
           },
         },
         transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(appCss),
       };
       const plugin = designTool() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
@@ -218,6 +235,236 @@ describe("designTool token catalog compiler", () => {
       expect(catalog.find((definition) => definition.cssName === "--color-content-primary")?.declarations[0]?.source)
         .toBe("@fixture/theme.css:1");
       expect(catalog.some((definition) => definition.cssName === "--unrelated")).toBe(false);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("does not activate package CSS imported only by an unreferenced stylesheet", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-dead-package-css-"));
+    const root = join(parent, "app");
+    const packageRoot = join(parent, "node_modules", "@fixture");
+    const activeCss = join(root, "active.css");
+    const deadCss = join(root, "dead.css");
+    const deadPackageCss = join(packageRoot, "dead.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(activeCss, ":root { --active: 1px; }");
+      writeFileSync(deadCss, '@import "@fixture/dead.css";');
+      writeFileSync(deadPackageCss, ":root { --must-stay-unreachable: hotpink; }");
+
+      const server = {
+        pluginContainer: {
+          resolveId: async (specifier: string) => specifier === "@fixture/dead.css"
+            ? { id: deadPackageCss }
+            : null,
+        },
+        transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(activeCss),
+      };
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+
+      const code = (await plugin.load("\0virtual:design-tokens"))!;
+      expect(code).toContain("--active");
+      expect(code).not.toContain("--must-stay-unreachable");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("does not claim independent active roots have authoritative cascade order", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-root-order-"));
+    const firstCss = join(root, "first.css");
+    const secondCss = join(root, "second.css");
+    try {
+      writeFileSync(firstCss, ":root { --first: 1px; }");
+      writeFileSync(secondCss, ":root { --second: 2px; }");
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer({
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(firstCss, secondCss),
+      });
+      plugin.buildStart();
+
+      const code = (await plugin.load("\0virtual:design-tokens"))!;
+      const catalog = JSON.parse(
+        code.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]",
+      ) as Array<{ declarations: Array<{ contribution: { orderEvidence: { kind: string } } }> }>;
+      expect(catalog).toHaveLength(2);
+      expect(catalog.every((definition) =>
+        definition.declarations[0]?.contribution.orderEvidence.kind === "discovery"))
+        .toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("retains graph ordering when the CSS transform observes the stylesheet again", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-transform-order-"));
+    const appCss = join(root, "app.css");
+    try {
+      writeFileSync(appCss, ":root { --brand: #123456; }");
+      type MainPlugin = {
+        transform?: { handler?: (code: string, id: string) => unknown };
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      };
+      let mainPlugin: MainPlugin;
+      let transformedObserver: {
+        transform?: (code: string, id: string) => unknown;
+      };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async (id: string) => {
+          const code = readFileSync(id, "utf8");
+          mainPlugin.transform?.handler?.(code, id);
+          transformedObserver.transform?.(code, id);
+        },
+        moduleGraph: activeModuleGraph(appCss),
+      };
+      const plugins = createDesignToolPlugins() as unknown as [MainPlugin, typeof transformedObserver];
+      [mainPlugin, transformedObserver] = plugins;
+      mainPlugin.configResolved({ root, command: "serve" });
+      mainPlugin.configureServer(server);
+      mainPlugin.buildStart();
+
+      const code = await mainPlugin.load("\0virtual:design-tokens");
+      const catalog = JSON.parse(
+        code!.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]",
+      ) as Array<{ cssName: string; declarations: Array<{
+        contribution: { orderEvidence: { kind: string; index: number } };
+      }> }>;
+
+      expect(catalog.find((definition) => definition.cssName === "--brand")?.declarations[0]
+        ?.contribution.orderEvidence).toEqual({ kind: "stylesheet", index: 0 });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("transforms discovered host CSS before a cold virtual token-module load", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-cold-transform-"));
+    const appCss = join(root, "app.css");
+    try {
+      writeFileSync(appCss, "@theme { --color-brand: #123456; }");
+      const virtual = { id: "\0virtual:design-tokens" };
+      const invalidated: unknown[] = [];
+      const transformed = ':root { --color-brand: #123456; --tw-brand-opacity: 1; }';
+      let transformedObserver: { transform?: (code: string, id: string) => unknown };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async (id: string) => {
+          transformedObserver.transform?.(transformed, id);
+        },
+        moduleGraph: {
+          idToModuleMap: new Map(),
+          getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
+          invalidateModule: (module: unknown) => { invalidated.push(module); },
+        },
+      };
+      const [plugin, observer] = createDesignToolPlugins() as unknown as [{
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      }, typeof transformedObserver];
+      transformedObserver = observer;
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+
+      const code = await plugin.load("\0virtual:design-tokens");
+      expect(code).toContain("--tw-brand-opacity");
+      expect(invalidated).toContain(virtual);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("removes package CSS when component HMR drops its stylesheet import", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-component-css-hmr-"));
+    const root = join(parent, "app");
+    const packageRoot = join(parent, "node_modules", "@fixture");
+    const component = join(root, "App.tsx");
+    const entryCss = join(root, "theme-entry.css");
+    const packageCss = join(packageRoot, "theme.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(component, 'import "./theme-entry.css"; export const App = () => null;');
+      writeFileSync(entryCss, '@import "@fixture/theme.css";');
+      writeFileSync(packageCss, ":root { --package-active: 4px; }");
+
+      const tokenVirtual = { id: "\0virtual:design-tokens" };
+      const componentVirtual = { id: "\0virtual:design-tool-components" };
+      const componentModule = { id: component };
+      const invalidated = new Set<unknown>();
+      const moduleGraph = {
+        ...activeModuleGraph(entryCss),
+        getModuleById: (id: string) => id === tokenVirtual.id
+          ? tokenVirtual
+          : id === componentVirtual.id ? componentVirtual : undefined,
+        invalidateModule: (module: unknown) => { invalidated.add(module); },
+      };
+      const server = {
+        pluginContainer: {
+          resolveId: async (specifier: string) => specifier === "@fixture/theme.css"
+            ? { id: packageCss }
+            : null,
+        },
+        transformRequest: async (id: string) => {
+          if (id === component && invalidated.has(componentModule)) {
+            moduleGraph.idToModuleMap.clear();
+          }
+          return null;
+        },
+        moduleGraph,
+      };
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+        handleHotUpdate(context: {
+          file: string;
+          read(): Promise<string>;
+          server: unknown;
+          modules: unknown[];
+        }): Promise<unknown>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+      expect(await plugin.load(tokenVirtual.id)).toContain("--package-active");
+
+      const updated = "export const App = () => null;";
+      writeFileSync(component, updated);
+      await plugin.handleHotUpdate({
+          file: component,
+          read: async () => updated,
+          server,
+          modules: [componentModule],
+      });
+
+      expect(await plugin.load(tokenVirtual.id)).not.toContain("--package-active");
     } finally {
       rmSync(parent, { recursive: true, force: true });
     }
@@ -282,6 +529,7 @@ describe("designTool token catalog compiler", () => {
           resolveId: async () => null,
         },
         transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(appCss),
       };
       const plugin = designTool() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
@@ -330,6 +578,7 @@ describe("designTool token catalog compiler", () => {
         },
         transformRequest: async () => null,
         moduleGraph: {
+          ...activeModuleGraph(appCss),
           getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
           invalidateModule: () => undefined,
         },
@@ -400,6 +649,7 @@ describe("designTool token catalog compiler", () => {
         ssrLoadModule: async () => contract,
         transformRequest: async () => null,
         moduleGraph: {
+          ...activeModuleGraph(appCss),
           getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
           invalidateModule: () => undefined,
         },
@@ -515,6 +765,297 @@ describe("designTool token catalog compiler", () => {
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reconciles authored and transformed observations independent of feed order", async () => {
+    const build = async (transformFirst: boolean) => {
+      const parent = mkdtempSync(join(tmpdir(), "design-tool-reconcile-order-"));
+      const root = join(parent, "app");
+      const appCss = join(root, "app.css");
+      try {
+        mkdirSync(root, { recursive: true });
+        const authored = '@theme { --color-brand: #123456; }';
+        const transformed = ':root, :host { --color-brand: #123456; --tw-brand-opacity: 1; }';
+        writeFileSync(appCss, authored);
+        const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
+          configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+          buildStart?: () => void;
+          load?: (id: string) => string | null | Promise<string | null>;
+        }, { transform?: (code: string, id: string) => unknown }];
+        plugin.configResolved!({ root, command: "serve" });
+        if (transformFirst) {
+          transformedObserver.transform!(transformed, appCss);
+          plugin.buildStart!();
+        } else {
+          plugin.buildStart!();
+          transformedObserver.transform!(transformed, appCss);
+        }
+        const code = (await plugin.load!("\0virtual:design-tokens"))!;
+        return JSON.parse(code.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]") as Array<{
+          cssName: string;
+          origin?: string;
+          editable?: boolean;
+          adapter?: string;
+          declarations: Array<{ value: string; context?: { selector?: string } }>;
+        }>;
+      } finally {
+        rmSync(parent, { recursive: true, force: true });
+      }
+    };
+
+    const authoredFirst = await build(false);
+    const transformFirst = await build(true);
+
+    // Cold-start output is identical regardless of which observation lands
+    // first — the inventory reconciles the artifact pair deterministically.
+    expect(transformFirst).toEqual(authoredFirst);
+
+    // The transformed observation is the browser-relevant fact set...
+    expect(authoredFirst.find((entry) => entry.cssName === "--color-brand"))
+      .toMatchObject({ declarations: [expect.objectContaining({ value: "#123456", context: { selector: ":root, :host" } })] });
+    // ...while authored names keep project provenance and become editable.
+    expect(authoredFirst.find((entry) => entry.cssName === "--color-brand"))
+      .toMatchObject({ origin: "project", editable: true, adapter: "tailwind-v4" });
+    // Compiler-emitted names that have no authored counterpart are framework.
+    expect(authoredFirst.find((entry) => entry.cssName === "--tw-brand-opacity"))
+      .toMatchObject({ origin: "framework", editable: false, adapter: "tailwind-v4" });
+  });
+
+  it("retains the authored snapshot with a recoverable diagnostic when the post-transform request fails", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-transform-failure-"));
+    const root = join(parent, "app");
+    const appCss = join(root, "app.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      writeFileSync(appCss, ':root { --color-brand: #123456; }');
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => { throw new Error("transform unavailable"); },
+        moduleGraph: activeModuleGraph(appCss),
+      };
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+
+      const code = await plugin.load!("\0virtual:design-tokens");
+      const catalog = JSON.parse(code!.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]") as Array<{
+        cssName: string;
+        origin?: string;
+        declarations: Array<{ value: string }>;
+      }>;
+
+      // The authored observation is retained as the browser-relevant facts.
+      expect(catalog.find((definition) => definition.cssName === "--color-brand"))
+        .toMatchObject({ origin: "project", declarations: [expect.objectContaining({ value: "#123456" })] });
+      // ...and the failed transform surfaces as a recoverable diagnostic.
+      expect(code).toContain("transform-observation-failed");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("records a failed-transform diagnostic on HMR and clears it on recovery", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-transform-hmr-recovery-"));
+    const root = join(parent, "app");
+    const appCss = join(root, "app.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      writeFileSync(appCss, ':root { --color-brand: #123456; }');
+      let transformFails = true;
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => {
+          if (transformFails) throw new Error("transform unavailable");
+          return null;
+        },
+        moduleGraph: {
+          ...activeModuleGraph(appCss),
+          getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
+          invalidateModule: () => undefined,
+        },
+      };
+      const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+        handleHotUpdate?: (context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }) => Promise<unknown>;
+      }, { transform?: (code: string, id: string) => unknown }];
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+
+      // HMR for an edited file whose post-transform request fails: the authored
+      // facts are retained alongside a recoverable diagnostic.
+      writeFileSync(appCss, ':root { --color-brand: #abcdef; }');
+      await plugin.handleHotUpdate!({
+        file: appCss,
+        read: async () => ':root { --color-brand: #abcdef; }',
+        server,
+        modules: [],
+      });
+      let code = await plugin.load!("\0virtual:design-tokens");
+      expect(code).toContain("transform-observation-failed");
+      expect(code).toContain("#abcdef");
+
+      // The transform recovers: the pipeline feeds the transformed observation,
+      // which clears the diagnostic and keeps the authored facts as the facts.
+      transformFails = false;
+      await plugin.handleHotUpdate!({
+        file: appCss,
+        read: async () => ':root { --color-brand: #abcdef; }',
+        server,
+        modules: [],
+      });
+      transformedObserver.transform!(':root { --color-brand: #abcdef; }', appCss);
+      code = await plugin.load!("\0virtual:design-tokens");
+      expect(code).not.toContain("transform-observation-failed");
+      expect(code).toContain("#abcdef");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("treats an unreadable HMR file as a removal, not a failed transform", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-transform-removal-"));
+    const root = join(parent, "app");
+    const appCss = join(root, "app.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      writeFileSync(appCss, ':root { --color-brand: #123456; }');
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => { throw new Error("gone"); },
+        moduleGraph: {
+          getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
+          invalidateModule: () => undefined,
+        },
+      };
+      const plugin = designTool() as unknown as {
+        configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+        handleHotUpdate?: (context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }) => Promise<unknown>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+      expect(await plugin.load!("\0virtual:design-tokens")).toContain("--color-brand");
+
+      // The file is deleted: ctx.read() throws and the disk scan no longer sees
+      // it, so rows are removed and NO transform-observation-failed diagnostic
+      // is recorded for the removal.
+      rmSync(appCss);
+      await plugin.handleHotUpdate!({
+        file: appCss,
+        read: async () => { throw new Error("ENOENT"); },
+        server,
+        modules: [],
+      });
+      const code = await plugin.load!("\0virtual:design-tokens");
+      expect(code).not.toContain("--color-brand");
+      expect(code).not.toContain("transform-observation-failed");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("publishes the inventory snapshot verbatim, with styling contributions merged inside it", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-snapshot-verbatim-"));
+    const root = join(parent, "app");
+    const appCss = join(root, "app.css");
+    const packageRoot = join(parent, "node_modules", "@fixture");
+    const themeCss = join(packageRoot, "theme.css");
+    const contractId = join(packageRoot, "contract.ts");
+    const appContent = '@import "@fixture/theme.css"; @theme { --color-brand: #123456; }';
+    const themeContent = ':root { --color-content-primary: #20211f; }';
+    const contract = { vars: { color: { content: { primary: "var(--color-content-primary)" } } } };
+    try {
+      mkdirSync(root, { recursive: true });
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(appCss, appContent);
+      writeFileSync(themeCss, themeContent);
+      const server = {
+        pluginContainer: {
+          resolveId: async (specifier: string) => {
+            if (specifier === "@fixture/theme.css") return { id: themeCss };
+            if (specifier === "@fixture/contract") return { id: contractId };
+            return null;
+          },
+        },
+        ssrLoadModule: async () => contract,
+        transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(appCss),
+      };
+      const plugin = designTool({
+        vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
+      }) as unknown as {
+        configResolved?: (config: { root: string; command: "serve" }) => void;
+        configureServer?: (server: unknown) => void;
+        buildStart?: () => void;
+        load?: (id: string) => string | null | Promise<string | null>;
+      };
+      plugin.configResolved!({ root, command: "serve" });
+      plugin.configureServer!(server);
+      plugin.buildStart!();
+
+      const code = (await plugin.load!("\0virtual:design-tokens"))!;
+      const published = {
+        catalog: JSON.parse(code.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]"),
+        tokens: JSON.parse(code.match(/^export const tokens = (.*);$/m)?.[1] ?? "[]"),
+        generation: JSON.parse(code.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""'),
+      };
+
+      // Rebuild the inventory from the same observable facts and contributions.
+      // If load() still post-processed the snapshot, the published catalog,
+      // tokens, or generation would diverge from this engine output.
+      const expected = createTokenInventory();
+      expected.apply({
+        buildTool: "vite",
+        id: "app.css",
+        stage: "authored",
+        provenance: "project",
+        order: 1,
+        adapter: "tailwind-v4",
+        content: appContent,
+      });
+      expected.apply({
+        buildTool: "vite",
+        id: "@fixture/theme.css",
+        stage: "authored",
+        provenance: "package",
+        order: 0,
+        content: themeContent,
+      });
+      expected.applyContribution({ id: "adapter-registry", order: -1, tokens: [] });
+      expected.applyContribution(createTailwindV4NamingContribution());
+      expected.applyContribution(materializeVanillaExtractContribution(contract.vars, {
+        source: "@fixture/contract",
+        origin: "package",
+      }));
+      const snapshot = expected.snapshot();
+
+      expect(published.catalog).toEqual(snapshot.definitions);
+      expect(published.tokens).toEqual(snapshot.tokens);
+      expect(published.generation).toBe(snapshot.generation);
+      // The merged labels live inside the snapshot, not a post-snapshot pass.
+      const catalog = published.catalog as Array<{ cssName: string; name: string; adapter?: string; origin?: string; editable?: boolean }>;
+      expect(catalog.find((entry) => entry.cssName === "--color-brand"))
+        .toMatchObject({ adapter: "tailwind-v4", origin: "project", editable: true });
+      expect(catalog.find((entry) => entry.cssName === "--color-content-primary"))
+        .toMatchObject({ name: "theme.color.content.primary", adapter: "vanilla-extract", origin: "package", editable: false });
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
     }
   });
 });

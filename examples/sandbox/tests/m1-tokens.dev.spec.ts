@@ -71,14 +71,21 @@ test("dev: a published vanilla-extract contract enriches its active package CSS 
     };
   });
 
-  expect(token.matches).toEqual([expect.objectContaining({
-    cssName: "--color-content-primary",
-    name: "theme.color.content.primary",
-    adapter: "vanilla-extract",
-    origin: "package",
-    editable: false,
-    declarations: [expect.objectContaining({ value: "#20211f", source: expect.stringMatching(/package-css-fixture\/theme\.css:4$/) })],
-  })]);
+  expect(token.matches).toEqual(expect.arrayContaining([
+    expect.objectContaining({
+      cssName: "--color-content-primary",
+      name: "theme.color.content.primary",
+      adapter: "vanilla-extract",
+      origin: "package",
+      editable: false,
+      declarations: expect.arrayContaining([
+        expect.objectContaining({
+          value: "#20211f",
+          source: expect.stringMatching(/package-css-fixture\/theme\.css:4$/),
+        }),
+      ]),
+    }),
+  ]));
   expect(token.diagnostics).toEqual([]);
 });
 

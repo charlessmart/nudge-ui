@@ -1,10 +1,10 @@
 /**
  * Internal ordinary-CSS parsing for the token inventory.
  *
- * This is the canonical home of the parsing previously owned by
- * `packages/plugin/src/tokens/parseTokens.ts`. Behavior is preserved exactly
- * for root/host themes, contextual selectors, wrapper capture, duplicate
- * declarations, importance, and source locations; the two differences are:
+ * This is the canonical home of the parsing previously owned by the plugin.
+ * Behavior is preserved for root/host themes, contextual selectors, wrapper
+ * capture, duplicate declarations, importance, and source locations; the two
+ * differences are:
  *
  * 1. Declarations carry a deterministic `id` and a `source`-anchored local
  *    order so the inventory can aggregate without Vite.

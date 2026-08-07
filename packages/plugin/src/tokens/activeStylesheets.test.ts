@@ -38,6 +38,11 @@ describe("discoverCssImportGraph", () => {
       "/app/node_modules/@fixture/theme.css",
       "/app/node_modules/@fixture/foundation.css",
     ]);
+    expect(graph.order).toEqual([
+      "/app/node_modules/@fixture/foundation.css",
+      "/app/node_modules/@fixture/theme.css",
+      "/app/src/styles.css",
+    ]);
     expect(graph.files.has("/app/node_modules/unrelated/tokens.css")).toBe(false);
   });
 

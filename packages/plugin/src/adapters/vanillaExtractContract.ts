@@ -1,4 +1,5 @@
 import type { TokenDeclaration, TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
+import type { TokenContribution } from "@design-tool/css/token-inventory";
 import type { ThemeContract } from "./vanillaExtract.ts";
 
 /** Token transport view accepted from immutable inventory snapshots. */
@@ -48,8 +49,43 @@ export function materializeVanillaExtractContract(
 }
 
 /**
+ * Builds the normalized inventory contribution for a published theme contract.
+ * The contract entries are contributed as a definition-level enrichment: the
+ * inventory merges them by cssName against the aggregated stylesheet
+ * definitions with the exact `enrichVanillaExtractCatalog` semantics (name /
+ * adapter enrichment, CSS-derived origin/editability preserved when present,
+ * unmatched entries ignored). Id-keyed and replaceable so a refreshed contract
+ * replaces the prior contribution without duplicates.
+ */
+export function materializeVanillaExtractContribution(
+  contract: ThemeContract,
+  options: MaterializeVanillaExtractContractOptions,
+): TokenContribution {
+  const entries = materializeVanillaExtractContract(contract, options);
+  return {
+    id: "vanilla-extract-contract",
+    order: 1,
+    definitions: entries.map((entry) => ({
+      cssName: entry.cssName ?? entry.name,
+      name: entry.name,
+      adapter: entry.adapter,
+      origin: entry.origin,
+      editable: entry.editable,
+      // The contract provides identity, not a declaration: the CSS catalog
+      // keeps value, source, context, and editability authority.
+      declarations: [],
+    })),
+  };
+}
+
+/**
  * Contract paths enrich declarations already discovered from active CSS. The
  * CSS catalog keeps value, source, context, origin, and editability authority.
+ *
+ * @deprecated Compatibility projection used by the pre-2.5 post-snapshot
+ * enrichment. The plugin now feeds `materializeVanillaExtractContribution`
+ * through the inventory contribution seam; this function remains for callers
+ * of the legacy shape.
  */
 export function enrichVanillaExtractCatalog(
   catalog: readonly CatalogTokenDefinition[],

@@ -9,8 +9,7 @@
  *
  * The deep Interface is `createTokenInventory()` — feed ordered stylesheet
  * artifacts and Adapter literal tokens, read immutable deterministic snapshots.
- * `parseStylesheetArtifact` is an internal seam used by the engine, tests, and
- * the temporary compatibility projections.
+ * `parseStylesheetArtifact` is an internal seam used by the engine and tests.
  */
 export { createTokenInventory } from "./inventory.ts";
 export type { TokenInventory } from "./inventory.ts";
@@ -18,7 +17,7 @@ export type { TokenInventory } from "./inventory.ts";
 export type {
   ArtifactProvenance,
   ArtifactStage,
-  AdapterContributions,
+  TokenDefinitionRelabelling,
   ArtifactDiagnosticInput,
   InventoryContribution,
   InventoryDiagnostic,
@@ -27,6 +26,5 @@ export type {
   InventoryTokenDeclaration,
   InventoryTokenDefinition,
   StylesheetArtifact,
+  TokenContribution,
 } from "./types.ts";
-
-export { parseTokenCatalog, parseTokens } from "./compat.ts";
