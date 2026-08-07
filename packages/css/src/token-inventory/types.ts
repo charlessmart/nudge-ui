@@ -81,6 +81,14 @@ export interface InventoryTokenDefinition extends Omit<TokenDefinition, "declara
   readonly declarations: readonly InventoryTokenDeclaration[];
 }
 
+/** Declarative metadata rewrite for matching aggregated definitions. */
+export interface TokenDefinitionRelabelling {
+  readonly adapter: string;
+  readonly fromOrigin: TokenOrigin;
+  readonly origin?: TokenOrigin;
+  readonly editable?: boolean;
+}
+
 /**
  * A normalized styling contribution. Re-applying the same `id` replaces its
  * prior facts; contribution order is explicit or deterministically id-based.
@@ -90,16 +98,10 @@ export interface TokenContribution {
   readonly tokens?: readonly TokenEntry[];
   /** Metadata/declaration enrichment for active definitions with matching cssName. */
   readonly definitions?: readonly TokenDefinition[];
-  /** Pure per-definition policy such as Tailwind v4 provenance relabelling. */
-  readonly overlay?: (definition: TokenDefinition) => TokenDefinition;
+  /** Deterministic metadata rewrites, matched by adapter and current origin. */
+  readonly relabellings?: readonly TokenDefinitionRelabelling[];
   readonly diagnostics?: readonly InventoryDiagnostic[];
   readonly order?: number;
-}
-
-/** S2-B compatibility input; normalized internally as one contribution. */
-export interface AdapterContributions {
-  readonly tokens: readonly TokenEntry[];
-  readonly diagnostics?: readonly InventoryDiagnostic[];
 }
 
 export interface InventorySnapshot {

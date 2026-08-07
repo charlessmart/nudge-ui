@@ -44,7 +44,7 @@ describe("token inventory normalized contributions", () => {
     expect(snapshot.definitions[0]!.declarations[0]!.value).toBe("2px");
   });
 
-  it("appends contributed declarations to an existing definition and overlays labels", () => {
+  it("appends contributed declarations to an existing definition and enriches labels", () => {
     const inventory = createTokenInventory();
     inventory.apply(artifact({ id: "src/theme.css", content: ":root { --x: 1px; }" }));
     inventory.applyContribution({
@@ -114,7 +114,7 @@ describe("token inventory normalized contributions", () => {
     expect(snapshot.definitions.map((definition) => definition.cssName)).toEqual(["--x"]);
   });
 
-  it("applies a deterministic overlay policy to every aggregated definition", () => {
+  it("applies deterministic relabelling facts to every aggregated definition", () => {
     const inventory = createTokenInventory();
     inventory.apply(artifact({
       id: "theme.css",
@@ -130,13 +130,10 @@ describe("token inventory normalized contributions", () => {
     inventory.applyContribution({
       id: "tailwind-v4-naming",
       order: 0,
-      overlay: (definition) => definition.adapter === "tailwind-v4" && definition.origin !== "package"
-        ? {
-          ...definition,
-          origin: definition.origin === "project" ? "project" : "framework",
-          editable: definition.origin === "project",
-        }
-        : definition,
+      relabellings: [
+        { adapter: "tailwind-v4", fromOrigin: "project", origin: "project", editable: true },
+        { adapter: "tailwind-v4", fromOrigin: "generated", origin: "framework", editable: false },
+      ],
     });
 
     const snapshot = inventory.snapshot();

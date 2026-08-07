@@ -5,7 +5,6 @@
 import type { TokenDefinition, TokenEntry } from "../model/index.ts";
 import { parseStylesheetArtifact, type ParsedContribution } from "./parseStylesheet.ts";
 import type {
-  AdapterContributions,
   InventoryContribution,
   InventoryDiagnostic,
   InventoryOrderEvidence,
@@ -43,16 +42,26 @@ function effectiveObservation(entry: StoredArtifact): StoredObservation | undefi
   return entry.transformFailed ? entry.authored : (entry.transformed ?? entry.authored);
 }
 
+function effectiveOrder(entry: StoredArtifact): number | undefined {
+  return effectiveObservation(entry)?.artifact.order ?? entry.authored?.artifact.order;
+}
+
+function effectiveDiscoveryOrder(entry: StoredArtifact): number | undefined {
+  return effectiveObservation(entry)?.artifact.discoveryOrder
+    ?? entry.authored?.artifact.discoveryOrder;
+}
+
 function compareArtifacts(a: StoredArtifact, b: StoredArtifact): number {
-  const aArtifact = effectiveObservation(a)?.artifact;
-  const bArtifact = effectiveObservation(b)?.artifact;
-  const aHasOrder = aArtifact?.order !== undefined;
-  const bHasOrder = bArtifact?.order !== undefined;
+  const aOrder = effectiveOrder(a);
+  const bOrder = effectiveOrder(b);
+  const aHasOrder = aOrder !== undefined;
+  const bHasOrder = bOrder !== undefined;
   if (aHasOrder !== bHasOrder) return aHasOrder ? -1 : 1;
-  if (aHasOrder && bHasOrder && aArtifact!.order !== bArtifact!.order) {
-    return aArtifact!.order! - bArtifact!.order!;
+  if (aOrder !== undefined && bOrder !== undefined && aOrder !== bOrder) {
+    return aOrder - bOrder;
   }
-  const discovery = (aArtifact?.discoveryOrder ?? Infinity) - (bArtifact?.discoveryOrder ?? Infinity);
+  const discovery = (effectiveDiscoveryOrder(a) ?? Infinity)
+    - (effectiveDiscoveryOrder(b) ?? Infinity);
   return discovery || artifactKey(a).localeCompare(artifactKey(b));
 }
 
@@ -90,6 +99,7 @@ function copyContribution(contribution: TokenContribution): TokenContribution {
     ...contribution,
     tokens: contribution.tokens?.map(copyToken),
     definitions: contribution.definitions?.map(copyDefinition),
+    relabellings: contribution.relabellings?.map((relabelling) => ({ ...relabelling })),
     diagnostics: contribution.diagnostics?.map((diagnostic) => ({ ...diagnostic })),
   };
 }
@@ -99,12 +109,6 @@ function sameObservationFacts(observation: StoredObservation, artifact: Styleshe
 }
 
 function sameContributionFacts(a: TokenContribution, b: TokenContribution): boolean {
-  if (a.overlay !== b.overlay) return false;
-  const withoutOverlay = ({ overlay: _overlay, ...rest }: TokenContribution) => rest;
-  return JSON.stringify(withoutOverlay(a)) === JSON.stringify(withoutOverlay(b));
-}
-
-function sameAdapterContributions(a: AdapterContributions, b: AdapterContributions): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
@@ -126,9 +130,9 @@ function parseObservation(artifact: StylesheetArtifact): StoredObservation {
 }
 
 function orderEvidence(entries: readonly StoredArtifact[]): ReadonlyMap<string, InventoryOrderEvidence> {
-  const discoveryEntries = entries.filter((entry) => effectiveObservation(entry)?.artifact.order === undefined);
+  const discoveryEntries = entries.filter((entry) => effectiveOrder(entry) === undefined);
   const explicit = discoveryEntries.flatMap((entry) => {
-    const value = effectiveObservation(entry)?.artifact.discoveryOrder;
+    const value = effectiveDiscoveryOrder(entry);
     return value === undefined ? [] : [value];
   });
   let next = explicit.length > 0 ? Math.max(...explicit) + 1 : 0;
@@ -136,9 +140,10 @@ function orderEvidence(entries: readonly StoredArtifact[]): ReadonlyMap<string, 
   for (const entry of entries) {
     const artifact = effectiveObservation(entry)?.artifact;
     if (!artifact) continue;
-    result.set(artifactKey(entry), artifact.order !== undefined
-      ? { kind: "stylesheet", index: artifact.order }
-      : { kind: "discovery", index: artifact.discoveryOrder ?? next++ });
+    const order = effectiveOrder(entry);
+    result.set(artifactKey(entry), order !== undefined
+      ? { kind: "stylesheet", index: order }
+      : { kind: "discovery", index: effectiveDiscoveryOrder(entry) ?? next++ });
   }
   return result;
 }
@@ -171,7 +176,12 @@ function reconcileObservations(entry: StoredArtifact): Array<{
   );
   return facts.contribution.definitions.map((definition) => {
     const transformOnly = authored !== undefined && !authoredNames.has(definition.cssName);
-    const origin = transformOnly ? "generated" : facts.artifact.provenance;
+    // Project compilers own transform-only names, but package ownership is
+    // stronger provenance and survives compilation.
+    const origin = transformOnly && facts.artifact.provenance !== "package"
+      ? "generated"
+      : facts.artifact.provenance;
+    const adapter = facts.artifact.adapter ?? authored?.artifact.adapter;
     const base: TokenDefinition = {
       ...definition,
       origin,
@@ -183,7 +193,7 @@ function reconcileObservations(entry: StoredArtifact): Array<{
       })),
     };
     if (origin === "package" || origin === "generated") base.editable = false;
-    if (facts.artifact.adapter && origin !== "package") base.adapter = facts.artifact.adapter;
+    if (adapter && origin !== "package") base.adapter = adapter;
     return { definition: base, artifact: facts.artifact };
   });
 }
@@ -286,7 +296,6 @@ function deepFreeze<T>(value: T): T {
 export interface TokenInventory {
   apply(artifact: StylesheetArtifact): void;
   snapshot(): InventorySnapshot;
-  setAdapterContributions(contributions: AdapterContributions): void;
   applyContribution(contribution: TokenContribution): void;
   removeContribution(id: string): void;
 }
@@ -294,7 +303,6 @@ export interface TokenInventory {
 export function createTokenInventory(): TokenInventory {
   const artifacts = new Map<string, StoredArtifact>();
   const contributions = new Map<string, TokenContribution>();
-  let legacyAdapterContributions: AdapterContributions = { tokens: [], diagnostics: [] };
   let snapshotCache: InventorySnapshot | null = null;
 
   const invalidate = (): void => { snapshotCache = null; };
@@ -326,15 +334,6 @@ export function createTokenInventory(): TokenInventory {
       entry.transformFailed = false;
     }
     artifacts.set(key, entry);
-    invalidate();
-  }
-
-  function setAdapterContributions(next: AdapterContributions): void {
-    if (sameAdapterContributions(legacyAdapterContributions, next)) return;
-    legacyAdapterContributions = {
-      tokens: next.tokens.map(copyToken),
-      diagnostics: next.diagnostics?.map((diagnostic) => ({ ...diagnostic })) ?? [],
-    };
     invalidate();
   }
 
@@ -387,12 +386,6 @@ export function createTokenInventory(): TokenInventory {
       }
     }
 
-    const legacyTokens = [...legacyAdapterContributions.tokens]
-      .sort((a, b) => (a.cssName ?? a.name).localeCompare(b.cssName ?? b.name));
-    for (const [index, token] of legacyTokens.entries()) {
-      setLiteralToken(merged, token, "legacy-adapters", index, provisionalOrder++);
-    }
-
     for (const [contributionIndex, contribution] of sortedContributions.entries()) {
       const contributionOrder = contribution.order ?? contributionIndex;
       const tokens = [...(contribution.tokens ?? [])]
@@ -401,26 +394,15 @@ export function createTokenInventory(): TokenInventory {
         setLiteralToken(merged, token, contribution.id, contributionOrder, provisionalOrder++);
       }
 
-      if (contribution.overlay) {
+      for (const relabelling of contribution.relabellings ?? []) {
         for (const entry of merged.values()) {
-          const next = contribution.overlay({
+          if (entry.base.adapter !== relabelling.adapter
+            || entry.base.origin !== relabelling.fromOrigin) continue;
+          entry.base = {
             ...entry.base,
-            declarations: entry.declarations.map((declaration) => ({ ...declaration })),
-          });
-          const { declarations, ...base } = next;
-          entry.base = base;
-          entry.declarations = declarations.map((declaration) => {
-            const existing = declaration as Partial<InventoryTokenDeclaration>;
-            return {
-              ...declaration,
-              order: declaration.order ?? provisionalOrder++,
-              contribution: existing.contribution ?? {
-                kind: "adapter",
-                id: contribution.id,
-                order: contributionOrder,
-              } satisfies InventoryContribution,
-            };
-          });
+            origin: relabelling.origin ?? entry.base.origin,
+            editable: relabelling.editable ?? entry.base.editable,
+          };
         }
       }
 
@@ -490,7 +472,6 @@ export function createTokenInventory(): TokenInventory {
         });
       }
     }
-    diagnostics.push(...(legacyAdapterContributions.diagnostics ?? []));
     for (const contribution of sortedContributions) {
       diagnostics.push(...(contribution.diagnostics ?? []));
     }
@@ -504,5 +485,5 @@ export function createTokenInventory(): TokenInventory {
     return snapshotCache;
   }
 
-  return { apply, snapshot, setAdapterContributions, applyContribution, removeContribution };
+  return { apply, snapshot, applyContribution, removeContribution };
 }

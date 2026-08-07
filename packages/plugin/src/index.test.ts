@@ -4,12 +4,21 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createTokenInventory } from "@design-tool/css/token-inventory";
 import {
-  designTool,
+  designTool as createDesignToolPlugins,
   isHostApplicationSource,
   transformIndexHtmlHtml,
 } from "./index.ts";
 import { createTailwindV4NamingContribution } from "./adapters/tailwindV4.ts";
 import { materializeVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
+
+const designTool = (...args: Parameters<typeof createDesignToolPlugins>) =>
+  createDesignToolPlugins(...args)[0]!;
+
+function activeModuleGraph(...ids: string[]) {
+  return {
+    idToModuleMap: new Map(ids.map((id) => [id, { id, importers: new Set([{}]) }])),
+  };
+}
 
 const SAMPLE_HTML = `<!doctype html>
 <html lang="en">
@@ -76,11 +85,15 @@ describe("transformIndexHtmlHtml", () => {
 });
 
 describe("designTool plugin virtual inspector module", () => {
-  it("orders identity transforms before other pre transforms", () => {
-    const plugin = designTool() as unknown as {
+  it("orders identity transforms before pre plugins and CSS observation after them", () => {
+    const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
+      enforce?: string;
       transform?: { order?: string };
-    };
+    }, { enforce?: string; transform?: unknown }];
+    expect(plugin.enforce).toBe("pre");
     expect(plugin.transform).toMatchObject({ order: "pre" });
+    expect(transformedObserver.enforce).toBeUndefined();
+    expect(typeof transformedObserver.transform).toBe("function");
   });
 
   it("resolveId maps both bare and resolved forms of the inspector virtual id", () => {
@@ -194,6 +207,7 @@ describe("designTool token catalog compiler", () => {
           },
         },
         transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(appCss),
       };
       const plugin = designTool() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
@@ -221,6 +235,152 @@ describe("designTool token catalog compiler", () => {
       expect(catalog.find((definition) => definition.cssName === "--color-content-primary")?.declarations[0]?.source)
         .toBe("@fixture/theme.css:1");
       expect(catalog.some((definition) => definition.cssName === "--unrelated")).toBe(false);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("does not activate package CSS imported only by an unreferenced stylesheet", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-dead-package-css-"));
+    const root = join(parent, "app");
+    const packageRoot = join(parent, "node_modules", "@fixture");
+    const activeCss = join(root, "active.css");
+    const deadCss = join(root, "dead.css");
+    const deadPackageCss = join(packageRoot, "dead.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(activeCss, ":root { --active: 1px; }");
+      writeFileSync(deadCss, '@import "@fixture/dead.css";');
+      writeFileSync(deadPackageCss, ":root { --must-stay-unreachable: hotpink; }");
+
+      const server = {
+        pluginContainer: {
+          resolveId: async (specifier: string) => specifier === "@fixture/dead.css"
+            ? { id: deadPackageCss }
+            : null,
+        },
+        transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(activeCss),
+      };
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+
+      const code = (await plugin.load("\0virtual:design-tokens"))!;
+      expect(code).toContain("--active");
+      expect(code).not.toContain("--must-stay-unreachable");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("does not claim independent active roots have authoritative cascade order", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-root-order-"));
+    const firstCss = join(root, "first.css");
+    const secondCss = join(root, "second.css");
+    try {
+      writeFileSync(firstCss, ":root { --first: 1px; }");
+      writeFileSync(secondCss, ":root { --second: 2px; }");
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer({
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(firstCss, secondCss),
+      });
+      plugin.buildStart();
+
+      const code = (await plugin.load("\0virtual:design-tokens"))!;
+      const catalog = JSON.parse(
+        code.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]",
+      ) as Array<{ declarations: Array<{ contribution: { orderEvidence: { kind: string } } }> }>;
+      expect(catalog).toHaveLength(2);
+      expect(catalog.every((definition) =>
+        definition.declarations[0]?.contribution.orderEvidence.kind === "discovery"))
+        .toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("removes package CSS when component HMR drops its stylesheet import", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "design-tool-component-css-hmr-"));
+    const root = join(parent, "app");
+    const packageRoot = join(parent, "node_modules", "@fixture");
+    const component = join(root, "App.tsx");
+    const entryCss = join(root, "theme-entry.css");
+    const packageCss = join(packageRoot, "theme.css");
+    try {
+      mkdirSync(root, { recursive: true });
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(component, 'import "./theme-entry.css"; export const App = () => null;');
+      writeFileSync(entryCss, '@import "@fixture/theme.css";');
+      writeFileSync(packageCss, ":root { --package-active: 4px; }");
+
+      const tokenVirtual = { id: "\0virtual:design-tokens" };
+      const componentVirtual = { id: "\0virtual:design-tool-components" };
+      const componentModule = { id: component };
+      const invalidated = new Set<unknown>();
+      const moduleGraph = {
+        ...activeModuleGraph(entryCss),
+        getModuleById: (id: string) => id === tokenVirtual.id
+          ? tokenVirtual
+          : id === componentVirtual.id ? componentVirtual : undefined,
+        invalidateModule: (module: unknown) => { invalidated.add(module); },
+      };
+      const server = {
+        pluginContainer: {
+          resolveId: async (specifier: string) => specifier === "@fixture/theme.css"
+            ? { id: packageCss }
+            : null,
+        },
+        transformRequest: async (id: string) => {
+          if (id === component && invalidated.has(componentModule)) {
+            moduleGraph.idToModuleMap.clear();
+          }
+          return null;
+        },
+        moduleGraph,
+      };
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+        handleHotUpdate(context: {
+          file: string;
+          read(): Promise<string>;
+          server: unknown;
+          modules: unknown[];
+        }): Promise<unknown>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+      expect(await plugin.load(tokenVirtual.id)).toContain("--package-active");
+
+      const updated = "export const App = () => null;";
+      writeFileSync(component, updated);
+      await plugin.handleHotUpdate({
+          file: component,
+          read: async () => updated,
+          server,
+          modules: [componentModule],
+      });
+
+      expect(await plugin.load(tokenVirtual.id)).not.toContain("--package-active");
     } finally {
       rmSync(parent, { recursive: true, force: true });
     }
@@ -285,6 +445,7 @@ describe("designTool token catalog compiler", () => {
           resolveId: async () => null,
         },
         transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(appCss),
       };
       const plugin = designTool() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
@@ -333,6 +494,7 @@ describe("designTool token catalog compiler", () => {
         },
         transformRequest: async () => null,
         moduleGraph: {
+          ...activeModuleGraph(appCss),
           getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
           invalidateModule: () => undefined,
         },
@@ -403,6 +565,7 @@ describe("designTool token catalog compiler", () => {
         ssrLoadModule: async () => contract,
         transformRequest: async () => null,
         moduleGraph: {
+          ...activeModuleGraph(appCss),
           getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
           invalidateModule: () => undefined,
         },
@@ -528,19 +691,18 @@ describe("designTool token catalog compiler", () => {
         const authored = '@theme { --color-brand: #123456; }';
         const transformed = ':root, :host { --color-brand: #123456; --tw-brand-opacity: 1; }';
         writeFileSync(appCss, authored);
-        const plugin = designTool() as unknown as {
+        const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
           configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
           buildStart?: () => void;
           load?: (id: string) => string | null | Promise<string | null>;
-          transform?: { handler: (code: string, id: string) => unknown };
-        };
+        }, { transform?: (code: string, id: string) => unknown }];
         plugin.configResolved!({ root, command: "serve" });
         if (transformFirst) {
-          plugin.transform!.handler(transformed, appCss);
+          transformedObserver.transform!(transformed, appCss);
           plugin.buildStart!();
         } else {
           plugin.buildStart!();
-          plugin.transform!.handler(transformed, appCss);
+          transformedObserver.transform!(transformed, appCss);
         }
         const code = (await plugin.load!("\0virtual:design-tokens"))!;
         return JSON.parse(code.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]") as Array<{
@@ -583,6 +745,7 @@ describe("designTool token catalog compiler", () => {
       const server = {
         pluginContainer: { resolveId: async () => null },
         transformRequest: async () => { throw new Error("transform unavailable"); },
+        moduleGraph: activeModuleGraph(appCss),
       };
       const plugin = designTool() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
@@ -627,18 +790,18 @@ describe("designTool token catalog compiler", () => {
           return null;
         },
         moduleGraph: {
+          ...activeModuleGraph(appCss),
           getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
           invalidateModule: () => undefined,
         },
       };
-      const plugin = designTool() as unknown as {
+      const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         configureServer?: (server: unknown) => void;
         buildStart?: () => void;
         load?: (id: string) => string | null | Promise<string | null>;
-        transform?: { handler: (code: string, id: string) => unknown };
         handleHotUpdate?: (context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }) => Promise<unknown>;
-      };
+      }, { transform?: (code: string, id: string) => unknown }];
       plugin.configResolved!({ root, command: "serve" });
       plugin.configureServer!(server);
       plugin.buildStart!();
@@ -665,7 +828,7 @@ describe("designTool token catalog compiler", () => {
         server,
         modules: [],
       });
-      plugin.transform!.handler(':root { --color-brand: #abcdef; }', appCss);
+      transformedObserver.transform!(':root { --color-brand: #abcdef; }', appCss);
       code = await plugin.load!("\0virtual:design-tokens");
       expect(code).not.toContain("transform-observation-failed");
       expect(code).toContain("#abcdef");
@@ -745,6 +908,7 @@ describe("designTool token catalog compiler", () => {
         },
         ssrLoadModule: async () => contract,
         transformRequest: async () => null,
+        moduleGraph: activeModuleGraph(appCss),
       };
       const plugin = designTool({
         vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
@@ -774,6 +938,7 @@ describe("designTool token catalog compiler", () => {
         id: "app.css",
         stage: "authored",
         provenance: "project",
+        order: 1,
         adapter: "tailwind-v4",
         content: appContent,
       });
@@ -782,9 +947,10 @@ describe("designTool token catalog compiler", () => {
         id: "@fixture/theme.css",
         stage: "authored",
         provenance: "package",
+        order: 0,
         content: themeContent,
       });
-      expected.setAdapterContributions({ tokens: [] });
+      expected.applyContribution({ id: "adapter-registry", order: -1, tokens: [] });
       expected.applyContribution(createTailwindV4NamingContribution());
       expected.applyContribution(materializeVanillaExtractContribution(contract.vars, {
         source: "@fixture/contract",

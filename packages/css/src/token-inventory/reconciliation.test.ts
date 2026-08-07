@@ -110,6 +110,19 @@ describe("token inventory authored/transformed reconciliation", () => {
     expect(x.declarations[0]!.value).toBe("4px");
   });
 
+  it("retains authoritative authored order when transformed output omits it", () => {
+    const inventory = createTokenInventory();
+    inventory.apply(artifact({ id: "a.css", order: 7, content: ":root { --a: 1px; }" }));
+    inventory.apply(artifact({
+      id: "a.css",
+      stage: "transformed",
+      content: ":root { --a: 2px; }",
+    }));
+
+    expect(inventory.snapshot().definitions[0]!.declarations[0]!.contribution)
+      .toMatchObject({ orderEvidence: { kind: "stylesheet", index: 7 } });
+  });
+
   it("preserves stable declaration identity when the transform replaces an authored row for the same cssName", () => {
     const inventory = createTokenInventory();
     inventory.apply(artifact({ id: "s.css", content: ":root { --x: 1px; }" }));
@@ -269,5 +282,28 @@ describe("token inventory authored/transformed reconciliation", () => {
     expect(row.origin).toBe("package");
     expect(row.editable).toBe(false);
     expect(row.adapter).toBeUndefined();
+  });
+
+  it("keeps transformed-only package names package-owned and non-editable", () => {
+    const inventory = createTokenInventory();
+    inventory.apply(artifact({
+      id: "node_modules/@acme/theme/index.css",
+      provenance: "package",
+      adapter: "tailwind-v4",
+      content: ":root { --pkg-authored: 1px; }",
+    }));
+    inventory.apply(artifact({
+      id: "node_modules/@acme/theme/index.css",
+      stage: "transformed",
+      provenance: "package",
+      adapter: "tailwind-v4",
+      content: ":root { --pkg-authored: 1px; --pkg-emitted: 2px; }",
+    }));
+
+    const emitted = inventory.snapshot().definitions.find(
+      (definition) => definition.cssName === "--pkg-emitted",
+    )!;
+    expect(emitted).toMatchObject({ origin: "package", editable: false });
+    expect(emitted.adapter).toBeUndefined();
   });
 });

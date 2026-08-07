@@ -197,7 +197,7 @@ export function transformIndexHtmlHtml(
   return html + inject;
 }
 
-export function designTool(options: DesignToolOptions = {}): Plugin {
+export function designTool(options: DesignToolOptions = {}): Plugin[] {
   const enabled = options.enabled ?? true;
   let root: string | undefined;
   let buildOutputDirectory: string | undefined;
@@ -205,6 +205,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   let devServer: ViteDevServer | undefined;
   let postTransformPromise: Promise<void> | null = null;
   const inventory = createTokenInventory();
+  const activeHostCssFiles = new Set<string>();
   let activePackageCssFiles = new Set<string>();
   let publishedThemeContract: ThemeContract | null = null;
   let publishedThemeContractModuleId: string | null = null;
@@ -250,7 +251,12 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
    * at feed time (content-based, no hook-timing maps); the Tailwind v4 naming
    * contribution relabels the reconciled rows inside the inventory snapshot.
    */
-  function feedCssArtifact(id: string, code: string, stage: ArtifactStage): void {
+  function feedCssArtifact(
+    id: string,
+    code: string,
+    stage: ArtifactStage,
+    ordering: { order?: number; discoveryOrder?: number } = {},
+  ): void {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     if (isGeneratedBuildOutput(fileId)) return;
@@ -260,6 +266,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       id: rel,
       stage,
       provenance: isHostApplicationSource(fileId, root) ? "project" : "package",
+      ...ordering,
       adapter: detectTailwindV4(code) ? "tailwind-v4" : undefined,
       content: code,
     });
@@ -408,7 +415,16 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
 
   async function refreshActiveStylesheetTokens(): Promise<void> {
     if (!devServer || !root) return;
-    const graph = await discoverCssImportGraph(scanCssFiles(root, [], root, buildOutputDirectory), {
+    const graphModules = devServer.moduleGraph?.idToModuleMap;
+    if (graphModules) {
+      activeHostCssFiles.clear();
+      for (const module of graphModules.values()) {
+        const id = module.id && stripCssQuery(module.id);
+        if (id && CSS_EXT.test(id) && isHostApplicationSource(id, root)
+          && module.importers.size > 0) activeHostCssFiles.add(id);
+      }
+    }
+    const graph = await discoverCssImportGraph([...activeHostCssFiles], {
       read: (id) => readFileSync(id, "utf8"),
       resolve: async (specifier, importer) => {
         const resolved = await devServer!.pluginContainer.resolveId(specifier, importer);
@@ -421,9 +437,13 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       },
     });
     const nextPackageFiles = new Set<string>();
-    for (const [id, code] of graph.files) {
+    const hasProvenRootOrder = activeHostCssFiles.size === 1;
+    for (const [order, id] of graph.order.entries()) {
+      const code = graph.files.get(id)!;
       const fileId = stripCssQuery(id);
-      feedCssArtifact(fileId, code, "authored");
+      feedCssArtifact(fileId, code, "authored", hasProvenRootOrder
+        ? { order }
+        : { discoveryOrder: order });
       if (isPackageStylesheet(fileId, root)) nextPackageFiles.add(fileId);
     }
     for (const previous of activePackageCssFiles) {
@@ -449,20 +469,15 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     if (!devServer || !root || command !== "serve") return Promise.resolve();
     if (postTransformPromise) return postTransformPromise;
 
-    // The virtual module can be requested before the browser requests its CSS
-    // imports. Ask Vite to transform every authored stylesheet first so
-    // Tailwind's generated CSS (rather than just `@import "tailwindcss"`) has
-    // passed through the normal plugin pipeline and reached our transform hook.
+    // The Vite module graph is the source of truth for reachable stylesheet
+    // entries. Asking Vite to transform only those entries drives them through
+    // the companion observer plugin below without activating dead CSS files.
     postTransformPromise = (async () => {
       await refreshActiveStylesheetTokens();
-      await Promise.all(scanCssFiles(root, [], root, buildOutputDirectory).map(async (cssPath) => {
+      await Promise.all([...activeHostCssFiles].map(async (cssPath) => {
         try {
           await devServer!.transformRequest(cssPath);
         } catch {
-          // Report the unavailable transform so the inventory retains the last
-          // valid authored observation plus a recoverable diagnostic instead of
-          // dropping rows. A stale scan listing for a file that has already been
-          // deleted is NOT a transform failure — it is a removal.
           if (existsSync(cssPath)) feedCssTransformFailure(cssPath);
         }
       }));
@@ -470,7 +485,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
     return postTransformPromise;
   }
 
-  return {
+  const plugin: Plugin = {
     name: "design-tool",
     enforce: "pre",
     config(userConfig, env) {
@@ -534,7 +549,9 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         await ensurePublishedThemeContract();
         // Styling contributions merge inside the inventory, so the snapshot
         // already contains final labels, diagnostics, definitions, and order.
-        inventory.setAdapterContributions({
+        inventory.applyContribution({
+          id: "adapter-registry",
+          order: -1,
           tokens: adapterRegistry.extractTokens(),
           diagnostics: [
             ...sourceScanDiagnostics.values(),
@@ -579,7 +596,9 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         if (!enabled) return null;
         if (command === "build") return null; // dev-only per ADR-0002
         if (CSS_EXT.test(id)) {
-          feedCssArtifact(id, code, "transformed");
+          const fileId = stripCssQuery(id);
+          if (isHostApplicationSource(fileId, root)) activeHostCssFiles.add(fileId);
+          feedCssArtifact(id, code, "authored");
           return null; // let Vite's CSS pipeline handle the actual stylesheet
         }
         const instrumentComponents = isHostApplicationSource(id, root);
@@ -617,12 +636,39 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         } catch {
           componentContracts.set(ctx.file, []);
         }
+        // Re-transform the changed module so Vite updates its importer edges
+        // before package-CSS reachability is rebuilt. A component can add or
+        // remove a stylesheet import while every CSS file remains on disk.
+        const invalidated = new Set<(typeof ctx.modules)[number]>();
+        for (const module of ctx.modules) {
+          ctx.server.moduleGraph.invalidateModule(
+            module,
+            invalidated,
+            ctx.timestamp,
+            true,
+          );
+        }
+        try {
+          await ctx.server.transformRequest(ctx.file);
+        } catch {
+          // Component metadata still refreshes; the next successful transform
+          // will rebuild the active stylesheet roots.
+        }
+        postTransformPromise = null;
+        await ensurePostTransformCss();
+
         const virtualComponents = ctx.server.moduleGraph.getModuleById(RESOLVED_COMPONENTS_ID);
+        const virtualTokens = ctx.server.moduleGraph.getModuleById(RESOLVED_TOKENS_ID);
+        const modules = [...ctx.modules];
         if (virtualComponents) {
           ctx.server.moduleGraph.invalidateModule(virtualComponents);
-          return [...ctx.modules, virtualComponents];
+          modules.push(virtualComponents);
         }
-        return;
+        if (virtualTokens) {
+          ctx.server.moduleGraph.invalidateModule(virtualTokens);
+          modules.push(virtualTokens);
+        }
+        return modules.length > 0 ? [...new Set(modules)] : undefined;
       }
       if (!CSS_EXT.test(ctx.file)) return;
 
@@ -677,13 +723,29 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       });
     },
   };
+
+  // Tailwind's generator is a pre-transform hook. This companion stays in
+  // Vite's normal group, which places it after every pre plugin regardless of
+  // user configuration order and before Vite's CSS-post JavaScript wrapper.
+  // The main plugin above remains pre-ordered for TSX source locations.
+  const transformedCssObserver: Plugin = {
+    name: "design-tool:transformed-css",
+    apply: "serve",
+    transform(code, id) {
+      if (!enabled || command !== "serve" || !CSS_EXT.test(id)) return null;
+      feedCssArtifact(id, code, "transformed");
+      return null;
+    },
+  };
+
+  return [plugin, transformedCssObserver];
 }
 
 export { injectIdentity, injectDataCid } from "./transform/injectDataCid.ts";
 export type { InjectResult } from "./transform/injectDataCid.ts";
 export { parseTokens, parseTokenCatalog } from "./tokens/parseTokens.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
-export { annotateTailwindV4Catalog, annotateTailwindV4ReconciledCatalog, createTailwindV4Adapter, createTailwindV4NamingContribution, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression, tailwindV4NamingOverlay } from "./adapters/tailwindV4.ts";
+export { annotateTailwindV4Catalog, createTailwindV4Adapter, createTailwindV4NamingContribution, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
 export type { TailwindAlphaMapping } from "./adapters/tailwindV4.ts";
 export { createTailwindV3Adapter, detectTailwindV3Config, extractTailwindV3Tokens, resolveTailwindV3ClassName, tailwindV3ColorDeclaration } from "./adapters/tailwindV3.ts";
 export type { TailwindV3Config, TailwindV3Mapping } from "./adapters/tailwindV3.ts";

@@ -169,7 +169,8 @@ describe("token inventory contract", () => {
       id: "missing.css",
       diagnostics: [{ code: "stylesheet-unreadable", message: "permission denied" }],
     }));
-    inventory.setAdapterContributions({
+    inventory.applyContribution({
+      id: "adapter-diagnostics",
       tokens: [],
       diagnostics: [{
         code: "vanilla-extract-contract-unsupported-shape",
@@ -212,7 +213,8 @@ describe("token inventory contract", () => {
   it("merges Adapter literal tokens with their provenance", () => {
     const inventory = createTokenInventory();
     inventory.apply(artifact({ id: "src/theme.css", content: ":root { --from-css: 1px; }" }));
-    inventory.setAdapterContributions({
+    inventory.applyContribution({
+      id: "adapter-tokens",
       tokens: [
         { name: "primary", cssName: "--tw-primary", value: "#3b82f6", source: "tailwind.config", adapter: "tailwind-v3", origin: "framework", editable: false },
       ],
@@ -281,11 +283,11 @@ describe("token inventory contract", () => {
     expect(inventory.snapshot().generation).not.toBe(first);
 
     const second = inventory.snapshot().generation;
-    inventory.setAdapterContributions({ tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
+    inventory.applyContribution({ id: "adapter", tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
     expect(inventory.snapshot().generation).not.toBe(second);
 
     const third = inventory.snapshot().generation;
-    inventory.setAdapterContributions({ tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
+    inventory.applyContribution({ id: "adapter", tokens: [{ name: "--y", value: "3px", source: "adapter" }] });
     expect(inventory.snapshot().generation).toBe(third);
 
     // removal changes observable facts

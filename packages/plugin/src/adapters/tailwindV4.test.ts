@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { annotateTailwindV4Catalog, annotateTailwindV4ReconciledCatalog, createTailwindV4Adapter, detectTailwindV4, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./tailwindV4.ts";
+import { annotateTailwindV4Catalog, createTailwindV4Adapter, detectTailwindV4, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./tailwindV4.ts";
 
 describe("Tailwind v4 adapter", () => {
   it("detects CSS-first themes and generated local aliases", () => {
@@ -16,22 +16,6 @@ describe("Tailwind v4 adapter", () => {
     expect(result).toMatchObject([
       { adapter: "tailwind-v4", origin: "project", editable: true },
       { adapter: "tailwind-v4", origin: "framework", editable: false },
-    ]);
-  });
-
-  it("relabels the reconciled catalog deterministically from its own rows", () => {
-    const result = annotateTailwindV4ReconciledCatalog([
-      { cssName: "--color-brand", name: "--color-brand", adapter: "tailwind-v4", origin: "project", declarations: [] },
-      { cssName: "--tw-brand-opacity", name: "--tw-brand-opacity", adapter: "tailwind-v4", origin: "generated", declarations: [] },
-      { cssName: "--pkg", name: "--pkg", adapter: "tailwind-v4", origin: "package", editable: false, declarations: [] },
-      { cssName: "--plain", name: "--plain", origin: "project", declarations: [] },
-    ]);
-    expect(result).toMatchObject([
-      { adapter: "tailwind-v4", origin: "project", editable: true },
-      { adapter: "tailwind-v4", origin: "framework", editable: false },
-      { adapter: "tailwind-v4", origin: "package", editable: false },
-      // Rows the inventory did not tag are left untouched.
-      { cssName: "--plain", origin: "project" },
     ]);
   });
 

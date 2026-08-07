@@ -53,7 +53,7 @@ export function materializeVanillaExtractContract(
  * The contract entries are contributed as a definition-level enrichment: the
  * inventory merges them by cssName against the aggregated stylesheet
  * definitions with the exact `enrichVanillaExtractCatalog` semantics (name /
- * adapter overlay, CSS-derived origin/editability preserved when present,
+ * adapter enrichment, CSS-derived origin/editability preserved when present,
  * unmatched entries ignored). Id-keyed and replaceable so a refreshed contract
  * replaces the prior contribution without duplicates.
  */

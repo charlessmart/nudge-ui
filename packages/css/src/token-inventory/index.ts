@@ -18,7 +18,7 @@ export type { TokenInventory } from "./inventory.ts";
 export type {
   ArtifactProvenance,
   ArtifactStage,
-  AdapterContributions,
+  TokenDefinitionRelabelling,
   ArtifactDiagnosticInput,
   InventoryContribution,
   InventoryDiagnostic,
