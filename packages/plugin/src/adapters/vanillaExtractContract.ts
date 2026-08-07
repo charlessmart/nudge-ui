@@ -1,11 +1,23 @@
-import type { TokenEntry } from "../virtual/design-tokens.ts";
 import type { TokenContribution } from "@design-tool/css/token-inventory";
+import { isPackageStylesheet } from "../tokens/viteStylesheetArtifacts.ts";
+import type { TokenCatalogDiagnostic, TokenEntry } from "../virtual/design-tokens.ts";
 import type { ThemeContract } from "./vanillaExtract.ts";
 
 export interface MaterializeVanillaExtractContractOptions {
   prefix?: string;
   source: string;
   origin?: TokenEntry["origin"];
+}
+
+export interface PublishedVanillaExtractContributionOptions {
+  moduleSpecifier?: string;
+  loaded: boolean;
+  contract: ThemeContract | null;
+  diagnostics: readonly TokenCatalogDiagnostic[];
+  resolvedModuleId: string | null;
+  projectRoot?: string;
+  prefix?: string;
+  source?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -70,4 +82,35 @@ export function materializeVanillaExtractContribution(
       declarations: [],
     })),
   };
+}
+
+/** Convert Vite loader facts into the replaceable inventory contribution. */
+export function createPublishedVanillaExtractContribution(
+  options: PublishedVanillaExtractContributionOptions,
+): TokenContribution {
+  if (!options.moduleSpecifier || !options.loaded) {
+    return { id: "vanilla-extract-contract", order: 1 };
+  }
+  if (options.diagnostics.length > 0) {
+    return {
+      id: "vanilla-extract-contract",
+      order: 1,
+      diagnostics: options.diagnostics.map((diagnostic) => ({
+        code: diagnostic.code,
+        artifact: diagnostic.module,
+        message: diagnostic.message,
+        ...(diagnostic.exportName !== undefined ? { exportName: diagnostic.exportName } : {}),
+      })),
+    };
+  }
+  if (!options.contract) return { id: "vanilla-extract-contract", order: 1 };
+
+  return materializeVanillaExtractContribution(options.contract, {
+    prefix: options.prefix,
+    source: options.source ?? options.moduleSpecifier,
+    origin: options.resolvedModuleId
+      && isPackageStylesheet(options.resolvedModuleId, options.projectRoot)
+      ? "package"
+      : "project",
+  });
 }

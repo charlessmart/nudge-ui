@@ -9,7 +9,7 @@
  *
  * The deep Interface is `createTokenInventory()` — feed ordered stylesheet
  * artifacts and Adapter literal tokens, read immutable deterministic snapshots.
- * `parseStylesheetArtifact` is an internal seam used by the engine and tests.
+ * Parsing and policy remain internal seams used by the engine and direct tests.
  *
  * ## Deletion test
  *
@@ -38,13 +38,3 @@ export type {
   StylesheetArtifact,
   TokenContribution,
 } from "./types.ts";
-
-export { parseStylesheetArtifact } from "./parseStylesheet.ts";
-export type { ParsedContribution } from "./parseStylesheet.ts";
-
-export {
-  GLOBAL_TOKEN_AT_RULES,
-  MIN_THEME_TABLE_DECLARATIONS,
-  SCOPED_THEME_TABLE_POLICY,
-} from "./policy.ts";
-export type { ScopedThemeTablePolicy } from "./policy.ts";

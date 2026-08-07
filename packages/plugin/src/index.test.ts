@@ -1066,6 +1066,71 @@ describe("designTool token catalog compiler", () => {
     }
   });
 
+  it("publishes real watcher add and unlink events exactly once", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-watch-hmr-"));
+    const addedCss = join(root, "added.css");
+    try {
+      const callbacks: Partial<Record<"add" | "unlink", (file: string) => Promise<void>>> = {};
+      const watcher = {
+        on(event: "add" | "unlink", listener: (file: string) => Promise<void>) {
+          callbacks[event] = listener;
+          return watcher;
+        },
+      };
+      const invalidations: string[] = [];
+      const reloads: string[] = [];
+      const virtual = { id: "\0virtual:design-tokens" };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => null,
+        watcher,
+        ws: { send: (message: { type: string }) => { reloads.push(message.type); } },
+        moduleGraph: {
+          getModuleById: (id: string) => id === virtual.id ? virtual : undefined,
+          invalidateModule: (module: { id: string }) => { invalidations.push(module.id); },
+          onFileDelete: () => undefined,
+        },
+      };
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+      const initial = (await plugin.load(virtual.id))!;
+      const initialGeneration = JSON.parse(
+        initial.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""',
+      ) as string;
+
+      writeFileSync(addedCss, ":root { --added-token: 8px; }");
+      await callbacks.add!(addedCss);
+      const added = (await plugin.load(virtual.id))!;
+      const addedGeneration = JSON.parse(
+        added.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""',
+      ) as string;
+      expect(added).toContain("--added-token");
+      expect(addedGeneration).not.toBe(initialGeneration);
+      expect(invalidations).toEqual([virtual.id]);
+      expect(reloads).toEqual(["full-reload"]);
+
+      rmSync(addedCss);
+      await callbacks.unlink!(addedCss);
+      const removed = (await plugin.load(virtual.id))!;
+      const removedGeneration = JSON.parse(
+        removed.match(/^export const tokenGeneration = (.*);$/m)?.[1] ?? '""',
+      ) as string;
+      expect(removed).not.toContain("--added-token");
+      expect(removedGeneration).not.toBe(addedGeneration);
+      expect(invalidations).toEqual([virtual.id, virtual.id]);
+      expect(reloads).toEqual(["full-reload", "full-reload"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("bumps the published generation exactly once for a theme-contract HMR change and ignores an identical refresh", async () => {
     const parent = mkdtempSync(join(tmpdir(), "design-tool-contract-hmr-once-"));
     const root = join(parent, "app");
@@ -1076,8 +1141,10 @@ describe("designTool token catalog compiler", () => {
       let contract: Record<string, unknown> = {
         vars: { color: { content: { primary: "var(--color-content-primary)" } } },
       };
+      let cachedContract = contract;
       const invalidations: string[] = [];
       const virtual = { id: "\0virtual:design-tokens" };
+      const contractModule = { id: contractId };
       const server = {
         pluginContainer: {
           resolveId: async (specifier: string) => {
@@ -1085,11 +1152,14 @@ describe("designTool token catalog compiler", () => {
             return null;
           },
         },
-        ssrLoadModule: async () => contract,
+        ssrLoadModule: async () => cachedContract,
         transformRequest: async () => null,
         moduleGraph: {
           getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
-          invalidateModule: (m: { id: string }) => { invalidations.push(m.id); },
+          invalidateModule: (module: { id: string }) => {
+            if (module === contractModule) cachedContract = contract;
+            else invalidations.push(module.id);
+          },
         },
       };
       const plugin = designTool({
@@ -1119,7 +1189,7 @@ describe("designTool token catalog compiler", () => {
         file: contractId,
         read: async () => "export const vars = {};",
         server,
-        modules: [],
+        modules: [contractModule],
       });
       expect(invalidations).toHaveLength(1);
       const changed = await generation();
@@ -1133,7 +1203,7 @@ describe("designTool token catalog compiler", () => {
         file: contractId,
         read: async () => "export const vars = {};",
         server,
-        modules: [],
+        modules: [contractModule],
       });
       expect(invalidations).toHaveLength(1);
       expect(await generation()).toBe(changed);

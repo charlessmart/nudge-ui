@@ -3,13 +3,14 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "files": ["src/index.ts", "src/model", "src/value-semantics", "src/token-inventory"],
+  "files": ["src/index.ts", "src/model", "src/value-semantics", "src/token-inventory", "src/virtual-design-tokens.d.ts"],
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
     "./model": "./src/model/index.ts",
     "./value-semantics": "./src/value-semantics/index.ts",
-    "./token-inventory": "./src/token-inventory/index.ts"
+    "./token-inventory": "./src/token-inventory/index.ts",
+    "./virtual-design-tokens": "./src/virtual-design-tokens.d.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

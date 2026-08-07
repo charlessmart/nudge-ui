@@ -26,6 +26,12 @@ describe("vanilla-extract/Sprinkles adapter", () => {
     const registry = createTokenAdapterRegistry([adapter]);
     expect(registry.detect().map((candidate) => candidate.name)).toEqual(["vanilla-extract"]);
     expect(registry.extractTokens()).toHaveLength(3);
+    expect(registry.toInventoryContribution([{ code: "stylesheet-unreadable", message: "Skipped one source." }])).toMatchObject({
+      id: "adapter-registry",
+      order: -1,
+      tokens: expect.arrayContaining([expect.objectContaining({ name: "theme.color.brand" })]),
+      diagnostics: [{ code: "stylesheet-unreadable", message: "Skipped one source." }],
+    });
     expect(registry.resolveClassName("missing-class")).toBeNull();
   });
 

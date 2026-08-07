@@ -2,7 +2,6 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import {
   basename,
-  isAbsolute,
   join,
   relative,
   resolve,
@@ -17,17 +16,23 @@ import {
   createTokenInventory,
   type ArtifactStage,
   type InventoryDiagnostic,
-  type TokenContribution,
 } from "../../css/src/token-inventory/index.ts";
 import { injectIdentity } from "./transform/injectDataCid.ts";
 import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
+import {
+  catalogSourcePath,
+  createViteStylesheetArtifact,
+  isHostApplicationSource,
+  isPackageStylesheet,
+  orderViteStylesheetGraph,
+} from "./tokens/viteStylesheetArtifacts.ts";
 import type { TokenCatalogDiagnostic } from "./virtual/design-tokens.ts";
-import { createTailwindV4NamingContribution, detectTailwindV4 } from "./adapters/tailwindV4.ts";
+import { createTailwindV4NamingContribution } from "./adapters/tailwindV4.ts";
 import { createTailwindV3Adapter } from "./adapters/tailwindV3.ts";
 import type { TailwindV3Config } from "./adapters/tailwindV3.ts";
 import { createSprinklesAdapter } from "./adapters/vanillaExtract.ts";
 import type { ThemeContract, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
-import { materializeVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
+import { createPublishedVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
 import { createTokenAdapterRegistry } from "./adapters/registry.ts";
 import { extractComponentContracts } from "./components/extractContracts.ts";
 import type { ComponentContract } from "./components/types.ts";
@@ -69,42 +74,8 @@ function relativePath(id: string, root?: string): string {
   return id.replace(/^\//, "");
 }
 
-function isPackageStylesheet(id: string, projectRoot: string | undefined): boolean {
-  return !isHostApplicationSource(id, projectRoot);
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** Keep package sources useful to people without serialising machine-specific paths. */
-function catalogSourcePath(id: string, projectRoot: string | undefined): string {
-  const fileId = stripCssQuery(id).replace(/\\/g, "/");
-  if (!isPackageStylesheet(fileId, projectRoot)) return relativePath(fileId, projectRoot);
-  const nodeModules = fileId.lastIndexOf("/node_modules/");
-  if (nodeModules >= 0) return fileId.slice(nodeModules + "/node_modules/".length);
-  if (projectRoot) return relative(projectRoot, fileId).replace(/\\/g, "/");
-  return fileId.replace(/^\//, "");
-}
-
-export function isHostApplicationSource(
-  id: string,
-  projectRoot: string | undefined,
-): boolean {
-  if (!projectRoot || id.startsWith("\0")) return false;
-  const fileId = id.split(/[?#]/, 1)[0] ?? id;
-  if (
-    fileId.includes("/node_modules/")
-    || fileId.includes("\\node_modules\\")
-  ) return false;
-  const absoluteFile = isAbsolute(fileId)
-    ? resolve(fileId)
-    : resolve(projectRoot, fileId);
-  const relativeFile = relative(resolve(projectRoot), absoluteFile);
-  return relativeFile !== ""
-    && relativeFile !== ".."
-    && !relativeFile.startsWith(`..${sep}`)
-    && !isAbsolute(relativeFile);
 }
 
 function scanCssFiles(
@@ -197,6 +168,17 @@ export function transformIndexHtmlHtml(
   return html + inject;
 }
 
+function invalidateHmrModules(
+  server: ViteDevServer,
+  modules: readonly ModuleNode[],
+  timestamp: number,
+): void {
+  const invalidated = new Set<ModuleNode>();
+  for (const module of modules) {
+    server.moduleGraph.invalidateModule(module, invalidated, timestamp, true);
+  }
+}
+
 export function designTool(options: DesignToolOptions = {}): Plugin[] {
   const enabled = options.enabled ?? true;
   let root: string | undefined;
@@ -262,30 +244,27 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     if (isGeneratedBuildOutput(fileId)) return;
-    const rel = catalogSourcePath(fileId, root);
-    inventory.apply({
-      buildTool: "vite",
-      id: rel,
+    const artifact = createViteStylesheetArtifact({
+      id: fileId,
+      projectRoot: root,
       stage,
-      provenance: isHostApplicationSource(fileId, root) ? "project" : "package",
       ...ordering,
-      adapter: detectTailwindV4(code) ? "tailwind-v4" : undefined,
       content: code,
     });
-    sourceScanDiagnostics.delete(rel);
+    inventory.apply(artifact);
+    sourceScanDiagnostics.delete(artifact.id);
   }
 
   /** Drop every observation and temporary provenance fact for one stylesheet. */
   function feedCssRemoval(id: string): void {
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
-    const rel = catalogSourcePath(fileId, root);
-    sourceScanDiagnostics.delete(rel);
-    inventory.apply({
-      buildTool: "vite",
-      id: rel,
+    const artifact = createViteStylesheetArtifact({
+      id: fileId,
+      projectRoot: root,
       stage: "authored",
-      provenance: isHostApplicationSource(fileId, root) ? "project" : "package",
     });
+    sourceScanDiagnostics.delete(artifact.id);
+    inventory.apply(artifact);
   }
 
   /**
@@ -298,14 +277,12 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     if (isGeneratedBuildOutput(fileId)) return;
-    const rel = catalogSourcePath(fileId, root);
-    inventory.apply({
-      buildTool: "vite",
-      id: rel,
+    inventory.apply(createViteStylesheetArtifact({
+      id: fileId,
+      projectRoot: root,
       stage: "transformed",
-      provenance: isHostApplicationSource(fileId, root) ? "project" : "package",
       failed: true,
-    });
+    }));
   }
   function cacheComponentsForFile(id: string, code: string): void {
     if (!COMPONENT_EXT.test(id) || !isHostApplicationSource(id, root)) return;
@@ -380,38 +357,16 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     await refreshPublishedThemeContract();
   }
 
-  /**
-   * Build the normalized published theme-contract contribution for the token
-   * inventory. Contract failures become contribution diagnostics (so they flow
-   * through the final `tokenDiagnostics` without making ordinary CSS
-   * unavailable); a loaded contract becomes a definition-level enrichment
-   * merged by cssName (name/adapter overlay, CSS-derived origin/editability
-   * preserved when present). Id-keyed and replaceable, so a refreshed contract
-   * replaces the prior contribution without duplicates.
-   */
-  function buildPublishedThemeContractContribution(): TokenContribution {
-    const moduleSpecifier = options.vanillaExtract?.themeContractModule;
-    if (!moduleSpecifier) return { id: "vanilla-extract-contract", order: 1 };
-    if (!publishedThemeContractLoaded) return { id: "vanilla-extract-contract", order: 1 };
-    if (contractDiagnostics.length > 0) {
-      return {
-        id: "vanilla-extract-contract",
-        order: 1,
-        diagnostics: contractDiagnostics.map((diagnostic) => ({
-          code: diagnostic.code,
-          artifact: diagnostic.module,
-          message: diagnostic.message,
-          ...(diagnostic.exportName !== undefined ? { exportName: diagnostic.exportName } : {}),
-        })),
-      };
-    }
-    if (!publishedThemeContract) return { id: "vanilla-extract-contract", order: 1 };
-    return materializeVanillaExtractContribution(publishedThemeContract, {
+  function publishedThemeContractContribution() {
+    return createPublishedVanillaExtractContribution({
+      moduleSpecifier: options.vanillaExtract?.themeContractModule,
+      loaded: publishedThemeContractLoaded,
+      contract: publishedThemeContract,
+      diagnostics: contractDiagnostics,
+      resolvedModuleId: publishedThemeContractModuleId,
+      projectRoot: root,
       prefix: options.vanillaExtract?.themeContractPrefix,
-      source: options.vanillaExtract?.source ?? moduleSpecifier,
-      origin: publishedThemeContractModuleId && isPackageStylesheet(publishedThemeContractModuleId, root)
-        ? "package"
-        : "project",
+      source: options.vanillaExtract?.source,
     });
   }
 
@@ -424,17 +379,12 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
    * facts are no-ops), so load() and the HMR exactly-once guard share one path.
    */
   function syncInventoryContributions(): void {
-    inventory.applyContribution({
-      id: "adapter-registry",
-      order: -1,
-      tokens: adapterRegistry.extractTokens(),
-      diagnostics: [
-        ...sourceScanDiagnostics.values(),
-        ...activeGraphDiagnostics,
-      ],
-    });
+    inventory.applyContribution(adapterRegistry.toInventoryContribution([
+      ...sourceScanDiagnostics.values(),
+      ...activeGraphDiagnostics,
+    ]));
     inventory.applyContribution(createTailwindV4NamingContribution());
-    inventory.applyContribution(buildPublishedThemeContractContribution());
+    inventory.applyContribution(publishedThemeContractContribution());
   }
 
   /**
@@ -455,6 +405,51 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     const virtual = server.moduleGraph.getModuleById(RESOLVED_TOKENS_ID);
     if (virtual) server.moduleGraph.invalidateModule(virtual);
     return virtual ? { changed: true, virtual } : { changed: true };
+  }
+
+  async function handleStylesheetWatchEvent(
+    server: ViteDevServer,
+    file: string,
+    event: "add" | "unlink",
+  ): Promise<void> {
+    if (!enabled || command !== "serve" || !CSS_EXT.test(file)) return;
+    const hadPublishedSnapshot = lastPublishedGeneration !== null;
+    postTransformPromise = null;
+
+    if (event === "unlink") {
+      server.moduleGraph.onFileDelete(file);
+      activeHostCssFiles.delete(stripCssQuery(file));
+      feedCssRemoval(file);
+    } else {
+      // Project CSS participates in the source inventory even before import;
+      // package CSS is admitted only by the active graph refresh below.
+      if (isHostApplicationSource(file, root)) {
+        try {
+          feedCssArtifact(file, readFileSync(file, "utf8"), "authored");
+        } catch {
+          const source = catalogSourcePath(file, root);
+          sourceScanDiagnostics.set(source, {
+            code: "stylesheet-unreadable",
+            artifact: source,
+            message: `Could not read stylesheet ${source}.`,
+          });
+        }
+      }
+    }
+
+    await refreshActiveStylesheetTokens();
+    if (event === "add" && activeHostCssFiles.has(stripCssQuery(file))) {
+      try {
+        await server.transformRequest(file);
+      } catch {
+        if (existsSync(file)) feedCssTransformFailure(file);
+      }
+    }
+
+    const { changed } = invalidateTokensIfChanged(server);
+    if (hadPublishedSnapshot && changed) {
+      server.ws.send({ type: "full-reload", path: "*" });
+    }
   }
 
   async function refreshActiveStylesheetTokens(): Promise<void> {
@@ -481,13 +476,12 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
       },
     });
     const nextPackageFiles = new Set<string>();
-    const hasProvenRootOrder = activeHostCssFiles.size === 1;
-    for (const [order, id] of graph.order.entries()) {
-      const code = graph.files.get(id)!;
+    for (const { id, code, ...ordering } of orderViteStylesheetGraph(
+      graph,
+      activeHostCssFiles.size,
+    )) {
       const fileId = stripCssQuery(id);
-      feedCssArtifact(fileId, code, "authored", hasProvenRootOrder
-        ? { order }
-        : { discoveryOrder: order });
+      feedCssArtifact(fileId, code, "authored", ordering);
       if (isPackageStylesheet(fileId, root)) nextPackageFiles.add(fileId);
     }
     for (const previous of activePackageCssFiles) {
@@ -549,6 +543,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     configureServer(server) {
       if (!enabled || command !== "serve") return;
       devServer = server;
+      server.watcher?.on("add", (file) => handleStylesheetWatchEvent(server, file, "add"));
+      server.watcher?.on("unlink", (file) => handleStylesheetWatchEvent(server, file, "unlink"));
     },
     buildStart() {
       // Eager scan so the token table is populated before the virtual module
@@ -658,6 +654,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     async handleHotUpdate(ctx) {
       if (!enabled || command !== "serve") return;
       if (publishedThemeContractModuleId && stripCssQuery(ctx.file) === publishedThemeContractModuleId) {
+        invalidateHmrModules(ctx.server, ctx.modules, ctx.timestamp);
         publishedThemeContractLoaded = false;
         await ensurePublishedThemeContract();
         // Same exactly-once path as the CSS branch: invalidate the virtual
@@ -675,15 +672,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
         // Re-transform the changed module so Vite updates its importer edges
         // before package-CSS reachability is rebuilt. A component can add or
         // remove a stylesheet import while every CSS file remains on disk.
-        const invalidated = new Set<(typeof ctx.modules)[number]>();
-        for (const module of ctx.modules) {
-          ctx.server.moduleGraph.invalidateModule(
-            module,
-            invalidated,
-            ctx.timestamp,
-            true,
-          );
-        }
+        invalidateHmrModules(ctx.server, ctx.modules, ctx.timestamp);
         try {
           await ctx.server.transformRequest(ctx.file);
         } catch {
@@ -773,6 +762,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
 
 export { injectIdentity, injectDataCid } from "./transform/injectDataCid.ts";
 export type { InjectResult } from "./transform/injectDataCid.ts";
+export { isHostApplicationSource } from "./tokens/viteStylesheetArtifacts.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
 export { createTailwindV4Adapter, createTailwindV4NamingContribution, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
 export type { TailwindAlphaMapping } from "./adapters/tailwindV4.ts";

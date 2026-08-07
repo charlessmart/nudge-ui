@@ -77,7 +77,9 @@ test("dev: a published vanilla-extract contract enriches its active package CSS 
     adapter: "vanilla-extract",
     origin: "package",
     editable: false,
-    declarations: [expect.objectContaining({ value: "#20211f", source: expect.stringMatching(/package-css-fixture\/theme\.css:4$/) })],
+    declarations: expect.arrayContaining([
+      expect.objectContaining({ value: "#20211f", source: expect.stringMatching(/package-css-fixture\/theme\.css:4$/) }),
+    ]),
   })]);
   expect(token.diagnostics).toEqual([]);
 });

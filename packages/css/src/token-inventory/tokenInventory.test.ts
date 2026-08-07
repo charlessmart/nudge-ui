@@ -15,11 +15,7 @@ function artifact(overrides: Partial<StylesheetArtifact> & Pick<StylesheetArtifa
 describe("token inventory contract", () => {
   it("exposes only the explicit S2-D inventory runtime API", () => {
     expect(Object.keys(publicInventoryApi).sort()).toEqual([
-      "GLOBAL_TOKEN_AT_RULES",
-      "MIN_THEME_TABLE_DECLARATIONS",
-      "SCOPED_THEME_TABLE_POLICY",
       "createTokenInventory",
-      "parseStylesheetArtifact",
     ]);
   });
 
