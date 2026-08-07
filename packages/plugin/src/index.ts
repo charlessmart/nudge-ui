@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import {
   basename,
@@ -209,6 +209,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
   let devServer: ViteDevServer | undefined;
   let postTransformPromise: Promise<void> | null = null;
   const inventory = createTokenInventory();
+  let publishedCatalogSignature = "";
+  let publishedCatalogRevision = 0;
   let activePackageCssFiles = new Set<string>();
   let publishedThemeContract: ThemeContract | null = null;
   let publishedThemeContractModuleId: string | null = null;
@@ -361,6 +363,14 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
       origin: definition.origin,
       editable: definition.editable,
     };
+  }
+
+  function generationForPublishedCatalog(snapshotGeneration: string, catalogJson: string): string {
+    if (catalogJson !== publishedCatalogSignature) {
+      publishedCatalogSignature = catalogJson;
+      publishedCatalogRevision += 1;
+    }
+    return `${snapshotGeneration}:${publishedCatalogRevision}`;
   }
 
   function cacheComponentsForFile(id: string, code: string): void {
@@ -599,6 +609,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         const catalog = enrichCatalogWithPublishedThemeContract(
           applyTailwindV4ProvenanceAnnotation([...snapshot.definitions]),
         );
+        const catalogJson = JSON.stringify(catalog);
+        const publishedGeneration = generationForPublishedCatalog(snapshot.generation, catalogJson);
         const all: TokenEntry[] = catalog.map(definitionToTokenEntry);
         const diagnostics: TokenCatalogDiagnostic[] = [
           // Inventory diagnostics carry the offending artifact id; the virtual
@@ -611,7 +623,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
           })),
         ];
         const projectId = JSON.stringify(options.projectId ?? (root ? basename(root) : ""));
-        return `export const tokenCatalog = ${JSON.stringify(catalog)};\nexport const tokens = ${JSON.stringify(all)};\nexport const tokenDiagnostics = ${JSON.stringify(diagnostics)};\nexport const tokenGeneration = ${JSON.stringify(snapshot.generation)};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
+        return `export const tokenCatalog = ${catalogJson};\nexport const tokens = ${JSON.stringify(all)};\nexport const tokenDiagnostics = ${JSON.stringify(diagnostics)};\nexport const tokenGeneration = ${JSON.stringify(publishedGeneration)};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {
         // ADR-0002: no inspector bootstrap in production builds.
@@ -690,7 +702,17 @@ export function designTool(options: DesignToolOptions = {}): Plugin {
         const code = await ctx.read();
         feedCssArtifact(ctx.file, code, "authored", true);
       } catch {
-        feedCssRemoval(ctx.file);
+        const fileId = stripCssQuery(ctx.file);
+        if (!existsSync(fileId)) {
+          feedCssRemoval(ctx.file);
+        } else {
+          const rel = catalogSourcePath(fileId, root);
+          sourceScanDiagnostics.set(rel, {
+            code: "stylesheet-unreadable",
+            artifact: rel,
+            message: `Could not read stylesheet ${rel}. Keeping its last valid token inventory entry.`,
+          });
+        }
       }
 
       await refreshActiveStylesheetTokens();

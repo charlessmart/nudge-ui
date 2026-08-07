@@ -38,9 +38,9 @@ describe("designTool plain-CSS token inventory transport", () => {
       expect(catalog.find((definition) => definition.cssName === "--color-tracer"))
         .toMatchObject({ origin: "project" });
 
-      // The serialized generation is the inventory snapshot fingerprint for
-      // the exact artifact the plugin fed, and the declaration identity comes
-      // from the inventory (not reassigned inside load()).
+      // The serialized generation retains the inventory fingerprint and adds
+      // a catalog revision for post-snapshot transport enrichment. Declaration
+      // identity still comes from the inventory (not reassigned inside load()).
       const publishedGeneration = JSON.parse(extract(code, "tokenGeneration")) as string;
       const expected = createTokenInventory();
       expected.apply({
@@ -50,7 +50,7 @@ describe("designTool plain-CSS token inventory transport", () => {
         provenance: "project",
         content: PLAIN_CSS,
       });
-      expect(publishedGeneration).toBe(expected.snapshot().generation);
+      expect(publishedGeneration).toMatch(new RegExp(`^${expected.snapshot().generation}:\\d+$`));
       const tracer = catalog.find((definition) => definition.cssName === "--color-tracer");
       expect(tracer?.declarations[0]).toMatchObject({
         id: `vite\u0000tracer.css\u0000authored\u0000--color-tracer\u0000tracer.css:3\u0000{"selector":":root"}\u00001`,
@@ -152,6 +152,42 @@ describe("designTool plain-CSS token inventory transport", () => {
       const removed = (await plugin.load("\0virtual:design-tokens"))!;
       expect(removed).not.toContain("--transformed-only");
       expect(removed).not.toContain("--space-tracer");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps the last valid token rows when an existing stylesheet cannot be read during HMR", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-tracer-unreadable-"));
+    const cssPath = join(root, "tracer.css");
+    try {
+      writeFileSync(cssPath, PLAIN_CSS);
+      const virtual = { id: "\0virtual:design-tokens" };
+      const plugin = designTool() as unknown as {
+        configResolved(config: { root: string; command: "serve" | "build" }): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+        handleHotUpdate(context: { file: string; read(): Promise<string>; server: unknown; modules: unknown[] }): Promise<unknown>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.buildStart();
+      await plugin.load("\0virtual:design-tokens");
+
+      await plugin.handleHotUpdate({
+        file: cssPath,
+        read: async () => { throw new Error("temporarily unreadable"); },
+        server: {
+          moduleGraph: {
+            getModuleById: (id: string) => id === virtual.id ? virtual : undefined,
+            invalidateModule: () => undefined,
+          },
+        },
+        modules: [],
+      });
+
+      const code = (await plugin.load("\0virtual:design-tokens"))!;
+      expect(code).toContain("--color-tracer");
+      expect(code).toContain("stylesheet-unreadable");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
