@@ -244,11 +244,7 @@ export const BORDER_CASES: ConformanceFixture[] = [
     expected: {
       catalog: [],
       properties: {
-        ...structuredProps("2px solid var(--missing-token)", { width: "2px", style: "solid", color: "var(--missing-token)" }, {
-          "border-width": {},
-          "border-style": {},
-          "border-color": {},
-        }),
+        "border": { authored: "2px solid var(--missing-token)", capability: "raw" },
       },
     },
   },

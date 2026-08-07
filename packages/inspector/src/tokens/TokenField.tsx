@@ -3,18 +3,11 @@ import type { ReactElement, ReactNode } from "react";
 import { IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import {
-  applyColorOpacity,
-  applyColorTokenReplacement,
-  interpretColorValue,
+  applyValueEdit,
   normalizeOpacityPercent,
+  selectTokens,
 } from "@design-tool/css/value-semantics";
-import type { ColorValueFacts } from "@design-tool/css/model";
-import type { AtRuleContext, ColorOpacity, ResolvedProperty } from "./resolution.ts";
-import {
-  getCompatibleTokenCandidates,
-  groupForProperty,
-  presentationForToken,
-} from "@design-tool/css/value-semantics";
+import type { AtRuleContext, ColorOpacity, ColorValueFacts, ResolvedProperty } from "@design-tool/css/model";
 import type { TokenSemanticSlot } from "@design-tool/css/value-semantics";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
@@ -75,8 +68,17 @@ export interface TokenFieldProps {
   chipVariant?: "default" | "small";
 }
 
-const EMPTY_COLOR_CONTEXT = { tokenTable: {} } as const;
 const NON_COLOR_FACTS: ColorValueFacts = { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: false };
+
+function colorFacts(value: string): ColorValueFacts {
+  return selectTokens({
+    entries: [{ name: "--design-tool-preview", value, source: "runtime" }],
+  }).candidates[0]?.color ?? NON_COLOR_FACTS;
+}
+
+function tokenGroup(entry: TokenEntry) {
+  return selectTokens({ entries: [entry] }).candidates[0]?.group ?? "generic";
+}
 
 function computedRaw(el: HTMLElement, property: string): string {
   const value = getStateStyleValue(el, property);
@@ -247,10 +249,10 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const fieldAtRules = atRules ?? inheritedAtRules;
   const controlledToken = controlledTokenName ? entries.find((entry) => entry.name === controlledTokenName) : null;
   const authoredColor = isColor
-    ? color ?? interpretColorValue(committedValue, EMPTY_COLOR_CONTEXT).facts
+    ? color ?? colorFacts(committedValue)
     : NON_COLOR_FACTS;
   const controlledTokenColor = isColor && controlledToken
-    ? interpretColorValue(controlledToken.value, EMPTY_COLOR_CONTEXT).facts
+    ? colorFacts(controlledToken.value)
     : null;
   const controlledTokenHasEmbeddedAlpha = Boolean(isColor && controlledTokenName
     && (controlledTokenColor?.hasEmbeddedAlpha || (!opacity && authoredColor.hasEmbeddedAlpha)));
@@ -275,7 +277,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     ? entries.find((entry) => entry.name === activeTokenName) ?? { name: activeTokenName, value: resolvedValue, source: "runtime" }
     : null;
   const activeTokenColor = isColor && activeToken
-    ? interpretColorValue(activeToken.value, EMPTY_COLOR_CONTEXT).facts
+    ? colorFacts(activeToken.value)
     : null;
   const activeTokenHasEmbeddedAlpha = Boolean(isColor && activeToken
     && (activeTokenColor?.hasEmbeddedAlpha || (!opacity && activeTokenName === controlledTokenName && authoredColor.hasEmbeddedAlpha)));
@@ -285,13 +287,13 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const relevantTokens = useMemo(() => {
     const candidates = allowedTokenNames
       ? entries.filter((entry) => allowedTokenNames.has(entry.name))
-      : getCompatibleTokenCandidates({
+      : selectTokens({
         element: domElement,
         property,
         slot: semanticSlot,
         entries,
         currentToken: activeTokenName,
-      }).map(({ entry }) => entry);
+      }).candidates.map(({ entry }) => entry);
     return candidates.filter((entry) => entry.name !== property);
   }, [activeTokenName, allowedTokenNames, domElement, entries, property, semanticSlot]);
   const filteredTokens = useMemo(() => {
@@ -464,7 +466,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             value={activeToken.name}
             open={isTokenPickerOpen}
             trigger={(
-              <span className={`dt-token-chip${chipVariant === "small" ? " dt-token-chip--small" : ""}${embedColorSwatch ? " dt-token-chip--with-swatch" : ""}`} data-group={presentationForToken(activeToken).group}>
+              <span className={`dt-token-chip${chipVariant === "small" ? " dt-token-chip--small" : ""}${embedColorSwatch ? " dt-token-chip--with-swatch" : ""}`} data-group={tokenGroup(activeToken)}>
                 {embedColorSwatch ? colorControlEl : null}
                 <span className="dt-token-chip__name">{chipValue}</span>
               </span>
@@ -590,14 +592,14 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       entries={entries}
       suggestions={suggestions}
       inputDataTest={inputDataTest}
-      isColor={groupForProperty(property, semanticSlot) === "color"}
+      isColor={selectTokens({ property, slot: semanticSlot, entries: [] }).preferredGroup === "color"}
       formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(property))}
       onCommitRaw={(value) => {
         if (setStyle(el, property, value, editMetadata)) onAfterEdit?.();
       }}
       onCommitOpacity={(value) => {
         const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? committedValue;
-        const result = applyColorOpacity(authored, value);
+        const result = applyValueEdit({ kind: "color-opacity", authored, opacity: value });
         if (!result.ok || !setStyle(el, property, result.value, editMetadata)) return false;
         onAfterEdit?.();
         return true;
@@ -605,7 +607,12 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       onSelectToken={(chosen) => {
         const targetProperty = tokenRow?.property ?? property;
         if (activeTokenName && tokenBackedOpacityName && currentToken) {
-          const result = applyColorTokenReplacement(authored, currentToken, chosen);
+          const result = applyValueEdit({
+            kind: "color-token",
+            authored,
+            currentToken,
+            nextToken: chosen,
+          });
           if (!result.ok || !setStyle(el, targetProperty, result.value, editMetadata)) return false;
           onAfterEdit?.();
           return true;
@@ -635,7 +642,7 @@ function tokenSuggestion(entry: TokenEntry) {
     value: entry.name,
     label: entry.name,
     "data-test": "suggestion-item",
-    leading: presentationForToken(entry).group === "color" ? <ColorSwatch color={entry.value} size="small" /> : undefined,
+    leading: tokenGroup(entry) === "color" ? <ColorSwatch color={entry.value} size="small" /> : undefined,
     trailing: <span>{entry.value}</span>,
   };
 }

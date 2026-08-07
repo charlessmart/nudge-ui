@@ -25,8 +25,8 @@ async function setInput(page: import("@playwright/test").Page, property: string,
 test("dev: typography conformance gallery exposes CSSOM-declared values", async ({ page }) => {
   await page.goto("/typography-conformance");
 
-  await expect(page.locator(".typography-case")).toHaveCount(6);
-  await expect(page.locator(".typography-conformance-hero__support")).toContainText("6 shared cases");
+  await expect(page.locator(".typography-case")).toHaveCount(7);
+  await expect(page.locator(".typography-conformance-hero__support")).toContainText("7 shared cases");
 
   await page.locator('[data-test="typography-case-type-direct-literals"]').click();
   await waitForEditors(page);
@@ -35,6 +35,23 @@ test("dev: typography conformance gallery exposes CSSOM-declared values", async 
   await expect(page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]')).toHaveValue("1.45");
   await expect(page.locator('[data-test="token-field"][data-property="letter-spacing"] [data-test="raw-input"]')).toHaveValue("-0.0125em");
   await expect(page.locator('[data-test="token-field"][data-property="font-family"] [data-test="raw-input"]')).toHaveValue('"Aster Display"');
+});
+
+test("dev: font shorthand omissions reset earlier longhands", async ({ page }) => {
+  await page.goto("/typography-conformance");
+
+  const shorthand = page.locator('[data-test="typography-case-type-font-shorthand-resets"]');
+  await shorthand.click();
+  await waitForEditors(page);
+
+  await expect(page.locator('[data-test="font-style-field"]')).toContainText("Regular");
+  await expect(page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]'))
+    .toHaveValue("normal");
+  await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]'))
+    .toHaveValue("16px");
+  await expect(shorthand).toHaveCSS("font-style", "normal");
+  await expect(shorthand).toHaveCSS("font-weight", "400");
+  await expect(shorthand).toHaveCSS("line-height", "normal");
 });
 
 test("dev: typography fixture tokens render as chips with type suggestions", async ({ page }) => {

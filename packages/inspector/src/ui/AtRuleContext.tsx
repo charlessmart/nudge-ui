@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Tooltip } from "@base-ui/react/tooltip";
 import { IconAt } from "@tabler/icons-react";
-import type { AtRuleContext, ResolvedProperty } from "../tokens/resolution.ts";
+import type { AtRuleContext, ResolvedProperty } from "@design-tool/css/model";
 
 const EMPTY_AT_RULES: readonly AtRuleContext[] = [];
 const FieldAtRuleContext = createContext<ReadonlyMap<string, readonly AtRuleContext[]>>(new Map());

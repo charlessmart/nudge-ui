@@ -1,6 +1,6 @@
 import type { ReactNode, ReactElement } from "react";
 import { formatInspectorLabel } from "./labels.ts";
-import type { AtRuleContext } from "../tokens/resolution.ts";
+import type { AtRuleContext } from "@design-tool/css/model";
 import { AtRuleIndicator, useFieldAtRules } from "./AtRuleContext.tsx";
 
 export interface FieldRowProps {

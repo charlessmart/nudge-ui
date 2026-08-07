@@ -6,7 +6,7 @@ import { BorderRadiusEditor } from "./BorderRadiusEditor.tsx";
 import { BoxShadowEditor } from "./BoxShadowEditor.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "../tokens/resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import {
   makeSelected,
   mount,

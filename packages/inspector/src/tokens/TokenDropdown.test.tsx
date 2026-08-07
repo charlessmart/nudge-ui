@@ -5,10 +5,11 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { TokenDropdown } from "./TokenDropdown.tsx";
-import { getCompatibleTokenCandidates, presentationForToken } from "@design-tool/css/value-semantics";
+import { selectTokens } from "@design-tool/css/value-semantics";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "./resolution.ts";
-import { resetPendingRules } from "./editActions.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
+import { getChangeRecords, resetPendingRules } from "./editActions.ts";
+import { isElementChange } from "../changesLog.ts";
 import { selectOptionValues, setSelectValue } from "../styleEditors/_testUtils.ts";
 import { getManagedSheetText } from "../managedStylesheet.ts";
 
@@ -25,7 +26,9 @@ const ENTRIES: TokenEntry[] = [
 
 describe("token presentation", () => {
   it("groups familiar names in the one compatibility module", () => {
-    const group = (name: string) => presentationForToken({ name, value: "", source: "fixture.css:1" }).group;
+    const group = (name: string) => selectTokens({
+      entries: [{ name, value: "", source: "fixture.css:1" }],
+    }).candidates[0]?.group;
     expect(group("--color-surface-raised")).toBe("color");
     expect(group("--space-1")).toBe("spacing");
     expect(group("--radius-md")).toBe("radius");
@@ -35,9 +38,9 @@ describe("token presentation", () => {
   });
 });
 
-describe("getCompatibleTokenCandidates", () => {
+describe("selectTokens", () => {
   function alternativeNames(property: string, currentToken: string | null): string[] {
-    return getCompatibleTokenCandidates({ property, entries: ENTRIES, currentToken }).map(({ entry }) => entry.name);
+    return selectTokens({ property, entries: ENTRIES, currentToken }).candidates.map(({ entry }) => entry.name);
   }
 
   it("for a background property returns only color tokens", () => {
@@ -61,7 +64,9 @@ describe("getCompatibleTokenCandidates", () => {
   });
 
   it("classifies type, leading, and tracking aliases as typography", () => {
-    const group = (name: string) => presentationForToken({ name, value: "", source: "fixture.css:1" }).group;
+    const group = (name: string) => selectTokens({
+      entries: [{ name, value: "", source: "fixture.css:1" }],
+    }).candidates[0]?.group;
     expect(group("--type-size-body")).toBe("typography");
     expect(group("--leading-body")).toBe("typography");
     expect(group("--tracking-tight")).toBe("typography");
@@ -199,6 +204,30 @@ describe("TokenDropdown rendering", () => {
     setSelectValue(select, "--color-surface-sunken");
     const sheetText = getManagedSheetText();
     expect(sheetText).toContain("background: var(--color-surface-sunken);");
+    btn.remove();
+  });
+
+  it("resolves the old token from inspection entries instead of the global resolver table", () => {
+    const btn = makeButton();
+    const entries: TokenEntry[] = [
+      { name: "theme.surface.raised", cssName: "--surface-raised", value: "#fff", source: "theme.css:1" },
+      { name: "theme.surface.sunken", cssName: "--surface-sunken", value: "#eee", source: "theme.css:2" },
+    ];
+    act(() => {
+      root.render(createElement(TokenDropdown, {
+        row: makeRow("background", "--surface-raised"),
+        domElement: btn,
+        entries,
+      }));
+    });
+
+    setSelectValue(host.querySelector('[data-test="token-select"]') as HTMLElement, "theme.surface.sunken");
+
+    const change = getChangeRecords()[0];
+    expect(change && isElementChange(change) ? change.oldToken : null).toMatchObject({
+      name: "theme.surface.raised",
+      cssName: "--surface-raised",
+    });
     btn.remove();
   });
 });

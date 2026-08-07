@@ -118,6 +118,28 @@ export const TYPOGRAPHY_CASES: ConformanceFixture[] = [
     },
   },
   {
+    id: "type-font-shorthand-resets",
+    css: `.subject {
+  font-style: italic;
+  font-weight: 700;
+  line-height: 2;
+  font: 16px Arial, sans-serif;
+}`,
+    markup: '<p class="subject" data-cid="TypographyCase" data-src="fixtures/typography.tsx:5:1">An omitted shorthand component still resets an earlier longhand.</p>',
+    selected: ".subject",
+    catalog: [],
+    expected: {
+      catalog: [],
+      properties: {
+        "font-family": { authored: "Arial, sans-serif", capability: "composite" },
+        "font-size": { authored: "16px", capability: "atomic" },
+        "font-style": { authored: "normal", capability: "raw" },
+        "font-weight": { authored: "normal", capability: "raw" },
+        "line-height": { authored: "normal", capability: "raw" },
+      },
+    },
+  },
+  {
     id: "type-keywords-and-negative-tracking",
     css: `.subject {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -126,7 +148,7 @@ export const TYPOGRAPHY_CASES: ConformanceFixture[] = [
   line-height: normal;
   letter-spacing: -1px;
 }`,
-    markup: '<p class="subject" data-cid="TypographyCase" data-src="fixtures/typography.tsx:5:1">Keywords should not be normalised into guessed values.</p>',
+    markup: '<p class="subject" data-cid="TypographyCase" data-src="fixtures/typography.tsx:6:1">Keywords should not be normalised into guessed values.</p>',
     selected: ".subject",
     catalog: [],
     expected: {
@@ -143,7 +165,7 @@ export const TYPOGRAPHY_CASES: ConformanceFixture[] = [
   {
     id: "type-var-fallback-family",
     css: '.subject { font-family: var(--type-family-body, Georgia, serif); font-size: 16px; }',
-    markup: '<p class="subject" data-cid="TypographyCase" data-src="fixtures/typography.tsx:6:1">A family fallback retains commas inside the raw authored value.</p>',
+    markup: '<p class="subject" data-cid="TypographyCase" data-src="fixtures/typography.tsx:7:1">A family fallback retains commas inside the raw authored value.</p>',
     selected: ".subject",
     catalog: [TYPE_FAMILY],
     expected: {

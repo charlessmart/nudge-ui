@@ -7,6 +7,7 @@ const SPECIMENS: Record<string, string> = {
   "type-tokenized-longhands": "A token-backed paragraph keeps its rhythm across surfaces.",
   "type-functional-raw": "Functional values remain editable exactly as they were authored.",
   "type-font-shorthand": "A shorthand still yields safe longhand controls.",
+  "type-font-shorthand-resets": "An omitted shorthand component still resets an earlier longhand.",
   "type-keywords-and-negative-tracking": "Keywords should not be normalised into guessed values.",
   "type-var-fallback-family": "A family fallback retains commas inside the raw authored value.",
 };

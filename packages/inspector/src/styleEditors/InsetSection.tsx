@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { IconMinus, IconPlus } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "../tokens/resolution.ts";
+import type { ResolvedProperty } from "@design-tool/css/model";
 import type { SelectedElement } from "../selectionStore.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { setStyles } from "../tokens/editActions.ts";
