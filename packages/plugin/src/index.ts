@@ -188,6 +188,13 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
   let postTransformPromise: Promise<void> | null = null;
   const inventory = createTokenInventory();
   const activeHostCssFiles = new Set<string>();
+  // Ordering belongs to the stylesheet artifact, rather than to one particular
+  // authored/transformed observation. A transform hook has no import-graph
+  // ordering information of its own.
+  const stylesheetOrdering = new Map<string, { order?: number; discoveryOrder?: number }>();
+  // Before Vite has built its module graph, these are the discovered host CSS
+  // candidates that can supply a transformed first virtual-module snapshot.
+  const discoveredHostCssFiles = new Set<string>();
   let activePackageCssFiles = new Set<string>();
   let publishedThemeContract: ThemeContract | null = null;
   let publishedThemeContractModuleId: string | null = null;
@@ -244,11 +251,14 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     if (isGeneratedBuildOutput(fileId)) return;
+    if (ordering.order !== undefined || ordering.discoveryOrder !== undefined) {
+      stylesheetOrdering.set(fileId, { ...ordering });
+    }
     const artifact = createViteStylesheetArtifact({
       id: fileId,
       projectRoot: root,
       stage,
-      ...ordering,
+      ...(stylesheetOrdering.get(fileId) ?? ordering),
       content: code,
     });
     inventory.apply(artifact);
@@ -258,6 +268,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
   /** Drop every observation and temporary provenance fact for one stylesheet. */
   function feedCssRemoval(id: string): void {
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
+    stylesheetOrdering.delete(fileId);
+    discoveredHostCssFiles.delete(fileId);
     const artifact = createViteStylesheetArtifact({
       id: fileId,
       projectRoot: root,
@@ -512,7 +524,10 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     // the companion observer plugin below without activating dead CSS files.
     postTransformPromise = (async () => {
       await refreshActiveStylesheetTokens();
-      await Promise.all([...activeHostCssFiles].map(async (cssPath) => {
+      const cssPaths = activeHostCssFiles.size > 0
+        ? activeHostCssFiles
+        : discoveredHostCssFiles;
+      await Promise.all([...cssPaths].map(async (cssPath) => {
         try {
           await devServer!.transformRequest(cssPath);
         } catch {
@@ -555,6 +570,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
       for (const cssPath of scanCssFiles(root, [], root, buildOutputDirectory)) {
         try {
           const code = readFileSync(cssPath, "utf8");
+          if (isHostApplicationSource(cssPath, root)) discoveredHostCssFiles.add(cssPath);
           feedCssArtifact(cssPath, code, "authored");
         } catch {
           const rel = catalogSourcePath(cssPath, root);
@@ -630,7 +646,10 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
         if (command === "build") return null; // dev-only per ADR-0002
         if (CSS_EXT.test(id)) {
           const fileId = stripCssQuery(id);
-          if (isHostApplicationSource(fileId, root)) activeHostCssFiles.add(fileId);
+          if (isHostApplicationSource(fileId, root)) {
+            activeHostCssFiles.add(fileId);
+            discoveredHostCssFiles.add(fileId);
+          }
           feedCssArtifact(id, code, "authored");
           return null; // let Vite's CSS pipeline handle the actual stylesheet
         }
@@ -704,7 +723,17 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
         hasAuthoredObservation = true;
         feedCssArtifact(ctx.file, code, "authored");
       } catch {
-        feedCssRemoval(ctx.file);
+        const fileId = stripCssQuery(ctx.file);
+        if (!existsSync(fileId)) {
+          feedCssRemoval(ctx.file);
+        } else {
+          const rel = catalogSourcePath(fileId, root);
+          sourceScanDiagnostics.set(rel, {
+            code: "stylesheet-unreadable",
+            artifact: rel,
+            message: `Could not read stylesheet ${rel}. Keeping its last valid token inventory entry.`,
+          });
+        }
       }
 
       await refreshActiveStylesheetTokens();
@@ -753,6 +782,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     transform(code, id) {
       if (!enabled || command !== "serve" || !CSS_EXT.test(id)) return null;
       feedCssArtifact(id, code, "transformed");
+      const virtual = devServer?.moduleGraph.getModuleById(RESOLVED_TOKENS_ID);
+      if (virtual) devServer?.moduleGraph.invalidateModule(virtual);
       return null;
     },
   };

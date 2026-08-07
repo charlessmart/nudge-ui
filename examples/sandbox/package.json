@@ -16,6 +16,7 @@
     "perf:baseline": "PERF_RECORD_BASELINE=1 playwright test --project=perf"
   },
   "dependencies": {
+    "@design-tool/css": "workspace:*",
     "@design-tool/inspector": "workspace:*",
     "@design-tool/package-css-fixture": "workspace:*",
     "@design-tool/plugin": "workspace:*",

@@ -206,7 +206,7 @@ function adapterDeclaration(
 ): InventoryTokenDeclaration {
   const key = entry.cssName ?? entry.name;
   return {
-    id: `adapter\x00${contributionId}\x00${key}\x00${entry.source}\x00${entry.value}`,
+    id: `adapter\x00${contributionId}\x00${key}\x00${entry.source}`,
     order,
     value: entry.value,
     source: entry.source,

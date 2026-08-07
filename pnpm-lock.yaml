@@ -75,6 +75,9 @@ importers:
 
   examples/sandbox:
     dependencies:
+      '@design-tool/css':
+        specifier: workspace:*
+        version: link:../../packages/css
       '@design-tool/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector

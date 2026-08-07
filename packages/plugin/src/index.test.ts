@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createTokenInventory } from "@design-tool/css/token-inventory";
@@ -333,6 +333,90 @@ describe("designTool token catalog compiler", () => {
     }
   });
 
+  it("retains graph ordering when the CSS transform observes the stylesheet again", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-transform-order-"));
+    const appCss = join(root, "app.css");
+    try {
+      writeFileSync(appCss, ":root { --brand: #123456; }");
+      type MainPlugin = {
+        transform?: { handler?: (code: string, id: string) => unknown };
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      };
+      let mainPlugin: MainPlugin;
+      let transformedObserver: {
+        transform?: (code: string, id: string) => unknown;
+      };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async (id: string) => {
+          const code = readFileSync(id, "utf8");
+          mainPlugin.transform?.handler?.(code, id);
+          transformedObserver.transform?.(code, id);
+        },
+        moduleGraph: activeModuleGraph(appCss),
+      };
+      const plugins = createDesignToolPlugins() as unknown as [MainPlugin, typeof transformedObserver];
+      [mainPlugin, transformedObserver] = plugins;
+      mainPlugin.configResolved({ root, command: "serve" });
+      mainPlugin.configureServer(server);
+      mainPlugin.buildStart();
+
+      const code = await mainPlugin.load("\0virtual:design-tokens");
+      const catalog = JSON.parse(
+        code!.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]",
+      ) as Array<{ cssName: string; declarations: Array<{
+        contribution: { orderEvidence: { kind: string; index: number } };
+      }> }>;
+
+      expect(catalog.find((definition) => definition.cssName === "--brand")?.declarations[0]
+        ?.contribution.orderEvidence).toEqual({ kind: "stylesheet", index: 0 });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("transforms discovered host CSS before a cold virtual token-module load", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-cold-transform-"));
+    const appCss = join(root, "app.css");
+    try {
+      writeFileSync(appCss, "@theme { --color-brand: #123456; }");
+      const virtual = { id: "\0virtual:design-tokens" };
+      const invalidated: unknown[] = [];
+      const transformed = ':root { --color-brand: #123456; --tw-brand-opacity: 1; }';
+      let transformedObserver: { transform?: (code: string, id: string) => unknown };
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async (id: string) => {
+          transformedObserver.transform?.(transformed, id);
+        },
+        moduleGraph: {
+          idToModuleMap: new Map(),
+          getModuleById: (id: string) => id === "\0virtual:design-tokens" ? virtual : undefined,
+          invalidateModule: (module: unknown) => { invalidated.push(module); },
+        },
+      };
+      const [plugin, observer] = createDesignToolPlugins() as unknown as [{
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        load(id: string): string | null | Promise<string | null>;
+      }, typeof transformedObserver];
+      transformedObserver = observer;
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+
+      const code = await plugin.load("\0virtual:design-tokens");
+      expect(code).toContain("--tw-brand-opacity");
+      expect(invalidated).toContain(virtual);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("removes package CSS when component HMR drops its stylesheet import", async () => {
     const parent = mkdtempSync(join(tmpdir(), "design-tool-component-css-hmr-"));
     const root = join(parent, "app");
@@ -602,6 +686,7 @@ describe("designTool token catalog compiler", () => {
       plugin.buildStart!();
 
       let code = await plugin.load!("\0virtual:design-tokens");
+      const firstGeneration = JSON.parse(/export const tokenGeneration = (.*);/.exec(code!)![1]!) as string;
       expect(code).toContain('"name":"theme.color.content.primary"');
       expect(code).toContain('"value":"#20211f"');
       expect(code).toContain('"origin":"package"');
@@ -615,8 +700,10 @@ describe("designTool token catalog compiler", () => {
         modules: [],
       });
       code = await plugin.load!("\0virtual:design-tokens");
+      const secondGeneration = JSON.parse(/export const tokenGeneration = (.*);/.exec(code!)![1]!) as string;
       expect(code).toContain('"name":"theme.color.content.secondary"');
       expect(code).not.toContain('"name":"theme.color.content.primary"');
+      expect(secondGeneration).not.toBe(firstGeneration);
     } finally {
       rmSync(parent, { recursive: true, force: true });
     }
