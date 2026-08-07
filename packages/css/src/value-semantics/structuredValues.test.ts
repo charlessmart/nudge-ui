@@ -347,6 +347,22 @@ describe("interpretStructuredValue — border-radius corners", () => {
     expect(fields[0]?.capability).toBe("raw");
   });
 
+  it("keeps slash-separated radius values introduced by a token conservative", () => {
+    const fields = interpretStructuredValue("border-radius", "var(--radius-ellipse)", ctx(table([
+      entry("--radius-ellipse", "8px / 4px"),
+    ])));
+
+    expect(fields).toEqual([
+      expect.objectContaining({
+        property: "border-radius",
+        declaredValue: "var(--radius-ellipse)",
+        tokenName: "--radius-ellipse",
+        capability: "raw",
+        diagnostic: "unsupported structured value for border-radius",
+      }),
+    ]);
+  });
+
   it("keeps too-many-value radius forms conservative", () => {
     const fields = interpretStructuredValue("border-radius", "2px 4px 6px 8px 10px", ctx(table([])));
     expect(fields).toHaveLength(1);
@@ -365,6 +381,17 @@ describe("interpretStructuredValue — supported font decomposition", () => {
     // as the legacy resolver projected them.
     expect(byProp.get("font-style")).toMatchObject({ declaredValue: "italic", capability: "raw" });
     expect(byProp.get("line-height")).toMatchObject({ declaredValue: "1.4", capability: "atomic" });
+  });
+
+  it("projects the reset values implied by omitted font shorthand components", () => {
+    const fields = interpretStructuredValue("font", "16px Arial", ctx(table([])));
+    const byProp = fieldMap(fields);
+
+    expect(byProp.get("font-family")).toMatchObject({ declaredValue: "Arial", sourceProperty: "font" });
+    expect(byProp.get("font-size")).toMatchObject({ declaredValue: "16px", sourceProperty: "font" });
+    expect(byProp.get("font-style")).toMatchObject({ declaredValue: "normal", sourceProperty: "font" });
+    expect(byProp.get("font-weight")).toMatchObject({ declaredValue: "normal", sourceProperty: "font" });
+    expect(byProp.get("line-height")).toMatchObject({ declaredValue: "normal", sourceProperty: "font" });
   });
 
   it("keeps system-font shorthands raw", () => {
@@ -395,6 +422,28 @@ describe("interpretStructuredValue — supported font decomposition", () => {
         diagnostic: "unsupported structured value for font",
       });
     }
+  });
+});
+
+describe("interpretStructuredValue — conservative diagnostics", () => {
+  it.each([
+    ["box-shadow", "0 1px 2px #000"],
+    ["transform", "translateX(1rem)"],
+    ["transition", "opacity 100ms ease"],
+    ["animation", "fade 1s linear"],
+    ["grid-template-columns", "repeat(auto-fit, minmax(10rem, 1fr))"],
+    ["background-image", "linear-gradient(red, blue)"],
+  ])("diagnoses unsupported %s values", (property, authored) => {
+    const fields = interpretStructuredValue(property, authored, ctx(table([])));
+
+    expect(fields).toEqual([
+      expect.objectContaining({
+        property,
+        declaredValue: authored,
+        capability: "composite",
+        diagnostic: `unsupported composite value for ${property}`,
+      }),
+    ]);
   });
 });
 

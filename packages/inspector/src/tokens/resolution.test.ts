@@ -2,11 +2,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   buildTokenTable,
-  createTokenInterpretationContext,
   getAvailableTokenCatalog,
   getAvailableTokenEntriesForElement,
   getResolvedProperties,
-  resolvePropertiesFromRules,
+  resolveRuleFixture,
   getAvailableInteractionStates,
   getResolvedPropertiesForState,
   getResolvedPropertiesStable,
@@ -14,7 +13,8 @@ import {
   resetSourceSiteMatchCache,
   sourceSiteMatchCacheSize,
 } from "./resolution.ts";
-import { interpretTokenValue } from "@design-tool/css/value-semantics";
+import { interpretValue } from "@design-tool/css/value-semantics";
+import { createInspectorValueContext } from "./valueSemanticsAdapter.ts";
 import type { MatchedRule, TokenTable } from "@design-tool/css/model";
 import { unlinkElement } from "../editScope.ts";
 import {
@@ -32,14 +32,14 @@ function makeTable(entries: TokenEntry[]): TokenTable {
 /**
  * Local projection of the value-semantics Module with the resolution
  * integration context. Mirrors the resolver's internal `resolveTokenValue`
- * without depending on the legacy resolver re-exporting it.
+ * without depending on resolver-private implementation helpers.
  */
 function resolveTokenValue(
   value: string,
   table: TokenTable,
   localAliases: ReadonlyMap<string, string> = new Map(),
-): ReturnType<typeof interpretTokenValue> {
-  return interpretTokenValue(value, createTokenInterpretationContext(table, localAliases));
+): ReturnType<typeof interpretValue>[number] {
+  return interpretValue("--design-tool-token", value, createInspectorValueContext(table, localAliases))[0]!;
 }
 
 describe("buildTokenTable", () => {
@@ -578,7 +578,7 @@ describe("resolveTokenValue", () => {
     const element = document.createElement("div");
     element.className = "bg-brand";
     const table = makeTable([{ name: "theme.colors.brand", cssName: "--tw-v3-brand", value: "#123456", source: "tailwind.config.js:1", adapter: "tailwind-v3", origin: "project" }]);
-    const rows = resolvePropertiesFromRules(element, [
+    const rows = resolveRuleFixture(element, [
       { selectorText: ".bg-brand", specificity: 10000, sourceOrder: 0, declarations: [{ property: "--tw-bg-opacity", value: "0.1" }] },
       { selectorText: ".bg-brand", specificity: 10000, sourceOrder: 1, declarations: [{ property: "background-color", value: "rgb(18 52 86 / var(--tw-bg-opacity))" }] },
     ], table);
@@ -627,7 +627,7 @@ describe("resolveTokenValue", () => {
   it("resolves local custom-property aliases to their concrete leaf value", () => {
     const element = document.createElement("div");
     element.className = "subject";
-    const rows = resolvePropertiesFromRules(element, [{
+    const rows = resolveRuleFixture(element, [{
       selectorText: ".subject",
       specificity: 10000,
       sourceOrder: 0,
@@ -704,7 +704,7 @@ describe("resolveTokenValue", () => {
     ]);
     const element = document.createElement("div");
     element.className = "text-3xl leading-tight";
-    const result = resolvePropertiesFromRules(element, [
+    const result = resolveRuleFixture(element, [
       {
         selectorText: ".leading-tight",
         sourceOrder: 0,
@@ -727,7 +727,7 @@ describe("resolveTokenValue", () => {
 });
 
 function resolutionCycle(value: string, table: TokenTable): string {
-  return resolveTokenValue(value, table).cycle ?? "";
+  return resolveTokenValue(value, table).diagnostic?.replace("custom-property alias cycle includes ", "") ?? "";
 }
 
 describe("interaction-state resolution", () => {
@@ -908,7 +908,7 @@ describe("computeSpecificity", () => {
   });
 });
 
-describe("resolvePropertiesFromRules", () => {
+describe("resolveRuleFixture", () => {
   let btn: HTMLButtonElement;
 
   beforeEach(() => {
@@ -923,7 +923,7 @@ describe("resolvePropertiesFromRules", () => {
   });
 
   it("decomposes an unambiguous font shorthand while retaining font provenance", () => {
-    const rows = resolvePropertiesFromRules(btn, [{
+    const rows = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10000,
       declarations: [{ property: "font", value: 'italic 700 1.25rem / 1.4 "Aster Display", Georgia, serif' }],
@@ -951,8 +951,33 @@ describe("resolvePropertiesFromRules", () => {
     });
   });
 
+  it("lets a later font shorthand reset earlier supported longhands", () => {
+    const rows = resolveRuleFixture(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [
+        { property: "font-weight", value: "700" },
+        { property: "font-style", value: "italic" },
+        { property: "font", value: "16px Arial" },
+      ],
+    }], makeTable([]));
+
+    expect(rows.find((row) => row.property === "font-weight")).toMatchObject({
+      authored: "normal",
+      sourceProperty: "font",
+    });
+    expect(rows.find((row) => row.property === "font-style")).toMatchObject({
+      authored: "normal",
+      sourceProperty: "font",
+    });
+    expect(rows.find((row) => row.property === "line-height")).toMatchObject({
+      authored: "normal",
+      sourceProperty: "font",
+    });
+  });
+
   it("leaves system font shorthands raw instead of inventing longhands", () => {
-    const rows = resolvePropertiesFromRules(btn, [{
+    const rows = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10000,
       declarations: [{ property: "font", value: "menu" }],
@@ -987,7 +1012,7 @@ describe("resolvePropertiesFromRules", () => {
       },
     ];
 
-    const result = resolvePropertiesFromRules(btn, rules, table);
+    const result = resolveRuleFixture(btn, rules, table);
     const byProp = new Map(result.map((r) => [r.property, r]));
 
     expect(result).toHaveLength(25);
@@ -1024,7 +1049,7 @@ describe("resolvePropertiesFromRules", () => {
       { name: "--color-border", value: "#334455", source: "s:1" },
       { name: "--width", value: "1px", source: "s:2" },
     ]);
-    const rows = resolvePropertiesFromRules(btn, [{ selectorText: ".btn", specificity: 10000, declarations: [{ property: "border", value }] }], table);
+    const rows = resolveRuleFixture(btn, [{ selectorText: ".btn", specificity: 10000, declarations: [{ property: "border", value }] }], table);
     expect(rows.find((row) => row.property === "border-width")?.structure).toMatchObject({ width, style, color });
     expect(rows.find((row) => row.property === "border-width")?.resolvedValue).toBe(width === "var(--width)" ? "1px" : width);
     expect(rows.find((row) => row.property === "border-style")?.resolvedValue).toBe(style);
@@ -1035,7 +1060,7 @@ describe("resolvePropertiesFromRules", () => {
   });
 
   it("retains width-token attribution from a border shorthand", () => {
-    const rows = resolvePropertiesFromRules(btn, [{
+    const rows = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10000,
       declarations: [{ property: "border", value: "var(--width) solid red" }],
@@ -1049,14 +1074,14 @@ describe("resolvePropertiesFromRules", () => {
   it("reads directionality at most once and only when logical properties need it", () => {
     const getComputedStyle = vi.spyOn(window, "getComputedStyle");
     try {
-      resolvePropertiesFromRules(btn, [{
+      resolveRuleFixture(btn, [{
         selectorText: ".btn",
         specificity: 10000,
         declarations: Array.from({ length: 20 }, (_, index) => ({ property: `--plain-${index}`, value: `${index}px` })),
       }], makeTable([]));
       expect(getComputedStyle).not.toHaveBeenCalled();
 
-      resolvePropertiesFromRules(btn, [{
+      resolveRuleFixture(btn, [{
         selectorText: ".btn",
         specificity: 10000,
         declarations: [
@@ -1073,7 +1098,7 @@ describe("resolvePropertiesFromRules", () => {
   it.each(["2px solid red / 10%", "inherit", "2px solid red url(x)", "2px solid var(--unknown)"])(
     "keeps ambiguous border value %s raw",
     (value) => {
-      const row = resolvePropertiesFromRules(btn, [{ selectorText: ".btn", specificity: 10000, declarations: [{ property: "border", value }] }], makeTable([])).find((candidate) => candidate.property === "border");
+      const row = resolveRuleFixture(btn, [{ selectorText: ".btn", specificity: 10000, declarations: [{ property: "border", value }] }], makeTable([])).find((candidate) => candidate.property === "border");
       expect(row?.capability).toBe("raw");
       expect(row?.authored).toBe(value);
       expect(row?.diagnostic).toContain("unsupported structured value");
@@ -1082,7 +1107,7 @@ describe("resolvePropertiesFromRules", () => {
 
   it("does not promote a diagnosed structured fallback into an editable value", () => {
     const value = "calc(var(--space) * 2) 2px 3px 4px 5px";
-    const row = resolvePropertiesFromRules(btn, [{
+    const row = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10000,
       declarations: [{ property: "padding", value }],
@@ -1096,7 +1121,7 @@ describe("resolvePropertiesFromRules", () => {
 
   it("classifies a simple calc() as atomic when variables resolve and the property is not spacing", () => {
     const value = "calc(var(--space-1) * 2)";
-    const row = resolvePropertiesFromRules(btn, [{
+    const row = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10000,
       declarations: [{ property: "width", value }],
@@ -1107,7 +1132,7 @@ describe("resolvePropertiesFromRules", () => {
 
   it("keeps functional spacing expressions raw while preserving side attribution", () => {
     const value = "clamp(8px, var(--space-1), 24px)";
-    const rows = resolvePropertiesFromRules(btn, [{
+    const rows = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10000,
       declarations: [{ property: "padding", value }],
@@ -1120,7 +1145,7 @@ describe("resolvePropertiesFromRules", () => {
 
   it("recovers a Tailwind v4 opacity token when CSSOM has substituted its value", () => {
     btn.className = "bg-red-500/10";
-    const rows = resolvePropertiesFromRules(btn, [{
+    const rows = resolveRuleFixture(btn, [{
       selectorText: '[class~="bg-red-500/10"]',
       specificity: 10000,
       declarations: [{ property: "background-color", value: "color-mix(in srgb, oklch(63% .2 25) 10%, transparent)" }],
@@ -1140,7 +1165,7 @@ describe("resolvePropertiesFromRules", () => {
     ["8px 16px 24px", ["8px", "16px", "24px", "16px"]],
     ["8px 16px 24px 32px", ["8px", "16px", "24px", "32px"]],
   ] as const)("expands a %s margin shorthand into top/right/bottom/left", (value, expected) => {
-    const result = resolvePropertiesFromRules(btn, [
+    const result = resolveRuleFixture(btn, [
       {
         selectorText: ".btn",
         specificity: 10000,
@@ -1156,7 +1181,7 @@ describe("resolvePropertiesFromRules", () => {
   });
 
   it("keeps each side's token attribution when a padding shorthand uses multiple tokens", () => {
-    const result = resolvePropertiesFromRules(btn, [
+    const result = resolveRuleFixture(btn, [
       {
         selectorText: ".btn",
         specificity: 10000,
@@ -1181,7 +1206,7 @@ describe("resolvePropertiesFromRules", () => {
       { name: "--space-inline", value: "16px", source: "fixture.css:1" },
       { name: "--space-block", value: "8px", source: "fixture.css:2" },
     ]);
-    const rows = resolvePropertiesFromRules(btn, [
+    const rows = resolveRuleFixture(btn, [
       {
         selectorText: "*",
         specificity: 0,
@@ -1229,7 +1254,7 @@ describe("resolvePropertiesFromRules", () => {
   it("maps logical start sides through direction and writing mode", () => {
     const table = makeTable([{ name: "--space", value: "8px", source: "fixture.css:1" }]);
     btn.style.direction = "rtl";
-    let rows = resolvePropertiesFromRules(btn, [{
+    let rows = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10000,
       declarations: [{ property: "padding-inline-start", value: "var(--space)" }],
@@ -1237,7 +1262,7 @@ describe("resolvePropertiesFromRules", () => {
     expect(rows.find((row) => row.property === "padding-right")).toMatchObject({ tokenName: "--space", sourceProperty: "padding-inline-start" });
     expect(rows.some((row) => row.property === "padding-left")).toBe(false);
 
-    rows = resolvePropertiesFromRules(btn, [{
+    rows = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10000,
       declarations: [{ property: "inset-inline-start", value: "var(--space)" }],
@@ -1246,7 +1271,7 @@ describe("resolvePropertiesFromRules", () => {
 
     btn.style.direction = "ltr";
     btn.style.writingMode = "vertical-rl";
-    rows = resolvePropertiesFromRules(btn, [{
+    rows = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10000,
       declarations: [{ property: "margin-block-start", value: "var(--space)" }],
@@ -1265,7 +1290,7 @@ describe("resolvePropertiesFromRules", () => {
         declarations: [{ property: "background", value: "var(--color-surface-raised)" }],
       },
     ];
-    expect(resolvePropertiesFromRules(btn, rules, table)).toEqual([]);
+    expect(resolveRuleFixture(btn, rules, table)).toEqual([]);
   });
 
   it("higher specificity wins regardless of stylesheet order", () => {
@@ -1285,7 +1310,7 @@ describe("resolvePropertiesFromRules", () => {
         declarations: [{ property: "padding", value: "var(--space-2)" }],
       },
     ];
-    const result = resolvePropertiesFromRules(btn, rules, table);
+    const result = resolveRuleFixture(btn, rules, table);
     expect(result).toHaveLength(4);
     expect(result.find((row) => row.property === "padding-top")?.tokenName).toBe("--space-2");
     expect(result.find((row) => row.property === "padding-top")?.resolvedValue).toBe("8px");
@@ -1309,7 +1334,7 @@ describe("resolvePropertiesFromRules", () => {
       },
     ];
     // button.btn (spec 10100) beats * (spec 0) even though it comes first
-    const result = resolvePropertiesFromRules(btn, rules, table);
+    const result = resolveRuleFixture(btn, rules, table);
     expect(result).toHaveLength(4);
     expect(result.find((row) => row.property === "padding-top")?.tokenName).toBe("--space-1");
     expect(result.find((row) => row.property === "padding-top")?.resolvedValue).toBe("4px");
@@ -1322,7 +1347,7 @@ describe("resolvePropertiesFromRules", () => {
       value: `var(--space-1)`,
     }));
     const rules: MatchedRule[] = [{ selectorText: ".btn", specificity: 10000, declarations }];
-    const result = resolvePropertiesFromRules(btn, rules, table);
+    const result = resolveRuleFixture(btn, rules, table);
     expect(result.length).toBeLessThanOrEqual(100);
   });
 
@@ -1331,7 +1356,7 @@ describe("resolvePropertiesFromRules", () => {
       { name: "--low", value: "red", source: "s:1" },
       { name: "--high", value: "blue", source: "s:2" },
     ]);
-    const result = resolvePropertiesFromRules(btn, [
+    const result = resolveRuleFixture(btn, [
       { selectorText: "#never, .btn", specificity: 1_000_000, sourceOrder: 0, declarations: [{ property: "color", value: "var(--low)" }] },
       { selectorText: "button.btn", specificity: 10_100, sourceOrder: 1, declarations: [{ property: "color", value: "var(--high)" }] },
     ], table);
@@ -1341,14 +1366,14 @@ describe("resolvePropertiesFromRules", () => {
 
   it("excludes inactive conditional candidates", () => {
     const table = makeTable([{ name: "--active", value: "red", source: "s:1" }]);
-    expect(resolvePropertiesFromRules(btn, [
+    expect(resolveRuleFixture(btn, [
       { selectorText: ".btn", specificity: 10_000, active: false, declarations: [{ property: "color", value: "var(--active)" }] },
     ], table)).toEqual([]);
   });
 
   it("retains the active responsive context on the winning declaration", () => {
     const table = makeTable([]);
-    const result = resolvePropertiesFromRules(btn, [
+    const result = resolveRuleFixture(btn, [
       {
         selectorText: ".btn",
         specificity: 10_000,
@@ -1393,7 +1418,7 @@ describe("resolvePropertiesFromRules", () => {
       },
     ];
 
-    expect(resolvePropertiesFromRules(btn, rules, makeTable([
+    expect(resolveRuleFixture(btn, rules, makeTable([
       { name: "--color-primary", value: "#2563eb", source: "tailwind.css:1" },
     ])).find((row) => row.property === "background-color")).toMatchObject({
       declaredValue: "#2563eb",
@@ -1404,7 +1429,7 @@ describe("resolvePropertiesFromRules", () => {
       configurable: true,
       value: { supports: () => true },
     });
-    expect(resolvePropertiesFromRules(btn, rules, makeTable([
+    expect(resolveRuleFixture(btn, rules, makeTable([
       { name: "--color-primary", value: "#2563eb", source: "tailwind.css:1" },
     ])).find((row) => row.property === "background-color")).toMatchObject({
       declaredValue: "var(--color-primary)",
@@ -1421,7 +1446,7 @@ describe("resolvePropertiesFromRules", () => {
       { name: "--important", value: "red", source: "s:1" },
       { name: "--later", value: "blue", source: "s:2" },
     ]);
-    const result = resolvePropertiesFromRules(btn, [
+    const result = resolveRuleFixture(btn, [
       { selectorText: ".btn", specificity: 10_000, sourceOrder: 0, layer: "theme", declarations: [{ property: "color", value: "var(--important)", important: true }] },
       { selectorText: ".btn", specificity: 10_000, sourceOrder: 1, declarations: [{ property: "color", value: "var(--later)" }] },
     ], table);
@@ -1453,14 +1478,14 @@ describe("resolvePropertiesFromRules", () => {
       },
     ];
 
-    expect(resolvePropertiesFromRules(btn, rules, table)[0]?.tokenName).toBe("--theme");
+    expect(resolveRuleFixture(btn, rules, table)[0]?.tokenName).toBe("--theme");
 
     rules.forEach((rule) => { rule.declarations[0]!.important = true; });
-    expect(resolvePropertiesFromRules(btn, rules, table)[0]?.tokenName).toBe("--base");
+    expect(resolveRuleFixture(btn, rules, table)[0]?.tokenName).toBe("--base");
   });
 
   it("expands single-value border-radius to four corner longhands", () => {
-    const result = resolvePropertiesFromRules(btn, [{
+    const result = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10_000,
       declarations: [{ property: "border-radius", value: "8px" }],
@@ -1475,7 +1500,7 @@ describe("resolvePropertiesFromRules", () => {
   });
 
   it("expands 2-value border-radius to correct corner pairs", () => {
-    const result = resolvePropertiesFromRules(btn, [{
+    const result = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10_000,
       declarations: [{ property: "border-radius", value: "4px 12px" }],
@@ -1489,7 +1514,7 @@ describe("resolvePropertiesFromRules", () => {
   });
 
   it("expands 3-value border-radius to correct corners", () => {
-    const result = resolvePropertiesFromRules(btn, [{
+    const result = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10_000,
       declarations: [{ property: "border-radius", value: "4px 8px 12px" }],
@@ -1503,7 +1528,7 @@ describe("resolvePropertiesFromRules", () => {
   });
 
   it("expands 4-value border-radius to individual corner values", () => {
-    const result = resolvePropertiesFromRules(btn, [{
+    const result = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10_000,
       declarations: [{ property: "border-radius", value: "2px 4px 6px 8px" }],
@@ -1518,7 +1543,7 @@ describe("resolvePropertiesFromRules", () => {
 
   it("expands token-based border-radius and preserves token attribution", () => {
     const table = makeTable([{ name: "--radius", value: "12px", source: "s:1" }]);
-    const result = resolvePropertiesFromRules(btn, [{
+    const result = resolveRuleFixture(btn, [{
       selectorText: ".btn",
       specificity: 10_000,
       declarations: [{ property: "border-radius", value: "var(--radius)" }],

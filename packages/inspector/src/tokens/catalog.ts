@@ -6,7 +6,7 @@ import type {
 import type { StyleRuleContext } from "../managedStylesheet.ts";
 import { getElementComputedStyle, getElementWindow } from "../domRealm.ts";
 import {
-  presentationForToken,
+  selectTokens,
   TOKEN_GROUP_LABELS,
   TOKEN_GROUP_ORDER,
 } from "@design-tool/css/value-semantics";
@@ -145,7 +145,7 @@ export function selectorForContext(context: TokenContext): string {
 }
 
 export function classifyCatalogToken(name: string, value = ""): TokenCatalogGroup {
-  return presentationForToken({ name, value, source: "" }).group;
+  return selectTokens({ entries: [{ name, value, source: "" }] }).candidates[0]?.group ?? "generic";
 }
 
 export function buildTokenCatalogRows(

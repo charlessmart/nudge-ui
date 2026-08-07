@@ -1,12 +1,11 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { getTokenTable } from "./resolution.ts";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { swapToken, promoteToToken } from "./editActions.ts";
 import { Select } from "../ui/Select.tsx";
 import {
-  getCompatibleTokenCandidates,
+  selectTokens,
   TOKEN_GROUP_LABELS,
   TOKEN_GROUP_ORDER,
 } from "@design-tool/css/value-semantics";
@@ -44,14 +43,14 @@ export function TokenDropdown(props: TokenDropdownProps): ReactElement {
   const { row, domElement, entries, slot, grammar, onAfterEdit } = props;
 
   const candidates = useMemo(
-    () => getCompatibleTokenCandidates({
+    () => selectTokens({
       element: domElement,
       property: row.property,
       slot,
       entries,
       currentToken: row.tokenName,
       grammar,
-    }),
+    }).candidates,
     [domElement, entries, grammar, row.property, row.tokenName, slot],
   );
 
@@ -61,7 +60,7 @@ export function TokenDropdown(props: TokenDropdownProps): ReactElement {
     const chosen = candidates.find(({ entry }) => entry.name === value)?.entry;
     if (!chosen) return;
     const oldToken = row.tokenName
-      ? (getTokenTable()[row.tokenName] ?? null)
+      ? entries.find((entry) => entry.name === row.tokenName || entry.cssName === row.tokenName) ?? null
       : null;
     swapToken(domElement, row.property, chosen, oldToken);
     onAfterEdit?.();

@@ -15,25 +15,21 @@ import type {
   AtRuleContext,
   BorderStructure,
   ColorOpacity,
+  ColorValueFacts,
   EditCapability,
   MatchedRule,
   ResolvedProperty,
   StyleDeclaration,
-  TokenOrigin,
   TokenReference,
   TokenTable,
   ValueModifier,
 } from "@design-tool/css/model";
 import {
-  classifyEditCapability,
-  interpretStructuredValue,
-  interpretTokenValue,
-  type AliasAttribution,
-  type AliasInnerResult,
+  interpretValue,
   type Directionality,
-  type TokenInterpretationContext,
-  type TokenValueInterpretation,
+  type InterpretedValueField,
 } from "@design-tool/css/value-semantics";
+import { createInspectorValueContext, inspectorTokenOrigin } from "./valueSemanticsAdapter.ts";
 
 const MAX_PROPERTIES = 100;
 const VAR_REF = /var\(\s*(--[\w-]+)/g;
@@ -57,14 +53,6 @@ function tokenVariableName(entry: TokenEntry): string {
   return entry.cssName ?? entry.name;
 }
 
-function tokenOrigin(entry: TokenEntry | undefined): TokenOrigin {
-  if (!entry) return "runtime";
-  if (entry.origin) return entry.origin;
-  if (entry.adapter === "tailwind-v3" || entry.adapter === "tailwind-v4") return "framework";
-  if (entry.adapter === "vanilla-extract") return "project";
-  return "project";
-}
-
 /**
  * Returns true when a `calc()` expression is safe to treat as a simple
  * numeric value.  We exclude percentages, viewport units, and font-relative
@@ -79,24 +67,6 @@ function canBecomeNumeric(value: string): boolean {
   const inner = v.slice(m[0].length, -1).trim();
   const withoutVars = inner.replace(/var\([^)]+\)/g, "");
   return !/\b\d+(?:\.\d+)?(?:%|vw|vh|vmin|vmax|dvw|dvh|sv[lw]h|lv[lw]h|[ce]m|ex|ch)\b/i.test(withoutVars);
-}
-
-function colorTuple(value: string): string | null {
-  const trimmed = value.trim().toLowerCase().replace(/\s*\/\s*var\([^)]*\)/, "");
-  const hex = /^#([\da-f]{3}|[\da-f]{6})$/.exec(trimmed);
-  if (hex) {
-    const raw = hex[1]!;
-    const expanded = raw.length === 3 ? raw.split("").map((part) => part + part).join("") : raw;
-    return [expanded.slice(0, 2), expanded.slice(2, 4), expanded.slice(4, 6)].map((part) => Number.parseInt(part, 16)).join(",");
-  }
-  const rgb = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(trimmed);
-  return rgb ? [rgb[1], rgb[2], rgb[3]].map((part) => String(Math.round(Number(part)))).join(",") : null;
-}
-
-function directFrameworkColor(value: string, tokenTable: TokenTable): TokenEntry | null {
-  const tuple = colorTuple(value);
-  if (!tuple) return null;
-  return Object.values(tokenTable).find((entry) => entry.adapter === "tailwind-v3" && colorTuple(entry.value) === tuple) ?? null;
 }
 
 let tableCache: TokenTable | null = null;
@@ -307,48 +277,6 @@ function candidateMatchesPainted(el: HTMLElement, row: ResolvedProperty, painted
 }
 
 /**
- * Tailwind's generated `--tw-*` custom properties are implementation aliases.
- * Attribution follows the catalog token such an alias points at. Other local
- * custom properties are authored tokens in the selected element's scope, even
- * when their leaf value is a literal and therefore has no catalog entry. This
- * policy stays in the resolution integration; the value Module stays neutral.
- */
-function twLocalAliasPolicy(ref: string, inner: AliasInnerResult): AliasAttribution {
-  if (!ref.startsWith("--tw-")) {
-    return {
-      known: true,
-      tokenName: ref,
-      resolvedValue: inner.resolvedValue,
-      leafTokenName: inner.leafTokenName ?? ref,
-      cycle: inner.cycle,
-    };
-  }
-  return inner.tokenName
-    ? { known: true, tokenName: inner.tokenName, resolvedValue: inner.resolvedValue, leafTokenName: inner.leafTokenName ?? null, cycle: inner.cycle }
-    : { known: false, tokenName: null, resolvedValue: `var(${ref})`, leafTokenName: null, cycle: inner.cycle };
-}
-
-/**
- * Builds the value-semantics interpretation context for the inspector's token
- * knowledge, wiring the integration policies the neutral Module must not own:
- * Tailwind v3 direct-literal attribution, adapter-derived token origins, and
- * the `--tw-*` alias policy. Color/opacity interpretation lives inside the
- * value-semantics Module and needs no injection from the integration.
- */
-export function createTokenInterpretationContext(
-  tokenTable: TokenTable,
-  localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
-): TokenInterpretationContext {
-  return {
-    table: tokenTable,
-    localAliases,
-    resolveDirectToken: (value) => directFrameworkColor(value, tokenTable) ?? undefined,
-    resolveOrigin: tokenOrigin,
-    resolveAlias: twLocalAliasPolicy,
-  };
-}
-
-/**
  * Resolves one authored value through the value-semantics Module using the
  * inspector's integration context. Used by the token-availability path; the
  * value Module is the sole interpretation authority.
@@ -357,8 +285,8 @@ function resolveTokenValue(
   value: string,
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
-): TokenValueInterpretation {
-  return interpretTokenValue(value, createTokenInterpretationContext(tokenTable, localAliases));
+): InterpretedValueField {
+  return interpretValue("--design-tool-token", value, createInspectorValueContext(tokenTable, localAliases))[0]!;
 }
 
 function directionalityFromComputed(el: HTMLElement, computed: CSSStyleDeclaration): Directionality {
@@ -385,7 +313,7 @@ interface ResolvedDeclaration {
   important?: boolean;
   tokens: TokenReference[];
   opacity?: ColorOpacity;
-  color?: TokenValueInterpretation["color"];
+  color?: ColorValueFacts;
   modifiers: ValueModifier[];
   capability: EditCapability;
   resolvedTokenValue: string;
@@ -396,7 +324,7 @@ interface ResolvedDeclaration {
 /**
  * Coordinates cascade facts with the value-semantics Module. All property-family
  * decomposition (logical sides, border, font, radius corners, physical spacing)
- * lives in `interpretStructuredValue`; this function only supplies the token
+ * lives in `interpretValue`; this function only supplies the token
  * context and directionality facts, then projects the Module's fields onto the
  * `ResolvedDeclaration` shape.
  */
@@ -406,10 +334,11 @@ function resolveDeclaration(
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
   directionality?: Directionality,
 ): ResolvedDeclaration[] {
-  const fields = interpretStructuredValue(declaration.property, declaration.value, {
-    tokenContext: createTokenInterpretationContext(tokenTable, localAliases),
-    ...(directionality ? { directionality } : {}),
-  });
+  const fields = interpretValue(
+    declaration.property,
+    declaration.value,
+    createInspectorValueContext(tokenTable, localAliases, directionality),
+  );
   return fields.map((field) => ({
     property: field.property,
     declaredValue: field.declaredValue,
@@ -426,6 +355,10 @@ function resolveDeclaration(
     ...(field.structure ? { structure: field.structure } : {}),
     ...(field.diagnostic ? { diagnostic: field.diagnostic } : {}),
   }));
+}
+
+function capabilityFor(property: string, value: string, tokenTable: TokenTable): EditCapability {
+  return interpretValue(property, value, createInspectorValueContext(tokenTable))[0]!.capability;
 }
 
 interface LocalAliasCandidate {
@@ -981,19 +914,18 @@ function rowsFromMatches(
     if (!canBecomeNumeric(value)) continue;
     const numeric = row.resolvedValue ?? row.computed ?? "";
     if (!numeric) continue;
-    row.capability = classifyEditCapability(row.property, numeric);
+    row.capability = capabilityFor(row.property, numeric, tokenTable);
   }
   return rows;
 }
 
 /**
- * Cascade-coordination seam: resolves a hand-supplied matched-rule set for one
- * element without touching CSSOM. Kept as an internal seam for direct cascade
- * tests (specificity, layers, importance, interaction transforms); it consumes
- * the value-semantics Module through `resolveDeclaration` and is not a
- * value-parsing bypass.
+ * Package-private cascade fixture seam. This exercises selector, layer,
+ * importance, and interaction-state coordination while still crossing the
+ * public value-semantics Interface through `resolveDeclaration`.
+ * It is intentionally absent from the package exports.
  */
-export function resolvePropertiesFromRules(
+export function resolveRuleFixture(
   el: HTMLElement,
   rules: MatchedRule[],
   tokenTable: TokenTable,
@@ -1060,7 +992,7 @@ function inferTailwindV4ColorOpacity(
     row.tokenName = baseName;
     row.declaredValue = authored;
     row.authored = authored;
-    row.tokens = [{ name: baseName, origin: tokenOrigin(entry) }];
+    row.tokens = [{ name: baseName, origin: inspectorTokenOrigin(entry) }];
     const colorInterpretation = resolveTokenValue(authored, tokenTable, EMPTY_LOCAL_ALIASES);
     row.opacity = colorInterpretation.opacity;
     row.color = colorInterpretation.color;
@@ -1174,7 +1106,7 @@ export function getResolvedProperties(
   }
 
   applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
-  promoteNumericCalcRows(result);
+  promoteNumericCalcRows(result, tokenTable);
   return resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
 }
 
@@ -1230,7 +1162,7 @@ function applyInlineDeclarations(
   }
 }
 
-function promoteNumericCalcRows(result: ResolvedProperty[]): void {
+function promoteNumericCalcRows(result: ResolvedProperty[], tokenTable: TokenTable): void {
   // When a calc() expression only references static tokens the browser has
   // already resolved it to a pixel value.  Reclassify the row so the UI
   // shows the pixel value instead of the raw calc() string and allows
@@ -1241,7 +1173,7 @@ function promoteNumericCalcRows(result: ResolvedProperty[]): void {
     if (!canBecomeNumeric(value)) continue;
     const numeric = prop.computed ?? prop.resolvedValue ?? "";
     if (!numeric) continue;
-    prop.capability = classifyEditCapability(prop.property, numeric);
+    prop.capability = capabilityFor(prop.property, numeric, tokenTable);
   }
 }
 
@@ -1305,7 +1237,7 @@ export function getResolvedPropertiesForState(
     }
   }
   applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
-  promoteNumericCalcRows(result);
+  promoteNumericCalcRows(result, tokenTable);
   const rows = resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
   registerWithAncestors(el);
   snapshots.set(state, {
@@ -1360,7 +1292,7 @@ export function getResolvedPropertiesStable(
   const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
   const computed = getElementComputedStyle(el);
   applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
-  promoteNumericCalcRows(result);
+  promoteNumericCalcRows(result, tokenTable);
   const rows = resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
   stableTokenCache.set(el, {
     elementRevision: revisions.element,

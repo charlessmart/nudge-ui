@@ -1,11 +1,11 @@
 /**
  * Supported `font` shorthand decomposition (plan slice 3.5).
  *
- * One browser-safe Module decomposes only the unambiguous typography longhands
- * an author explicitly wrote in a `font` shorthand — family, size, style,
- * weight, and the optional slash line-height. System-font shorthands,
- * percentage-sized variants, and complex family/function forms stay raw so the
- * author's meaning is never guessed.
+ * One browser-safe Module decomposes the unambiguous typography longhands
+ * affected by a `font` shorthand — family, size, style, weight, and
+ * line-height. Omitted optional components are represented by their shorthand
+ * reset value. System-font shorthands, percentage-sized variants, and complex
+ * family/function forms stay raw so the author's meaning is never guessed.
  */
 export const FONT_SYSTEM_KEYWORDS = new Set([
   "caption", "icon", "menu", "message-box", "small-caption", "status-bar",
@@ -20,9 +20,9 @@ export const FONT_STYLE_KEYWORDS = new Set(["normal", "italic", "oblique"]);
 export interface FontShorthandParts {
   "font-family": string;
   "font-size": string;
-  "font-style"?: string;
-  "font-weight"?: string;
-  "line-height"?: string;
+  "font-style": string;
+  "font-weight": string;
+  "line-height": string;
 }
 
 /**
@@ -77,10 +77,11 @@ export function isFontSize(value: string): boolean {
 }
 
 /**
- * Returns only the typography longhands that are explicitly present in an
- * unambiguous `font` shorthand. System-font shorthands and percentage-sized
- * variants are deliberately left raw: their individual intent cannot be
- * recovered without changing the author's meaning.
+ * Returns the supported typography longhands affected by an unambiguous
+ * `font` shorthand. Omitted optional components are projected as `normal`
+ * because a font shorthand resets them; dropping those reset rows would let
+ * earlier declarations survive the cascade incorrectly. System-font
+ * shorthands and percentage-sized variants remain raw.
  */
 export function parseFontShorthand(value: string): FontShorthandParts | null {
   const source = value.trim();
@@ -124,8 +125,8 @@ export function parseFontShorthand(value: string): FontShorthandParts | null {
   return {
     "font-family": family,
     "font-size": fontSize,
-    ...(style ? { "font-style": style } : {}),
-    ...(weight ? { "font-weight": weight } : {}),
-    ...(lineHeight ? { "line-height": lineHeight } : {}),
+    "font-style": style ?? "normal",
+    "font-weight": weight ?? "normal",
+    "line-height": lineHeight ?? "normal",
   };
 }

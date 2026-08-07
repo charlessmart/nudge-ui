@@ -170,7 +170,7 @@ color opacity, and interaction states. The neutral Module knows nothing about
 React, Vite, or the DOM; the resolver feeds it an explicit token table, local
 aliases, and writing-mode facts.
 
-The legacy `packages/inspector/src/tokens/resolution.ts` no longer interprets CSS
+`packages/inspector/src/tokens/resolution.ts` no longer interprets CSS
 values itself. It coordinates cascade facts — matching, specificity, layers,
 inline declarations, and interaction states — and projects the Module's
 interpretation onto `ResolvedProperty` rows. UI callers reach value semantics
@@ -324,7 +324,7 @@ CSS. Record the uncertainty and give the agent a selector/source fallback.
 - Runtime bootstrap and Shadow DOM mount: [`packages/inspector/src/index.ts`](../../packages/inspector/src/index.ts)
 - Browser CSS inspection seam (sole browser inspection authority): [`packages/inspector/src/inspection/browserCssInspection.ts`](../../packages/inspector/src/inspection/browserCssInspection.ts)
 - CSSOM collection and attribution: [`packages/inspector/src/tokens/resolution/cssomCollector.ts`](../../packages/inspector/src/tokens/resolution/cssomCollector.ts) and [`packages/inspector/src/tokens/resolution.ts`](../../packages/inspector/src/tokens/resolution.ts)
-- CSS value semantics (interpret, suggest, edit; browser-safe, no Vite/React/PostCSS): [`packages/css/src/value-semantics/`](../../packages/css/src/value-semantics/)
+- CSS value semantics (interpret, select, edit; browser-safe, no Vite/React/PostCSS): [`packages/css/src/value-semantics/`](../../packages/css/src/value-semantics/)
 - Shared CSS/token model: [`packages/css/src/model/`](../../packages/css/src/model/)
 - Temporary CSS projection: [`packages/inspector/src/managedStylesheet.ts`](../../packages/inspector/src/managedStylesheet.ts) and [`packages/inspector/src/changes/projection.ts`](../../packages/inspector/src/changes/projection.ts)
 - Semantic component props: [`packages/inspector/src/componentSemantics/`](../../packages/inspector/src/componentSemantics/)

@@ -375,23 +375,23 @@ therefore passes the deletion test and earns its seam.
 
 ### Stage 3 acceptance criteria
 
-- [ ] `BrowserCssInspection` remains the sole public browser inspection seam.
-- [ ] One Module owns token-reference, modifier, capability, compatibility, and
+- [x] `BrowserCssInspection` remains the sole public browser inspection seam.
+- [x] One Module owns token-reference, modifier, capability, compatibility, and
       meaning-preserving edit behavior.
-- [ ] `tokenSuggestions.ts` is deleted and no independent token-group policy
+- [x] `tokenSuggestions.ts` is deleted and no independent token-group policy
       remains.
-- [ ] UI fields do not parse or rewrite color/token expressions themselves.
-- [ ] Resolver code contains cascade and projection coordination, not CSS
+- [x] UI fields do not parse or rewrite color/token expressions themselves.
+- [x] Resolver code contains cascade and projection coordination, not CSS
       property-family grammar.
-- [ ] Unsupported or ambiguous CSS remains raw/composite with a diagnostic.
-- [ ] Existing authored/computed/token/confidence/capability conformance cases
+- [x] Unsupported or ambiguous CSS remains raw/composite with a diagnostic.
+- [x] Existing authored/computed/token/confidence/capability conformance cases
       remain green.
-- [ ] New cases cover nested fallbacks, repeated references, cycles, CSS-wide
+- [x] New cases cover nested fallbacks, repeated references, cycles, CSS-wide
       keywords, escaped strings, nested functions, and unsupported edits.
-- [ ] The browser-safe package path has no Vite, React, PostCSS, Node, or
+- [x] The browser-safe package path has no Vite, React, PostCSS, Node, or
       filesystem dependency.
 - [ ] Selection and edit performance budgets do not regress.
-- [ ] Production builds remain free of inspector and token metadata.
+- [x] Production builds remain free of inspector and token metadata.
 
 ## Stage 2 — Deepen token inventory
 

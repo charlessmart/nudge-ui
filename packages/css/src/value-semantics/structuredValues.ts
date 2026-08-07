@@ -74,7 +74,6 @@ export interface StructuredValuesContext {
 
 interface PositionValue {
   declaredValue: string;
-  tokenName: string | null;
   resolvedValue: string;
   interpretation: TokenValueInterpretation;
 }
@@ -83,22 +82,48 @@ function cycleDiagnostic(cycle: string): string {
   return `custom-property alias cycle includes ${cycle}`;
 }
 
+interface FieldProjection {
+  property: string;
+  declaredValue: string;
+  sourceProperty: string;
+  interpretation: TokenValueInterpretation;
+  capability: EditCapability;
+  resolvedValue?: string;
+  diagnostic?: string;
+  structure?: BorderStructure;
+}
+
+function projectField(projection: FieldProjection): StructuredField {
+  const { interpretation } = projection;
+  return {
+    property: projection.property,
+    declaredValue: projection.declaredValue,
+    sourceProperty: projection.sourceProperty,
+    tokenName: interpretation.tokenName,
+    resolvedValue: projection.resolvedValue ?? interpretation.resolvedValue,
+    tokens: interpretation.tokens,
+    opacity: interpretation.opacity,
+    color: interpretation.color,
+    modifiers: interpretation.modifiers,
+    capability: projection.capability,
+    diagnostic: projection.diagnostic
+      ?? (interpretation.cycle ? cycleDiagnostic(interpretation.cycle) : undefined),
+    structure: projection.structure,
+  };
+}
+
 function rawField(property: string, authored: string, ctx: StructuredValuesContext): StructuredField {
   const trimmed = authored.trim();
-  const resolved = interpretTokenValue(trimmed, ctx.tokenContext);
-  return {
+  const interpretation = interpretTokenValue(trimmed, ctx.tokenContext);
+  const capability = property.toLowerCase() === "border" ? "raw" : classifyEditCapability(property, authored);
+  return projectField({
     property,
     declaredValue: trimmed,
     sourceProperty: property,
-    tokenName: resolved.tokenName,
-    resolvedValue: resolved.resolvedValue,
-    tokens: resolved.tokens,
-    opacity: resolved.opacity,
-    color: resolved.color,
-    modifiers: resolved.modifiers,
-    capability: property.toLowerCase() === "border" ? "raw" : classifyEditCapability(property, authored),
-    diagnostic: resolved.cycle ? cycleDiagnostic(resolved.cycle) : undefined,
-  };
+    interpretation,
+    capability,
+    diagnostic: capability === "composite" ? `unsupported composite value for ${property}` : undefined,
+  });
 }
 
 function unsupportedField(property: string, authored: string, ctx: StructuredValuesContext): StructuredField {
@@ -106,25 +131,20 @@ function unsupportedField(property: string, authored: string, ctx: StructuredVal
   return {
     ...field,
     capability: "raw",
-    diagnostic: field.diagnostic ?? `unsupported structured value for ${property}`,
+    diagnostic: field.diagnostic?.startsWith("custom-property alias cycle")
+      ? field.diagnostic
+      : `unsupported structured value for ${property}`,
   };
 }
 
 function fieldFor(property: string, declaredValue: string, sourceProperty: string, ctx: StructuredValuesContext): StructuredField {
-  const resolved = interpretTokenValue(declaredValue, ctx.tokenContext);
-  return {
+  return projectField({
     property,
     declaredValue,
     sourceProperty,
-    tokenName: resolved.tokenName,
-    resolvedValue: resolved.resolvedValue,
-    tokens: resolved.tokens,
-    opacity: resolved.opacity,
-    color: resolved.color,
-    modifiers: resolved.modifiers,
+    interpretation: interpretTokenValue(declaredValue, ctx.tokenContext),
     capability: classifyEditCapability(property, declaredValue),
-    diagnostic: resolved.cycle ? cycleDiagnostic(resolved.cycle) : undefined,
-  };
+  });
 }
 
 /**
@@ -140,12 +160,11 @@ function expandPositionValues(rawValues: string[], ctx: StructuredValuesContext)
     if (res.tokenName && /^var\(\s*--[\w-]+(?:\s*,[\s\S]*)?\s*\)$/.test(rawValue) && tokenValues.length > 1) {
       return tokenValues.map((resolvedValue) => ({
         declaredValue: rawValue,
-        tokenName: res.tokenName,
         resolvedValue,
         interpretation: res,
       }));
     }
-    return [{ declaredValue: rawValue, tokenName: res.tokenName, resolvedValue: res.resolvedValue, interpretation: res }];
+    return [{ declaredValue: rawValue, resolvedValue: res.resolvedValue, interpretation: res }];
   });
 }
 
@@ -198,20 +217,15 @@ function expandBorder(
     const result = longhand.endsWith("color")
       ? colorResult
       : longhand.endsWith("style") ? styleResult : widthResult;
-    return {
+    return projectField({
       property: longhand,
       declaredValue: authoredValue,
       sourceProperty: property,
-      tokenName: result.tokenName,
+      interpretation: result,
       resolvedValue: result.resolvedValue || component,
-      tokens: result.tokens,
-      opacity: result.opacity,
-      color: result.color,
-      modifiers: result.modifiers,
-      capability: "structured" as const,
-      diagnostic: result.cycle ? cycleDiagnostic(result.cycle) : undefined,
+      capability: "structured",
       structure: scopedStructure,
-    };
+    });
   });
 }
 
@@ -236,25 +250,26 @@ function expandCorners(
   if (topLevelSlashIndex(authored) >= 0 || rawValues.length === 0 || rawValues.length > 4) {
     return [unsupportedField(property, authored, ctx)];
   }
-  const cornerValues = expandFourValueShorthand(expandPositionValues(rawValues, ctx));
+  const positions = expandPositionValues(rawValues, ctx);
+  const resolvedSlash = positions.some(({ interpretation }) =>
+    topLevelSlashIndex(interpretation.resolvedValue) >= 0
+    || interpretation.modifiers.some((modifier) =>
+      modifier.kind === "fallback" && topLevelSlashIndex(modifier.value) >= 0));
+  if (resolvedSlash) return [unsupportedField(property, authored, ctx)];
+  const cornerValues = expandFourValueShorthand(positions);
   if (!cornerValues) return [unsupportedField(property, authored, ctx)];
   return corners.map((longhand, index) => projectPositionField(longhand, property, cornerValues[index]!));
 }
 
 function projectPositionField(longhand: string, sourceProperty: string, value: PositionValue): StructuredField {
-  return {
+  return projectField({
     property: longhand,
     declaredValue: value.declaredValue,
     sourceProperty,
-    tokenName: value.tokenName,
+    interpretation: value.interpretation,
     resolvedValue: value.resolvedValue,
-    tokens: value.interpretation.tokens,
-    opacity: value.interpretation.opacity,
-    color: value.interpretation.color,
-    modifiers: value.interpretation.modifiers,
     capability: classifyEditCapability(longhand, value.declaredValue),
-    diagnostic: value.interpretation.cycle ? cycleDiagnostic(value.interpretation.cycle) : undefined,
-  };
+  });
 }
 
 function expandSides(
@@ -274,10 +289,10 @@ function expandSides(
  * Interprets one authored value for a property into a structured projection
  * tree. Returns the projected fields, or a single conservative raw/composite
  * field when the value cannot be decomposed faithfully. The declared order of
- * the families mirrors the legacy resolver: logical sides, border, font,
+ * the families mirrors CSS projection precedence: logical sides, border, font,
  * border-radius corners, physical spacing, then the raw fallback.
  */
-export function interpretStructuredValue(
+export function interpretValue(
   property: string,
   authored: string,
   ctx: StructuredValuesContext,
@@ -315,3 +330,6 @@ export function interpretStructuredValue(
 
   return [rawField(property, authored, ctx)];
 }
+
+/** @internal Use the package-level `interpretValue` Interface in production. */
+export const interpretStructuredValue = interpretValue;

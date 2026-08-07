@@ -531,3 +531,15 @@ export function applyColorTokenReplacement(value: string, oldToken: TokenEntry, 
   if (mixReplacement) return { ok: true, value: mixReplacement };
   return { ok: false, reason: "unsupported" };
 }
+
+export type ValueEditRequest =
+  | { kind: "color-opacity"; authored: string; opacity: string }
+  | { kind: "color-token"; authored: string; currentToken: TokenEntry; nextToken: TokenEntry };
+
+/** The public meaning-preserving edit operation for supported value edits. */
+export function applyValueEdit(request: ValueEditRequest): ColorEditResult {
+  if (request.kind === "color-opacity") {
+    return applyColorOpacity(request.authored, request.opacity);
+  }
+  return applyColorTokenReplacement(request.authored, request.currentToken, request.nextToken);
+}

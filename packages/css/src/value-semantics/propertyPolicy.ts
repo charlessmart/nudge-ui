@@ -10,7 +10,8 @@
  * Browser-safe contract: this module imports only the shared model and must
  * never pull React, Vite, PostCSS, Node, or filesystem code into a bundle.
  */
-import type { EditCapability, TokenEntry } from "../model/index.ts";
+import type { ColorValueFacts, EditCapability, TokenEntry } from "../model/index.ts";
+import { interpretColorValue } from "./colorSemantics.ts";
 
 /** Semantic slot vocabulary for a CSS property. */
 export type TokenSemanticSlot =
@@ -58,6 +59,7 @@ export interface TokenPresentation {
 export interface TokenCandidate {
   entry: TokenEntry;
   resolvedValue: string;
+  color?: ColorValueFacts;
   presentation: TokenPresentation;
   group: TokenGroup;
   isCurrent: boolean;
@@ -73,6 +75,21 @@ export interface TokenCompatibilityRequest {
   entries: readonly TokenEntry[];
   currentToken?: string | null;
   grammar?: CssValueGrammar;
+}
+
+export interface TokenSelectionRequest {
+  /** Omit for presentation-only inventory grouping without eligibility filtering. */
+  property?: string;
+  slot?: TokenSemanticSlot;
+  entries: readonly TokenEntry[];
+  currentToken?: string | null;
+  element?: HTMLElement;
+  grammar?: CssValueGrammar;
+}
+
+export interface TokenSelection {
+  candidates: TokenCandidate[];
+  preferredGroup: TokenGroup;
 }
 
 const COLOR_PROPERTIES = new Set([
@@ -347,4 +364,43 @@ export function getCompatibleTokenCandidates(request: TokenCompatibilityRequest)
     .filter((candidate) => candidate.isCurrent || (!hasUnresolvedVariable(candidate.resolvedValue)
       && grammar.supports(property, candidate.resolvedValue)))
     .sort(compareCandidates(preferredGroup));
+}
+
+/**
+ * The public token-selection operation. With a property it returns only
+ * browser-compatible candidates; without one it returns presentation metadata
+ * for inventory rows without inventing eligibility.
+ */
+export function selectTokens(request: TokenSelectionRequest): TokenSelection {
+  if (request.property) {
+    const slot = request.slot ?? semanticSlotForProperty(request.property) ?? undefined;
+    return {
+      candidates: getCompatibleTokenCandidates({
+        property: request.property,
+        entries: request.entries,
+        ...(request.element ? { element: request.element } : {}),
+        ...(slot ? { slot } : {}),
+        ...(request.currentToken !== undefined ? { currentToken: request.currentToken } : {}),
+        ...(request.grammar ? { grammar: request.grammar } : {}),
+      }),
+      preferredGroup: groupForProperty(request.property, slot),
+    };
+  }
+
+  const grammar = request.grammar ?? browserCssGrammar(request.element);
+  return {
+    candidates: request.entries.map((entry) => {
+      const resolvedValue = resolveValueInElement(entry, request.element);
+      const presentation = presentationForToken({ ...entry, value: resolvedValue }, grammar);
+      return {
+        entry,
+        resolvedValue,
+        color: interpretColorValue(resolvedValue, { tokenTable: {} }).facts,
+        presentation,
+        group: presentation.group,
+        isCurrent: isCurrentToken(entry, request.currentToken),
+      };
+    }),
+    preferredGroup: "generic",
+  };
 }

@@ -7,7 +7,7 @@ import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { projectInspectorValues } from "./spacing/projection.ts";
 import type { InspectorProjection } from "./spacing/projection.ts";
 import type { ResolvedProperty } from "@design-tool/css/model";
-import { getCompatibleTokenCandidates } from "@design-tool/css/value-semantics";
+import { selectTokens } from "@design-tool/css/value-semantics";
 import {
   createBrowserCssInspection,
   type DocumentTokenInspectionSnapshot,
@@ -152,11 +152,11 @@ export function inspectElement(
       property: property.property,
       kind: property.tokenName ? "token" : "raw",
       activeToken: property.tokenName,
-      suggestions: Array.from(new Set(getCompatibleTokenCandidates({
+      suggestions: Array.from(new Set(selectTokens({
         property: property.property,
         entries: availableTokens,
         currentToken: property.tokenName,
-      }).map((candidate) => candidate.entry.name))),
+      }).candidates.map((candidate) => candidate.entry.name))),
     }));
 
   return {
