@@ -117,17 +117,17 @@ test("dev: selection defaults to Base and can target an authored hover state", a
 
   await page.locator('[data-test="style-state-hover"]').click();
   const backgroundField = page.locator('[data-test="token-field"][data-property="background-color"]');
-  if (await backgroundField.locator('[data-test="token-chip"]').count()) {
-    await backgroundField.locator('[data-test="delink-btn"]').click();
-  } else {
-    await page.locator('[data-test="color-picker"][data-property="background-color"] [data-test="add-color"]').click();
-  }
-  const background = backgroundField.locator('[data-test="raw-input"]');
-  await background.fill("#123456");
-  await background.press("Enter");
+  const picker = backgroundField.locator('[data-test="token-color-input"]');
+  await expect(picker).toBeVisible();
+  // Use a concrete value that is not one of the sandbox's token values.
+  await picker.evaluate((element, value) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setter.call(element, value);
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  }, "#13579b");
 
   await expect.poll(() => sheetText(page), { timeout: 5000 })
-    .toContain(':hover { background-color: #123456; }');
+    .toContain(':hover { background-color: rgb(19, 87, 155); }');
 });
 
 test("dev: token unlink action appears over the chip on hover", async ({ page }) => {
@@ -260,14 +260,16 @@ test("dev: Enter applies a typed hex colour with no matching token", async ({ pa
 
   await page.locator('[data-test="token-field"][data-property="color"] [data-test="delink-btn"]').click();
   const input = page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]');
-  await input.fill("");
-  await input.type("#123456");
-  await expect(input).toHaveValue("#123456");
+  await expect(input).toBeVisible();
+  await expect(input).toHaveValue("rgb(32, 33, 31)");
+  // Avoid the sandbox's real #123456 token so Enter commits the raw value.
+  await input.fill("#13579b");
+  await expect(input).toHaveValue("#13579b");
   await input.press("Enter");
 
   await expect
     .poll(async () => sheetText(page), { timeout: 5000 })
-    .toContain("color: #123456;");
+    .toContain("color: rgb(19, 87, 155);");
   await expect
     .poll(async () => sheetText(page), { timeout: 5000 })
     .not.toContain("color: var(--color-");

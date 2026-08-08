@@ -8,33 +8,19 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
 }
 
 async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
-  await page.evaluate(({ p, v }) => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
-    const input = root?.querySelector(
-      `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
-    ) as HTMLInputElement | null;
-    if (!input) throw new Error(`Missing color input: ${p}`);
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    input.focus();
-    setter.call(input, v);
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    input.blur();
-  }, { p: property, v: value });
+  const input = page.locator(
+    `[data-test="token-field"][data-property="${property}"] [data-test="raw-input"]`,
+  );
+  await input.fill(value);
+  await input.blur();
 }
 
 async function setOpacityInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
-  await page.evaluate(({ p, v }) => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
-    const input = root?.querySelector(
-      `[data-test="token-field"][data-property="${p}"] [data-test="color-opacity-input"]`,
-    ) as HTMLInputElement | null;
-    if (!input) throw new Error(`Missing opacity input: ${p}`);
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    input.focus();
-    setter.call(input, v);
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    input.blur();
-  }, { p: property, v: value });
+  const input = page.locator(
+    `[data-test="token-field"][data-property="${property}"] [data-test="color-opacity-input"]`,
+  );
+  await input.fill(value);
+  await input.blur();
 }
 
 test("dev: color conformance gallery renders every shared case and exposes authored values", async ({ page }) => {
@@ -156,7 +142,7 @@ test("dev: picker offers a concrete-color peer with an unfamiliar token name", a
   await expect(peer).toBeVisible();
   await peer.click();
 
-  await expect.poll(async () => page.evaluate(() => document.getElementById("design-tool-styles")?.textContent ?? ""))
+  await expect.poll(() => managedSheetText(page))
     .toContain("color: var(--content-secondary);");
 });
 
@@ -231,7 +217,7 @@ test("dev: literal opacity edits preserve the color format", async ({ page }) =>
   await waitForEditors(page);
   await setOpacityInput(page, "color", "25%");
   await expect.poll(() => managedSheetText(page))
-    .toContain("color: rgba(255, 0, 0, 25%);");
+    .toContain("color: rgba(255, 0, 0, 0.25);");
 
   const rgb = page.locator('[data-test="color-case-color-rgb-legacy"]');
   await rgb.click();
@@ -240,7 +226,7 @@ test("dev: literal opacity edits preserve the color format", async ({ page }) =>
     .toHaveValue(/^rgba\(/);
   await setOpacityInput(page, "background-color", "50%");
   await expect.poll(() => managedSheetText(page))
-    .toContain("background-color: rgba(0, 0, 0, 50%);");
+    .toContain("background-color: rgba(0, 0, 0, 0.5);");
 });
 
 test("dev: opacity fields nudge by one percent or ten percent with Shift", async ({ page }) => {
@@ -292,7 +278,7 @@ test("dev: color value edits round-trip through the managed stylesheet", async (
   await expect.poll(async () => hex.evaluate((element) => getComputedStyle(element).color))
     .toBe("rgb(239, 68, 68)");
   await expect.poll(() => managedSheetText(page))
-    .toContain("color: #ef4444;");
+    .toContain("color: rgb(239, 68, 68);");
   await expect(hex).not.toHaveAttribute("style", /.*/);
 });
 

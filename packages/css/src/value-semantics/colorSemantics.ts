@@ -59,6 +59,39 @@ const MIX_PERCENTAGE_OR_TOKEN = /^(?:\d+\.?\d*|\.\d+)%$|^var\([\s\S]+\)$/i;
 
 const COLOR_FUNCTIONS_WITH_ALPHA_SYNTAX = new Set(["rgb", "hsl", "hwb", "lab", "lch", "oklab", "oklch", "color"]);
 
+const COLOR_FUNCTION_NAMES = new Set([
+  ...COLOR_FUNCTIONS_WITH_ALPHA_SYNTAX,
+  "rgba",
+  "hsla",
+]);
+
+// CSS named colors are valid color values even though they do not have an
+// explicit alpha syntax. Opacity edits represent them with color-mix(), while
+// full opacity preserves the authored keyword.
+const NAMED_COLOR_KEYWORDS = new Set([
+  "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black",
+  "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse",
+  "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan", "darkblue", "darkcyan",
+  "darkgoldenrod", "darkgray", "darkgrey", "darkgreen", "darkkhaki", "darkmagenta", "darkolivegreen",
+  "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen", "darkslateblue",
+  "darkslategray", "darkslategrey", "darkturquoise", "darkviolet", "deeppink", "deepskyblue",
+  "dimgray", "dimgrey", "dodgerblue", "firebrick", "floralwhite", "forestgreen", "fuchsia",
+  "gainsboro", "ghostwhite", "gold", "goldenrod", "gray", "grey", "green", "greenyellow",
+  "honeydew", "hotpink", "indianred", "indigo", "ivory", "khaki", "lavender", "lavenderblush",
+  "lawngreen", "lemonchiffon", "lightblue", "lightcoral", "lightcyan", "lightgoldenrodyellow",
+  "lightgray", "lightgrey", "lightgreen", "lightpink", "lightsalmon", "lightseagreen", "lightskyblue",
+  "lightslategray", "lightslategrey", "lightsteelblue", "lightyellow", "lime", "limegreen", "linen",
+  "magenta", "maroon", "mediumaquamarine", "mediumblue", "mediumorchid", "mediumpurple",
+  "mediumseagreen", "mediumslateblue", "mediumspringgreen", "mediumturquoise", "mediumvioletred",
+  "midnightblue", "mintcream", "mistyrose", "moccasin", "navajowhite", "navy", "oldlace", "olive",
+  "olivedrab", "orange", "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise",
+  "palevioletred", "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple",
+  "rebeccapurple", "red", "rosybrown", "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen",
+  "seashell", "sienna", "silver", "skyblue", "slateblue", "slategray", "slategrey", "snow",
+  "springgreen", "steelblue", "tan", "teal", "thistle", "tomato", "turquoise", "violet", "wheat",
+  "white", "whitesmoke", "yellow", "yellowgreen",
+]);
+
 const CSS_NUMBER = /^[+-]?(?:(?:\d+\.?\d*)|(?:\.\d+))(?:e[+-]?\d+)?$/i;
 
 function formatOpacityPercent(value: number): string {
@@ -401,15 +434,25 @@ export function applyColorOpacity(value: string, opacity: string): ColorEditResu
       ? { ok: true, value: trimmed }
       : { ok: true, value: `color-mix(in srgb, ${trimmed} ${normalized}, transparent)` };
   }
-  if (/^(?:rgba?|hsla?)\(/i.test(trimmed)) {
+  const functionName = /^(\w[\w-]*)\(/i.exec(trimmed)?.[1]?.toLowerCase();
+  if (functionName && COLOR_FUNCTION_NAMES.has(functionName)) {
+    const open = trimmed.indexOf("(");
+    if (open < 0 || !trimmed.endsWith(")") || !trimmed.slice(open + 1, -1).trim()) {
+      return { ok: false, reason: "unsupported" };
+    }
     const next = replaceFunctionOpacity(trimmed, normalized);
     if (next) return { ok: true, value: next };
-    if (isOpaqueRgbOrHslFunction(trimmed)) {
-      return normalized === "100%"
-        ? { ok: true, value: trimmed }
-        : { ok: true, value: `color-mix(in srgb, ${trimmed} ${normalized}, transparent)` };
+    if (functionName === "rgb" || functionName === "rgba" || functionName === "hsl" || functionName === "hsla") {
+      if (!isOpaqueRgbOrHslFunction(trimmed)) return { ok: false, reason: "unsupported" };
     }
-    return { ok: false, reason: "unsupported" };
+    return normalized === "100%"
+      ? { ok: true, value: trimmed }
+      : { ok: true, value: `color-mix(in srgb, ${trimmed} ${normalized}, transparent)` };
+  }
+  if (NAMED_COLOR_KEYWORDS.has(trimmed.toLowerCase())) {
+    return normalized === "100%"
+      ? { ok: true, value: trimmed }
+      : { ok: true, value: `color-mix(in srgb, ${trimmed} ${normalized}, transparent)` };
   }
   if (/^color-mix\(/i.test(trimmed)) {
     const next = replaceColorMixOpacity(trimmed, normalized);

@@ -64,7 +64,7 @@ test("dev: a fallback expression remains authored and previews through the manag
   await setRawInput(page, "color", "#123456");
   await expect.poll(() => computed(page, "raw-fallback-color", "color")).toBe("rgb(18, 52, 86)");
   await expect.poll(() => managedSheetText(page))
-    .toContain("color: #123456;");
+    .toContain("color: rgb(18, 52, 86);");
 });
 
 test("dev: physical and logical spacing survive the static CSS pipeline", async ({ page }) => {

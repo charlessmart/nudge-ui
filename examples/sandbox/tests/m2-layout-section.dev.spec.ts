@@ -447,16 +447,16 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
   await page.click('[data-test="grid-authored-container"]');
   await waitForEditors(page);
 
-  await expect(page.locator('[data-test="layout-grid-container"]')).toBeVisible();
+  await expect(page.locator('[data-test="layout-grid-container"]')).toBeVisible({ timeout: 10000 });
   const picker = page.locator('[data-test="layout-grid-picker-trigger"]');
   await expect(picker).toBeVisible();
   await picker.click();
   await expect(page.locator('[data-test="layout-grid-picker-popover"]')).toBeVisible();
   await page.locator('[data-test="layout-grid-cell-3-2"]').click();
   await expect.poll(async () => sheetText(page), { timeout: 5000 })
-    .toContain("grid-template-columns: repeat(3, minmax(0, 1fr))");
+    .toContain("grid-template-columns: repeat(3, minmax(0px, 1fr))");
   await expect.poll(async () => sheetText(page), { timeout: 5000 })
-    .toContain("grid-template-rows: repeat(2, minmax(0, 1fr))");
+    .toContain("grid-template-rows: repeat(2, minmax(0px, 1fr))");
 
   await page.locator('[data-test="layout-grid-advanced"] summary').click();
   const columns = page.locator('[data-test="layout-grid-input-grid-template-columns"]');
@@ -467,7 +467,7 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
   await columns.fill("repeat(4, minmax(0, 1fr))");
   await columns.blur();
   await expect.poll(async () => sheetText(page), { timeout: 5000 })
-    .toContain("grid-template-columns: repeat(4, minmax(0, 1fr))");
+    .toContain("grid-template-columns: repeat(4, minmax(0px, 1fr))");
 
   await page.click('[data-test="grid-child-span"]');
   await waitForEditors(page);

@@ -241,6 +241,37 @@ describe("applyColorOpacity (meaning-preserving rewrites)", () => {
     },
   );
 
+  it.each(["red", "linen", "rebeccapurple"])(
+    "wraps named color keyword %s without discarding its color meaning",
+    (value) => {
+      expect(applyColorOpacity(value, "40%")).toEqual({
+        ok: true,
+        value: `color-mix(in srgb, ${value} 40%, transparent)`,
+      });
+    },
+  );
+
+  it.each([
+    "oklch(63% .2 25)",
+    "oklab(50% .1 .05)",
+    "lab(50% 40 30)",
+    "lch(50% 40 30)",
+    "hwb(30 20% 10%)",
+    "color(srgb 1 0 0)",
+  ])("wraps opaque modern color function %s without discarding its color meaning", (value) => {
+    expect(applyColorOpacity(value, "40%")).toEqual({
+      ok: true,
+      value: `color-mix(in srgb, ${value} 40%, transparent)`,
+    });
+  });
+
+  it("replaces alpha in modern color functions", () => {
+    expect(applyColorOpacity("oklch(63% .2 25 / 80%)", "40%")).toEqual({
+      ok: true,
+      value: "oklch(63% .2 25 / 40%)",
+    });
+  });
+
   it("keeps an opaque functional color unchanged at full opacity", () => {
     expect(applyColorOpacity("rgb(17, 17, 17)", "100%"))
       .toEqual({ ok: true, value: "rgb(17, 17, 17)" });
