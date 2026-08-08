@@ -326,7 +326,7 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   expect(editorOrder).toEqual([
     "layout-section",
     "spacing-box",
-    "margin-section",
+    "layout-inset",
     "typography",
     "color-picker",
     "color-picker",
@@ -382,8 +382,8 @@ test("dev: spacing expansion resets when selecting a symmetric element", async (
 
   await page.locator(".btn").first().click();
   await expect(page.locator('[data-test="spacing-padding"]')).toHaveAttribute("data-expanded", "false");
-  await expect(page.locator('[data-test="margin-section"]')).toHaveAttribute("data-empty", "true");
-  await expect(page.locator('[data-test="spacing-margin"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "false");
+  await expect(page.locator('[data-test="spacing-margin"] [data-test="pair-value-horizontal"]')).toBeVisible();
 });
 
 function hexToRgbString(raw: string): string | null {

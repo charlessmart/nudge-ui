@@ -3,8 +3,10 @@ import {
   useCanvasCards,
   exitCanvas,
   addCanvasCard,
+  removeCanvasCard,
   findCardByNormalizedUrl,
   focusCard,
+  getSelectedCardId,
   setBoardCamera,
   getBoardCamera,
   fitAllCards,
@@ -37,6 +39,7 @@ import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
 import foundationStyles from "../ui/Foundation.css?inline";
 import { useInspectorOpen } from "../openStore.ts";
+import { isEditableEvent } from "../shortcuts.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");
 
@@ -176,6 +179,13 @@ export function CanvasWorkspace(): ReactElement | null {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
       if (mode !== "canvas") return;
+      if ((e.key === "Delete" || e.key === "Backspace") && !isEditableEvent(e)) {
+        const selectedCardId = getSelectedCardId();
+        if (!selectedCardId) return;
+        e.preventDefault();
+        removeCanvasCard(selectedCardId);
+        return;
+      }
       if (e.code === "Space" && !e.repeat) {
         const target = e.target as HTMLElement;
         if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;

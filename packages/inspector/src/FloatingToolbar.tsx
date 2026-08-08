@@ -1,9 +1,8 @@
 import type { ReactElement } from "react";
-import { IconPointer, IconMaximize } from "@tabler/icons-react";
-import { useCanvasMode, enterCanvas, exitCanvas, fitAllCards } from "./canvas/canvasStore.ts";
+import { IconPointer } from "@tabler/icons-react";
+import { useCanvasMode, enterCanvas, exitCanvas } from "./canvas/canvasStore.ts";
 import { useInspectorOpen } from "./openStore.ts";
 import { SegmentedControl } from "./ui/SegmentedControl.tsx";
-import { Button } from "./ui/Button.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import floatingToolbarStyles from "./FloatingToolbar.css?inline";
 
@@ -42,18 +41,6 @@ export function FloatingToolbar(): ReactElement | null {
             if (nextMode === "preview" && isCanvas) exitCanvas();
           }}
         />
-        {isCanvas && (
-          <Button
-            variant="quiet"
-            size="default"
-            aria-label="Fit all cards"
-            data-test="canvas-fit-all"
-            onClick={() => fitAllCards()}
-          >
-            <IconMaximize size={14} stroke={1.8} aria-hidden="true" />
-            Fit All
-          </Button>
-        )}
         <CopyPromptButton />
       </div>
     </>

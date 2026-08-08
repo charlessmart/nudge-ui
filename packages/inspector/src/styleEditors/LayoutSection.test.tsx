@@ -37,8 +37,14 @@ describe("LayoutSection", () => {
     mockComputedStyle({ display: "block", position: "static" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    expect(handle.host.querySelector('[data-test="layout-select-display"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-select-position"]')).toBeTruthy();
+    const layoutSize = handle.host.querySelector('[data-test="layout-size"]')!;
+    const display = handle.host.querySelector('[data-test="layout-select-display"]')!;
+    const position = handle.host.querySelector('[data-test="layout-select-position"]')!;
+    expect(layoutSize).toBeTruthy();
+    expect(display).toBeTruthy();
+    expect(position).toBeTruthy();
+    expect(layoutSize.compareDocumentPosition(display) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(display.compareDocumentPosition(position) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("shows flex container properties when display is flex", () => {

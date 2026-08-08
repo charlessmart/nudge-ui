@@ -15,7 +15,7 @@ test.describe("Canvas spatial board", () => {
       const t = getComputedStyle(el).transform;
       return t !== "none";
     });
-    // After the initial Fit All, the board content should have a transform
+    // After the initial canvas fit, the board content should have a transform
     // (scale may be 1, but translate may be present if content doesn't fill viewport)
     const transformValue = await boardContent.evaluate((el: HTMLElement) => {
       return el.style.transform;
@@ -40,21 +40,8 @@ test.describe("Canvas spatial board", () => {
     expect(position.top).toBeTruthy();
   });
 
-  test("dev: Fit All button is present and labelled", async ({ page }) => {
-    const fitAllBtn = page.locator('[data-test="canvas-fit-all"]');
-    await expect(fitAllBtn).toBeVisible();
-    await expect(fitAllBtn).toHaveAttribute("aria-label", "Fit all cards");
-  });
-
-  test("dev: Fit All adjusts board-content transform", async ({ page }) => {
-    const boardContent = page.locator('[data-test="canvas-board-content"]');
-    const transformBefore = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
-
-    await page.locator('[data-test="canvas-fit-all"]').click();
-    await page.waitForTimeout(200);
-
-    const transformAfter = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
-    expect(typeof transformAfter).toBe("string");
+  test("dev: Fit All control is removed from the canvas view", async ({ page }) => {
+    await expect(page.locator('[data-test="canvas-fit-all"]')).toHaveCount(0);
   });
 
   test("dev: card resize handle is present and appears on hover", async ({ page }) => {
@@ -122,8 +109,6 @@ test.describe("Canvas spatial board — two responsive sizes", () => {
       expect(sizeAfter!.height).toBeLessThan(sizeBefore!.height);
     }
 
-    await page.locator('[data-test="canvas-fit-all"]').click();
-    await page.waitForTimeout(200);
   });
 });
 

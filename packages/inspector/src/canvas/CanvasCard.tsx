@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
-import { IconRefresh, IconTrash, IconPencil, IconCopy, IconArrowsDiagonal } from "@tabler/icons-react";
+import { IconRefresh, IconPlayerPlay, IconCopy, IconArrowsDiagonal } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
   isRendererMessageFor,
@@ -176,6 +176,11 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     window.addEventListener("pointerup", onUp);
   }, [card.id, card.x, card.y, camera.zoom]);
 
+  const handleCardPointerDown = useCallback(() => {
+    if (getSelectedCardId() !== card.id) setSelectedElement(null);
+    selectCard(card.id);
+  }, [card.id]);
+
   const handleResizeStart = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -226,18 +231,23 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
         top: card.y,
         width: card.width,
         height: card.height,
-        display: "flex",
-        flexDirection: "column",
       }}
+      onPointerDown={handleCardPointerDown}
     >
       <div className="dt-canvas-card__toolbar" onPointerDown={handleToolbarPointerDown}>
-        <span className="dt-canvas-card__title" title={card.url}>
-          {card.title || card.url}
-        </span>
         <div className="dt-canvas-card__actions">
+          <Button
+            variant="secondary"
+            size="compact"
+            data-test={`canvas-card-preview-${card.id}`}
+            onClick={handleEdit}
+          >
+            <IconPlayerPlay size={14} stroke={1.8} aria-hidden="true" />
+            Preview
+          </Button>
           <IconButton
             label="Duplicate card"
-            variant="quiet"
+            variant="secondary"
             size="compact"
             data-test={`canvas-card-duplicate-${card.id}`}
             onClick={handleDuplicate}
@@ -245,31 +255,13 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
             <IconCopy size={14} stroke={1.8} aria-hidden="true" />
           </IconButton>
           <IconButton
-            label="Edit this route"
-            variant="quiet"
-            size="compact"
-            data-test={`canvas-card-edit-${card.id}`}
-            onClick={handleEdit}
-          >
-            <IconPencil size={14} stroke={1.8} aria-hidden="true" />
-          </IconButton>
-          <IconButton
             label="Reload card"
-            variant="quiet"
+            variant="secondary"
             size="compact"
             data-test={`canvas-card-reload-${card.id}`}
             onClick={handleReload}
           >
             <IconRefresh size={14} stroke={1.8} aria-hidden="true" />
-          </IconButton>
-          <IconButton
-            label="Remove card"
-            variant="danger"
-            size="compact"
-            data-test={`canvas-card-remove-${card.id}`}
-            onClick={handleRemove}
-          >
-            <IconTrash size={14} stroke={1.8} aria-hidden="true" />
           </IconButton>
         </div>
       </div>

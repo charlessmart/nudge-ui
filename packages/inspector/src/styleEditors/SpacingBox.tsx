@@ -1,12 +1,9 @@
-import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { IconMinus, IconPlus } from "@tabler/icons-react";
 import type { ResolvedProperty } from "../tokens/resolution.ts";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
 import { SideValuesField, SIDE_NAMES, type SideValuePairSlot, type SideValueSlot } from "../ui/SideValuesField.tsx";
-import { IconButton } from "../ui/IconButton.tsx";
 import { promoteToToken, setStyle, swapToken } from "../tokens/editActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
@@ -15,11 +12,6 @@ import { InsetSection } from "./InsetSection.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
-}
-
-function isZeroSpacingValue(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return !normalized || /^-?0(?:\.0+)?(?:[a-z%]+)?$/.test(normalized);
 }
 
 export interface SpacingBoxProps {
@@ -38,7 +30,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
   return (
     <>
       <div className="dt-editor" data-test="spacing-box">
-        <div className="dt-editor__title">Padding</div>
+        <div className="dt-editor__title">Spacing</div>
         <div className="dt-spacing">
           <SpacingField
             property="padding"
@@ -48,15 +40,16 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
             tokenRows={tokenRows}
             onAfterEdit={onAfterEdit}
           />
+          <SpacingField
+            property="margin"
+            projection={projection.spacing.margin}
+            domElement={el}
+            entries={allEntries}
+            tokenRows={tokenRows}
+            onAfterEdit={onAfterEdit}
+          />
         </div>
       </div>
-      <MarginSection
-        domElement={el}
-        entries={allEntries}
-        tokenRows={tokenRows}
-        projection={projection.spacing.margin}
-        onAfterEdit={onAfterEdit}
-      />
       <InsetSection
         element={element}
         entries={allEntries}
@@ -134,75 +127,6 @@ function SpacingField({
       showLabel={showLabel}
       sides={sideSlots}
     />
-  );
-}
-
-interface MarginSectionProps {
-  domElement: HTMLElement;
-  entries: TokenEntry[];
-  tokenRows: ResolvedProperty[];
-  projection: InspectorSpacingProjection;
-  onAfterEdit?: () => void;
-}
-
-function MarginSection({
-  domElement: el,
-  entries,
-  tokenRows,
-  projection,
-  onAfterEdit,
-}: MarginSectionProps): ReactElement {
-  const [fieldsAdded, setFieldsAdded] = useState(false);
-  const marginIsEmpty = SIDE_NAMES.every((side) => isZeroSpacingValue(projection.fields[side].value));
-  const showFields = !marginIsEmpty || fieldsAdded;
-
-  useEffect(() => {
-    setFieldsAdded(false);
-  }, [el]);
-
-  useEffect(() => {
-    if (!marginIsEmpty) setFieldsAdded(false);
-  }, [marginIsEmpty]);
-
-  function removeValues(): void {
-    setStyle(el, "margin", "0");
-    setFieldsAdded(false);
-    onAfterEdit?.();
-  }
-
-  return (
-    <div className="dt-editor" data-test="margin-section" data-empty={showFields ? undefined : "true"}>
-      <div className="dt-editor__title-row">
-        <div className="dt-editor__title">Margin</div>
-        <IconButton
-          variant="quiet"
-          size="default"
-          data-test={showFields ? "remove-margin" : "add-margin"}
-          label={showFields ? "Remove Margin Values" : "Add Margin Values"}
-          title={showFields ? "Remove Margin Values" : "Add Margin Values"}
-          onClick={showFields ? removeValues : () => setFieldsAdded(true)}
-        >
-          {showFields ? (
-            <IconMinus size={16} stroke={1.8} aria-hidden="true" />
-          ) : (
-            <IconPlus size={16} stroke={1.8} aria-hidden="true" />
-          )}
-        </IconButton>
-      </div>
-      {showFields ? (
-        <div className="dt-spacing">
-          <SpacingField
-            property="margin"
-            projection={projection}
-            domElement={el}
-            entries={entries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-            showLabel={false}
-          />
-        </div>
-      ) : null}
-    </div>
   );
 }
 

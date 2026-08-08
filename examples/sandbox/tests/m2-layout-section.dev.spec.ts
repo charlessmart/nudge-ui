@@ -336,7 +336,7 @@ test("dev: layout section shows inset controls for a positioned element", async 
     return Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="style-editors"] > .dt-editor') ?? [])
       .map((editor) => editor.getAttribute("data-test"));
   });
-  expect(editorOrder.indexOf("margin-section")).toBeLessThan(editorOrder.indexOf("layout-inset"));
+  expect(editorOrder.indexOf("spacing-box")).toBeLessThan(editorOrder.indexOf("layout-inset"));
 
   // Empty relative insets stay compact until explicitly added.
   await expect(page.locator('[data-test="add-inset"]')).toBeVisible();

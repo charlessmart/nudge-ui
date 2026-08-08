@@ -8,13 +8,14 @@ export interface FieldRowProps {
   children: ReactNode;
   action?: ReactNode;
   hint?: ReactNode;
+  hideLabel?: boolean;
   property?: string;
   atRules?: readonly AtRuleContext[];
   className?: string;
   "data-test"?: string;
 }
 
-export function FieldRow({ label, children, action, hint, property, atRules, className, "data-test": dataTest }: FieldRowProps): ReactElement {
+export function FieldRow({ label, children, action, hint, hideLabel = false, property, atRules, className, "data-test": dataTest }: FieldRowProps): ReactElement {
   const displayLabel = typeof label === "string" ? formatInspectorLabel(label) : label;
   const inheritedAtRules = useFieldAtRules(property ?? "");
   const fieldAtRules = atRules ?? inheritedAtRules;
@@ -27,7 +28,7 @@ export function FieldRow({ label, children, action, hint, property, atRules, cla
 
   return (
     <label className={rowClassName} data-test={dataTest}>
-      <span className="dt-field-row__label">
+      <span className={`dt-field-row__label${hideLabel ? " dt-field-row__label--hidden" : ""}`}>
         {displayLabel}
       </span>
       <span className="dt-field-row__control" data-has-at-rule={hasAtRules ? "true" : undefined}>

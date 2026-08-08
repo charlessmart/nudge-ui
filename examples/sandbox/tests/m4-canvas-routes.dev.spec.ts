@@ -18,10 +18,10 @@ test("dev: clicking same-origin link inside canvas iframe creates a new card", a
   await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
 
   const cards = board.locator(".dt-canvas-card");
-  const titles = await cards.locator(".dt-canvas-card__title").allTextContents();
-  const hasTailwind = titles.some(
-    (t) => t.includes("formwork") || t.includes("tailwind"),
+  const frameUrls = await cards.locator(".dt-canvas-card__iframe").evaluateAll((frames) =>
+    frames.map((frame) => (frame as HTMLIFrameElement).src),
   );
+  const hasTailwind = frameUrls.some((url) => url.includes("/tailwind"));
   expect(hasTailwind).toBe(true);
 });
 
@@ -69,7 +69,7 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
   expect(ids[0]).not.toBe(ids[1]);
 });
 
-test("dev: remove button never removes the last card without exiting canvas", async ({ page }) => {
+test("dev: delete key removes the selected card and exits canvas when it is the last card", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
@@ -87,15 +87,15 @@ test("dev: remove button never removes the last card without exiting canvas", as
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
 
-  // Remove one card
-  const removeBtn = page.locator('[data-test^="canvas-card-remove-"]').first();
-  await removeBtn.click();
+  // Delete the selected card.
+  await page.keyboard.press("Delete");
 
   // One card remains
   await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
 
-  // Remove the last card (should exit Canvas)
-  await page.locator('[data-test^="canvas-card-remove-"]').click();
+  // Select the remaining card, then delete it (should exit Canvas).
+  await board.locator('[data-test^="canvas-card-reload-"]').click();
+  await page.keyboard.press("Delete");
 
   // Workspace should be hidden
   await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
@@ -107,7 +107,7 @@ test("dev: edit handoff switches to inspect mode without reloading when editing 
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   // Click edit on the first card (which should be the current route)
-  await page.locator('[data-test^="canvas-card-edit-"]').first().click();
+  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
 
   // Canvas workspace should be gone
   await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
@@ -123,13 +123,26 @@ test("dev: edit handoff switches to inspect mode without reloading when editing 
   await expect(root).toBeVisible();
 });
 
-test("dev: canvas card toolbar has all four action buttons", async ({ page }) => {
+test("dev: canvas card toolbar has preview, duplicate, and refresh controls", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toBeVisible();
-  await expect(page.locator('[data-test^="canvas-card-edit-"]')).toBeVisible();
+  const preview = page.locator('[data-test^="canvas-card-preview-"]');
+  await expect(preview).toHaveText("Preview");
+  await expect(preview).toHaveClass(/dt-button--secondary/);
   await expect(page.locator('[data-test^="canvas-card-reload-"]')).toBeVisible();
-  await expect(page.locator('[data-test^="canvas-card-remove-"]')).toBeVisible();
+  await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toHaveClass(/dt-icon-button--secondary/);
+  await expect(page.locator('[data-test^="canvas-card-reload-"]')).toHaveClass(/dt-icon-button--secondary/);
+  await expect(page.locator('[data-test^="canvas-card-remove-"]')).toHaveCount(0);
+
+  const card = page.locator(".dt-canvas-card").first();
+  const toolbar = card.locator(".dt-canvas-card__toolbar");
+  const frame = card.locator(".dt-canvas-card__frame");
+  const toolbarBox = await toolbar.boundingBox();
+  const frameBox = await frame.boundingBox();
+  expect(toolbarBox).not.toBeNull();
+  expect(frameBox).not.toBeNull();
+  expect(toolbarBox!.y + toolbarBox!.height).toBeLessThan(frameBox!.y);
 });

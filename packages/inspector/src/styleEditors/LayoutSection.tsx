@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { IconCheck, IconArrowsMaximize, IconArrowsMinimize, IconLayoutDistributeHorizontal, IconSettings, IconTextWrap } from "@tabler/icons-react";
+import { IconArrowsMaximize, IconArrowsMinimize, IconCheck, IconLayoutDistributeHorizontal, IconLetterH, IconLetterW, IconSettings, IconTextWrap } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
@@ -104,31 +104,33 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
     <div className="dt-editor" data-test="layout-section">
       <div className="dt-editor__title">Layout</div>
       <div className="dt-layout">
-      <div className="dt-layout__tool-row">
-        <LayoutDropdown
-          property="display"
-          options={DISPLAY_OPTIONS}
-          domElement={el}
-          revision={layoutRevision}
-          onAfterEdit={notifyAfterEdit}
-        />
+        <div className="dt-layout__basic">
+          <SizeSection
+            domElement={el}
+            entries={allEntries}
+            tokenRows={tokenRows}
+            revision={layoutRevision}
+            onAfterEdit={notifyAfterEdit}
+          />
 
-        <LayoutDropdown
-          property="position"
-          options={POSITION_OPTIONS}
-          domElement={el}
-          revision={layoutRevision}
-          onAfterEdit={notifyAfterEdit}
-        />
-      </div>
+          <div className="dt-layout__tool-row">
+            <LayoutDropdown
+              property="display"
+              options={DISPLAY_OPTIONS}
+              domElement={el}
+              revision={layoutRevision}
+              onAfterEdit={notifyAfterEdit}
+            />
 
-        <SizeSection
-          domElement={el}
-          entries={allEntries}
-          tokenRows={tokenRows}
-          revision={layoutRevision}
-          onAfterEdit={notifyAfterEdit}
-        />
+            <LayoutDropdown
+              property="position"
+              options={POSITION_OPTIONS}
+              domElement={el}
+              revision={layoutRevision}
+              onAfterEdit={notifyAfterEdit}
+            />
+          </div>
+        </div>
 
         {isFlexContainer ? (
           <div className="dt-layout__group" data-test="layout-flex-container">
@@ -262,18 +264,24 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
         domElement={el}
         entries={entries}
         suggestions={presets}
+        className={property === "width" || property === "height" ? "dt-layout__size-field--icon" : undefined}
+        leading={property === "width"
+          ? <IconLetterW size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+          : property === "height"
+            ? <IconLetterH size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+            : undefined}
         onAfterEdit={onAfterEdit}
       />
     );
   }
 
   return (
-    <div className="dt-layout__group dt-layout__size" data-test="layout-size" data-expanded={expanded ? "true" : "false"}>
+    <div className="dt-layout__size" data-test="layout-size" data-expanded={expanded ? "true" : "false"}>
       <div className="dt-layout__size-grid">
-        <FieldRow label="Width" data-test="layout-size-width" className="dt-layout__size-cell dt-layout__size-cell--width">
+        <FieldRow label="Width" hideLabel data-test="layout-size-width" className="dt-layout__size-cell dt-layout__size-cell--width">
           {renderTokenField("width", SIZE_PRESETS)}
         </FieldRow>
-        <FieldRow label="Height" data-test="layout-size-height" className="dt-layout__size-cell dt-layout__size-cell--height">
+        <FieldRow label="Height" hideLabel data-test="layout-size-height" className="dt-layout__size-cell dt-layout__size-cell--height">
           {renderTokenField("height", SIZE_PRESETS)}
         </FieldRow>
         <IconButton

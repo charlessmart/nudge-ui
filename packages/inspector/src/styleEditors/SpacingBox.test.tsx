@@ -40,14 +40,6 @@ describe("SpacingBox", () => {
 
   function showIndividualSides(property: "padding" | "margin"): void {
     act(() => {
-      const addButton = handle.host.querySelector(
-        property === "margin"
-          ? '[data-test="margin-section"] [data-test="add-margin"]'
-          : `[data-test="spacing-${property}"] [data-test="add-value"]`,
-      ) as HTMLButtonElement | null;
-      addButton?.click();
-    });
-    act(() => {
       (handle.host.querySelector(`[data-test="spacing-${property}"] [data-test="individual-sides"]`) as HTMLButtonElement).click();
     });
   }
@@ -132,7 +124,7 @@ describe("SpacingBox", () => {
     expect(rawInput("padding-left").value).toBe("8px");
   });
 
-  it("renders margin TokenFields", () => {
+  it("renders margin TokenFields for zero values", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "padding-top": "0px",
@@ -145,23 +137,19 @@ describe("SpacingBox", () => {
       "margin-left": "0px",
     });
     handle = mount(createElement(SpacingBox, { element: selected }));
-    expect(handle.host.querySelector('[data-test="margin-section"][data-empty="true"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="spacing-margin"]')).toBeNull();
-    expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-horizontal"]')).toBeNull();
-    act(() => {
-      (handle.host.querySelector('[data-test="margin-section"] [data-test="add-margin"]') as HTMLButtonElement).click();
-    });
     expect(handle.host.querySelector('[data-test="spacing-margin"][data-expanded="false"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-horizontal"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-vertical"]')).toBeTruthy();
-    showIndividualSides("margin");
+    act(() => {
+      (handle.host.querySelector('[data-test="spacing-margin"] [data-test="individual-sides"]') as HTMLButtonElement).click();
+    });
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-top"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-right"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-bottom"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-left"]')).toBeTruthy();
   });
 
-  it("removes margin values from the section action", () => {
+  it("keeps margin values editable in the grouped field", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "padding-top": "0px",
@@ -174,12 +162,11 @@ describe("SpacingBox", () => {
       "margin-left": "16px",
     });
     handle = mount(createElement(SpacingBox, { element: selected }));
-
-    act(() => {
-      (handle.host.querySelector('[data-test="remove-margin"]') as HTMLButtonElement).click();
-    });
-
-    expect(sheetText()).toContain("margin: 0;");
+    expect(handle.host.querySelector('[data-test="spacing-margin"][data-expanded="true"]')).toBeTruthy();
+    expect(rawInput("margin-top").value).toBe("8px");
+    expect(rawInput("margin-right").value).toBe("16px");
+    expect(rawInput("margin-bottom").value).toBe("24px");
+    expect(rawInput("margin-left").value).toBe("16px");
   });
 
   it("does not reuse a shorthand margin row for every side", () => {
