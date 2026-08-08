@@ -53,6 +53,10 @@
   background: var(--dt-surface-control-hover);
 }
 
+.dt-button--quiet:hover:not(:disabled) {
+  background: var(--dt-surface-well);
+}
+
 .dt-button--primary:hover:not(:disabled) {
   background: var(--dt-accent-strong);
 }

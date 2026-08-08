@@ -21,8 +21,19 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   expect(hasShellText).not.toContain("Inspector shell ready");
   await expect(page.locator('[data-test="copy-prompt"]')).toBeDisabled();
   await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/dt-button--disabled/);
-  await expect(page.locator('[data-test="inspect-tab"]')).toHaveClass(/dt-button--secondary/);
+  await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/dt-button--secondary|dt-button--quiet/);
   await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/dt-button--quiet/);
+  const headerState = await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const header = sr?.querySelector('[data-test="inspect-tab"]');
+    const actions = header?.querySelector(".dt-panel__header-actions");
+    return {
+      background: header ? getComputedStyle(header).backgroundColor : null,
+      actions: actions ? Array.from(actions.children).map((child) => child.getAttribute("data-test")) : [],
+    };
+  });
+  expect(headerState.background).toBe("rgba(0, 0, 0, 0)");
+  expect(headerState.actions).toEqual(["inspector-settings", "tokens-tab", "copy-prompt"]);
 
   const getOpen = () =>
     page.evaluate(
@@ -57,7 +68,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
 
   await page.locator('[data-test="tokens-tab"]').click();
   await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/dt-button--secondary/);
-  await expect(page.locator('[data-test="inspect-tab"]')).toHaveClass(/dt-button--quiet/);
+  await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/dt-button--secondary|dt-button--quiet/);
 });
 
 test("dev: inspector can collapse and reopen from its icon controls on a mobile viewport", async ({ page }) => {
@@ -74,4 +85,35 @@ test("dev: inspector can collapse and reopen from its icon controls on a mobile 
   await page.locator('[data-test="show-inspector"]').click();
   await expect(panel).toHaveAttribute("data-open", "true");
   await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-design-tool-panel"))).toBe("open");
+});
+
+test("dev: inspector header scrolls with the editor content", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
+
+  const scrollState = await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const panel = sr?.querySelector(".dt-panel") as HTMLElement | null;
+    const body = sr?.querySelector(".dt-panel__body") as HTMLElement | null;
+    const header = sr?.querySelector('[data-test="inspect-tab"]') as HTMLElement | null;
+    if (!panel || !body || !header) return null;
+
+    const panelTop = panel.getBoundingClientRect().top;
+    panel.scrollTop = panel.scrollHeight;
+    return {
+      overflowY: getComputedStyle(panel).overflowY,
+      bodyOverflowY: getComputedStyle(body).overflowY,
+      scrollHeight: panel.scrollHeight,
+      clientHeight: panel.clientHeight,
+      headerTop: header.getBoundingClientRect().top,
+      panelTop,
+    };
+  });
+
+  expect(scrollState).not.toBeNull();
+  expect(scrollState?.overflowY).toBe("auto");
+  expect(scrollState?.bodyOverflowY).toBe("visible");
+  expect(scrollState?.scrollHeight).toBeGreaterThan(scrollState?.clientHeight ?? 0);
+  expect(scrollState?.headerTop).toBeLessThan(scrollState?.panelTop ?? 0);
 });

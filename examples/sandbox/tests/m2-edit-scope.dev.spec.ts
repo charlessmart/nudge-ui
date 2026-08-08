@@ -24,8 +24,13 @@ test("dev: non-forwarding repeated component defaults to source scope and can un
   await page.click("text=Repeated 3");
 
   await expect(page.locator('[data-test="edit-scope"]')).toHaveClass(/dt-status-callout--accent/);
-  await expect(page.locator('[data-test="edit-scope"]')).toContainText("Affects 6 rendered components/elements");
-  await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/dt-button--secondary/);
+  await expect(page.locator('[data-test="edit-scope"]')).toContainText("Affects 6 elements");
+  await expect(page.locator('[data-test="edit-scope"] .dt-scope__linked')).toHaveCSS("justify-content", "space-between");
+  await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/dt-button--quiet/);
+  await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/dt-button--compact/);
+  await expect(page.locator('[data-test="unlink-element"]')).toHaveText("Unlink");
+  await page.locator('[data-test="unlink-element"]').hover();
+  await expect(page.locator('[data-test="unlink-element"]')).toHaveCSS("background-color", "rgba(0, 0, 0, 0.07)");
   await setRaw(page, "font-size", "18px");
   await expect.poll(() => page.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(Array(6).fill("18px"));
   await shadowClick(page, "unlink-element");

@@ -76,6 +76,27 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
   expect(stillSelected).not.toContain("Button.tsx");
 });
 
+test("dev: primary demo button sizes to its label", async ({ page }) => {
+  await page.goto("/");
+
+  const buttonMetrics = await page.evaluate(() => {
+    const button = document.querySelector("button.btn");
+    const label = button?.querySelector<HTMLElement>(".btn__label");
+    if (!button || !label) return null;
+    const buttonRect = button.getBoundingClientRect();
+    const labelRect = label.getBoundingClientRect();
+    return {
+      buttonWidth: buttonRect.width,
+      labelWidth: labelRect.width,
+      labelPosition: getComputedStyle(label).position,
+    };
+  });
+
+  expect(buttonMetrics).not.toBeNull();
+  expect(buttonMetrics!.buttonWidth).toBeGreaterThan(buttonMetrics!.labelWidth);
+  expect(buttonMetrics!.labelPosition).toBe("static");
+});
+
 test("dev: selection shares one stylesheet snapshot across inspector fields", async ({ page }) => {
   await page.goto("/");
 

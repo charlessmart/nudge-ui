@@ -116,7 +116,7 @@ describe("InspectorShell", () => {
     expect(shadow.querySelector('[data-test="tokens-panel"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="tokens-tab"]')?.getAttribute("aria-selected")).toBe("true");
     expect(shadow.querySelector('[data-test="tokens-tab"]')?.className).toContain("dt-button--secondary");
-    expect(shadow.querySelector('[data-test="inspect-tab"]')?.className).toContain("dt-button--quiet");
+    expect(shadow.querySelector('[data-test="inspect-tab"]')?.className).toBe("dt-panel__header-row");
   });
 
   it("unmountInspector clears the React tree from the shadow root", () => {

@@ -220,6 +220,12 @@
   transition: opacity 100ms ease;
 }
 
+.dt-token-field__chip-wrap--small > .dt-token-field__delink {
+  --dt-token-field-delink-size: 26px;
+  right: auto;
+  left: max(40px, calc(100% - var(--dt-token-field-delink-size) - 4px));
+}
+
 .dt-token-field__chip-wrap:hover > .dt-token-field__delink,
 .dt-token-field__chip-wrap:focus-within > .dt-token-field__delink {
   opacity: 1;

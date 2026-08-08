@@ -125,6 +125,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
           <Button
             size="compact"
             variant="secondary"
+            type="button"
             data-test="clear-session"
             onClick={onClearSession}
           >

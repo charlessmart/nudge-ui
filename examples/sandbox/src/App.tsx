@@ -139,7 +139,7 @@ export function App() {
   }, []);
 
   return (
-    <div>
+    <div className="site-shell">
       <header className="site-header">
         <a className="wordmark" href="#top" aria-label="Design Tool home">
           <span className="wordmark-mark" aria-hidden="true">✳</span>
