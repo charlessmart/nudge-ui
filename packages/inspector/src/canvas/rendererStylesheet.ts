@@ -1,10 +1,45 @@
-import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
+import {
+  PROTOCOL_VERSION,
+  getRendererIdentity,
+  sendToParent,
+  type ReplaceStylesMessage,
+  type StructuralProjectionReportMessage,
+} from "./frameProtocol.ts";
 import { rulesToCssText, type StyleRule } from "../managedStylesheet.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
+import { applyRenderedInstanceProjection, isRenderedInstanceOverride } from "../renderedInstance.ts";
+import {
+  applyStructuralProjection,
+  getStructuralProjectionReports,
+  isStructuralChange,
+  subscribeStructuralDiagnostics,
+} from "../structuralProjection.ts";
 
 const SHEET_ID = "design-tool-styles";
 
 let lastAppliedRevision = -1;
+let lastStructuralReportRevision: number | null = null;
+
+function sendStructuralProjectionReport(revision: number): void {
+  const identity = getRendererIdentity();
+  if (!identity) return;
+  const msg: StructuralProjectionReportMessage = {
+    type: "structural-projection-report",
+    protocolVersion: PROTOCOL_VERSION,
+    revision,
+    reports: getStructuralProjectionReports(document).map((report) => ({ ...report })),
+    ...identity,
+  };
+  sendToParent(msg);
+}
+
+// The document adapter owns one batched observer. A later reconciliation only
+// changes its diagnostic status; it never receives another structural apply.
+subscribeStructuralDiagnostics(() => {
+  if (lastStructuralReportRevision !== null) {
+    sendStructuralProjectionReport(lastStructuralReportRevision);
+  }
+});
 
 export function getLastAppliedRevision(): number {
   return lastAppliedRevision;
@@ -12,6 +47,7 @@ export function getLastAppliedRevision(): number {
 
 export function resetRendererRevision(): void {
   lastAppliedRevision = -1;
+  lastStructuralReportRevision = null;
 }
 
 export interface ReplaceStylesValidation {
@@ -66,6 +102,14 @@ export function validateReplaceStyles(
     return { valid: false, reason: "css is not a string" };
   }
 
+  if (!Array.isArray(m.instanceOverrides) || !m.instanceOverrides.every(isRenderedInstanceOverride)) {
+    return { valid: false, reason: "instance overrides are invalid" };
+  }
+
+  if (!Array.isArray(m.structuralChanges) || !m.structuralChanges.every(isStructuralChange)) {
+    return { valid: false, reason: "structural changes are invalid" };
+  }
+
   return { valid: true, msg: m as unknown as ReplaceStylesMessage };
 }
 
@@ -79,6 +123,11 @@ export function handleReplaceStyles(
   if (!validation.valid) return false;
 
   if (msg.revision <= lastAppliedRevision) return false;
+
+  applyRenderedInstanceProjection(document, msg.instanceOverrides);
+  applyStructuralProjection(document, msg.structuralChanges);
+  lastStructuralReportRevision = msg.revision;
+  sendStructuralProjectionReport(msg.revision);
 
   const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
   if (!el) {

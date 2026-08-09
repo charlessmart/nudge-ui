@@ -17,6 +17,7 @@ import { interpretValue } from "@design-tool/css/value-semantics";
 import { createInspectorValueContext } from "./valueSemanticsAdapter.ts";
 import type { MatchedRule, TokenTable } from "@design-tool/css/model";
 import { unlinkElement } from "../editScope.ts";
+import { applyRenderedInstanceProjection, getRenderedInstanceOverride } from "../renderedInstance.ts";
 import {
   computeSpecificity,
   computeSpecificityCore,
@@ -280,9 +281,12 @@ describe("source-site matched-rule cache", () => {
     expect(after.find((row) => row.property === "background")?.tokenName).toBe("--color-b");
   });
 
-  it("disambiguates an unlinked instance from its source site", async () => {
+  it("shares raw unlinks, then splits matches once an individual override is projected", async () => {
     const style = document.createElement("style");
-    style.textContent = ".row { background: var(--color-a); }";
+    style.textContent = `
+      .row { background: var(--color-a); }
+      .row[data-dt-projection-instance] { background: var(--color-b); }
+    `;
     document.head.appendChild(style);
     const container = document.createElement("div");
     document.body.appendChild(container);
@@ -295,6 +299,17 @@ describe("source-site matched-rule cache", () => {
     unlinkElement(el);
     await flush();
     getResolvedPropertiesForState(el, table, "base");
+    // Unlinking records a durable target, but does not mutate the rendered
+    // document. CSS matching therefore remains source-site scoped.
+    expect(sourceSiteMatchCacheSize()).toBe(sizeBefore);
+
+    const override = getRenderedInstanceOverride(el);
+    expect(override).not.toBeNull();
+    applyRenderedInstanceProjection(document, [override!]);
+    await flush();
+
+    const projected = getResolvedPropertiesForState(el, table, "base");
+    expect(projected.find((row) => row.property === "background")?.tokenName).toBe("--color-b");
     expect(sourceSiteMatchCacheSize()).toBe(sizeBefore + 1);
   });
 

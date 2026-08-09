@@ -115,6 +115,93 @@ test("dev: Inspect deletes the selected tracked element with the macOS Backspace
   await expect(page.locator('[data-test="dom-change-row"][data-action="delete"]')).toBeVisible();
 });
 
+test("dev: Inspect revert and undo/redo operate on canonical structural history", async ({ page }) => {
+  await page.goto("/");
+  const repeated = page.getByText("Repeated 3", { exact: true });
+  await repeated.click();
+  await page.keyboard.press("Backspace");
+  await expect(repeated).not.toBeAttached();
+
+  await page.locator('[data-test="changes-toggle"]').click();
+  await expect(page.locator('[data-test="structural-source-site"]')).toContainText("RepeatedItem");
+  await expect(page.locator('[data-test="structural-scope"]')).toHaveText("This rendered item only");
+  await page.locator('[data-test="dom-change-revert"]').click();
+  await expect(page.getByText("Repeated 3", { exact: true })).toBeVisible();
+
+  await repeated.click();
+  await page.keyboard.press("Backspace");
+  await expect(repeated).not.toBeAttached();
+  await page.keyboard.press("Control+z");
+  await expect(page.getByText("Repeated 3", { exact: true })).toBeVisible();
+  await page.keyboard.press("Control+Shift+z");
+  await expect(page.getByText("Repeated 3", { exact: true })).not.toBeAttached();
+});
+
+test("dev: Canvas revert and undo/redo are controller-owned and the card reload keeps the current history", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-test="mode-canvas"]').click();
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const repeated = frame.getByText("Repeated 3", { exact: true });
+  await repeated.click();
+  await repeated.press("Backspace");
+  await expect(repeated).not.toBeAttached();
+
+  await frame.locator("body").press("Control+z");
+  await expect(frame.getByText("Repeated 3", { exact: true })).toBeVisible();
+  await frame.locator("body").press("Control+Shift+z");
+  await expect(frame.getByText("Repeated 3", { exact: true })).not.toBeAttached();
+
+  await page.locator('[data-test="changes-toggle"]').click();
+  await page.locator('[data-test="dom-change-revert"]').click();
+  await expect(frame.getByText("Repeated 3", { exact: true })).toBeVisible();
+  await page.locator('[data-test^="canvas-card-reload-"]').click();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  await expect(frame.getByText("Repeated 3", { exact: true })).toBeVisible();
+});
+
+test("dev: an application replacement is reported as overridden and is not reapplied", async ({ page }) => {
+  await page.goto("/");
+  const repeated = page.getByText("Repeated 3", { exact: true });
+  await repeated.click();
+  await page.keyboard.press("Backspace");
+  await expect(repeated).not.toBeAttached();
+
+  await page.evaluate(() => {
+    const list = document.querySelector('[data-test="repeated-items"]');
+    const placeholder = Array.from(list?.childNodes ?? []).find((node) =>
+      node.nodeType === Node.COMMENT_NODE && node.nodeValue === "design-tool-deleted");
+    if (!placeholder) throw new Error("Expected structural projection placeholder");
+    const replacement = document.createElement("div");
+    replacement.className = "repeated-item";
+    replacement.dataset.applicationRendered = "true";
+    replacement.textContent = "Application replacement";
+    placeholder.replaceWith(replacement);
+  });
+
+  await page.locator('[data-test="changes-toggle"]').click();
+  await expect(page.locator('[data-test="structural-diagnostic"][data-document="Inspect"][data-status="overridden"]')).toBeVisible();
+  await expect(page.locator('[data-application-rendered="true"]')).toHaveText("Application replacement");
+  await page.waitForTimeout(100);
+  await expect(page.locator('[data-application-rendered="true"]')).toHaveText("Application replacement");
+});
+
+test("dev: Inspect DOM moves survive switching to Canvas", async ({ page }) => {
+  await page.goto("/");
+  await dragBefore(
+    page,
+    page.locator('[data-test="flex-child-a"]'),
+    page.locator('[data-test="flex-child-c"]'),
+    page.locator('[data-test="dom-drop-line"]'),
+    page.locator('[data-test="dom-drop-target"]'),
+  );
+
+  await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+  await page.locator('[data-test="mode-canvas"]').click();
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+});
+
 test("dev: Inspect arrow keys reorder a selected sibling", async ({ page }) => {
   await page.goto("/");
   const first = page.locator('[data-test="flex-child-a"]');
@@ -126,6 +213,10 @@ test("dev: Inspect arrow keys reorder a selected sibling", async ({ page }) => {
 
   await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
   await expect.poll(async () => (await outline.boundingBox())?.x ?? 0).toBeGreaterThan(before?.x ?? 0);
+
+  await page.locator('[data-test="mode-canvas"]').click();
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
 test("dev: Canvas drags a tracked element through the controller with an insertion guide", async ({ page }) => {
@@ -147,6 +238,11 @@ test("dev: Canvas drags a tracked element through the controller with an inserti
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
   await page.locator('[data-test="changes-toggle"]').click();
   await expect(page.locator('[data-test="dom-change-row"][data-action="move"]')).toBeVisible();
+  await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="applied"]')).toBeVisible();
+  await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="missing"]')).toHaveCount(0);
+
+  await page.locator('[data-test="mode-preview"]').click();
+  await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
 test("dev: Canvas centres a flex-row insertion guide in a space-between gap", async ({ page }) => {
@@ -175,6 +271,70 @@ test("dev: Canvas deletes a selected tracked element through the controller", as
   await expect(heading).not.toBeAttached();
   await page.locator('[data-test="changes-toggle"]').click();
   await expect(page.locator('[data-test="dom-change-row"][data-action="delete"]')).toBeVisible();
+  await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="applied"]')).toBeVisible();
+  await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="missing"]')).toHaveCount(0);
+});
+
+test("dev: Inspect deletes one repeated item in Canvas and a reloaded card receives the delete", async ({ page }) => {
+  await page.goto("/");
+  const repeated = page.getByText("Repeated 3", { exact: true });
+  await repeated.click();
+  await page.keyboard.press("Backspace");
+  await expect(repeated).not.toBeAttached();
+  await expect(page.locator(".repeated-item")).toHaveText([
+    "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+  ]);
+
+  await page.locator('[data-test="mode-canvas"]').click();
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  await expect(frame.locator(".repeated-item")).toHaveText([
+    "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+  ]);
+
+  await page.locator('[data-test^="canvas-card-reload-"]').click();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  await expect(frame.locator(".repeated-item")).toHaveText([
+    "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+  ]);
+});
+
+test("dev: Canvas deletes one repeated item and the identical host target disappears", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-test="mode-canvas"]').click();
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const repeated = frame.getByText("Repeated 3", { exact: true });
+  await expect(repeated).toBeVisible();
+  await repeated.click();
+  await repeated.press("Backspace");
+  await expect(repeated).not.toBeAttached();
+  await expect(frame.locator(".repeated-item")).toHaveText([
+    "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+  ]);
+
+  await page.locator('[data-test="mode-preview"]').click();
+  await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
+  await expect(page.locator(".repeated-item")).toHaveText([
+    "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+  ]);
+});
+
+test("dev: Canvas delete-only projection advances into every already-ready card", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-test="mode-canvas"]').click();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  await page.locator('[data-test^="canvas-card-duplicate-"]').click();
+  await expect(page.locator(".dt-canvas-card__iframe")).toHaveCount(2);
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+
+  const first = page.frameLocator(".dt-canvas-card__iframe").nth(0);
+  const second = page.frameLocator(".dt-canvas-card__iframe").nth(1);
+  const repeated = first.getByText("Repeated 3", { exact: true });
+  await repeated.click();
+  await repeated.press("Backspace");
+
+  await expect(second.locator(".repeated-item")).toHaveText([
+    "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+  ]);
 });
 
 test("dev: Canvas arrow keys reorder a selected flex-row sibling", async ({ page }) => {
@@ -186,4 +346,34 @@ test("dev: Canvas arrow keys reorder a selected flex-row sibling", async ({ page
   await first.press("ArrowRight");
 
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+
+  await page.locator('[data-test="mode-preview"]').click();
+  await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+});
+
+test("dev: a Canvas reload receives the current sibling reorder snapshot", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-test="mode-canvas"]').click();
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const first = frame.locator('[data-test="flex-child-a"]');
+  await first.click();
+  await first.press("ArrowRight");
+  await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+
+  await page.locator('[data-test^="canvas-card-reload-"]').click();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+});
+
+test("dev: reordering one repeated rendered sibling leaves every other instance intact", async ({ page }) => {
+  await page.goto("/");
+  const selected = page.getByText("Repeated 3", { exact: true });
+  await selected.click();
+  await page.keyboard.press("ArrowDown");
+
+  const expectedOrder = ["Repeated 1", "Repeated 2", "Repeated 4", "Repeated 3", "Repeated 5", "Repeated 6"];
+  await expect(page.locator(".repeated-item")).toHaveText(expectedOrder);
+  await page.locator('[data-test="mode-canvas"]').click();
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  await expect(frame.locator(".repeated-item")).toHaveText(expectedOrder);
 });

@@ -1,12 +1,20 @@
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { IconChevronDown } from "@tabler/icons-react";
 import { useChanges, revertChange } from "./changesLog.ts";
 import type { ChangeRecord } from "./changesLog.ts";
 import { StaleChangeIndicator } from "./canvas/StaleChangeIndicator.tsx";
 import { Button } from "./ui/Button.tsx";
-import { revertDomMutation, useDomMutations } from "./domMutations.ts";
 import { presentChange } from "./changes/presentation.ts";
+import {
+  getStructuralChanges,
+  getStructuralChangeDiagnostics,
+  getStructuralDiagnosticRevision,
+  revertStructuralChange,
+  subscribeStructuralChanges,
+  subscribeStructuralDiagnostics,
+  type StructuralChange,
+} from "./structuralProjection.ts";
 
 interface Group {
   key: string;
@@ -39,11 +47,26 @@ function groupChanges(changes: ChangeRecord[]): Group[] {
   return Array.from(map.values());
 }
 
+function sourceFile(change: StructuralChange): string {
+  return change.target.sourceSite.src.split(":").slice(0, -2).join(":") || change.target.sourceSite.src;
+}
+
 export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
   const changes = useChanges();
-  const domMutations = useDomMutations();
+  const structuralChanges = useSyncExternalStore(
+    subscribeStructuralChanges,
+    getStructuralChanges,
+    getStructuralChanges,
+  );
+  // Diagnostics arrive independently from structural state when a renderer
+  // resolves a snapshot or its document observer detects a reconciliation.
+  useSyncExternalStore(
+    subscribeStructuralDiagnostics,
+    getStructuralDiagnosticRevision,
+    getStructuralDiagnosticRevision,
+  );
   const groups = useMemo(() => groupChanges(changes), [changes]);
-  const total = changes.length + domMutations.length;
+  const total = changes.length + structuralChanges.length;
 
   return (
     <>
@@ -54,7 +77,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
           <IconChevronDown className="dt-changes__toggle-icon" size={15} stroke={2} aria-hidden="true" />
         </summary>
         <div className="dt-changes__content">
-          {groups.length === 0 && domMutations.length === 0 ? (
+          {groups.length === 0 && structuralChanges.length === 0 ? (
             <div className="dt-changes__empty" data-test="changes-empty">
               No changes yet
             </div>
@@ -91,25 +114,37 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                   })}
                 </div>
               ))}
-              {domMutations.map((mutation) => (
-                <div className="dt-changes__group" data-test="dom-change" key={mutation.id} data-cid={mutation.cid}>
+              {structuralChanges.map((change) => (
+                <div className="dt-changes__group" data-test="dom-change" key={change.id} data-cid={change.target.sourceSite.cid}>
                   <div className="dt-changes__group-title">
-                    <span>{mutation.cid}</span>
-                    <span className="dt-changes__group-file">{mutation.file}</span>
+                    <span>{change.target.sourceSite.cid}</span>
+                    <span className="dt-changes__group-file">{sourceFile(change)}</span>
                   </div>
-                  <div className="dt-changes__row" data-test="dom-change-row" data-action={mutation.action}>
-                    <span className="dt-changes__prop">{mutation.action === "move" ? "Move in DOM" : "Delete from DOM"}</span>
+                  <div className="dt-changes__row" data-test="dom-change-row" data-action={change.kind}>
+                    <span className="dt-changes__source-site" data-test="structural-source-site">Source site: {change.target.sourceSite.cid}</span>
+                    <span className="dt-changes__prop">{change.kind === "move" ? "Move in DOM" : "Delete from DOM"}</span>
                     <span className="dt-changes__value">
-                      <span className="dt-changes__before">{mutation.action === "move" ? `${mutation.from.parentTag} · position ${mutation.from.index + 1}` : "Visible"}</span>
+                      <span className="dt-changes__before">{change.kind === "move" ? "Current sibling position" : "Visible"}</span>
                       <span className="dt-changes__arrow">→</span>
-                      <span className="dt-changes__after">{mutation.action === "move" && mutation.to ? `${mutation.to.parentTag} · position ${mutation.to.index + 1}` : "Removed"}</span>
+                      <span className="dt-changes__after">{change.kind === "move" ? "Requested sibling position" : "Removed"}</span>
                     </span>
-                    {mutation.stale ? <span className="dt-changes__conflict" data-test="dom-mutation-stale">React replaced this node. Apply this structural change in code.</span> : null}
+                    <span className="dt-changes__scope" data-test="structural-scope">This rendered item only</span>
+                    {getStructuralChangeDiagnostics(change.id).map((diagnostic) => (
+                      <span
+                        className="dt-changes__diagnostic"
+                        data-test="structural-diagnostic"
+                        data-document={diagnostic.document}
+                        data-status={diagnostic.status}
+                        key={`${diagnostic.document}:${diagnostic.status}`}
+                      >
+                        {diagnostic.document}: {diagnostic.status}
+                      </span>
+                    ))}
                     <Button
                       size="compact"
                       className="dt-changes__revert"
                       data-test="dom-change-revert"
-                      onClick={() => revertDomMutation(mutation)}
+                      onClick={() => revertStructuralChange(change.id)}
                     >
                       Revert
                     </Button>

@@ -92,6 +92,31 @@ test("dev: element edits project into canvas renderer frame", async ({ page }) =
   expect(frameContent).toContain("padding-top: 32px;");
 });
 
+test("dev: canvas element edits survive switching back to Inspect", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-test="mode-canvas"]').click();
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
+    timeout: 20000,
+  });
+
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const button = frame.locator("button.btn").first();
+  await button.click();
+  await expect(page.locator('[data-test="selection"]')).toBeVisible({ timeout: 5000 });
+
+  await expandSpacing(page);
+  await setInput(page, "padding-top", "37px");
+  await expect.poll(() => button.evaluate((element) => getComputedStyle(element).paddingTop)).toBe("37px");
+
+  await page.locator('[data-test="mode-preview"]').click();
+  await waitForInspector(page);
+
+  const hostButton = page.locator("button.btn").first();
+  await expect.poll(() => hostButton.evaluate((element) => getComputedStyle(element).paddingTop)).toBe("37px");
+  await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 37px;");
+});
+
 test("dev: global token edit projects into canvas frame", async ({ page }) => {
   await page.goto("/");
 

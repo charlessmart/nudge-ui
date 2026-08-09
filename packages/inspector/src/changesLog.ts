@@ -13,7 +13,7 @@ import {
   verifyManagedStyleProjection,
 } from "./changes/projection.ts";
 import type { StyleRule, PreviewResult } from "./managedStylesheet.ts";
-import { isComponentChange } from "./changes/types.ts";
+import { isComponentChange, isElementChange } from "./changes/types.ts";
 import type { ChangeRecord, PreviewableChangeRecord } from "./changes/types.ts";
 
 export {
@@ -179,6 +179,20 @@ export function discardChangesForSelector(selector: string): void {
   if (!canWriteWorkspace()) return;
   const before = changes;
   changes = changes.filter((change) => selectorForChange(change) !== selector);
+  if (changes.length === before.length) return;
+  reapply();
+  markForVerification(changes.map(changeKey));
+  undoStack.push({ before, after: changes });
+  redoStack.length = 0;
+  notify();
+}
+
+/** Relink removes every CSS declaration owned by one durable rendered target. */
+export function discardChangesForInstanceOverride(overrideId: string): void {
+  if (!canWriteWorkspace()) return;
+  const before = changes;
+  changes = changes.filter((change) =>
+    !isElementChange(change) || change.instanceOverride?.id !== overrideId);
   if (changes.length === before.length) return;
   reapply();
   markForVerification(changes.map(changeKey));

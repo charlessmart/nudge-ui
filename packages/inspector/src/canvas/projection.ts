@@ -1,8 +1,11 @@
-import { getPendingRules } from "../changesLog.ts";
+import { getChangesList, getPendingRules } from "../changesLog.ts";
 import { rulesToCssText } from "../managedStylesheet.ts";
 import type { CanvasCard } from "./canvasStore.ts";
 import { getCanvasMode } from "./canvasStore.ts";
 import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
+import { collectRenderedInstanceOverrides, applyRenderedInstanceProjection } from "../renderedInstance.ts";
+import { applyStructuralProjection, getStructuralChanges } from "../structuralProjection.ts";
+import { clearCanvasStructuralProjectionReports } from "../structuralProjection.ts";
 
 export const PROJECT_ID = window.location.origin;
 
@@ -11,21 +14,39 @@ export const WORKSPACE_ID = crypto.randomUUID?.() ?? `ws-${Date.now()}`;
 let revision = 0;
 let lastRulesKey: string | null = null;
 
-function rulesKey(css: string): string {
-  const rules = getPendingRules();
-  if (rules.length === 0) return "__empty__";
-  return css;
+function rulesKey(css: string, overrides: ReturnType<typeof collectRenderedInstanceOverrides>): string {
+  // Revision ordering protects every controller-owned projection dimension.
+  // In particular, a delete-only snapshot has empty CSS but must still advance
+  // past the snapshot already accepted by ready Canvas renderers.
+  return `${css}\u0000${JSON.stringify(overrides)}\u0000${JSON.stringify(getStructuralChanges())}`;
 }
 
-export function computeProjection(): { css: string; revision: number } {
+export function computeProjection(): {
+  css: string;
+  revision: number;
+  instanceOverrides: ReturnType<typeof collectRenderedInstanceOverrides>;
+  structuralChanges: ReturnType<typeof getStructuralChanges>;
+} {
+  const overrides = collectRenderedInstanceOverrides(getChangesListForProjection());
+  applyRenderedInstanceProjection(document, overrides);
+  const structuralChanges = getStructuralChanges();
+  applyStructuralProjection(document, structuralChanges);
   const rules = getPendingRules();
   const css = rulesToCssText(rules);
-  const key = rulesKey(css);
+  const key = rulesKey(css, overrides);
   if (key !== lastRulesKey) {
     lastRulesKey = key;
     revision += 1;
   }
-  return { css, revision };
+  return { css, revision, instanceOverrides: overrides, structuralChanges };
+}
+
+// Kept private to projection so callers cannot accidentally make a renderer
+// authoritative over the controller change log.
+function getChangesListForProjection() {
+  // getPendingRules intentionally hides canonical metadata; projection needs
+  // the durable instance references in addition to its CSS serialization.
+  return getChangesList();
 }
 
 export function resetProjectionRevision(): void {
@@ -39,7 +60,7 @@ export function sendProjectionToCard(
 ): void {
   const win = iframe.contentWindow;
   if (!win) return;
-  const { css, revision: rev } = computeProjection();
+  const { css, revision: rev, instanceOverrides, structuralChanges } = computeProjection();
   const msg: ReplaceStylesMessage = {
     type: "replace-styles",
     protocolVersion: PROTOCOL_VERSION,
@@ -48,6 +69,8 @@ export function sendProjectionToCard(
     cardId: card.id,
     css,
     revision: rev,
+    instanceOverrides,
+    structuralChanges: [...structuralChanges],
   };
   win.postMessage(msg, window.location.origin);
 }
@@ -68,6 +91,7 @@ export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): vo
 export function unregisterCardFrame(cardId: string): void {
   frameSourceRegistry.delete(cardId);
   frameRegistry.delete(cardId);
+  clearCanvasStructuralProjectionReports(cardId);
   notifyFrameRegistryListeners();
 }
 
@@ -101,7 +125,7 @@ function notifyFrameRegistryListeners(): void {
 
 export function projectToAllReadyCards(): void {
   if (getCanvasMode() !== "canvas") return;
-  const { css, revision: rev } = computeProjection();
+  const { css, revision: rev, instanceOverrides, structuralChanges } = computeProjection();
   for (const [cardId, iframe] of frameRegistry) {
     const win = iframe.contentWindow;
     if (!win) continue;
@@ -113,6 +137,8 @@ export function projectToAllReadyCards(): void {
       cardId,
       css,
       revision: rev,
+      instanceOverrides,
+      structuralChanges: [...structuralChanges],
     };
     win.postMessage(msg, window.location.origin);
   }

@@ -1,6 +1,9 @@
-import { escapeAttrValue } from "./cssEscapes.ts";
+import { getRenderedInstanceOverride, createRenderedInstanceOverride, clearRenderedInstanceOverride } from "./renderedInstance.ts";
+import { sourceSiteSelector } from "./sourceSite.ts";
 
-export type EditScope = "source-site" | "instance-preview";
+export { sourceSiteSelector } from "./sourceSite.ts";
+
+export type EditScope = "source-site" | "rendered-instance";
 
 export interface InstanceEvidence {
   renderedIndex: number;
@@ -8,23 +11,11 @@ export interface InstanceEvidence {
   text: string | null;
 }
 
-const INSTANCE_ATTR = "data-dt-instance";
-let nextInstanceId = 1;
-
-let sourceSiteMatchCounts = new WeakMap<Document, Map<string, number>>();
+let sourceSiteMatchCounts = new WeakMap<Document, WeakMap<HTMLElement, Map<string, number>>>();
 
 /** Test hook: clears the memoized source-site match counts. */
 export function resetSourceSiteMatchCounts(): void {
   sourceSiteMatchCounts = new WeakMap();
-}
-
-export function sourceSiteSelector(cid: string, src: string): string | null {
-  if (!cid) return null;
-  if (!src) return `[data-cid="${escapeAttrValue(cid)}"]`;
-  // A source site is the complete file:line:column identity injected by the
-  // Vite transform. Keeping only file:line makes separate JSX elements on a
-  // single formatted line share a managed rule.
-  return `[data-cid="${escapeAttrValue(cid)}"][data-src="${escapeAttrValue(src)}"]`;
 }
 
 /**
@@ -36,13 +27,17 @@ export function sourceSiteSelector(cid: string, src: string): string | null {
 export function countSourceSiteMatches(el: HTMLElement, revision = 0): number {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
-  const instance = el.getAttribute(INSTANCE_ATTR) ?? "";
   const doc = el.ownerDocument ?? document;
-  const key = `${cid}\u0000${src}\u0000${instance}\u0000${revision}`;
-  let cache = sourceSiteMatchCounts.get(doc);
+  const key = `${cid}\u0000${src}\u0000${revision}`;
+  let documentCache = sourceSiteMatchCounts.get(doc);
+  if (!documentCache) {
+    documentCache = new WeakMap();
+    sourceSiteMatchCounts.set(doc, documentCache);
+  }
+  let cache = documentCache.get(el);
   if (!cache) {
     cache = new Map();
-    sourceSiteMatchCounts.set(doc, cache);
+    documentCache.set(el, cache);
   }
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
@@ -56,32 +51,19 @@ export function countSourceSiteMatches(el: HTMLElement, revision = 0): number {
   return count;
 }
 
-export function unlinkElement(el: HTMLElement): string {
-  const existing = el.getAttribute(INSTANCE_ATTR);
-  if (existing) return existing;
-  const id = `i${nextInstanceId++}`;
-  el.setAttribute(INSTANCE_ATTR, id);
-  return id;
+export function unlinkElement(el: HTMLElement): string | null {
+  return getRenderedInstanceOverride(el)?.id ?? createRenderedInstanceOverride(el)?.id ?? null;
 }
 
-export function relinkElement(el: HTMLElement): void {
-  el.removeAttribute(INSTANCE_ATTR);
+export function relinkElement(el: HTMLElement): string | null {
+  return clearRenderedInstanceOverride(el)?.id ?? null;
 }
 
 export function getEditScope(el: HTMLElement): EditScope {
-  return el.hasAttribute(INSTANCE_ATTR) ? "instance-preview" : "source-site";
+  return getRenderedInstanceOverride(el) ? "rendered-instance" : "source-site";
 }
 
 export function selectorForElement(el: HTMLElement): string | null {
-  const instance = el.getAttribute(INSTANCE_ATTR);
-  if (instance) {
-    const sourceSelector = sourceSiteSelector(
-      el.getAttribute("data-cid") ?? "",
-      el.getAttribute("data-src") ?? "",
-    );
-    const instanceSelector = `[${INSTANCE_ATTR}="${escapeAttrValue(instance)}"]`;
-    return sourceSelector ? `${sourceSelector}${instanceSelector}` : instanceSelector;
-  }
   return sourceSiteSelector(el.getAttribute("data-cid") ?? "", el.getAttribute("data-src") ?? "");
 }
 

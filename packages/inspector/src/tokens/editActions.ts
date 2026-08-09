@@ -6,7 +6,8 @@ import {
   getPendingRules,
 } from "../changesLog.ts";
 import type { ChangeRecord, ElementChangeRecord } from "../changesLog.ts";
-import { getEditScope, getInstanceEvidence, selectorForElement, sourceSiteSelector } from "../editScope.ts";
+import { getEditScope, selectorForElement, sourceSiteSelector } from "../editScope.ts";
+import { getRenderedInstanceOverride } from "../renderedInstance.ts";
 import { getActiveStyleState, selectorForInteractionState } from "../styleState.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 
@@ -24,7 +25,10 @@ export function buildSelector(cid: string, src: string): string | null {
 
 function scopeFields(el: HTMLElement) {
   const scope = getEditScope(el);
-  return { scope, instanceEvidence: scope === "instance-preview" ? getInstanceEvidence(el) : undefined };
+  return {
+    scope,
+    instanceOverride: scope === "rendered-instance" ? getRenderedInstanceOverride(el) ?? undefined : undefined,
+  };
 }
 
 function stateFields(el: HTMLElement) {

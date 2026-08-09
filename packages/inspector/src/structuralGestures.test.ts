@@ -1,0 +1,113 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  canContainElement,
+  deleteElement,
+  getDropLocationAtPoint,
+  getDropLocationForElement,
+  moveElement,
+  nudgeElement,
+} from "./structuralGestures.ts";
+import { resolveSelectionFromElement } from "./resolveSelection.ts";
+import { clearStructuralChanges, getStructuralChanges, resetStructuralDeleteProjection } from "./structuralProjection.ts";
+
+function fixture(): { root: HTMLDivElement; first: HTMLDivElement; second: HTMLDivElement } {
+  const root = document.createElement("div");
+  root.dataset.cid = "List";
+  root.dataset.src = "src/App.tsx:0:1";
+  root.innerHTML = `
+    <div data-cid="Item" data-src="src/App.tsx:1:1" data-test="first">First</div>
+    <div data-cid="Item" data-src="src/App.tsx:2:1" data-test="second">Second</div>`;
+  document.body.appendChild(root);
+  return {
+    root,
+    first: root.querySelector('[data-test="first"]') as HTMLDivElement,
+    second: root.querySelector('[data-test="second"]') as HTMLDivElement,
+  };
+}
+
+afterEach(() => {
+  clearStructuralChanges();
+  resetStructuralDeleteProjection();
+  document.body.replaceChildren();
+});
+
+describe("structuralGestures", () => {
+  it("rejects an invalid block-in-span drop while accepting an ordinary div container", () => {
+    const { first, second } = fixture();
+    expect(canContainElement(document.createElement("span"), first)).toBe(false);
+    expect(canContainElement(second, first)).toBe(true);
+  });
+
+  it("captures a sibling move as canonical intent and projects the host", () => {
+    const { root, first, second } = fixture();
+    const drop = getDropLocationForElement(second, first, true, false);
+    const change = moveElement(second, drop!);
+    expect(change).toMatchObject({ kind: "move", target: { sourceSite: { cid: "Item" } } });
+    expect(getStructuralChanges()).toEqual([change]);
+    expect(root.firstElementChild).toBe(second);
+  });
+
+  it("uses container edge bands as sibling insertion zones", () => {
+    const { first, root, second } = fixture();
+    const original = Object.getOwnPropertyDescriptor(document, "elementFromPoint");
+    Object.defineProperty(second, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 100 }) as DOMRect });
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => second });
+    try {
+      expect(getDropLocationAtPoint(document, first, 40, 105)).toMatchObject({ parent: root, before: second });
+      expect(getDropLocationAtPoint(document, first, 40, 195)).toMatchObject({ parent: root, before: null });
+    } finally {
+      if (original) Object.defineProperty(document, "elementFromPoint", original);
+      else delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint;
+    }
+  });
+
+  it("uses a vertical guide for flex-row insertion", () => {
+    const { first, root, second } = fixture();
+    root.style.display = "flex";
+    root.style.flexDirection = "row";
+    Object.defineProperty(root, "getBoundingClientRect", { value: () => ({ left: 0, top: 0, width: 300, height: 120 }) as DOMRect });
+    Object.defineProperty(second, "getBoundingClientRect", { value: () => ({ left: 200, top: 0, width: 80, height: 120 }) as DOMRect });
+    const original = Object.getOwnPropertyDescriptor(document, "elementFromPoint");
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => second });
+    try {
+      expect(getDropLocationAtPoint(document, first, 204, 60)).toMatchObject({ parent: root, before: second, orientation: "vertical", left: 200, width: 4 });
+    } finally {
+      if (original) Object.defineProperty(document, "elementFromPoint", original);
+      else delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint;
+    }
+  });
+
+  it("nudges only valid sibling directions into canonical moves", () => {
+    const { first, root, second } = fixture();
+    expect(nudgeElement(second, "ArrowUp")).not.toBeNull();
+    expect(root.firstElementChild).toBe(second);
+    expect(nudgeElement(second, "ArrowRight")).toBeNull();
+    root.style.display = "flex";
+    root.style.flexDirection = "row";
+    expect(nudgeElement(second, "ArrowRight")).not.toBeNull();
+    expect(root.firstElementChild).toBe(first);
+  });
+
+  it("captures delete intent and projects it through the host adapter", () => {
+    const { first, root } = fixture();
+    const change = deleteElement(resolveSelectionFromElement(first)!);
+    expect(change).toMatchObject({ kind: "delete", target: { sourceSite: { cid: "Item" } } });
+    expect(getStructuralChanges()).toEqual([change]);
+    expect(root.querySelector('[data-test="first"]')).toBeNull();
+  });
+
+  it("does not directly project a Canvas-document delete before its renderer message", () => {
+    const frameDocument = document.implementation.createHTMLDocument("Canvas frame");
+    const root = frameDocument.createElement("div");
+    root.dataset.cid = "List";
+    root.dataset.src = "src/App.tsx:0:1";
+    const target = frameDocument.createElement("div");
+    target.dataset.cid = "Item";
+    target.dataset.src = "src/App.tsx:1:1";
+    root.append(target);
+    frameDocument.body.append(root);
+    expect(deleteElement(resolveSelectionFromElement(target)!)).not.toBeNull();
+    expect(target.isConnected).toBe(true);
+  });
+});

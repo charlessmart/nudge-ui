@@ -19,7 +19,7 @@ async function setRaw(page: import("@playwright/test").Page, property: string, v
   }, { property, value });
 }
 
-test("dev: non-forwarding repeated component defaults to source scope and can unlink one instance", async ({ page }) => {
+test("dev: non-forwarding repeated component defaults to source scope and can edit one rendered instance", async ({ page }) => {
   await page.goto("/");
   await page.click("text=Repeated 3");
 
@@ -28,25 +28,18 @@ test("dev: non-forwarding repeated component defaults to source scope and can un
   await expect(page.locator('[data-test="edit-scope"] .dt-scope__linked')).toHaveCSS("justify-content", "space-between");
   await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/dt-button--quiet/);
   await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/dt-button--compact/);
-  await expect(page.locator('[data-test="unlink-element"]')).toHaveText("Unlink");
+  await expect(page.locator('[data-test="unlink-element"]')).toHaveText("Edit this rendered item only");
   await page.locator('[data-test="unlink-element"]').hover();
   await expect(page.locator('[data-test="unlink-element"]')).toHaveCSS("background-color", "rgba(0, 0, 0, 0.07)");
   await setRaw(page, "font-size", "18px");
   await expect.poll(() => page.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(Array(6).fill("18px"));
   await shadowClick(page, "unlink-element");
 
-  const identity = await page.locator("text=Repeated 3").getAttribute("data-dt-instance");
-  expect(identity).toMatch(/^i\d+$/);
-  expect(await page.locator(".repeated-item[data-dt-instance]").count()).toBe(1);
+  expect(await page.locator(".repeated-item[data-dt-instance]").count()).toBe(0);
   await setRaw(page, "font-size", "24px");
   await expect.poll(() => page.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
+  expect(await page.locator(".repeated-item[data-dt-projection-instance]").count()).toBe(1);
 
   await shadowClick(page, "relink-element");
-  expect(await page.locator(".repeated-item[data-dt-instance]").count()).toBe(0);
-
-  await shadowClick(page, "unlink-element");
-  await page.locator("text=Repeated 3").evaluate((element) => element.remove());
-  await expect.poll(() => page.evaluate(() => (
-    document.getElementById("design-tool-root")?.shadowRoot?.textContent ?? ""
-  ))).toContain("Instance preview lost");
+  expect(await page.locator(".repeated-item[data-dt-projection-instance]").count()).toBe(0);
 });

@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { ChangesLog } from "./ChangesLog.tsx";
 import { appendChange, clearChanges } from "./changesLog.ts";
+import { clearStructuralChanges, createStructuralDelete, resetStructuralDeleteProjection } from "./structuralProjection.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -16,6 +17,8 @@ describe("ChangesLog", () => {
     act(() => root.unmount());
     container.remove();
     clearChanges();
+    clearStructuralChanges();
+    resetStructuralDeleteProjection();
   });
 
   it("starts collapsed and reveals stacked change content on demand", () => {
@@ -71,5 +74,26 @@ describe("ChangesLog", () => {
     expect(actions.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Session");
     expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("dt-button--secondary");
     expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("dt-button--compact");
+  });
+
+  it("presents and reverts canonical structural changes directly", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    const target = document.createElement("div");
+    target.dataset.cid = "Item";
+    target.dataset.src = "src/List.tsx:8:1";
+    document.body.appendChild(target);
+    const change = createStructuralDelete(target, "delete-item")!;
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<ChangesLog />);
+    });
+
+    expect(container.querySelector('[data-test="dom-change-row"]')?.getAttribute("data-action")).toBe("delete");
+    expect(container.querySelector('[data-test="structural-source-site"]')?.textContent).toContain("Item");
+    act(() => (container.querySelector('[data-test="dom-change-revert"]') as HTMLButtonElement).click());
+    expect(target.isConnected).toBe(true);
+    expect(change.id).toBe("delete-item");
   });
 });

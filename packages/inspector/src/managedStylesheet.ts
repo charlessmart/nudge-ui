@@ -39,7 +39,10 @@ function installManagedHeadGuard(doc: Document): void {
   managedHeadGuardDocument = doc;
   managedHeadGuard = new Observer(() => {
     const managed = doc.getElementById(SHEET_ID);
-    if (managed && doc.head.lastElementChild !== managed) doc.head.appendChild(managed);
+    if (managed && doc.head.lastElementChild !== managed) {
+      doc.head.appendChild(managed);
+      rehydrateManagedSheet(doc, managed as HTMLStyleElement);
+    }
   });
   managedHeadGuard.observe(doc.head, { childList: true });
 }
@@ -68,7 +71,10 @@ export function ensureManagedSheet(): CSSStyleSheet {
   if (!sheet) {
     throw new Error("design-tool managed stylesheet could not be initialised");
   }
-  if (doc.head.lastElementChild !== el) doc.head.appendChild(el);
+  if (doc.head.lastElementChild !== el) {
+    doc.head.appendChild(el);
+    rehydrateManagedSheet(doc, el);
+  }
   installManagedHeadGuard(doc);
   if (import.meta.env.DEV && doc.defaultView) {
     // Keep authored CSS available to dev diagnostics without writing
@@ -184,6 +190,34 @@ function syncEntryIndexes(): void {
 /** Synchronous serialized view of the rules currently projected into the managed sheet. */
 export function getManagedSheetText(): string {
   return rulesToCssText(managedEntries.map(entryToRule));
+}
+
+/**
+ * Rehydrate the CSSOM after moving the managed style element in <head>.
+ *
+ * Incremental CSSOM writes intentionally leave the style element's text empty.
+ * Some browsers replace the CSSStyleSheet when that element is reattached, so
+ * the in-memory mirror can outlive an empty live sheet. Rewriting the authored
+ * text is acceptable here because head reattachment is an infrequent lifecycle
+ * operation, not the hot edit path.
+ */
+function rehydrateManagedSheet(doc: Document, el: HTMLStyleElement): void {
+  const sheet = el.sheet;
+  if (!sheet) return;
+
+  const rules = managedEntries.map(entryToRule);
+  const cssText = rulesToCssText(rules);
+  const needsRebuild = el.textContent !== cssText || sheet.cssRules.length !== rules.length;
+
+  if (needsRebuild) {
+    el.textContent = cssText;
+    if (!el.sheet) return;
+    notifyBrowserStylesheetChange(doc);
+  }
+
+  // Reparenting can invalidate the CSSStyleRule objects held by the model even
+  // when the browser happened to retain the same rule count.
+  if (el.sheet) syncModelFromSheet(rules, el.sheet);
 }
 
 /**

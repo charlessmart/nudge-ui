@@ -29,6 +29,13 @@ import {
   setBoardCamera,
 } from "./canvasStore.ts";
 import { designToolProjectId } from "virtual:design-tokens";
+import {
+  createStructuralDelete,
+  createStructuralMove,
+  applyStructuralProjection,
+  getStructuralChanges,
+  resetStructuralDeleteProjection,
+} from "../structuralProjection.ts";
 
 function localUrl(path: string): string {
   return new URL(path, window.location.href).href;
@@ -79,6 +86,8 @@ function makeComponentChange(): ComponentChangeRecord {
 
 function resetAllState(): void {
   clearChanges();
+  resetStructuralDeleteProjection();
+  document.body.replaceChildren();
   if (getCanvasMode() === "canvas") exitCanvas();
   for (const card of getCanvasCards()) {
     removeCanvasCardStore(card.id);
@@ -86,6 +95,8 @@ function resetAllState(): void {
   setBoardCamera({ x: 0, y: 0, zoom: 1 });
   try {
     localStorage.removeItem(storageKey(designToolProjectId));
+    localStorage.removeItem(`design-tool:${designToolProjectId}:v3`);
+    localStorage.removeItem(`design-tool:${designToolProjectId}:v4`);
   } catch {
     // ignore
   }
@@ -110,11 +121,16 @@ describe("sessionStore persistence", () => {
     expect(parsed.changes[0].selector).toBe('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
   });
 
-  it("excludes instance-preview changes from serialization", () => {
-    appendChange(makeElementChange());
+  it("serializes a durable rendered-instance change", () => {
     appendChange(makeElementChange({
-      scope: "instance-preview",
-      selector: '[data-dt-instance="i1"]',
+      scope: "rendered-instance",
+      instanceOverride: {
+        id: "override-1",
+        target: {
+          sourceSite: { cid: "Button", src: "src/Button.tsx:1:1" },
+          locator: { kind: "evidence", occurrence: 1, props: null, text: "Two" },
+        },
+      },
     }));
     persistSession();
 
@@ -122,7 +138,34 @@ describe("sessionStore persistence", () => {
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!);
     expect(parsed.changes).toHaveLength(1);
-    expect(parsed.changes[0].scope).not.toBe("instance-preview");
+    expect(parsed.changes[0]).toMatchObject({
+      scope: "rendered-instance",
+      instanceOverride: { id: "override-1", target: { locator: { occurrence: 1, text: "Two" } } },
+    });
+  });
+
+  it("serializes canonical structural deletes and moves without document-local artefacts", () => {
+    const parent = document.createElement("section");
+    parent.dataset.cid = "List";
+    parent.dataset.src = "src/List.tsx:4:1";
+    const first = document.createElement("button");
+    first.dataset.cid = "Item";
+    first.dataset.src = "src/List.tsx:8:1";
+    first.textContent = "First";
+    const second = first.cloneNode(true) as HTMLElement;
+    second.textContent = "Second";
+    parent.append(first, second);
+    document.body.append(parent);
+    createStructuralDelete(second, "delete-1");
+    createStructuralMove(first, { parent, before: null }, "move-1");
+
+    const json = JSON.stringify(serializeSession());
+    expect(json).toContain('"structuralChanges"');
+    expect(json).toContain('"kind":"delete"');
+    expect(json).toContain('"kind":"move"');
+    expect(json).not.toContain("design-tool-deleted");
+    expect(json).not.toContain("placeholder");
+    expect(json).not.toContain("elementId");
   });
 
   it("serializes token changes without element identity fields", () => {
@@ -189,6 +232,75 @@ describe("sessionStore hydration", () => {
     expect(result.restored).toBe(true);
     expect(result.changeCount).toBe(2);
     expect(getChangesList()).toHaveLength(2);
+  });
+
+  it("hydrates structural changes without history and restores their document projection", () => {
+    const target = document.createElement("button");
+    target.dataset.cid = "Item";
+    target.dataset.src = "src/List.tsx:8:1";
+    target.textContent = "Second";
+    document.body.append(target);
+    createStructuralDelete(target, "delete-1");
+    persistSession();
+
+    resetStructuralDeleteProjection();
+    document.body.replaceChildren(target);
+    const result = hydrateSession();
+
+    expect(result.changeCount).toBe(1);
+    expect(getStructuralChanges()).toMatchObject([{ id: "delete-1", kind: "delete" }]);
+    expect(target.isConnected).toBe(false);
+  });
+
+  it.each([3, 4])("reads v%i durable CSS, drops legacy runtime records, and upgrades safely", (legacyVersion) => {
+    const legacyKey = `design-tool:${designToolProjectId}:v${legacyVersion}`;
+    localStorage.setItem(legacyKey, JSON.stringify({
+      schemaVersion: legacyVersion,
+      projectId: designToolProjectId,
+      mode: "inspect",
+      inspectUrl: window.location.href,
+      cards: [],
+      camera: { x: 0, y: 0, zoom: 1 },
+      changes: [
+        makeElementChange({ rawValue: "red", oldToken: null, newToken: null }),
+        {
+          ...makeElementChange({ rawValue: "blue", oldToken: null, newToken: null }),
+          scope: "runtime-preview",
+          elementId: "dt-instance-1",
+        },
+      ],
+    }));
+
+    const result = hydrateSession();
+
+    expect(result).toMatchObject({ restored: true, changeCount: 1 });
+    expect(getChangesList()).toHaveLength(1);
+    expect(localStorage.getItem(legacyKey)).toBeNull();
+    expect(localStorage.getItem(storageKey(designToolProjectId))).toContain('"schemaVersion":5');
+  });
+
+  it("rejects structural payloads with generated marker or document-local fields", () => {
+    localStorage.setItem(storageKey(designToolProjectId), JSON.stringify({
+      schemaVersion: SCHEMA_VERSION,
+      projectId: designToolProjectId,
+      mode: "inspect",
+      inspectUrl: window.location.href,
+      cards: [],
+      camera: { x: 0, y: 0, zoom: 1 },
+      changes: [],
+      structuralChanges: [{
+        id: "delete-1",
+        kind: "delete",
+        target: {
+          sourceSite: { cid: "Item", src: "src/List.tsx:8:1" },
+          locator: { kind: "evidence", occurrence: 0, props: null, text: "Second" },
+        },
+        marker: "data-dt-projection-instance",
+      }],
+    }));
+
+    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
+    expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
   });
 
   it("hydration creates no undo entries (loadChanges clears undo stack)", () => {
@@ -367,6 +479,22 @@ describe("sessionStore clear session", () => {
 
     clearSession();
     expect(getChangesList()).toHaveLength(0);
+  });
+
+  it("clears structural projections, histories, and host previews", () => {
+    const target = document.createElement("button");
+    target.dataset.cid = "Item";
+    target.dataset.src = "src/List.tsx:8:1";
+    target.textContent = "Second";
+    document.body.append(target);
+    createStructuralDelete(target, "delete-1");
+    applyStructuralProjection(document, getStructuralChanges());
+    expect(target.isConnected).toBe(false);
+
+    clearSession();
+
+    expect(getStructuralChanges()).toEqual([]);
+    expect(target.isConnected).toBe(true);
   });
 
   it("clears all canvas cards", () => {

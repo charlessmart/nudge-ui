@@ -190,6 +190,19 @@ describe("applyRules", () => {
       expect(el).not.toBeNull();
       expect(document.head.lastElementChild).toBe(el);
     });
+
+    it("rehydrates live CSSOM rules after reappending the managed sheet", async () => {
+      applyRules([{ selector: ".a", declarations: { color: "red" } }]);
+      const later = document.createElement("style");
+      document.head.appendChild(later);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const el = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      const rule = el.sheet?.cssRules[0] as CSSStyleRule | undefined;
+      expect(el.textContent).toContain(".a { color: red; }");
+      expect(rule?.selectorText).toBe(".a");
+      expect(rule?.style.getPropertyValue("color")).toBe("red");
+    });
   });
 });
 

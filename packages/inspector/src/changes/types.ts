@@ -1,6 +1,7 @@
 import type { TokenEntry } from "virtual:design-tokens";
 import type { PreviewResult, StyleRuleContext } from "../managedStylesheet.ts";
 import type { ComponentChangeRecord } from "../componentSemantics/types.ts";
+import type { RenderedInstanceOverride } from "../renderedInstance.ts";
 
 export interface ElementChangeRecord {
   kind?: "element";
@@ -18,8 +19,9 @@ export interface ElementChangeRecord {
   rawValue?: string;
   oldRawValue?: string;
   source: { file: string; line: number; component: string };
-  scope?: "source-site" | "instance-preview";
-  instanceEvidence?: { renderedIndex: number; props: string | null; text: string | null };
+  scope?: "source-site" | "rendered-instance";
+  /** Durable, controller-owned target for one rendered output. */
+  instanceOverride?: RenderedInstanceOverride;
   previewResult?: PreviewResult;
   state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";
 }
@@ -40,7 +42,6 @@ export interface TokenChangeRecord {
   oldToken?: null;
   newToken?: null;
   scope?: undefined;
-  instanceEvidence?: undefined;
   previewResult?: PreviewResult;
 }
 

@@ -13,6 +13,7 @@ import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendPr
 import { IconButton } from "../ui/IconButton.tsx";
 import { Button } from "../ui/Button.tsx";
 import { setSelectedElement } from "../selectionStore.ts";
+import { clearCanvasStructuralProjectionReports } from "../structuralProjection.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -125,6 +126,9 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     if (!iframe) return;
     function onLoad(): void {
       if (getSelectedCardId() === card.id) setSelectedElement(null);
+      // A reload creates a new renderer document; do not show diagnostics
+      // produced by the old frame while its replacement is handshaking.
+      clearCanvasStructuralProjectionReports(card.id);
       iframeRef.current?.contentWindow?.postMessage({
         type: "parent-ready",
         protocolVersion: PROTOCOL_VERSION,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { useChanges } from "./changesLog.ts";
 import { tokens } from "virtual:design-tokens";
@@ -6,18 +6,22 @@ import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { detectFramework } from "./prompt/detectFramework.ts";
 import { copyToClipboard } from "./prompt/copyToClipboard.ts";
 import { Button } from "./ui/Button.tsx";
-import { useDomMutations } from "./domMutations.ts";
+import { getStructuralChanges, subscribeStructuralChanges } from "./structuralProjection.ts";
 
 export function CopyPromptButton(): ReactElement {
   const changes = useChanges();
-  const domMutations = useDomMutations();
+  const structuralChanges = useSyncExternalStore(
+    subscribeStructuralChanges,
+    getStructuralChanges,
+    getStructuralChanges,
+  );
   const [copied, setCopied] = useState(false);
-  const disabled = changes.length + domMutations.length === 0;
+  const disabled = changes.length + structuralChanges.length === 0;
 
   async function onClick(): Promise<void> {
     if (disabled) return;
     const hints = detectFramework(tokens);
-    const text = generatePrompt(changes, hints, domMutations);
+    const text = generatePrompt(changes, hints, structuralChanges);
     await copyToClipboard(text);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);

@@ -20,6 +20,8 @@ import {
 import { CanvasCard } from "./CanvasCard.tsx";
 import { getCanvasMode, setCanvasMode, useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changesLog.ts";
+import { subscribeStructuralChanges } from "../structuralProjection.ts";
+import { recordCanvasStructuralProjectionReports } from "../structuralProjection.ts";
 import {
   findCanvasFrameBySource,
   PROJECT_ID,
@@ -29,6 +31,7 @@ import {
 import { normalizeUrl } from "./normalizeUrl.ts";
 import {
   isRendererMessageFor,
+  isStructuralProjectionReportMessage,
   type ExternalNavigationMessage,
   type NavigationIntentMessage,
   type PanEndMessage,
@@ -99,6 +102,10 @@ export function CanvasWorkspace(): ReactElement | null {
     });
   }, []);
 
+  useEffect(() => subscribeStructuralChanges(() => {
+    projectToAllReadyCards();
+  }), []);
+
   useEffect(() => {
     function onMessage(event: MessageEvent): void {
       if (event.origin !== window.location.origin) return;
@@ -110,6 +117,16 @@ export function CanvasWorkspace(): ReactElement | null {
         workspaceId: WORKSPACE_ID,
         cardId: frame.cardId,
       })) return;
+
+      const identity = {
+        projectId: PROJECT_ID,
+        workspaceId: WORKSPACE_ID,
+        cardId: frame.cardId,
+      };
+      if (isStructuralProjectionReportMessage(event.data, identity)) {
+        recordCanvasStructuralProjectionReports(frame.cardId, event.data.revision, event.data.reports);
+        return;
+      }
 
       const msg = event.data as NavigationIntentMessage | ExternalNavigationMessage | PanStartMessage | PanMoveMessage | PanEndMessage;
       const pointInBoard = (point: { x: number; y: number }) => {
