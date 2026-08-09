@@ -14,6 +14,7 @@ import {
 } from "./projection.ts";
 import { appendChange, clearChanges, getPendingRules } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
+import { createStructuralDelete, createStructuralMove, resetStructuralDeleteProjection } from "../structuralProjection.ts";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
@@ -21,8 +22,10 @@ const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styl
 describe("projection", () => {
   beforeEach(() => {
     clearChanges();
+    resetStructuralDeleteProjection();
     resetProjectionRevision();
     document.getElementById("design-tool-styles")?.remove();
+    document.body.replaceChildren();
   });
 
   it("computeProjection returns CSS from pending rules", () => {
@@ -142,6 +145,55 @@ describe("projection", () => {
     clearChanges();
     expect(computeProjection().revision).toBe(2);
     expect(computeProjection().revision).toBe(2);
+  });
+
+  it("increments the shared snapshot revision when structural delete intent changes", () => {
+    const target = document.createElement("button");
+    target.dataset.cid = "RepeatedItem";
+    target.dataset.src = "src/App.tsx:12:5";
+    target.textContent = "Repeated 2";
+    document.body.append(target);
+
+    const before = computeProjection();
+    createStructuralDelete(target, "delete-2");
+    const after = computeProjection();
+
+    expect(before).toMatchObject({ css: "", revision: 1, structuralChanges: [] });
+    expect(after.revision).toBe(2);
+    expect(after.structuralChanges).toEqual([{
+      id: "delete-2",
+      kind: "delete",
+      target: {
+        sourceSite: { cid: "RepeatedItem", src: "src/App.tsx:12:5" },
+        locator: {
+          kind: "evidence", occurrence: 0, props: null, text: "Repeated 2", ariaLabel: null,
+        },
+      },
+    }]);
+  });
+
+  it("increments the shared snapshot revision for a move-only structural change", () => {
+    const parent = document.createElement("section");
+    parent.dataset.cid = "List";
+    parent.dataset.src = "src/App.tsx:5:1";
+    const first = document.createElement("button");
+    first.dataset.cid = "Item";
+    first.dataset.src = "src/App.tsx:6:1";
+    first.textContent = "One";
+    const second = document.createElement("button");
+    second.dataset.cid = "Item";
+    second.dataset.src = "src/App.tsx:6:1";
+    second.textContent = "Two";
+    parent.append(first, second);
+    document.body.append(parent);
+
+    const before = computeProjection();
+    createStructuralMove(second, { parent, before: first }, "move-2");
+    const after = computeProjection();
+
+    expect(after.revision).toBe(before.revision + 1);
+    expect(after.css).toBe("");
+    expect(after.structuralChanges).toMatchObject([{ id: "move-2", kind: "move" }]);
   });
 
   it("PROJECT_ID is derived from window.location.origin", () => {

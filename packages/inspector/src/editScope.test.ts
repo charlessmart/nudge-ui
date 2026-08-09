@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
 import { countSourceSiteMatches, getEditScope, getInstanceEvidence, relinkElement, resetSourceSiteMatchCounts, selectorForElement, unlinkElement } from "./editScope";
+import { resetRenderedInstanceState } from "./renderedInstance";
 
 describe("edit scope", () => {
-  beforeEach(() => { document.body.innerHTML = ""; });
+  beforeEach(() => { document.body.innerHTML = ""; resetRenderedInstanceState(); });
   function add(text: string): HTMLElement {
     const el = document.createElement("button");
     el.dataset.cid = "Item"; el.dataset.src = "src/Item.tsx:4:3"; el.textContent = text;
@@ -15,17 +16,21 @@ describe("edit scope", () => {
     expect(getEditScope(first)).toBe("source-site");
     expect(selectorForElement(first)).toContain("data-cid");
   });
-  it("unlinks and re-links one runtime instance", () => {
+  it("starts and clears a durable rendered-instance edit target without a DOM identity", () => {
     const first = add("one"); add("two");
-    unlinkElement(first);
-    expect(getEditScope(first)).toBe("instance-preview");
-    expect(document.querySelectorAll(selectorForElement(first)!)).toHaveLength(1);
-    relinkElement(first);
+    const id = unlinkElement(first);
+    expect(id).toMatch(/^override-/);
+    expect(getEditScope(first)).toBe("rendered-instance");
+    expect(first.hasAttribute("data-dt-instance")).toBe(false);
+    expect(selectorForElement(first)).toContain("data-cid");
+    expect(relinkElement(first)).toBe(id);
     expect(getEditScope(first)).toBe("source-site");
   });
   it("captures a zero-based rendered index and short text", () => {
     add("one"); const second = add("two");
-    expect(getInstanceEvidence(second)).toEqual({ renderedIndex: 1, props: null, text: "two" });
+    expect(getInstanceEvidence(second)).toEqual({
+      renderedIndex: 1, props: null, text: "two", ariaLabel: null,
+    });
   });
   it("counts and indexes matches in an iframe element's own document", () => {
     const iframe = document.createElement("iframe");

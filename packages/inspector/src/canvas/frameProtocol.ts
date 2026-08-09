@@ -1,4 +1,7 @@
-export const PROTOCOL_VERSION = 2;
+import { isDocumentProjectionReport } from "../renderedInstance.ts";
+
+// v7 adds renderer-to-controller rendered-instance projection diagnostics.
+export const PROTOCOL_VERSION = 7;
 
 export interface FrameMessage {
   type: string;
@@ -44,6 +47,27 @@ export interface ReplaceStylesMessage extends FrameMessage {
   cardId: string;
   css: string;
   revision: number;
+  /** Controller-owned durable targets; the renderer derives local markers. */
+  instanceOverrides: import("../renderedInstance.ts").RenderedInstanceOverride[];
+  /** Controller-owned structural intent; renderers never own this change log. */
+  structuralChanges: import("../structuralProjection.ts").StructuralChange[];
+}
+
+/**
+ * Renderer-local outcomes for one controller snapshot. This is diagnostic
+ * data only: accepting it never changes controller-owned structural intent.
+ */
+export interface StructuralProjectionReportMessage extends RendererMessage {
+  type: "structural-projection-report";
+  revision: number;
+  reports: import("../structuralProjection.ts").StructuralProjectionReport[];
+}
+
+/** Renderer-local CSS-instance outcomes for one controller snapshot. */
+export interface RenderedInstanceProjectionReportMessage extends RendererMessage {
+  type: "rendered-instance-projection-report";
+  revision: number;
+  reports: import("../renderedInstance.ts").DocumentProjectionReport[];
 }
 
 export interface NavigationIntentMessage extends RendererMessage {
@@ -113,6 +137,12 @@ export interface ElementNudgeMessage extends RendererMessage {
   key: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight";
 }
 
+/** A renderer may request history navigation; only the parent changes history. */
+export interface HistoryRequestMessage extends RendererMessage {
+  type: "history-request";
+  action: "undo" | "redo";
+}
+
 export interface ExternalNavigationMessage extends RendererMessage {
   type: "external-navigation";
   url: string;
@@ -138,6 +168,8 @@ export type FrameProtocolMessage =
   | FrameMetadataMessage
   | FrameLoadError
   | ReplaceStylesMessage
+  | StructuralProjectionReportMessage
+  | RenderedInstanceProjectionReportMessage
   | NavigationIntentMessage
   | ElementHoverMessage
   | ElementMeasureStateMessage
@@ -147,6 +179,7 @@ export type FrameProtocolMessage =
   | ElementDragEndMessage
   | ElementDeleteMessage
   | ElementNudgeMessage
+  | HistoryRequestMessage
   | ExternalNavigationMessage
   | PanStartMessage
   | PanMoveMessage
@@ -172,6 +205,53 @@ export function isRendererMessageFor(
     && message.projectId === identity.projectId
     && message.workspaceId === identity.workspaceId
     && message.cardId === identity.cardId;
+}
+
+/** Strict JSON-only schema for renderer diagnostics before the parent records them. */
+export function isStructuralProjectionReportMessage(
+  value: unknown,
+  identity: FrameIdentity,
+): value is StructuralProjectionReportMessage {
+  if (!isRendererMessageFor(value, identity) || !value || typeof value !== "object") return false;
+  const message = value as unknown as Record<string, unknown>;
+  if (!hasOnlyKeys(message, [
+    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "revision", "reports",
+  ])) return false;
+  return message.type === "structural-projection-report"
+    && Number.isSafeInteger(message.revision)
+    && (message.revision as number) >= 0
+    && Array.isArray(message.reports)
+    && message.reports.every(isStructuralProjectionReport);
+}
+
+/** Strict JSON-only schema for renderer CSS-instance diagnostics. */
+export function isRenderedInstanceProjectionReportMessage(
+  value: unknown,
+  identity: FrameIdentity,
+): value is RenderedInstanceProjectionReportMessage {
+  if (!isRendererMessageFor(value, identity) || !value || typeof value !== "object") return false;
+  const message = value as unknown as Record<string, unknown>;
+  if (!hasOnlyKeys(message, [
+    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "revision", "reports",
+  ])) return false;
+  return message.type === "rendered-instance-projection-report"
+    && Number.isSafeInteger(message.revision)
+    && (message.revision as number) >= 0
+    && Array.isArray(message.reports)
+    && message.reports.every(isDocumentProjectionReport);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+
+function isStructuralProjectionReport(value: unknown): value is import("../structuralProjection.ts").StructuralProjectionReport {
+  if (!value || typeof value !== "object") return false;
+  const report = value as Record<string, unknown>;
+  return hasOnlyKeys(report, ["changeId", "status"])
+    && typeof report.changeId === "string"
+    && (report.status === "applied" || report.status === "missing"
+      || report.status === "ambiguous" || report.status === "overridden");
 }
 
 export function sendToParent(msg: FrameProtocolMessage): void {

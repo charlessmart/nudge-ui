@@ -7,6 +7,7 @@ import {
   type ElementMeasureStateMessage,
   type ElementDeleteMessage,
   type ElementNudgeMessage,
+  type HistoryRequestMessage,
   type ElementDragEndMessage,
   type ElementDragMoveMessage,
   type ElementDragStartMessage,
@@ -226,6 +227,19 @@ export function installRendererElementSelector(): void {
       || event.key === "ArrowLeft"
       || event.key === "ArrowRight";
     if (scrollKey) event.preventDefault();
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+      const identity = getRendererIdentity();
+      if (!identity) return;
+      event.preventDefault();
+      const msg: HistoryRequestMessage = {
+        type: "history-request",
+        protocolVersion: PROTOCOL_VERSION,
+        action: event.shiftKey ? "redo" : "undo",
+        ...identity,
+      };
+      sendToParent(msg);
+      return;
+    }
     if (!lastSelected) return;
     const identity = getRendererIdentity();
     if (!identity) return;

@@ -666,7 +666,7 @@ function sourceSiteContextKey(el: HTMLElement): string {
 function sourceSiteKey(el: HTMLElement, transform: CascadeTransform): string {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
-  const instance = el.getAttribute("data-dt-instance") ?? "";
+  const instance = el.getAttribute("data-dt-projection-instance") ?? "";
   const className = typeof el.className === "string" ? el.className : "";
   return `${cid}\u0000${src}\u0000${instance}\u0000${className}\u0000${transform}`;
 }
@@ -685,7 +685,7 @@ function matchRuleForElement(el: HTMLElement, entry: { rule: MatchedRule; select
 /**
  * Matches every transformed rule against one element. For elements carrying a
  * source-site identity (`data-cid`) the selector-match result is cached per
- * `(document, data-cid, data-src, data-dt-instance, transform, element and
+ * `(document, data-cid, data-src, data-dt-projection-instance, transform, element and
  * stylesheet revision, context)` so repeated selections and equivalent sibling instances of the
  * same source site reuse the matched rule set. Elements without a stable
  * identity, or selectors that depend on unsupported relationships, are matched

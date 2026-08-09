@@ -33,7 +33,9 @@ export function changeKey(change: ChangeRecord): string {
     change.cid,
     change.file,
     change.line,
-    change.selector,
+    change.scope === "rendered-instance"
+      ? change.instanceOverride?.id ?? "missing-instance-override"
+      : change.selector,
     change.scope ?? "source-site",
     change.state ?? "base",
     change.property,

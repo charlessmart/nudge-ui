@@ -1,10 +1,74 @@
-import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
+import {
+  PROTOCOL_VERSION,
+  getRendererIdentity,
+  sendToParent,
+  type ReplaceStylesMessage,
+  type RenderedInstanceProjectionReportMessage,
+  type StructuralProjectionReportMessage,
+} from "./frameProtocol.ts";
 import { rulesToCssText, type StyleRule } from "../managedStylesheet.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
+import {
+  applyRenderedInstanceProjection,
+  getRenderedInstanceProjectionReports,
+  isRenderedInstanceOverride,
+  subscribeRenderedInstanceDiagnostics,
+} from "../renderedInstance.ts";
+import {
+  applyStructuralProjection,
+  getStructuralProjectionReports,
+  isStructuralChange,
+  subscribeStructuralDiagnostics,
+} from "../structuralProjection.ts";
 
 const SHEET_ID = "design-tool-styles";
 
 let lastAppliedRevision = -1;
+let lastStructuralReportRevision: number | null = null;
+let lastRenderedInstanceReportRevision: number | null = null;
+let stopStructuralDiagnostics: (() => void) | null = null;
+let stopRenderedInstanceDiagnostics: (() => void) | null = null;
+
+function sendStructuralProjectionReport(revision: number): void {
+  const identity = getRendererIdentity();
+  if (!identity) return;
+  const msg: StructuralProjectionReportMessage = {
+    type: "structural-projection-report",
+    protocolVersion: PROTOCOL_VERSION,
+    revision,
+    reports: getStructuralProjectionReports(document).map((report) => ({ ...report })),
+    ...identity,
+  };
+  sendToParent(msg);
+}
+
+function sendRenderedInstanceProjectionReport(revision: number): void {
+  const identity = getRendererIdentity();
+  if (!identity) return;
+  const msg: RenderedInstanceProjectionReportMessage = {
+    type: "rendered-instance-projection-report",
+    protocolVersion: PROTOCOL_VERSION,
+    revision,
+    reports: getRenderedInstanceProjectionReports(document).map((report) => ({ ...report })),
+    ...identity,
+  };
+  sendToParent(msg);
+}
+
+/** Installs renderer diagnostics only after the dev-only renderer bootstrap. */
+export function startRendererProjectionDiagnostics(): void {
+  if (!import.meta.env.DEV || stopStructuralDiagnostics || stopRenderedInstanceDiagnostics) return;
+  stopStructuralDiagnostics = subscribeStructuralDiagnostics(() => {
+    if (lastStructuralReportRevision !== null) {
+      sendStructuralProjectionReport(lastStructuralReportRevision);
+    }
+  });
+  stopRenderedInstanceDiagnostics = subscribeRenderedInstanceDiagnostics(() => {
+    if (lastRenderedInstanceReportRevision !== null) {
+      sendRenderedInstanceProjectionReport(lastRenderedInstanceReportRevision);
+    }
+  });
+}
 
 export function getLastAppliedRevision(): number {
   return lastAppliedRevision;
@@ -12,6 +76,12 @@ export function getLastAppliedRevision(): number {
 
 export function resetRendererRevision(): void {
   lastAppliedRevision = -1;
+  lastStructuralReportRevision = null;
+  lastRenderedInstanceReportRevision = null;
+  stopStructuralDiagnostics?.();
+  stopStructuralDiagnostics = null;
+  stopRenderedInstanceDiagnostics?.();
+  stopRenderedInstanceDiagnostics = null;
 }
 
 export interface ReplaceStylesValidation {
@@ -66,6 +136,14 @@ export function validateReplaceStyles(
     return { valid: false, reason: "css is not a string" };
   }
 
+  if (!Array.isArray(m.instanceOverrides) || !m.instanceOverrides.every(isRenderedInstanceOverride)) {
+    return { valid: false, reason: "instance overrides are invalid" };
+  }
+
+  if (!Array.isArray(m.structuralChanges) || !m.structuralChanges.every(isStructuralChange)) {
+    return { valid: false, reason: "structural changes are invalid" };
+  }
+
   return { valid: true, msg: m as unknown as ReplaceStylesMessage };
 }
 
@@ -75,10 +153,18 @@ export function handleReplaceStyles(
   workspaceId: string,
   cardId: string,
 ): boolean {
+  if (!import.meta.env.DEV) return false;
   const validation = validateReplaceStyles(msg, projectId, workspaceId, cardId);
   if (!validation.valid) return false;
 
   if (msg.revision <= lastAppliedRevision) return false;
+
+  applyStructuralProjection(document, msg.structuralChanges);
+  applyRenderedInstanceProjection(document, msg.instanceOverrides);
+  lastStructuralReportRevision = msg.revision;
+  lastRenderedInstanceReportRevision = msg.revision;
+  sendStructuralProjectionReport(msg.revision);
+  sendRenderedInstanceProjectionReport(msg.revision);
 
   const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
   if (!el) {

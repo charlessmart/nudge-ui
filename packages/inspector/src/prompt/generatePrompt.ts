@@ -7,7 +7,8 @@ import type {
   TokenChangeRecord,
 } from "../changesLog.ts";
 import { escapeAttrValue } from "../cssEscapes.ts";
-import type { DomMutationRecord } from "../domMutations.ts";
+import type { RenderedInstanceOverride, RenderedInstanceRef } from "../renderedInstance.ts";
+import type { StructuralChange } from "../structuralProjection.ts";
 import { canonicalizeChanges } from "../changes/model.ts";
 import {
   formatComponentPropBaseline,
@@ -29,6 +30,7 @@ interface ElementGroup {
   file: string;
   line: number;
   selector: string;
+  instanceOverride?: RenderedInstanceOverride;
   changes: ElementChangeRecord[];
 }
 
@@ -40,7 +42,17 @@ function basename(filePath: string): string {
 function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
   const map = new Map<string, ElementGroup>();
   for (const change of changes) {
-    const key = [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site", change.state ?? "base"].join("\u0000");
+    const instanceOverride = change.scope === "rendered-instance" ? change.instanceOverride : undefined;
+    const key = [
+      change.cid,
+      change.file,
+      change.line,
+      change.selector,
+      change.scope ?? "source-site",
+      instanceOverride?.id ?? "",
+      instanceOverride ? JSON.stringify(instanceOverride.target) : "",
+      change.state ?? "base",
+    ].join("\u0000");
     let group = map.get(key);
     if (!group) {
       group = {
@@ -49,6 +61,7 @@ function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
         file: change.file,
         line: change.source.line || change.line,
         selector: change.selector,
+        instanceOverride,
         changes: [],
       };
       map.set(key, group);
@@ -108,10 +121,59 @@ function promptSelectorForElement(group: ElementGroup): string {
   return `[data-cid="${escapeAttrValue(group.cid)}"][data-src*="${escapeAttrValue(`${group.file}:${group.line}`)}"]`;
 }
 
-export function generatePrompt(changes: ChangeRecord[], frameworkHints?: FrameworkHints, domMutations: DomMutationRecord[] = []): string {
-  if (changes.length === 0 && domMutations.length === 0) return EMPTY_SENTINEL;
+function boundedEvidence(value: string | null): string | null {
+  return value === null ? null : value.slice(0, 120);
+}
+
+function sourceSiteLabel(ref: RenderedInstanceRef): string {
+  return `${ref.sourceSite.cid} (${ref.sourceSite.src})`;
+}
+
+function instanceEvidenceLines(label: string, ref: RenderedInstanceRef): string[] {
+  const evidence = ref.locator;
+  const lines = [`  - ${label}: ${sourceSiteLabel(ref)}; rendered occurrence ${evidence.occurrence + 1}`];
+  const props = boundedEvidence(evidence.props);
+  const text = boundedEvidence(evidence.text);
+  const ariaLabel = boundedEvidence(evidence.ariaLabel ?? null);
+  if (props) lines.push(`    - Props evidence: \`${props}\``);
+  if (text) lines.push(`    - Text evidence: \`${text}\``);
+  if (ariaLabel) lines.push(`    - Accessible name evidence: \`${ariaLabel}\``);
+  return lines;
+}
+
+function structuralChangeLines(change: StructuralChange): string[] {
+  if (change.kind === "delete") {
+    return [
+      `### Remove rendered instance from ${sourceSiteLabel(change.target)}`,
+      "- Remove this one rendered instance in source; do not implement a runtime DOM deletion.",
+      ...instanceEvidenceLines("Target", change.target),
+    ];
+  }
+  const before = change.destination.before;
+  return [
+    `### Move rendered instance from ${sourceSiteLabel(change.target)}`,
+    before
+      ? `- Move this one rendered instance before the specified sibling within ${sourceSiteLabel(change.destination.parent)}.`
+      : `- Move this one rendered instance to the end of ${sourceSiteLabel(change.destination.parent)}.`,
+    ...instanceEvidenceLines("Target", change.target),
+    ...instanceEvidenceLines("Destination parent", change.destination.parent),
+    ...(before ? instanceEvidenceLines("Before anchor", before) : []),
+    `  - Presentation: position ${change.presentation.fromIndex + 1} → ${change.presentation.toIndex + 1} within <${change.presentation.parentTag}>`,
+  ];
+}
+
+function structuralSourceFallback(ref: RenderedInstanceRef): string {
+  return `[data-cid="${escapeAttrValue(ref.sourceSite.cid)}"][data-src*="${escapeAttrValue(ref.sourceSite.src)}"]`;
+}
+
+export function generatePrompt(
+  changes: ChangeRecord[],
+  frameworkHints?: FrameworkHints,
+  structuralChanges: readonly StructuralChange[] = [],
+): string {
+  if (changes.length === 0 && structuralChanges.length === 0) return EMPTY_SENTINEL;
   const deduplicated = canonicalizeChanges(changes);
-  if (deduplicated.length === 0 && domMutations.length === 0) return EMPTY_SENTINEL;
+  if (deduplicated.length === 0 && structuralChanges.length === 0) return EMPTY_SENTINEL;
 
   const tokenChanges = deduplicated.filter(isTokenChange);
   const componentChanges = deduplicated.filter(isComponentChange);
@@ -120,7 +182,7 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
   const elementGroups = groupElementChanges(elementChanges);
   const firstFile = deduplicated[0]
     ? presentChange(deduplicated[0]).file
-    : domMutations[0]!.file;
+    : structuralChanges[0]!.target.sourceSite.src;
   const framework = frameworkHints?.framework ?? "React";
   const stylingSystem = frameworkHints?.stylingSystem ?? "CSS custom properties";
   const lines = [
@@ -154,35 +216,24 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
     for (const group of elementGroups) {
       const state = group.changes[0]?.state ?? "base";
       lines.push(`### ${group.cid} (${group.file}:${group.line}) · ${state}`);
+      if (group.instanceOverride) {
+        lines.push(...instanceEvidenceLines("Target", group.instanceOverride.target));
+      }
       for (const change of group.changes) {
         lines.push(elementChangeLine(change));
         const intent = sourceIntentLine(change);
         if (intent) lines.push(intent);
-        if (change.scope === "instance-preview" && change.instanceEvidence) {
-          const evidence = change.instanceEvidence;
-          lines.push(`  - Scope: one rendered instance (index ${evidence.renderedIndex}); implement a data-driven conditional at the source site.`);
-          if (evidence.props) lines.push(`  - Props evidence: \`${evidence.props}\``);
-          if (evidence.text) lines.push(`  - Text evidence: \`${evidence.text}\``);
-        }
       }
       lines.push("");
     }
   }
 
-  if (domMutations.length > 0) {
-    lines.push("## DOM structure changes", "");
-    for (const mutation of domMutations) {
-      if (mutation.action === "move" && mutation.to) {
-        lines.push(`- Move \`${mutation.cid}\` (${mutation.file}:${mutation.line}) from \`${mutation.from.parentTag}\` position ${mutation.from.index + 1} to \`${mutation.to.parentTag}\` position ${mutation.to.index + 1}.`);
-      } else {
-        lines.push(`- Remove \`${mutation.cid}\` (${mutation.file}:${mutation.line}) from \`${mutation.from.parentTag}\` position ${mutation.from.index + 1}.`);
-      }
-      if (mutation.scope === "instance-preview" && mutation.instanceEvidence) {
-        lines.push(`  - Scope: the rendered instance at index ${mutation.instanceEvidence.renderedIndex}; implement the data or conditional source change rather than deleting a DOM node at runtime.`);
-      }
-      if (mutation.stale) lines.push("  - Preview was reset by React; implement this change directly in source.");
+  if (structuralChanges.length > 0) {
+    lines.push("## Structural preview changes", "");
+    for (const change of structuralChanges) {
+      lines.push(...structuralChangeLines(change));
+      lines.push("");
     }
-    lines.push("");
   }
 
   lines.push("## Selectors (fallback)");
@@ -190,6 +241,14 @@ export function generatePrompt(changes: ChangeRecord[], frameworkHints?: Framewo
   componentChanges.forEach((change) =>
     lines.push(`- Component callsite: \`${change.target.file}:${change.target.line}:${change.target.column}\` (\`${change.target.componentName}\`)`));
   elementGroups.forEach((group) => lines.push(`- \`${promptSelectorForElement(group)}\``));
-  domMutations.forEach((mutation) => lines.push(`- \`${mutation.selector}\``));
+  const structuralFallbacks = new Set<string>();
+  for (const change of structuralChanges) {
+    structuralFallbacks.add(structuralSourceFallback(change.target));
+    if (change.kind === "move") {
+      structuralFallbacks.add(structuralSourceFallback(change.destination.parent));
+      if (change.destination.before) structuralFallbacks.add(structuralSourceFallback(change.destination.before));
+    }
+  }
+  structuralFallbacks.forEach((selector) => lines.push(`- \`${selector}\``));
   return lines.join("\n");
 }

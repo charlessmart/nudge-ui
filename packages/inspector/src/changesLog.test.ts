@@ -15,6 +15,7 @@ import type { ChangeRecord, ComponentChangeRecord, ElementChangeRecord } from ".
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "./changes/_testUtils.ts";
 import { setSelectedElement } from "./selectionStore.ts";
+import type { RenderedInstanceOverride } from "./renderedInstance.ts";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
@@ -47,6 +48,16 @@ function makeComponentRecord(
     before: { kind: "value", value: beforeValue },
     after: afterValue,
   });
+}
+
+function makeInstanceOverride(): RenderedInstanceOverride {
+  return {
+    id: "override-1",
+    target: {
+      sourceSite: { cid: "Button", src: "src/Button.tsx:1:1" },
+      locator: { kind: "evidence", occurrence: 1, props: null, text: "Two" },
+    },
+  };
 }
 
 describe("changesLog", () => {
@@ -369,12 +380,32 @@ describe("changesLog", () => {
     expect(getPendingRules()).toHaveLength(0);
   });
 
-  it("keeps different source lines and scopes distinct", () => {
+  it("keeps different source lines distinct", () => {
     const lineTwo = { ...makeRecord("color", COLOR_B, COLOR_A), line: 2, source: { file: "src/Button.tsx", line: 2, component: "Button" } };
-    const instance = { ...makeRecord("color", COLOR_C, COLOR_A), scope: "instance-preview" as const, selector: '[data-dt-instance="one"]' };
+    const lineThree = { ...makeRecord("color", COLOR_C, COLOR_A), line: 3, source: { file: "src/Button.tsx", line: 3, component: "Button" } };
     appendChange(lineTwo);
-    appendChange(instance);
+    appendChange(lineThree);
     expect(getChangesList()).toHaveLength(2);
+  });
+
+  it("emits an individual rule after the source-site default", () => {
+    document.body.innerHTML = `
+      <button data-cid="Button" data-src="src/Button.tsx:1:1">One</button>
+      <button data-cid="Button" data-src="src/Button.tsx:1:1">Two</button>`;
+    const source = { ...makeRecord("color", null, null, "red"), selector: '[data-cid="Button"][data-src="src/Button.tsx:1:1"]' };
+    const instance = {
+      ...makeRecord("color", null, null, "blue"),
+      selector: source.selector,
+      scope: "rendered-instance" as const,
+      instanceOverride: makeInstanceOverride(),
+    };
+    appendChange(source);
+    appendChange(instance);
+    const rules = getPendingRules();
+    expect(rules).toHaveLength(2);
+    expect(rules[0]!.declarations.color).toBe("red");
+    expect(rules[1]!.selector).toContain('data-dt-projection-instance="override-1"');
+    expect(rules[1]!.declarations.color).toBe("blue");
   });
 
   it("clearChanges also empties the managed stylesheet", () => {

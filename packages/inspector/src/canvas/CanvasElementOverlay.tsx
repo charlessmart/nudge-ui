@@ -6,6 +6,7 @@ import {
   type ElementMeasureStateMessage,
   type ElementDeleteMessage,
   type ElementNudgeMessage,
+  type HistoryRequestMessage,
   type ElementDragEndMessage,
   type ElementDragMoveMessage,
   type ElementDragStartMessage,
@@ -22,10 +23,12 @@ import {
   type Rect,
 } from "../overlayGeometry.ts";
 import overlayStyles from "./CanvasElementOverlay.css?inline";
-import { deleteElement, getDropLocationAtPoint, moveElement, nudgeElement } from "../domMutations.ts";
+import { deleteElement, getDropLocationAtPoint, moveElement, nudgeElement } from "../structuralGestures.ts";
+import { redo, undo } from "../changesLog.ts";
 import { resolveSelectionFromElement } from "../resolveSelection.ts";
 import { setSelectedElement } from "../selectionStore.ts";
 import { clearDropGuide, showDropGuide, useDropGuide, type DropGuide } from "../dropGuide.ts";
+import { redoStructuralChange, undoStructuralChange } from "../structuralProjection.ts";
 import { DropGuideOverlay, type ViewportDropGuide } from "../DropGuideOverlay.tsx";
 import { getMeasurementGeometry } from "../measurementGeometry.ts";
 import { MeasurementGuideOverlay } from "../MeasurementGuideOverlay.tsx";
@@ -219,6 +222,13 @@ export function CanvasElementOverlay(): ReactElement | null {
         if (element && record) {
           const selectedElement = resolveSelectionFromElement(element);
           if (selectedElement) setSelectedElement(selectedElement);
+        }
+      } else if (event.data.type === "history-request") {
+        const msg = event.data as HistoryRequestMessage;
+        if (msg.action === "redo") {
+          if (!redoStructuralChange()) redo();
+        } else if (!undoStructuralChange()) {
+          undo();
         }
       }
 

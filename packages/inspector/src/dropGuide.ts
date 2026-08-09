@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { DropLocation } from "./domMutations.ts";
+import type { DropLocation } from "./structuralGestures.ts";
 
 export type DropGuideOwner = "inspect" | "canvas";
 

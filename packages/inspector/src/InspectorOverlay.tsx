@@ -11,7 +11,7 @@ import {
   type Margins,
   type Rect,
 } from "./overlayGeometry.ts";
-import { getDropLocationAtPoint, moveElement } from "./domMutations.ts";
+import { getDropLocationAtPoint, moveElement } from "./structuralGestures.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { setSelectedElement } from "./selectionStore.ts";
 import { installInteractionStyles } from "./interactionStyles.ts";

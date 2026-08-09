@@ -23,8 +23,8 @@ import { BorderRadiusEditor } from "./styleEditors/BorderRadiusEditor.tsx";
 import { BoxShadowEditor } from "./styleEditors/BoxShadowEditor.tsx";
 import { LayoutSection } from "./styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
-import { discardChangesForSelector, undo, redo } from "./changesLog.ts";
-import { countSourceSiteMatches, getEditScope, relinkElement, selectorForElement, sourceSiteSelector, unlinkElement } from "./editScope.ts";
+import { discardChangesForInstanceOverride, undo, redo } from "./changesLog.ts";
+import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector, unlinkElement } from "./editScope.ts";
 import { Button } from "./ui/Button.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
@@ -41,7 +41,8 @@ import { formatInspectorLabel } from "./ui/labels.ts";
 import { enterCanvas, exitCanvas, useCanvasMode } from "./canvas/canvasStore.ts";
 import { getRestoreCount, clearRestoreCount, clearSession } from "./canvas/sessionStore.ts";
 import { getElementWindow } from "./domRealm.ts";
-import { deleteElement, nudgeElement, undoDomMutation, redoDomMutation, useDomMutations } from "./domMutations.ts";
+import { deleteElement, nudgeElement } from "./structuralGestures.ts";
+import { redoStructuralChange, undoStructuralChange } from "./structuralProjection.ts";
 import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
 
@@ -103,7 +104,7 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
   );
   return records.some((record) => {
     if (record.type === "attributes") {
-      return record.target === selected || record.attributeName !== "data-dt-instance";
+      return record.target === selected || record.attributeName !== "data-dt-projection-instance";
     }
     return [...record.addedNodes, ...record.removedNodes]
       .some((node) => nodeMatchesSelector(node, selector));
@@ -117,11 +118,9 @@ export function InspectorShell(): ReactElement {
   const hierarchy = useHierarchy();
   const hierarchyIndex = useHierarchyIndex();
   const [scopeRevision, refreshScope] = useState(0);
-  const [instancePreviewLost, setInstancePreviewLost] = useState(false);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const [restoreCount, setShowRestore] = useState<number>(getRestoreCount());
-  const domMutations = useDomMutations();
   const cssInspection = useBrowserCssInspection(selected, styleState, {
     includeDocumentTokens: activeTab === "tokens",
   });
@@ -139,9 +138,7 @@ export function InspectorShell(): ReactElement {
   }, [selected?.domElement]);
 
   useEffect(() => {
-    setInstancePreviewLost(false);
     if (!selected) return;
-    const instancePreview = getEditScope(selected.domElement) === "instance-preview";
     // The selected element can live inside a card iframe (canvas mode); observe
     // its own ownerDocument rather than the parent app's document, otherwise
     // removal inside the iframe would never be noticed.
@@ -153,15 +150,13 @@ export function InspectorShell(): ReactElement {
       if (scopeMutationAffectsSelection(records, selected.domElement)) {
         refreshScope((revision) => revision + 1);
       }
-      if (selected.domElement.isConnected) return;
-      if (instancePreview) setInstancePreviewLost(true);
-      else setSelectedElement(null);
+      if (!selected.domElement.isConnected) setSelectedElement(null);
     });
     observer.observe(ownerRoot, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["data-cid", "data-src", "data-dt-instance"],
+      attributeFilter: ["data-cid", "data-src", "data-dt-projection-instance"],
     });
     return () => observer.disconnect();
   }, [selected, scopeRevision]);
@@ -181,12 +176,12 @@ export function InspectorShell(): ReactElement {
         if (scrollKey) event.preventDefault();
         if (mod && event.shiftKey && event.key.toLowerCase() === "z") {
           event.preventDefault();
-          if (!redoDomMutation()) redo();
+          if (!redoStructuralChange()) redo();
           return;
         }
         if (mod && !event.shiftKey && event.key.toLowerCase() === "z") {
           event.preventDefault();
-          if (!undoDomMutation()) undo();
+          if (!undoStructuralChange()) undo();
           return;
         }
       }
@@ -207,7 +202,7 @@ export function InspectorShell(): ReactElement {
     }
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, [isOpen, selected, domMutations.length]);
+  }, [isOpen, selected]);
 
   const inspectionSnapshot = cssInspection.element;
   const tokenEntries: TokenEntry[] = useMemo(
@@ -366,30 +361,20 @@ export function InspectorShell(): ReactElement {
                   </div>
                 ) : null}
                 <StatusCallout
-                  tone={instancePreviewLost
-                    ? "warning"
-                    : editScope === "instance-preview" ? "neutral" : "accent"}
+                  tone={editScope === "rendered-instance" ? "neutral" : "accent"}
                   data-test="edit-scope"
-                  data-lost={instancePreviewLost ? "true" : "false"}
+                  data-lost="false"
                 >
-                  {instancePreviewLost ? (
-                    "Instance preview lost. The edit was not broadened to other rendered elements."
-                  ) : editScope === "instance-preview" ? (
+                  {editScope === "rendered-instance" ? (
                     <>
-                      <span>Editing only this unlinked rendered element.</span>
-                      <br />
-                      <span className="dt-scope__warning">
-                        This edit is active only for the current document and will not survive refresh.
-                      </span>
-                      <br />
+                      <span>Editing only this rendered item.</span>
                       <Button
                         size="compact"
                         className="dt-scope__action"
                         data-test="relink-element"
                         onClick={() => {
-                          const instanceSelector = selectorForElement(selected.domElement);
-                          if (instanceSelector) discardChangesForSelector(instanceSelector);
-                          relinkElement(selected.domElement);
+                          const overrideId = relinkElement(selected.domElement);
+                          if (overrideId) discardChangesForInstanceOverride(overrideId);
                           refreshScopeState();
                         }}
                       >
@@ -409,7 +394,7 @@ export function InspectorShell(): ReactElement {
                             refreshScopeState();
                           }}
                         >
-                          Unlink
+                          Edit this rendered item only
                         </Button>
                       ) : null}
                     </div>

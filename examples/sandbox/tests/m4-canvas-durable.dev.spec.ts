@@ -179,45 +179,135 @@ test.describe("Canvas durable session", () => {
     await expect.poll(() => managedSheetContent(page)).toContain("--color-surface-raised: #abcdef;");
   });
 
-  test("dev: instance-preview edits do NOT survive refresh", async ({ page }) => {
+  test("dev: one repeated rendered-item override survives refresh, Canvas switching, and frame reload", async ({ page }) => {
+    await page.goto("/");
+    await waitForInspector(page);
+    await page.click("text=Repeated 3");
+    await setInput(page, "font-size", "18px");
+    await expect.poll(() => managedSheetContent(page)).toContain("font-size: 18px;");
+    await page.locator('[data-test="unlink-element"]').click();
+    await setInput(page, "font-size", "24px");
+    const fontSize = () => page.locator(".repeated-item").evaluateAll((els) =>
+      els.map((el) => getComputedStyle(el).fontSize));
+    await expect.poll(fontSize).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
+
+    // A host refresh restores canonical refs, resolves the third item again,
+    // and derives a new local marker rather than persisting a DOM node id.
+    await page.reload();
+    await waitForInspector(page);
+    await expect.poll(fontSize).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
+
+    await page.locator('[data-test="mode-canvas"]').click();
+    await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+    const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+    const frameFontSize = () => frame.locator(".repeated-item").evaluateAll((els) =>
+      els.map((el) => getComputedStyle(el).fontSize));
+    await expect.poll(frameFontSize).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
+
+    await page.locator('[data-test^="canvas-card-reload-"]').click();
+    await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+    await expect.poll(frameFontSize).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
+  });
+
+  test("dev: a rendered-item CSS override captured after a list move restores against the moved order", async ({ page }) => {
+    await page.goto("/");
+    await waitForInspector(page);
+    const moved = page.getByText("Repeated 3", { exact: true });
+    await moved.click();
+    await page.keyboard.press("ArrowUp");
+    await expect(page.locator(".repeated-item")).toHaveText([
+      "Repeated 1", "Repeated 3", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+    ]);
+
+    await setInput(page, "font-size", "18px");
+    await page.locator('[data-test="unlink-element"]').click();
+    await setInput(page, "font-size", "24px");
+    const fontSize = () => page.locator(".repeated-item").evaluateAll((els) =>
+      els.map((el) => getComputedStyle(el).fontSize));
+    await expect.poll(fontSize).toEqual(["18px", "24px", "18px", "18px", "18px", "18px"]);
+
+    await page.reload();
+    await waitForInspector(page);
+    await expect(page.locator(".repeated-item")).toHaveText([
+      "Repeated 1", "Repeated 3", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+    ]);
+    await expect.poll(fontSize).toEqual(["18px", "24px", "18px", "18px", "18px", "18px"]);
+
+    await page.locator('[data-test="mode-canvas"]').click();
+    await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+    const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+    await expect(frame.locator(".repeated-item")).toHaveText([
+      "Repeated 1", "Repeated 3", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+    ]);
+    await expect.poll(() => frame.locator(".repeated-item").evaluateAll((els) =>
+      els.map((el) => getComputedStyle(el).fontSize))).toEqual(["18px", "24px", "18px", "18px", "18px", "18px"]);
+  });
+
+  test("dev: a reconciled rendered-item marker is reported as overridden without reapplying", async ({ page }) => {
+    await page.goto("/");
+    await waitForInspector(page);
+    await page.getByText("Repeated 3", { exact: true }).click();
+    await setInput(page, "font-size", "18px");
+    await page.locator('[data-test="unlink-element"]').click();
+    await setInput(page, "font-size", "24px");
+    await expect(page.locator('.repeated-item[data-dt-projection-instance]')).toHaveCount(1);
+
+    await page.evaluate(() => {
+      document.querySelector('.repeated-item[data-dt-projection-instance]')
+        ?.removeAttribute("data-dt-projection-instance");
+    });
+    await page.locator('[data-test="changes-toggle"]').click();
+    await expect(page.locator('[data-test="instance-diagnostic"][data-document="Inspect"][data-status="overridden"]'))
+      .toBeVisible();
+    await expect(page.locator('.repeated-item[data-dt-projection-instance]')).toHaveCount(0);
+  });
+
+  test("dev: restored individual CSS, delete, and move project through Canvas reload and clear together", async ({ page }) => {
     await page.goto("/");
     await waitForInspector(page);
 
-    // Find a repeated element that can be unlinked
-    // Click on the first "card" element
-    await page.click("text=Save");
-    await waitForInspector(page);
+    await page.getByText("Repeated 4", { exact: true }).click();
+    await setInput(page, "font-size", "18px");
+    await page.locator('[data-test="unlink-element"]').click();
+    await setInput(page, "font-size", "24px");
+    const fontSize = () => page.locator(".repeated-item").evaluateAll((els) =>
+      els.map((el) => getComputedStyle(el).fontSize));
+    await expect.poll(fontSize).toEqual(["18px", "18px", "18px", "24px", "18px", "18px"]);
 
-    // Verify session actions disappear when we clear the session first
-    const clearBtn = page.locator('[data-test="clear-session"]');
-    if (await clearBtn.isVisible().catch(() => false)) {
-      await clearBtn.click();
-    }
+    const repeated = page.getByText("Repeated 3", { exact: true });
+    await repeated.click();
+    await page.keyboard.press("Backspace");
+    await expect(repeated).not.toBeAttached();
+    const first = page.locator('[data-test="flex-child-a"]');
+    await first.click();
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("BAC");
 
-    // Make a source-site edit first so we have a known baseline
-    await expandSpacing(page);
-    await setInput(page, "padding-top", "24px");
-    await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 24px;");
-
-    // Reload and verify the source-site edit survives
     await page.reload();
     await waitForInspector(page);
-    await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 24px;");
+    await expect.poll(fontSize).toEqual(["18px", "18px", "24px", "18px", "18px"]);
+    await expect(page.getByText("Repeated 3", { exact: true })).not.toBeAttached();
+    await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("BAC");
 
-    // The instance-preview warning text should be present in the UI
-    // (but we can't trigger instance-preview reliably in e2e without a multi-instance component,
-    // so we just verify the UI elements exist and source-site edits survive)
-    // The unlink button exists in the inspector when there are multiple instances
-    const unlinkBtn = page.locator('[data-test="unlink-element"]');
-    const hasUnlink = await unlinkBtn.isVisible().catch(() => false);
-    // If we see the unlink button, a multi-instance element is selected
-    if (hasUnlink) {
-      await unlinkBtn.click();
-      await page.reload();
-      await waitForInspector(page);
-      // Instance-preview scope message should be in the UI
-      // We just verify the page loads without error
-    }
+    await page.locator('[data-test="mode-canvas"]').click();
+    await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+    const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+    await expect(frame.getByText("Repeated 3", { exact: true })).not.toBeAttached();
+    await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("BAC");
+    const frameFontSize = () => frame.locator(".repeated-item").evaluateAll((els) =>
+      els.map((el) => getComputedStyle(el).fontSize));
+    await expect.poll(frameFontSize).toEqual(["18px", "18px", "24px", "18px", "18px"]);
+
+    await page.locator('[data-test^="canvas-card-reload-"]').click();
+    await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+    await expect(frame.getByText("Repeated 3", { exact: true })).not.toBeAttached();
+    await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("BAC");
+    await expect.poll(frameFontSize).toEqual(["18px", "18px", "24px", "18px", "18px"]);
+
+    await page.locator('[data-test="clear-session"]').click();
+    await expect(page.getByText("Repeated 3", { exact: true })).toBeVisible();
+    await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("ABC");
+    await expect.poll(fontSize).not.toEqual(["18px", "18px", "18px", "24px", "18px", "18px"]);
   });
 });
 

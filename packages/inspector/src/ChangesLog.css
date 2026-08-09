@@ -127,6 +127,17 @@
   font-size: var(--dt-font-size-base);
 }
 
+.dt-changes__source-site,
+.dt-changes__scope,
+.dt-changes__diagnostic {
+  color: var(--dt-text-muted);
+  font-size: var(--dt-font-size-base);
+}
+
+.dt-changes__diagnostic[data-status="overridden"] {
+  color: var(--dt-warning-text);
+}
+
 .dt-changes__revert {
   margin-top: 2px;
 }
