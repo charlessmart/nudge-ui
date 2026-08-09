@@ -1,4 +1,4 @@
-import type { CompatibilityManifest } from "@design-tool/compatibility";
+import { CSS_LIBRARY_CORPUS, type CompatibilityManifest } from "@design-tool/compatibility";
 
 const brandProperty = {
   property: "color",
@@ -17,7 +17,7 @@ const brandControl = {
 
 export const compatibilityManifest: CompatibilityManifest = {
   name: "real vanilla-extract and Sprinkles",
-  expectedCaseIds: ["spacing-padding", "typography-size", "color-background", "border-width", "layout-width"],
+  expectedCaseIds: CSS_LIBRARY_CORPUS,
   scenarios: [
     {
       id: "corpus-spacing",

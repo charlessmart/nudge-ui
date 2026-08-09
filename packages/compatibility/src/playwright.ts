@@ -7,6 +7,7 @@ import type {
   CompatibilityScenario,
 } from "./manifest.ts";
 import { validateCompatibilityManifest } from "./manifest.ts";
+import { CSS_LIBRARY_CORPUS_PROPERTIES } from "./manifest.ts";
 
 export interface CompatibilityRun {
   inspections: Map<string, CompatibilityInspection>;
@@ -123,6 +124,11 @@ async function assertScenario(page: Page, scenario: CompatibilityScenario): Prom
     if (expected.capability !== undefined) expect(property?.capability).toBe(expected.capability);
     if (expected.confidence !== undefined) expect(property?.confidence).toBe(expected.confidence);
   }
+  if (scenario.caseId) {
+    const corpusProperty = propertyOf(actual, CSS_LIBRARY_CORPUS_PROPERTIES[scenario.caseId]);
+    expect(corpusProperty?.authored, `${scenario.id}: corpus authored value`).toBeTruthy();
+    expect(corpusProperty?.computed, `${scenario.id}: corpus computed value`).toBeTruthy();
+  }
   for (const expected of scenario.controls ?? []) {
     const control = controlOf(actual, expected.property);
     expect(control, `${scenario.id}: control ${expected.property}`).toBeDefined();
@@ -232,6 +238,14 @@ export async function runCompatibilityManifest(
 export async function assertProductionContract(page: Page): Promise<void> {
   const facts = await page.evaluate(() => ({
     identityAttributes: document.querySelectorAll("[data-cid], [data-src], [data-cprops]").length,
+    dataAttributes: Array.from(document.querySelectorAll("*")).reduce(
+      (count, element) => count + Array.from(element.attributes).filter((attribute) => attribute.name.startsWith("data-")).length,
+      0,
+    ),
+    dataAttributeDetails: Array.from(document.querySelectorAll("*")).flatMap((element) =>
+      Array.from(element.attributes)
+        .filter((attribute) => attribute.name.startsWith("data-"))
+        .map((attribute) => `${attribute.name}=${attribute.value}`)),
     inspectorRoot: document.querySelectorAll("#design-tool-root").length,
     inspectorShell: document.querySelectorAll("[data-test^='inspector'], [data-test='canvas-host']").length,
     managedStylesheet: document.querySelectorAll("#design-tool-styles").length,
@@ -241,6 +255,7 @@ export async function assertProductionContract(page: Page): Promise<void> {
     scripts: Array.from(document.scripts).map((script) => script.src),
   }));
   expect(facts.identityAttributes, "production identity attributes").toBe(0);
+  expect(facts.dataAttributes, `production data attributes: ${facts.dataAttributeDetails.join(", ")}`).toBe(0);
   expect(facts.inspectorRoot, "production Inspector root").toBe(0);
   expect(facts.inspectorShell, "production Inspector/Canvas shell").toBe(0);
   expect(facts.managedStylesheet, "production managed stylesheet").toBe(0);

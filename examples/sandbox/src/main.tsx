@@ -4,7 +4,6 @@ import { App } from "./App";
 import { ConformancePage } from "./ConformancePage";
 import { ExamplesHubPage } from "./ExamplesHubPage";
 import { ExamplesRawCssPage } from "./ExamplesRawCssPage";
-import { ComponentPropsPage } from "./ComponentPropsPage";
 import "./styles.css";
 
 // Keep the generated spacing corpus behind a dev-only dynamic import. The
@@ -27,6 +26,9 @@ const DevPipelineConformancePage = import.meta.env.DEV
   : null;
 const DevPerfFixturePage = import.meta.env.DEV
   ? lazy(() => import("./perf-fixture/PerfFixturePage").then(({ PerfFixturePage }) => ({ default: PerfFixturePage })))
+  : null;
+const DevComponentPropsPage = import.meta.env.DEV
+  ? lazy(() => import("./ComponentPropsPage").then(({ ComponentPropsPage }) => ({ default: ComponentPropsPage })))
   : null;
 
 const root = document.getElementById("root");
@@ -78,7 +80,13 @@ function Route() {
   if (window.location.pathname === "/conformance") return <ConformancePage />;
   if (window.location.pathname === "/examples") return <ExamplesHubPage />;
   if (window.location.pathname === "/examples/raw-css") return <ExamplesRawCssPage />;
-  if (window.location.pathname === "/component-props") return <ComponentPropsPage />;
+  if (window.location.pathname === "/component-props") {
+    return DevComponentPropsPage ? (
+      <Suspense fallback={<main className="component-props-page">Loading component props…</main>}>
+        <DevComponentPropsPage />
+      </Suspense>
+    ) : <App />;
+  }
   return <App />;
 }
 

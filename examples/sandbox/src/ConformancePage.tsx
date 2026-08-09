@@ -12,7 +12,7 @@ export function ConformancePage() {
         <h2 {...headingIdentity}>Authored values stay visible</h2>
         <p className="conformance-copy" {...copyIdentity}>The browser paints a computed preview while the inspector keeps the CSS expression.</p>
       </article>
-      <nav className="conformance-card" aria-label="Standalone CSS library sandboxes">
+      <nav className="standalone-links-card" aria-label="Standalone CSS library sandboxes">
         <h2>Standalone library sandboxes</h2>
         <a href="/examples/raw-css">Raw CSS examples</a>
         <a href="http://localhost:5174/tailwind">Tailwind v4 examples</a>

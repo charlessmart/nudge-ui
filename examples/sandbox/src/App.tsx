@@ -148,7 +148,7 @@ export function App() {
           <a href="#showcase">Components</a>
           <a href="#handoff">Handoff</a>
         </nav>
-        <a className="header-cta" href="/conformance">Open conformance <span aria-hidden="true">↗</span></a>
+        <a className="header-cta" href="/examples">Open examples <span aria-hidden="true">↗</span></a>
       </header>
 
       <main id="top">
@@ -163,7 +163,7 @@ export function App() {
               <Button label="Save a change" variant="primary" onClick={() => setClicks((c) => c + 1)} />
               <a className="text-link" href="#features">See how it works <span aria-hidden="true">↓</span></a>
             </div>
-            <p className="hero-meta"><span className="status-dot" /> local, private, dev-only <span className="meta-divider">·</span> <span data-test="click-counter">clicks: {clicks}</span></p>
+            <p className="hero-meta"><span className="status-dot" /> local, private, dev-only <span className="meta-divider">·</span> <span {...(import.meta.env.DEV ? { "data-test": "click-counter" } : {})}>clicks: {clicks}</span></p>
           </div>
 
           <div className="hero-visual" aria-label="A preview of the Design Tool inspector">
@@ -226,7 +226,7 @@ export function App() {
           <div className="demo-grid">
             <div className="demo-panel component-panel">
               <div className="panel-kicker">Repeated components <span>6 instances</span></div>
-              <div className="component-list" data-test="repeated-items">
+              <div className="component-list" {...(import.meta.env.DEV ? { "data-test": "repeated-items" } : {})}>
                 {Array.from({ length: 6 }, (_, index) => (
                   <RepeatedItem key={index} label={`Repeated ${index + 1}`} />
                 ))}
@@ -237,24 +237,24 @@ export function App() {
             <div className="demo-panel layout-panel">
               <div className="panel-kicker">Layout lab <span>flex + position</span></div>
               <p className="layout-title">A row with room<br />to breathe.</p>
-              <div className="flex-row" data-test="flex-container">
-                <span data-test="flex-child-a">A</span>
-                <span data-test="flex-child-b">B</span>
-                <span data-test="flex-child-c">C</span>
+              <div className="flex-row" {...(import.meta.env.DEV ? { "data-test": "flex-container" } : {})}>
+                <span {...(import.meta.env.DEV ? { "data-test": "flex-child-a" } : {})}>A</span>
+                <span {...(import.meta.env.DEV ? { "data-test": "flex-child-b" } : {})}>B</span>
+                <span {...(import.meta.env.DEV ? { "data-test": "flex-child-c" } : {})}>C</span>
               </div>
-              <div className="positioned-box" data-test="positioned-box">
+              <div className="positioned-box" {...(import.meta.env.DEV ? { "data-test": "positioned-box" } : {})}>
                 <span className="position-pin">+</span> positioned element
               </div>
               <div className="layout-fixtures" aria-label="Sizing, Grid, and absolute positioning fixtures">
-                <div className="sizing-box" data-test="sizing-box">4:3 sizing box</div>
-                <div className="relative-offset-box" data-test="relative-offset-box">relative offset</div>
-                <div className="right-anchored-box" data-test="right-anchored-box">right / bottom</div>
-                <div className="stretched-box" data-test="stretched-box">stretched</div>
-                <div className="grid-authored-container" data-test="grid-authored-container">
-                  <div className="grid-child-span" data-test="grid-child-span">span 3</div>
+                <div className="sizing-box" {...(import.meta.env.DEV ? { "data-test": "sizing-box" } : {})}>4:3 sizing box</div>
+                <div className="relative-offset-box" {...(import.meta.env.DEV ? { "data-test": "relative-offset-box" } : {})}>relative offset</div>
+                <div className="right-anchored-box" {...(import.meta.env.DEV ? { "data-test": "right-anchored-box" } : {})}>right / bottom</div>
+                <div className="stretched-box" {...(import.meta.env.DEV ? { "data-test": "stretched-box" } : {})}>stretched</div>
+                <div className="grid-authored-container" {...(import.meta.env.DEV ? { "data-test": "grid-authored-container" } : {})}>
+                  <div className="grid-child-span" {...(import.meta.env.DEV ? { "data-test": "grid-child-span" } : {})}>span 3</div>
                   <div className="grid-child-auto">auto</div>
                 </div>
-                <div className="grid-switch-target" data-test="grid-switch-target">select me → grid</div>
+                <div className="grid-switch-target" {...(import.meta.env.DEV ? { "data-test": "grid-switch-target" } : {})}>select me → grid</div>
               </div>
             </div>
           </div>

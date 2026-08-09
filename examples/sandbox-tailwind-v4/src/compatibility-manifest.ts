@@ -1,8 +1,8 @@
-import type { CompatibilityManifest } from "@design-tool/compatibility";
+import { CSS_LIBRARY_CORPUS, type CompatibilityManifest } from "@design-tool/compatibility";
 
 export const compatibilityManifest: CompatibilityManifest = {
   name: "real Tailwind v4",
-  expectedCaseIds: ["spacing-padding", "typography-size", "color-background", "border-width", "layout-width"],
+  expectedCaseIds: CSS_LIBRARY_CORPUS,
   scenarios: [
     { id: "spacing", caseId: "spacing-padding", path: "/examples", selector: '[data-test="examples-spacing-tw4-01"] .spacing-specimen', properties: [{ property: "padding-top" }] },
     { id: "typography", caseId: "typography-size", path: "/examples", selector: '[data-test="examples-typography-tw4-01"] .typography-specimen', properties: [{ property: "font-size" }] },

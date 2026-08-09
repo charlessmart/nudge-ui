@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "echo 'no unit tests yet'",
     "playwright": "playwright test",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=dev --project=isolation --project=prod",
     "perf": "playwright test --project=perf",
     "perf:baseline": "PERF_RECORD_BASELINE=1 playwright test --project=perf"
   },

@@ -16,11 +16,13 @@ if (import.meta.env.DEV) {
 }
 
 function SprinklesConformancePage() {
+  const cardIdentity = import.meta.env.DEV ? { "data-test": "sprinkles-card" } : {};
+  const rawIdentity = import.meta.env.DEV ? { "data-test": "sprinkles-raw" } : {};
   return (
     <main className="compat-page">
       <h1>Sprinkles conformance</h1>
-      <p data-test="sprinkles-card" className={sprinkles({ color: "brand", padding: "md" })}>Human-readable theme contract mapping</p>
-      <p data-test="sprinkles-raw" className={sprinkles({ padding: "sm" })}>Real generated class output remains inspectable.</p>
+      <p {...cardIdentity} className={sprinkles({ color: "brand", padding: "md" })}>Human-readable theme contract mapping</p>
+      <p {...rawIdentity} className={sprinkles({ padding: "sm" })}>Real generated class output remains inspectable.</p>
     </main>
   );
 }

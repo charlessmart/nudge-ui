@@ -11,6 +11,15 @@ export const CSS_LIBRARY_CORPUS = [
 
 export type CssLibraryCorpusCaseId = typeof CSS_LIBRARY_CORPUS[number];
 
+/** Canonical property each app must exercise for a corpus situation. */
+export const CSS_LIBRARY_CORPUS_PROPERTIES: Record<CssLibraryCorpusCaseId, string> = {
+  "spacing-padding": "padding-top",
+  "typography-size": "font-size",
+  "color-background": "background-color",
+  "border-width": "border-top-width",
+  "layout-width": "width",
+};
+
 export interface CompatibilityInspectionProperty {
   property: string;
   authored?: string;
@@ -137,6 +146,9 @@ export function validateCompatibilityManifest(manifest: CompatibilityManifest): 
     scenarioIds.add(scenario.id);
     if (!scenario.selector.trim()) failures.push(`${scenario.id}: selector is empty`);
     if (scenario.properties.length === 0) failures.push(`${scenario.id}: no property expectations`);
+    if (scenario.caseId && !scenario.properties.some(({ property }) => property === CSS_LIBRARY_CORPUS_PROPERTIES[scenario.caseId!])) {
+      failures.push(`${scenario.id}: corpus case ${scenario.caseId} must cover ${CSS_LIBRARY_CORPUS_PROPERTIES[scenario.caseId]}`);
+    }
   }
   const expectedCases = manifest.expectedCaseIds ?? [];
   const renderedCases = new Set(

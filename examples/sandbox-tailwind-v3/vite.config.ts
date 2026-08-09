@@ -9,7 +9,10 @@ export default defineConfig({
     react(),
     designTool({
       projectId: "sandbox-tailwind-v3",
-      tailwindV3: { config: tailwindConfig as unknown as TailwindV3Config },
+      tailwindV3: {
+        config: tailwindConfig as unknown as TailwindV3Config,
+        source: "tailwind.config.ts",
+      },
     }) as unknown as PluginOption,
   ],
   server: { port: 5175, strictPort: true, host: "127.0.0.1" },

@@ -42,7 +42,7 @@ export interface DesignToolOptions {
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
-  tailwindV3?: { config: TailwindV3Config };
+  tailwindV3?: { config: TailwindV3Config; source?: string };
   vanillaExtract?: VanillaExtractAdapterOptions;
   /**
    * Optional contracts published by an npm design-system package. Local TSX
@@ -216,7 +216,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     })));
   }
   const adapterRegistry = createTokenAdapterRegistry([
-    ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config)] : []),
+    ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config, options.tailwindV3.source)] : []),
     ...(options.vanillaExtract ? [createSprinklesAdapter(options.vanillaExtract)] : []),
   ]);
 
