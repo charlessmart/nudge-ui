@@ -6,21 +6,19 @@ test("dev: main demo links to every conformance page", async ({ page }) => {
   await page.reload();
 
   const links = page.locator('[data-test="conformance-link"]');
-  await expect(links).toHaveCount(12);
+  await expect(links).toHaveCount(10);
 
   await expect(links.evaluateAll((elements) => elements.map((element) => element.getAttribute("href")))).resolves.toEqual([
     "/conformance",
     "/examples",
-    "/examples/tailwind-v4",
-    "/examples/tailwind-v3",
-    "/examples/sprinkles",
     "/examples/raw-css",
+    "http://localhost:5174/tailwind",
+    "http://localhost:5175/tailwind-v3",
+    "http://localhost:5176/sprinkles",
     "/spacing-conformance",
     "/typography-conformance",
     "/color-conformance",
     "/border-conformance",
-    "/tailwind-v3",
-    "/sprinkles",
   ]);
 });
 

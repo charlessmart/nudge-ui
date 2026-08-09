@@ -8,21 +8,21 @@ test("dev: clicking same-origin link inside canvas iframe creates a new card", a
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
 
-  // Click the Tailwind link inside the iframe
+  // Click the conformance link inside the iframe
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
-  const tailwindLink = frame.locator('a[href="/tailwind"]').first();
-  await expect(tailwindLink).toBeVisible({ timeout: 20000 });
-  await tailwindLink.click();
+  const conformanceLink = frame.locator('a[href="/conformance"]').first();
+  await expect(conformanceLink).toBeVisible({ timeout: 20000 });
+  await conformanceLink.click();
 
-  // A second card should appear for /tailwind
+  // A second card should appear for the retained conformance route
   await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
 
   const cards = board.locator(".dt-canvas-card");
   const frameUrls = await cards.locator(".dt-canvas-card__iframe").evaluateAll((frames) =>
     frames.map((frame) => (frame as HTMLIFrameElement).src),
   );
-  const hasTailwind = frameUrls.some((url) => url.includes("/tailwind"));
-  expect(hasTailwind).toBe(true);
+  const hasConformance = frameUrls.some((url) => url.includes("/conformance"));
+  expect(hasConformance).toBe(true);
 });
 
 test("dev: same-document hash links do not create new cards", async ({ page }) => {

@@ -227,3 +227,26 @@ export async function runCompatibilityManifest(
   for (const invariant of manifest.invariants ?? []) assertInvariant(invariant, inspections);
   return { inspections, managedPreviews };
 }
+
+/** Shared ADR-0002 runtime contract for every standalone production preview. */
+export async function assertProductionContract(page: Page): Promise<void> {
+  const facts = await page.evaluate(() => ({
+    identityAttributes: document.querySelectorAll("[data-cid], [data-src], [data-cprops]").length,
+    inspectorRoot: document.querySelectorAll("#design-tool-root").length,
+    inspectorShell: document.querySelectorAll("[data-test^='inspector'], [data-test='canvas-host']").length,
+    managedStylesheet: document.querySelectorAll("#design-tool-styles").length,
+    runtimeState: ["__designTool", "__designTokens", "__designTokenCatalog", "__designTokenDiagnostics"]
+      .some((key) => key in (window as unknown as Record<string, unknown>)),
+    html: document.documentElement.outerHTML,
+    scripts: Array.from(document.scripts).map((script) => script.src),
+  }));
+  expect(facts.identityAttributes, "production identity attributes").toBe(0);
+  expect(facts.inspectorRoot, "production Inspector root").toBe(0);
+  expect(facts.inspectorShell, "production Inspector/Canvas shell").toBe(0);
+  expect(facts.managedStylesheet, "production managed stylesheet").toBe(0);
+  expect(facts.runtimeState, "production Design Tool runtime state").toBe(false);
+  expect(facts.html).not.toContain("virtual:design-tool-inspector");
+  expect(facts.html).not.toContain("virtual:design-tokens");
+  expect(facts.html).not.toContain("__designTool");
+  expect(facts.scripts.some((src) => src.includes("/@id/") || src.includes("design-tool-inspector"))).toBe(false);
+}

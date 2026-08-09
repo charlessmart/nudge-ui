@@ -36,17 +36,15 @@ const typeSamples = [
 
 const conformancePages = [
   { href: "/conformance", label: "Core CSS", copy: "Authored values, aliases, and computed previews." },
-  { href: "/examples", label: "All Examples", copy: "Detailed showroom: Spacing, Typography, Color, Border across Tailwind v4, v3, Sprinkles, and Raw CSS." },
-  { href: "/examples/tailwind-v4", label: "Examples: TW v4", copy: "Tailwind v4 examples in isolation for debugging token resolution." },
-  { href: "/examples/tailwind-v3", label: "Examples: TW v3", copy: "Tailwind v3 examples in isolation for debugging token resolution." },
-  { href: "/examples/sprinkles", label: "Examples: Sprinkles", copy: "Sprinkles examples in isolation for debugging token resolution." },
+  { href: "/examples", label: "Example hub", copy: "Navigation to each isolated CSS-library consumer." },
   { href: "/examples/raw-css", label: "Examples: Raw CSS", copy: "Raw CSS examples in isolation for debugging token resolution." },
+  { href: "http://localhost:5174/tailwind", label: "Tailwind v4 app", copy: "Standalone real Tailwind v4 consumer." },
+  { href: "http://localhost:5175/tailwind-v3", label: "Tailwind v3 app", copy: "Standalone real Tailwind v3 consumer." },
+  { href: "http://localhost:5176/sprinkles", label: "Sprinkles app", copy: "Standalone real vanilla-extract consumer." },
   { href: "/spacing-conformance", label: "Spacing", copy: "Logical properties and physical side projection." },
   { href: "/typography-conformance", label: "Typography", copy: "Text properties across the shared fixture corpus." },
   { href: "/color-conformance", label: "Color", copy: "Formats, opacity, aliases, and painted values." },
   { href: "/border-conformance", label: "Border", copy: "Shorthand structure and side-specific edits." },
-  { href: "/tailwind-v3", label: "Tailwind v3", copy: "Utility-class token attribution and editing." },
-  { href: "/sprinkles", label: "Sprinkles", copy: "Generated style props and source mapping." },
 ];
 
 const cssBorderFixtureIds = {
@@ -150,7 +148,7 @@ export function App() {
           <a href="#showcase">Components</a>
           <a href="#handoff">Handoff</a>
         </nav>
-        <a className="header-cta" href="/tailwind">Tailwind example <span aria-hidden="true">↗</span></a>
+        <a className="header-cta" href="/conformance">Open conformance <span aria-hidden="true">↗</span></a>
       </header>
 
       <main id="top">
@@ -290,7 +288,7 @@ export function App() {
           </div>
           <div className="prompt-preview">
             <div className="prompt-bar"><span>design-changes.md</span><span>copied to clipboard</span></div>
-            <pre>{`# Design changes for Hero.tsx\n\n### Hero (src/Hero.tsx:42)\n- font-size: 56px → 64px\n- color: text.secondary → text.primary\n\n## Selectors (fallback)\n[data-cid="Hero"][data-src*="Hero.tsx"]`}</pre>
+            <pre>{`# Design changes for Hero.tsx\n\n### Hero (src/Hero.tsx:42)\n- font-size: 56px → 64px\n- color: text.secondary → text.primary\n\n## Selector fallback\nHero / src/Hero.tsx`}</pre>
           </div>
         </section>
 

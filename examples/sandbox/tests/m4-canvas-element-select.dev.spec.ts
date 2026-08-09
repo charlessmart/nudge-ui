@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
  * 1. Clicking a plain tracked element (heading, button, paragraph) inside a
  *    single-card canvas selects it in the inspector without unmounting the
  *    workspace.
- * 2. Clicking a same-origin anchor (`<a href="/tailwind">`) that has been
+ * 2. Clicking a same-origin anchor (`<a href="/conformance">`) that has been
  *    authored inside a tracked React component still spawns a new card, so
  *    users can navigate from one route to the next without losing canvas.
  * 3. Clicking a tracked element inside a sibling card whose URL differs from
@@ -160,10 +160,10 @@ test("dev: clicking a navigable same-origin anchor inside a tracked tree still s
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
 
-  // The Tailwind anchor carries `data-cid="App"`; its click must reach the
+  // The conformance anchor carries `data-cid="App"`; its click must reach the
   // navigation listener instead of being swallowed by element selection.
   await page.frameLocator(".dt-canvas-card__iframe").first()
-    .locator('a[href="/tailwind"]')
+    .locator('a[href="/conformance"]')
     .click();
 
   await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
@@ -177,7 +177,7 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
   // protocol. The regression under test is that selecting in that sibling must
   // not navigate the parent away from Canvas.
   await page.frameLocator(".dt-canvas-card__iframe").first()
-    .locator('a[href="/tailwind"]')
+    .locator('a[href="/conformance"]')
     .click();
 
   await expect(page.locator(".dt-canvas-card")).toHaveCount(2);
@@ -203,3 +203,4 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
     );
   }
 });
+

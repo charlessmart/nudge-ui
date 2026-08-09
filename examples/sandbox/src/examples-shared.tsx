@@ -8,7 +8,7 @@ export function exId(category: string, framework: string, index: number): Exampl
   const cid = `Examples:${category}:${framework}:${String(index).padStart(2, "0")}`;
   return {
     cid,
-    src: `src/ExamplesPage.tsx:${cid}`,
+    src: `src/ExamplesRawCssPage.tsx:${cid}`,
     test: `examples-${category.toLowerCase()}-${framework}-${String(index).padStart(2, "0")}`,
   };
 }

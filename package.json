@@ -8,11 +8,11 @@
     "lint": "eslint packages examples --ext .ts,.tsx",
     "typecheck": "pnpm -r typecheck",
     "test:unit": "pnpm -r test:unit",
-    "test:e2e": "pnpm --filter sandbox playwright test --project=dev --project=prod",
+    "test:e2e": "pnpm --filter sandbox test:e2e && pnpm --filter sandbox-tailwind-v4 test:e2e && pnpm --filter sandbox-tailwind-v3 test:e2e && pnpm --filter sandbox-sprinkles test:e2e",
     "test:newvato": "node examples/sandbox/scripts/run-newvato-consumer.mjs",
     "perf": "pnpm --filter sandbox perf",
     "perf:baseline": "pnpm --filter sandbox perf:baseline",
-    "test:compat": "pnpm --filter @design-tool/compat-vanilla-extract test:compat",
+    "test:compat": "pnpm --filter sandbox-tailwind-v4 test:compat && pnpm --filter sandbox-tailwind-v3 test:compat && pnpm --filter sandbox-sprinkles test:compat",
     "build": "pnpm -r build",
     "dev:sandbox": "pnpm --filter sandbox dev",
     "dev:sandbox:remote": "pnpm --filter sandbox dev:remote"

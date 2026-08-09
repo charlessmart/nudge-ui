@@ -19,6 +19,19 @@ describe("compatibility manifest", () => {
     })).toEqual([]);
   });
 
+  it("requires every shared corpus case when a manifest opts into the corpus", () => {
+    expect(validateCompatibilityManifest({
+      name: "fixture",
+      expectedCaseIds: ["spacing-padding", "typography-size"],
+      scenarios: [{
+        id: "spacing",
+        caseId: "spacing-padding",
+        selector: "#card",
+        properties: [{ property: "padding" }],
+      }],
+    })).toEqual(["missing corpus case: typography-size"]);
+  });
+
   it("reports malformed manifests before a browser starts", () => {
     expect(validateCompatibilityManifest({
       name: "fixture",

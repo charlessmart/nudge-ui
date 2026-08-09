@@ -1,0 +1,33 @@
+{
+  "name": "sandbox-tailwind-v3",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4175 --strictPort",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "echo 'compatibility assertions run in Playwright'",
+    "test:e2e": "playwright test",
+    "test:compat": "playwright test --project=compat-chromium --project=compat-firefox --project=compat-webkit"
+  },
+  "dependencies": {
+    "@design-tool/compatibility": "workspace:*",
+    "@design-tool/inspector": "workspace:*",
+    "@design-tool/plugin": "workspace:*",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "10.4.21",
+    "postcss": "8.5.3",
+    "tailwindcss": "3.4.17",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0"
+  }
+}

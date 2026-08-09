@@ -85,7 +85,7 @@ test("dev: Canvas measurements stay within the active iframe and omit self-ruler
   await expect(page.locator('[data-test="canvas-measurement-overlay"]')).not.toBeAttached();
   await page.keyboard.up("Alt");
 
-  await frame.locator('a[href="/tailwind"]').click();
+  await frame.locator('a[href="/conformance"]').click();
   await expect(page.locator(".dt-canvas-card__iframe")).toHaveCount(2);
   const secondFrame = page.frameLocator(".dt-canvas-card__iframe").nth(1);
   await expect(secondFrame.locator("body")).toBeVisible({ timeout: 20_000 });
@@ -97,3 +97,4 @@ test("dev: Canvas measurements stay within the active iframe and omit self-ruler
   await expect(page.locator('[data-test="canvas-measurement-overlay"]')).not.toBeAttached();
   await page.keyboard.up("Alt");
 });
+
