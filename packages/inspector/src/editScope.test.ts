@@ -28,7 +28,9 @@ describe("edit scope", () => {
   });
   it("captures a zero-based rendered index and short text", () => {
     add("one"); const second = add("two");
-    expect(getInstanceEvidence(second)).toEqual({ renderedIndex: 1, props: null, text: "two" });
+    expect(getInstanceEvidence(second)).toEqual({
+      renderedIndex: 1, props: null, text: "two", ariaLabel: null,
+    });
   });
   it("counts and indexes matches in an iframe element's own document", () => {
     const iframe = document.createElement("iframe");

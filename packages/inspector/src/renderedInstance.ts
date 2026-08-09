@@ -13,9 +13,14 @@ export interface SourceSiteRef {
  */
 export interface RenderedInstanceRef {
   sourceSite: SourceSiteRef;
-  locator:
-    | { kind: "application-key"; attribute: string; value: string }
-    | { kind: "evidence"; occurrence: number; props: string | null; text: string | null };
+  locator: {
+    kind: "evidence";
+    occurrence: number;
+    props: string | null;
+    text: string | null;
+    /** An accessible name can distinguish icon-only repeated controls. */
+    ariaLabel?: string | null;
+  };
 }
 
 export interface RenderedInstanceOverride {
@@ -28,18 +33,45 @@ export type ResolutionResult =
   | { status: "missing" }
   | { status: "ambiguous" };
 
+export type DocumentProjectionStatus = "applied" | "missing" | "ambiguous" | "overridden";
+
 export interface DocumentProjectionReport {
   overrideId: string;
-  status: ResolutionResult["status"];
+  status: DocumentProjectionStatus;
+}
+
+export interface RenderedInstanceChangeDiagnostic extends DocumentProjectionReport {
+  document: "Inspect" | `Canvas ${string}`;
 }
 
 const PROJECTION_ATTR = "data-dt-projection-instance";
-const APPLICATION_KEY_ATTRIBUTES = ["data-dt-instance-key"];
+
+interface AppliedProjection {
+  override: RenderedInstanceOverride;
+  element: HTMLElement | null;
+  status: DocumentProjectionStatus;
+}
+
+interface DocumentProjectionState {
+  applied: Map<string, AppliedProjection>;
+  snapshotKey: string | null;
+  observer: MutationObserver | null;
+  validationQueued: boolean;
+}
+
+interface CanvasReports {
+  revision: number;
+  reports: DocumentProjectionReport[];
+}
 
 let nextOverrideId = 1;
 let transientTargets = new WeakMap<HTMLElement, RenderedInstanceOverride>();
 let canonicalOverrides = new Map<string, RenderedInstanceOverride>();
 let reportsByDocument = new WeakMap<Document, DocumentProjectionReport[]>();
+const documentStates = new Map<Document, DocumentProjectionState>();
+const reportsByCanvasCard = new Map<string, CanvasReports>();
+const diagnosticListeners = new Set<() => void>();
+let diagnosticRevision = 0;
 
 function normalizedText(el: HTMLElement): string | null {
   return el.textContent?.replace(/\s+/g, " ").trim().slice(0, 120) || null;
@@ -55,14 +87,6 @@ function candidates(doc: Document, sourceSite: SourceSiteRef): HTMLElement[] {
   }
 }
 
-function applicationKey(el: HTMLElement): { attribute: string; value: string } | null {
-  for (const attribute of APPLICATION_KEY_ATTRIBUTES) {
-    const value = el.getAttribute(attribute);
-    if (value) return { attribute, value };
-  }
-  return null;
-}
-
 /** Captures conservative, serializable identity at the moment of the action. */
 export function captureRenderedInstance(el: HTMLElement): RenderedInstanceRef | null {
   const cid = el.getAttribute("data-cid") ?? "";
@@ -71,8 +95,6 @@ export function captureRenderedInstance(el: HTMLElement): RenderedInstanceRef | 
   const sourceCandidates = candidates(el.ownerDocument, sourceSite);
   const occurrence = sourceCandidates.indexOf(el);
   if (!cid || occurrence < 0) return null;
-  const key = applicationKey(el);
-  if (key) return { sourceSite, locator: { kind: "application-key", ...key } };
   return {
     sourceSite,
     locator: {
@@ -80,41 +102,44 @@ export function captureRenderedInstance(el: HTMLElement): RenderedInstanceRef | 
       occurrence,
       props: el.getAttribute("data-cprops"),
       text: normalizedText(el),
+      ariaLabel: el.getAttribute("aria-label"),
     },
   };
 }
 
 /**
- * Resolves exactly one element, or declines to apply. Evidence and the stored
- * occurrence must still agree, so a re-sorted list cannot receive an edit for
- * a different item just because its ordinal happened to remain valid.
+ * Resolves exactly one element, or declines to apply. Occurrence documents the
+ * captured placement, but structural previews can legitimately change it.
+ * Evidence must therefore identify one current candidate before an edit can
+ * be applied.
  */
 export function resolveRenderedInstance(doc: Document, ref: RenderedInstanceRef): ResolutionResult {
   const sourceCandidates = candidates(doc, ref.sourceSite);
-  if (ref.locator.kind === "application-key") {
-    const locator = ref.locator;
-    const matches = sourceCandidates.filter((el) =>
-      el.getAttribute(locator.attribute) === locator.value);
-    return matches.length === 1
-      ? { status: "resolved", element: matches[0]! }
-      : matches.length === 0 ? { status: "missing" } : { status: "ambiguous" };
-  }
-
-  const { occurrence, props, text } = ref.locator;
-  const candidate = sourceCandidates[occurrence];
-  if (!candidate) return { status: "missing" };
+  const { props, text, ariaLabel = null } = ref.locator;
   // An ordinal alone is not an identity for a repeated source site.
-  if (sourceCandidates.length > 1 && props === null && text === null) return { status: "ambiguous" };
-  const matchingEvidence = sourceCandidates.filter((element) =>
-    element.getAttribute("data-cprops") === props && normalizedText(element) === text);
-  if (matchingEvidence.length === 0 || !matchingEvidence.includes(candidate)) {
-    return { status: "missing" };
+  if (sourceCandidates.length > 1 && props === null && text === null && ariaLabel === null) {
+    return { status: "ambiguous" };
   }
-  // Occurrence alone is never enough to choose between two identical rendered
+  const matchingEvidence = sourceCandidates.filter((element) =>
+    element.getAttribute("data-cprops") === props
+    && normalizedText(element) === text
+    && element.getAttribute("aria-label") === ariaLabel);
+  if (matchingEvidence.length === 0) return { status: "missing" };
+  // Evidence alone is never enough to choose between two identical rendered
   // outputs. This is particularly important for structural anchors: applying
   // one move to an arbitrary identical parent would reorder the wrong group.
   if (matchingEvidence.length > 1) return { status: "ambiguous" };
-  return { status: "resolved", element: candidate };
+  return { status: "resolved", element: matchingEvidence[0]! };
+}
+
+/** Checks stable source/evidence fields without treating a post-move ordinal as identity. */
+export function matchesRenderedInstanceEvidence(el: HTMLElement, ref: RenderedInstanceRef): boolean {
+  const { props, text, ariaLabel = null } = ref.locator;
+  return el.getAttribute("data-cid") === ref.sourceSite.cid
+    && el.getAttribute("data-src") === ref.sourceSite.src
+    && el.getAttribute("data-cprops") === props
+    && normalizedText(el) === text
+    && el.getAttribute("aria-label") === ariaLabel;
 }
 
 export function createRenderedInstanceOverride(el: HTMLElement): RenderedInstanceOverride | null {
@@ -162,33 +187,164 @@ export function collectRenderedInstanceOverrides(
   return [...result.values()];
 }
 
+function notifyDiagnostics(): void {
+  diagnosticRevision += 1;
+  for (const listener of diagnosticListeners) listener();
+}
+
+function sameReports(a: readonly DocumentProjectionReport[], b: readonly DocumentProjectionReport[]): boolean {
+  return a.length === b.length && a.every((report, index) =>
+    report.overrideId === b[index]?.overrideId && report.status === b[index]?.status);
+}
+
+function reportsForSnapshot(state: DocumentProjectionState, overrides: readonly RenderedInstanceOverride[]): DocumentProjectionReport[] {
+  return overrides.map((override) => ({
+    overrideId: override.id,
+    status: state.applied.get(override.id)?.status ?? "missing",
+  }));
+}
+
+function storeReports(doc: Document, reports: DocumentProjectionReport[]): void {
+  const before = reportsByDocument.get(doc) ?? [];
+  reportsByDocument.set(doc, reports);
+  if (!sameReports(before, reports)) notifyDiagnostics();
+}
+
+function validationStatus(doc: Document, applied: AppliedProjection): DocumentProjectionStatus {
+  if (applied.status === "overridden") return "overridden";
+  if (!applied.element || !applied.element.isConnected
+    || applied.element.getAttribute(PROJECTION_ATTR) !== applied.override.id) return "overridden";
+  const resolved = resolveRenderedInstance(doc, applied.override.target);
+  return resolved.status === "resolved" && resolved.element === applied.element ? "applied" : "overridden";
+}
+
+function validateAppliedProjection(doc: Document, state: DocumentProjectionState): void {
+  let changed = false;
+  for (const applied of state.applied.values()) {
+    const status = validationStatus(doc, applied);
+    if (status !== applied.status) {
+      applied.status = status;
+      changed = true;
+    }
+  }
+  if (changed) storeReports(doc, reportsForSnapshot(state, [...canonicalOverrides.values()]));
+}
+
+function scheduleValidation(doc: Document, state: DocumentProjectionState): void {
+  if (state.validationQueued || state.applied.size === 0) return;
+  state.validationQueued = true;
+  queueMicrotask(() => {
+    state.validationQueued = false;
+    validateAppliedProjection(doc, state);
+  });
+}
+
+function getDocumentState(doc: Document): DocumentProjectionState {
+  let state = documentStates.get(doc);
+  if (state) return state;
+  state = {
+    applied: new Map(),
+    snapshotKey: null,
+    observer: null,
+    validationQueued: false,
+  };
+  const Observer = doc.defaultView?.MutationObserver;
+  if (Observer && doc.documentElement) {
+    state.observer = new Observer(() => scheduleValidation(doc, state!));
+    state.observer.observe(doc.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["data-cid", "data-src", "data-cprops", "aria-label", PROJECTION_ATTR],
+    });
+  }
+  documentStates.set(doc, state);
+  return state;
+}
+
 /**
- * The document-projection adapter. Clearing then resolving makes projection a
- * pure function of controller-owned records; no observer continuously fights
- * framework reconciliation.
+ * The document-projection adapter only applies a new canonical snapshot. A
+ * later reconciliation changes diagnostics but never starts a reapply loop.
  */
 export function applyRenderedInstanceProjection(
   doc: Document,
   overrides: ReadonlyArray<RenderedInstanceOverride>,
 ): DocumentProjectionReport[] {
+  if (!import.meta.env.DEV) return [];
+  const state = getDocumentState(doc);
+  canonicalOverrides = new Map(overrides.map((override) => [override.id, override]));
+  const key = JSON.stringify(overrides);
+  if (state.snapshotKey === key) {
+    const reports = reportsForSnapshot(state, overrides);
+    storeReports(doc, reports);
+    return reports;
+  }
+
   for (const marker of Array.from(doc.querySelectorAll<HTMLElement>(`[${PROJECTION_ATTR}]`))) {
     marker.removeAttribute(PROJECTION_ATTR);
   }
-  canonicalOverrides = new Map(overrides.map((override) => [override.id, override]));
-  const reports: DocumentProjectionReport[] = [];
+  state.applied.clear();
+  state.snapshotKey = key;
   for (const override of overrides) {
     const resolved = resolveRenderedInstance(doc, override.target);
-    reports.push({ overrideId: override.id, status: resolved.status });
     if (resolved.status === "resolved") {
       resolved.element.setAttribute(PROJECTION_ATTR, override.id);
+      state.applied.set(override.id, { override, element: resolved.element, status: "applied" });
+    } else {
+      state.applied.set(override.id, { override, element: null, status: resolved.status });
     }
   }
-  reportsByDocument.set(doc, reports);
+  const reports = reportsForSnapshot(state, overrides);
+  storeReports(doc, reports);
   return reports;
 }
 
 export function getRenderedInstanceProjectionReports(doc: Document): readonly DocumentProjectionReport[] {
   return reportsByDocument.get(doc) ?? [];
+}
+
+/** Diagnostics arrive independently when a renderer reports or React reconciles. */
+export function subscribeRenderedInstanceDiagnostics(listener: () => void): () => void {
+  diagnosticListeners.add(listener);
+  return () => diagnosticListeners.delete(listener);
+}
+
+export function getRenderedInstanceDiagnosticRevision(): number {
+  return diagnosticRevision;
+}
+
+export function recordCanvasRenderedInstanceProjectionReports(
+  cardId: string,
+  revision: number,
+  reports: readonly DocumentProjectionReport[],
+): void {
+  if (!Number.isSafeInteger(revision) || revision < 0 || !reports.every(isDocumentProjectionReport)) return;
+  const expected = new Set(canonicalOverrides.keys());
+  if (reports.length !== expected.size || new Set(reports.map((report) => report.overrideId)).size !== reports.length
+    || reports.some((report) => !expected.has(report.overrideId))) return;
+  const existing = reportsByCanvasCard.get(cardId);
+  if (existing && revision < existing.revision) return;
+  const next = reports.map((report) => ({ ...report }));
+  if (existing && existing.revision === revision && sameReports(existing.reports, next)) return;
+  reportsByCanvasCard.set(cardId, { revision, reports: next });
+  notifyDiagnostics();
+}
+
+export function clearCanvasRenderedInstanceProjectionReports(cardId: string): void {
+  if (!reportsByCanvasCard.delete(cardId)) return;
+  notifyDiagnostics();
+}
+
+export function getRenderedInstanceChangeDiagnostics(overrideId: string): RenderedInstanceChangeDiagnostic[] {
+  const diagnostics: RenderedInstanceChangeDiagnostic[] = [];
+  const host = reportsByDocument.get(document)?.find((report) => report.overrideId === overrideId);
+  if (host) diagnostics.push({ ...host, document: "Inspect" });
+  for (const [cardId, entry] of reportsByCanvasCard) {
+    const report = entry.reports.find((candidate) => candidate.overrideId === overrideId);
+    if (report) diagnostics.push({ ...report, document: `Canvas ${cardId}` });
+  }
+  return diagnostics;
 }
 
 export function isRenderedInstanceRef(value: unknown): value is RenderedInstanceRef {
@@ -197,13 +353,11 @@ export function isRenderedInstanceRef(value: unknown): value is RenderedInstance
   const source = ref.sourceSite as Record<string, unknown> | undefined;
   const locator = ref.locator as Record<string, unknown> | undefined;
   if (!source || typeof source.cid !== "string" || typeof source.src !== "string" || !locator) return false;
-  if (locator.kind === "application-key") {
-    return typeof locator.attribute === "string" && typeof locator.value === "string";
-  }
   return locator.kind === "evidence"
     && Number.isSafeInteger(locator.occurrence) && (locator.occurrence as number) >= 0
     && (typeof locator.props === "string" || locator.props === null)
-    && (typeof locator.text === "string" || locator.text === null);
+    && (typeof locator.text === "string" || locator.text === null)
+    && (locator.ariaLabel === undefined || typeof locator.ariaLabel === "string" || locator.ariaLabel === null);
 }
 
 export function isRenderedInstanceOverride(value: unknown): value is RenderedInstanceOverride {
@@ -212,10 +366,23 @@ export function isRenderedInstanceOverride(value: unknown): value is RenderedIns
     && isRenderedInstanceRef((value as { target?: unknown }).target));
 }
 
+export function isDocumentProjectionReport(value: unknown): value is DocumentProjectionReport {
+  if (!value || typeof value !== "object") return false;
+  const report = value as Record<string, unknown>;
+  return Object.keys(report).every((key) => key === "overrideId" || key === "status")
+    && typeof report.overrideId === "string"
+    && (report.status === "applied" || report.status === "missing"
+      || report.status === "ambiguous" || report.status === "overridden");
+}
+
 /** Test hook for module-local controller state. */
 export function resetRenderedInstanceState(): void {
+  for (const state of documentStates.values()) state.observer?.disconnect();
+  documentStates.clear();
   nextOverrideId = 1;
   transientTargets = new WeakMap();
   canonicalOverrides = new Map();
   reportsByDocument = new WeakMap();
+  reportsByCanvasCard.clear();
+  diagnosticRevision = 0;
 }

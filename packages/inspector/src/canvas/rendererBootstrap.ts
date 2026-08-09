@@ -14,7 +14,7 @@ import type {
   PanMoveMessage,
   PanStartMessage,
 } from "./frameProtocol.ts";
-import { handleReplaceStyles } from "./rendererStylesheet.ts";
+import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
 import { installRendererElementSelector } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../frameThrottle.ts";
@@ -74,6 +74,7 @@ export function bootstrapRenderer(): void {
   if (!import.meta.env.DEV) return;
 
   observeFrameMetadata();
+  startRendererProjectionDiagnostics();
   installRendererElementSelector();
   installRendererPanProxy();
 

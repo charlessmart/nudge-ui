@@ -1,5 +1,7 @@
-// v6 adds renderer-to-controller structural projection diagnostics.
-export const PROTOCOL_VERSION = 6;
+import { isDocumentProjectionReport } from "../renderedInstance.ts";
+
+// v7 adds renderer-to-controller rendered-instance projection diagnostics.
+export const PROTOCOL_VERSION = 7;
 
 export interface FrameMessage {
   type: string;
@@ -59,6 +61,13 @@ export interface StructuralProjectionReportMessage extends RendererMessage {
   type: "structural-projection-report";
   revision: number;
   reports: import("../structuralProjection.ts").StructuralProjectionReport[];
+}
+
+/** Renderer-local CSS-instance outcomes for one controller snapshot. */
+export interface RenderedInstanceProjectionReportMessage extends RendererMessage {
+  type: "rendered-instance-projection-report";
+  revision: number;
+  reports: import("../renderedInstance.ts").DocumentProjectionReport[];
 }
 
 export interface NavigationIntentMessage extends RendererMessage {
@@ -160,6 +169,7 @@ export type FrameProtocolMessage =
   | FrameLoadError
   | ReplaceStylesMessage
   | StructuralProjectionReportMessage
+  | RenderedInstanceProjectionReportMessage
   | NavigationIntentMessage
   | ElementHoverMessage
   | ElementMeasureStateMessage
@@ -212,6 +222,23 @@ export function isStructuralProjectionReportMessage(
     && (message.revision as number) >= 0
     && Array.isArray(message.reports)
     && message.reports.every(isStructuralProjectionReport);
+}
+
+/** Strict JSON-only schema for renderer CSS-instance diagnostics. */
+export function isRenderedInstanceProjectionReportMessage(
+  value: unknown,
+  identity: FrameIdentity,
+): value is RenderedInstanceProjectionReportMessage {
+  if (!isRendererMessageFor(value, identity) || !value || typeof value !== "object") return false;
+  const message = value as unknown as Record<string, unknown>;
+  if (!hasOnlyKeys(message, [
+    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "revision", "reports",
+  ])) return false;
+  return message.type === "rendered-instance-projection-report"
+    && Number.isSafeInteger(message.revision)
+    && (message.revision as number) >= 0
+    && Array.isArray(message.reports)
+    && message.reports.every(isDocumentProjectionReport);
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {

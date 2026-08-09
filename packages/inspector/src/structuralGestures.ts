@@ -153,7 +153,7 @@ export function getDropLocationForElement(
   while (candidate) {
     const parent: HTMLElement | null = candidate.parentElement;
     if (parent && canContainElement(parent, dragged) && candidate !== dragged && !dragged.contains(candidate)) {
-      const before = beforeTarget ? candidate : candidate.nextSibling;
+      const before = beforeTarget ? candidate : candidate.nextElementSibling;
       return { parent, before, ...lineFor(parent, before) };
     }
     candidate = parent;

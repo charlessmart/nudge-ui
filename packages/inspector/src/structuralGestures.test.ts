@@ -48,6 +48,15 @@ describe("structuralGestures", () => {
     expect(root.firstElementChild).toBe(second);
   });
 
+  it("accepts a drop after an element when whitespace follows it", () => {
+    const { root, first, second } = fixture();
+    const drop = getDropLocationForElement(first, second, false, false);
+
+    expect(drop).toMatchObject({ parent: root, before: null });
+    expect(moveElement(first, drop!)).not.toBeNull();
+    expect(root.lastElementChild).toBe(first);
+  });
+
   it("uses container edge bands as sibling insertion zones", () => {
     const { first, root, second } = fixture();
     const original = Object.getOwnPropertyDescriptor(document, "elementFromPoint");

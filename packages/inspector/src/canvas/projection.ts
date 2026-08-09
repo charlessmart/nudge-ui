@@ -3,7 +3,11 @@ import { rulesToCssText } from "../managedStylesheet.ts";
 import type { CanvasCard } from "./canvasStore.ts";
 import { getCanvasMode } from "./canvasStore.ts";
 import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
-import { collectRenderedInstanceOverrides, applyRenderedInstanceProjection } from "../renderedInstance.ts";
+import {
+  applyRenderedInstanceProjection,
+  clearCanvasRenderedInstanceProjectionReports,
+  collectRenderedInstanceOverrides,
+} from "../renderedInstance.ts";
 import { applyStructuralProjection, getStructuralChanges } from "../structuralProjection.ts";
 import { clearCanvasStructuralProjectionReports } from "../structuralProjection.ts";
 
@@ -27,10 +31,10 @@ export function computeProjection(): {
   instanceOverrides: ReturnType<typeof collectRenderedInstanceOverrides>;
   structuralChanges: ReturnType<typeof getStructuralChanges>;
 } {
-  const overrides = collectRenderedInstanceOverrides(getChangesListForProjection());
-  applyRenderedInstanceProjection(document, overrides);
   const structuralChanges = getStructuralChanges();
   applyStructuralProjection(document, structuralChanges);
+  const overrides = collectRenderedInstanceOverrides(getChangesListForProjection());
+  applyRenderedInstanceProjection(document, overrides);
   const rules = getPendingRules();
   const css = rulesToCssText(rules);
   const key = rulesKey(css, overrides);
@@ -92,6 +96,7 @@ export function unregisterCardFrame(cardId: string): void {
   frameSourceRegistry.delete(cardId);
   frameRegistry.delete(cardId);
   clearCanvasStructuralProjectionReports(cardId);
+  clearCanvasRenderedInstanceProjectionReports(cardId);
   notifyFrameRegistryListeners();
 }
 

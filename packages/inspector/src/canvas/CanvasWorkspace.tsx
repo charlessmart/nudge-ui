@@ -22,6 +22,7 @@ import { getCanvasMode, setCanvasMode, useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changesLog.ts";
 import { subscribeStructuralChanges } from "../structuralProjection.ts";
 import { recordCanvasStructuralProjectionReports } from "../structuralProjection.ts";
+import { recordCanvasRenderedInstanceProjectionReports } from "../renderedInstance.ts";
 import {
   findCanvasFrameBySource,
   PROJECT_ID,
@@ -31,6 +32,7 @@ import {
 import { normalizeUrl } from "./normalizeUrl.ts";
 import {
   isRendererMessageFor,
+  isRenderedInstanceProjectionReportMessage,
   isStructuralProjectionReportMessage,
   type ExternalNavigationMessage,
   type NavigationIntentMessage,
@@ -125,6 +127,10 @@ export function CanvasWorkspace(): ReactElement | null {
       };
       if (isStructuralProjectionReportMessage(event.data, identity)) {
         recordCanvasStructuralProjectionReports(frame.cardId, event.data.revision, event.data.reports);
+        return;
+      }
+      if (isRenderedInstanceProjectionReportMessage(event.data, identity)) {
+        recordCanvasRenderedInstanceProjectionReports(frame.cardId, event.data.revision, event.data.reports);
         return;
       }
 

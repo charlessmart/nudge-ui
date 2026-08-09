@@ -44,7 +44,7 @@ describe("structural delete projection", () => {
       kind: "delete",
       target: {
         sourceSite: { cid: "RepeatedItem", src: "src/App.tsx:12:5" },
-        locator: { kind: "evidence", occurrence: 1, props: null, text: "0.2" },
+        locator: { kind: "evidence", occurrence: 1, props: null, text: "0.2", ariaLabel: null },
       },
     });
     const report = applyStructuralDeleteProjection(document, getStructuralDeletes());
@@ -96,6 +96,7 @@ describe("structural delete projection", () => {
         parent: { sourceSite: { cid: "List", src: "src/App.tsx:5:1" } },
         before: { locator: { kind: "evidence", occurrence: 0, text: "0.1" } },
       },
+      presentation: { parentTag: "section", fromIndex: 1, toIndex: 0 },
     });
     expect(applyStructuralProjection(document, getStructuralChanges()))
       .toEqual([{ changeId: "move-1", status: "applied" }]);
@@ -313,5 +314,41 @@ describe("structural delete projection", () => {
     applyStructuralProjection(document, [change]);
     expect(document.body.textContent).toContain("React replacement");
     expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "delete-1", status: "overridden" }]);
+  });
+
+  it("reports a move as overridden when React changes its evidence in place", async () => {
+    const parent = document.createElement("section");
+    parent.dataset.cid = "List";
+    parent.dataset.src = "src/App.tsx:5:1";
+    document.body.append(parent);
+    const first = add("0.1");
+    const second = add("0.2");
+    parent.append(first, second);
+    const change = createStructuralMove(second, { parent, before: first }, "move-1")!;
+    applyStructuralProjection(document, [change]);
+
+    second.firstChild!.nodeValue = "updated";
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "move-1", status: "overridden" }]);
+  });
+
+  it("reports a move as overridden when React changes its tracked props in place", async () => {
+    const parent = document.createElement("section");
+    parent.dataset.cid = "List";
+    parent.dataset.src = "src/App.tsx:5:1";
+    document.body.append(parent);
+    const first = add("0.1");
+    const second = add("0.2");
+    parent.append(first, second);
+    const change = createStructuralMove(second, { parent, before: first }, "move-1")!;
+    applyStructuralProjection(document, [change]);
+
+    second.dataset.cprops = '{"id":"updated"}';
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "move-1", status: "overridden" }]);
   });
 });

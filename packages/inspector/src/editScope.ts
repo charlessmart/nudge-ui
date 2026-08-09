@@ -9,6 +9,7 @@ export interface InstanceEvidence {
   renderedIndex: number;
   props: string | null;
   text: string | null;
+  ariaLabel: string | null;
 }
 
 let sourceSiteMatchCounts = new WeakMap<Document, WeakMap<HTMLElement, Map<string, number>>>();
@@ -72,5 +73,5 @@ export function getInstanceEvidence(el: HTMLElement): InstanceEvidence {
   const matches = selector ? Array.from(el.ownerDocument.querySelectorAll(selector)) : [];
   const renderedIndex = Math.max(0, matches.indexOf(el));
   const text = el.textContent?.replace(/\s+/g, " ").trim().slice(0, 120) || null;
-  return { renderedIndex, props: el.getAttribute("data-cprops"), text };
+  return { renderedIndex, props: el.getAttribute("data-cprops"), text, ariaLabel: el.getAttribute("aria-label") };
 }

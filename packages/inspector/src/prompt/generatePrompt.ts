@@ -7,7 +7,7 @@ import type {
   TokenChangeRecord,
 } from "../changesLog.ts";
 import { escapeAttrValue } from "../cssEscapes.ts";
-import type { RenderedInstanceRef } from "../renderedInstance.ts";
+import type { RenderedInstanceOverride, RenderedInstanceRef } from "../renderedInstance.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
 import { canonicalizeChanges } from "../changes/model.ts";
 import {
@@ -30,6 +30,7 @@ interface ElementGroup {
   file: string;
   line: number;
   selector: string;
+  instanceOverride?: RenderedInstanceOverride;
   changes: ElementChangeRecord[];
 }
 
@@ -41,7 +42,17 @@ function basename(filePath: string): string {
 function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
   const map = new Map<string, ElementGroup>();
   for (const change of changes) {
-    const key = [change.cid, change.file, change.line, change.selector, change.scope ?? "source-site", change.state ?? "base"].join("\u0000");
+    const instanceOverride = change.scope === "rendered-instance" ? change.instanceOverride : undefined;
+    const key = [
+      change.cid,
+      change.file,
+      change.line,
+      change.selector,
+      change.scope ?? "source-site",
+      instanceOverride?.id ?? "",
+      instanceOverride ? JSON.stringify(instanceOverride.target) : "",
+      change.state ?? "base",
+    ].join("\u0000");
     let group = map.get(key);
     if (!group) {
       group = {
@@ -50,6 +61,7 @@ function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
         file: change.file,
         line: change.source.line || change.line,
         selector: change.selector,
+        instanceOverride,
         changes: [],
       };
       map.set(key, group);
@@ -118,15 +130,14 @@ function sourceSiteLabel(ref: RenderedInstanceRef): string {
 }
 
 function instanceEvidenceLines(label: string, ref: RenderedInstanceRef): string[] {
-  if (ref.locator.kind === "application-key") {
-    return [`  - ${label}: application key \`${ref.locator.attribute}\` = \`${ref.locator.value}\``];
-  }
   const evidence = ref.locator;
   const lines = [`  - ${label}: ${sourceSiteLabel(ref)}; rendered occurrence ${evidence.occurrence + 1}`];
   const props = boundedEvidence(evidence.props);
   const text = boundedEvidence(evidence.text);
+  const ariaLabel = boundedEvidence(evidence.ariaLabel ?? null);
   if (props) lines.push(`    - Props evidence: \`${props}\``);
   if (text) lines.push(`    - Text evidence: \`${text}\``);
+  if (ariaLabel) lines.push(`    - Accessible name evidence: \`${ariaLabel}\``);
   return lines;
 }
 
@@ -147,6 +158,7 @@ function structuralChangeLines(change: StructuralChange): string[] {
     ...instanceEvidenceLines("Target", change.target),
     ...instanceEvidenceLines("Destination parent", change.destination.parent),
     ...(before ? instanceEvidenceLines("Before anchor", before) : []),
+    `  - Presentation: position ${change.presentation.fromIndex + 1} → ${change.presentation.toIndex + 1} within <${change.presentation.parentTag}>`,
   ];
 }
 
@@ -204,6 +216,9 @@ export function generatePrompt(
     for (const group of elementGroups) {
       const state = group.changes[0]?.state ?? "base";
       lines.push(`### ${group.cid} (${group.file}:${group.line}) · ${state}`);
+      if (group.instanceOverride) {
+        lines.push(...instanceEvidenceLines("Target", group.instanceOverride.target));
+      }
       for (const change of group.changes) {
         lines.push(elementChangeLine(change));
         const intent = sourceIntentLine(change);

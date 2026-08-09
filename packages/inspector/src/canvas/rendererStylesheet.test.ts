@@ -5,6 +5,7 @@ import {
   handleReplaceStyles,
   getLastAppliedRevision,
   resetRendererRevision,
+  startRendererProjectionDiagnostics,
 } from "./rendererStylesheet.ts";
 import { PROTOCOL_VERSION, setRendererIdentity, type ReplaceStylesMessage } from "./frameProtocol.ts";
 import { resetStructuralDeleteProjection } from "../structuralProjection.ts";
@@ -258,6 +259,7 @@ describe("handleReplaceStyles", () => {
   it("reports application and a later overridden delete without reapplying it", async () => {
     const postMessage = vi.spyOn(window.parent, "postMessage");
     setRendererIdentity({ projectId: TEST_PROJECT, workspaceId: TEST_WORKSPACE, cardId: TEST_CARD_ID });
+    startRendererProjectionDiagnostics();
     document.body.innerHTML = '<button data-cid="Item" data-src="src/App.tsx:5:3">Two</button>';
 
     handleReplaceStyles(makeMsg({
@@ -284,7 +286,7 @@ describe("handleReplaceStyles", () => {
     placeholder.replaceWith(replacement);
     await Promise.resolve();
 
-    expect(postMessage).toHaveBeenLastCalledWith(expect.objectContaining({
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "structural-projection-report",
       revision: 7,
       reports: [{ changeId: "delete-2", status: "overridden" }],
@@ -319,6 +321,7 @@ describe("handleReplaceStyles", () => {
             locator: { kind: "evidence", occurrence: 0, props: null, text: "One" },
           },
         },
+        presentation: { parentTag: "section", fromIndex: 1, toIndex: 0 },
       }],
     }), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID);
 

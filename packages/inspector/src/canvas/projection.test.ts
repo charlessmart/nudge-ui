@@ -165,7 +165,9 @@ describe("projection", () => {
       kind: "delete",
       target: {
         sourceSite: { cid: "RepeatedItem", src: "src/App.tsx:12:5" },
-        locator: { kind: "evidence", occurrence: 0, props: null, text: "Repeated 2" },
+        locator: {
+          kind: "evidence", occurrence: 0, props: null, text: "Repeated 2", ariaLabel: null,
+        },
       },
     }]);
   });

@@ -97,6 +97,7 @@ function resetAllState(): void {
     localStorage.removeItem(storageKey(designToolProjectId));
     localStorage.removeItem(`design-tool:${designToolProjectId}:v3`);
     localStorage.removeItem(`design-tool:${designToolProjectId}:v4`);
+    localStorage.removeItem(`design-tool:${designToolProjectId}:v5`);
   } catch {
     // ignore
   }
@@ -252,7 +253,43 @@ describe("sessionStore hydration", () => {
     expect(target.isConnected).toBe(false);
   });
 
-  it.each([3, 4])("reads v%i durable CSS, drops legacy runtime records, and upgrades safely", (legacyVersion) => {
+  it("migrates a v5 move to v6 presentation metadata before replaying it", () => {
+    const parent = document.createElement("section");
+    parent.dataset.cid = "List";
+    parent.dataset.src = "src/List.tsx:4:1";
+    const first = document.createElement("button");
+    first.dataset.cid = "Item";
+    first.dataset.src = "src/List.tsx:8:1";
+    first.textContent = "First";
+    const second = first.cloneNode(true) as HTMLElement;
+    second.textContent = "Second";
+    parent.append(first, second);
+    document.body.append(parent);
+    createStructuralMove(second, { parent, before: first }, "move-1");
+
+    const legacy = JSON.parse(JSON.stringify(serializeSession())) as {
+      schemaVersion: number;
+      structuralChanges: Array<Record<string, unknown>>;
+    };
+    legacy.schemaVersion = 5;
+    delete legacy.structuralChanges[0]!.presentation;
+    localStorage.setItem(`design-tool:${designToolProjectId}:v5`, JSON.stringify(legacy));
+    localStorage.removeItem(storageKey(designToolProjectId));
+
+    resetStructuralDeleteProjection();
+    const result = hydrateSession();
+
+    expect(result).toMatchObject({ restored: true, changeCount: 1 });
+    expect(getStructuralChanges()).toMatchObject([{
+      id: "move-1",
+      presentation: { parentTag: "section", fromIndex: 1, toIndex: 0 },
+    }]);
+    expect(Array.from(parent.children).map((element) => element.textContent)).toEqual(["Second", "First"]);
+    expect(localStorage.getItem(`design-tool:${designToolProjectId}:v5`)).toBeNull();
+    expect(localStorage.getItem(storageKey(designToolProjectId))).toContain('"schemaVersion":6');
+  });
+
+  it.each([3, 4, 5])("reads v%i durable CSS, drops legacy runtime records, and upgrades safely", (legacyVersion) => {
     const legacyKey = `design-tool:${designToolProjectId}:v${legacyVersion}`;
     localStorage.setItem(legacyKey, JSON.stringify({
       schemaVersion: legacyVersion,
@@ -276,7 +313,7 @@ describe("sessionStore hydration", () => {
     expect(result).toMatchObject({ restored: true, changeCount: 1 });
     expect(getChangesList()).toHaveLength(1);
     expect(localStorage.getItem(legacyKey)).toBeNull();
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toContain('"schemaVersion":5');
+    expect(localStorage.getItem(storageKey(designToolProjectId))).toContain('"schemaVersion":6');
   });
 
   it("rejects structural payloads with generated marker or document-local fields", () => {

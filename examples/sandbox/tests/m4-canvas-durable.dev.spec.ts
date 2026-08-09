@@ -209,6 +209,59 @@ test.describe("Canvas durable session", () => {
     await expect.poll(frameFontSize).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
   });
 
+  test("dev: a rendered-item CSS override captured after a list move restores against the moved order", async ({ page }) => {
+    await page.goto("/");
+    await waitForInspector(page);
+    const moved = page.getByText("Repeated 3", { exact: true });
+    await moved.click();
+    await page.keyboard.press("ArrowUp");
+    await expect(page.locator(".repeated-item")).toHaveText([
+      "Repeated 1", "Repeated 3", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+    ]);
+
+    await setInput(page, "font-size", "18px");
+    await page.locator('[data-test="unlink-element"]').click();
+    await setInput(page, "font-size", "24px");
+    const fontSize = () => page.locator(".repeated-item").evaluateAll((els) =>
+      els.map((el) => getComputedStyle(el).fontSize));
+    await expect.poll(fontSize).toEqual(["18px", "24px", "18px", "18px", "18px", "18px"]);
+
+    await page.reload();
+    await waitForInspector(page);
+    await expect(page.locator(".repeated-item")).toHaveText([
+      "Repeated 1", "Repeated 3", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+    ]);
+    await expect.poll(fontSize).toEqual(["18px", "24px", "18px", "18px", "18px", "18px"]);
+
+    await page.locator('[data-test="mode-canvas"]').click();
+    await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+    const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+    await expect(frame.locator(".repeated-item")).toHaveText([
+      "Repeated 1", "Repeated 3", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
+    ]);
+    await expect.poll(() => frame.locator(".repeated-item").evaluateAll((els) =>
+      els.map((el) => getComputedStyle(el).fontSize))).toEqual(["18px", "24px", "18px", "18px", "18px", "18px"]);
+  });
+
+  test("dev: a reconciled rendered-item marker is reported as overridden without reapplying", async ({ page }) => {
+    await page.goto("/");
+    await waitForInspector(page);
+    await page.getByText("Repeated 3", { exact: true }).click();
+    await setInput(page, "font-size", "18px");
+    await page.locator('[data-test="unlink-element"]').click();
+    await setInput(page, "font-size", "24px");
+    await expect(page.locator('.repeated-item[data-dt-projection-instance]')).toHaveCount(1);
+
+    await page.evaluate(() => {
+      document.querySelector('.repeated-item[data-dt-projection-instance]')
+        ?.removeAttribute("data-dt-projection-instance");
+    });
+    await page.locator('[data-test="changes-toggle"]').click();
+    await expect(page.locator('[data-test="instance-diagnostic"][data-document="Inspect"][data-status="overridden"]'))
+      .toBeVisible();
+    await expect(page.locator('.repeated-item[data-dt-projection-instance]')).toHaveCount(0);
+  });
+
   test("dev: restored individual CSS, delete, and move project through Canvas reload and clear together", async ({ page }) => {
     await page.goto("/");
     await waitForInspector(page);

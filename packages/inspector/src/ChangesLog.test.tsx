@@ -5,7 +5,12 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { ChangesLog } from "./ChangesLog.tsx";
 import { appendChange, clearChanges } from "./changesLog.ts";
-import { clearStructuralChanges, createStructuralDelete, resetStructuralDeleteProjection } from "./structuralProjection.ts";
+import {
+  clearStructuralChanges,
+  createStructuralDelete,
+  createStructuralMove,
+  resetStructuralDeleteProjection,
+} from "./structuralProjection.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -95,5 +100,33 @@ describe("ChangesLog", () => {
     act(() => (container.querySelector('[data-test="dom-change-revert"]') as HTMLButtonElement).click());
     expect(target.isConnected).toBe(true);
     expect(change.id).toBe("delete-item");
+  });
+
+  it("presents a structural move with its parent tag and sibling positions", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    const list = document.createElement("ul");
+    list.dataset.cid = "List";
+    list.dataset.src = "src/List.tsx:1:1";
+    const first = document.createElement("li");
+    first.dataset.cid = "Item";
+    first.dataset.src = "src/List.tsx:2:1";
+    first.textContent = "First";
+    const second = document.createElement("li");
+    second.dataset.cid = "Item";
+    second.dataset.src = "src/List.tsx:2:1";
+    second.textContent = "Second";
+    list.append(first, second);
+    document.body.appendChild(list);
+    createStructuralMove(second, { parent: list, before: first }, "move-item");
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<ChangesLog />);
+    });
+
+    const row = container.querySelector('[data-test="dom-change-row"]')!;
+    expect(row.textContent).toContain("ul position 2");
+    expect(row.textContent).toContain("ul position 1");
   });
 });

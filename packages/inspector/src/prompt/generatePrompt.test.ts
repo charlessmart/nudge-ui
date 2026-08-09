@@ -62,6 +62,7 @@ describe("generatePrompt", () => {
             locator: { kind: "evidence", occurrence: 1, props: null, text: "Blog" },
           },
         },
+        presentation: { parentTag: "nav", fromIndex: 3, toIndex: 2 },
       },
     ];
 
@@ -72,6 +73,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("Target: RepeatedItem (src/App.tsx:12:5); rendered occurrence 3");
     expect(out).toContain("Move this one rendered instance before the specified sibling within Navigation (src/Nav.tsx:4:1).");
     expect(out).toContain("Before anchor: NavItem (src/Nav.tsx:8:3); rendered occurrence 2");
+    expect(out).toContain("Presentation: position 4 → 3 within <nav>");
     expect(out).toContain('[data-cid="RepeatedItem"][data-src*="src/App.tsx:12:5"]');
     expect(out).not.toContain("data-dt-projection-instance");
     expect(out).not.toContain("elementId");
@@ -175,6 +177,42 @@ describe("generatePrompt", () => {
     expect(out).toContain("- `border-radius`: `12px` (not a token — consider adding one)");
     const selectorLines = out.split("\n").filter((l) => l.startsWith("- `[data-cid=\"Button\"]"));
     expect(selectorLines).toHaveLength(1);
+  });
+
+  it("keeps CSS overrides for separate rendered instances in separate prompt groups", () => {
+    const first = rec({
+      cid: "RepeatedItem",
+      file: "src/App.tsx",
+      property: "color",
+      rawValue: "red",
+      scope: "rendered-instance",
+      instanceOverride: {
+        id: "override-first",
+        target: {
+          sourceSite: { cid: "RepeatedItem", src: "src/App.tsx:12:5" },
+          locator: { kind: "evidence", occurrence: 0, props: null, text: "First", ariaLabel: null },
+        },
+      },
+    });
+    const second = rec({
+      cid: "RepeatedItem",
+      file: "src/App.tsx",
+      property: "color",
+      rawValue: "blue",
+      scope: "rendered-instance",
+      instanceOverride: {
+        id: "override-second",
+        target: {
+          sourceSite: { cid: "RepeatedItem", src: "src/App.tsx:12:5" },
+          locator: { kind: "evidence", occurrence: 1, props: null, text: "Second", ariaLabel: null },
+        },
+      },
+    });
+
+    const out = generatePrompt([first, second]);
+    expect(out).toContain("Target: RepeatedItem (src/App.tsx:12:5); rendered occurrence 1");
+    expect(out).toContain("Target: RepeatedItem (src/App.tsx:12:5); rendered occurrence 2");
+    expect(out.split("\n").filter((line) => line.startsWith("### RepeatedItem"))).toHaveLength(2);
   });
 
   it("renders multiple headings for changes across multiple elements", () => {

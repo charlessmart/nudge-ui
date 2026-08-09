@@ -1,7 +1,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { IconChevronDown } from "@tabler/icons-react";
-import { useChanges, revertChange } from "./changesLog.ts";
+import { isElementChange, useChanges, revertChange } from "./changesLog.ts";
 import type { ChangeRecord } from "./changesLog.ts";
 import { StaleChangeIndicator } from "./canvas/StaleChangeIndicator.tsx";
 import { Button } from "./ui/Button.tsx";
@@ -15,6 +15,11 @@ import {
   subscribeStructuralDiagnostics,
   type StructuralChange,
 } from "./structuralProjection.ts";
+import {
+  getRenderedInstanceChangeDiagnostics,
+  getRenderedInstanceDiagnosticRevision,
+  subscribeRenderedInstanceDiagnostics,
+} from "./renderedInstance.ts";
 
 interface Group {
   key: string;
@@ -65,6 +70,11 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
     getStructuralDiagnosticRevision,
     getStructuralDiagnosticRevision,
   );
+  useSyncExternalStore(
+    subscribeRenderedInstanceDiagnostics,
+    getRenderedInstanceDiagnosticRevision,
+    getRenderedInstanceDiagnosticRevision,
+  );
   const groups = useMemo(() => groupChanges(changes), [changes]);
   const total = changes.length + structuralChanges.length;
 
@@ -91,6 +101,10 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                   </div>
                   {group.changes.map((change, i) => {
                     const presentation = presentChange(change);
+                    const instanceDiagnostics = isElementChange(change) && change.scope === "rendered-instance"
+                      && change.instanceOverride
+                      ? getRenderedInstanceChangeDiagnostics(change.instanceOverride.id)
+                      : [];
                     return (
                       <div className="dt-changes__row" data-test="change-row" key={`${group.key}\u0000${presentation.property}\u0000${i}`} data-property={presentation.property}>
                         <span className="dt-changes__prop">{presentation.propertyLabel}</span>
@@ -100,6 +114,17 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                           <span className="dt-changes__after">{presentation.after}</span>
                         </span>
                         <StaleChangeIndicator change={change} />
+                        {instanceDiagnostics.map((diagnostic) => (
+                          <span
+                            className="dt-changes__diagnostic"
+                            data-test="instance-diagnostic"
+                            data-document={diagnostic.document}
+                            data-status={diagnostic.status}
+                            key={`${diagnostic.document}:${diagnostic.status}`}
+                          >
+                            {diagnostic.document}: {diagnostic.status}
+                          </span>
+                        ))}
                         <Button
                           size="compact"
                           className="dt-changes__revert"
@@ -124,9 +149,17 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                     <span className="dt-changes__source-site" data-test="structural-source-site">Source site: {change.target.sourceSite.cid}</span>
                     <span className="dt-changes__prop">{change.kind === "move" ? "Move in DOM" : "Delete from DOM"}</span>
                     <span className="dt-changes__value">
-                      <span className="dt-changes__before">{change.kind === "move" ? "Current sibling position" : "Visible"}</span>
+                      <span className="dt-changes__before">
+                        {change.kind === "move"
+                          ? `${change.presentation.parentTag} position ${change.presentation.fromIndex + 1}`
+                          : "Visible"}
+                      </span>
                       <span className="dt-changes__arrow">→</span>
-                      <span className="dt-changes__after">{change.kind === "move" ? "Requested sibling position" : "Removed"}</span>
+                      <span className="dt-changes__after">
+                        {change.kind === "move"
+                          ? `${change.presentation.parentTag} position ${change.presentation.toIndex + 1}`
+                          : "Removed"}
+                      </span>
                     </span>
                     <span className="dt-changes__scope" data-test="structural-scope">This rendered item only</span>
                     {getStructuralChangeDiagnostics(change.id).map((diagnostic) => (

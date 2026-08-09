@@ -28,7 +28,13 @@ import { setSelectedElement } from "../selectionStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { canWriteWorkspace } from "./workspaceLease.ts";
 import type { StyleRuleContext } from "../managedStylesheet.ts";
-import { isRenderedInstanceOverride, type RenderedInstanceOverride } from "../renderedInstance.ts";
+import {
+  isRenderedInstanceOverride,
+  isRenderedInstanceRef,
+  resolveRenderedInstance,
+  type RenderedInstanceOverride,
+  type RenderedInstanceRef,
+} from "../renderedInstance.ts";
 import {
   getStructuralChanges,
   hydrateStructuralChanges,
@@ -39,11 +45,10 @@ import {
 } from "../structuralProjection.ts";
 import { projectToAllReadyCards } from "./projection.ts";
 
-const SCHEMA_VERSION = 5;
-// v3 is the released durable-session schema. v4 was never a released schema,
-// but remains a cheap compatibility read for workspaces that may have used a
-// prerelease build before this v5 structural-session upgrade.
-const LEGACY_SCHEMA_VERSIONS = [3, 4] as const;
+const SCHEMA_VERSION = 6;
+// v3 is the released durable-session schema. v4 was a prerelease schema, v5
+// added structural snapshots, and v6 adds presentation metadata to moves.
+const LEGACY_SCHEMA_VERSIONS = [3, 4, 5] as const;
 const STORAGE_PREFIX = "design-tool";
 
 function isFiniteNumber(value: unknown): value is number {
@@ -102,9 +107,124 @@ function isStrictRenderedInstanceOverride(value: unknown): value is RenderedInst
   if (!hasOnlyKeys(override, ["id", "target"])
     || !hasOnlyKeys(target, ["sourceSite", "locator"])
     || !hasOnlyKeys(source, ["cid", "src"])) return false;
-  return locator.kind === "application-key"
-    ? hasOnlyKeys(locator, ["kind", "attribute", "value"])
-    : hasOnlyKeys(locator, ["kind", "occurrence", "props", "text"]);
+  return locator.kind === "evidence"
+    && hasOnlyKeys(locator, ["kind", "occurrence", "props", "text", "ariaLabel"]);
+}
+
+function isStrictRenderedInstanceRef(value: unknown): value is RenderedInstanceRef {
+  if (!isRenderedInstanceRef(value) || !value || typeof value !== "object") return false;
+  const ref = value as unknown as Record<string, unknown>;
+  const source = ref.sourceSite as Record<string, unknown>;
+  const locator = ref.locator as Record<string, unknown>;
+  return hasOnlyKeys(ref, ["sourceSite", "locator"])
+    && hasOnlyKeys(source, ["cid", "src"])
+    && locator.kind === "evidence"
+    && hasOnlyKeys(locator, ["kind", "occurrence", "props", "text", "ariaLabel"]);
+}
+
+interface LegacyStructuralDelete {
+  id: string;
+  kind: "delete";
+  target: RenderedInstanceRef;
+}
+
+interface LegacyStructuralMove {
+  id: string;
+  kind: "move";
+  target: RenderedInstanceRef;
+  destination: {
+    parent: RenderedInstanceRef;
+    before: RenderedInstanceRef | null;
+  };
+}
+
+type LegacyStructuralChange = LegacyStructuralDelete | LegacyStructuralMove;
+
+function isLegacyStructuralChange(value: unknown): value is LegacyStructuralChange {
+  if (!value || typeof value !== "object") return false;
+  const change = value as Record<string, unknown>;
+  if (change.kind === "delete") {
+    return hasOnlyKeys(change, ["id", "kind", "target"])
+      && typeof change.id === "string"
+      && isStrictRenderedInstanceRef(change.target);
+  }
+  if (change.kind !== "move" || !change.destination || typeof change.destination !== "object") return false;
+  const destination = change.destination as Record<string, unknown>;
+  return hasOnlyKeys(change, ["id", "kind", "target", "destination"])
+    && typeof change.id === "string"
+    && isStrictRenderedInstanceRef(change.target)
+    && hasOnlyKeys(destination, ["parent", "before"])
+    && isStrictRenderedInstanceRef(destination.parent)
+    && (destination.before === null || isStrictRenderedInstanceRef(destination.before));
+}
+
+/**
+ * v5 persisted the durable move intent but not display metadata. Replay that
+ * intent in a detached DOM so its original parent and sibling indexes remain
+ * available to v6 without touching the live page before hydration.
+ */
+function migrateV5StructuralChanges(value: unknown): StructuralChange[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  const scratch = document.implementation.createHTMLDocument("design-tool-session-migration");
+  scratch.documentElement.innerHTML = document.documentElement.innerHTML;
+  const migrated: StructuralChange[] = [];
+
+  for (const candidate of value) {
+    const change = isStructuralChange(candidate)
+      ? candidate
+      : isLegacyStructuralChange(candidate) ? migrateLegacyMove(scratch, candidate) : null;
+    if (!change) return null;
+    if (!applyStructuralChangeToScratch(scratch, change)) return null;
+    migrated.push(change);
+  }
+  return migrated;
+}
+
+function migrateLegacyMove(doc: Document, change: LegacyStructuralChange): StructuralChange | null {
+  if (change.kind === "delete") return change;
+  const target = resolveRenderedInstance(doc, change.target);
+  const parent = resolveRenderedInstance(doc, change.destination.parent);
+  const before = change.destination.before ? resolveRenderedInstance(doc, change.destination.before) : null;
+  if (target.status !== "resolved" || parent.status !== "resolved" || (before && before.status !== "resolved")) {
+    return null;
+  }
+  if (target.element.parentElement !== parent.element || target.element === parent.element
+    || target.element.contains(parent.element)
+    || (before && (before.element.parentElement !== parent.element || before.element === target.element))) {
+    return null;
+  }
+  const children = Array.from(parent.element.children);
+  const fromIndex = children.indexOf(target.element);
+  const beforeIndex = before ? children.indexOf(before.element) : children.length;
+  if (fromIndex < 0 || beforeIndex < 0) return null;
+  return {
+    ...change,
+    presentation: {
+      parentTag: parent.element.tagName.toLowerCase(),
+      fromIndex,
+      toIndex: before ? beforeIndex - (fromIndex < beforeIndex ? 1 : 0) : children.length - 1,
+    },
+  };
+}
+
+function applyStructuralChangeToScratch(doc: Document, change: StructuralChange): boolean {
+  const target = resolveRenderedInstance(doc, change.target);
+  if (target.status !== "resolved") return false;
+  if (change.kind === "delete") {
+    target.element.replaceWith(doc.createComment("design-tool-session-migration"));
+    return true;
+  }
+  const parent = resolveRenderedInstance(doc, change.destination.parent);
+  const before = change.destination.before ? resolveRenderedInstance(doc, change.destination.before) : null;
+  if (parent.status !== "resolved" || (before && before.status !== "resolved")) return false;
+  if (target.element.parentElement !== parent.element || target.element === parent.element
+    || target.element.contains(parent.element)
+    || (before && (before.element.parentElement !== parent.element || before.element === target.element))) {
+    return false;
+  }
+  parent.element.insertBefore(target.element, before?.element ?? null);
+  return true;
 }
 
 function isLegacyRuntimePreview(value: unknown): boolean {
@@ -597,12 +717,13 @@ export function hydrateSession(): HydrationResult {
     }
   }
 
-  const structuralRaw = schemaVersion === SCHEMA_VERSION ? s.structuralChanges : [];
-  if (!Array.isArray(structuralRaw) || !structuralRaw.every(isStructuralChange)) {
+  const structuralChanges = schemaVersion === SCHEMA_VERSION
+    ? s.structuralChanges
+    : schemaVersion === 5 ? migrateV5StructuralChanges(s.structuralChanges) : [];
+  if (!Array.isArray(structuralChanges) || !structuralChanges.every(isStructuralChange)) {
     safeDiscard(schemaVersion);
     return { restored: false, changeCount: 0 };
   }
-  const structuralChanges = structuralRaw as StructuralChange[];
 
   const camera: CanvasCamera = {
     x: (cameraRaw as Record<string, unknown>).x as number,
@@ -611,8 +732,10 @@ export function hydrateSession(): HydrationResult {
   };
 
   hydrateCanvasStore(s.mode as CanvasMode, serializableCards, camera);
-  loadChanges(deserializedChanges);
   hydrateStructuralChanges(structuralChanges);
+  // Instance evidence captured after a move must resolve against the restored
+  // structural order, not the application's pre-move baseline.
+  loadChanges(deserializedChanges);
   // A different URL means the user intentionally navigated while Inspect was
   // active. Keep the durable edits, but adopt the new route instead of
   // sending the user back to the previous page. On refresh, the URLs already
