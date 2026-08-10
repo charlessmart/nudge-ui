@@ -19,7 +19,7 @@ export interface CanvasCamera {
   zoom: number;
 }
 
-export const MIN_CAMERA_ZOOM = 0.1;
+export const MIN_CAMERA_ZOOM = 0.25;
 export const MAX_CAMERA_ZOOM = 3;
 export const CARD_GAP = 40;
 export const FIT_ALL_PADDING = 80;

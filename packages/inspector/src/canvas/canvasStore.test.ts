@@ -410,6 +410,7 @@ describe("canvasStore camera", () => {
 
   it("setBoardCamera clamps zoom to MIN_CAMERA_ZOOM", () => {
     setBoardCamera({ x: 0, y: 0, zoom: 0.01 });
+    expect(MIN_CAMERA_ZOOM).toBe(0.25);
     expect(getBoardCamera().zoom).toBe(MIN_CAMERA_ZOOM);
   });
 

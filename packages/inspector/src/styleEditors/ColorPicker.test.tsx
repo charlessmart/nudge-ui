@@ -98,6 +98,47 @@ describe("ColorPicker", () => {
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("transparent");
   });
 
+  it("hides an explicitly declared transparent background", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-color": "rgba(0, 0, 0, 0)" });
+    handle = mount(createElement(ColorPicker, {
+      element: selected,
+      property: "background-color",
+      entries: ENTRIES,
+      tokenRow: {
+        ...TOKEN_ROW,
+        property: "background-color",
+        tokenName: null,
+        declaredValue: "transparent",
+        authored: "transparent",
+        resolvedValue: "rgba(0, 0, 0, 0)",
+      },
+    }));
+
+    expect(handle.host.querySelector('[data-test="token-field"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="add-color"]')).toBeTruthy();
+  });
+
+  it("hides a transparent background when a shorthand token row is retained", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-color": "rgba(0, 0, 0, 0)" });
+    handle = mount(createElement(ColorPicker, {
+      element: selected,
+      property: "background-color",
+      entries: ENTRIES,
+      tokenRow: {
+        ...TOKEN_ROW,
+        property: "background",
+        declaredValue: "var(--color-surface-raised)",
+        authored: "var(--color-surface-raised)",
+        resolvedValue: "#ffffff",
+      },
+    }));
+
+    expect(handle.host.querySelector('[data-test="token-field"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="add-color"]')).toBeTruthy();
+  });
+
   it("uses a readable title for the background color section", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "background-color": "rgba(0, 0, 0, 0)" });

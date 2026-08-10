@@ -132,6 +132,7 @@ test("dev: canvas card toolbar has preview, duplicate, and refresh controls", as
   const preview = page.locator('[data-test^="canvas-card-preview-"]');
   await expect(preview).toHaveText("Preview");
   await expect(preview).toHaveClass(/dt-button--secondary/);
+  await expect(preview).toHaveClass(/dt-button--default/);
   await expect(page.locator('[data-test^="canvas-card-reload-"]')).toBeVisible();
   await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toHaveClass(/dt-icon-button--secondary/);
   await expect(page.locator('[data-test^="canvas-card-reload-"]')).toHaveClass(/dt-icon-button--secondary/);

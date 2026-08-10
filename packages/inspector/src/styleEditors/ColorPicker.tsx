@@ -47,12 +47,15 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
   const el = element.domElement;
   const allEntries = entries ?? tokens;
   const declaredValue = tokenRow?.declaredValue?.trim() ?? "";
+  const paintedValue = getStateStyleValue(el, property);
+  const resolvedValue = tokenRow?.resolvedValue ?? paintedValue;
   // An explicit declaration remains meaningful even when it paints as empty
-  // (for example `transparent` or `var(--missing, transparent)`). Only hide
-  // the field when there is no declared source and the browser reports an
-  // empty color.
-  const isEmpty = declaredValue.length === 0
-    && isEmptyColorValue(tokenRow?.resolvedValue ?? getStateStyleValue(el, property));
+  // for text color (for example `transparent` or `var(--missing, transparent)`).
+  // A transparent background, however, is the empty state represented by the
+  // remove action and should not remain visible as an authored value.
+  const isEmpty = property === "background-color"
+    ? isEmptyColorValue(declaredValue) || isEmptyColorValue(resolvedValue) || isEmptyColorValue(paintedValue)
+    : declaredValue.length === 0 && isEmptyColorValue(resolvedValue);
   const [fieldAdded, setFieldAdded] = useState(false);
 
   useEffect(() => {
