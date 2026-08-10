@@ -20,8 +20,8 @@ test("dev: data-cid / data-src / data-cprops injected on JSX elements", async ({
 
   const appDiv = page.locator('[data-cid="App"]').first();
   await expect(appDiv).toBeVisible();
-  // Wrapping <div> has no serialisable props -> data-cprops must be ABSENT,
-  // only data-cid and data-src are injected.
+  // The app shell's className is serialisable, so the identity contract
+  // records it alongside data-cid and data-src.
   await expect(appDiv).toHaveAttribute("data-src", /.+/);
-  await expect(appDiv).not.toHaveAttribute("data-cprops", /.+/);
+  await expect(appDiv).toHaveAttribute("data-cprops", "className:site-shell");
 });

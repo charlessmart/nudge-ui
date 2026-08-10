@@ -396,7 +396,7 @@ export const BORDER_CASES: ConformanceFixture[] = [
   },
   {
     id: "border-top-width-longhand",
-    css: ".subject { border-top-width: 5px; }",
+    css: ".subject { border-top-width: 5px; border-top-style: solid; }",
     markup: '<div class="subject" data-cid="BorderCase" data-src="fixtures/border.tsx:21:1"></div>',
     selected: ".subject",
     catalog: [],
