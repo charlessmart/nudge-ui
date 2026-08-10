@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { IconBorderSides, IconCheck, IconMinus, IconPlus, IconSettings } from "@tabler/icons-react";
+import {
+  IconBorderBottom,
+  IconBorderLeft,
+  IconBorderRight,
+  IconBorderSides,
+  IconBorderStyle2,
+  IconBorderTop,
+  IconCheck,
+  IconMinus,
+  IconPlus,
+} from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@design-tool/css/model";
@@ -8,9 +18,9 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
-import { Select } from "../ui/Select.tsx";
 import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
+import { ToggleButton } from "../ui/ToggleButton.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
@@ -282,39 +292,32 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
     linkBorderSides(el, tokenRows, "border-color", borderColorProperties, onAfterEdit);
   }
 
-  const styleSides = borderStyleProperties.map((property, index) => ({
-    side: SIDE_NAMES[index]!,
-    control: (
-      <BorderStyleControl
-        property={property}
-        tokenRow={findTokenRow(tokenRows, property)}
-        domElement={el}
-        onAfterEdit={onAfterEdit}
-      />
-    ),
-  }));
-
-  const widthSides = borderWidthProperties.map((property, index) => ({
-    side: SIDE_NAMES[index]!,
-    control: (
+  const sideRows = SIDE_NAMES.map((side, index) => ({
+    side,
+    color: (
       <TokenField
-        property={property}
-        tokenRow={findTokenRow(tokenRows, property)}
+        property={borderColorProperties[index]!}
+        tokenRow={findTokenRow(tokenRows, borderColorProperties[index]!)}
         domElement={el}
         entries={allEntries}
         onAfterEdit={onAfterEdit}
       />
     ),
-  }));
-
-  const colorSides = borderColorProperties.map((property, index) => ({
-    side: SIDE_NAMES[index]!,
-    control: (
+    width: (
       <TokenField
-        property={property}
-        tokenRow={findTokenRow(tokenRows, property)}
+        property={borderWidthProperties[index]!}
+        tokenRow={findTokenRow(tokenRows, borderWidthProperties[index]!)}
         domElement={el}
         entries={allEntries}
+        onAfterEdit={onAfterEdit}
+      />
+    ),
+    style: (
+      <BorderStyleSettingsMenu
+        property={borderStyleProperties[index]!}
+        tokenRow={findTokenRow(tokenRows, borderStyleProperties[index]!)}
+        domElement={el}
+        dataTest={`border-style-${side}`}
         onAfterEdit={onAfterEdit}
       />
     ),
@@ -388,51 +391,54 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                 domElement={el}
                 onAfterEdit={onAfterEdit}
               />
-              <IconButton
+              <ToggleButton
                 variant="quiet"
                 size="default"
                 data-test="border-expand"
                 label="Edit Individual Border Sides"
                 title="Edit Individual Border Sides"
-                aria-pressed={!borderLinked}
-                data-active={!borderLinked}
-                onClick={handleExpand}
+                pressed={!borderLinked}
+                onPressedChange={(pressed) => {
+                  if (pressed) handleExpand();
+                }}
               >
                 <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-              </IconButton>
+              </ToggleButton>
             </div>
           ) : (
             <div className="dt-border__expanded">
               <div className="dt-border__expanded-header">
                 <span className="dt-side-values__label">{formatInspectorLabel("Individual Sides")}</span>
-                <IconButton
+                <ToggleButton
                   variant="quiet"
                   size="default"
                   data-test="border-collapse"
                   label="Link All Border Sides"
                   title="Link All Border Sides"
-                  aria-pressed={!borderLinked}
-                  data-active={!borderLinked}
-                  onClick={handleCollapse}
+                  pressed={!borderLinked}
+                  onPressedChange={(pressed) => {
+                    if (!pressed) handleCollapse();
+                  }}
                 >
                   <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-                </IconButton>
-              </div>
-              <div className="dt-border__side-group" data-test="border-style-sides" data-property="border-style">
-                <span className="dt-side-values__label">{formatInspectorLabel("Border Style")}</span>
-                <SideControls label="Border Style" sides={styleSides} />
+                </ToggleButton>
               </div>
               {showWidthAndColor ? (
-                <>
-                  <div className="dt-border__side-group" data-test="border-sides" data-property="border-width">
-                    <span className="dt-side-values__label">{formatInspectorLabel("Border Width")}</span>
-                    <SideControls label="Border Width" sides={widthSides} />
-                  </div>
-                  <div className="dt-border__side-group" data-test="border-color-sides" data-property="border-color">
-                    <span className="dt-side-values__label">{formatInspectorLabel("Border Color")}</span>
-                    <SideControls label="Border Color" sides={colorSides} />
-                  </div>
-                </>
+                <div className="dt-border__side-rows" data-test="border-side-rows">
+                  {sideRows.map(({ side, color, width, style }) => (
+                    <div
+                      className="dt-border__side-row"
+                      data-side={side}
+                      aria-label={`Border ${formatInspectorLabel(side)}`}
+                      key={side}
+                    >
+                      <BorderSideIndicator side={side} />
+                      <div className="dt-border__side-control dt-border__side-control--color">{color}</div>
+                      <div className="dt-border__side-control dt-border__side-control--width">{width}</div>
+                      {style}
+                    </div>
+                  ))}
+                </div>
               ) : null}
             </div>
           )
@@ -443,14 +449,27 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   );
 }
 
+const BORDER_SIDE_ICONS = {
+  top: IconBorderTop,
+  right: IconBorderRight,
+  bottom: IconBorderBottom,
+  left: IconBorderLeft,
+} as const;
+
+function BorderSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): ReactElement {
+  const Icon = BORDER_SIDE_ICONS[side];
+  return <Icon className="dt-side-values__icon dt-side-values__side-icon" size={16} stroke={1.8} aria-hidden="true" />;
+}
+
 interface BorderStyleSettingsMenuProps {
   property: string;
   tokenRow?: ResolvedProperty | null;
   domElement: HTMLElement;
+  dataTest?: string;
   onAfterEdit?: () => void;
 }
 
-function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, onAfterEdit }: BorderStyleSettingsMenuProps): ReactElement {
+function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, dataTest = "border-style-settings", onAfterEdit }: BorderStyleSettingsMenuProps): ReactElement {
   const structured = tokenRow?.structure?.style?.trim().toLowerCase() ?? "";
   const initial = structured || getStateStyleValue(el, property, "none") || "none";
   const [value, setValue] = useState(initial);
@@ -476,15 +495,15 @@ function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, onAfterEd
       triggerElement={(
         <IconButton
           variant="quiet"
-          size="compact"
+          size="default"
           label={`Border style: ${formatInspectorLabel(value)}`}
-          data-test="border-style-settings"
+          data-test={dataTest}
           data-current-style={value}
         >
-          <IconSettings size={16} stroke={1.8} aria-hidden="true" />
+          <IconBorderStyle2 size={16} stroke={1.8} aria-hidden="true" />
         </IconButton>
       )}
-      triggerDataTest="border-style-settings"
+      triggerDataTest={dataTest}
       triggerAriaLabel="Border style settings"
       items={BORDER_STYLES.map((style) => ({
         value: style,
@@ -495,38 +514,6 @@ function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, onAfterEd
       onQueryChange={() => undefined}
       onOpenChange={setOpen}
       onSelect={handleChange}
-    />
-  );
-}
-
-interface BorderStyleControlProps {
-  property: string;
-  tokenRow?: ResolvedProperty | null;
-  domElement: HTMLElement;
-  onAfterEdit?: () => void;
-}
-
-function BorderStyleControl({ property, tokenRow, domElement: el, onAfterEdit }: BorderStyleControlProps): ReactElement {
-  const structured = tokenRow?.structure?.style?.trim().toLowerCase() ?? "";
-  const initial = structured || getStateStyleValue(el, property, "none") || "none";
-  const [value, setValue] = useState(initial);
-
-  useEffect(() => {
-    setValue(structured || getStateStyleValue(el, property, "none") || "none");
-  }, [el, property, structured]);
-
-  function handleChange(next: string): void {
-    setValue(next);
-    setStyle(el, property, next);
-    onAfterEdit?.();
-  }
-
-  return (
-    <Select
-      data-test={property === "border-style" ? "border-style" : `border-style-${property.slice("border-".length, -"-style".length)}`}
-      value={value}
-      options={BORDER_STYLES.map((style) => ({ value: style, label: formatInspectorLabel(style) }))}
-      onValueChange={handleChange}
     />
   );
 }

@@ -221,7 +221,7 @@
 }
 
 .dt-token-field__chip-wrap--small > .dt-token-field__delink {
-  --dt-token-field-delink-size: 26px;
+  --dt-token-field-delink-size: var(--dt-control-height-large);
   right: auto;
   left: max(40px, calc(100% - var(--dt-token-field-delink-size) - 4px));
 }

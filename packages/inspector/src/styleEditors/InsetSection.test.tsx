@@ -49,6 +49,9 @@ describe("InsetSection", () => {
 
     expect(handle.host.querySelector('[data-test="remove-inset"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="top"]')).toBeTruthy();
+    const topIcon = handle.host.querySelector('[data-side="top"] svg') as SVGSVGElement;
+    expect(topIcon.classList.contains("dt-side-values__side-icon")).toBe(true);
+    expect(topIcon.querySelector("rect")?.getAttribute("x")).toBe("19");
   });
 
   it("removes all inset values with the section minus action", () => {

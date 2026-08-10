@@ -110,14 +110,22 @@
 }
 
 .dt-side-values__icon {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
+  width: var(--dt-icon-size-small);
+  height: var(--dt-icon-size-small);
+  flex: 0 0 var(--dt-icon-size-small);
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.2;
+}
+
+.dt-side-values__axis-icon {
+  color: var(--dt-text-secondary);
+}
+
+.dt-side-values__side-icon {
+  color: var(--dt-text-secondary);
 }
 
 .dt-side-values__icon-emphasis {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { IconBorderSides, IconPlus } from "@tabler/icons-react";
 import { IconButton } from "./IconButton.tsx";
+import { ToggleButton } from "./ToggleButton.tsx";
 import { formatInspectorLabel } from "./labels.ts";
 
 export const SIDE_NAMES = ["top", "right", "bottom", "left"] as const;
@@ -10,6 +11,7 @@ export type SideName = (typeof SIDE_NAMES)[number];
 export interface SideValueSlot {
   side: SideName;
   control: ReactNode;
+  icon?: ReactNode;
 }
 
 export type SideValueAxis = "horizontal" | "vertical";
@@ -17,6 +19,7 @@ export type SideValueAxis = "horizontal" | "vertical";
 export interface SideValuePairSlot {
   axis: SideValueAxis;
   control: ReactNode;
+  icon?: ReactNode;
 }
 
 export interface SideValuesFieldProps {
@@ -138,7 +141,7 @@ export function SideValuesField({
               <SideControls label={label} sides={sides} />
             ) : (
               <div className="dt-side-values__pairs" role="group" aria-label={`${labelText} Grouped Sides`}>
-                {pairedControls!.map(({ axis, control }) => (
+                {pairedControls!.map(({ axis, control, icon }) => (
                   <div
                     className="dt-side-values__side"
                     data-test={`pair-value-${axis}`}
@@ -147,13 +150,13 @@ export function SideValuesField({
                     title={`${labelText} ${axis === "horizontal" ? "Left And Right" : "Top And Bottom"}`}
                     key={axis}
                   >
-                    <AxisIndicator axis={axis} />
+                    {icon ?? <AxisIndicator axis={axis} />}
                     <div className="dt-side-values__control">{control}</div>
                   </div>
                 ))}
               </div>
             )}
-            <IconButton
+            <ToggleButton
               variant="quiet"
               size="default"
               data-test="individual-sides"
@@ -164,47 +167,48 @@ export function SideValuesField({
                 ? "Individual Sides Stay Open While Values Differ"
                 : isExpanded ? "Collapse To Grouped Sides" : "Expand To Individual Sides"}
               disabled={forceExpanded}
-              aria-pressed={isExpanded}
-              data-active={isExpanded}
-              onClick={toggleExpanded}
+              pressed={isExpanded}
+              onPressedChange={toggleExpanded}
             >
               <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-            </IconButton>
+            </ToggleButton>
           </div>
         </>
       ) : isLinked ? (
         <div className={`dt-side-values__value-row dt-side-values__linked-row${showLabel ? "" : " dt-side-values__linked-row--no-label"}`}>
           {showLabel ? <span className="dt-side-values__label">{displayLabel}</span> : null}
           <div className="dt-side-values__linked">{linkedControl}</div>
-          <IconButton
+          <ToggleButton
             variant="quiet"
             size="default"
             data-test="individual-sides"
             label={`Edit Individual ${labelText} Sides`}
             title={`Edit Individual ${labelText} Sides`}
-            aria-pressed={!isLinked}
-            data-active={!isLinked}
-            onClick={toggleLinked}
+            pressed={!isLinked}
+            onPressedChange={(pressed) => {
+              if (pressed !== !isLinked) toggleLinked();
+            }}
           >
             <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-          </IconButton>
+          </ToggleButton>
         </div>
       ) : (
         <>
           <div className="dt-side-values__header">
             <span className="dt-side-values__label">{displayLabel}</span>
-            <IconButton
+            <ToggleButton
               variant="quiet"
               size="default"
               data-test="individual-sides"
               label={`Link ${labelText} Sides`}
               title={`Link ${labelText} Sides`}
-              aria-pressed={!isLinked}
-              data-active={!isLinked}
-              onClick={toggleLinked}
+              pressed={!isLinked}
+              onPressedChange={(pressed) => {
+                if (pressed !== !isLinked) toggleLinked();
+              }}
             >
               <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-            </IconButton>
+            </ToggleButton>
           </div>
           <SideControls label={label} sides={sides} />
         </>
@@ -222,7 +226,7 @@ export function SideControls({
 }): ReactElement {
   return (
     <div className="dt-side-values__grid" role="group" aria-label={`${typeof label === "string" ? formatInspectorLabel(label) : String(label)} Individual Sides`}>
-      {sides.map(({ side, control }) => (
+      {sides.map(({ side, control, icon }) => (
         <div
           className="dt-side-values__side"
           data-test={`side-value-${side}`}
@@ -230,7 +234,7 @@ export function SideControls({
           aria-label={`${typeof label === "string" ? formatInspectorLabel(label) : String(label)} ${formatInspectorLabel(side)}`}
           key={side}
         >
-          <SideIndicator side={side} />
+          {icon ?? <SideIndicator side={side} />}
           <div className="dt-side-values__control">{control}</div>
         </div>
       ))}
@@ -263,6 +267,42 @@ function SideIndicator({ side }: { side: SideName }): ReactElement {
     <svg className="dt-side-values__icon" viewBox="0 0 16 16" aria-hidden="true">
       <rect x="3.5" y="3.5" width="9" height="9" rx="1" />
       <path d={emphasis} className="dt-side-values__icon-emphasis" />
+    </svg>
+  );
+}
+
+export function MarginSideIndicator({ side }: { side: SideName }): ReactElement {
+  if (side === "left") {
+    return (
+      <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="7" y="5" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+        <line x1="3" y1="5" x2="3" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (side === "right") {
+    return (
+      <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3" y="5" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+        <line x1="21" y1="5" x2="21" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (side === "top") {
+    return (
+      <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="19" y="7" width="14" height="14" rx="2" transform="rotate(90 19 7)" stroke="currentColor" strokeWidth="2" />
+        <line x1="19" y1="3" x2="5" y2="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="19" y="3" width="14" height="14" rx="2" transform="rotate(90 19 3)" stroke="currentColor" strokeWidth="2" />
+      <line x1="19" y1="21" x2="5" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }

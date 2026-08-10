@@ -3,7 +3,14 @@ import type { ResolvedProperty } from "@design-tool/css/model";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
-import { SideValuesField, SIDE_NAMES, type SideValuePairSlot, type SideValueSlot } from "../ui/SideValuesField.tsx";
+import {
+  SideValuesField,
+  SIDE_NAMES,
+  MarginSideIndicator,
+  type SideValueAxis,
+  type SideValuePairSlot,
+  type SideValueSlot,
+} from "../ui/SideValuesField.tsx";
 import { promoteToToken, setStyle, swapToken } from "../tokens/editActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
@@ -85,6 +92,7 @@ function SpacingField({
   ] as const;
   const sideSlots: SideValueSlot[] = SIDE_NAMES.map((side) => ({
     side,
+    icon: property === "padding" ? <PaddingSideIndicator side={side} /> : <MarginSideIndicator side={side} />,
     control: (
       <TokenField
         property={`${property}-${side}`}
@@ -102,6 +110,7 @@ function SpacingField({
   ));
   const pairSlots: SideValuePairSlot[] = pairDefinitions.map(({ axis, sideProperties }) => ({
     axis,
+    icon: <SpacingAxisIndicator property={property} axis={axis} />,
     control: (
       <PairedTokenField
         displayProperty={`${property}-${axis}`}
@@ -127,6 +136,88 @@ function SpacingField({
       showLabel={showLabel}
       sides={sideSlots}
     />
+  );
+}
+
+function PaddingSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): ReactElement {
+  if (side === "left") {
+    return (
+      <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
+        <line x1="6.75" y1="7" x2="6.75" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (side === "right") {
+    return (
+      <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
+        <line x1="17" y1="7" x2="17" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (side === "bottom") {
+    return (
+      <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="21" y="3" width="18" height="18" rx="2" transform="rotate(90 21 3)" stroke="currentColor" strokeWidth="2" />
+        <line x1="17" y1="17" x2="7" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="21" width="18" height="18" rx="2" transform="rotate(-90 3 21)" stroke="currentColor" strokeWidth="2" />
+      <line x1="7" y1="7" x2="17" y2="7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SpacingAxisIndicator({
+  property,
+  axis,
+}: {
+  property: "padding" | "margin";
+  axis: SideValueAxis;
+}): ReactElement {
+  if (property === "padding" && axis === "horizontal") {
+    return (
+      <svg className="dt-side-values__icon dt-side-values__axis-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
+        <line x1="6.75" y1="7" x2="6.75" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <line x1="17" y1="7" x2="17" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (property === "padding" && axis === "vertical") {
+    return (
+      <svg className="dt-side-values__icon dt-side-values__axis-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="21" y="3" width="18" height="18" rx="2" transform="rotate(90 21 3)" stroke="currentColor" strokeWidth="2" />
+        <line x1="17" y1="6.75" x2="7" y2="6.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <line x1="17" y1="17" x2="7" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (property === "margin" && axis === "horizontal") {
+    return (
+      <svg className="dt-side-values__icon dt-side-values__axis-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="6" y="5" width="12" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+        <line x1="2" y1="5" x2="2" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <line x1="22" y1="5" x2="22" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className="dt-side-values__icon dt-side-values__axis-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="19" y="6" width="12" height="14" rx="2" transform="rotate(90 19 6)" stroke="currentColor" strokeWidth="2" />
+      <line x1="19" y1="2" x2="5" y2="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <line x1="19" y1="22" x2="5" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
   );
 }
 

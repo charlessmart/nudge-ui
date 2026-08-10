@@ -23,17 +23,7 @@
 }
 
 .dt-floating-toolbar__tool {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--dt-control-height-large);
-  height: var(--dt-control-height-large);
-  border: none;
-  border-radius: var(--dt-radius-control);
-  background: transparent;
   color: var(--dt-text-secondary);
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .dt-floating-toolbar__tool:hover {

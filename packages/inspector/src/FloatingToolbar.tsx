@@ -3,6 +3,7 @@ import { IconPointer } from "@tabler/icons-react";
 import { useCanvasMode, enterCanvas, exitCanvas } from "./canvas/canvasStore.ts";
 import { useInspectorOpen } from "./openStore.ts";
 import { SegmentedControl } from "./ui/SegmentedControl.tsx";
+import { IconButton } from "./ui/IconButton.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import floatingToolbarStyles from "./FloatingToolbar.css?inline";
 
@@ -18,15 +19,16 @@ export function FloatingToolbar(): ReactElement | null {
       <style>{floatingToolbarStyles}</style>
       <div className="dt-floating-toolbar" data-test="floating-toolbar">
         <div className="dt-floating-toolbar__tools" role="group" aria-label="Tools">
-          <button
-            type="button"
+          <IconButton
+            variant="quiet"
+            size="default"
+            label="Select"
             className="dt-floating-toolbar__tool is-active"
             aria-pressed="true"
-            aria-label="Select"
             data-test="tool-select"
           >
             <IconPointer size={16} stroke={1.8} aria-hidden="true" />
-          </button>
+          </IconButton>
         </div>
         <SegmentedControl
           value={isCanvas ? "canvas" : "preview"}

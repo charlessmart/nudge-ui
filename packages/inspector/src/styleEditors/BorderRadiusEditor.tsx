@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { IconBorderCorners } from "@tabler/icons-react";
-import { IconButton } from "../ui/IconButton.tsx";
+import {
+  IconBorderCorners,
+  IconRadiusBottomLeft,
+  IconRadiusBottomRight,
+  IconRadiusTopLeft,
+  IconRadiusTopRight,
+} from "@tabler/icons-react";
+import { ToggleButton } from "../ui/ToggleButton.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@design-tool/css/model";
@@ -15,6 +21,13 @@ const BORDER_RADIUS_CORNERS = [
   "border-top-right-radius",
   "border-bottom-right-radius",
   "border-bottom-left-radius",
+] as const;
+
+const BORDER_RADIUS_ICONS = [
+  IconRadiusTopLeft,
+  IconRadiusTopRight,
+  IconRadiusBottomRight,
+  IconRadiusBottomLeft,
 ] as const;
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
@@ -90,6 +103,10 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
 
   const cornerSides = BORDER_RADIUS_CORNERS.map((corner, index) => ({
     side: SIDE_NAMES[index]!,
+    icon: (() => {
+      const Icon = BORDER_RADIUS_ICONS[index]!;
+      return <Icon className="dt-side-values__icon dt-side-values__side-icon" size={16} stroke={1.8} aria-hidden="true" />;
+    })(),
     control: (
       <TokenField
         property={corner}
@@ -114,18 +131,20 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
     <div className="dt-editor dt-border-radius-editor" data-test="border-radius-editor">
       <div className="dt-editor__title-row">
         <div className="dt-editor__title">Border Radius</div>
-        <IconButton
+        <ToggleButton
           variant="quiet"
           size="default"
           data-test={isLinked ? "border-radius-expand" : "border-radius-collapse"}
           label={isLinked ? "Edit Individual Corners" : "Link All Corners"}
           title={isLinked ? "Edit Individual Corners" : "Link All Corners"}
-          aria-pressed={!isLinked}
-          data-active={!isLinked}
-          onClick={isLinked ? handleExpand : handleCollapse}
+          pressed={!isLinked}
+          onPressedChange={(pressed) => {
+            if (pressed) handleExpand();
+            else handleCollapse();
+          }}
         >
           <IconBorderCorners size={"var(--dt-icon-size-small)"} stroke={1.8} aria-hidden="true" />
-        </IconButton>
+        </ToggleButton>
       </div>
       {isLinked ? (
         <div className="dt-border-radius__linked-row">

@@ -15,6 +15,7 @@ import { Button } from "../ui/Button.tsx";
 import { setSelectedElement } from "../selectionStore.ts";
 import { clearCanvasStructuralProjectionReports } from "../structuralProjection.ts";
 import { clearCanvasRenderedInstanceProjectionReports } from "../renderedInstance.ts";
+import { getCanvasToolbarScale } from "./toolbarScale.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -35,6 +36,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
   const focusedCardId = useFocusedCardId();
   const isSelected = selectedCardId === card.id;
   const isFocused = focusedCardId === card.id;
+  const toolbarScale = getCanvasToolbarScale(camera.zoom);
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -240,11 +242,18 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
       }}
       onPointerDown={handleCardPointerDown}
     >
-      <div className="dt-canvas-card__toolbar" onPointerDown={handleToolbarPointerDown}>
+      <div
+        className="dt-canvas-card__toolbar"
+        onPointerDown={handleToolbarPointerDown}
+        style={{
+          transform: `scale(${toolbarScale})`,
+          transformOrigin: "right bottom",
+        }}
+      >
         <div className="dt-canvas-card__actions">
           <Button
             variant="secondary"
-            size="compact"
+            size="default"
             data-test={`canvas-card-preview-${card.id}`}
             onClick={handleEdit}
           >
@@ -254,7 +263,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
           <IconButton
             label="Duplicate card"
             variant="secondary"
-            size="compact"
+            size="default"
             data-test={`canvas-card-duplicate-${card.id}`}
             onClick={handleDuplicate}
           >
@@ -263,7 +272,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
           <IconButton
             label="Reload card"
             variant="secondary"
-            size="compact"
+            size="default"
             data-test={`canvas-card-reload-${card.id}`}
             onClick={handleReload}
           >

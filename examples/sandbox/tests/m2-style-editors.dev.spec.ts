@@ -173,13 +173,13 @@ test("dev: linked border values expand into icon-labelled individual side fields
   const borderSection = page.locator('.dt-border');
   await expect(borderSection).toHaveAttribute("data-expanded", "false");
   await expect(borderSection.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(1);
-  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-icon-button/);
-  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-icon-button--quiet/);
+  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-toggle-button/);
+  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-toggle-button--quiet/);
   await expect(borderSection.locator('.dt-border__linked-row')).toHaveCount(1);
 
   await borderSection.locator('[data-test="border-expand"]').click();
   await expect(borderSection).toHaveAttribute("data-expanded", "true");
-  await expect(borderSection.locator('[data-test="border-sides"] [data-side="top"]')).toHaveCount(1);
+  await expect(borderSection.locator('[data-test="border-side-rows"] [data-side="top"]')).toHaveCount(1);
   await expect(borderSection.locator('[data-test="token-field"][data-property="border-top-width"]')).toHaveCount(1);
 
   await setInput(page, "border-top-width", "2px");
@@ -201,8 +201,8 @@ test("dev: authored CSS border fixtures parse width, style, and color per side",
   await expect(page.locator('.dt-border')).toHaveAttribute("data-expanded", "true");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("2px");
   await expect(page.locator('[data-test="token-field"][data-property="border-bottom-width"] [data-test="raw-input"]')).toHaveValue("4px");
-  await expect(page.locator('[data-test="border-style-top"]')).toContainText("Dashed");
-  await expect(page.locator('[data-test="border-style-bottom"]')).toContainText("Double");
+  await expect(page.locator('[data-test="border-style-top"]')).toHaveAttribute("data-current-style", "dashed");
+  await expect(page.locator('[data-test="border-style-bottom"]')).toHaveAttribute("data-current-style", "double");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-color"] [data-test="token-chip"]')).toContainText("--color-accent");
 
   await setInput(page, "border-right-width", "5px");
@@ -272,6 +272,35 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
   await expect(spacing.locator('[data-test^="pair-value-"]')).toHaveCount(2);
   await expect(spacing.locator('[data-test^="side-value-"]')).toHaveCount(0);
 
+  const iconStyles = await page.evaluate(() => {
+    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const readIcon = (group: "padding" | "margin", axis: "horizontal" | "vertical") => {
+      const svg = shadow?.querySelector(`[data-test="spacing-${group}"] [data-test="pair-value-${axis}"] svg`) as SVGSVGElement | null;
+      const rect = svg?.querySelector("rect");
+      return {
+        viewBox: svg?.getAttribute("viewBox"),
+        width: svg ? getComputedStyle(svg).width : "",
+        height: svg ? getComputedStyle(svg).height : "",
+        color: svg ? getComputedStyle(svg).color : "",
+        rectX: rect?.getAttribute("x"),
+        rectTransform: rect?.getAttribute("transform"),
+        stroke: rect?.getAttribute("stroke"),
+      };
+    };
+    return {
+      paddingHorizontal: readIcon("padding", "horizontal"),
+      paddingVertical: readIcon("padding", "vertical"),
+      marginHorizontal: readIcon("margin", "horizontal"),
+      marginVertical: readIcon("margin", "vertical"),
+    };
+  });
+  expect(iconStyles).toMatchObject({
+    paddingHorizontal: { viewBox: "0 0 24 24", width: "16px", height: "16px", color: "rgb(111, 111, 111)", rectX: "3", stroke: "currentColor" },
+    paddingVertical: { rectTransform: "rotate(90 21 3)" },
+    marginHorizontal: { rectX: "6" },
+    marginVertical: { rectTransform: "rotate(90 19 6)" },
+  });
+
   await setInput(page, "padding-horizontal", "20px");
   await expect.poll(() => computedProp(page, "padding-left"), { timeout: 5000 }).toBe("20px");
   await expect.poll(() => computedProp(page, "padding-right"), { timeout: 5000 }).toBe("20px");
@@ -282,9 +311,63 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
   await expect(spacing).toHaveAttribute("data-expanded", "true");
   await expect(spacing.locator('[data-test^="side-value-"]')).toHaveCount(4);
 
+  const individualIconStyles = await page.evaluate(() => {
+    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const readIcon = (side: "left" | "right" | "bottom" | "top") => {
+      const svg = shadow?.querySelector(`[data-test="spacing-padding"] [data-side="${side}"] svg`) as SVGSVGElement | null;
+      const rect = svg?.querySelector("rect");
+      const line = svg?.querySelector("line");
+      return {
+        viewBox: svg?.getAttribute("viewBox"),
+        width: svg ? getComputedStyle(svg).width : "",
+        height: svg ? getComputedStyle(svg).height : "",
+        color: svg ? getComputedStyle(svg).color : "",
+        rectTransform: rect?.getAttribute("transform"),
+        lineX1: line?.getAttribute("x1"),
+        stroke: rect?.getAttribute("stroke"),
+      };
+    };
+    return {
+      left: readIcon("left"),
+      right: readIcon("right"),
+      bottom: readIcon("bottom"),
+      top: readIcon("top"),
+    };
+  });
+  expect(individualIconStyles).toMatchObject({
+    left: { viewBox: "0 0 24 24", width: "16px", height: "16px", color: "rgb(111, 111, 111)", lineX1: "6.75", stroke: "currentColor" },
+    right: { lineX1: "17" },
+    bottom: { rectTransform: "rotate(90 21 3)" },
+    top: { rectTransform: "rotate(-90 3 21)" },
+  });
+
   await spacing.locator('[data-test="individual-sides"]').click();
   await expect(spacing).toHaveAttribute("data-expanded", "false");
   await expect(spacing.locator('[data-test^="pair-value-"]')).toHaveCount(2);
+
+  const margin = page.locator('[data-test="spacing-margin"]');
+  await margin.locator('[data-test="individual-sides"]').click();
+  await expect(margin).toHaveAttribute("data-expanded", "true");
+  const marginIconStyles = await page.evaluate(() => {
+    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const readIcon = (side: "left" | "right" | "top" | "bottom") => {
+      const svg = shadow?.querySelector(`[data-test="spacing-margin"] [data-side="${side}"] svg`) as SVGSVGElement | null;
+      const rect = svg?.querySelector("rect");
+      return {
+        rectX: rect?.getAttribute("x"),
+        rectTransform: rect?.getAttribute("transform"),
+        lineX1: svg?.querySelector("line")?.getAttribute("x1"),
+        stroke: rect?.getAttribute("stroke"),
+      };
+    };
+    return { left: readIcon("left"), right: readIcon("right"), top: readIcon("top"), bottom: readIcon("bottom") };
+  });
+  expect(marginIconStyles).toMatchObject({
+    left: { rectX: "7", lineX1: "3", stroke: "currentColor" },
+    right: { rectX: "3", lineX1: "21" },
+    top: { rectTransform: "rotate(90 19 7)", lineX1: "19" },
+    bottom: { rectTransform: "rotate(90 19 3)", lineX1: "19" },
+  });
 });
 
 test("dev: linking divergent border widths applies one value and survives reselection", async ({ page }) => {

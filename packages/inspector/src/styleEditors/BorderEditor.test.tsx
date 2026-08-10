@@ -127,6 +127,7 @@ describe("BorderEditor", () => {
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
     expect(handle.host.querySelector('[data-test="border-style-settings"]')?.getAttribute("data-current-style")).toBe("solid");
+    expect(handle.host.querySelector('[data-test="border-style-settings"] svg')?.classList.contains("tabler-icon-border-style-2")).toBe(true);
     selectBorderStyle("dashed");
     expect(sheetText()).toContain("border-style: dashed;");
   });
@@ -530,6 +531,10 @@ describe("BorderEditor", () => {
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-right-radius"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-bottom-right-radius"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-bottom-left-radius"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-side="top"] svg')?.classList.contains("tabler-icon-radius-top-left")).toBe(true);
+    expect(handle.host.querySelector('[data-side="right"] svg')?.classList.contains("tabler-icon-radius-top-right")).toBe(true);
+    expect(handle.host.querySelector('[data-side="bottom"] svg')?.classList.contains("tabler-icon-radius-bottom-right")).toBe(true);
+    expect(handle.host.querySelector('[data-side="left"] svg')?.classList.contains("tabler-icon-radius-bottom-left")).toBe(true);
   });
 
   it("writes per-corner border-radius from expanded state", () => {
@@ -621,6 +626,15 @@ describe("BorderEditor", () => {
     act(() => (handle.host.querySelector('[data-test="border-expand"]') as HTMLButtonElement).click());
     expect(handle.host.querySelector('.dt-border')?.getAttribute("data-expanded")).toBe("true");
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-width"]')).not.toBeNull();
+    const borderIcons = handle.host.querySelectorAll('[data-test="border-side-rows"] .dt-border__side-row > .dt-side-values__side-icon');
+    expect(borderIcons).toHaveLength(4);
+    expect(borderIcons[0]?.classList.contains("tabler-icon-border-top")).toBe(true);
+    expect(borderIcons[1]?.classList.contains("tabler-icon-border-right")).toBe(true);
+    expect(borderIcons[2]?.classList.contains("tabler-icon-border-bottom")).toBe(true);
+    expect(borderIcons[3]?.classList.contains("tabler-icon-border-left")).toBe(true);
+    expect(handle.host.querySelector('[data-test="border-side-rows"] [data-side="top"] [data-test="token-field"][data-property="border-top-color"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-side-rows"] [data-side="top"] [data-test="token-field"][data-property="border-top-width"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="border-side-rows"] [data-side="top"] [data-test="border-style-top"]')).not.toBeNull();
   });
 
   it("writes a focused border color side without changing the linked shorthand", () => {

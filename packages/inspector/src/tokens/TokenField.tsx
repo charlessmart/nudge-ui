@@ -483,7 +483,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           />
           <IconButton
             variant="quiet"
-            size="compact"
+            size="default"
             label="Replace with raw value"
             className={`dt-token-field__delink${chipVariant === "small" ? " dt-token-field__delink--small" : ""}`}
             data-test="delink-btn"

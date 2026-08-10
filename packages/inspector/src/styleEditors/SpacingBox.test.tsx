@@ -63,6 +63,60 @@ describe("SpacingBox", () => {
     expect(padding.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
     expect(rawInput("padding-horizontal").value).toBe("12px");
     expect(rawInput("padding-vertical").value).toBe("8px");
+
+    const paddingHorizontalIcon = padding.querySelector('[data-test="pair-value-horizontal"] svg') as SVGSVGElement;
+    expect(paddingHorizontalIcon.getAttribute("viewBox")).toBe("0 0 24 24");
+    expect(paddingHorizontalIcon.querySelector("rect")?.getAttribute("width")).toBe("18");
+    expect([...paddingHorizontalIcon.querySelectorAll("rect, line")].every((shape) => shape.getAttribute("stroke") === "currentColor")).toBe(true);
+
+    const paddingVerticalIcon = padding.querySelector('[data-test="pair-value-vertical"] svg') as SVGSVGElement;
+    expect(paddingVerticalIcon.querySelector("rect")?.getAttribute("transform")).toBe("rotate(90 21 3)");
+
+    const margin = handle.host.querySelector('[data-test="spacing-margin"]') as HTMLElement;
+    const marginHorizontalIcon = margin.querySelector('[data-test="pair-value-horizontal"] svg') as SVGSVGElement;
+    expect(marginHorizontalIcon.querySelector("rect")?.getAttribute("x")).toBe("6");
+    expect(marginHorizontalIcon.querySelector("rect")?.getAttribute("height")).toBe("14");
+    expect(marginHorizontalIcon.querySelectorAll("line")[0]?.getAttribute("x1")).toBe("2");
+    expect(marginHorizontalIcon.querySelectorAll("line")[1]?.getAttribute("x1")).toBe("22");
+
+    const marginVerticalIcon = margin.querySelector('[data-test="pair-value-vertical"] svg') as SVGSVGElement;
+    expect(marginVerticalIcon.querySelector("rect")?.getAttribute("transform")).toBe("rotate(90 19 6)");
+    expect(marginVerticalIcon.querySelector("line")?.getAttribute("x1")).toBe("19");
+    expect(marginVerticalIcon.querySelector("line")?.getAttribute("y1")).toBe("2");
+    expect(marginVerticalIcon.classList.contains("dt-side-values__axis-icon")).toBe(true);
+
+    showIndividualSides("padding");
+    const paddingSides = padding.querySelectorAll('[data-test^="side-value-"]');
+    expect(paddingSides).toHaveLength(4);
+    const individualIcons = new Map(
+      [...paddingSides].map((side) => [
+        side.getAttribute("data-side"),
+        side.querySelector("svg") as SVGSVGElement,
+      ]),
+    );
+    expect(individualIcons.get("left")?.querySelector("line")?.getAttribute("x1")).toBe("6.75");
+    expect(individualIcons.get("right")?.querySelector("line")?.getAttribute("x1")).toBe("17");
+    expect(individualIcons.get("bottom")?.querySelector("rect")?.getAttribute("transform")).toBe("rotate(90 21 3)");
+    expect(individualIcons.get("top")?.querySelector("rect")?.getAttribute("transform")).toBe("rotate(-90 3 21)");
+    expect([...individualIcons.values()].every((icon) => icon.classList.contains("dt-side-values__side-icon"))).toBe(true);
+
+    showIndividualSides("margin");
+    const marginSides = margin.querySelectorAll('[data-test^="side-value-"]');
+    expect(marginSides).toHaveLength(4);
+    const marginIndividualIcons = new Map(
+      [...marginSides].map((side) => [
+        side.getAttribute("data-side"),
+        side.querySelector("svg") as SVGSVGElement,
+      ]),
+    );
+    expect(marginIndividualIcons.get("left")?.querySelector("rect")?.getAttribute("x")).toBe("7");
+    expect(marginIndividualIcons.get("left")?.querySelector("line")?.getAttribute("x1")).toBe("3");
+    expect(marginIndividualIcons.get("right")?.querySelector("rect")?.getAttribute("x")).toBe("3");
+    expect(marginIndividualIcons.get("right")?.querySelector("line")?.getAttribute("x1")).toBe("21");
+    expect(marginIndividualIcons.get("top")?.querySelector("rect")?.getAttribute("transform")).toBe("rotate(90 19 7)");
+    expect(marginIndividualIcons.get("top")?.querySelector("line")?.getAttribute("x1")).toBe("19");
+    expect(marginIndividualIcons.get("bottom")?.querySelector("rect")?.getAttribute("transform")).toBe("rotate(90 19 3)");
+    expect(marginIndividualIcons.get("bottom")?.querySelector("line")?.getAttribute("x1")).toBe("19");
   });
 
   it("writes padding-top longhand on change", () => {

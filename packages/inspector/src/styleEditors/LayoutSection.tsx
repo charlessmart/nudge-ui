@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { IconArrowsMaximize, IconArrowsMinimize, IconCheck, IconLayoutDistributeHorizontal, IconLetterH, IconLetterW, IconSettings, IconTextWrap } from "@tabler/icons-react";
+import { IconAdjustmentsHorizontal, IconArrowsMaximize, IconArrowsMinimize, IconCheck, IconLetterH, IconLetterW, IconSettings, IconSpacingHorizontal, IconSpacingVertical, IconTextWrap } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
@@ -13,7 +13,6 @@ import { PositionAnchorControls } from "./PositionAnchorControls.tsx";
 import { GridSection } from "./GridSection.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "./styleActions.ts";
-import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { InspectorPopover } from "../ui/InspectorPopover.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
@@ -145,7 +144,6 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             <div className="dt-layout__flex-lower">
               <FlexAlignmentGrid domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
               <div className="dt-layout__gap-column" data-test="layout-gap">
-                <span className="dt-layout__group-title">Spacing</span>
                 <div className="dt-layout__gap-fields">
                   <div className="dt-layout__spacing-primary">
                     <FlexGapField
@@ -158,7 +156,6 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                   </div>
                   {isFlexWrapped ? (
                     <FlexGapField
-                      label="Lines"
                       property={lineGap}
                       domElement={el}
                       revision={layoutRevision}
@@ -345,7 +342,6 @@ function FlexChildValueField({ label, property, presets, inputOnly = false, domE
         property={property}
         presets={presets}
         domElement={domElement}
-        compact
         inputOnly={inputOnly}
         revision={revision}
         onAfterEdit={onAfterEdit}
@@ -365,7 +361,7 @@ function FlexChildSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexCo
       triggerElement={(
         <IconButton
           variant="quiet"
-          size="compact"
+          size="default"
           label="Flex child settings"
           title="Flex child settings"
           data-test="layout-flex-child-settings"
@@ -400,28 +396,40 @@ function FlexChildSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexCo
 }
 
 interface FlexGapFieldProps extends FlexControlProps {
-  label?: string;
   property: "row-gap" | "column-gap";
 }
 
-function FlexGapField({ label, property, domElement, revision = 0, onAfterEdit }: FlexGapFieldProps): ReactElement {
+function FlexGapField({ property, domElement, revision = 0, onAfterEdit }: FlexGapFieldProps): ReactElement {
   const field = (
     <LayoutComboField
       property={property}
       presets={GAP_PRESETS}
       domElement={domElement}
-      compact
       inputOnly
       revision={revision}
       onAfterEdit={onAfterEdit}
     />
   );
 
-  if (!label) return field;
-
   return (
     <div className="dt-layout__spacing-field">
-      <span className="dt-layout__spacing-label">{label}</span>
+      {property === "column-gap" ? (
+        <IconSpacingHorizontal
+          className="dt-layout__spacing-icon"
+          size="var(--dt-icon-size-small)"
+          stroke={1.8}
+          aria-hidden="true"
+          data-test={`layout-spacing-icon-${property}`}
+        />
+      ) : (
+        <IconSpacingVertical
+          className="dt-layout__spacing-icon"
+          size="var(--dt-icon-size-small)"
+          stroke={1.8}
+          aria-hidden="true"
+          data-test={`layout-spacing-icon-${property}`}
+        />
+      )}
       {field}
     </div>
   );
@@ -482,8 +490,7 @@ function FlexWrapToggle({ domElement, revision = 0, onAfterEdit }: FlexControlPr
   return (
     <IconButton
       variant="quiet"
-      size="compact"
-      className="dt-layout__wrap-button"
+      size="default"
       data-active={isWrapped}
       data-test="layout-flex-wrap-toggle"
       label={isWrapped ? "Disable Flex Wrap" : "Enable Flex Wrap"}
@@ -564,7 +571,7 @@ function FlexSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControl
       triggerElement={(
         <IconButton
           variant="quiet"
-          size="compact"
+          size="default"
           label="Flex settings"
           data-test="layout-flex-settings"
         >
@@ -613,13 +620,13 @@ function FlexDistributionControl({ domElement, revision = 0, onAfterEdit }: Flex
       triggerElement={(
         <IconButton
           variant="secondary"
-          size="compact"
+          size="default"
           label="Item distribution"
           title="Item distribution"
           data-active={distributed}
           data-test="layout-flex-distribution"
         >
-          <IconLayoutDistributeHorizontal size={16} stroke={1.8} aria-hidden="true" />
+          <IconAdjustmentsHorizontal size={16} stroke={1.8} aria-hidden="true" />
         </IconButton>
       )}
       triggerDataTest="layout-flex-distribution"
@@ -695,19 +702,19 @@ function FlexAlignmentGrid({ domElement, revision = 0, onAfterEdit }: FlexContro
           const alignValue = isColumn ? columnValue : rowValue;
           const active = justify === justifyValue && align === alignValue;
           return (
-            <Button
+            <IconButton
               key={`${alignValue}-${justifyValue}`}
-              size="compact"
+              size="default"
               variant="quiet"
               className="dt-layout__alignment-button"
               data-active={active}
               data-test={`layout-align-${alignValue}-${justifyValue}`}
-              aria-label={formatInspectorLabel(`Align ${alignValue.replace("flex-", "")} And Distribute ${justifyValue.replace("flex-", "")}`)}
+              label={formatInspectorLabel(`Align ${alignValue.replace("flex-", "")} And Distribute ${justifyValue.replace("flex-", "")}`)}
               aria-pressed={active}
               onClick={() => selectAlignment(justifyValue, alignValue)}
             >
               <span />
-            </Button>
+            </IconButton>
           );
         }),
       )}

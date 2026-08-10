@@ -107,12 +107,21 @@ test("dev: layout section shows flex container controls and edits write to manag
       .map((field) => field.getAttribute("data-property"));
   });
   expect(initialGapProperties).toEqual(["column-gap"]);
-  await expect(page.locator('[data-test="layout-gap"]')).toContainText("Spacing");
+  await expect(page.locator('[data-test="layout-gap"]')).not.toContainText("Spacing");
   await expect(page.locator('[data-test="layout-gap"]')).not.toContainText("Items");
   await expect(page.locator('[data-test="layout-gap"]')).not.toContainText("Distribution");
 
   const columnGapInput = page.locator('[data-test="layout-gap"] [data-test="layout-combo-input-column-gap"]');
   await expect(columnGapInput).toBeVisible();
+  await expect(columnGapInput).toHaveCSS("height", "32px");
+  const spacingFieldSurface = page.locator('[data-test="layout-gap"] .dt-layout__spacing-primary .dt-layout__spacing-field');
+  await expect(spacingFieldSurface.locator('[data-test="layout-spacing-icon-column-gap"]')).toHaveCount(1);
+  const surfaceColors = await spacingFieldSurface.evaluate((field) => ({
+    field: getComputedStyle(field).backgroundColor,
+    input: getComputedStyle(field.querySelector("input")!).backgroundColor,
+  }));
+  expect(surfaceColors.field).not.toBe("rgba(0, 0, 0, 0)");
+  expect(surfaceColors.input).toBe("rgba(0, 0, 0, 0)");
   await expect(page.locator('[data-test="layout-gap"] [data-test="layout-combo-select-column-gap"]')).toHaveCount(0);
   await columnGapInput.fill("12");
   await columnGapInput.blur();
@@ -143,7 +152,9 @@ test("dev: layout section shows flex container controls and edits write to manag
       .map((field) => field.getAttribute("data-property"))
       .sort();
   }), { timeout: 5000 }).toEqual(["column-gap", "row-gap"]);
-  await expect(page.locator('[data-test="layout-gap"]')).toContainText("Lines");
+  await expect(page.locator('[data-test="layout-gap"]')).not.toContainText("Lines");
+  await expect(page.locator('[data-test="layout-spacing-icon-column-gap"]')).toHaveCount(1);
+  await expect(page.locator('[data-test="layout-spacing-icon-row-gap"]')).toHaveCount(1);
 
   // Change flex-direction to column.
   await page.evaluate(() => {
@@ -155,6 +166,7 @@ test("dev: layout section shows flex container controls and edits write to manag
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "flex-direction"), { timeout: 5000 })
     .toBe("column");
+  await expect(page.locator('.dt-layout__spacing-primary [data-test="layout-spacing-icon-row-gap"]')).toHaveCount(1);
 
   // In a column layout, the grid's top-right cell means top + right:
   // justify-content: flex-start and align-items: flex-end.
@@ -187,6 +199,7 @@ test("dev: layout section shows flex container controls and edits write to manag
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "justify-content"), { timeout: 5000 })
     .toBe("space-between");
+  await expect(page.locator('[data-test="layout-flex-distribution"]')).toHaveAttribute("data-active", "true");
   await expect.poll(async () => page.evaluate(() => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
     return !!sr?.querySelector(".dt-layout__distribution-preview");
@@ -284,10 +297,14 @@ test("dev: layout section shows flex child controls when selecting a child of a 
   // Frequently used flex child fields are direct text inputs.
   const hasFlexGrow = await shadowQueryExists(page, "layout-combo-input-flex-grow");
   expect(hasFlexGrow).toBe(true);
+  await expect(page.locator('[data-test="layout-combo-input-flex-grow"]')).toHaveCSS("height", "32px");
+  await expect(page.locator('[data-test="layout-combo-input-flex-shrink"]')).toHaveCSS("height", "32px");
+  await expect(page.locator('[data-test="layout-combo-input-flex-basis"]')).toHaveCSS("height", "32px");
 
   await page.locator('[data-test="layout-flex-child-settings"]').click();
   await expect(page.locator('[data-test="layout-select-align-self"]')).toBeVisible();
   await expect(page.locator('[data-test="layout-combo-select-order"]')).toBeVisible();
+  await expect(page.locator('[data-test="layout-combo-select-order"]')).toHaveCSS("height", "32px");
 
   const positionSelect = page.locator('[data-test="layout-select-position"]');
   await positionSelect.focus();
@@ -345,6 +362,27 @@ test("dev: layout section shows inset controls for a positioned element", async 
   // Top inset should use the regular token/raw input.
   await expect(page.locator('[data-test="token-field"][data-property="top"] [data-test="raw-input"]')).toBeVisible();
   expect(await shadowQueryExists(page, "layout-combo-select-top")).toBe(false);
+  const topInsetIcon = await page.evaluate(() => {
+    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const svg = shadow?.querySelector('[data-test="layout-inset"] [data-side="top"] svg') as SVGSVGElement | null;
+    const rect = svg?.querySelector("rect");
+    return {
+      width: svg ? getComputedStyle(svg).width : "",
+      height: svg ? getComputedStyle(svg).height : "",
+      color: svg ? getComputedStyle(svg).color : "",
+      rectX: rect?.getAttribute("x"),
+      rectTransform: rect?.getAttribute("transform"),
+      stroke: rect?.getAttribute("stroke"),
+    };
+  });
+  expect(topInsetIcon).toMatchObject({
+    width: "16px",
+    height: "16px",
+    color: "rgb(111, 111, 111)",
+    rectX: "19",
+    rectTransform: "rotate(90 19 6)",
+    stroke: "currentColor",
+  });
 
   // Change top from "0" to "auto"
   await setInput(page, "top", "auto");

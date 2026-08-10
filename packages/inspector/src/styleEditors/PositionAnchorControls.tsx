@@ -6,8 +6,8 @@ import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Button } from "../ui/Button.tsx";
-import { IconButton } from "../ui/IconButton.tsx";
-import { SideControls, SIDE_NAMES, type SideValueSlot } from "../ui/SideValuesField.tsx";
+import { ToggleButton } from "../ui/ToggleButton.tsx";
+import { MarginSideIndicator, SideControls, SIDE_NAMES, type SideValueSlot } from "../ui/SideValuesField.tsx";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { setStyles } from "./styleActions.ts";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
@@ -44,16 +44,17 @@ export function PositionAnchorControls({
 
   const insetSlots = useMemo(() => SIDE_NAMES.map((side): SideValueSlot => ({
     side,
-        control: (
-          <TokenField
-            property={side}
-            tokenRow={tokenRows.find((row) => row.property === side) ?? null}
-            initialValue={valuesForSide(values, side)}
-            domElement={el}
-            entries={allEntries}
-            suggestions={OFFSET_PRESETS}
-            onAfterEdit={onAfterEdit}
-          />
+    icon: <MarginSideIndicator side={side} />,
+    control: (
+      <TokenField
+        property={side}
+        tokenRow={tokenRows.find((row) => row.property === side) ?? null}
+        initialValue={valuesForSide(values, side)}
+        domElement={el}
+        entries={allEntries}
+        suggestions={OFFSET_PRESETS}
+        onAfterEdit={onAfterEdit}
+      />
     ),
   })), [allEntries, el, onAfterEdit, tokenRows, values]);
 
@@ -160,17 +161,16 @@ export function PositionAnchorControls({
         )}
       </div>
       <div className="dt-layout__individual-insets">
-        <IconButton
+        <ToggleButton
           variant="quiet"
-          size="compact"
+          size="default"
           data-test="layout-position-individual-toggle"
           label={expanded ? "Hide Individual Insets" : "Show Individual Insets"}
-          aria-pressed={expanded}
-          data-active={expanded}
-          onClick={() => setExpanded((current) => !current)}
+          pressed={expanded}
+          onPressedChange={(pressed) => setExpanded(pressed)}
         >
           <IconBorderSides size={15} aria-hidden="true" />
-        </IconButton>
+        </ToggleButton>
         <span>Individual insets</span>
       </div>
       {expanded ? <SideControls label="Inset" sides={insetSlots} /> : null}

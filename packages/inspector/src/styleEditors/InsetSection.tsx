@@ -8,7 +8,7 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { setStyles } from "../tokens/editActions.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { IconButton } from "../ui/IconButton.tsx";
-import { SIDE_NAMES, SideControls, type SideValueSlot } from "../ui/SideValuesField.tsx";
+import { MarginSideIndicator, SIDE_NAMES, SideControls, type SideValueSlot } from "../ui/SideValuesField.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 
 export interface InsetSectionProps {
@@ -42,6 +42,7 @@ export function InsetSection({
 
   const sides: SideValueSlot[] = SIDE_NAMES.map((side) => ({
     side,
+    icon: <MarginSideIndicator side={side} />,
     control: (
       <TokenField
         property={side}

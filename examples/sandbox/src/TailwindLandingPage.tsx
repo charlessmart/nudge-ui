@@ -77,7 +77,7 @@ export function TailwindLandingPage() {
               Formwork gives small product teams a shared place to decide what matters, then carry it through to delivery.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-4">
-              <a className="rounded-full bg-lime-300 px-5 py-3 text-sm font-semibold text-stone-950 transition hover:-translate-y-0.5 hover:bg-lime-200" href="#start">Start a workspace <span aria-hidden="true">→</span></a>
+              <a className="rounded-full bg-lime-300 px-5 py-3 text-sm font-semibold text-black transition hover:-translate-y-0.5 hover:bg-lime-200" href="#start">Start a workspace <span aria-hidden="true">→</span></a>
               <a className="text-sm font-semibold text-stone-300 transition hover:text-white" href="#method">See the method <span aria-hidden="true">↓</span></a>
             </div>
           </div>
