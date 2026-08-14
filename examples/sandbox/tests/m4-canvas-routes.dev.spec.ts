@@ -112,25 +112,47 @@ test("dev: edit handoff switches to inspect mode without reloading when editing 
   // Canvas workspace should be gone
   await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
 
-  // Mode should be back to inspect
-  await expect(page.locator('[data-test="mode-preview"]')).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  // The inspector should be back in inspect mode
+  await expect(page.locator('[data-test="mode-canvas"]')).toBeVisible();
 
   // The host page content should still be present
   const root = page.locator("#root");
   await expect(root).toBeVisible();
 });
 
-test("dev: canvas card toolbar has preview, duplicate, and refresh controls", async ({ page }) => {
+test("dev: exiting canvas opens the selected card route in inspect mode", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
+  const firstFrame = page.frameLocator('[data-test^="canvas-card-iframe-"]').first();
+  await firstFrame.locator('a[href="/tailwind"]').click();
+  await expect(page.locator(".dt-canvas-card")).toHaveCount(2);
+
+  const secondCard = page.locator(".dt-canvas-card").nth(1);
+  await secondCard.evaluate((element) => {
+    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+  });
+  await expect(secondCard).toHaveClass(/is-selected/);
+
+  await expect(page.locator('[data-test="mode-canvas"]')).toHaveText("Exit canvas");
+  await page.locator('[data-test="mode-canvas"]').click();
+
+  await expect(page).toHaveURL(/\/tailwind\/?$/);
+  await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
+  await expect(page.locator('[data-test="mode-canvas"]')).toHaveText("View canvas");
+});
+
+test("dev: canvas card toolbar has preview, duplicate, and refresh controls", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-test="mode-canvas"]').click();
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  await expect(page.locator('[data-test="mode-canvas"]')).toHaveAttribute("data-active", "true");
+  await expect(page.locator('[data-test="mode-canvas"]')).toHaveAttribute("aria-pressed", "true");
+
   await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toBeVisible();
   const preview = page.locator('[data-test^="canvas-card-preview-"]');
-  await expect(preview).toHaveText("Preview");
+  await expect(preview).toHaveText("Page view");
   await expect(preview).toHaveClass(/dt-button--secondary/);
   await expect(preview).toHaveClass(/dt-button--default/);
   await expect(page.locator('[data-test^="canvas-card-reload-"]')).toBeVisible();

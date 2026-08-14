@@ -5,6 +5,7 @@ import { mountInspector, unmountInspector } from "./index.ts";
 import { setSelectedElement } from "./selectionStore.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { acquireLease, releaseLease } from "./canvas/workspaceLease.ts";
+import { exitCanvas } from "./canvas/canvasStore.ts";
 import { clearRestoreCount, setRestoreCount } from "./canvas/sessionStore.ts";
 
 // Signal to React that the surrounding test environment supports act().
@@ -117,6 +118,32 @@ describe("InspectorShell", () => {
     expect(shadow.querySelector('[data-test="tokens-tab"]')?.getAttribute("aria-selected")).toBe("true");
     expect(shadow.querySelector('[data-test="tokens-tab"]')?.className).toContain("dt-button--secondary");
     expect(shadow.querySelector('[data-test="inspect-tab"]')?.className).toBe("dt-panel__header-row");
+  });
+
+  it("uses a single Canvas action and a split copy control in the header", () => {
+    act(() => {
+      mountInspector(host);
+    });
+    const shadow = host.shadowRoot!;
+    const canvas = shadow.querySelector('[data-test="mode-canvas"]') as HTMLButtonElement;
+
+    expect(shadow.querySelector('[data-test="inspector-settings"]')).toBeNull();
+    expect(shadow.querySelector('[data-test="view-mode-toggle"]')).toBeNull();
+    expect(shadow.querySelector('[data-test="mode-preview"]')).toBeNull();
+    expect(canvas.textContent).toContain("View canvas");
+    expect(canvas.dataset.active).toBe("false");
+    expect(canvas.getAttribute("aria-pressed")).toBe("false");
+    expect(shadow.querySelector('[data-test="copy-prompt-control"]')).not.toBeNull();
+    expect(shadow.querySelector('[data-test="copy-prompt-menu"]')).not.toBeNull();
+
+    act(() => canvas.click());
+    expect(shadow.querySelector('[data-test="canvas-workspace"]')).not.toBeNull();
+    expect(canvas.textContent).toContain("Exit canvas");
+    expect(canvas.dataset.active).toBe("true");
+    expect(canvas.getAttribute("aria-pressed")).toBe("true");
+    act(() => exitCanvas());
+    expect(canvas.dataset.active).toBe("false");
+    expect(canvas.textContent).toContain("View canvas");
   });
 
   it("unmountInspector clears the React tree from the shadow root", () => {

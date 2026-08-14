@@ -139,6 +139,30 @@ describe("ColorPicker", () => {
     expect(handle.host.querySelector('[data-test="add-color"]')).toBeTruthy();
   });
 
+  it("hides the background field immediately after removing a shorthand-backed color", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "background-color": "rgb(255, 255, 255)" });
+    handle = mount(createElement(ColorPicker, {
+      element: selected,
+      property: "background-color",
+      entries: ENTRIES,
+      tokenRow: {
+        ...TOKEN_ROW,
+        property: "background",
+        declaredValue: "var(--color-surface-raised)",
+        authored: "var(--color-surface-raised)",
+        resolvedValue: "#ffffff",
+      },
+    }));
+
+    act(() => {
+      (handle.host.querySelector('[data-test="remove-color"]') as HTMLButtonElement).click();
+    });
+
+    expect(handle.host.querySelector('[data-test="token-field"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="add-color"]')).toBeTruthy();
+  });
+
   it("uses a readable title for the background color section", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "background-color": "rgba(0, 0, 0, 0)" });

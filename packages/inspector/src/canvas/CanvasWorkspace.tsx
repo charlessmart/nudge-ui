@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from "rea
 import {
   useCanvasCards,
   exitCanvas,
+  exitCanvasToCard,
   addCanvasCard,
   removeCanvasCard,
   findCardByNormalizedUrl,
@@ -11,35 +12,38 @@ import {
   getBoardCamera,
   fitAllCards,
   hasFitAllRan,
-  resetFitAllFlag,
   useBoardCamera,
-  MIN_CAMERA_ZOOM,
-  MAX_CAMERA_ZOOM,
   type CanvasCard as CanvasCardData,
 } from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
-import { getCanvasMode, setCanvasMode, useCanvasMode } from "./canvasStore.ts";
+import { useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changesLog.ts";
 import { subscribeStructuralChanges } from "../structuralProjection.ts";
 import { recordCanvasStructuralProjectionReports } from "../structuralProjection.ts";
 import { recordCanvasRenderedInstanceProjectionReports } from "../renderedInstance.ts";
 import {
   findCanvasFrameBySource,
+  getRegisteredFrames,
   PROJECT_ID,
   projectToAllReadyCards,
   WORKSPACE_ID,
 } from "./projection.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
 import {
+  PROTOCOL_VERSION,
   isRendererMessageFor,
   isRenderedInstanceProjectionReportMessage,
   isStructuralProjectionReportMessage,
   type ExternalNavigationMessage,
+  type FrameReadyMessage,
   type NavigationIntentMessage,
   type PanEndMessage,
+  type PanModifierMessage,
   type PanMoveMessage,
   type PanStartMessage,
+  type ZoomMessage,
 } from "./frameProtocol.ts";
+import { iframePointToClientPoint, zoomCameraAtPointer } from "./canvasGestures.ts";
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
 import foundationStyles from "../ui/Foundation.css?inline";
@@ -47,9 +51,6 @@ import { useInspectorOpen } from "../openStore.ts";
 import { isEditableEvent } from "../shortcuts.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");
-
-const ZOOM_STEP = 0.1;
-const ZOOM_WHEEL_FACTOR = 1.08;
 
 export function CanvasWorkspace(): ReactElement | null {
   const mode = useCanvasMode();
@@ -66,6 +67,34 @@ export function CanvasWorkspace(): ReactElement | null {
   const fitAllScheduledRef = useRef(false);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
+
+  const sendPanModifier = useCallback((iframe: HTMLIFrameElement, cardId: string, spaceHeld: boolean) => {
+    iframe.contentWindow?.postMessage({
+      type: "pan-modifier",
+      protocolVersion: PROTOCOL_VERSION,
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+      cardId,
+      spaceHeld,
+    }, window.location.origin);
+  }, []);
+
+  const broadcastPanModifier = useCallback((spaceHeld: boolean) => {
+    for (const [cardId, iframe] of getRegisteredFrames()) {
+      sendPanModifier(iframe, cardId, spaceHeld);
+    }
+  }, [sendPanModifier]);
+
+  const zoomAtPointer = useCallback((point: { x: number; y: number }, deltaY: number) => {
+    const board = boardRef.current;
+    if (!board) return;
+    setBoardCamera(zoomCameraAtPointer(
+      getBoardCamera(),
+      point,
+      board.getBoundingClientRect(),
+      deltaY,
+    ));
+  }, []);
 
   const fitCanvasToBoard = useCallback(() => {
     const board = boardRef.current;
@@ -134,7 +163,27 @@ export function CanvasWorkspace(): ReactElement | null {
         return;
       }
 
-      const msg = event.data as NavigationIntentMessage | ExternalNavigationMessage | PanStartMessage | PanMoveMessage | PanEndMessage;
+      const msg = event.data as FrameReadyMessage | NavigationIntentMessage | ExternalNavigationMessage
+        | PanStartMessage | PanMoveMessage | PanEndMessage | PanModifierMessage | ZoomMessage;
+      if (msg.type === "frame-ready") {
+        // A card can finish loading after Space was pressed on the controller.
+        // Seed it with the current modifier state before its first pointer event.
+        sendPanModifier(frame.iframe, frame.cardId, spaceHeldRef.current);
+      }
+      if (msg.type === "pan-modifier") {
+        spaceHeldRef.current = msg.spaceHeld;
+        if (!panningRef.current) {
+          setBoardCursorClass(msg.spaceHeld ? "is-grabbable" : "");
+        }
+        broadcastPanModifier(msg.spaceHeld);
+        return;
+      }
+      if (msg.type === "zoom") {
+        const iframeRect = frame.iframe.getBoundingClientRect();
+        const point = iframePointToClientPoint(iframeRect, msg.point, getBoardCamera().zoom);
+        zoomAtPointer(point, msg.deltaY);
+        return;
+      }
       const pointInBoard = (point: { x: number; y: number }) => {
         const context = framePanContextRef.current;
         if (!context) return null;
@@ -185,7 +234,7 @@ export function CanvasWorkspace(): ReactElement | null {
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [endPanning, movePanning, startPanning]);
+  }, [broadcastPanModifier, endPanning, movePanning, sendPanModifier, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -212,7 +261,9 @@ export function CanvasWorkspace(): ReactElement | null {
       if (e.code === "Space" && !e.repeat) {
         const target = e.target as HTMLElement;
         if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+        e.preventDefault();
         spaceHeldRef.current = true;
+        broadcastPanModifier(true);
         if (!panningRef.current) {
           setBoardCursorClass("is-grabbable");
         }
@@ -222,19 +273,20 @@ export function CanvasWorkspace(): ReactElement | null {
     function onKeyUp(e: KeyboardEvent): void {
       if (e.code === "Space") {
         spaceHeldRef.current = false;
+        broadcastPanModifier(false);
         if (!panningRef.current) {
           setBoardCursorClass("");
         }
       }
     }
 
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
     };
-  }, [mode]);
+  }, [broadcastPanModifier, mode]);
 
   const handleBoardPointerDown = useCallback((e: React.PointerEvent) => {
     if (panningRef.current) return;
@@ -270,37 +322,15 @@ export function CanvasWorkspace(): ReactElement | null {
       e.preventDefault();
       e.stopPropagation();
 
-      const boardEl = boardRef.current;
-      if (!boardEl) return;
-
-      const rect = boardEl.getBoundingClientRect();
-      const pointerX = e.clientX - rect.left;
-      const pointerY = e.clientY - rect.top;
-
-      const cam = getCanvasMode() === "canvas" ? getBoardCamera() : { x: 0, y: 0, zoom: 1 };
-
-      const worldX = (pointerX - cam.x) / cam.zoom;
-      const worldY = (pointerY - cam.y) / cam.zoom;
-
-      const factor = e.deltaY < 0 ? ZOOM_WHEEL_FACTOR : 1 / ZOOM_WHEEL_FACTOR;
-      const newZoom = Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, cam.zoom * factor));
-
-      const newX = pointerX - worldX * newZoom;
-      const newY = pointerY - worldY * newZoom;
-
-      setBoardCamera({ x: newX, y: newY, zoom: newZoom });
+      zoomAtPointer({ x: e.clientX, y: e.clientY }, e.deltaY);
     }
 
-    window.addEventListener("wheel", handleGlobalWheel, { capture: true });
+    window.addEventListener("wheel", handleGlobalWheel, { capture: true, passive: false });
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
-  }, [mode]);
+  }, [mode, zoomAtPointer]);
 
   function handleEdit(card: CanvasCardData): void {
-    setCanvasMode("inspect");
-    resetFitAllFlag();
-    if (card.url !== window.location.href) {
-      window.location.href = card.url;
-    }
+    exitCanvasToCard(card);
   }
 
   if (mode !== "canvas" || cards.length === 0) return null;

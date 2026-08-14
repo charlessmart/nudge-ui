@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconPalette, IconSettings } from "@tabler/icons-react";
+import { IconColorSwatch, IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconPlayerPlay } from "@tabler/icons-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -30,7 +30,6 @@ import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
 import { Breadcrumb } from "./ui/Breadcrumb.tsx";
-import { SegmentedControl } from "./ui/SegmentedControl.tsx";
 import { UI_STYLES } from "./ui/styles.ts";
 import { TokensPanel } from "./tokens/TokensPanel.tsx";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
@@ -38,7 +37,7 @@ import type { InteractionState } from "./styleState.ts";
 import { isEditableEvent } from "./shortcuts.ts";
 import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "./ui/labels.ts";
-import { enterCanvas, exitCanvas, useCanvasMode } from "./canvas/canvasStore.ts";
+import { enterCanvas, exitCanvas, exitCanvasToCard, getCanvasCards, getSelectedCardId, useCanvasMode } from "./canvas/canvasStore.ts";
 import { getRestoreCount, clearRestoreCount, clearSession } from "./canvas/sessionStore.ts";
 import { getElementWindow } from "./domRealm.ts";
 import { deleteElement, nudgeElement } from "./structuralGestures.ts";
@@ -255,6 +254,23 @@ export function InspectorShell(): ReactElement {
     refreshScope((revision) => revision + 1);
   }
 
+  function handleCanvasModeButton(): void {
+    if (canvasMode !== "canvas") {
+      enterCanvas();
+      return;
+    }
+
+    const selectedCardId = getSelectedCardId();
+    const selectedCard = selectedCardId
+      ? getCanvasCards().find((card) => card.id === selectedCardId)
+      : undefined;
+    if (selectedCard) {
+      exitCanvasToCard(selectedCard);
+    } else {
+      exitCanvas();
+    }
+  }
+
   return (
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
@@ -275,13 +291,6 @@ export function InspectorShell(): ReactElement {
             </IconButton>
             <div className="dt-panel__header-actions">
               <IconButton
-                variant="quiet"
-                label="Inspector settings"
-                data-test="inspector-settings"
-              >
-                <IconSettings size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
-              </IconButton>
-              <IconButton
                 variant={activeTab === "tokens" ? "secondary" : "quiet"}
                 className={`dt-panel__icon-tab dt-button--${activeTab === "tokens" ? "secondary" : "quiet"}`}
                 role="tab"
@@ -292,26 +301,25 @@ export function InspectorShell(): ReactElement {
                 title="Tokens"
                 onClick={() => setActiveTab(activeTab === "tokens" ? "inspect" : "tokens")}
               >
-                <IconPalette size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+                <IconColorSwatch size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
               </IconButton>
-              <CopyPromptButton />
+              <span className="dt-panel__header-divider" aria-hidden="true" />
+              <Button
+                variant="quiet"
+                className="dt-panel__canvas-button"
+                data-test="mode-canvas"
+                data-active={canvasMode === "canvas" ? "true" : "false"}
+                aria-pressed={canvasMode === "canvas"}
+                type="button"
+                onClick={handleCanvasModeButton}
+              >
+                <IconPlayerPlay size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+                {canvasMode === "canvas" ? "Exit canvas" : "View canvas"}
+              </Button>
             </div>
           </div>
-          <div className="dt-panel__view-row">
-            <SegmentedControl
-              value={canvasMode === "canvas" ? "canvas" : "preview"}
-              aria-label="View mode"
-              data-test="view-mode-toggle"
-              className="dt-panel__view-toggle"
-              options={[
-                { value: "preview", label: "Preview", testId: "mode-preview" },
-                { value: "canvas", label: "Canvas", testId: "mode-canvas" },
-              ]}
-              onChange={(nextMode) => {
-                if (nextMode === "canvas" && canvasMode !== "canvas") enterCanvas();
-                if (nextMode === "preview" && canvasMode === "canvas") exitCanvas();
-              }}
-            />
+          <div className="dt-panel__copy-row">
+            <CopyPromptButton />
           </div>
         </div>
         <div className="dt-panel__body">

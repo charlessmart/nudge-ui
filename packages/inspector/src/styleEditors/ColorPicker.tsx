@@ -57,21 +57,25 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
     ? isEmptyColorValue(declaredValue) || isEmptyColorValue(resolvedValue) || isEmptyColorValue(paintedValue)
     : declaredValue.length === 0 && isEmptyColorValue(resolvedValue);
   const [fieldAdded, setFieldAdded] = useState(false);
+  const [backgroundRemoved, setBackgroundRemoved] = useState(false);
 
   useEffect(() => {
     setFieldAdded(false);
+    setBackgroundRemoved(false);
   }, [el, property]);
 
   function handleAfterEdit(): void {
     setFieldAdded(false);
+    setBackgroundRemoved(false);
     onAfterEdit?.();
   }
 
-  const showTokenField = !isEmpty || fieldAdded;
+  const showTokenField = (!isEmpty && !backgroundRemoved) || fieldAdded;
 
   function handleRemoveColor(): void {
     setStyle(el, property, "transparent");
     setFieldAdded(false);
+    setBackgroundRemoved(property === "background-color");
     onAfterEdit?.();
   }
 

@@ -313,7 +313,15 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-grid-child"]')).toBeFalsy();
     expect(handle.host.querySelector('[data-test="layout-grid-input-grid-template-columns"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-select-grid-auto-flow"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-grid-gap"]')).toBeTruthy();
+    const gridGap = handle.host.querySelector('[data-test="layout-grid-gap"]');
+    expect(gridGap).toBeTruthy();
+    for (const property of ["row-gap", "column-gap"]) {
+      const surface = gridGap?.querySelector(`[data-test="layout-grid-${property}"]`);
+      expect(surface?.classList.contains("dt-layout__spacing-field")).toBe(true);
+      expect(surface?.querySelector(`[data-test="layout-spacing-icon-${property}"]`)).toBeTruthy();
+      expect(surface?.querySelector(`[data-test="layout-combo-input-${property}"]`)?.className)
+        .not.toContain("dt-text-input--compact");
+    }
     expect(handle.host.querySelector('[data-test="layout-grid-alignment"]')).toBeTruthy();
 
     const autoFlow = handle.host.querySelector('[data-test="layout-select-grid-auto-flow"]') as HTMLElement;

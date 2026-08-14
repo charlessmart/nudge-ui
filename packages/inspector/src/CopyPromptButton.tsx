@@ -1,11 +1,13 @@
 import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
+import { IconChevronDown, IconClipboardCheck } from "@tabler/icons-react";
 import { useChanges } from "./changesLog.ts";
 import { tokens } from "virtual:design-tokens";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { detectFramework } from "./prompt/detectFramework.ts";
 import { copyToClipboard } from "./prompt/copyToClipboard.ts";
 import { Button } from "./ui/Button.tsx";
+import { IconButton } from "./ui/IconButton.tsx";
 import { getStructuralChanges, subscribeStructuralChanges } from "./structuralProjection.ts";
 
 export function CopyPromptButton(): ReactElement {
@@ -28,15 +30,31 @@ export function CopyPromptButton(): ReactElement {
   }
 
   return (
-    <Button
-      variant={disabled ? "disabled" : "primary"}
-      className="dt-panel__copy"
-      data-test="copy-prompt"
-      disabled={disabled}
-      data-copied={copied ? "true" : "false"}
-      onClick={onClick}
-    >
-      {copied ? "Copied!" : disabled ? "No changes" : "Copy prompt"}
-    </Button>
+    <div className="dt-copy-prompt" data-test="copy-prompt-control">
+      <Button
+        variant={disabled ? "disabled" : "primary"}
+        className="dt-copy-prompt__main"
+        data-test="copy-prompt"
+        type="button"
+        disabled={disabled}
+        data-copied={copied ? "true" : "false"}
+        onClick={onClick}
+      >
+        <IconClipboardCheck size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+        {copied ? "Copied!" : disabled ? "No changes" : "Copy prompt"}
+      </Button>
+      <IconButton
+        variant={disabled ? "disabled" : "primary"}
+        className="dt-copy-prompt__menu"
+        label="Copy prompt options"
+        title="Copy prompt options"
+        data-test="copy-prompt-menu"
+        type="button"
+        disabled={disabled}
+        aria-haspopup="menu"
+      >
+        <IconChevronDown size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+      </IconButton>
+    </div>
   );
 }

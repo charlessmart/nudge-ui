@@ -25,8 +25,9 @@
 }
 
 .dt-button--primary {
-  background: var(--dt-accent);
-  color: #ffffff;
+  background: var(--dt-surface-raised);
+  color: var(--dt-text-primary);
+  box-shadow: 0 0 0 1px var(--dt-border-subtle);
 }
 
 .dt-button--secondary {
@@ -35,7 +36,7 @@
 
 .dt-button--quiet {
   background: transparent;
-  color: var(--dt-text-muted);
+  color: var(--dt-text-primary);
 }
 
 .dt-button--danger {
@@ -58,7 +59,19 @@
 }
 
 .dt-button--primary:hover:not(:disabled) {
-  background: var(--dt-accent-strong);
+  background: var(--dt-surface-control-hover);
+  color: var(--dt-text-primary);
+  box-shadow: 0 0 0 1px var(--dt-border-subtle);
+}
+
+.dt-button[data-active="true"] {
+  background: var(--dt-accent-surface);
+  color: var(--dt-accent-text);
+}
+
+.dt-button[data-active="true"]:hover:not(:disabled) {
+  background: var(--dt-accent-surface);
+  color: var(--dt-accent-text);
 }
 
 .dt-button:focus-visible {

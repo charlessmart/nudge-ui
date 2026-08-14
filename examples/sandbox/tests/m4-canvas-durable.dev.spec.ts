@@ -105,15 +105,16 @@ test.describe("Canvas durable session", () => {
     await waitForInspector(page);
 
     // Make sure we're in inspect mode
-    await expect(page.locator('[data-test="mode-preview"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
+    await expect(page.locator('[data-test="mode-canvas"]')).toBeVisible();
 
     // Reload
     await page.reload();
     await waitForInspector(page);
 
     // Should still be in inspect mode
-    await expect(page.locator('[data-test="mode-preview"]')).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
+    await expect(page.locator('[data-test="mode-canvas"]')).toBeVisible();
   });
 
   test("dev: clear session removes all edits and workspace state", async ({ page }) => {
@@ -129,7 +130,7 @@ test.describe("Canvas durable session", () => {
     // Enter Canvas, then exit
     await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-    await page.locator('[data-test="mode-preview"]').click();
+    await page.locator('[data-test^="canvas-card-preview-"]').first().click();
 
     // Click "Clear Session" from the session actions
     await page.reload();
@@ -148,7 +149,7 @@ test.describe("Canvas durable session", () => {
     await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 48px;");
 
     // Should be in inspect mode
-    await expect(page.locator('[data-test="mode-preview"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
   });
 
   test("dev: global token edits survive refresh", async ({ page }) => {

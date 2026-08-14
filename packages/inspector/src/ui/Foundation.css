@@ -1,6 +1,6 @@
 :host {
   all: initial;
-  --dt-surface-panel: #ffffff;
+  --dt-surface-panel: #FCFCFC;
   --dt-surface-control: var(--dt-surface-well);
   --dt-surface-control-hover: #ececec;
   --dt-surface-raised: #ffffff;

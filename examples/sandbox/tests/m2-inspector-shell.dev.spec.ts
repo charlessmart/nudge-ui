@@ -29,11 +29,20 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
     const actions = header?.querySelector(".dt-panel__header-actions");
     return {
       background: header ? getComputedStyle(header).backgroundColor : null,
-      actions: actions ? Array.from(actions.children).map((child) => child.getAttribute("data-test")) : [],
+      actions: actions
+        ? Array.from(actions.children)
+          .map((child) => child.getAttribute("data-test"))
+          .filter((value): value is string => value !== null)
+        : [],
+      hasDivider: header?.querySelector(".dt-panel__header-divider") !== null,
     };
   });
   expect(headerState.background).toBe("rgba(0, 0, 0, 0)");
-  expect(headerState.actions).toEqual(["inspector-settings", "tokens-tab", "copy-prompt"]);
+  expect(headerState.actions).toEqual(["tokens-tab", "mode-canvas"]);
+  expect(headerState.hasDivider).toBe(true);
+  await expect(page.locator('[data-test="view-mode-toggle"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="mode-preview"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="copy-prompt-menu"]')).toBeDisabled();
 
   const getOpen = () =>
     page.evaluate(

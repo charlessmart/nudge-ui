@@ -453,27 +453,6 @@ test("dev: removing a background color hides the transparent empty state", async
   await expect(background.locator('[data-test="remove-color"]')).toBeVisible();
   await background.locator('[data-test="remove-color"]').click();
 
-  console.log(await page.evaluate(() => {
-    const button = document.querySelector<HTMLElement>(".hero-actions .btn");
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
-    const selection = shadow?.querySelector<HTMLElement>('[data-test="selection"]');
-    const backgroundPicker = shadow?.querySelector<HTMLElement>('[data-test="color-picker"][data-property="background-color"]');
-    return {
-      button: button ? {
-        cid: button.getAttribute("data-cid"),
-        src: button.getAttribute("data-src"),
-        background: getComputedStyle(button).background,
-        backgroundColor: getComputedStyle(button).backgroundColor,
-      } : null,
-      selection: selection ? {
-        cid: selection.getAttribute("data-selected-cid"),
-        src: selection.getAttribute("data-selected-src"),
-      } : null,
-      picker: backgroundPicker?.innerHTML,
-      sheet: (window as unknown as { __designToolGetManagedSheetText?: () => string }).__designToolGetManagedSheetText?.(),
-    };
-  }));
-
   await expect.poll(async () => background.locator('[data-test="token-field"]').count(), { timeout: 5000 })
     .toBe(0);
   await expect(background.locator('[data-test="add-color"]')).toBeVisible();

@@ -241,7 +241,7 @@ test("dev: Canvas drags a tracked element through the controller with an inserti
   await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="applied"]')).toBeVisible();
   await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="missing"]')).toHaveCount(0);
 
-  await page.locator('[data-test="mode-preview"]').click();
+  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
   await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
@@ -311,7 +311,7 @@ test("dev: Canvas deletes one repeated item and the identical host target disapp
     "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
   ]);
 
-  await page.locator('[data-test="mode-preview"]').click();
+  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
   await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
   await expect(page.locator(".repeated-item")).toHaveText([
     "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
@@ -347,7 +347,7 @@ test("dev: Canvas arrow keys reorder a selected flex-row sibling", async ({ page
 
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 
-  await page.locator('[data-test="mode-preview"]').click();
+  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
   await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 

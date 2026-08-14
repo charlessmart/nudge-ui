@@ -486,6 +486,17 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
   await waitForEditors(page);
 
   await expect(page.locator('[data-test="layout-grid-container"]')).toBeVisible({ timeout: 10000 });
+  const gridGap = page.locator('[data-test="layout-grid-gap"]');
+  await expect(gridGap.locator('.dt-layout__spacing-field')).toHaveCount(2);
+  for (const property of ["row-gap", "column-gap"]) {
+    const surface = gridGap.locator(`[data-test="layout-grid-${property}"]`);
+    await expect(surface).toHaveClass(/dt-layout__spacing-field/);
+    await expect(surface).toHaveCSS("height", "32px");
+    await expect(surface.locator(`[data-test="layout-spacing-icon-${property}"]`)).toHaveCount(1);
+    const input = surface.locator(`[data-test="layout-combo-input-${property}"]`);
+    await expect(input).toHaveCSS("height", "32px");
+    await expect(input).not.toHaveClass(/dt-text-input--compact/);
+  }
   const picker = page.locator('[data-test="layout-grid-picker-trigger"]');
   await expect(picker).toBeVisible();
   await picker.click();

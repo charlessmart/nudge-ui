@@ -1,6 +1,7 @@
 import {
   PROTOCOL_VERSION,
   getRendererIdentity,
+  isRendererMessageFor,
   sendToParent,
   setRendererIdentity,
   type ParentReadyMessage,
@@ -11,8 +12,10 @@ import type {
   FrameReadyMessage,
   NavigationIntentMessage,
   PanEndMessage,
+  PanModifierMessage,
   PanMoveMessage,
   PanStartMessage,
+  ZoomMessage,
 } from "./frameProtocol.ts";
 import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
@@ -177,14 +180,40 @@ function installRendererPanProxy(): void {
       && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
   }
 
+  function sendSpaceState(): void {
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    const message: PanModifierMessage = {
+      type: "pan-modifier",
+      protocolVersion: PROTOCOL_VERSION,
+      spaceHeld,
+      ...identity,
+    };
+    sendToParent(message);
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.origin !== window.location.origin || event.source !== window.parent) return;
+    const identity = getRendererIdentity();
+    if (!identity || !isRendererMessageFor(event.data, identity)) return;
+    if ((event.data as PanModifierMessage).type === "pan-modifier") {
+      spaceHeld = (event.data as PanModifierMessage).spaceHeld;
+    }
+  });
+
   window.addEventListener("keydown", (event) => {
     if (event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
       spaceHeld = true;
+      if (getRendererIdentity()) event.preventDefault();
+      sendSpaceState();
     }
-  });
+  }, true);
   window.addEventListener("keyup", (event) => {
-    if (event.code === "Space") spaceHeld = false;
-  });
+    if (event.code === "Space") {
+      spaceHeld = false;
+      sendSpaceState();
+    }
+  }, true);
   function endPan(): void {
     if (!panning) {
       panMoveUpdate.cancel();
@@ -228,6 +257,23 @@ function installRendererPanProxy(): void {
   document.addEventListener("pointercancel", endPan, true);
   window.addEventListener("blur", () => {
     spaceHeld = false;
+    sendSpaceState();
     endPan();
   });
+
+  window.addEventListener("wheel", (event) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const message: ZoomMessage = {
+      type: "zoom",
+      protocolVersion: PROTOCOL_VERSION,
+      deltaY: event.deltaY,
+      point: { x: event.clientX, y: event.clientY },
+      ...identity,
+    };
+    sendToParent(message);
+  }, { capture: true, passive: false });
 }

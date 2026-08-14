@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { getLayoutValue } from "./layoutValue.ts";
 import { setStyles } from "./styleActions.ts";
@@ -9,6 +9,11 @@ export const GRID_PICKER_MAX_ROWS = 8;
 interface GridDimensions {
   columns: number;
   rows: number;
+}
+
+interface PopoverPosition {
+  left: number;
+  top: number;
 }
 
 export interface GridPickerProps {
@@ -102,11 +107,35 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
   const [dimensions, setDimensions] = useState(() => readDimensions(el));
   const [hovered, setHovered] = useState<GridDimensions | null>(null);
   const [open, setOpen] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState<PopoverPosition | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setDimensions(readDimensions(el));
     setHovered(null);
   }, [el, revision]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    function updatePopoverPosition(): void {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      setPopoverPosition({
+        left: rect.left + (rect.width / 2),
+        top: rect.bottom + 6,
+      });
+    }
+
+    updatePopoverPosition();
+    window.addEventListener("resize", updatePopoverPosition);
+    window.addEventListener("scroll", updatePopoverPosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePopoverPosition);
+      window.removeEventListener("scroll", updatePopoverPosition, true);
+    };
+  }, [open]);
 
   function choose(columns: number, rows: number): void {
     const next = {
@@ -143,10 +172,14 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
         type="button"
         className="dt-grid-picker__trigger"
         data-test="layout-grid-picker-trigger"
+        ref={triggerRef}
         aria-label={`Grid ${dimensions.columns} by ${dimensions.rows}`}
         aria-expanded={open}
         aria-haspopup="dialog"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          setPopoverPosition(null);
+          setOpen((current) => !current);
+        }}
       >
         <span className="dt-grid-picker__preview" style={gridStyle(dimensions.columns, dimensions.rows)} aria-hidden="true">
           {previewCells.map(({ column, row }) => (
@@ -157,7 +190,17 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
       </button>
 
       {open ? (
-        <div className="dt-grid-picker__popover" data-test="layout-grid-picker-popover" role="dialog" aria-label="Choose grid size">
+        <div
+          className="dt-grid-picker__popover"
+          data-test="layout-grid-picker-popover"
+          role="dialog"
+          aria-label="Choose grid size"
+          style={popoverPosition ? {
+            left: popoverPosition.left,
+            top: popoverPosition.top,
+            visibility: "visible",
+          } : undefined}
+        >
           <div className="dt-grid-picker__cell-grid" style={gridStyle(GRID_PICKER_MAX_COLUMNS, GRID_PICKER_MAX_ROWS)}>
             {pickerCells.map(({ column, row }) => {
               const active = column <= visible.columns && row <= visible.rows;

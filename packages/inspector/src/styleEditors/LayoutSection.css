@@ -224,22 +224,6 @@
   gap: 6px;
 }
 
-.dt-layout__grid-gap-row {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 5px;
-  align-items: center;
-}
-
-.dt-layout__grid-gap-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--dt-text-muted);
-  font-size: 17px;
-  line-height: 1;
-}
-
 .dt-layout__grid-fields {
   display: flex;
   flex-direction: column;
@@ -450,7 +434,7 @@
 .dt-layout__spacing-field {
   display: flex;
   min-width: 0;
-  min-height: var(--dt-control-height-large);
+  height: var(--dt-control-height-large);
   align-items: center;
   gap: 6px;
   padding: 0 6px 0 8px;

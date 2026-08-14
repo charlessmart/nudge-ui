@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { IconSpacingHorizontal, IconSpacingVertical } from "@tabler/icons-react";
 import { GridPicker } from "./GridPicker.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
@@ -45,25 +46,35 @@ export function GridSection({
           <div className="dt-layout__grid-gap" data-test="layout-grid-gap">
             <div className="dt-layout__group-title">Gap</div>
             <div className="dt-layout__grid-gap-fields">
-              <div className="dt-layout__grid-gap-row">
-                <span className="dt-layout__grid-gap-icon" aria-hidden="true">↕</span>
+              <div className="dt-layout__spacing-field" data-test="layout-grid-row-gap">
+                <IconSpacingVertical
+                  className="dt-layout__spacing-icon"
+                  size="var(--dt-icon-size-small)"
+                  stroke={1.8}
+                  aria-hidden="true"
+                  data-test="layout-spacing-icon-row-gap"
+                />
                 <LayoutComboField
                   property="row-gap"
                   presets={GAP_PRESETS}
                   domElement={el}
-                  compact
                   inputOnly
                   revision={revision}
                   onAfterEdit={onAfterEdit}
                 />
               </div>
-              <div className="dt-layout__grid-gap-row">
-                <span className="dt-layout__grid-gap-icon" aria-hidden="true">↔</span>
+              <div className="dt-layout__spacing-field" data-test="layout-grid-column-gap">
+                <IconSpacingHorizontal
+                  className="dt-layout__spacing-icon"
+                  size="var(--dt-icon-size-small)"
+                  stroke={1.8}
+                  aria-hidden="true"
+                  data-test="layout-spacing-icon-column-gap"
+                />
                 <LayoutComboField
                   property="column-gap"
                   presets={GAP_PRESETS}
                   domElement={el}
-                  compact
                   inputOnly
                   revision={revision}
                   onAfterEdit={onAfterEdit}

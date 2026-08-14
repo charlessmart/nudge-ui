@@ -117,6 +117,15 @@ export function exitCanvas(): void {
   notify();
 }
 
+/** Return to inspect mode on a canvas card's route. */
+export function exitCanvasToCard(card: CanvasCard): void {
+  exitCanvas();
+  resetFitAllFlag();
+  if (card.url !== window.location.href) {
+    window.location.href = card.url;
+  }
+}
+
 export function addCanvasCard(url: string, title?: string): CanvasCard {
   const size = lastUsedCardSize ?? defaultViewportSize();
   const pos = computeNewCardPosition(cards, CARD_GAP);

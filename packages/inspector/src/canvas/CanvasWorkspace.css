@@ -22,6 +22,14 @@
   cursor: grabbing;
 }
 
+/* Canvas gestures take precedence over every card interaction while Space is
+   held. This also closes the short postMessage gap before an iframe receives
+   its mirrored modifier state. */
+.dt-canvas-workspace__board.is-grabbable .dt-canvas-card,
+.dt-canvas-workspace__board.is-grabbing .dt-canvas-card {
+  pointer-events: none;
+}
+
 .dt-canvas-workspace__board-content {
   position: absolute;
   will-change: transform;

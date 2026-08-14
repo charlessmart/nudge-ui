@@ -19,8 +19,9 @@
 }
 
 .dt-icon-button--primary {
-  background: var(--dt-accent);
-  color: #ffffff;
+  background: var(--dt-surface-raised);
+  color: var(--dt-text-primary);
+  box-shadow: 0 0 0 1px var(--dt-border-subtle);
 }
 
 .dt-icon-button--secondary {
@@ -48,7 +49,9 @@
 }
 
 .dt-icon-button--primary:hover:not(:disabled) {
-  background: var(--dt-accent-strong);
+  background: var(--dt-surface-control-hover);
+  color: var(--dt-text-primary);
+  box-shadow: 0 0 0 1px var(--dt-border-subtle);
 }
 
 .dt-icon-button[data-active="true"] {

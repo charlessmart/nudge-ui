@@ -191,13 +191,12 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
       {onClearSession ? (
         <div className="dt-changes__session-action" data-test="session-actions">
           <Button
-            size="compact"
             variant="secondary"
             type="button"
             data-test="clear-session"
             onClick={onClearSession}
           >
-            Clear Session
+            Clear Changes
           </Button>
         </div>
       ) : null}

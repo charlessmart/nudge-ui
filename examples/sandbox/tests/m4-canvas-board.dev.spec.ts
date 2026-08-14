@@ -211,6 +211,7 @@ test.describe("Canvas board gesture handling", () => {
     const transformBefore = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
     const iframe = page.locator(".dt-canvas-card__iframe").first();
     await expect(iframe).toBeVisible();
+    await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0, { timeout: 10000 });
     const box = await iframe.boundingBox();
     expect(box).not.toBeNull();
 
@@ -228,6 +229,47 @@ test.describe("Canvas board gesture handling", () => {
     await expect.poll(() => boardContent.evaluate((el: HTMLElement) => el.style.transform))
       .not.toBe(transformBefore);
   });
+
+  test("dev: Space-drag can enter an iframe after Space is pressed on the canvas", async ({ page }) => {
+    const board = page.locator('[data-test="canvas-board"]');
+    const boardContent = page.locator('[data-test="canvas-board-content"]');
+    const transformBefore = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
+    const iframe = page.locator(".dt-canvas-card__iframe").first();
+    await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0, { timeout: 10000 });
+    const box = await iframe.boundingBox();
+    expect(box).not.toBeNull();
+
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await page.keyboard.down("Space");
+    await expect(board).toHaveClass(/is-grabbable/);
+    await page.mouse.move(box!.x + 80, box!.y + 80);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + 180, box!.y + 130, { steps: 3 });
+    await page.mouse.up();
+    await page.keyboard.up("Space");
+
+    await expect.poll(() => boardContent.evaluate((el: HTMLElement) => el.style.transform))
+      .not.toBe(transformBefore);
+  });
+
+  for (const modifier of ["Meta", "Control"] as const) {
+    test(`dev: ${modifier}-wheel over an iframe zooms the board around the pointer`, async ({ page }) => {
+      const boardContent = page.locator('[data-test="canvas-board-content"]');
+      const transformBefore = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
+      const iframe = page.locator(".dt-canvas-card__iframe").first();
+      await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0, { timeout: 10000 });
+      const box = await iframe.boundingBox();
+      expect(box).not.toBeNull();
+
+      await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+      await page.keyboard.down(modifier);
+      await page.mouse.wheel(0, -100);
+      await page.keyboard.up(modifier);
+
+      await expect.poll(() => boardContent.evaluate((el: HTMLElement) => el.style.transform))
+        .not.toBe(transformBefore);
+    });
+  }
 });
 
 test.describe("Canvas board — iframe content remains interactive", () => {

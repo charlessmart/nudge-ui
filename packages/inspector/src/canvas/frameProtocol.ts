@@ -1,7 +1,7 @@
 import { isDocumentProjectionReport } from "../renderedInstance.ts";
 
-// v7 adds renderer-to-controller rendered-instance projection diagnostics.
-export const PROTOCOL_VERSION = 7;
+// v8 adds controller/renderer gesture messages for iframe canvas cards.
+export const PROTOCOL_VERSION = 8;
 
 export interface FrameMessage {
   type: string;
@@ -162,6 +162,19 @@ export interface PanEndMessage extends RendererMessage {
   type: "pan-end";
 }
 
+/** Keeps iframe pointer handling in sync when Space is held in the controller. */
+export interface PanModifierMessage extends RendererMessage {
+  type: "pan-modifier";
+  spaceHeld: boolean;
+}
+
+/** Proxies modified wheel gestures that originate inside an iframe card. */
+export interface ZoomMessage extends RendererMessage {
+  type: "zoom";
+  deltaY: number;
+  point: { x: number; y: number };
+}
+
 export type FrameProtocolMessage =
   | ParentReadyMessage
   | FrameReadyMessage
@@ -183,7 +196,9 @@ export type FrameProtocolMessage =
   | ExternalNavigationMessage
   | PanStartMessage
   | PanMoveMessage
-  | PanEndMessage;
+  | PanEndMessage
+  | PanModifierMessage
+  | ZoomMessage;
 
 let rendererIdentity: FrameIdentity | null = null;
 

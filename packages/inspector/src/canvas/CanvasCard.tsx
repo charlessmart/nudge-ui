@@ -258,7 +258,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
             onClick={handleEdit}
           >
             <IconPlayerPlay size={14} stroke={1.8} aria-hidden="true" />
-            Preview
+            Page view
           </Button>
           <IconButton
             label="Duplicate card"

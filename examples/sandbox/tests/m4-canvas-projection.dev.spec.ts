@@ -109,7 +109,7 @@ test("dev: canvas element edits survive switching back to Inspect", async ({ pag
   await setInput(page, "padding-top", "37px");
   await expect.poll(() => button.evaluate((element) => getComputedStyle(element).paddingTop)).toBe("37px");
 
-  await page.locator('[data-test="mode-preview"]').click();
+  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
   await waitForInspector(page);
 
   const hostButton = page.locator("button.btn").first();
@@ -214,7 +214,7 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
     .toContain("padding-top: 60px;");
 
   // Switch back to Inspect and clear changes
-  await page.locator('[data-test="mode-preview"]').click();
+  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
   await waitForInspector(page);
 
   await page.locator('[data-test="changes-toggle"]').click();
@@ -238,6 +238,6 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
 test("dev: canvas renderer protocol is present in dev mode", async ({ page }) => {
   await page.goto("/");
 
-  // In dev mode, canvas mode toggle should be present
-  await expect(page.locator('[data-test="view-mode-toggle"]')).toBeVisible();
+  // In dev mode, the Canvas action should be present
+  await expect(page.locator('[data-test="mode-canvas"]')).toBeVisible();
 });
