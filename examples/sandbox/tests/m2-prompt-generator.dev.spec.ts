@@ -127,7 +127,7 @@ test.describe("clipboard permissions", () => {
 
     const text = await page.evaluate(() => navigator.clipboard.readText());
     expect(text).toContain("Design changes for Button.tsx");
-    expect(text).toContain("Framework: React + vanilla-extract (sprinkles)");
+    expect(text).toContain("Framework: React + CSS custom properties");
     expect(text).toContain("--color-surface-sunken");
     expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:13"]');
     expect(text).toContain("border-radius");

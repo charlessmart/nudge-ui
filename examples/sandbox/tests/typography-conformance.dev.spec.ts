@@ -62,7 +62,7 @@ test("dev: typography fixture tokens render as chips with type suggestions", asy
   const size = page.locator('[data-test="token-field"][data-property="font-size"]');
   await expect(size.locator('input[aria-hidden="true"]')).toHaveValue("--type-size-body");
   await size.locator('[data-test="token-chip"]').click();
-  await expect(page.getByRole("option", { name: /--font-size-base/ })).toBeVisible();
+  await expect(page.getByRole("option", { name: /--type-size-body/ })).toBeVisible();
 
   await page.locator('[data-test="typography-case-type-var-fallback-family"]').click();
   const family = page.locator('[data-test="token-field"][data-property="font-family"]');

@@ -51,44 +51,6 @@ test("dev: first catalog load follows the active package CSS import graph", asyn
   expect(packageTokens[0]?.declarations[0]?.source).toMatch(/package-css-fixture\/theme\.css:4$/);
 });
 
-test("dev: a published vanilla-extract contract enriches its active package CSS token", async ({ page }) => {
-  await page.goto("/");
-
-  const token = await page.evaluate(() => {
-    const catalog = (window as unknown as {
-      __designTokenCatalog?: Array<{
-        cssName: string;
-        name: string;
-        origin?: string;
-        editable?: boolean;
-        adapter?: string;
-        declarations: Array<{ value: string; source: string }>;
-      }>;
-    }).__designTokenCatalog ?? [];
-    return {
-      matches: catalog.filter((entry) => entry.cssName === "--color-content-primary"),
-      diagnostics: (window as unknown as { __designTokenDiagnostics?: unknown[] }).__designTokenDiagnostics ?? [],
-    };
-  });
-
-  expect(token.matches).toEqual(expect.arrayContaining([
-    expect.objectContaining({
-      cssName: "--color-content-primary",
-      name: "theme.color.content.primary",
-      adapter: "vanilla-extract",
-      origin: "package",
-      editable: false,
-      declarations: expect.arrayContaining([
-        expect.objectContaining({
-          value: "#20211f",
-          source: expect.stringMatching(/package-css-fixture\/theme\.css:4$/),
-        }),
-      ]),
-    }),
-  ]));
-  expect(token.diagnostics).toEqual([]);
-});
-
 test("dev: ordinary CSS inventory reaches browser inspection, managed preview, and prompt", async ({ page }) => {
   await page.goto("/");
 

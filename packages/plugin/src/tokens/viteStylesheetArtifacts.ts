@@ -69,6 +69,8 @@ export interface ViteStylesheetArtifactInput {
   readonly failed?: boolean;
   readonly order?: number;
   readonly discoveryOrder?: number;
+  /** Explicit graph-level v4 detection avoids mistaking Tailwind v3 --tw helpers for v4. */
+  readonly tailwindV4?: boolean;
 }
 
 /** Map Vite-specific identity and evidence into the neutral artifact contract. */
@@ -85,7 +87,7 @@ export function createViteStylesheetArtifact(
     ...(input.discoveryOrder !== undefined ? { discoveryOrder: input.discoveryOrder } : {}),
     ...(input.content !== undefined ? {
       content: input.content,
-      adapter: detectTailwindV4(input.content) ? "tailwind-v4" : undefined,
+      adapter: (input.tailwindV4 ?? detectTailwindV4(input.content)) ? "tailwind-v4" : undefined,
     } : {}),
     ...(input.failed ? { failed: true } : {}),
   };

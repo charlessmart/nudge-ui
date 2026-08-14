@@ -1,18 +1,10 @@
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { TailwindLandingPage } from "./TailwindLandingPage";
 import { ConformancePage } from "./ConformancePage";
-import { TailwindV3ConformancePage } from "./TailwindV3ConformancePage";
-import { SprinklesConformancePage } from "./SprinklesConformancePage";
-import { ExamplesPage } from "./ExamplesPage";
-import { ExamplesTailwindV4Page } from "./ExamplesTailwindV4Page";
-import { ExamplesTailwindV3Page } from "./ExamplesTailwindV3Page";
-import { ExamplesSprinklesPage } from "./ExamplesSprinklesPage";
+import { ExamplesHubPage } from "./ExamplesHubPage";
 import { ExamplesRawCssPage } from "./ExamplesRawCssPage";
-import { ComponentPropsPage } from "./ComponentPropsPage";
 import "./styles.css";
-import "./tailwind.css";
 
 // Keep the generated spacing corpus behind a dev-only dynamic import. The
 // fixture markup contains inspector identity attributes by design, so this
@@ -34,6 +26,9 @@ const DevPipelineConformancePage = import.meta.env.DEV
   : null;
 const DevPerfFixturePage = import.meta.env.DEV
   ? lazy(() => import("./perf-fixture/PerfFixturePage").then(({ PerfFixturePage }) => ({ default: PerfFixturePage })))
+  : null;
+const DevComponentPropsPage = import.meta.env.DEV
+  ? lazy(() => import("./ComponentPropsPage").then(({ ComponentPropsPage }) => ({ default: ComponentPropsPage })))
   : null;
 
 const root = document.getElementById("root");
@@ -82,16 +77,16 @@ function Route() {
       </Suspense>
     ) : <App />;
   }
-  if (window.location.pathname === "/tailwind") return <TailwindLandingPage />;
   if (window.location.pathname === "/conformance") return <ConformancePage />;
-  if (window.location.pathname === "/examples") return <ExamplesPage />;
-  if (window.location.pathname === "/examples/tailwind-v4") return <ExamplesTailwindV4Page />;
-  if (window.location.pathname === "/examples/tailwind-v3") return <ExamplesTailwindV3Page />;
-  if (window.location.pathname === "/examples/sprinkles") return <ExamplesSprinklesPage />;
+  if (window.location.pathname === "/examples") return <ExamplesHubPage />;
   if (window.location.pathname === "/examples/raw-css") return <ExamplesRawCssPage />;
-  if (window.location.pathname === "/tailwind-v3") return <TailwindV3ConformancePage />;
-  if (window.location.pathname === "/sprinkles") return <SprinklesConformancePage />;
-  if (window.location.pathname === "/component-props") return <ComponentPropsPage />;
+  if (window.location.pathname === "/component-props") {
+    return DevComponentPropsPage ? (
+      <Suspense fallback={<main className="component-props-page">Loading component props…</main>}>
+        <DevComponentPropsPage />
+      </Suspense>
+    ) : <App />;
+  }
   return <App />;
 }
 

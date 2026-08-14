@@ -282,9 +282,9 @@ test.describe("Canvas board — iframe content remains interactive", () => {
     await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
 
     const frame = page.frameLocator(".dt-canvas-card__iframe").first();
-    const tailwindLink = frame.locator('a[href="/tailwind"]').first();
-    await expect(tailwindLink).toBeVisible({ timeout: 20000 });
-    await tailwindLink.click();
+    const conformanceLink = frame.locator('a[href="/conformance"]').first();
+    await expect(conformanceLink).toBeVisible({ timeout: 20000 });
+    await conformanceLink.click();
 
     await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
 
@@ -301,3 +301,4 @@ test.describe("Canvas board — iframe content remains interactive", () => {
     expect(position2.top).toBeTruthy();
   });
 });
+

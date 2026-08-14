@@ -1,7 +1,0 @@
-:root {
-  --color-brand__hash: #123456;
-  --color-accent__hash: #abcdef;
-}
-.sprinkles-page { min-height: 100vh; padding: 48px; font-family: system-ui, sans-serif; }
-.sprinkles-brand { color: var(--color-brand__hash); }
-.sprinkles-unknown { padding: 8px; }

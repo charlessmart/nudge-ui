@@ -1,4 +1,4 @@
-import "./examples.css";
+import "./showroom.css";
 import { exId, ExampleCard, CategorySection } from "./examples-shared";
 
 function CssUnitsSpacing() {
@@ -39,9 +39,9 @@ function CssUnitsSpacing() {
       </ExampleCard>
       <ExampleCard id={exId("Spacing", "raw", 12)} label="gap var(token)" utilities="gap: var(--space-4)">
         <div className="flex-row-gap" style={{ gap: "var(--space-4)" }}>
-          <span className="spacing-specimen px-3 py-1">A</span>
-          <span className="spacing-specimen px-3 py-1">B</span>
-          <span className="spacing-specimen px-3 py-1">C</span>
+          <span className="spacing-specimen" style={{ padding: "4px 12px" }}>A</span>
+          <span className="spacing-specimen" style={{ padding: "4px 12px" }}>B</span>
+          <span className="spacing-specimen" style={{ padding: "4px 12px" }}>C</span>
         </div>
       </ExampleCard>
     </>
@@ -104,67 +104,67 @@ function CssUnitsColor() {
   return (
     <>
       <ExampleCard id={exId("Color", "raw", 1)} label="rgb" utilities="rgb(96, 165, 250)">
-        <div className="color-specimen px-4 py-4" style={{ background: "rgb(96, 165, 250)", color: "#fff" }}>rgb(96, 165, 250)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "rgb(96, 165, 250)", color: "#fff" }}>rgb(96, 165, 250)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 2)} label="rgba" utilities="rgba(96, 165, 250, 0.5)">
-        <div className="color-specimen px-4 py-4" style={{ background: "rgba(96, 165, 250, 0.5)", color: "#000" }}>rgba with 0.5 alpha</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "rgba(96, 165, 250, 0.5)", color: "#000" }}>rgba with 0.5 alpha</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 3)} label="hsl" utilities="hsl(210, 80%, 60%)">
-        <div className="color-specimen px-4 py-4" style={{ background: "hsl(210, 80%, 60%)", color: "#fff" }}>hsl(210, 80%, 60%)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "hsl(210, 80%, 60%)", color: "#fff" }}>hsl(210, 80%, 60%)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 4)} label="hsla" utilities="hsla(210, 80%, 60%, 0.5)">
-        <div className="color-specimen px-4 py-4" style={{ background: "hsla(210, 80%, 60%, 0.5)", color: "#000" }}>hsla 50% opaque</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "hsla(210, 80%, 60%, 0.5)", color: "#000" }}>hsla 50% opaque</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 5)} label="oklch" utilities="oklch(0.7 0.2 200)">
-        <div className="color-specimen px-4 py-4" style={{ background: "oklch(0.7 0.2 200)", color: "#fff" }}>oklch(0.7 0.2 200)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "oklch(0.7 0.2 200)", color: "#fff" }}>oklch(0.7 0.2 200)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 6)} label="oklch alpha" utilities="oklch(0.7 0.2 200 / 0.5)">
-        <div className="color-specimen px-4 py-4" style={{ background: "oklch(0.7 0.2 200 / 0.5)", color: "#000" }}>oklch with / alpha</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "oklch(0.7 0.2 200 / 0.5)", color: "#000" }}>oklch with / alpha</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 7)} label="oklab" utilities="oklab(0.7 0.05 -0.1)">
-        <div className="color-specimen px-4 py-4" style={{ background: "oklab(0.7 0.05 -0.1)", color: "#fff" }}>oklab(0.7 0.05 -0.1)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "oklab(0.7 0.05 -0.1)", color: "#fff" }}>oklab(0.7 0.05 -0.1)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 8)} label="hwb" utilities="hwb(200 20% 10%)">
-        <div className="color-specimen px-4 py-4" style={{ background: "hwb(200 20% 10%)", color: "#fff" }}>hwb(200 20% 10%)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "hwb(200 20% 10%)", color: "#fff" }}>hwb(200 20% 10%)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 9)} label="lab" utilities="lab(65 10 -25)">
-        <div className="color-specimen px-4 py-4" style={{ background: "lab(65 10 -25)", color: "#fff" }}>lab(65 10 -25)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "lab(65 10 -25)", color: "#fff" }}>lab(65 10 -25)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 10)} label="lch" utilities="lch(65 27 290)">
-        <div className="color-specimen px-4 py-4" style={{ background: "lch(65 27 290)", color: "#fff" }}>lch(65 27 290)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "lch(65 27 290)", color: "#fff" }}>lch(65 27 290)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 11)} label="color-mix srgb" utilities="color-mix(in srgb, #ff4444 50%, #4444ff)">
-        <div className="color-specimen px-4 py-4" style={{ background: "color-mix(in srgb, #ff4444 50%, #4444ff)", color: "#fff" }}>color-mix srgb</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "color-mix(in srgb, #ff4444 50%, #4444ff)", color: "#fff" }}>color-mix srgb</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 12)} label="color-mix oklch" utilities="color-mix(in oklch, #ff6600 60%, #0066ff)">
-        <div className="color-specimen px-4 py-4" style={{ background: "color-mix(in oklch, #ff6600 60%, #0066ff)", color: "#fff" }}>color-mix oklch</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "color-mix(in oklch, #ff6600 60%, #0066ff)", color: "#fff" }}>color-mix oklch</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 13)} label="8-digit hex" utilities="bg: #ff6600cc">
-        <div className="color-specimen px-4 py-4" style={{ background: "#ff6600cc", color: "#fff" }}>#ff6600cc</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "#ff6600cc", color: "#fff" }}>#ff6600cc</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 14)} label="4-digit hex" utilities="bg: #0c8a">
-        <div className="color-specimen px-4 py-4" style={{ background: "#0c8a", color: "#000" }}>#0c8a</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "#0c8a", color: "#000" }}>#0c8a</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 15)} label="color-primary token" utilities="bg: var(--color-primary)">
-        <div className="color-specimen px-4 py-4" style={{ background: "var(--color-primary)", color: "var(--color-primary-text)" }}>var(--color-primary)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "var(--color-primary)", color: "var(--color-primary-text)" }}>var(--color-primary)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 16)} label="color-danger token" utilities="bg: var(--color-danger)">
-        <div className="color-specimen px-4 py-4" style={{ background: "var(--color-danger)", color: "var(--color-danger-text)" }}>var(--color-danger)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "var(--color-danger)", color: "var(--color-danger-text)" }}>var(--color-danger)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 17)} label="color-success token" utilities="bg: var(--color-success)">
-        <div className="color-specimen px-4 py-4" style={{ background: "var(--color-success)", color: "var(--color-success-text)" }}>var(--color-success)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "var(--color-success)", color: "var(--color-success-text)" }}>var(--color-success)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 18)} label="color-warning token" utilities="bg: var(--color-warning)">
-        <div className="color-specimen px-4 py-4" style={{ background: "var(--color-warning)", color: "var(--color-warning-text)" }}>var(--color-warning)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "var(--color-warning)", color: "var(--color-warning-text)" }}>var(--color-warning)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 19)} label="color-info token" utilities="bg: var(--color-info)">
-        <div className="color-specimen px-4 py-4" style={{ background: "var(--color-info)", color: "var(--color-info-text)" }}>var(--color-info)</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "var(--color-info)", color: "var(--color-info-text)" }}>var(--color-info)</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 20)} label="token + alpha srgb" utilities="color-mix(in srgb, var(--color-primary) 58%, transparent)">
-        <div className="color-specimen px-4 py-4" style={{ background: "color-mix(in srgb, var(--color-primary) 58%, transparent)", color: "#fff" }}>--color-primary · 58%</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "color-mix(in srgb, var(--color-primary) 58%, transparent)", color: "#fff" }}>--color-primary · 58%</div>
       </ExampleCard>
       <ExampleCard id={exId("Color", "raw", 21)} label="token + alpha oklab" utilities="color-mix(in oklab, var(--color-accent) 34%, transparent)">
-        <div className="color-specimen px-4 py-4" style={{ background: "color-mix(in oklab, var(--color-accent) 34%, transparent)", color: "#fff" }}>--color-accent · 34%</div>
+        <div className="color-specimen" style={{ padding: "16px 24px", background: "color-mix(in oklab, var(--color-accent) 34%, transparent)", color: "#fff" }}>--color-accent · 34%</div>
       </ExampleCard>
     </>
   );
@@ -249,3 +249,4 @@ export function ExamplesRawCssPage() {
     </main>
   );
 }
+

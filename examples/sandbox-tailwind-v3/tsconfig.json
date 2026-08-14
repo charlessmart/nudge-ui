@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "jsx": "react-jsx", "types": ["vite/client"] },
+  "include": ["src", "tailwind.config.ts", "vite.config.ts", "playwright.config.ts", "tests"]
+}
+

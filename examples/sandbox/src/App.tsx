@@ -36,17 +36,15 @@ const typeSamples = [
 
 const conformancePages = [
   { href: "/conformance", label: "Core CSS", copy: "Authored values, aliases, and computed previews." },
-  { href: "/examples", label: "All Examples", copy: "Detailed showroom: Spacing, Typography, Color, Border across Tailwind v4, v3, Sprinkles, and Raw CSS." },
-  { href: "/examples/tailwind-v4", label: "Examples: TW v4", copy: "Tailwind v4 examples in isolation for debugging token resolution." },
-  { href: "/examples/tailwind-v3", label: "Examples: TW v3", copy: "Tailwind v3 examples in isolation for debugging token resolution." },
-  { href: "/examples/sprinkles", label: "Examples: Sprinkles", copy: "Sprinkles examples in isolation for debugging token resolution." },
+  { href: "/examples", label: "Example hub", copy: "Navigation to each isolated CSS-library consumer." },
   { href: "/examples/raw-css", label: "Examples: Raw CSS", copy: "Raw CSS examples in isolation for debugging token resolution." },
+  { href: "http://localhost:5174/tailwind", label: "Tailwind v4 app", copy: "Standalone real Tailwind v4 consumer." },
+  { href: "http://localhost:5175/tailwind-v3", label: "Tailwind v3 app", copy: "Standalone real Tailwind v3 consumer." },
+  { href: "http://localhost:5176/sprinkles", label: "Sprinkles app", copy: "Standalone real vanilla-extract consumer." },
   { href: "/spacing-conformance", label: "Spacing", copy: "Logical properties and physical side projection." },
   { href: "/typography-conformance", label: "Typography", copy: "Text properties across the shared fixture corpus." },
   { href: "/color-conformance", label: "Color", copy: "Formats, opacity, aliases, and painted values." },
   { href: "/border-conformance", label: "Border", copy: "Shorthand structure and side-specific edits." },
-  { href: "/tailwind-v3", label: "Tailwind v3", copy: "Utility-class token attribution and editing." },
-  { href: "/sprinkles", label: "Sprinkles", copy: "Generated style props and source mapping." },
 ];
 
 const cssBorderFixtureIds = {
@@ -150,7 +148,7 @@ export function App() {
           <a href="#showcase">Components</a>
           <a href="#handoff">Handoff</a>
         </nav>
-        <a className="header-cta" href="/tailwind">Tailwind example <span aria-hidden="true">↗</span></a>
+        <a className="header-cta" href="/examples">Open examples <span aria-hidden="true">↗</span></a>
       </header>
 
       <main id="top">
@@ -165,7 +163,7 @@ export function App() {
               <Button label="Save a change" variant="primary" onClick={() => setClicks((c) => c + 1)} />
               <a className="text-link" href="#features">See how it works <span aria-hidden="true">↓</span></a>
             </div>
-            <p className="hero-meta"><span className="status-dot" /> local, private, dev-only <span className="meta-divider">·</span> <span data-test="click-counter">clicks: {clicks}</span></p>
+            <p className="hero-meta"><span className="status-dot" /> local, private, dev-only <span className="meta-divider">·</span> <span {...(import.meta.env.DEV ? { "data-test": "click-counter" } : {})}>clicks: {clicks}</span></p>
           </div>
 
           <div className="hero-visual" aria-label="A preview of the Design Tool inspector">
@@ -228,7 +226,7 @@ export function App() {
           <div className="demo-grid">
             <div className="demo-panel component-panel">
               <div className="panel-kicker">Repeated components <span>6 instances</span></div>
-              <div className="component-list" data-test="repeated-items">
+              <div className="component-list" {...(import.meta.env.DEV ? { "data-test": "repeated-items" } : {})}>
                 {Array.from({ length: 6 }, (_, index) => (
                   <RepeatedItem key={index} label={`Repeated ${index + 1}`} />
                 ))}
@@ -239,24 +237,24 @@ export function App() {
             <div className="demo-panel layout-panel">
               <div className="panel-kicker">Layout lab <span>flex + position</span></div>
               <p className="layout-title">A row with room<br />to breathe.</p>
-              <div className="flex-row" data-test="flex-container">
-                <span data-test="flex-child-a">A</span>
-                <span data-test="flex-child-b">B</span>
-                <span data-test="flex-child-c">C</span>
+              <div className="flex-row" {...(import.meta.env.DEV ? { "data-test": "flex-container" } : {})}>
+                <span {...(import.meta.env.DEV ? { "data-test": "flex-child-a" } : {})}>A</span>
+                <span {...(import.meta.env.DEV ? { "data-test": "flex-child-b" } : {})}>B</span>
+                <span {...(import.meta.env.DEV ? { "data-test": "flex-child-c" } : {})}>C</span>
               </div>
-              <div className="positioned-box" data-test="positioned-box">
+              <div className="positioned-box" {...(import.meta.env.DEV ? { "data-test": "positioned-box" } : {})}>
                 <span className="position-pin">+</span> positioned element
               </div>
               <div className="layout-fixtures" aria-label="Sizing, Grid, and absolute positioning fixtures">
-                <div className="sizing-box" data-test="sizing-box">4:3 sizing box</div>
-                <div className="relative-offset-box" data-test="relative-offset-box">relative offset</div>
-                <div className="right-anchored-box" data-test="right-anchored-box">right / bottom</div>
-                <div className="stretched-box" data-test="stretched-box">stretched</div>
-                <div className="grid-authored-container" data-test="grid-authored-container">
-                  <div className="grid-child-span" data-test="grid-child-span">span 3</div>
+                <div className="sizing-box" {...(import.meta.env.DEV ? { "data-test": "sizing-box" } : {})}>4:3 sizing box</div>
+                <div className="relative-offset-box" {...(import.meta.env.DEV ? { "data-test": "relative-offset-box" } : {})}>relative offset</div>
+                <div className="right-anchored-box" {...(import.meta.env.DEV ? { "data-test": "right-anchored-box" } : {})}>right / bottom</div>
+                <div className="stretched-box" {...(import.meta.env.DEV ? { "data-test": "stretched-box" } : {})}>stretched</div>
+                <div className="grid-authored-container" {...(import.meta.env.DEV ? { "data-test": "grid-authored-container" } : {})}>
+                  <div className="grid-child-span" {...(import.meta.env.DEV ? { "data-test": "grid-child-span" } : {})}>span 3</div>
                   <div className="grid-child-auto">auto</div>
                 </div>
-                <div className="grid-switch-target" data-test="grid-switch-target">select me → grid</div>
+                <div className="grid-switch-target" {...(import.meta.env.DEV ? { "data-test": "grid-switch-target" } : {})}>select me → grid</div>
               </div>
             </div>
           </div>
@@ -290,7 +288,7 @@ export function App() {
           </div>
           <div className="prompt-preview">
             <div className="prompt-bar"><span>design-changes.md</span><span>copied to clipboard</span></div>
-            <pre>{`# Design changes for Hero.tsx\n\n### Hero (src/Hero.tsx:42)\n- font-size: 56px → 64px\n- color: text.secondary → text.primary\n\n## Selectors (fallback)\n[data-cid="Hero"][data-src*="Hero.tsx"]`}</pre>
+            <pre>{`# Design changes for Hero.tsx\n\n### Hero (src/Hero.tsx:42)\n- font-size: 56px → 64px\n- color: text.secondary → text.primary\n\n## Selector fallback\nHero / src/Hero.tsx`}</pre>
           </div>
         </section>
 

@@ -73,7 +73,12 @@ function leafValue(value: unknown): string | null {
   return null;
 }
 
-function tokenEntries(values: Record<string, unknown>, section: TokenSection, path: string[] = []): TokenEntry[] {
+function tokenEntries(
+  values: Record<string, unknown>,
+  section: TokenSection,
+  path: string[] = [],
+  source = "tailwind.config.js",
+): TokenEntry[] {
   const entries: TokenEntry[] = [];
   for (const [key, value] of Object.entries(values)) {
     const nextPath = [...path, key];
@@ -86,21 +91,21 @@ function tokenEntries(values: Record<string, unknown>, section: TokenSection, pa
         // fictional custom property.
         value: leaf,
         cssValue: leaf,
-        source: "tailwind.config.js",
+        source,
         adapter: "tailwind-v3",
         origin: "project",
         editable: true,
       });
-    } else if (isPlainRecord(value)) entries.push(...tokenEntries(value, section, nextPath));
+    } else if (isPlainRecord(value)) entries.push(...tokenEntries(value, section, nextPath, source));
   }
   return entries;
 }
 
-export function extractTailwindV3Tokens(config: TailwindV3Config): TokenEntry[] {
+export function extractTailwindV3Tokens(config: TailwindV3Config, source = "tailwind.config.js"): TokenEntry[] {
   return TOKEN_SECTIONS.flatMap((section) => {
     const base = isPlainRecord(config.theme?.[section]) ? config.theme[section] : {};
     const extend = isPlainRecord(config.theme?.extend?.[section]) ? config.theme.extend[section] : {};
-    return tokenEntries(mergeThemeSection(base, extend), section);
+    return tokenEntries(mergeThemeSection(base, extend), section, [], source);
   });
 }
 
@@ -108,7 +113,11 @@ function utilityColorName(value: string): string {
   return `theme.colors.${value.replace(/-/g, ".")}`;
 }
 
-export function resolveTailwindV3ClassName(className: string, config: TailwindV3Config): TailwindV3Mapping {
+export function resolveTailwindV3ClassName(
+  className: string,
+  config: TailwindV3Config,
+  source = "tailwind.config.js",
+): TailwindV3Mapping {
   const utility = tailwindUtility(className);
   if (!utility || utility.includes("[")) return { className, token: null, alpha: null, authored: className, confidence: "unknown", diagnostic: "unsupported or arbitrary Tailwind v3 utility" };
   const match = /^(bg|text|border|outline|fill|stroke)-([\w-]+?)(?:\/(\d{1,3}%?))?$/.exec(utility);
@@ -116,7 +125,7 @@ export function resolveTailwindV3ClassName(className: string, config: TailwindV3
   const colorName = match[2];
   const alphaRaw = match[3];
   if (!colorName) return { className, token: null, alpha: null, authored: className, confidence: "unknown", diagnostic: "missing configured color" };
-  const tokens = extractTailwindV3Tokens(config);
+  const tokens = extractTailwindV3Tokens(config, source);
   const token = tokens.find((candidate) => candidate.name === utilityColorName(colorName)
     || candidate.name === `theme.colors.${colorName}`
     || candidate.name.endsWith(`.${colorName}`)) ?? null;
@@ -152,13 +161,13 @@ export function tailwindV3ColorDeclaration(token: TokenEntry, alphaVariable = "-
   return `rgb(${rgb} / var(${alphaVariable}))`;
 }
 
-export function createTailwindV3Adapter(config: TailwindV3Config): TokenAdapter {
+export function createTailwindV3Adapter(config: TailwindV3Config, source = "tailwind.config.js"): TokenAdapter {
   return {
     name: "tailwind-v3",
     detect: () => detectTailwindV3Config(config),
-    extractTokens: () => extractTailwindV3Tokens(config),
+    extractTokens: () => extractTailwindV3Tokens(config, source),
     resolveClassName: (className): TokenMapping | null => {
-      const mapping = resolveTailwindV3ClassName(className, config);
+      const mapping = resolveTailwindV3ClassName(className, config, source);
       return mapping.token
         ? { className, token: mapping.token, confidence: mapping.confidence, diagnostic: mapping.diagnostic }
         : null;

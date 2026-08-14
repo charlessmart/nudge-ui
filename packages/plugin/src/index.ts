@@ -42,7 +42,7 @@ export interface DesignToolOptions {
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
-  tailwindV3?: { config: TailwindV3Config };
+  tailwindV3?: { config: TailwindV3Config; source?: string };
   vanillaExtract?: VanillaExtractAdapterOptions;
   /**
    * Optional contracts published by an npm design-system package. Local TSX
@@ -192,6 +192,10 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
   // authored/transformed observation. A transform hook has no import-graph
   // ordering information of its own.
   const stylesheetOrdering = new Map<string, { order?: number; discoveryOrder?: number }>();
+  // Tailwind v4 owns its naming contribution only when the authored graph
+  // actually contains its v4 entrypoint. Tailwind v3 also emits --tw-* helper
+  // variables, so transformed output alone is not a safe detector.
+  const tailwindV4SourceFiles = new Set<string>();
   // Before Vite has built its module graph, these are the discovered host CSS
   // candidates that can supply a transformed first virtual-module snapshot.
   const discoveredHostCssFiles = new Set<string>();
@@ -212,7 +216,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     })));
   }
   const adapterRegistry = createTokenAdapterRegistry([
-    ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config)] : []),
+    ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config, options.tailwindV3.source)] : []),
     ...(options.vanillaExtract ? [createSprinklesAdapter(options.vanillaExtract)] : []),
   ]);
 
@@ -254,12 +258,17 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     if (ordering.order !== undefined || ordering.discoveryOrder !== undefined) {
       stylesheetOrdering.set(fileId, { ...ordering });
     }
+    if (stage === "authored") {
+      if (/@import\s+["']tailwindcss["']|@theme\b/i.test(code)) tailwindV4SourceFiles.add(fileId);
+      else tailwindV4SourceFiles.delete(fileId);
+    }
     const artifact = createViteStylesheetArtifact({
       id: fileId,
       projectRoot: root,
       stage,
       ...(stylesheetOrdering.get(fileId) ?? ordering),
       content: code,
+      tailwindV4: tailwindV4SourceFiles.has(fileId),
     });
     inventory.apply(artifact);
     sourceScanDiagnostics.delete(artifact.id);
@@ -268,6 +277,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
   /** Drop every observation and temporary provenance fact for one stylesheet. */
   function feedCssRemoval(id: string): void {
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
+    tailwindV4SourceFiles.delete(fileId);
     stylesheetOrdering.delete(fileId);
     discoveredHostCssFiles.delete(fileId);
     const artifact = createViteStylesheetArtifact({
@@ -395,7 +405,11 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
       ...sourceScanDiagnostics.values(),
       ...activeGraphDiagnostics,
     ]));
-    inventory.applyContribution(createTailwindV4NamingContribution());
+    if (tailwindV4SourceFiles.size > 0) {
+      inventory.applyContribution(createTailwindV4NamingContribution());
+    } else {
+      inventory.applyContribution({ id: "tailwind-v4-naming", order: 0 });
+    }
     inventory.applyContribution(publishedThemeContractContribution());
   }
 

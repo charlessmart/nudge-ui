@@ -1,5 +1,25 @@
 export type CompatibilityEditCapability = "atomic" | "color" | "box-sides" | "structured" | "composite" | "raw";
 
+/** Shared data-only cases every real CSS-library consumer must render. */
+export const CSS_LIBRARY_CORPUS = [
+  "spacing-padding",
+  "typography-size",
+  "color-background",
+  "border-width",
+  "layout-width",
+] as const;
+
+export type CssLibraryCorpusCaseId = typeof CSS_LIBRARY_CORPUS[number];
+
+/** Canonical property each app must exercise for a corpus situation. */
+export const CSS_LIBRARY_CORPUS_PROPERTIES: Record<CssLibraryCorpusCaseId, string> = {
+  "spacing-padding": "padding-top",
+  "typography-size": "font-size",
+  "color-background": "background-color",
+  "border-width": "border-top-width",
+  "layout-width": "width",
+};
+
 export interface CompatibilityInspectionProperty {
   property: string;
   authored?: string;
@@ -88,6 +108,8 @@ export interface CompatibilityAction {
 
 export interface CompatibilityScenario {
   id: string;
+  /** Maps this scenario to one of the shared, data-led corpus situations. */
+  caseId?: CssLibraryCorpusCaseId;
   path?: string;
   selector: string;
   beforeInspect?: CompatibilityAction;
@@ -110,6 +132,8 @@ export interface CompatibilityInvariant {
 
 export interface CompatibilityManifest {
   name: string;
+  /** Apps opt into the shared corpus; legacy manifests may omit it. */
+  expectedCaseIds?: readonly CssLibraryCorpusCaseId[];
   scenarios: CompatibilityScenario[];
   invariants?: CompatibilityInvariant[];
 }
@@ -122,6 +146,16 @@ export function validateCompatibilityManifest(manifest: CompatibilityManifest): 
     scenarioIds.add(scenario.id);
     if (!scenario.selector.trim()) failures.push(`${scenario.id}: selector is empty`);
     if (scenario.properties.length === 0) failures.push(`${scenario.id}: no property expectations`);
+    if (scenario.caseId && !scenario.properties.some(({ property }) => property === CSS_LIBRARY_CORPUS_PROPERTIES[scenario.caseId!])) {
+      failures.push(`${scenario.id}: corpus case ${scenario.caseId} must cover ${CSS_LIBRARY_CORPUS_PROPERTIES[scenario.caseId]}`);
+    }
+  }
+  const expectedCases = manifest.expectedCaseIds ?? [];
+  const renderedCases = new Set(
+    manifest.scenarios.flatMap((scenario) => scenario.caseId ? [scenario.caseId] : []),
+  );
+  for (const caseId of expectedCases) {
+    if (!renderedCases.has(caseId)) failures.push(`missing corpus case: ${caseId}`);
   }
   for (const invariant of manifest.invariants ?? []) {
     if (!scenarioIds.has(invariant.left)) failures.push(`${invariant.id}: unknown left scenario ${invariant.left}`);
