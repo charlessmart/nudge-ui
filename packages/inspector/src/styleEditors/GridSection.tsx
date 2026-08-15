@@ -4,6 +4,7 @@ import { GridPicker } from "./GridPicker.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { GridValueField } from "./GridValueField.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 
 const GRID_AUTO_FLOW_OPTIONS = ["row", "column", "row dense", "column dense"];
 const GRID_CONTENT_ALIGNMENT_OPTIONS = [
@@ -46,7 +47,7 @@ export function GridSection({
           <div className="dt-layout__grid-gap" data-test="layout-grid-gap">
             <div className="dt-layout__group-title">Gap</div>
             <div className="dt-layout__grid-gap-fields">
-              <div className="dt-layout__spacing-field" data-test="layout-grid-row-gap">
+              <ControlSurface className="dt-layout__spacing-field" data-test="layout-grid-row-gap">
                 <IconSpacingVertical
                   className="dt-layout__spacing-icon"
                   size="var(--dt-icon-size-small)"
@@ -59,11 +60,12 @@ export function GridSection({
                   presets={GAP_PRESETS}
                   domElement={el}
                   inputOnly
+                  appearance="embedded"
                   revision={revision}
                   onAfterEdit={onAfterEdit}
                 />
-              </div>
-              <div className="dt-layout__spacing-field" data-test="layout-grid-column-gap">
+              </ControlSurface>
+              <ControlSurface className="dt-layout__spacing-field" data-test="layout-grid-column-gap">
                 <IconSpacingHorizontal
                   className="dt-layout__spacing-icon"
                   size="var(--dt-icon-size-small)"
@@ -76,10 +78,11 @@ export function GridSection({
                   presets={GAP_PRESETS}
                   domElement={el}
                   inputOnly
+                  appearance="embedded"
                   revision={revision}
                   onAfterEdit={onAfterEdit}
                 />
-              </div>
+              </ControlSurface>
             </div>
           </div>
         </div>

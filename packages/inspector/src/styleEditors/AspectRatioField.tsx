@@ -3,6 +3,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { FieldRow } from "../ui/FieldRow.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 
@@ -26,16 +27,18 @@ export function AspectRatioField({
 }: AspectRatioFieldProps): ReactElement {
   return (
     <FieldRow label="aspect-ratio" data-test="layout-size-aspect-ratio" className={className}>
-      <TokenField
-        property="aspect-ratio"
-        tokenRow={tokenRow}
-        initialValue={meaningfulLayoutValue(el, "aspect-ratio")}
-        domElement={el}
-        entries={entries}
-        suggestions={ASPECT_RATIO_PRESETS}
-        inputDataTest="layout-aspect-ratio-input"
-        onAfterEdit={onAfterEdit}
-      />
+      <ControlSurface>
+        <TokenField
+          property="aspect-ratio"
+          tokenRow={tokenRow}
+          initialValue={meaningfulLayoutValue(el, "aspect-ratio")}
+          domElement={el}
+          entries={entries}
+          suggestions={ASPECT_RATIO_PRESETS}
+          inputDataTest="layout-aspect-ratio-input"
+          onAfterEdit={onAfterEdit}
+        />
+      </ControlSurface>
     </FieldRow>
   );
 }

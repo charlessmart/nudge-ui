@@ -5,6 +5,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { FieldRow } from "../ui/FieldRow.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { Button } from "../ui/Button.tsx";
 import { ToggleButton } from "../ui/ToggleButton.tsx";
 import { MarginSideIndicator, SideControls, SIDE_NAMES, type SideValueSlot } from "../ui/SideValuesField.tsx";
@@ -86,26 +87,30 @@ export function PositionAnchorControls({
         {shownHorizontal === "stretch" ? (
           <>
           <FieldRow label="left" data-test="layout-position-x-left">
-              <TokenField
-                property="left"
-                tokenRow={tokenRows.find((row) => row.property === "left") ?? null}
-                initialValue={values.horizontal.start}
-                domElement={el}
-                entries={allEntries}
-                suggestions={OFFSET_PRESETS}
-                onAfterEdit={onAfterEdit}
-              />
+              <ControlSurface>
+                <TokenField
+                  property="left"
+                  tokenRow={tokenRows.find((row) => row.property === "left") ?? null}
+                  initialValue={values.horizontal.start}
+                  domElement={el}
+                  entries={allEntries}
+                  suggestions={OFFSET_PRESETS}
+                  onAfterEdit={onAfterEdit}
+                />
+              </ControlSurface>
             </FieldRow>
             <FieldRow label="right" data-test="layout-position-x-right">
-              <TokenField
-                property="right"
-                tokenRow={tokenRows.find((row) => row.property === "right") ?? null}
-                initialValue={values.horizontal.end}
-                domElement={el}
-                entries={allEntries}
-                suggestions={OFFSET_PRESETS}
-                onAfterEdit={onAfterEdit}
-              />
+              <ControlSurface>
+                <TokenField
+                  property="right"
+                  tokenRow={tokenRows.find((row) => row.property === "right") ?? null}
+                  initialValue={values.horizontal.end}
+                  domElement={el}
+                  entries={allEntries}
+                  suggestions={OFFSET_PRESETS}
+                  onAfterEdit={onAfterEdit}
+                />
+              </ControlSurface>
             </FieldRow>
           </>
         ) : (
@@ -124,26 +129,30 @@ export function PositionAnchorControls({
         {shownVertical === "stretch" ? (
           <>
             <FieldRow label="top" data-test="layout-position-y-top">
-              <TokenField
-                property="top"
-                tokenRow={tokenRows.find((row) => row.property === "top") ?? null}
-                initialValue={values.vertical.start}
-                domElement={el}
-                entries={allEntries}
-                suggestions={OFFSET_PRESETS}
-                onAfterEdit={onAfterEdit}
-              />
+              <ControlSurface>
+                <TokenField
+                  property="top"
+                  tokenRow={tokenRows.find((row) => row.property === "top") ?? null}
+                  initialValue={values.vertical.start}
+                  domElement={el}
+                  entries={allEntries}
+                  suggestions={OFFSET_PRESETS}
+                  onAfterEdit={onAfterEdit}
+                />
+              </ControlSurface>
             </FieldRow>
             <FieldRow label="bottom" data-test="layout-position-y-bottom">
-              <TokenField
-                property="bottom"
-                tokenRow={tokenRows.find((row) => row.property === "bottom") ?? null}
-                initialValue={values.vertical.end}
-                domElement={el}
-                entries={allEntries}
-                suggestions={OFFSET_PRESETS}
-                onAfterEdit={onAfterEdit}
-              />
+              <ControlSurface>
+                <TokenField
+                  property="bottom"
+                  tokenRow={tokenRows.find((row) => row.property === "bottom") ?? null}
+                  initialValue={values.vertical.end}
+                  domElement={el}
+                  entries={allEntries}
+                  suggestions={OFFSET_PRESETS}
+                  onAfterEdit={onAfterEdit}
+                />
+              </ControlSurface>
             </FieldRow>
           </>
         ) : (
@@ -253,17 +262,19 @@ function PositionValueField({
   onAfterEdit,
 }: PositionValueFieldProps): ReactElement {
   return (
-    <TokenField
-      property={property}
-      tokenRow={tokenRows.find((row) => row.property === property) ?? null}
-      initialValue={axis === "horizontal"
-        ? property === "left" ? values.horizontal.start : values.horizontal.end
-        : property === "top" ? values.vertical.start : values.vertical.end}
-      domElement={el}
-      entries={entries}
-      suggestions={OFFSET_PRESETS}
-      onAfterEdit={onAfterEdit}
-    />
+    <ControlSurface>
+      <TokenField
+        property={property}
+        tokenRow={tokenRows.find((row) => row.property === property) ?? null}
+        initialValue={axis === "horizontal"
+          ? property === "left" ? values.horizontal.start : values.horizontal.end
+          : property === "top" ? values.vertical.start : values.vertical.end}
+        domElement={el}
+        entries={entries}
+        suggestions={OFFSET_PRESETS}
+        onAfterEdit={onAfterEdit}
+      />
+    </ControlSurface>
   );
 }
 

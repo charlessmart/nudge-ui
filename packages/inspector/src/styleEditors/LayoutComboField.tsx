@@ -9,6 +9,7 @@ import { TextInput } from "../ui/TextInput.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
+import type { ControlAppearance } from "../ui/ControlSurface.tsx";
 
 const CUSTOM_KEY = "__custom__";
 
@@ -19,6 +20,7 @@ export interface LayoutComboFieldProps {
   compact?: boolean;
   inputOnly?: boolean;
   alwaysShowInput?: boolean;
+  appearance?: ControlAppearance;
   revision?: number;
   onAfterEdit?: () => void;
 }
@@ -31,6 +33,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     compact,
     inputOnly,
     alwaysShowInput,
+    appearance = "default",
     revision = 0,
     onAfterEdit,
   } = props;
@@ -106,6 +109,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     <TextInput
       ref={customInputRef}
       compact={compact}
+      appearance={appearance}
       inputMode="decimal"
       placeholder="0"
       aria-label={formatInspectorLabel(property)}
@@ -127,6 +131,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
         <>
           <Select
             compact={compact}
+            appearance={appearance}
             data-test={`layout-combo-select-${property}`}
             value={selectValue}
             options={[

@@ -23,6 +23,7 @@ import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { setStyle } from "./styleActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
@@ -147,19 +148,20 @@ function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
     && tokenRow.capability !== "composite"
     && !tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha"));
   return (
-    <TokenField
-      className={`dt-typography__field dt-typography__field--${property}`}
-      property={property}
-      tokenRow={tokenRow}
-      domElement={domElement}
-      entries={entries}
-      editMetadata={metadataFor(tokenRow)}
-      leading={icon}
-      trailing={metric || hasTokenChip ? undefined : <IconChevronDown size={17} stroke={1.8} aria-hidden="true" />}
-      label={label}
-      chipVariant={chipVariant}
-      onAfterEdit={onAfterEdit}
-    />
+    <ControlSurface className={`dt-typography__field dt-typography__field--${property}`}>
+      <TokenField
+        property={property}
+        tokenRow={tokenRow}
+        domElement={domElement}
+        entries={entries}
+        editMetadata={metadataFor(tokenRow)}
+        leading={icon}
+        trailing={metric || hasTokenChip ? undefined : <IconChevronDown size={17} stroke={1.8} aria-hidden="true" />}
+        label={label}
+        chipVariant={chipVariant}
+        onAfterEdit={onAfterEdit}
+      />
+    </ControlSurface>
   );
 }
 
@@ -217,7 +219,7 @@ function FontStyleField({ element, fontStyleRow, fontWeightRow, onAfterEdit }: F
   }
 
   return (
-    <div
+    <ControlSurface
       className="dt-typography__field dt-typography__field--font-style"
       data-test="typography-field"
       data-property="font-style"
@@ -228,13 +230,14 @@ function FontStyleField({ element, fontStyleRow, fontWeightRow, onAfterEdit }: F
         <IconTypography size={"var(--dt-icon-size-small)"} stroke={1.45} />
       </span>
       <Select
+        appearance="embedded"
         value={currentKey}
         options={options.map(({ value, label }) => ({ value, label }))}
         onValueChange={handleChange}
         data-test="font-style-field"
       />
       <AtRuleIndicator atRules={atRules} />
-    </div>
+    </ControlSurface>
   );
 }
 

@@ -61,6 +61,8 @@ describe("SpacingBox", () => {
     expect(padding.getAttribute("data-expanded")).toBe("false");
     expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
     expect(padding.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
+    expect(padding.querySelector('[data-test="pair-value-horizontal"]')?.className).toContain("dt-control-surface");
+    expect(padding.querySelector('[data-test="token-field"][data-property="padding-horizontal"]')?.className).not.toContain("dt-control-surface");
     expect(rawInput("padding-horizontal").value).toBe("12px");
     expect(rawInput("padding-vertical").value).toBe("8px");
 

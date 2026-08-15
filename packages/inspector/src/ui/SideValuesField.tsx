@@ -4,6 +4,7 @@ import { IconBorderSides, IconPlus } from "@tabler/icons-react";
 import { IconButton } from "./IconButton.tsx";
 import { ToggleButton } from "./ToggleButton.tsx";
 import { formatInspectorLabel } from "./labels.ts";
+import { ControlSurface } from "./ControlSurface.tsx";
 
 export const SIDE_NAMES = ["top", "right", "bottom", "left"] as const;
 export type SideName = (typeof SIDE_NAMES)[number];
@@ -142,7 +143,7 @@ export function SideValuesField({
             ) : (
               <div className="dt-side-values__pairs" role="group" aria-label={`${labelText} Grouped Sides`}>
                 {pairedControls!.map(({ axis, control, icon }) => (
-                  <div
+                  <ControlSurface
                     className="dt-side-values__side"
                     data-test={`pair-value-${axis}`}
                     data-axis={axis}
@@ -152,7 +153,7 @@ export function SideValuesField({
                   >
                     {icon ?? <AxisIndicator axis={axis} />}
                     <div className="dt-side-values__control">{control}</div>
-                  </div>
+                  </ControlSurface>
                 ))}
               </div>
             )}
@@ -227,7 +228,7 @@ export function SideControls({
   return (
     <div className="dt-side-values__grid" role="group" aria-label={`${typeof label === "string" ? formatInspectorLabel(label) : String(label)} Individual Sides`}>
       {sides.map(({ side, control, icon }) => (
-        <div
+        <ControlSurface
           className="dt-side-values__side"
           data-test={`side-value-${side}`}
           data-side={side}
@@ -236,7 +237,7 @@ export function SideControls({
         >
           {icon ?? <SideIndicator side={side} />}
           <div className="dt-side-values__control">{control}</div>
-        </div>
+        </ControlSurface>
       ))}
     </div>
   );

@@ -9,6 +9,7 @@ import type { ResolvedProperty } from "@design-tool/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { IconButton } from "../ui/IconButton.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { setStyle } from "./styleActions.ts";
 
 export interface ColorPickerProps {
@@ -107,14 +108,16 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
       </div>
       {showTokenField && (
         <div className="dt-color">
-          <TokenField
-            property={property}
-            tokenRow={isEmpty ? null : tokenRow}
-            initialValue={isEmpty ? "" : undefined}
-            domElement={el}
-            entries={allEntries}
-            onAfterEdit={handleAfterEdit}
-          />
+          <ControlSurface>
+            <TokenField
+              property={property}
+              tokenRow={isEmpty ? null : tokenRow}
+              initialValue={isEmpty ? "" : undefined}
+              domElement={el}
+              entries={allEntries}
+              onAfterEdit={handleAfterEdit}
+            />
+          </ControlSurface>
         </div>
       )}
     </div>

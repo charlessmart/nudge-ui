@@ -1,6 +1,7 @@
 import { Combobox } from "@base-ui/react/combobox";
 import { Autocomplete } from "@base-ui/react/autocomplete";
 import type { FocusEventHandler, KeyboardEventHandler, ReactElement, ReactNode, Ref } from "react";
+import type { ControlAppearance } from "./ControlSurface.tsx";
 
 export interface PopoverListboxItem {
   value: string;
@@ -23,6 +24,7 @@ export interface PopoverListboxProps {
   placeholder?: string;
   inputRef?: Ref<HTMLInputElement>;
   inputClassName?: string;
+  inputAppearance?: ControlAppearance;
   inputDataTest?: string;
   inputOnFocus?: FocusEventHandler<HTMLInputElement>;
   inputOnBlur?: FocusEventHandler<HTMLInputElement>;
@@ -46,6 +48,7 @@ export function PopoverListbox({
   placeholder,
   inputRef,
   inputClassName,
+  inputAppearance = "default",
   inputDataTest,
   inputOnFocus,
   inputOnBlur,
@@ -126,7 +129,7 @@ export function PopoverListbox({
         >
           <Autocomplete.Input
             ref={inputRef}
-            className={`dt-text-input${inputClassName ? ` ${inputClassName}` : ""}`}
+            className={`dt-text-input${inputAppearance === "embedded" ? " dt-text-input--embedded" : ""}${inputClassName ? ` ${inputClassName}` : ""}`}
             placeholder={placeholder}
             data-test={inputDataTest}
             onFocus={inputOnFocus}

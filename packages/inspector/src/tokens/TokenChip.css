@@ -1,0 +1,110 @@
+.dt-token-chip {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  background: var(--dt-surface-raised);
+  align-self: stretch;
+  padding-left: var(--dt-space-8);
+  border-radius: calc(var(--dt-radius-control) - 2px);
+}
+
+.dt-token-chip:has(.dt-token-color-control) {
+  padding-left: 0;
+}
+
+.dt-token-chip > .dt-popover-listbox,
+.dt-token-chip__trigger,
+.dt-token-chip__picker {
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+}
+
+.dt-token-chip--small {
+  flex: 0 1 auto;
+}
+
+.dt-token-chip--small > .dt-popover-listbox {
+  width: auto;
+  flex: 0 1 auto;
+}
+
+.dt-token-chip__trigger {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dt-radius-control);
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dt-token-chip__trigger:focus-visible {
+  box-shadow: var(--dt-token-chip-focus-ring, inset 0 0 0 2px var(--dt-focus));
+}
+
+.dt-token-chip--small .dt-token-chip__trigger {
+  width: auto;
+}
+
+.dt-token-chip__picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  color: var(--dt-text-primary);
+  font-size: var(--dt-font-size-base);
+}
+
+.dt-token-chip--small .dt-token-chip__picker {
+  display: inline-flex;
+  width: auto;
+  gap: 3px;
+}
+
+.dt-token-chip__label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dt-token-chip__picker svg {
+  flex-shrink: 0;
+}
+
+.dt-token-chip__action {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(-50%);
+  opacity: 0;
+  background: var(--dt-surface-raised);
+  box-shadow: -6px 0 6px var(--dt-surface-raised);
+  transition: opacity 100ms ease;
+}
+
+.dt-token-chip:hover > .dt-token-chip__action,
+.dt-token-chip:focus-within > .dt-token-chip__action {
+  opacity: 1;
+}
+
+.dt-token-chip--small > .dt-token-chip__action {
+  position: relative;
+  top: auto;
+  right: auto;
+  flex: 0 0 auto;
+  margin-left: 2px;
+  transform: none;
+  box-shadow: none;
+}

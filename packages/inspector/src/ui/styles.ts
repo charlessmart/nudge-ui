@@ -1,6 +1,7 @@
 import fieldRowStyles from "./FieldRow.css?inline";
 import atRuleContextStyles from "./AtRuleContext.css?inline";
 import foundationStyles from "./Foundation.css?inline";
+import controlSurfaceStyles from "./ControlSurface.css?inline";
 import textInputStyles from "./TextInput.css?inline";
 import selectStyles from "./Select.css?inline";
 import buttonStyles from "./Button.css?inline";
@@ -21,6 +22,7 @@ import typographyStyles from "../styleEditors/Typography.css?inline";
 import layoutSectionStyles from "../styleEditors/LayoutSection.css?inline";
 import gridPickerStyles from "../styleEditors/GridPicker.css?inline";
 import layoutComboFieldStyles from "../styleEditors/LayoutComboField.css?inline";
+import tokenChipStyles from "../tokens/TokenChip.css?inline";
 import tokenFieldStyles from "../tokens/TokenField.css?inline";
 import tokenDropdownStyles from "../tokens/TokenDropdown.css?inline";
 import tokensPanelStyles from "../tokens/TokensPanel.css?inline";
@@ -29,6 +31,7 @@ import inspectorOverlayStyles from "../InspectorOverlay.css?inline";
 
 export const UI_STYLES = [
   foundationStyles,
+  controlSurfaceStyles,
   atRuleContextStyles,
   fieldRowStyles,
   textInputStyles,
@@ -51,6 +54,7 @@ export const UI_STYLES = [
   layoutSectionStyles,
   gridPickerStyles,
   layoutComboFieldStyles,
+  tokenChipStyles,
   tokenFieldStyles,
   tokenDropdownStyles,
   tokensPanelStyles,

@@ -4,6 +4,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import { isTokenChange, useChanges } from "../changesLog.ts";
 import type { TokenChangeRecord } from "../changesLog.ts";
 import { TextInput } from "../ui/TextInput.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { TokenValueField } from "./TokenField.tsx";
 import {
   TOKEN_GROUP_LABELS,
@@ -110,18 +111,20 @@ function TokenCatalogItem({
       <div className="dt-token-row__inline">
         <code className="dt-token-row__name">{row.definition.name || row.definition.cssName}</code>
         {row.activeDeclaration ? (
-          <TokenValueField
-            property={row.definition.cssName}
-            committedValue={committedValue}
-            resolvedValue={row.resolvedValue || committedValue}
-            activeTokenName={activeAlias}
-            entries={entries}
-            allowedTokenNames={allowed}
-            isColor={row.group === "color"}
-            onCommitRaw={(value) => setGlobalTokenValue(row, value)}
-            onSelectToken={(token) => setGlobalTokenValue(row, `var(${token.name})`)}
-            onUnlink={(value) => setGlobalTokenValue(row, value)}
-          />
+          <ControlSurface>
+            <TokenValueField
+              property={row.definition.cssName}
+              committedValue={committedValue}
+              resolvedValue={row.resolvedValue || committedValue}
+              activeTokenName={activeAlias}
+              entries={entries}
+              allowedTokenNames={allowed}
+              isColor={row.group === "color"}
+              onCommitRaw={(value) => setGlobalTokenValue(row, value)}
+              onSelectToken={(token) => setGlobalTokenValue(row, `var(${token.name})`)}
+              onUnlink={(value) => setGlobalTokenValue(row, value)}
+            />
+          </ControlSurface>
         ) : (
           <TextInput disabled value="Inactive in current theme" aria-label={`${row.definition.cssName} inactive`} />
         )}

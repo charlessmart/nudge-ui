@@ -1,9 +1,11 @@
 .dt-token-field {
   position: relative;
   display: flex;
-  gap: 6px;
+  flex: 1 1 auto;
+  align-self: stretch;
   align-items: center;
-  width: 100%;
+  gap: 6px;
+  min-width: 0;
 }
 
 .dt-token-field__leading,
@@ -22,48 +24,10 @@
   justify-content: flex-end;
 }
 
-.dt-token-field--color {
-  min-height: var(--dt-control-height-large);
-  gap: 4px;
-  padding: 0 var(--dt-space-4);
-  background: var(--dt-surface-control);
-  border-radius: var(--dt-radius-control);
-  transition: background-color 120ms ease, box-shadow 120ms ease;
-}
-
-.dt-token-field--color:focus-within {
-  box-shadow: inset 0 0 0 2px var(--dt-focus);
-}
-
-.dt-token-field--color:hover:not(:focus-within) {
-  background: var(--dt-surface-control-hover);
-}
-
 .dt-token-field > .dt-popover-listbox,
 .dt-token-field > .dt-select {
   flex: 1;
   min-width: 0;
-}
-
-.dt-token-field__chip-wrap {
-  position: relative;
-  display: flex;
-  flex: 1;
-  min-width: 0;
-}
-
-.dt-token-field__chip-wrap > .dt-popover-listbox {
-  flex: 1;
-  min-width: 0;
-}
-
-.dt-token-field__chip-wrap--small {
-  flex: 0 1 auto;
-}
-
-.dt-token-field__chip-wrap--small > .dt-popover-listbox {
-  width: auto;
-  flex: 0 1 auto;
 }
 
 .dt-token-field__attribution {
@@ -103,8 +67,12 @@
 }
 
 .dt-token-field--color .dt-token-color-control {
-  width: 26px;
-  height: 26px;
+  align-self: stretch;
+  padding: 4px;
+}
+
+.dt-token-field--color {
+  --dt-token-chip-focus-ring: none;
 }
 
 .dt-token-color-control[data-resolved="false"] .dt-color-swatch {
@@ -123,133 +91,4 @@
 
 .dt-token-color-control__input:disabled {
   cursor: not-allowed;
-}
-
-.dt-token-chip__trigger {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  border-radius: var(--dt-radius-control);
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-.dt-token-chip__trigger:focus-visible {
-  outline: 0;
-  box-shadow: inset 0 0 0 2px var(--dt-focus);
-}
-
-.dt-token-field--color .dt-token-chip__trigger:focus-visible {
-  box-shadow: none;
-}
-
-.dt-token-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-  height: var(--dt-control-height-large);
-  padding: 0 var(--dt-space-4);
-  background: var(--dt-surface-raised);
-  border: 1px solid var(--dt-border-subtle);
-  border-radius: var(--dt-radius-control);
-  color: var(--dt-text-primary);
-  font-size: var(--dt-font-size-base);
-  font-weight: 500;
-}
-
-.dt-token-chip:hover {
-  background: var(--dt-surface-raised);
-}
-
-.dt-token-chip__trigger--small {
-  width: auto;
-}
-
-.dt-token-field .dt-token-chip.dt-token-chip--small {
-  display: inline-flex;
-  width: auto;
-  height: var(--dt-control-height-small);
-  padding: 0 var(--dt-space-4);
-  gap: 3px;
-  background: var(--dt-surface-raised);
-  border-color: var(--dt-border-subtle);
-  border-radius: var(--dt-radius-4);
-}
-
-.dt-token-field .dt-token-chip.dt-token-chip--small:hover {
-  background: var(--dt-surface-raised);
-}
-
-.dt-token-chip--with-swatch {
-  padding-left: var(--dt-space-4);
-}
-
-.dt-token-field--color-chip {
-  padding-left: 0;
-}
-
-.dt-token-field--color .dt-text-input {
-  height: 30px;
-  padding-right: 4px;
-  padding-left: 0;
-  background: transparent;
-}
-
-.dt-token-field--color .dt-text-input:hover:not(:focus) {
-  background: transparent;
-}
-
-.dt-token-field--color .dt-text-input:focus-visible {
-  box-shadow: none;
-}
-
-.dt-token-field__chip-wrap > .dt-token-field__delink {
-  position: absolute;
-  z-index: 1;
-  top: 50%;
-  right: 4px;
-  transform: translateY(-50%);
-  opacity: 0;
-  background: var(--dt-surface-raised);
-  box-shadow: -6px 0 6px var(--dt-surface-raised);
-  transition: opacity 100ms ease;
-}
-
-.dt-token-field__chip-wrap--small > .dt-token-field__delink {
-  --dt-token-field-delink-size: var(--dt-control-height-large);
-  right: auto;
-  left: max(40px, calc(100% - var(--dt-token-field-delink-size) - 4px));
-}
-
-.dt-token-field__chip-wrap:hover > .dt-token-field__delink,
-.dt-token-field__chip-wrap:focus-within > .dt-token-field__delink {
-  opacity: 1;
-}
-
-.dt-token-field__chip-wrap--small > .dt-token-field__delink--small {
-  position: relative;
-  top: auto;
-  right: auto;
-  flex: 0 0 auto;
-  margin-left: 2px;
-  transform: none;
-  box-shadow: none;
-}
-
-.dt-token-chip__name {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dt-token-chip svg {
-  flex-shrink: 0;
 }

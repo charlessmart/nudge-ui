@@ -20,6 +20,7 @@ import { ColorSwatch } from "../ui/ColorSwatch.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import type { StyleEditMetadata } from "./editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
+import { TokenChip } from "./TokenChip.tsx";
 
 export interface TokenValueFieldProps {
   property: string;
@@ -202,7 +203,7 @@ function NativeColorSwatch({
       {/* Use the concrete color for aliases; an authored var() may not inherit
           the selected element's local custom properties inside the inspector's
           shadow root. Preserve other valid CSS color syntaxes as-authored. */}
-      <ColorSwatch color={resolvedHex ?? (value.trim() || "transparent")} size="small" data-test="token-color-swatch" />
+      <ColorSwatch color={resolvedHex ?? (value.trim() || "transparent")} data-test="token-color-swatch" />
       <input
         className="dt-token-color-control__input"
         data-test="token-color-input"
@@ -457,21 +458,27 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     const chipValue = chipVariant === "small" ? stripCssUnit(activeToken.value) : activeToken.name;
     const embedColorSwatch = isColor && chipVariant !== "small";
     return (
-      <span className={`dt-token-field${isColor ? " dt-token-field--color" : ""}${embedColorSwatch ? " dt-token-field--color-chip" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
+      <span
+        className={`dt-token-field${isColor ? " dt-token-field--color" : ""}${embedColorSwatch ? " dt-token-field--color-chip" : ""}${className ? ` ${className}` : ""}`}
+        data-test="token-field"
+        data-property={property}
+        aria-label={label}
+        title={label}
+      >
         {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
         {embedColorSwatch ? null : colorControlEl}
-        <span className={`dt-token-field__chip-wrap${chipVariant === "small" ? " dt-token-field__chip-wrap--small" : ""}`}>
+        <TokenChip size={chipVariant} data-group={tokenGroup(activeToken)}>
           <PopoverListbox
             query=""
             value={activeToken.name}
             open={isTokenPickerOpen}
             trigger={(
-              <span className={`dt-token-chip${chipVariant === "small" ? " dt-token-chip--small" : ""}${embedColorSwatch ? " dt-token-chip--with-swatch" : ""}`} data-group={tokenGroup(activeToken)}>
+              <TokenChip.Picker>
                 {embedColorSwatch ? colorControlEl : null}
-                <span className="dt-token-chip__name">{chipValue}</span>
-              </span>
+                <TokenChip.Label>{chipValue}</TokenChip.Label>
+              </TokenChip.Picker>
             )}
-            triggerClassName={`dt-token-chip__trigger${chipVariant === "small" ? " dt-token-chip__trigger--small" : ""}`}
+            triggerClassName="dt-token-chip__trigger"
             triggerDataTest="token-chip"
             triggerAriaLabel={`Change ${property} token`}
             items={[...rawSuggestionItems, ...relevantTokens.map(tokenSuggestion)]}
@@ -481,18 +488,19 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
               handleSuggestionSelect(value);
             }}
           />
-          <IconButton
-            variant="quiet"
-            size="default"
-            label="Replace with raw value"
-            className={`dt-token-field__delink${chipVariant === "small" ? " dt-token-field__delink--small" : ""}`}
-            data-test="delink-btn"
-            disabled={disabled}
-            onClick={handleDelink}
-          >
-            <IconLinkOff size={chipVariant === "small" ? 12 : 14} stroke={1.75} aria-hidden="true" />
-          </IconButton>
-        </span>
+          <TokenChip.Action>
+            <IconButton
+              variant="quiet"
+              size="compact"
+              label="Replace with raw value"
+              data-test="delink-btn"
+              disabled={disabled}
+              onClick={handleDelink}
+            >
+              <IconLinkOff size={chipVariant === "small" ? 12 : 14} stroke={1.75} aria-hidden="true" />
+            </IconButton>
+          </TokenChip.Action>
+        </TokenChip>
         {opacityControl}
         <AtRuleIndicator atRules={fieldAtRules} />
         {trailing ? <span className="dt-token-field__trailing">{trailing}</span> : null}
@@ -502,7 +510,13 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   const showPopover = isFocused && (filteredTokens.length > 0 || availableSuggestions.length > 0);
   return (
-    <span className={`dt-token-field dt-token-field--raw${isColor ? " dt-token-field--color" : ""}${className ? ` ${className}` : ""}`} data-test="token-field" data-property={property} aria-label={label} title={label}>
+    <span
+      className={`dt-token-field dt-token-field--raw${isColor ? " dt-token-field--color" : ""}${className ? ` ${className}` : ""}`}
+      data-test="token-field"
+      data-property={property}
+      aria-label={label}
+      title={label}
+    >
       {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
       {colorControlEl}
       <PopoverListbox
@@ -511,6 +525,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         open={showPopover}
         placeholder={property}
         inputRef={inputRef}
+        inputAppearance="embedded"
         inputDataTest={inputDataTest}
         inputOnFocus={() => setIsFocused(true)}
         inputOnBlur={handleRawBlur}
@@ -642,7 +657,7 @@ function tokenSuggestion(entry: TokenEntry) {
     value: entry.name,
     label: entry.name,
     "data-test": "suggestion-item",
-    leading: tokenGroup(entry) === "color" ? <ColorSwatch color={entry.value} size="small" /> : undefined,
+    leading: tokenGroup(entry) === "color" ? <ColorSwatch color={entry.value} /> : undefined,
     trailing: <span>{entry.value}</span>,
   };
 }

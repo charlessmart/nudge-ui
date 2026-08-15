@@ -5,6 +5,7 @@ import type { ResolvedProperty } from "@design-tool/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 
 export interface BoxShadowEditorProps {
   element: SelectedElement;
@@ -24,13 +25,15 @@ export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
       <div className="dt-editor__title">Box Shadow</div>
       <div className="dt-property">
         <FieldRow label="Box Shadow">
-          <TokenField
-            property="box-shadow"
-            tokenRow={tokenRow}
-            domElement={el}
-            entries={allEntries}
-            onAfterEdit={onAfterEdit}
-          />
+          <ControlSurface>
+            <TokenField
+              property="box-shadow"
+              tokenRow={tokenRow}
+              domElement={el}
+              entries={allEntries}
+              onAfterEdit={onAfterEdit}
+            />
+          </ControlSurface>
         </FieldRow>
       </div>
     </div>

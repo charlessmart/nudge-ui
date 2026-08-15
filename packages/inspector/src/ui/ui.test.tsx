@@ -15,6 +15,7 @@ import { Breadcrumb } from "./Breadcrumb.tsx";
 import { ColorSwatch } from "./ColorSwatch.tsx";
 import { PopoverListbox } from "./PopoverListbox.tsx";
 import { SideValuesField, SIDE_NAMES } from "./SideValuesField.tsx";
+import { ControlSurface } from "./ControlSurface.tsx";
 import { formatInspectorLabel } from "./labels.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -45,6 +46,34 @@ describe("shared inspector UI", () => {
     const label = host.querySelector("label");
     expect(label?.textContent).toContain("Font Size");
     expect(label?.querySelector('[data-test="font-size"]')).not.toBeNull();
+  });
+
+  it("keeps standalone controls styled while embedded content defers its field chrome", () => {
+    act(() => {
+      root.render(createElement("div", null,
+        createElement(TextInput, { "data-test": "standalone-input" }),
+        createElement(Select, {
+          value: "one",
+          options: [{ value: "one", label: "One" }],
+          "data-test": "standalone-select",
+        }),
+        createElement(ControlSurface, { "data-test": "surface" },
+          createElement(TextInput, { appearance: "embedded", "data-test": "embedded-input" }),
+          createElement(Select, {
+            appearance: "embedded",
+            value: "one",
+            options: [{ value: "one", label: "One" }],
+            "data-test": "embedded-select",
+          }),
+        ),
+      ));
+    });
+
+    expect(host.querySelector('[data-test="surface"]')?.className).toContain("dt-control-surface");
+    expect(host.querySelector('[data-test="standalone-input"]')?.className).not.toContain("embedded");
+    expect(host.querySelector('[data-test="standalone-select"]')?.className).not.toContain("embedded");
+    expect(host.querySelector('[data-test="embedded-input"]')?.className).toContain("dt-text-input--embedded");
+    expect(host.querySelector('[data-test="embedded-select"]')?.className).toContain("dt-select--embedded");
   });
 
   it("formats CSS property labels as title case words", () => {
@@ -207,6 +236,7 @@ describe("shared inspector UI", () => {
     act(() => (host.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click());
     expect(host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
     expect(host.querySelector('[data-side="top"] svg')).not.toBeNull();
+    expect(host.querySelector('[data-side="top"]')?.className).toContain("dt-control-surface");
   });
 
   it("renders grouped side values and expands back to four sides", () => {

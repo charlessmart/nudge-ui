@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { createElement } from "react";
 import { colorValueToHex, TokenField, TokenValueField } from "./TokenField.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { resetPendingRules, getChangeRecords } from "./editActions.ts";
@@ -106,19 +107,39 @@ describe("TokenField", () => {
 
   it("supports shared leading and trailing adornments", () => {
     const { selected } = makeSelected();
-    handle = mount(createElement(TokenField, {
-      property: "font-size",
-      domElement: selected.domElement,
-      entries: [],
-      leading: createElement("span", { "data-test": "leading-adornment" }, "A"),
-      trailing: createElement("span", { "data-test": "trailing-adornment" }, "⌄"),
-      label: "Font size",
-    }));
+    handle = mount(createElement(
+      ControlSurface,
+      { "data-test": "token-surface" },
+      createElement(TokenField, {
+        property: "font-size",
+        domElement: selected.domElement,
+        entries: [],
+        leading: createElement("span", { "data-test": "leading-adornment" }, "A"),
+        trailing: createElement("span", { "data-test": "trailing-adornment" }, "⌄"),
+        label: "Font size",
+      }),
+    ));
 
     const field = handle.host.querySelector('[data-test="token-field"]') as HTMLElement;
     expect(field.querySelector('[data-test="leading-adornment"]')).not.toBeNull();
     expect(field.querySelector('[data-test="trailing-adornment"]')).not.toBeNull();
     expect(field.getAttribute("aria-label")).toBe("Font size");
+    expect(field.className).not.toContain("dt-control-surface");
+    expect(handle.host.querySelector('[data-test="token-surface"]')?.className).toContain("dt-control-surface");
+    expect(field.querySelector('[data-test="raw-input"]')?.className).toContain("dt-text-input--embedded");
+  });
+
+  it("does not create visual chrome when mounted without a parent surface", () => {
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      entries: [],
+    }));
+
+    const field = handle.host.querySelector('[data-test="token-field"]') as HTMLElement;
+    expect(field.className).not.toContain("dt-control-surface");
+    expect(field.querySelector('[data-test="raw-input"]')?.className).toContain("dt-text-input--embedded");
   });
 
   it.each([
@@ -424,7 +445,7 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
   });
 
-  it("places the unlink action inside the token chip wrapper", () => {
+  it("keeps the unlink action in the token chip, outside the picker trigger", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {
       property: "font-size",
@@ -433,9 +454,11 @@ describe("TokenField", () => {
       entries: [FONT_SIZE],
     }));
 
+    const chip = handle.host.querySelector(".dt-token-chip") as HTMLElement;
+    const picker = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
     const delink = handle.host.querySelector('[data-test="delink-btn"]') as HTMLButtonElement;
-    expect(delink.parentElement?.classList.contains("dt-token-field__chip-wrap")).toBe(true);
-    expect(delink.parentElement?.querySelector('[data-test="token-chip"]')).not.toBeNull();
+    expect(chip.contains(delink)).toBe(true);
+    expect(picker.contains(delink)).toBe(false);
   });
 
   it("promotes a matching raw-value suggestion into a token chip", () => {

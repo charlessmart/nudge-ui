@@ -15,6 +15,7 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
 import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 
 const BORDER_RADIUS_CORNERS = [
   "border-top-left-radius",
@@ -148,14 +149,16 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
       </div>
       {isLinked ? (
         <div className="dt-border-radius__linked-row">
-          <TokenField
-            property="border-radius"
-            tokenRow={borderRadiusRow}
-            domElement={el}
-            entries={allEntries}
-            editMetadata={metadataFor(borderRadiusRow)}
-            onAfterEdit={onAfterEdit}
-          />
+          <ControlSurface>
+            <TokenField
+              property="border-radius"
+              tokenRow={borderRadiusRow}
+              domElement={el}
+              entries={allEntries}
+              editMetadata={metadataFor(borderRadiusRow)}
+              onAfterEdit={onAfterEdit}
+            />
+          </ControlSurface>
         </div>
       ) : (
         <SideControls label="Border Radius Corners" sides={cornerSides} />

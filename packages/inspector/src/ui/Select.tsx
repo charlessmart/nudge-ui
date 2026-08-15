@@ -1,6 +1,7 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import { IconCheck, IconChevronDown } from "@tabler/icons-react";
 import type { ButtonHTMLAttributes, ReactElement } from "react";
+import type { ControlAppearance } from "./ControlSurface.tsx";
 
 export interface SelectOption {
   value: string;
@@ -19,6 +20,7 @@ export type SelectProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChang
   groups?: SelectGroup[];
   placeholder?: string;
   compact?: boolean;
+  appearance?: ControlAppearance;
   onValueChange?: (value: string) => void;
   "data-test"?: string;
 };
@@ -29,6 +31,7 @@ export function Select({
   groups = [],
   placeholder,
   compact,
+  appearance = "default",
   className,
   disabled,
   children,
@@ -56,7 +59,7 @@ export function Select({
       <BaseSelect.Trigger
         {...triggerProps}
         disabled={disabled}
-        className={`dt-select${compact ? " dt-select--compact" : ""}${className ? ` ${className}` : ""}`}
+        className={`dt-select${compact ? " dt-select--compact" : ""}${appearance === "embedded" ? " dt-select--embedded" : ""}${className ? ` ${className}` : ""}`}
       >
         <BaseSelect.Value className="dt-select__value" placeholder={placeholder}>
           {selectedOption?.label ?? (value || undefined)}

@@ -131,6 +131,29 @@ test("dev: style editors write through the managed stylesheet and update the .bt
     .toBe(true);
 });
 
+test("dev: control surfaces own field chrome while token fields provide embedded content", async ({ page }) => {
+  await page.goto("/");
+  await page.click("text=Save");
+  await waitForEditors(page);
+
+  const spacingSurface = page.locator('[data-test="spacing-padding"] [data-test="pair-value-horizontal"]');
+  const spacingValue = spacingSurface.locator('[data-test="token-field"][data-property="padding-horizontal"]');
+  await expect(spacingSurface).toHaveClass(/dt-control-surface/);
+  await expect(spacingValue).not.toHaveClass(/dt-control-surface/);
+  await expect(spacingValue.locator('[data-test="raw-input"]')).toHaveClass(/dt-text-input--embedded/);
+  await expect(spacingSurface).toHaveCSS("padding-left", "8px");
+  await expect(spacingValue.locator('[data-test="raw-input"]')).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+
+  const fontSize = page.locator('[data-test="token-field"][data-property="font-size"]');
+  const fontSizeSurface = fontSize.locator("..");
+  await expect(fontSize).not.toHaveClass(/dt-control-surface/);
+  await expect(fontSizeSurface).toHaveClass(/dt-control-surface/);
+  await expect(fontSize.locator('[data-test="raw-input"]')).toHaveClass(/dt-text-input--embedded/);
+  await expect(fontSizeSurface).toHaveCSS("padding-left", "8px");
+  expect(await spacingSurface.evaluate((element) => getComputedStyle(element).backgroundColor))
+    .toBe(await fontSizeSurface.evaluate((element) => getComputedStyle(element).backgroundColor));
+});
+
 test("dev: color suggestions exclude unrelated tokens from the editor picker", async ({ page }) => {
   await page.goto("/");
   await page.click("text=Save");

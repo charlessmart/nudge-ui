@@ -22,6 +22,7 @@ import { getStateStyleValue } from "../stateValue.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 
 const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
@@ -254,21 +255,22 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
 
   function renderTokenField(property: string, presets: string[]): ReactElement {
     return (
-      <TokenField
-        property={property}
-        tokenRow={tokenRows.find((row) => row.property === property) ?? null}
-        initialValue={meaningfulLayoutValue(el, property)}
-        domElement={el}
-        entries={entries}
-        suggestions={presets}
-        className={property === "width" || property === "height" ? "dt-layout__size-field--icon" : undefined}
-        leading={property === "width"
-          ? <IconLetterW size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
-          : property === "height"
-            ? <IconLetterH size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
-            : undefined}
-        onAfterEdit={onAfterEdit}
-      />
+      <ControlSurface className={property === "width" || property === "height" ? "dt-layout__size-field--icon" : undefined}>
+        <TokenField
+          property={property}
+          tokenRow={tokenRows.find((row) => row.property === property) ?? null}
+          initialValue={meaningfulLayoutValue(el, property)}
+          domElement={el}
+          entries={entries}
+          suggestions={presets}
+          leading={property === "width"
+            ? <IconLetterW size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+            : property === "height"
+              ? <IconLetterH size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+              : undefined}
+          onAfterEdit={onAfterEdit}
+        />
+      </ControlSurface>
     );
   }
 
@@ -406,13 +408,14 @@ function FlexGapField({ property, domElement, revision = 0, onAfterEdit }: FlexG
       presets={GAP_PRESETS}
       domElement={domElement}
       inputOnly
+      appearance="embedded"
       revision={revision}
       onAfterEdit={onAfterEdit}
     />
   );
 
   return (
-    <div className="dt-layout__spacing-field">
+    <ControlSurface className="dt-layout__spacing-field">
       {property === "column-gap" ? (
         <IconSpacingHorizontal
           className="dt-layout__spacing-icon"
@@ -431,7 +434,7 @@ function FlexGapField({ property, domElement, revision = 0, onAfterEdit }: FlexG
         />
       )}
       {field}
-    </div>
+    </ControlSurface>
   );
 }
 

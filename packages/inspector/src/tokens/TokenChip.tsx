@@ -1,0 +1,58 @@
+import type { HTMLAttributes, ReactElement } from "react";
+
+export type TokenChipSize = "default" | "small";
+
+export interface TokenChipProps extends HTMLAttributes<HTMLSpanElement> {
+  size?: TokenChipSize;
+  "data-test"?: string;
+  "data-group"?: string;
+}
+
+interface TokenChipSlotProps extends HTMLAttributes<HTMLSpanElement> {
+  "data-test"?: string;
+}
+
+function TokenChipRoot({ size = "default", className, children, ...props }: TokenChipProps): ReactElement {
+  return (
+    <span
+      {...props}
+      className={`dt-token-chip dt-token-chip--${size}${className ? ` ${className}` : ""}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function TokenChipPicker({ className, children, ...props }: TokenChipSlotProps): ReactElement {
+  return (
+    <span {...props} className={`dt-token-chip__picker${className ? ` ${className}` : ""}`}>
+      {children}
+    </span>
+  );
+}
+
+function TokenChipLabel({ className, children, ...props }: TokenChipSlotProps): ReactElement {
+  return (
+    <span {...props} className={`dt-token-chip__label${className ? ` ${className}` : ""}`}>
+      {children}
+    </span>
+  );
+}
+
+function TokenChipAction({ className, children, ...props }: TokenChipSlotProps): ReactElement {
+  return (
+    <span {...props} className={`dt-token-chip__action${className ? ` ${className}` : ""}`}>
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Layout for a token's selected value. Callers compose the picker and actions
+ * so their interaction semantics remain independent of the chip's visuals.
+ */
+export const TokenChip = Object.assign(TokenChipRoot, {
+  Picker: TokenChipPicker,
+  Label: TokenChipLabel,
+  Action: TokenChipAction,
+});

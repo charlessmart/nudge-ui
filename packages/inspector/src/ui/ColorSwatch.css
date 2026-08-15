@@ -1,17 +1,9 @@
 .dt-color-swatch {
   display: inline-block;
   flex-shrink: 0;
-  width: var(--dt-control-height-small);
-  height: var(--dt-control-height-small);
+  width: var(--dt-icon-size-large);
+  height: var(--dt-icon-size-large);
   background: var(--dt-swatch-color);
-  border: 2px solid #ffffff;
-  border-radius: var(--dt-radius-control);
+  border-radius: calc(var(--dt-radius-control) - 4px);
   box-shadow: 0 0 0 1px var(--dt-border-subtle);
-}
-
-.dt-color-swatch--small {
-  width: 18px;
-  height: 18px;
-  border-width: 2px;
-  border-radius: 6px;
 }

@@ -24,6 +24,7 @@ import { ToggleButton } from "../ui/ToggleButton.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
+import { ControlSurface } from "../ui/ControlSurface.tsx";
 
 const BORDER_STYLES = ["none", "hidden", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"];
 const INVISIBLE_BORDER_STYLES = new Set(["none", "hidden"]);
@@ -295,22 +296,26 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const sideRows = SIDE_NAMES.map((side, index) => ({
     side,
     color: (
-      <TokenField
-        property={borderColorProperties[index]!}
-        tokenRow={findTokenRow(tokenRows, borderColorProperties[index]!)}
-        domElement={el}
-        entries={allEntries}
-        onAfterEdit={onAfterEdit}
-      />
+      <ControlSurface>
+        <TokenField
+          property={borderColorProperties[index]!}
+          tokenRow={findTokenRow(tokenRows, borderColorProperties[index]!)}
+          domElement={el}
+          entries={allEntries}
+          onAfterEdit={onAfterEdit}
+        />
+      </ControlSurface>
     ),
     width: (
-      <TokenField
-        property={borderWidthProperties[index]!}
-        tokenRow={findTokenRow(tokenRows, borderWidthProperties[index]!)}
-        domElement={el}
-        entries={allEntries}
-        onAfterEdit={onAfterEdit}
-      />
+      <ControlSurface>
+        <TokenField
+          property={borderWidthProperties[index]!}
+          tokenRow={findTokenRow(tokenRows, borderWidthProperties[index]!)}
+          domElement={el}
+          entries={allEntries}
+          onAfterEdit={onAfterEdit}
+        />
+      </ControlSurface>
     ),
     style: (
       <BorderStyleSettingsMenu
@@ -353,35 +358,41 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
         <div className="dt-border" data-expanded={borderLinked ? "false" : "true"}>
           {rawBorderFallback ? (
             <FieldRow label="Border">
-              <TokenField
-                property="border"
-                tokenRow={borderRow}
-                domElement={el}
-                entries={allEntries}
-                onAfterEdit={onAfterEdit}
-              />
+              <ControlSurface>
+                <TokenField
+                  property="border"
+                  tokenRow={borderRow}
+                  domElement={el}
+                  entries={allEntries}
+                  onAfterEdit={onAfterEdit}
+                />
+              </ControlSurface>
             </FieldRow>
           ) : borderLinked ? (
             <div className="dt-border__linked-row">
               {showWidthAndColor ? (
                 <>
                   <div className="dt-border__linked-control dt-border__linked-control--color">
-                    <TokenField
-                      property="border-color"
-                      tokenRow={linkedTokenRow(tokenRows, "border-color", borderColorProperties)}
-                      domElement={el}
-                      entries={allEntries}
-                      onAfterEdit={onAfterEdit}
-                    />
+                    <ControlSurface>
+                      <TokenField
+                        property="border-color"
+                        tokenRow={linkedTokenRow(tokenRows, "border-color", borderColorProperties)}
+                        domElement={el}
+                        entries={allEntries}
+                        onAfterEdit={onAfterEdit}
+                      />
+                    </ControlSurface>
                   </div>
                   <div className="dt-border__linked-control dt-border__linked-control--width">
-                    <TokenField
-                      property="border-width"
-                      tokenRow={linkedTokenRow(tokenRows, "border-width", borderWidthProperties)}
-                      domElement={el}
-                      entries={allEntries}
-                      onAfterEdit={onAfterEdit}
-                    />
+                    <ControlSurface>
+                      <TokenField
+                        property="border-width"
+                        tokenRow={linkedTokenRow(tokenRows, "border-width", borderWidthProperties)}
+                        domElement={el}
+                        entries={allEntries}
+                        onAfterEdit={onAfterEdit}
+                      />
+                    </ControlSurface>
                   </div>
                 </>
               ) : null}
