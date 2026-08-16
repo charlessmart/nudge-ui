@@ -50,6 +50,45 @@ const VERTICAL_LR: Directionality = { direction: "ltr", writingMode: "vertical-l
 const SIDEWAYS_RL: Directionality = { direction: "ltr", writingMode: "sideways-rl" };
 const SIDEWAYS_LR: Directionality = { direction: "ltr", writingMode: "sideways-lr" };
 
+describe("interpretStructuredValue — element opacity", () => {
+  it("normalizes a numeric authored opacity into an editable percentage", () => {
+    const field = interpretStructuredValue("opacity", "0.6", ctx(table([])))[0]!;
+
+    expect(field).toMatchObject({
+      property: "opacity",
+      resolvedValue: "0.6",
+      capability: "atomic",
+      propertyOpacity: {
+        value: "60%",
+        authoredValue: "0.6",
+        tokenName: null,
+        editable: true,
+      },
+    });
+  });
+
+  it("preserves the token reference while exposing the resolved percentage", () => {
+    const field = interpretStructuredValue("opacity", "var(--opacity-muted)", ctx(table([
+      entry("--opacity-muted", "0.35"),
+    ])))[0]!;
+
+    expect(field.propertyOpacity).toMatchObject({
+      value: "35%",
+      tokenName: "--opacity-muted",
+      token: { name: "--opacity-muted" },
+      editable: true,
+    });
+    expect(field.tokens).toEqual([{ name: "--opacity-muted", origin: "project" }]);
+  });
+
+  it("does not claim a calculated opacity can be rewritten losslessly", () => {
+    const field = interpretStructuredValue("opacity", "calc(1 / 2)", ctx(table([])))[0]!;
+
+    expect(field.propertyOpacity).toBeUndefined();
+    expect(field.capability).toBe("raw");
+  });
+});
+
 describe("interpretStructuredValue — box/spacing expansion", () => {
   it.each([
     ["8px", ["8px", "8px", "8px", "8px"]],

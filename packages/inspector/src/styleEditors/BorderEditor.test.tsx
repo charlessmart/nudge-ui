@@ -526,7 +526,7 @@ describe("BorderEditor", () => {
       (handle.host.querySelector('[data-test="border-radius-expand"]') as HTMLButtonElement).click();
     });
 
-    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-radius"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="border-radius"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-left-radius"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-right-radius"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-bottom-right-radius"]')).not.toBeNull();
@@ -535,6 +535,33 @@ describe("BorderEditor", () => {
     expect(handle.host.querySelector('[data-side="right"] svg')?.classList.contains("tabler-icon-radius-top-right")).toBe(true);
     expect(handle.host.querySelector('[data-side="bottom"] svg')?.classList.contains("tabler-icon-radius-bottom-right")).toBe(true);
     expect(handle.host.querySelector('[data-side="left"] svg')?.classList.contains("tabler-icon-radius-bottom-left")).toBe(true);
+  });
+
+  it("shows Mix in the grouped field when corner values differ", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle(defaultComputed());
+    const radiusValues = [
+      ["border-top-left-radius", "4px"],
+      ["border-top-right-radius", "8px"],
+      ["border-bottom-right-radius", "12px"],
+      ["border-bottom-left-radius", "16px"],
+    ] as const;
+    const radiusRows: ResolvedProperty[] = radiusValues.map(([property, value]) => ({
+      property,
+      tokenName: null,
+      declaredValue: value,
+      authored: value,
+      resolvedValue: value,
+      capability: "atomic",
+      confidence: "unknown",
+      evidence: { reason: "test fixture" },
+    }));
+    handle = mount(createElement(BorderRadiusEditor, { element: selected, entries: ENTRIES, tokenRows: radiusRows }));
+
+    const groupedInput = handle.host.querySelector('[data-test="token-field"][data-property="border-radius"] [data-test="raw-input"]') as HTMLInputElement;
+    expect(groupedInput.value).toBe("Mix");
+    expect(handle.host.querySelector('[data-test="border-radius-editor"]')?.getAttribute("data-expanded")).toBe("true");
+    expect(handle.host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
   });
 
   it("writes per-corner border-radius from expanded state", () => {

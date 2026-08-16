@@ -23,7 +23,8 @@ export type TokenSemanticSlot =
   | "font-weight"
   | "line-height"
   | "letter-spacing"
-  | "shadow";
+  | "shadow"
+  | "opacity";
 
 /** Presentation category for token pickers and catalog rows. */
 export type TokenGroup = "color" | "spacing" | "radius" | "typography" | "shadow" | "generic";
@@ -142,6 +143,7 @@ const SLOT_PROPERTIES: Record<TokenSemanticSlot, string> = {
   "line-height": "line-height",
   "letter-spacing": "letter-spacing",
   shadow: "box-shadow",
+  opacity: "opacity",
 };
 
 function normaliseProperty(property: string): string {
@@ -157,6 +159,7 @@ export function semanticSlotForProperty(property: string): TokenSemanticSlot | n
   const normalized = normaliseProperty(property);
   if (COLOR_PROPERTIES.has(normalized) || /(^|-)color$/.test(normalized)) return "color";
   if (normalized === "box-shadow") return "shadow";
+  if (normalized === "opacity") return "opacity";
   if (normalized === "border-radius" || normalized.endsWith("-radius")) return "radius";
   if (normalized === "font-family") return "font-family";
   if (normalized === "font-size") return "font-size";
@@ -263,6 +266,10 @@ function isColor(value: string): boolean {
   return /^(?:#(?:[\da-f]{3,8})|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(|transparent|currentcolor)$/i.test(value.trim());
 }
 
+function isOpacity(value: string): boolean {
+  return /^[+-]?(?:\d+\.?\d*|\.\d+)(?:%)?$/.test(value.trim());
+}
+
 /**
  * Modern browsers provide CSS.supports. The small fallback keeps non-browser
  * unit environments conservative and never treats a var() expression as a
@@ -272,6 +279,7 @@ function fallbackSupports(property: string, value: string): boolean {
   const normalized = normaliseProperty(property);
   if (COLOR_PROPERTIES.has(normalized) || /(^|-)color$/.test(normalized)) return isColor(value);
   if (normalized === "border-radius") return isLength(value);
+  if (normalized === "opacity") return isOpacity(value);
   if (normalized === "box-shadow") return /(?:\d(?:px|rem|em)|\bnone\b)/i.test(value);
   if (normalized === "font-size" || normalized === "line-height" || normalized === "letter-spacing") return isLength(value);
   if (normalized === "font-weight") return /^(?:normal|bold|[1-9]00)$/i.test(value.trim());

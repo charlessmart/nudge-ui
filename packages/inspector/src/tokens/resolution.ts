@@ -18,6 +18,7 @@ import type {
   ColorValueFacts,
   EditCapability,
   MatchedRule,
+  OpacityValue,
   ResolvedProperty,
   StyleDeclaration,
   TokenReference,
@@ -26,6 +27,7 @@ import type {
 } from "@design-tool/css/model";
 import {
   interpretValue,
+  normalizeOpacityPercent,
   type Directionality,
   type InterpretedValueField,
 } from "@design-tool/css/value-semantics";
@@ -313,6 +315,7 @@ interface ResolvedDeclaration {
   important?: boolean;
   tokens: TokenReference[];
   opacity?: ColorOpacity;
+  propertyOpacity?: OpacityValue;
   color?: ColorValueFacts;
   modifiers: ValueModifier[];
   capability: EditCapability;
@@ -348,6 +351,7 @@ function resolveDeclaration(
     important: declaration.important,
     tokens: field.tokens,
     opacity: field.opacity,
+    propertyOpacity: field.propertyOpacity,
     color: field.color,
     modifiers: field.modifiers,
     capability: field.capability,
@@ -355,6 +359,26 @@ function resolveDeclaration(
     ...(field.structure ? { structure: field.structure } : {}),
     ...(field.diagnostic ? { diagnostic: field.diagnostic } : {}),
   }));
+}
+
+function hydratePropertyOpacity(row: ResolvedProperty, computedValue: string): void {
+  if (row.property.toLowerCase() !== "opacity") return;
+  const value = normalizeOpacityPercent(computedValue);
+  if (value === null) return;
+  const existing = row.propertyOpacity;
+  const token = existing?.token
+    ?? (row.tokenName ? row.tokens?.find((reference) => reference.name === row.tokenName) : undefined);
+  row.propertyOpacity = {
+    value,
+    authoredValue: existing?.authoredValue ?? row.authored ?? row.declaredValue,
+    tokenName: existing?.tokenName ?? row.tokenName,
+    ...(token ? { token } : {}),
+    editable: existing?.editable ?? false,
+  };
+}
+
+function hydratePropertyOpacityRows(rows: ResolvedProperty[], computed: CSSStyleDeclaration): void {
+  for (const row of rows) hydratePropertyOpacity(row, computed.getPropertyValue(row.property));
 }
 
 function capabilityFor(property: string, value: string, tokenTable: TokenTable): EditCapability {
@@ -883,6 +907,7 @@ function rowsFromMatches(
           computed: "",
           tokens: resolved.tokens,
           opacity: resolved.opacity,
+          propertyOpacity: resolved.propertyOpacity,
           color: resolved.color,
           modifiers: resolved.modifiers,
           capability: resolved.capability,
@@ -1065,6 +1090,7 @@ function resolveInheritedProperties(
         const ancestorVal = ancestorComputed.getPropertyValue(candidate.property).trim();
         const elVal = computed.getPropertyValue(candidate.property).trim();
         if (ancestorVal && ancestorVal === elVal) {
+          hydratePropertyOpacity(candidate, ancestorVal);
           result.push({
             ...candidate,
             resolvedValue: elVal,
@@ -1096,6 +1122,7 @@ export function getResolvedProperties(
     if (cv && !/\b(?:var|calc)\s*\(/.test(cv)) {
       prop.resolvedValue = cv;
       prop.computed = cv;
+      hydratePropertyOpacity(prop, cv);
       const validated = candidateMatchesPainted(el, prop, cv);
       prop.confidence = validated && !inaccessible && !prop.evidence.layer ? "exact" : prop.tokenName ? "probable" : "unknown";
       prop.evidence.inaccessibleStylesheet = inaccessible || undefined;
@@ -1106,6 +1133,7 @@ export function getResolvedProperties(
   }
 
   applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
+  hydratePropertyOpacityRows(result, computed);
   promoteNumericCalcRows(result, tokenTable);
   return resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
 }
@@ -1142,6 +1170,7 @@ function applyInlineDeclarations(
         computed: painted,
         tokens: declaration.tokens,
         opacity: declaration.opacity,
+        propertyOpacity: declaration.propertyOpacity,
         color: declaration.color,
         modifiers: declaration.modifiers,
         capability: declaration.capability,
@@ -1237,6 +1266,7 @@ export function getResolvedPropertiesForState(
     }
   }
   applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
+  hydratePropertyOpacityRows(result, computed);
   promoteNumericCalcRows(result, tokenTable);
   const rows = resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
   registerWithAncestors(el);
@@ -1292,6 +1322,7 @@ export function getResolvedPropertiesStable(
   const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
   const computed = getElementComputedStyle(el);
   applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
+  hydratePropertyOpacityRows(result, computed);
   promoteNumericCalcRows(result, tokenTable);
   const rows = resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
   stableTokenCache.set(el, {

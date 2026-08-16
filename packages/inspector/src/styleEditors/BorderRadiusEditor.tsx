@@ -16,6 +16,8 @@ import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
 import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
+import { completeCssValue } from "./completeCssValue.ts";
+import { valuePolicyFor } from "./valuePolicy.ts";
 
 const BORDER_RADIUS_CORNERS = [
   "border-top-left-radius",
@@ -68,10 +70,11 @@ export interface BorderRadiusEditorProps {
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
   onAfterEdit?: () => void;
+  embedded?: boolean;
 }
 
 export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement {
-  const { element, entries, tokenRows = [], onAfterEdit } = props;
+  const { element, entries, tokenRows = [], onAfterEdit, embedded = false } = props;
   const el = element.domElement;
   const allEntries = entries ?? tokens;
   const dataLinked = cornersAreLinked(tokenRows);
@@ -127,42 +130,85 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
   };
 
   const borderRadiusRow = findTokenRow(tokenRows, "border-radius") ?? linkedTokenRow();
+  const mixed = !dataLinked;
+
+  const groupedControl = (
+    <ControlSurface>
+      <TokenField
+        property="border-radius"
+        tokenRow={mixed ? null : borderRadiusRow}
+        initialValue={mixed ? "Mix" : undefined}
+        displayValue={mixed ? "Mix" : undefined}
+        domElement={el}
+        entries={allEntries}
+        editMetadata={metadataFor(borderRadiusRow)}
+        formatRawValue={(value) => mixed && value.trim().toLowerCase() === "mix"
+          ? ""
+          : completeCssValue(value.trim(), valuePolicyFor("border-radius"))}
+        onAfterEdit={onAfterEdit}
+      />
+    </ControlSurface>
+  );
+
+  const toggleButton = (
+    <ToggleButton
+      className={embedded ? "dt-border-radius-editor__toggle" : undefined}
+      variant="quiet"
+      size="default"
+      data-test={isLinked ? "border-radius-expand" : "border-radius-collapse"}
+      label={isLinked ? "Edit Individual Corners" : "Link All Corners"}
+      title={isLinked ? "Edit Individual Corners" : "Link All Corners"}
+      pressed={!isLinked}
+      onPressedChange={(pressed) => {
+        if (pressed) handleExpand();
+        else handleCollapse();
+      }}
+    >
+      <IconBorderCorners size={"var(--dt-icon-size-small)"} stroke={1.8} aria-hidden="true" />
+    </ToggleButton>
+  );
+
+  const individuals = !isLinked ? (
+    <div className="dt-border-radius-editor__individuals">
+      <SideControls label="Border Radius Corners" sides={cornerSides} />
+    </div>
+  ) : null;
+
+  if (embedded) {
+    return (
+      <div
+        className="dt-border-radius-editor dt-border-radius-editor--embedded"
+        data-test="border-radius-editor"
+        data-expanded={!isLinked ? "true" : "false"}
+      >
+        <div className="dt-border-radius-editor__main">
+          <div className="dt-appearance__field-header">
+            <div className="dt-appearance__field-label">Corner Radius</div>
+          </div>
+          {groupedControl}
+        </div>
+        {toggleButton}
+        {individuals}
+      </div>
+    );
+  }
 
   return (
-    <div className="dt-editor dt-border-radius-editor" data-test="border-radius-editor">
-      <div className="dt-editor__title-row">
-        <div className="dt-editor__title">Border Radius</div>
-        <ToggleButton
-          variant="quiet"
-          size="default"
-          data-test={isLinked ? "border-radius-expand" : "border-radius-collapse"}
-          label={isLinked ? "Edit Individual Corners" : "Link All Corners"}
-          title={isLinked ? "Edit Individual Corners" : "Link All Corners"}
-          pressed={!isLinked}
-          onPressedChange={(pressed) => {
-            if (pressed) handleExpand();
-            else handleCollapse();
-          }}
-        >
-          <IconBorderCorners size={"var(--dt-icon-size-small)"} stroke={1.8} aria-hidden="true" />
-        </ToggleButton>
-      </div>
-      {isLinked ? (
-        <div className="dt-border-radius__linked-row">
-          <ControlSurface>
-            <TokenField
-              property="border-radius"
-              tokenRow={borderRadiusRow}
-              domElement={el}
-              entries={allEntries}
-              editMetadata={metadataFor(borderRadiusRow)}
-              onAfterEdit={onAfterEdit}
-            />
-          </ControlSurface>
+    <div
+      className="dt-editor dt-border-radius-editor"
+      data-test="border-radius-editor"
+      data-expanded={!isLinked ? "true" : "false"}
+    >
+      <div className="dt-border-radius-editor__main">
+        <div className="dt-editor__title-row">
+          <div className="dt-editor__title">Border Radius</div>
         </div>
-      ) : (
-        <SideControls label="Border Radius Corners" sides={cornerSides} />
-      )}
+        <div className="dt-border-radius__grouped-row">
+          {groupedControl}
+          {toggleButton}
+        </div>
+      </div>
+      {individuals}
     </div>
   );
 }

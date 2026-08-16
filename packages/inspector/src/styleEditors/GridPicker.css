@@ -50,8 +50,8 @@
   align-items: center;
   justify-content: center;
   color: var(--dt-text-primary);
-  font-size: 16px;
-  font-weight: 700;
+  font-size: var(--dt-font-size-base);
+  font-weight: var(--dt-font-weight-label);
   letter-spacing: -0.04em;
   pointer-events: none;
 }

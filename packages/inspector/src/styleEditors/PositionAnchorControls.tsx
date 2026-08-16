@@ -72,7 +72,7 @@ export function PositionAnchorControls({
       data-anchor-horizontal={horizontalAnchor}
       data-anchor-vertical={verticalAnchor}
     >
-      <div className="dt-layout__group-title">Position</div>
+      <div className="dt-editor__title">Position</div>
       <AxisAnchorRow
         axis="horizontal"
         current={shownHorizontal}

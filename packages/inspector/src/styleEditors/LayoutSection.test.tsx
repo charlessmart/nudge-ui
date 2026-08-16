@@ -53,9 +53,14 @@ describe("LayoutSection", () => {
     handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-flex-container"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-flex-container"] > .dt-editor__title')?.textContent)
+      .toBe("Flex");
+    expect(handle.host.querySelector('[data-test="layout-flex-container"] > .dt-layout__group-title')).toBeNull();
     expect(handle.host.querySelector('[data-test="layout-direction-row"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-direction-column"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]')?.className)
+      .toContain("dt-icon-button--secondary");
     expect(handle.host.querySelector('[data-test="layout-flex-settings"]')).toBeTruthy();
     expect(handle.host.querySelectorAll('[data-test^="layout-align-"]')).toHaveLength(9);
     expect(handle.host.querySelector('[data-test="layout-align-center-center"]')?.className)
@@ -64,6 +69,8 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-select-align-items"]')).toBeFalsy();
     expect(handle.host.querySelector('[data-test="layout-flex-distribution"]')?.getAttribute("aria-label"))
       .toBe("Item distribution");
+    expect(handle.host.querySelector('[data-test="layout-flex-distribution"]')?.className)
+      .toContain("dt-icon-button--quiet");
     expect(handle.host.querySelector('[data-test="layout-flex-stretch-toggle"]')).toBeFalsy();
     expect(handle.host.querySelector('[data-test="layout-gap"]')?.textContent).not.toContain("Spacing");
     expect(handle.host.querySelector('[data-test="layout-gap"]')?.textContent).not.toContain("Items");

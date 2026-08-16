@@ -39,6 +39,12 @@ describe("SpacingBox", () => {
   }
 
   function showIndividualSides(property: "padding" | "margin"): void {
+    const field = handle.host.querySelector(`[data-test="spacing-${property}"]`) as HTMLElement;
+    if (field.getAttribute("data-empty") === "true") {
+      act(() => {
+        (field.querySelector('[data-test="add-value"]') as HTMLButtonElement).click();
+      });
+    }
     act(() => {
       (handle.host.querySelector(`[data-test="spacing-${property}"] [data-test="individual-sides"]`) as HTMLButtonElement).click();
     });
@@ -75,6 +81,10 @@ describe("SpacingBox", () => {
     expect(paddingVerticalIcon.querySelector("rect")?.getAttribute("transform")).toBe("rotate(90 21 3)");
 
     const margin = handle.host.querySelector('[data-test="spacing-margin"]') as HTMLElement;
+    expect(margin.getAttribute("data-empty")).toBe("true");
+    act(() => {
+      (margin.querySelector('[data-test="add-value"]') as HTMLButtonElement).click();
+    });
     const marginHorizontalIcon = margin.querySelector('[data-test="pair-value-horizontal"] svg') as SVGSVGElement;
     expect(marginHorizontalIcon.querySelector("rect")?.getAttribute("x")).toBe("6");
     expect(marginHorizontalIcon.querySelector("rect")?.getAttribute("height")).toBe("14");
@@ -180,7 +190,7 @@ describe("SpacingBox", () => {
     expect(rawInput("padding-left").value).toBe("8px");
   });
 
-  it("renders margin TokenFields for zero values", () => {
+  it("shows an add state for zero margin values", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "padding-top": "0px",
@@ -193,7 +203,13 @@ describe("SpacingBox", () => {
       "margin-left": "0px",
     });
     handle = mount(createElement(SpacingBox, { element: selected }));
-    expect(handle.host.querySelector('[data-test="spacing-margin"][data-expanded="false"]')).toBeTruthy();
+    const margin = handle.host.querySelector('[data-test="spacing-margin"][data-empty="true"]') as HTMLElement;
+    expect(margin).toBeTruthy();
+    expect(margin.querySelector('[data-test="add-value"]')).toBeTruthy();
+    act(() => {
+      (margin.querySelector('[data-test="add-value"]') as HTMLButtonElement).click();
+    });
+    expect(margin.getAttribute("data-expanded")).toBe("false");
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-horizontal"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="margin-vertical"]')).toBeTruthy();
     act(() => {

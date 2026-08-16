@@ -5,19 +5,10 @@
   background: var(--dt-surface-panel);
 }
 
-.dt-layout__group-title {
-  margin-bottom: 6px;
-  color: var(--dt-text-primary);
-  font-size: var(--dt-font-size-base);
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  text-transform: none;
-}
-
 .dt-layout__basic {
   display: flex;
   flex-direction: column;
-  gap: var(--dt-space-8);
+  gap: var(--dt-space-12);
 }
 
 .dt-layout__tool-row {
@@ -181,11 +172,6 @@
 .dt-layout__grid-picker-column,
 .dt-layout__grid-gap {
   min-width: 0;
-}
-
-.dt-layout__grid-picker-column .dt-layout__group-title,
-.dt-layout__grid-gap .dt-layout__group-title {
-  margin-bottom: 5px;
 }
 
 .dt-layout__grid-gap-fields {

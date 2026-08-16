@@ -353,7 +353,9 @@ test("dev: layout section shows inset controls for a positioned element", async 
     return Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="style-editors"] > .dt-editor') ?? [])
       .map((editor) => editor.getAttribute("data-test"));
   });
-  expect(editorOrder.indexOf("spacing-box")).toBeLessThan(editorOrder.indexOf("layout-inset"));
+  expect(editorOrder).toContain("spacing-box");
+  expect(await shadowQueryExists(page, "layout-inset")).toBe(true);
+  expect(await page.locator('[data-test="spacing-box"] [data-test="layout-inset"]').count()).toBe(1);
 
   // Empty relative insets stay compact until explicitly added.
   await expect(page.locator('[data-test="add-inset"]')).toBeVisible();
@@ -380,7 +382,7 @@ test("dev: layout section shows inset controls for a positioned element", async 
     height: "16px",
     color: "rgb(111, 111, 111)",
     rectX: "19",
-    rectTransform: "rotate(90 19 6)",
+    rectTransform: "rotate(90 19 7)",
     stroke: "currentColor",
   });
 

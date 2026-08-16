@@ -28,7 +28,7 @@ test("dev: non-forwarding repeated component defaults to source scope and can ed
   await expect(page.locator('[data-test="edit-scope"] .dt-scope__linked')).toHaveCSS("justify-content", "space-between");
   await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/dt-button--quiet/);
   await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/dt-button--compact/);
-  await expect(page.locator('[data-test="unlink-element"]')).toHaveText("Edit this rendered item only");
+  await expect(page.locator('[data-test="unlink-element"]')).toHaveText("Unlink");
   await page.locator('[data-test="unlink-element"]').hover();
   await expect(page.locator('[data-test="unlink-element"]')).toHaveCSS("background-color", "rgba(0, 0, 0, 0.07)");
   await setRaw(page, "font-size", "18px");

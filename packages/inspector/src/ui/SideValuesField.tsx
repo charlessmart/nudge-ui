@@ -36,6 +36,8 @@ export interface SideValuesFieldProps {
   showLabel?: boolean;
   empty?: boolean;
   onAdd?: () => void;
+  emptyAction?: ReactNode;
+  headerAction?: ReactNode;
   resetKey?: unknown;
   onLinkedChange?: (linked: boolean) => void;
   onExpandedChange?: (expanded: boolean) => void;
@@ -62,6 +64,8 @@ export function SideValuesField({
   showLabel = true,
   empty = false,
   onAdd,
+  emptyAction,
+  headerAction,
   resetKey,
   onLinkedChange,
   onExpandedChange,
@@ -119,16 +123,18 @@ export function SideValuesField({
       {empty ? (
         <div className="dt-side-values__header">
           <span className="dt-side-values__label">{displayLabel}</span>
-          <IconButton
-            variant="quiet"
-            size="default"
-            data-test="add-value"
-            label={`Add ${labelText}`}
-            title={`Add ${labelText}`}
-            onClick={onAdd}
-          >
-            <IconPlus size={16} stroke={1.8} aria-hidden="true" />
-          </IconButton>
+          {emptyAction ?? (
+            <IconButton
+              variant="quiet"
+              size="default"
+              data-test="add-value"
+              label={`Add ${labelText}`}
+              title={`Add ${labelText}`}
+              onClick={onAdd}
+            >
+              <IconPlus size={16} stroke={1.8} aria-hidden="true" />
+            </IconButton>
+          )}
         </div>
       ) : hasPairedControls ? (
         <>
@@ -197,19 +203,21 @@ export function SideValuesField({
         <>
           <div className="dt-side-values__header">
             <span className="dt-side-values__label">{displayLabel}</span>
-            <ToggleButton
-              variant="quiet"
-              size="default"
-              data-test="individual-sides"
-              label={`Link ${labelText} Sides`}
-              title={`Link ${labelText} Sides`}
-              pressed={!isLinked}
-              onPressedChange={(pressed) => {
-                if (pressed !== !isLinked) toggleLinked();
-              }}
-            >
-              <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-            </ToggleButton>
+            {headerAction ?? (
+              <ToggleButton
+                variant="quiet"
+                size="default"
+                data-test="individual-sides"
+                label={`Link ${labelText} Sides`}
+                title={`Link ${labelText} Sides`}
+                pressed={!isLinked}
+                onPressedChange={(pressed) => {
+                  if (pressed !== !isLinked) toggleLinked();
+                }}
+              >
+                <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
+              </ToggleButton>
+            )}
           </div>
           <SideControls label={label} sides={sides} />
         </>

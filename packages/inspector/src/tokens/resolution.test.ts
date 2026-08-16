@@ -1001,6 +1001,26 @@ describe("resolveRuleFixture", () => {
     expect(rows).toEqual([expect.objectContaining({ property: "font", authored: "menu", capability: "raw" })]);
   });
 
+  it("projects generic opacity with both its effective value and token provenance", () => {
+    const rows = resolveRuleFixture(btn, [{
+      selectorText: ".btn",
+      specificity: 10000,
+      declarations: [{ property: "opacity", value: "var(--opacity-muted)" }],
+    }], makeTable([
+      { name: "--opacity-muted", value: "0.35", source: "s:9" },
+    ]));
+
+    expect(rows.find((row) => row.property === "opacity")).toMatchObject({
+      authored: "var(--opacity-muted)",
+      tokenName: "--opacity-muted",
+      propertyOpacity: {
+        value: "35%",
+        tokenName: "--opacity-muted",
+        editable: true,
+      },
+    });
+  });
+
   it("collects var() declarations, resolving tokens vs hardcoded values", () => {
     const table = makeTable([
       { name: "--color-surface-raised", value: "#ffffff", source: "s:2" },
