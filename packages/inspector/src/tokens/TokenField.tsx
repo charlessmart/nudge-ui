@@ -37,7 +37,7 @@ export interface TokenValueFieldProps {
   disabled?: boolean;
   formatRawValue?: (value: string) => string;
   onCommitRaw(value: string): void;
-  onSelectToken(token: TokenEntry): unknown;
+  onSelectToken(token: TokenEntry): boolean | void;
   onUnlink(value: string): void;
   attributionTokens?: string[];
   leading?: ReactNode;
@@ -46,7 +46,7 @@ export interface TokenValueFieldProps {
   label?: string;
   opacity?: ColorOpacity;
   color?: ColorValueFacts;
-  onCommitOpacity?(value: string): unknown;
+  onCommitOpacity?(value: string): boolean | void;
   atRules?: readonly AtRuleContext[];
   chipVariant?: "default" | "small";
 }

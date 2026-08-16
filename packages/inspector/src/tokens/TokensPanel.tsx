@@ -121,7 +121,7 @@ function TokenCatalogItem({
               allowedTokenNames={allowed}
               isColor={row.group === "color"}
               onCommitRaw={(value) => setGlobalTokenValue(row, value)}
-              onSelectToken={(token) => setGlobalTokenValue(row, `var(${token.name})`)}
+              onSelectToken={(token) => { setGlobalTokenValue(row, `var(${token.name})`); }}
               onUnlink={(value) => setGlobalTokenValue(row, value)}
             />
           </ControlSurface>

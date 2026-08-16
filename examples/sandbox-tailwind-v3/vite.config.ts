@@ -7,13 +7,15 @@ import { tailwindConfig } from "./tailwind.config.ts";
 export default defineConfig({
   plugins: [
     react(),
+    // SAFETY: designTool returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
     designTool({
       projectId: "sandbox-tailwind-v3",
       tailwindV3: {
-        config: tailwindConfig as unknown as TailwindV3Config,
+        // SAFETY: tailwindConfig is structurally a TailwindV3Config; only the imported type differs across workspace versions.
+        config: tailwindConfig as TailwindV3Config,
         source: "tailwind.config.ts",
       },
-    }) as unknown as PluginOption,
+    }) as PluginOption,
   ],
   server: { port: 5175, strictPort: true, host: "127.0.0.1" },
 });

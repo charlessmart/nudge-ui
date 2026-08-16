@@ -77,19 +77,26 @@ function isScopedThemeTable(rule: Rule): boolean {
     && declarations.every((declaration) => declaration.prop.startsWith("--"));
 }
 
+function isRule(node: PostcssNode): node is Rule {
+  return node.type === "rule";
+}
+
+function isAtRule(node: PostcssNode): node is AtRule {
+  return node.type === "atrule";
+}
+
+
 function nearestGlobalAncestor(decl: Declaration): boolean {
   // Walk up; return true ONLY if we encounter a :root rule or a global at-rule
   // BEFORE encountering any non-:root rule. A non-:root rule (e.g. .button)
   // inside @layer still means the declaration is local, not a global token.
   let cur: PostcssNode | undefined = decl.parent;
   while (cur) {
-    if (cur.type === "rule") {
-      const rule = cur as Rule;
-      return isRootOnlySelector(rule) || isScopedThemeTable(rule);
+    if (isRule(cur)) {
+      return isRootOnlySelector(cur) || isScopedThemeTable(cur);
     }
-    if (cur.type === "atrule") {
-      const atRule = cur as AtRule;
-      if (GLOBAL_TOKEN_AT_RULES.has(atRule.name)) return true;
+    if (isAtRule(cur)) {
+      if (GLOBAL_TOKEN_AT_RULES.has(cur.name)) return true;
     }
     cur = cur.parent;
   }
@@ -105,14 +112,13 @@ function declarationContext(decl: Declaration): TokenContext {
   const wrappers: TokenContextWrapper[] = [];
   let current: PostcssNode | undefined = decl.parent;
   while (current) {
-    if (current.type === "rule" && context.selector === undefined) {
-      context.selector = (current as Rule).selector;
-    } else if (current.type === "atrule") {
-      const at = current as AtRule;
-      if (at.name === "media" || at.name === "supports" || at.name === "scope" || at.name === "layer") {
+    if (isRule(current) && context.selector === undefined) {
+      context.selector = current.selector;
+    } else if (isAtRule(current)) {
+      if (current.name === "media" || current.name === "supports" || current.name === "scope" || current.name === "layer") {
         // Parents are visited inner-to-outer; prepend to preserve the source
         // nesting order and retain repeated/interleaved wrapper kinds.
-        wrappers.unshift({ kind: at.name, params: at.params });
+        wrappers.unshift({ kind: current.name, params: current.params });
       }
     }
     current = current.parent;

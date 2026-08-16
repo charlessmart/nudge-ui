@@ -1,8 +1,9 @@
 import { TYPOGRAPHY_CASES } from "../../../packages/inspector/src/conformance/typographyCases.ts";
 import type { ConformanceFixture } from "../../../packages/inspector/src/conformance/fixture.ts";
 import "./typography-conformance.css";
+import type { StringRecord } from "./stringRecord.ts";
 
-const SPECIMENS: Record<string, string> = {
+const SPECIMENS: StringRecord = {
   "type-direct-literals": "Measured type makes a dense interface feel calm.",
   "type-tokenized-longhands": "A token-backed paragraph keeps its rhythm across surfaces.",
   "type-functional-raw": "Functional values remain editable exactly as they were authored.",

@@ -13,6 +13,13 @@ import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import type { TokenEntry } from "virtual:design-tokens";
+
+declare global {
+  interface Window {
+    MutationObserver: typeof MutationObserver;
+  }
+}
+
 import { useBrowserCssInspection } from "./inspection/useBrowserCssInspection.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { SpacingBox } from "./styleEditors/SpacingBox.tsx";
@@ -88,6 +95,7 @@ function resolveHost(): HTMLElement {
 
 function nodeMatchesSelector(node: Node, selector: string | null): boolean {
   if (!selector || node.nodeType !== node.ELEMENT_NODE) return false;
+  // SAFETY: node.nodeType was checked as ELEMENT_NODE above, so it is an Element.
   const element = node as Element;
   try {
     return element.matches(selector) || element.querySelector(selector) !== null;
@@ -142,9 +150,7 @@ export function InspectorShell(): ReactElement {
     // its own ownerDocument rather than the parent app's document, otherwise
     // removal inside the iframe would never be noticed.
     const ownerRoot = selected.domElement.ownerDocument?.documentElement ?? document.documentElement;
-    const OwnerMutationObserver = (getElementWindow(selected.domElement) as unknown as {
-      MutationObserver: typeof MutationObserver;
-    }).MutationObserver;
+    const OwnerMutationObserver = getElementWindow(selected.domElement).MutationObserver;
     const observer = new OwnerMutationObserver((records) => {
       if (scopeMutationAffectsSelection(records, selected.domElement)) {
         refreshScope((revision) => revision + 1);

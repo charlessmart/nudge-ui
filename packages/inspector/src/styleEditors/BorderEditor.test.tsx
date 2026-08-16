@@ -48,7 +48,7 @@ describe("BorderEditor", () => {
     document.body.innerHTML = "";
   });
 
-  function defaultComputed(): Record<string, string> {
+  function defaultComputed() {
     return {
       "border-top-width": "1px",
       "border-right-width": "1px",

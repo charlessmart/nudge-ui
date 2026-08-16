@@ -5,9 +5,7 @@ import { IconRefresh, IconPlayerPlay, IconCopy, IconArrowsDiagonal } from "@tabl
 import {
   PROTOCOL_VERSION,
   isRendererMessageFor,
-  type FrameLoadError,
-  type FrameMetadataMessage,
-  type FrameReadyMessage,
+  type FrameProtocolMessage,
 } from "./frameProtocol.ts";
 import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -81,12 +79,14 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
         cardId: card.id,
       })) return;
 
-      if (msg.type === "frame-ready") {
-        const ready = msg as FrameReadyMessage;
+      // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
+      const data = msg as FrameProtocolMessage;
+
+      if (data.type === "frame-ready") {
         setLoadState("ready");
         setErrorMessage(null);
-        if (ready.title) updateCardTitle(card.id, ready.title);
-        if (ready.url) updateCardUrl(card.id, ready.url);
+        if (data.title) updateCardTitle(card.id, data.title);
+        if (data.url) updateCardUrl(card.id, data.url);
         if (iframeRef.current) {
           registerCardFrame(card.id, iframeRef.current);
           sendProjectionToCard(card, iframeRef.current);
@@ -94,17 +94,15 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
         return;
       }
 
-      if (msg.type === "frame-metadata") {
-        const meta = msg as FrameMetadataMessage;
-        if (meta.title) updateCardTitle(card.id, meta.title);
-        if (meta.url) updateCardUrl(card.id, meta.url);
+      if (data.type === "frame-metadata") {
+        if (data.title) updateCardTitle(card.id, data.title);
+        if (data.url) updateCardUrl(card.id, data.url);
         return;
       }
 
-      if (msg.type === "frame-error") {
-        const err = msg as FrameLoadError;
+      if (data.type === "frame-error") {
         setLoadState("error");
-        setErrorMessage(err.message || "Frame failed to load");
+        setErrorMessage(data.message || "Frame failed to load");
         return;
       }
     }
@@ -149,6 +147,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
   const dragRef = useRef({ startX: 0, startY: 0, cardX: 0, cardY: 0 });
 
   const handleToolbarPointerDown = useCallback((e: React.PointerEvent) => {
+    // SAFETY: pointer events on the card target are HTMLElements in this DOM context.
     const target = e.target as HTMLElement;
     if (target.closest("button")) return;
 
@@ -166,6 +165,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     };
     setIsDragging(true);
 
+    // SAFETY: pointerdown targets are HTMLElements in the card DOM.
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     function onMove(ev: PointerEvent): void {
@@ -198,6 +198,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     const startWidth = card.width;
     const startHeight = card.height;
 
+    // SAFETY: pointerdown targets are HTMLElements in the card DOM.
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     function onMove(ev: PointerEvent): void {

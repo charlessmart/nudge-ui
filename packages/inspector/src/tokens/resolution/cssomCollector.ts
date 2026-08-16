@@ -317,11 +317,7 @@ function isNestedDeclarations(rule: CSSRule, doc: Document): rule is CSSRule & {
   return !/^\s*@/.test(rule.cssText ?? "") && typeof (rule as { style?: unknown }).style === "object";
 }
 
-export function collectRules(doc: Document): {
-  rules: MatchedRule[];
-  layerOrder: ReadonlyMap<string, number>;
-  inaccessible: boolean;
-} {
+export function collectRules(doc: Document) {
   const revision = stylesheetRevision(doc);
   const cached = ruleSnapshots.get(doc);
   if (cached?.revision === revision) {
@@ -375,7 +371,7 @@ export function collectRules(doc: Document): {
             layerOrder: layer ? layerOrder.get(layer) : undefined,
             atRules: atRules.length > 0 ? atRules : undefined,
           });
-          const nested = (rule as unknown as { cssRules?: CSSRuleList }).cssRules;
+          const nested = (rule as { cssRules?: CSSRuleList }).cssRules;
           if (nested?.length) walkRules(nested, active, layer, atRules, rule.selectorText, source);
         } catch {
           continue;
@@ -399,7 +395,7 @@ export function collectRules(doc: Document): {
         }
       } else if ("cssRules" in rule) {
         try {
-          const record = rule as unknown as {
+          const record = rule as {
             cssRules: CSSRuleList;
             conditionText?: string;
             containerName?: string;

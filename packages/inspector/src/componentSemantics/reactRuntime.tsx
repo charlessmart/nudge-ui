@@ -64,7 +64,7 @@ function isBoundaryType(value: unknown): value is BoundaryType {
 function findFiber(element: HTMLElement): FiberLike | null {
   for (const key of Object.keys(element)) {
     if (/^__reactFiber\$/.test(key) || /^__reactInternalInstance\$/.test(key)) {
-      return (element as unknown as Record<string, FiberLike>)[key] ?? null;
+      return (Reflect.get(element, key) as FiberLike | undefined) ?? null;
     }
   }
   return null;

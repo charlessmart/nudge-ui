@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
   isRendererMessageFor,
-  type ElementClickMessage,
-  type ElementHoverMessage,
-  type ElementMeasureStateMessage,
-  type ElementDeleteMessage,
-  type ElementNudgeMessage,
-  type HistoryRequestMessage,
-  type ElementDragEndMessage,
-  type ElementDragMoveMessage,
-  type ElementDragStartMessage,
+  type FrameProtocolMessage,
 } from "./frameProtocol.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { useBoardCamera, useCanvasCards } from "./canvasStore.ts";
@@ -164,8 +156,11 @@ export function CanvasElementOverlay(): ReactElement | null {
         cardId: sourceCardId,
       })) return;
 
-      if (event.data.type === "element-hover") {
-        const msg = event.data as ElementHoverMessage;
+      // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
+      const data = event.data as FrameProtocolMessage;
+
+      if (data.type === "element-hover") {
+        const msg = data;
         if (!msg.cid) return;
         if (msg.rect === null) {
           setHover((current) => current?.cardId === sourceCardId ? null : current);
@@ -178,29 +173,29 @@ export function CanvasElementOverlay(): ReactElement | null {
           margins: msg.margins ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: sourceCardId,
         });
-      } else if (event.data.type === "element-measure-state") {
-        const msg = event.data as ElementMeasureStateMessage;
+      } else if (data.type === "element-measure-state") {
+        const msg = data;
         setMeasureState({
           iframe: sourceIframe,
           altKey: msg.altKey,
           pointerOverPage: msg.pointerOverPage,
         });
-      } else if (event.data.type === "element-click") {
-        const msg = event.data as ElementClickMessage;
+      } else if (data.type === "element-click") {
+        const msg = data;
         if (!msg.cid) return;
         handleElementClick(msg, sourceIframe, sourceCardId);
-      } else if (event.data.type === "element-drag-start") {
-        const msg = event.data as ElementDragStartMessage;
+      } else if (data.type === "element-drag-start") {
+        const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         if (!element) return;
         dragRef.current = { iframe: sourceIframe, element };
         const selectedElement = resolveSelectionFromElement(element);
         if (selectedElement) setSelectedElement(selectedElement);
         updateDropGuide(msg.point, sourceIframe);
-      } else if (event.data.type === "element-drag-move") {
-        updateDropGuide((event.data as ElementDragMoveMessage).point, sourceIframe);
-      } else if (event.data.type === "element-drag-end") {
-        const msg = event.data as ElementDragEndMessage;
+      } else if (data.type === "element-drag-move") {
+        updateDropGuide(data.point, sourceIframe);
+      } else if (data.type === "element-drag-end") {
+        const msg = data;
         const current = dragRef.current;
         if (current && current.iframe === sourceIframe && sourceIframe.contentDocument) {
           const drop = getDropLocationAtPoint(sourceIframe.contentDocument, current.element, msg.point.x, msg.point.y);
@@ -210,21 +205,21 @@ export function CanvasElementOverlay(): ReactElement | null {
         }
         dragRef.current = null;
         clearDropGuide("canvas");
-      } else if (event.data.type === "element-delete") {
-        const msg = event.data as ElementDeleteMessage;
+      } else if (data.type === "element-delete") {
+        const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         const selectedElement = element ? resolveSelectionFromElement(element) : null;
         if (selectedElement && deleteElement(selectedElement)) setSelectedElement(null);
-      } else if (event.data.type === "element-nudge") {
-        const msg = event.data as ElementNudgeMessage;
+      } else if (data.type === "element-nudge") {
+        const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         const record = element ? nudgeElement(element, msg.key) : null;
         if (element && record) {
           const selectedElement = resolveSelectionFromElement(element);
           if (selectedElement) setSelectedElement(selectedElement);
         }
-      } else if (event.data.type === "history-request") {
-        const msg = event.data as HistoryRequestMessage;
+      } else if (data.type === "history-request") {
+        const msg = data;
         if (msg.action === "redo") {
           if (!redoStructuralChange()) redo();
         } else if (!undoStructuralChange()) {

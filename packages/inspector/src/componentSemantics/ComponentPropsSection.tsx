@@ -65,7 +65,7 @@ export function ComponentPropsSection({ selected }: { selected: SelectedElement 
                 aria-label={`${prop.name} component prop`}
                 data-test="component-prop-boolean"
                 data-property={prop.name}
-                value={String(current) as "false" | "true"}
+                value={current ? "true" : "false"}
                 options={[
                   { value: "false", label: "Off" },
                   { value: "true", label: "On" },

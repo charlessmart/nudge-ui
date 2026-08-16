@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cssImportSpecifiers, discoverCssImportGraph } from "./activeStylesheets.ts";
+import type { FileMap } from "./fileMap.ts";
 
 describe("cssImportSpecifiers", () => {
   it("recognises quoted and url imports but ignores commented-out stylesheets", () => {
@@ -14,7 +15,7 @@ describe("cssImportSpecifiers", () => {
 
 describe("discoverCssImportGraph", () => {
   it("follows only nested CSS imports reachable from host stylesheets", async () => {
-    const files: Record<string, string> = {
+    const files: FileMap = {
       "/app/src/styles.css": '@import "@fixture/theme.css"; :root { --project: 1; }',
       "/app/node_modules/@fixture/theme.css": '@import "./foundation.css"; :root { --color-content-primary: #20211f; }',
       "/app/node_modules/@fixture/foundation.css": ':root { --spacing-200: 8px; }',

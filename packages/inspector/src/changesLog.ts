@@ -42,7 +42,7 @@ const listeners = new Set<() => void>();
  * path (requestIdleCallback, falling back to rAF / a macrotask).
  */
 let pendingVerificationTargets = new Map<string, HTMLElement | null>();
-let verificationHandle: number | null = null;
+let verificationHandle: number | ReturnType<typeof setTimeout> | null = null;
 
 function subscribe(cb: () => void): () => void {
   listeners.add(cb);
@@ -92,6 +92,7 @@ function flushVerification(): void {
     const key = changeKey(change);
     if (!targets.has(key)) continue;
     const verified = verifyManagedStyleProjection(
+      // SAFETY: non-component changes are verified as previewable change records after the isComponentChange guard above.
       change as PreviewableChangeRecord,
       targets.get(key) ?? null,
     );
@@ -111,15 +112,15 @@ function scheduleVerification(): void {
   if (view && typeof view.requestIdleCallback === "function") {
     verificationHandle = view.requestIdleCallback(() => {
       flushVerification();
-    }, { timeout: 200 }) as unknown as number;
+    }, { timeout: 200 }) ;
   } else if (view && typeof view.requestAnimationFrame === "function") {
     verificationHandle = view.requestAnimationFrame(() => {
       flushVerification();
-    }) as unknown as number;
+    }) ;
   } else {
     verificationHandle = setTimeout(() => {
       flushVerification();
-    }, 0) as unknown as number;
+    }, 0) ;
   }
 }
 

@@ -241,7 +241,7 @@ function FontStyleField({ element, fontStyleRow, fontWeightRow, onAfterEdit }: F
   );
 }
 
-function readFontStyle(element: HTMLElement): { weight: string; style: string } {
+function readFontStyle(element: HTMLElement) {
   return {
     weight: normalizeFontWeight(getStateStyleValue(element, "font-weight", "400") || "400"),
     style: getStateStyleValue(element, "font-style", "normal") || "normal",

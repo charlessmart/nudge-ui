@@ -14,6 +14,11 @@ import { materializeVanillaExtractContribution } from "./adapters/vanillaExtract
 const designTool = (...args: Parameters<typeof createDesignToolPlugins>) =>
   createDesignToolPlugins(...args)[0]!;
 
+interface ThemeContractFixture {
+  vars: Record<string, unknown>;
+}
+
+
 function activeModuleGraph(...ids: string[]) {
   return {
     idToModuleMap: new Map(ids.map((id) => [id, { id, importers: new Set([{}]) }])),
@@ -652,7 +657,7 @@ describe("designTool token catalog compiler", () => {
       mkdirSync(packageRoot, { recursive: true });
       writeFileSync(appCss, '@import "@fixture/theme.css";');
       writeFileSync(themeCss, ':root { --color-content-primary: #20211f; --color-content-secondary: #6d6e69; }');
-      let contract: Record<string, unknown> = {
+      let contract: ThemeContractFixture = {
         vars: { color: { content: { primary: "var(--color-content-primary)" } } },
       };
       const virtual = { id: "\0virtual:design-tokens" };
@@ -1225,7 +1230,7 @@ describe("designTool token catalog compiler", () => {
     try {
       mkdirSync(root, { recursive: true });
       writeFileSync(join(root, "app.css"), ':root { --color-content-primary: #20211f; --color-content-secondary: #6d6e69; }');
-      let contract: Record<string, unknown> = {
+      let contract: ThemeContractFixture = {
         vars: { color: { content: { primary: "var(--color-content-primary)" } } },
       };
       let cachedContract = contract;

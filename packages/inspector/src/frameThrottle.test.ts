@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { createFrameThrottle, type FrameScheduler } from "./frameThrottle.ts";
 
-function scheduler(): { scheduler: FrameScheduler; flush(): void; cancelled: number[] } {
+function scheduler() {
   let callback: FrameRequestCallback | null = null;
   const cancelled: number[] = [];
   return {
     scheduler: {
-      request(next): number {
+      request(next: FrameRequestCallback): number {
         callback = next;
         return 1;
       },
-      cancel(handle): void {
+      cancel(handle: number): void {
         cancelled.push(handle);
         callback = null;
       },

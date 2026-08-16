@@ -11,6 +11,7 @@ export function ColorSwatch({ color, className, "data-test": dataTest }: ColorSw
     <span
       className={`dt-color-swatch${className ? ` ${className}` : ""}`}
       data-test={dataTest}
+      // SAFETY: React CSSProperties permits custom properties through index signatures; only --dt-swatch-color is set.
       style={{ "--dt-swatch-color": color || "transparent" } as CSSProperties}
       aria-hidden="true"
     />

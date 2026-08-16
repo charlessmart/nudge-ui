@@ -61,6 +61,7 @@ function parseNumericLiteral(value: string): ParsedNumericLiteral | null {
   if (!match) return null;
   const number = Number(match[1]);
   if (!Number.isFinite(number)) return null;
+  // SAFETY: the regex guarantees match[2] is one of the known CSS unit strings.
   const unit = (match[2] ?? "").toLowerCase() as ParsedNumericLiteral["unit"];
   return { number, unit };
 }

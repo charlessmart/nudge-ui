@@ -8,13 +8,15 @@
  * integration (browser CSS inspection reads direction/writing-mode from the
  * selected element); this module never touches the DOM or CSSOM.
  */
-export const SPACING_SIDES: Record<string, readonly string[]> = {
+import type { StringArrayMap } from "./stringMaps.ts";
+
+export const SPACING_SIDES: StringArrayMap = {
   margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
   inset: ["top", "right", "bottom", "left"],
 };
 
-export const BORDER_RADIUS_CORNERS: Record<string, readonly string[]> = {
+export const BORDER_RADIUS_CORNERS: StringArrayMap = {
   "border-radius": [
     "border-top-left-radius",
     "border-top-right-radius",

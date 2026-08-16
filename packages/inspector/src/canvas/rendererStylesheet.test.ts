@@ -107,7 +107,7 @@ describe("validateReplaceStyles", () => {
 
   it("rejects missing revision", () => {
     const msg = { ...makeMsg() };
-    delete (msg as Record<string, unknown>).revision;
+    delete (msg as Partial<ReplaceStylesMessage>).revision;
     const result = validateReplaceStyles(msg as unknown as ReplaceStylesMessage, TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID);
     expect(result.valid).toBe(false);
     if (!result.valid) expect(result.reason).toBe("revision is not a non-negative safe integer");
@@ -127,7 +127,7 @@ describe("validateReplaceStyles", () => {
 
   it("rejects missing css", () => {
     const msg = { ...makeMsg() };
-    delete (msg as Record<string, unknown>).css;
+    delete (msg as Partial<ReplaceStylesMessage>).css;
     const result = validateReplaceStyles(msg as unknown as ReplaceStylesMessage, TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID);
     expect(result.valid).toBe(false);
     if (!result.valid) expect(result.reason).toBe("css is not a string");

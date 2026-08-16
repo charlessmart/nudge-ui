@@ -12,6 +12,7 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
       && e.target instanceof Element
       && e.target.closest("a[data-design-tool-navigation]")
     ) return;
+    // SAFETY: resolveSelectionFromEvent returns SelectedElement when the event passes the navigation guard above.
     const sel = resolveSelectionFromEvent(e, inspectorHost) as SelectedElement | null;
     if (sel) {
       e.preventDefault();

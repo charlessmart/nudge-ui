@@ -5,9 +5,9 @@ import { RepeatedItem } from "./RepeatedItem";
 import { tokenCatalog, tokenDiagnostics, tokens } from "virtual:design-tokens";
 
 if (import.meta.env.DEV && typeof window !== "undefined") {
-  (window as unknown as { __designTokens?: unknown }).__designTokens = tokens;
-  (window as unknown as { __designTokenCatalog?: unknown }).__designTokenCatalog = tokenCatalog;
-  (window as unknown as { __designTokenDiagnostics?: unknown }).__designTokenDiagnostics = tokenDiagnostics;
+  window.__designTokens = tokens;
+  window.__designTokenCatalog = tokenCatalog;
+  window.__designTokenDiagnostics = tokenDiagnostics;
 }
 
 const featureList = [
@@ -129,10 +129,10 @@ export function App() {
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    (window as unknown as { __designToolRerender?: () => void }).__designToolRerender = () =>
+    window.__designToolRerender = () =>
       setClicks((c) => c + 1);
     return () => {
-      delete (window as unknown as { __designToolRerender?: () => void }).__designToolRerender;
+      delete window.__designToolRerender;
     };
   }, []);
 

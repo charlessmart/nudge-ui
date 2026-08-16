@@ -25,12 +25,7 @@ function rulesKey(css: string, overrides: ReturnType<typeof collectRenderedInsta
   return `${css}\u0000${JSON.stringify(overrides)}\u0000${JSON.stringify(getStructuralChanges())}`;
 }
 
-export function computeProjection(): {
-  css: string;
-  revision: number;
-  instanceOverrides: ReturnType<typeof collectRenderedInstanceOverrides>;
-  structuralChanges: ReturnType<typeof getStructuralChanges>;
-} {
+export function computeProjection() {
   const structuralChanges = getStructuralChanges();
   applyStructuralProjection(document, structuralChanges);
   const overrides = collectRenderedInstanceOverrides(getChangesListForProjection());

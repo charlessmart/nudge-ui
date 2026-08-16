@@ -26,7 +26,7 @@ function findReactFiber(el: HTMLElement): unknown {
   const keys = Object.keys(el);
   for (const key of keys) {
     if (REACT_FIBER_KEY.test(key) || REACT_INTERNAL_KEY.test(key)) {
-      return (el as unknown as Record<string, unknown>)[key];
+      return Reflect.get(el, key);
     }
   }
   return undefined;

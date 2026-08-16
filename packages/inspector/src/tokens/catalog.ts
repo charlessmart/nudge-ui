@@ -44,9 +44,7 @@ export interface TokenRuntime {
 function defaultRuntime(root: HTMLElement): TokenRuntime {
   const ownerWindow = getElementWindow(root);
   const ownerDocument = root.ownerDocument;
-  const ownerCss = (ownerWindow as unknown as {
-    CSS?: { supports?(condition: string): boolean };
-  }).CSS;
+  const ownerCss = ownerWindow.CSS;
   return {
     root,
     mediaMatches: (query) => typeof ownerWindow.matchMedia === "function" ? ownerWindow.matchMedia(query).matches : false,

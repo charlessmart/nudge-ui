@@ -13,7 +13,7 @@ function flushObserver(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-function revisionsSnapshot(): { element: number; stylesheet: number } {
+function revisionsSnapshot() {
   return { ...documentRevisions(document) };
 }
 

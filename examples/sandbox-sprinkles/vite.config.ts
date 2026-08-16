@@ -10,6 +10,7 @@ export default defineConfig({
     // class and custom-property names. The compiled contract is the only safe
     // source of theme.color.* attribution in this fixture.
     vanillaExtractPlugin({ identifiers: "short" }),
+    // SAFETY: designTool returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
     designTool({
       projectId: "sandbox-sprinkles",
       vanillaExtract: {
@@ -17,7 +18,7 @@ export default defineConfig({
         themeContractExport: "vars",
         source: "src/theme.css.ts",
       },
-    }) as unknown as PluginOption,
+    }) as PluginOption,
   ],
   server: { port: 5176, strictPort: true, host: "127.0.0.1" },
 });

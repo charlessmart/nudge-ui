@@ -90,6 +90,7 @@ function readDimensions(el: HTMLElement): GridDimensions {
 }
 
 function gridStyle(columns: number, rows: number): CSSProperties {
+  // SAFETY: CSSProperties allows custom properties through index signatures; the object only sets known custom properties.
   return {
     "--dt-grid-picker-columns": columns,
     "--dt-grid-picker-rows": rows,

@@ -286,8 +286,8 @@ function deepFreeze<T>(value: T): T {
   if (Array.isArray(value)) {
     for (const item of value) deepFreeze(item);
   } else {
-    for (const key of Object.keys(value as Record<string, unknown>)) {
-      deepFreeze((value as Record<string, unknown>)[key]);
+    for (const item of Object.values(value)) {
+      deepFreeze(item);
     }
   }
   return Object.freeze(value);

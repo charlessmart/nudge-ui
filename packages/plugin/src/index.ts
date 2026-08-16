@@ -31,6 +31,7 @@ import { createTailwindV4NamingContribution } from "./adapters/tailwindV4.ts";
 import { createTailwindV3Adapter } from "./adapters/tailwindV3.ts";
 import type { TailwindV3Config } from "./adapters/tailwindV3.ts";
 import { createSprinklesAdapter } from "./adapters/vanillaExtract.ts";
+import { isRecord } from "./adapters/isRecord.ts";
 import type { ThemeContract, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
 import { createPublishedVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
 import { createTokenAdapterRegistry } from "./adapters/registry.ts";
@@ -74,9 +75,6 @@ function relativePath(id: string, root?: string): string {
   return id.replace(/^\//, "");
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function scanCssFiles(
   rootDir: string,
@@ -341,7 +339,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     // can recover from a package publishing the contract after startup.
     publishedThemeContractModuleId = stripCssQuery(resolvedId);
 
-    let namespace: Record<string, unknown>;
+    let namespace: Awaited<ReturnType<ViteDevServer["ssrLoadModule"]>>;
     try {
       namespace = await devServer.ssrLoadModule(resolvedId);
     } catch {
@@ -420,10 +418,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
    * not bump the generation again. Contributions are synced first so the guard
    * compares against the same facts load() would serialize (idempotent).
    */
-  function invalidateTokensIfChanged(server: ViteDevServer): {
-    changed: boolean;
-    virtual?: ModuleNode;
-  } {
+  function invalidateTokensIfChanged(server: ViteDevServer) {
     syncInventoryContributions();
     const generation = inventory.snapshot().generation;
     if (generation === lastPublishedGeneration) return { changed: false };

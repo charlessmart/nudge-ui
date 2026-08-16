@@ -6,18 +6,7 @@ import type {
   ComponentPropValue,
   EditableComponentTarget,
 } from "./types.ts";
-
-function isPropValue(value: unknown): value is ComponentPropValue {
-  return typeof value === "string"
-    || typeof value === "number"
-    || typeof value === "boolean";
-}
-
-export function componentPropBaseline(value: unknown): ComponentPropBaseline {
-  return isPropValue(value)
-    ? { kind: "value", value }
-    : { kind: "default" };
-}
+import { componentPropBaseline } from "./boundaries.ts";
 
 export function formatComponentPropValue(value: ComponentPropValue): string {
   return String(value);

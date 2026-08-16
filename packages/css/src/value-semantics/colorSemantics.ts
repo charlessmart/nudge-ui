@@ -474,7 +474,9 @@ function rgbTuple(value: string): RgbTuple | null {
   if (hex) {
     const raw = hex[1]!;
     const expanded = raw.length === 3 ? raw.split("").map((part) => part + part).join("") : raw;
-    return [0, 2, 4].map((offset) => Number.parseInt(expanded.slice(offset, offset + 2), 16)) as unknown as RgbTuple;
+    // SAFETY: hex length was validated and expanded to six hex digits before parsing RGB channels.
+    const rgb = [0, 2, 4].map((offset) => Number.parseInt(expanded.slice(offset, offset + 2), 16));
+    return [rgb[0]!, rgb[1]!, rgb[2]!] as const;
   }
   const match = /^rgba?\(([\s\S]*)\)$/i.exec(trimmed);
   if (!match) return null;
@@ -487,7 +489,9 @@ function rgbTuple(value: string): RgbTuple | null {
   if (channelParts.length !== 3) return null;
   const channels = channelParts.map((part) => CSS_NUMBER.test(part.trim()) ? Number(part.trim()) : Number.NaN);
   if (channels.some((channel) => !Number.isFinite(channel) || channel < 0 || channel > 255)) return null;
-  return channels.map((channel) => Math.round(channel)) as unknown as RgbTuple;
+  // SAFETY: channel count and finite 0-255 range were validated before rounding to an RGB tuple.
+  const rounded = channels.map((channel) => Math.round(channel));
+  return [rounded[0]!, rounded[1]!, rounded[2]!] as const;
 }
 
 function sameRgb(left: RgbTuple | null, right: RgbTuple | null): boolean {

@@ -7,6 +7,7 @@ import { designTool } from "../../packages/plugin/src/index.ts";
 export default defineConfig({
   // @design-tool/plugin is a workspace package with Vite in its own dependency
   // graph. The cast keeps Vite's plugin typing local to this app's Vite instance.
-  plugins: [react(), designTool() as unknown as PluginOption],
+  // SAFETY: designTool returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
+  plugins: [react(), designTool() as PluginOption],
   server: { port: 5173, strictPort: true, host: "0.0.0.0", allowedHosts: true },
 });

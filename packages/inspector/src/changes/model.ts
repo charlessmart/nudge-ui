@@ -93,9 +93,9 @@ export function mergeChange(
 }
 
 export function canonicalizeChanges(incoming: ChangeRecord[]): ChangeRecord[] {
-  return incoming.reduce(
+  return incoming.reduce<ChangeRecord[]>(
     (current, change) => mergeChange(current, change),
-    [] as ChangeRecord[],
+    [],
   );
 }
 

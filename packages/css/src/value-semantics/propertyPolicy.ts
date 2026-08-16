@@ -13,6 +13,16 @@
 import type { ColorValueFacts, EditCapability, TokenEntry } from "../model/index.ts";
 import { interpretColorValue } from "./colorSemantics.ts";
 
+declare global {
+  interface Window {
+    CSS?: {
+      supports(conditionText: string): boolean;
+      supports(property: string, value: string): boolean;
+    };
+  }
+}
+
+
 /** Semantic slot vocabulary for a CSS property. */
 export type TokenSemanticSlot =
   | "color"
@@ -28,7 +38,7 @@ export type TokenSemanticSlot =
 /** Presentation category for token pickers and catalog rows. */
 export type TokenGroup = "color" | "spacing" | "radius" | "typography" | "shadow" | "generic";
 
-export const TOKEN_GROUP_LABELS: Record<TokenGroup, string> = {
+export const TOKEN_GROUP_LABELS = {
   color: "Color",
   spacing: "Spacing",
   radius: "Radius",
@@ -132,7 +142,7 @@ const LENGTH_PROPERTIES = new Set([
   "inset-inline",
 ]);
 
-const SLOT_PROPERTIES: Record<TokenSemanticSlot, string> = {
+const SLOT_PROPERTIES = {
   color: "color",
   length: "margin",
   radius: "border-radius",
@@ -248,11 +258,9 @@ function resolveValueInElement(entry: TokenEntry, element?: HTMLElement): string
 }
 
 function browserCss(element?: HTMLElement): { supports?(property: string, value: string): boolean } | undefined {
-  const elementCss = element?.ownerDocument.defaultView as (Window & {
-    CSS?: { supports?(property: string, value: string): boolean };
-  }) | null | undefined;
-  if (elementCss?.CSS) return elementCss.CSS;
-  return (globalThis as { CSS?: { supports?(property: string, value: string): boolean } }).CSS;
+  const elementCss = element?.ownerDocument.defaultView?.CSS;
+  if (elementCss) return elementCss;
+  return globalThis.CSS;
 }
 
 function isLength(value: string): boolean {

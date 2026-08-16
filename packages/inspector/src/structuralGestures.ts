@@ -70,6 +70,7 @@ function lineFor(
   flexGapCentre?: number,
 ): Pick<DropLocation, "orientation" | "left" | "top" | "width" | "height"> {
   const parentRect = parent.getBoundingClientRect();
+  // SAFETY: before.nodeType === 1 was checked above, so it is an HTMLElement.
   const beforeElement = before?.nodeType === 1 ? before as HTMLElement : null;
   const reference = beforeElement ?? parent.lastElementChild;
   const referenceRect = reference?.getBoundingClientRect();
@@ -185,6 +186,7 @@ export function moveElement(node: HTMLElement, destination: DropLocation): Struc
   const parent = node.parentElement;
   if (!parent || destination.parent !== parent || destination.parent === node || node.contains(destination.parent)) return null;
   if (destination.before && destination.before.nodeType !== 1) return null;
+  // SAFETY: destination.before.nodeType === 1 was checked above, so it is an HTMLElement.
   if (destination.before && (destination.before as HTMLElement).parentElement !== destination.parent) return null;
   const change = createStructuralMove(node, destination);
   if (!change) return null;

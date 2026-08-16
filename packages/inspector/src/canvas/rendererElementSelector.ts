@@ -28,13 +28,13 @@ function findFiber(el: HTMLElement): unknown {
   const keys = Object.keys(el);
   for (const key of keys) {
     if (REACT_FIBER_KEY.test(key) || REACT_INTERNAL_KEY.test(key)) {
-      return (el as unknown as Record<string, unknown>)[key];
+      return Reflect.get(el, key);
     }
   }
   return undefined;
 }
 
-function getFiberInfo(el: HTMLElement): { file: string; line: number; component: string; src: string } {
+function getFiberInfo(el: HTMLElement) {
   const fiber = findFiber(el) as Record<string, unknown> | undefined;
   const src = el.getAttribute("data-src") ?? "";
 

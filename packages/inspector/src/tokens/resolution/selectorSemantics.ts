@@ -1,4 +1,4 @@
-function extractParenContent(source: string, openIndex: number): { content: string; end: number } {
+function extractParenContent(source: string, openIndex: number) {
   let depth = 0;
   let index = openIndex;
   while (index < source.length && source[index] !== "(") index++;

@@ -9,7 +9,7 @@ import { getManagedSheetText } from "../managedStylesheet.ts";
 export function makeSelected(
   cid = "Button",
   src = "src/Button.tsx:1:1",
-): { el: HTMLElement; selected: SelectedElement } {
+) {
   const el = document.createElement("button");
   el.setAttribute("data-cid", cid);
   el.setAttribute("data-src", src);

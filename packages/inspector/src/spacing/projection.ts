@@ -34,10 +34,10 @@ export interface InspectorProjection {
 }
 
 const SIDES: readonly ProjectionSide[] = ["top", "right", "bottom", "left"];
-const AXIS_SIDES: Record<ProjectionAxis, readonly [ProjectionSide, ProjectionSide]> = {
-  horizontal: ["left", "right"],
-  vertical: ["top", "bottom"],
-};
+const AXIS_SIDES = {
+  horizontal: ["left", "right"] as const,
+  vertical: ["top", "bottom"] as const,
+} satisfies Record<ProjectionAxis, readonly [ProjectionSide, ProjectionSide]>;
 
 function fieldProjection(
   el: HTMLElement,
@@ -91,6 +91,7 @@ function spacingProjection(
   rows: ResolvedProperty[],
   property: ProjectionGroup,
 ): InspectorSpacingProjection {
+  // SAFETY: SIDES contains exactly the ProjectionSide keys, so the resulting record is complete.
   const fields = Object.fromEntries(SIDES.map((side) => {
     const field = fieldProjection(el, rows, `${property}-${side}`);
     return [side, field];

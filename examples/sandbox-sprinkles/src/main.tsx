@@ -9,10 +9,9 @@ import { ExamplesSprinklesPage } from "./ExamplesSprinklesPage";
 import { sprinkles } from "./sprinkles.css.ts";
 
 if (import.meta.env.DEV) {
-  const debugWindow = window as unknown as Record<string, unknown>;
-  debugWindow.__designTokens = tokens;
-  debugWindow.__designTokenCatalog = tokenCatalog;
-  debugWindow.__designTokenDiagnostics = tokenDiagnostics;
+  window.__designTokens = tokens;
+  window.__designTokenCatalog = tokenCatalog;
+  window.__designTokenDiagnostics = tokenDiagnostics;
 }
 
 function SprinklesConformancePage() {

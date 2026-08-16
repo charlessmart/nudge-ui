@@ -36,12 +36,14 @@ interface GrowthResult {
   ratio: number;
 }
 
-const METRICS: {
+interface LargeMetrics {
   coldReveal?: MetricResult;
   warmReveal?: MetricResult;
   commit?: MetricResult;
   growth?: GrowthResult;
-} = {};
+}
+
+const METRICS: LargeMetrics = {};
 
 const COMMIT_STEPS: readonly { property: string; hostProperty: string; value: string }[] = [
   { property: "background-color", hostProperty: "background-color", value: "#ef4444" },

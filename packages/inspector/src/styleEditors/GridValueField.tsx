@@ -5,8 +5,9 @@ import { TextInput } from "../ui/TextInput.tsx";
 import { getLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "./styleActions.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
+import type { StringRecord } from "./stringRecord.ts";
 
-const DEFAULT_GRID_VALUES: Record<string, string> = {
+const DEFAULT_GRID_VALUES: StringRecord = {
   "grid-template-columns": "none",
   "grid-template-rows": "none",
   "grid-auto-columns": "auto",

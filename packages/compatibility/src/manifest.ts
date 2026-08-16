@@ -12,7 +12,7 @@ export const CSS_LIBRARY_CORPUS = [
 export type CssLibraryCorpusCaseId = typeof CSS_LIBRARY_CORPUS[number];
 
 /** Canonical property each app must exercise for a corpus situation. */
-export const CSS_LIBRARY_CORPUS_PROPERTIES: Record<CssLibraryCorpusCaseId, string> = {
+export const CSS_LIBRARY_CORPUS_PROPERTIES = {
   "spacing-padding": "padding-top",
   "typography-size": "font-size",
   "color-background": "background-color",

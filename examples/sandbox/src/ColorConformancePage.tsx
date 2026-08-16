@@ -1,8 +1,9 @@
 import { COLOR_CASES } from "../../../packages/inspector/src/conformance/colorCases.ts";
 import type { ConformanceFixture } from "../../../packages/inspector/src/conformance/fixture.ts";
 import "./color-conformance.css";
+import type { StringRecord } from "./stringRecord.ts";
 
-const SPECIMENS: Record<string, string> = {
+const SPECIMENS: StringRecord = {
   "color-named-keywords": "Named keywords keep their authored spelling.",
   "color-hex-short": "Short hex codes remain authored exactly as written.",
   "color-hex-six-digit": "Six-digit hex colors span the full gamut.",

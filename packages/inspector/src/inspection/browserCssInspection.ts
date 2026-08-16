@@ -314,10 +314,7 @@ export function createBrowserCssInspection(
   const currentRevision = (): InspectionRevision =>
     revisionSnapshot(documentRevisions(config.document), tokenGeneration);
 
-  function tokenTableFor(element: HTMLElement): {
-    availableTokens: readonly TokenEntry[];
-    table: TokenTable;
-  } {
+  function tokenTableFor(element: HTMLElement) {
     const availableTokens = getAvailableTokenEntriesForElement(element, definitions);
     const revisions = documentRevisions(config.document);
     const cached = elementTables.get(element);

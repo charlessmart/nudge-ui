@@ -212,7 +212,7 @@ export interface BorderEditorProps {
  * Divergent faces always open; equal faces start linked but can expand.
  * Linking divergent faces is optimistic until cascade rows catch up.
  */
-function useBorderLinkedState(dataLinked: boolean, resetKey: unknown): [boolean, (next: boolean) => void] {
+function useBorderLinkedState(dataLinked: boolean, resetKey: HTMLElement): [boolean, (next: boolean) => void] {
   const [userUnlinked, setUserUnlinked] = useState(false);
   const [userLinked, setUserLinked] = useState(false);
 

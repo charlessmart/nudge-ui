@@ -7,7 +7,8 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    designTool({ projectId: "sandbox-tailwind-v4" }) as unknown as PluginOption,
+    // SAFETY: designTool returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
+    designTool({ projectId: "sandbox-tailwind-v4" }) as PluginOption,
   ],
   server: { port: 5174, strictPort: true, host: "127.0.0.1" },
 });

@@ -75,10 +75,7 @@ function inspectBrowserFacts(
   element: HTMLElement,
   definitions: TokenDefinition[],
   entries?: TokenEntry[],
-): {
-  element: InspectionSnapshot;
-  tokens: DocumentTokenInspectionSnapshot;
-} {
+) {
   const doc = element.ownerDocument ?? document;
   if (definitions === tokenCatalog && entries === undefined) {
     const session = getBrowserCssInspection(doc);

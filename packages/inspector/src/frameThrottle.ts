@@ -12,7 +12,7 @@ const browserScheduler: FrameScheduler = {
 export function createFrameThrottle<T>(
   run: (value: T) => void,
   scheduler: FrameScheduler = browserScheduler,
-): { schedule(value: T): void; flush(): void; cancel(): void } {
+) {
   let handle = 0;
   let latest: T | null = null;
 

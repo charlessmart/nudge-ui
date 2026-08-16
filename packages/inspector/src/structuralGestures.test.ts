@@ -11,7 +11,7 @@ import {
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { clearStructuralChanges, getStructuralChanges, resetStructuralDeleteProjection } from "./structuralProjection.ts";
 
-function fixture(): { root: HTMLDivElement; first: HTMLDivElement; second: HTMLDivElement } {
+function fixture() {
   const root = document.createElement("div");
   root.dataset.cid = "List";
   root.dataset.src = "src/App.tsx:0:1";

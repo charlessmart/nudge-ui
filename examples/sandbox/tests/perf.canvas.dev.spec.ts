@@ -20,11 +20,13 @@ interface MetricResult {
   budget: number;
 }
 
-const METRICS: {
+interface CanvasMetrics {
   hover?: MetricResult;
   click?: MetricResult;
   hoverMessageCount?: number;
-} = {};
+}
+
+const METRICS: CanvasMetrics = {};
 
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);

@@ -191,6 +191,7 @@ function expandBorder(
 ): StructuredField[] | null {
   const components: BorderComponents | null = parseBorderComponents(authored.trim(), ctx.tokenContext);
   if (!components) return null;
+  // SAFETY: lower is one of the known border structure source properties from the parser typed union.
   const sourceProperty = lower as BorderStructure["sourceProperty"];
   const sidePrefix = sourceProperty === "border" ? "" : `${sourceProperty}-`;
   // Interpret each distinct component once; every projected longhand reuses

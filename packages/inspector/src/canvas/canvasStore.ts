@@ -26,7 +26,7 @@ export const FIT_ALL_PADDING = 80;
 
 const DEFAULT_CAMERA: CanvasCamera = { x: 0, y: 0, zoom: 1 };
 
-function defaultViewportSize(): { width: number; height: number } {
+function defaultViewportSize() {
   return {
     width: window.innerWidth || 1024,
     height: window.innerHeight || 768,
@@ -62,7 +62,7 @@ function notify(): void {
   listeners.forEach((l) => l());
 }
 
-function computeNewCardPosition(existingCards: CanvasCard[], gap: number): { x: number; y: number } {
+function computeNewCardPosition(existingCards: CanvasCard[], gap: number) {
   if (existingCards.length === 0) return { x: 0, y: 0 };
   let rightmostEdge = -Infinity;
   for (const c of existingCards) {

@@ -147,7 +147,9 @@ export function assertConformanceFixture(result: ConformanceResult, fixture: Con
         failures.push(`${fixture.id}: ${property} was missing structured border values`);
       } else {
         for (const [component, value] of Object.entries(expected.structure)) {
+          // SAFETY: Object.entries on a typed structure yields the known width/style/color component keys.
           if (actual.structure[component as "width" | "style" | "color"] !== value) {
+            // SAFETY: Object.entries on a typed structure yields the known width/style/color component keys.
             failures.push(`${fixture.id}: ${property} ${component} was ${actual.structure[component as "width" | "style" | "color"]}, expected ${value}`);
           }
         }
@@ -155,6 +157,7 @@ export function assertConformanceFixture(result: ConformanceResult, fixture: Con
     }
   }
   for (const [group, expectedGroup] of Object.entries(fixture.expected.projection?.spacing ?? {})) {
+    // SAFETY: Object.entries on the spacing projection group yields ProjectionGroup keys.
     const actualGroup = result.projection.spacing[group as ProjectionGroup];
     if (!actualGroup) {
       failures.push(`${fixture.id}: missing ${group} inspector projection`);
@@ -164,6 +167,7 @@ export function assertConformanceFixture(result: ConformanceResult, fixture: Con
       failures.push(`${fixture.id}: ${group} linked state was ${actualGroup.linked}, expected ${expectedGroup.linked}`);
     }
     for (const [axis, expectedAxis] of Object.entries(expectedGroup.axes ?? {})) {
+      // SAFETY: Object.entries on axis data yields ProjectionAxis keys.
       const actualAxis = actualGroup.axes[axis as ProjectionAxis];
       if (!actualAxis) {
         failures.push(`${fixture.id}: missing ${group}-${axis} inspector axis`);
@@ -174,6 +178,7 @@ export function assertConformanceFixture(result: ConformanceResult, fixture: Con
       }
     }
     for (const [side, expectedField] of Object.entries(expectedGroup.fields)) {
+      // SAFETY: Object.entries on fields yields ProjectionSide keys.
       const actualField = actualGroup.fields[side as ProjectionSide];
       if (!actualField) {
         failures.push(`${fixture.id}: missing ${group}-${side} inspector field`);

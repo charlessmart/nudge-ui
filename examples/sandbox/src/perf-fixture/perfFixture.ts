@@ -85,15 +85,7 @@ export function classesFor(id: number): string {
   ].join(" ");
 }
 
-export function expectedStyleFor(id: number): {
-  backgroundColor: string;
-  color: string;
-  paddingTop: string;
-  fontSize: string;
-  lineHeight: string;
-  borderTopWidth: string;
-  borderColor: string;
-} {
+export function expectedStyleFor(id: number) {
   return {
     backgroundColor: bgColor(id % BG_CLASSES),
     color: fgColor(id % FG_CLASSES),

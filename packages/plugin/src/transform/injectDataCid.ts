@@ -57,7 +57,7 @@ function hasAttr(attrs: Node[], attrName: string): boolean {
 
 function getMemberExpressionName(node: Node): string | null {
   if (node.type === "JSXIdentifier") {
-    return (node as unknown as { name?: string }).name ?? null;
+    return (node as { name?: string }).name ?? null;
   }
   if (node.type === "JSXMemberExpression") {
     const objName = getMemberExpressionName(node.object as Node);
@@ -169,7 +169,7 @@ function escapeJsxAttribute(value: string): string {
     .replaceAll(">", "&gt;");
 }
 
-function authoredPropKinds(attrs: Node[]): Record<string, "literal" | "expression" | "spread"> {
+function authoredPropKinds(attrs: Node[]) {
   const result: Record<string, "literal" | "expression" | "spread"> = {};
   for (const attr of attrs) {
     if (attr.type === "JSXSpreadAttribute") {

@@ -34,14 +34,7 @@ import {
   isRendererMessageFor,
   isRenderedInstanceProjectionReportMessage,
   isStructuralProjectionReportMessage,
-  type ExternalNavigationMessage,
-  type FrameReadyMessage,
-  type NavigationIntentMessage,
-  type PanEndMessage,
-  type PanModifierMessage,
-  type PanMoveMessage,
-  type PanStartMessage,
-  type ZoomMessage,
+  type FrameProtocolMessage,
 } from "./frameProtocol.ts";
 import { iframePointToClientPoint, zoomCameraAtPointer } from "./canvasGestures.ts";
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
@@ -163,8 +156,8 @@ export function CanvasWorkspace(): ReactElement | null {
         return;
       }
 
-      const msg = event.data as FrameReadyMessage | NavigationIntentMessage | ExternalNavigationMessage
-        | PanStartMessage | PanMoveMessage | PanEndMessage | PanModifierMessage | ZoomMessage;
+      // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
+      const msg = event.data as FrameProtocolMessage;
       if (msg.type === "frame-ready") {
         // A card can finish loading after Space was pressed on the controller.
         // Seed it with the current modifier state before its first pointer event.
@@ -259,6 +252,7 @@ export function CanvasWorkspace(): ReactElement | null {
         return;
       }
       if (e.code === "Space" && !e.repeat) {
+        // SAFETY: keyboard event targets are HTMLElements in the workspace DOM.
         const target = e.target as HTMLElement;
         if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
         e.preventDefault();
@@ -297,6 +291,7 @@ export function CanvasWorkspace(): ReactElement | null {
     e.stopPropagation();
     startPanning({ x: e.clientX, y: e.clientY });
 
+    // SAFETY: pointerdown targets are HTMLElements in the workspace DOM.
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     function onMove(ev: PointerEvent): void {

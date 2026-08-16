@@ -24,7 +24,7 @@ export interface CompatibilityManagedPreview {
 
 async function inspectionFor(page: Page, selector: string): Promise<CompatibilityInspection | null> {
   return page.evaluate((target) => {
-    const bridge = (window as unknown as {
+    const bridge = (window as Window & {
       __designTool?: { inspect(value: string): CompatibilityInspection | null };
     }).__designTool;
     return bridge?.inspect(target) ?? null;
@@ -42,7 +42,7 @@ function controlOf(inspection: CompatibilityInspection, property: string) {
 async function callAction(page: Page, action: CompatibilityScenario["beforeInspect"]): Promise<void> {
   if (!action) return;
   await page.evaluate((name) => {
-    const hook = (window as unknown as Record<string, unknown>)[name];
+    const hook = Reflect.get(window, name);
     if (typeof hook !== "function") throw new Error(`Compatibility hook ${name} is not a function`);
     hook();
   }, action.name);
@@ -81,7 +81,7 @@ async function assertScenario(page: Page, scenario: CompatibilityScenario): Prom
 }> {
   await page.goto(scenario.path ?? "/");
   await expect(page.locator(scenario.selector)).toBeVisible();
-  await expect.poll(() => page.evaluate(() => (window as unknown as {
+  await expect.poll(() => page.evaluate(() => (window as Window & {
     __designTool?: { version: number };
   }).__designTool?.version ?? null)).toBe(1);
   await callAction(page, scenario.beforeInspect);
@@ -250,7 +250,7 @@ export async function assertProductionContract(page: Page): Promise<void> {
     inspectorShell: document.querySelectorAll("[data-test^='inspector'], [data-test='canvas-host']").length,
     managedStylesheet: document.querySelectorAll("#design-tool-styles").length,
     runtimeState: ["__designTool", "__designTokens", "__designTokenCatalog", "__designTokenDiagnostics"]
-      .some((key) => key in (window as unknown as Record<string, unknown>)),
+      .some((key) => key in window),
     html: document.documentElement.outerHTML,
     scripts: Array.from(document.scripts).map((script) => script.src),
   }));

@@ -27,8 +27,14 @@ export function readLeaseRaw(): WorkspaceLease | null {
     const raw = localStorage.getItem(leaseKey());
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-    const l = parsed as Record<string, unknown>;
+    if (parsed === null || typeof parsed !== "object") return null;
+    // SAFETY: JSON.parse returns unknown; we narrow only the known lease fields below.
+    const l = parsed as {
+      ownerId?: unknown;
+      projectId?: unknown;
+      acquiredAt?: unknown;
+      lastHeartbeat?: unknown;
+    };
     if (
       typeof l.ownerId !== "string" ||
       typeof l.projectId !== "string" ||
@@ -37,7 +43,12 @@ export function readLeaseRaw(): WorkspaceLease | null {
     ) {
       return null;
     }
-    return l as unknown as WorkspaceLease;
+    return {
+      ownerId: l.ownerId,
+      projectId: l.projectId,
+      acquiredAt: l.acquiredAt,
+      lastHeartbeat: l.lastHeartbeat,
+    };
   } catch {
     return null;
   }

@@ -1,3 +1,5 @@
+import type { RuntimeProps } from "./runtimeTypes.ts";
+
 export type ComponentPropValue = string | number | boolean;
 export type AuthoredPropKind = "literal" | "expression" | "spread" | "default";
 export type ComponentFramework = "react";
@@ -38,7 +40,7 @@ export interface ComponentInvocationMeta {
 export interface RuntimeComponentTarget {
   framework: ComponentFramework;
   meta: ComponentInvocationMeta;
-  props: Record<string, unknown>;
+  props: RuntimeProps;
 }
 
 export interface ComponentPropContract {

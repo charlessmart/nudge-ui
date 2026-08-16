@@ -5,6 +5,13 @@ import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 
 export { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 
+declare global {
+  interface Window {
+    __designToolGetManagedSheetText?: () => string;
+  }
+}
+
+
 export interface StyleRule {
   selector: string;
   declarations: Record<string, string>;
@@ -25,9 +32,6 @@ export interface PreviewResult {
 }
 
 const SHEET_ID = "design-tool-styles";
-type ManagedDebugWindow = Window & {
-  __designToolGetManagedSheetText?: () => string;
-};
 
 let managedHeadGuardDocument: Document | null = null;
 let managedHeadGuard: MutationObserver | null = null;
@@ -41,6 +45,7 @@ function installManagedHeadGuard(doc: Document): void {
     const managed = doc.getElementById(SHEET_ID);
     if (managed && doc.head.lastElementChild !== managed) {
       doc.head.appendChild(managed);
+      // SAFETY: managed was created via createElement("style"), so it is an HTMLStyleElement.
       rehydrateManagedSheet(doc, managed as HTMLStyleElement);
     }
   });
@@ -49,6 +54,7 @@ function installManagedHeadGuard(doc: Document): void {
 
 export function ensureManagedSheet(): CSSStyleSheet {
   const doc = document;
+  // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
   let el = doc.getElementById(SHEET_ID) as HTMLStyleElement | null;
   if (!el) {
     el = doc.createElement("style");
@@ -79,7 +85,7 @@ export function ensureManagedSheet(): CSSStyleSheet {
   if (import.meta.env.DEV && doc.defaultView) {
     // Keep authored CSS available to dev diagnostics without writing
     // textContent on the live <style> element (which reparses CSSOM rules).
-    (doc.defaultView as ManagedDebugWindow).__designToolGetManagedSheetText = getManagedSheetText;
+    doc.defaultView.__designToolGetManagedSheetText = getManagedSheetText;
   }
   return sheet;
 }
@@ -149,8 +155,10 @@ function declarationsEqual(a: Record<string, string>, b: Record<string, string>)
 function leafRule(top: CSSRule | null, wrapperCount: number): CSSStyleRule | null {
   let current: CSSRule | null = top;
   for (let depth = 0; depth < wrapperCount && current; depth++) {
+    // SAFETY: the CSSRule is being traversed as a group rule only after wrapperCount checks; cssRules is present on group rules.
     current = (current as { cssRules?: CSSRuleList }).cssRules?.[0] ?? null;
   }
+  // SAFETY: after descending through known wrapper rules, the result is a CSSStyleRule when non-null.
   return current as CSSStyleRule | null;
 }
 
@@ -226,6 +234,7 @@ function rehydrateManagedSheet(doc: Document, el: HTMLStyleElement): void {
  * rebuilding it from serialized text, then re-syncs the model.
  */
 function rebuildSheetText(rules: StyleRule[]): void {
+  // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
   const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
   if (!el) return;
   el.textContent = rulesToCssText(rules);
@@ -244,6 +253,7 @@ function rebuildSheetText(rules: StyleRule[]): void {
  */
 export function applyRules(rules: StyleRule[]): void {
   const sheet = ensureManagedSheet();
+  // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
   const el = document.getElementById(SHEET_ID) as HTMLElement | null;
   if (!el) return;
   let mutated = false;

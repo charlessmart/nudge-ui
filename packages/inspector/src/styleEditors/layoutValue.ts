@@ -2,8 +2,9 @@ import { getActiveStyleState } from "../styleState.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
 import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+import type { StringRecord } from "./stringRecord.ts";
 
-const DEFAULT_LAYOUT_VALUES: Record<string, string> = {
+const DEFAULT_LAYOUT_VALUES: StringRecord = {
   width: "auto",
   height: "auto",
   "min-width": "0",

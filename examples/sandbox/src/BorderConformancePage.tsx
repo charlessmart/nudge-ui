@@ -1,8 +1,9 @@
 import { BORDER_CASES } from "../../../packages/inspector/src/conformance/borderCases.ts";
 import type { ConformanceFixture, ConformancePropertyExpectation } from "../../../packages/inspector/src/conformance/fixture.ts";
 import "./border-conformance.css";
+import type { StringRecord } from "./stringRecord.ts";
 
-const CASE_NOTES: Record<string, string> = {
+const CASE_NOTES: StringRecord = {
   "border-shorthand-literal": "Full three-part shorthand decomposes into linked width, style, and color.",
   "border-shorthand-token-color": "Token-backed border color stays linked to its token chip.",
   "border-shorthand-keyword-width-style": "Keyword width (thin) + style + named color all decompose.",
