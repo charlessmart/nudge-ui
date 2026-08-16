@@ -11,6 +11,7 @@ import {
   type Margins,
   type Rect,
 } from "./overlayGeometry.ts";
+import { observeSelectedGeometry } from "./selectedGeometry.ts";
 import { getDropLocationAtPoint, moveElement } from "./structuralGestures.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { setSelectedElement } from "./selectionStore.ts";
@@ -137,8 +138,6 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
 
   useEffect(() => {
     let raf = 0;
-    const ResizeObserverCtor = window.ResizeObserver;
-    const selectedResizeObserver = selected && ResizeObserverCtor ? new ResizeObserverCtor(schedule) : null;
     function recalc(): void {
       if (selected) {
         setSelectedRect(toRect(selected.domElement.getBoundingClientRect()));
@@ -151,14 +150,12 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       raf = requestAnimationFrame(recalc);
     }
     recalc();
-    if (selected) selectedResizeObserver?.observe(selected.domElement);
-    window.addEventListener("resize", schedule);
-    window.addEventListener("scroll", schedule, true);
+    const stopObserving = selected
+      ? observeSelectedGeometry(selected.domElement, schedule)
+      : null;
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", schedule);
-      window.removeEventListener("scroll", schedule, true);
-      selectedResizeObserver?.disconnect();
+      stopObserving?.();
     };
   }, [selected]);
 

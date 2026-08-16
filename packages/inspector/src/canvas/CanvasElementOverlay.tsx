@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
   isRendererMessageFor,
   type FrameProtocolMessage,
@@ -26,6 +26,7 @@ import { getMeasurementGeometry } from "../measurementGeometry.ts";
 import { MeasurementGuideOverlay } from "../MeasurementGuideOverlay.tsx";
 import { projectMeasurementSegments } from "./measurementProjection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
+import { observeSelectedGeometry } from "../selectedGeometry.ts";
 
 interface ElementIdentity {
   elementId: string;
@@ -113,6 +114,7 @@ function projectGuideToCanvas(guide: DropGuide | null, zoom: number): ViewportDr
 export function CanvasElementOverlay(): ReactElement | null {
   const [hover, setHover] = useState<FrameOverlayState | null>(null);
   const [measureState, setMeasureState] = useState<FrameMeasureState | null>(null);
+  const [, refreshSelectedGeometry] = useReducer((revision: number) => revision + 1, 0);
   const selected = useSelectedElement();
   const camera = useBoardCamera();
   useCanvasCards(); // Projected geometry must follow card drag and resize updates.
@@ -132,6 +134,11 @@ export function CanvasElementOverlay(): ReactElement | null {
   const selectedRect = selectedInCanvas && selectedLocalRect
     ? projectRect(selectedFrame, selectedLocalRect, camera.zoom)
     : null;
+
+  useEffect(() => {
+    if (!selectedInCanvas || !selected) return;
+    return observeSelectedGeometry(selected.domElement, refreshSelectedGeometry);
+  }, [selected, selectedInCanvas]);
 
   // The selected element's identity is computed once per selection change
   // (never per hover), so the measurement self-rulers exclusion can compare

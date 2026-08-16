@@ -219,6 +219,32 @@ test("dev: Inspect arrow keys reorder a selected sibling", async ({ page }) => {
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
+test("dev: Inspect selected outline follows a position-only flex-column nudge", async ({ page }) => {
+  await page.goto("/");
+  const selected = page.getByText("Repeated 1", { exact: true });
+  const outline = page.locator('[data-test="selected-outline"]');
+  await selected.scrollIntoViewIfNeeded();
+  await selected.click();
+  await page.mouse.move(0, 0);
+  await expect(outline).toBeVisible();
+
+  const before = await Promise.all([selected.boundingBox(), outline.boundingBox()]);
+  await page.keyboard.press("ArrowDown");
+
+  await expect(page.locator('[data-test="repeated-items"] .repeated-item')).toHaveText([
+    "Repeated 2", "Repeated 1", "Repeated 3", "Repeated 4", "Repeated 5", "Repeated 6",
+  ]);
+  await expect.poll(async () => {
+    const [selectedBox, outlineBox] = await Promise.all([selected.boundingBox(), outline.boundingBox()]);
+    return Boolean(selectedBox && outlineBox
+      && Math.abs(selectedBox.y - outlineBox.y) < 1
+      && Math.abs(selectedBox.height - outlineBox.height) < 1);
+  }).toBe(true);
+  const after = await Promise.all([selected.boundingBox(), outline.boundingBox()]);
+  expect(after[0]?.y).toBeGreaterThan(before[0]?.y ?? 0);
+  expect(after[1]?.y).toBeGreaterThan(before[1]?.y ?? 0);
+});
+
 test("dev: Canvas drags a tracked element through the controller with an insertion guide", async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-test="mode-canvas"]').click();
@@ -243,6 +269,32 @@ test("dev: Canvas drags a tracked element through the controller with an inserti
 
   await page.locator('[data-test^="canvas-card-preview-"]').first().click();
   await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+});
+
+test("dev: Canvas selected outline follows a position-only flex-column nudge", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('[data-test="mode-canvas"]').click();
+  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const source = frame.getByText("Repeated 1", { exact: true });
+  const outline = page.locator('[data-test="canvas-selected-outline"]');
+
+  await source.scrollIntoViewIfNeeded();
+  await page.mouse.move(0, 0);
+  await source.click();
+  await expect(outline).toBeVisible();
+  const before = await Promise.all([source.boundingBox(), outline.boundingBox()]);
+  await frame.locator("body").press("ArrowDown");
+
+  await expect(frame.locator('[data-test="repeated-items"] .repeated-item')).toHaveText([
+    "Repeated 2", "Repeated 1", "Repeated 3", "Repeated 4", "Repeated 5", "Repeated 6",
+  ]);
+  await expect.poll(async () => {
+    const [sourceBox, outlineBox] = await Promise.all([source.boundingBox(), outline.boundingBox()]);
+    return Boolean(sourceBox && outlineBox
+      && sourceBox.y > (before[0]?.y ?? sourceBox.y)
+      && outlineBox.y > (before[1]?.y ?? outlineBox.y)
+      && Math.abs((sourceBox.y - (before[0]?.y ?? 0)) - (outlineBox.y - (before[1]?.y ?? 0))) < 1);
+  }).toBe(true);
 });
 
 test("dev: Canvas centres a flex-row insertion guide in a space-between gap", async ({ page }) => {
