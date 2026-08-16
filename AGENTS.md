@@ -78,6 +78,11 @@ Use the repository's local triage-label vocabulary. See `docs/agents/triage-labe
 Product scope lives in `PLAN.md`, decisions in `docs/adr/`, and larger feature
 plans in `docs/features/`. See `docs/agents/domain.md`.
 
+### Type safety boundaries
+
+Before bulk-fixing anti-slop findings involving `unknown`, broad dictionaries,
+or assertions, follow `docs/agents/type-safety-boundaries.md`.
+
 ## ADRs
 
 ADRs in `docs/adr/` are immutable. To change a decision, write a new ADR that
