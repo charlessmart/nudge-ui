@@ -400,6 +400,36 @@ describe("resolveTextBinding", () => {
     }
   });
 
+  it("uses element data-src for text inside an enclosing component invocation", () => {
+    const element = document.createElement("p");
+    element.dataset.cid = "Page";
+    element.dataset.src = "src/Page.tsx:50:10";
+    element.textContent = "Rendered copy";
+    (element as unknown as Record<string, unknown>)["__reactFiber$test"] = {
+      type: "p",
+      return: boundary({
+        callsiteId: "src/App.tsx:20:5",
+        componentId: "src/Page#Page",
+        componentName: "Page",
+        file: "src/App.tsx",
+        line: 20,
+        column: 5,
+        authoredProps: { children: "literal" },
+      }, {}),
+    };
+    document.body.append(element);
+
+    const resolved = resolveTextBinding(element);
+    if ("kind" in resolved) throw new Error(resolved.message);
+    expect(resolved.renderedSource).toMatchObject({
+      file: "src/Page.tsx",
+      line: 50,
+      column: 10,
+      component: "Page",
+      authoredAs: "unknown",
+    });
+  });
+
   it("falls back for one direct-leaf rendered root", () => {
     const element = document.createElement("p");
     element.dataset.cid = "Copy";

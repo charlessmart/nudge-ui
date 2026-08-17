@@ -502,12 +502,24 @@ function reportsForSnapshot(state: DocumentProjectionState, changes: readonly Te
   }));
 }
 
+function textProjectionIdentityMatches(
+  element: HTMLElement,
+  change: TextContentChangeRecord,
+): boolean {
+  return element.getAttribute("data-cid") === change.target.sourceSite.cid
+    && element.getAttribute("data-src") === change.target.sourceSite.src
+    && element.getAttribute("data-cprops") === change.target.props
+    && element.getAttribute("aria-label") === change.target.ariaLabel;
+}
+
 function restoreAppliedProjection(applied: AppliedTextProjection): void {
   const element = applied.element;
   if (!element || !element.isConnected) return;
   if (!hasProjectionMarker(element, applied.change.target, applied.change.id)) return;
   // Never overwrite a newer application/reconciliation state during undo or
-  // clear. The marker and projected value must both still belong to us.
+  // clear. The marker, identity evidence, and projected value must all still
+  // belong to us; text alone is not proof after a source-site identity change.
+  if (!textProjectionIdentityMatches(element, applied.change)) return;
   const textNode = resolveTextProjectionTextNode(element, applied.change.target, applied.change.after);
   if (!textHostIsSafe(element, applied.change.after.length === 0, applied.change.target)) return;
   if (textNode) {
@@ -535,10 +547,7 @@ function validationStatus(applied: AppliedTextProjection): TextProjectionStatus 
   // appends the next canonical snapshot; otherwise removing the slot changes
   // the wrapper's ownership and cancels the draft mid-keystroke.
   const inlineDraft = hasInlineTextEditor(element);
-  const identityValid = element.getAttribute("data-cid") === applied.change.target.sourceSite.cid
-    && element.getAttribute("data-src") === applied.change.target.sourceSite.src
-    && element.getAttribute("data-cprops") === applied.change.target.props
-    && element.getAttribute("aria-label") === applied.change.target.ariaLabel;
+  const identityValid = textProjectionIdentityMatches(element, applied.change);
   const safe = textHostIsSafe(element, applied.change.after.length === 0, applied.change.target);
   if (!identityValid || !safe || (!textNode && !directEmpty && !inlineDraft)) {
     return "overridden";

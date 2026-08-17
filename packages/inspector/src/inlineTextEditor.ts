@@ -496,8 +496,11 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   }
 
   function currentScopeChoices(): readonly TextProjectionScope[] {
-    if (selectedChoice && selectedChoice.mountedCount > 1 && selectedChoice.authoredAs === "literal") {
-      return ["rendered-instance", "source-site"];
+    if (selectedChoice) {
+      if (selectedChoice.mountedCount > 1 && selectedChoice.authoredAs === "literal") {
+        return ["rendered-instance", "source-site"];
+      }
+      return [];
     }
     return candidate.scopeChoices ?? [];
   }

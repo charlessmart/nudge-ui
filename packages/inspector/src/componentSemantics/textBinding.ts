@@ -320,28 +320,44 @@ function renderedTextCandidate(
   }
   const componentTarget = semantic?.target ?? inspectComponentTargets(element)[0];
   const semanticProperty = semantic?.property;
+  // A component target is only source evidence when it is the callsite that
+  // produced this exact DOM root. For text inside a child host element, the
+  // nearest boundary is the enclosing component invocation, so the element's
+  // own data-src must remain the prompt/change source.
+  const elementDataSrc = element.getAttribute("data-src");
+  const elementSource = parseRenderedSource(elementDataSrc ?? "");
+  const matchingComponentTarget = componentTarget
+    && componentTarget.meta.callsiteId === elementDataSrc
+    ? componentTarget
+    : null;
   const semanticAuthored = semantic
     ? authoredAsFor(semantic.target, semantic.property)
-    : componentTarget?.meta.authoredProps.children;
+    : matchingComponentTarget?.meta.authoredProps.children;
   const authoredAs: "literal" | "expression" | "unknown" = semanticAuthored === "literal"
     ? "literal"
     : semanticAuthored === "expression" || semanticAuthored === "spread"
       ? "expression"
       : "unknown";
-  const parsedSource = parseRenderedSource(element.getAttribute("data-src") ?? "");
-  const source = componentTarget
+  const source = semantic
     ? {
-      file: componentTarget.meta.file,
-      line: componentTarget.meta.line,
-      column: componentTarget.meta.column,
-      component: componentTarget.meta.componentName,
+      file: semantic.target.meta.file,
+      line: semantic.target.meta.line,
+      column: semantic.target.meta.column,
+      component: semantic.target.meta.componentName,
     }
-    : {
-      file: parsedSource.file,
-      line: parsedSource.line,
-      column: parsedSource.column,
-      component: element.getAttribute("data-cid") ?? "Rendered text",
-    };
+    : matchingComponentTarget
+      ? {
+        file: matchingComponentTarget.meta.file,
+        line: matchingComponentTarget.meta.line,
+        column: matchingComponentTarget.meta.column,
+        component: matchingComponentTarget.meta.componentName,
+      }
+      : {
+        file: elementSource.file || componentTarget?.meta.file || "",
+        line: elementSource.file ? elementSource.line : componentTarget?.meta.line ?? 0,
+        column: elementSource.file ? elementSource.column : componentTarget?.meta.column ?? 0,
+        component: element.getAttribute("data-cid") ?? componentTarget?.meta.componentName ?? "Rendered text",
+      };
   const evidence = semantic && semantic.mountedCount !== null
     ? {
       callsiteId: semantic.target.meta.callsiteId,
@@ -561,14 +577,29 @@ export function resolveTextBinding(
     // when identical outputs make an instance impossible to distinguish, but
     // an item-only session is never allowed to guess.
     const rendered = renderedTextCandidate(element, textNode, before, match, false);
-    if ("kind" in rendered && rendered.kind === "rejected") return rendered;
+    if (!("kind" in rendered)) {
+      return {
+        ...rendered,
+        binding,
+        editableTarget: match.target,
+        mountedCount: match.mountedCount!,
+        scope: "rendered-instance",
+        scopeChoices: ["rendered-instance", "source-site"],
+      };
+    }
+    // An unsafe/missing rendered-text projection only removes the item-scoped
+    // option. The explicit all-output source-site edit is still a safe
+    // canonical component-prop change and must not be rejected because the
+    // DOM fallback cannot capture bounded instance evidence.
     return {
-      ...rendered,
       binding,
       editableTarget: match.target,
+      element,
+      textNode,
+      before,
       mountedCount: match.mountedCount!,
-      scope: "rendered-instance",
-      scopeChoices: ["rendered-instance", "source-site"],
+      scope: "source-site",
+      scopeChoices: ["source-site"],
     };
   }
   return {

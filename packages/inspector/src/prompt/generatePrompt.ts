@@ -133,7 +133,7 @@ function promptText(value: string): string {
 }
 
 function textProjectionSourceFallback(target: TextProjectionTarget): string {
-  return `[data-cid="${escapeAttrValue(target.sourceSite.cid)}"][data-src*="${escapeAttrValue(target.sourceSite.src)}"]`;
+  return `[data-cid="${escapeAttrValue(target.sourceSite.cid)}"][data-src="${escapeAttrValue(target.sourceSite.src)}"]`;
 }
 
 function textEvidenceLines(target: TextProjectionTarget): string[] {

@@ -969,6 +969,138 @@ describe("inlineTextEditor", () => {
     }
   });
 
+  it("does not inherit the first candidate scope choices after choosing another binding", () => {
+    componentContracts.length = 0;
+    componentContracts.push({
+      componentId: "custom/Outer#Outer",
+      name: "Outer",
+      file: "custom/Outer.tsx",
+      provenance: "package-manifest",
+      props: [{ name: "children", control: "text", options: [], optional: false }],
+    });
+    componentContracts.push({
+      componentId: "custom/Inner#Inner",
+      name: "Inner",
+      file: "custom/Inner.tsx",
+      provenance: "package-manifest",
+      props: [{ name: "children", control: "text", options: [], optional: false }],
+    });
+    const element = document.createElement("span");
+    element.dataset.cid = "Outer";
+    element.dataset.src = "src/App.tsx:10:5";
+    element.textContent = "Same";
+    document.body.append(element);
+    const adapter: ComponentRuntimeAdapter = {
+      framework: "react",
+      inspect: () => [
+        {
+          framework: "react",
+          meta: {
+            callsiteId: "outer",
+            componentId: "custom/Outer#Outer",
+            componentName: "Outer",
+            file: "src/App.tsx",
+            line: 10,
+            column: 5,
+            authoredProps: { children: "literal" },
+          },
+          props: { children: "Same" },
+        },
+        {
+          framework: "react",
+          meta: {
+            callsiteId: "inner",
+            componentId: "custom/Inner#Inner",
+            componentName: "Inner",
+            file: "src/Inner.tsx",
+            line: 2,
+            column: 1,
+            authoredProps: { children: "expression" },
+          },
+          props: { children: "Same" },
+        },
+      ],
+      replaceOverrides: () => undefined,
+      getCallsiteMultiplicity: (callsiteId) => callsiteId === "outer" ? 2 : 1,
+    };
+    const unregister = registerComponentRuntimeAdapter(adapter);
+    try {
+      const result = beginInlineTextEdit(element);
+      if ("kind" in result) throw new Error(result.message);
+      expect(result.bindingChoices).toHaveLength(2);
+      expect(result.scopeChoices).toEqual(["rendered-instance", "source-site"]);
+
+      result.chooseBinding(1);
+      expect(result.binding).toMatchObject({ kind: "component-prop", property: "children" });
+      expect(result.scopeChoices).toEqual([]);
+      expect(result.scope).toBe("source-site");
+
+      result.chooseScope("rendered-instance");
+      expect(result.scope).toBe("source-site");
+      result.cancel();
+    } finally {
+      unregister();
+    }
+  });
+
+  it("offers source-site scope when a repeated literal cannot use rendered fallback", () => {
+    componentContracts.length = 0;
+    componentContracts.push({
+      componentId: "custom/Label#Label",
+      name: "Label",
+      file: "custom/Label.tsx",
+      provenance: "package-manifest",
+      props: [{ name: "text", control: "text", options: [], optional: false }],
+    });
+    const element = document.createElement("span");
+    element.dataset.cid = "Label";
+    element.dataset.src = "src/App.tsx:12:5";
+    element.innerHTML = "<strong>Repeated literal</strong>";
+    const other = document.createElement("span");
+    other.dataset.cid = "Label";
+    other.dataset.src = "src/App.tsx:12:5";
+    other.textContent = "Other literal";
+    document.body.append(element, other);
+    const adapter: ComponentRuntimeAdapter = {
+      framework: "react",
+      inspect: (root) => [{
+        framework: "react",
+        meta: {
+          callsiteId: "src/App.tsx:12:5",
+          componentId: "custom/Label#Label",
+          componentName: "Label",
+          file: "src/App.tsx",
+          line: 12,
+          column: 5,
+          authoredProps: { text: "literal" },
+        },
+        props: { text: root.textContent ?? "" },
+      }],
+      replaceOverrides: () => undefined,
+      getCallsiteMultiplicity: () => 2,
+    };
+    const unregister = registerComponentRuntimeAdapter(adapter);
+    try {
+      const result = beginInlineTextEdit(element);
+      if ("kind" in result) throw new Error(result.message);
+      expect(result.binding).toMatchObject({ kind: "component-prop", property: "text" });
+      expect(result.scope).toBe("source-site");
+      expect(result.scopeChoices).toEqual(["source-site"]);
+
+      result.host.textContent = "All literal outputs";
+      const change = result.commit();
+      expect(change).toMatchObject({
+        kind: "component-prop",
+        property: "text",
+        after: "All literal outputs",
+        scope: "source-site",
+        evidence: { mountedCount: 2, beforeText: "Repeated literal" },
+      });
+    } finally {
+      unregister();
+    }
+  });
+
   it("does not begin an inline session in production mode", () => {
     vi.stubEnv("DEV", false);
     try {

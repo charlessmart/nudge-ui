@@ -395,6 +395,27 @@ describe("text projection identity and diagnostics", () => {
     expect(element.textContent).toBe("Updated");
   });
 
+  it("does not restore text after the source identity evidence changes", async () => {
+    const element = appendCopy("Original");
+    const change = makeChange();
+
+    expect(applyTextContentProjection(document, [change])).toEqual([
+      { changeId: "text-1", status: "applied" },
+    ]);
+    expect(element.textContent).toBe("Updated");
+
+    element.dataset.cid = "Other";
+    element.dataset.src = "src/Other.tsx:1:1";
+    await flushMutationValidation();
+    expect(getTextProjectionReports(document)).toEqual([
+      { changeId: "text-1", status: "overridden" },
+    ]);
+
+    applyTextContentProjection(document, []);
+    expect(element.textContent).toBe("Updated");
+    expect(element.hasAttribute(TEXT_PROJECTION_ATTR)).toBe(false);
+  });
+
   it("accepts only current canonical ids from Canvas diagnostics and ignores stale reports", () => {
     appendCopy("Original");
     const change = makeChange({
