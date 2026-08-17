@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { SemanticButton } from "./ui/SemanticButton";
 import { SemanticBadge } from "./ui/SemanticBadge";
 import { SemanticCard } from "./ui/SemanticCard";
@@ -5,8 +6,18 @@ import { SemanticToggle } from "./ui/SemanticToggle";
 import { SemanticAlert } from "./ui/SemanticAlert";
 import { SemanticChip } from "./ui/SemanticChip";
 import { SemanticAvatar } from "./ui/SemanticAvatar";
+import { SemanticAmbiguousText } from "./ui/SemanticAmbiguousText";
+
+const repeatedExpressionItems = [
+  { id: "a", label: "Expression A" },
+  { id: "b", label: "Expression B" },
+];
+
+const repeatedLiteralItems = ["Repeated literal", "Repeated literal"];
 
 export function ComponentPropsPage() {
+  const [nestedIconClicks, setNestedIconClicks] = useState(0);
+  const [outsideActionClicks, setOutsideActionClicks] = useState(0);
   return (
     <main className="component-props-page">
       <p className="eyebrow">Internal design system fixture</p>
@@ -16,6 +27,31 @@ export function ComponentPropsPage() {
         inspector surfaces as editable controls. Select any component to edit
         its authored invocation props rather than individual CSS declarations.
       </p>
+      <p
+        className="rendered-text-fallback"
+        {...(import.meta.env.DEV ? { "data-test": "rendered-text-fallback" } : {})}
+      >
+        This copy has no semantic prop contract.
+      </p>
+      <button
+        type="button"
+        data-test="nested-icon-label"
+        onClick={() => setNestedIconClicks((count) => count + 1)}
+      >
+        <svg aria-hidden="true" viewBox="0 0 12 12" width="12" height="12">
+          <path d="M1 6h10M6 1v10" />
+        </svg>
+        <span data-test="nested-icon-label-text">
+          {nestedIconClicks > 0 ? `Clicked ${nestedIconClicks}` : "Save"}
+        </span>
+      </button>
+      <button
+        type="button"
+        data-test="inline-outside-action"
+        onClick={() => setOutsideActionClicks((count) => count + 1)}
+      >
+        Outside action {outsideActionClicks}
+      </button>
 
       <section className="semantic-section">
         <h2 className="semantic-section__title">Button</h2>
@@ -25,6 +61,48 @@ export function ComponentPropsPage() {
         <div className="semantic-showcase">
           <SemanticButton label="Publish changes" variant="primary" size="small" disabled={false} />
           <SemanticButton label="Cancel" variant="secondary" size="large" disabled={false} />
+        </div>
+      </section>
+
+      <section className="semantic-section" data-test="repeated-component-section">
+        <h2 className="semantic-section__title">Repeated invocations</h2>
+        <p className="semantic-section__desc">
+          Expression-backed items stay instance-scoped; literal items offer an explicit all-output choice.
+        </p>
+        <div className="semantic-showcase semantic-showcase--stacked">
+          <div data-test="repeated-expression-list">
+            {repeatedExpressionItems.map((item) => (
+              <SemanticButton
+                key={item.id}
+                label={item.label}
+                variant="primary"
+                size="small"
+                disabled={false}
+              />
+            ))}
+          </div>
+          <div data-test="repeated-literal-list">
+            {repeatedLiteralItems.map((_, index) => (
+              <SemanticButton
+                key={index}
+                label="Repeated literal"
+                variant="secondary"
+                size="small"
+                disabled={false}
+              />
+            ))}
+          </div>
+          <SemanticAmbiguousText first="Ambiguous text" second="Ambiguous text" />
+          <div data-test="identical-rendered-list">
+            {["Identical root", "Identical root"].map((_, index) => (
+              <p key={index} data-test="identical-rendered-root">Identical root</p>
+            ))}
+          </div>
+          <div data-test="distinct-rendered-list">
+            {["Distinct A", "Distinct B"].map((value, index) => (
+              <p key={index} data-test="distinct-rendered-root">{value}</p>
+            ))}
+          </div>
         </div>
       </section>
 
