@@ -112,6 +112,31 @@ describe("changesLog", () => {
     expect(getChangesList()).toHaveLength(1);
   });
 
+  it("retains repeated scope evidence when a component change is edited again", () => {
+    appendChange(makeComponentChange({
+      after: "secondary",
+      scope: "source-site",
+      evidence: {
+        occurrence: 0,
+        props: null,
+        ariaLabel: null,
+        beforeText: "primary",
+        mountedCount: 2,
+      },
+    }));
+    appendChange(makeComponentChange({
+      before: { kind: "value", value: "secondary" },
+      after: "final",
+    }));
+
+    expect(getChangesList()).toMatchObject([{
+      kind: "component-prop",
+      after: "final",
+      scope: "source-site",
+      evidence: { mountedCount: 2 },
+    }]);
+  });
+
   it("appends a declaration batch as one undoable history entry", () => {
     appendChanges([
       makeRecord("left", null, null, "auto"),

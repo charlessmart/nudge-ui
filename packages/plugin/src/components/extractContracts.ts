@@ -45,11 +45,53 @@ function literalValue(node: Node): ComponentPropValue | null {
   return null;
 }
 
+/**
+ * These are the names that a component contract can confidently describe as
+ * visible copy. The runtime still requires the current value to be a string
+ * equal to the rendered text before offering an inline binding.
+ */
+const STRUCTURAL_TEXT_PROPS = new Set([
+  "id",
+  "className",
+  "href",
+  "src",
+  "role",
+  "style",
+]);
+
+function isStructuralTextProp(name: string): boolean {
+  return STRUCTURAL_TEXT_PROPS.has(name)
+    || name.startsWith("data")
+    || name.startsWith("aria");
+}
+
+function isReactNodeType(node: Node): boolean {
+  if (node.type !== "TSTypeReference") return false;
+  return ["ReactNode", "React.ReactNode", "React.ReactChild", "React.ReactText"]
+    .includes(nodeName(node.typeName as Node) ?? "");
+}
+
+function isTextType(node: Node): boolean {
+  return node.type === "TSStringKeyword" || isReactNodeType(node);
+}
+
 function propertyContract(member: Node): ComponentPropContract | null {
   if (member.type !== "TSPropertySignature") return null;
   const name = nodeName(member.key as Node);
   const typeNode = unwrapTypeAnnotation(member.typeAnnotation as Node | undefined);
   if (!name || !typeNode) return null;
+
+  // Project contracts recognize all runtime string props. Structural and
+  // implementation names are excluded here; package manifests can still
+  // explicitly publish a text control for a project-specific visible prop.
+  if (!isStructuralTextProp(name) && isTextType(typeNode)) {
+    return {
+      name,
+      control: "text",
+      options: [],
+      optional: member.optional === true,
+    };
+  }
 
   if (typeNode.type === "TSBooleanKeyword") {
     return {

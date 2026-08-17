@@ -22,6 +22,8 @@ import { createFrameThrottle } from "./frameThrottle.ts";
 import { getMeasurementGeometry } from "./measurementGeometry.ts";
 import { MeasurementGuideOverlay } from "./MeasurementGuideOverlay.tsx";
 import { resolveSelectionTarget, selectionTargetMode } from "./selectionTarget.ts";
+import { isInlineTextEditingActive, useInlineTextSession } from "./inlineTextEditor.ts";
+import { EMPTY_TEXT_PROJECTION_ATTR } from "./textProjection.ts";
 
 export {
   getMarginFills,
@@ -34,6 +36,7 @@ export {
 export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement {
   const open = useInspectorOpen();
   const selected = useSelectedElement();
+  const inlineTextSession = useInlineTextSession();
   const [hoverRect, setHoverRect] = useState<Rect | null>(null);
   const [hoverMargins, setHoverMargins] = useState<Margins | null>(null);
   const [selectedRect, setSelectedRect] = useState<Rect | null>(null);
@@ -205,8 +208,10 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
     }
 
     function onPointerDown(event: MouseEvent): void {
+      if (isInlineTextEditingActive()) return;
       if (event.button !== 0 || !(event.target instanceof HTMLElement)) return;
       if (host === event.target || host.contains(event.target)) return;
+      if (event.target.closest(`[${EMPTY_TEXT_PROJECTION_ATTR}]`)) return;
       const target = resolveSelectionTarget(event.target, selectionTargetMode(event));
       if (!target) return;
       candidate = target;
@@ -214,6 +219,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
     }
 
     function onPointerMove(event: MouseEvent): void {
+      if (isInlineTextEditingActive()) return;
       if (!candidate || !start) return;
       if (!dragging && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 6) return;
       event.preventDefault();
@@ -233,6 +239,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
     }
 
     function onPointerUp(event: MouseEvent): void {
+      if (isInlineTextEditingActive()) return;
       if (!candidate || !dragging) {
         clear();
         return;
@@ -345,7 +352,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
           ))}
         </>
       ) : null}
-      {open && selectedRect ? (
+      {open && selectedRect && !inlineTextSession ? (
         <>
           <div className="dt-selected-outline" data-test="selected-outline" style={selectedStyle} aria-hidden="true" />
         </>

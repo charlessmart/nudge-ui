@@ -21,6 +21,7 @@ import { subscribeChanges } from "../changesLog.ts";
 import { subscribeStructuralChanges } from "../structuralProjection.ts";
 import { recordCanvasStructuralProjectionReports } from "../structuralProjection.ts";
 import { recordCanvasRenderedInstanceProjectionReports } from "../renderedInstance.ts";
+import { recordCanvasTextProjectionReports } from "../textProjection.ts";
 import {
   findCanvasFrameBySource,
   getRegisteredFrames,
@@ -33,6 +34,7 @@ import {
   PROTOCOL_VERSION,
   isRendererMessageFor,
   isRenderedInstanceProjectionReportMessage,
+  isTextProjectionReportMessage,
   isStructuralProjectionReportMessage,
   type FrameProtocolMessage,
 } from "./frameProtocol.ts";
@@ -153,6 +155,10 @@ export function CanvasWorkspace(): ReactElement | null {
       }
       if (isRenderedInstanceProjectionReportMessage(event.data, identity)) {
         recordCanvasRenderedInstanceProjectionReports(frame.cardId, event.data.revision, event.data.reports);
+        return;
+      }
+      if (isTextProjectionReportMessage(event.data, identity)) {
+        recordCanvasTextProjectionReports(frame.cardId, event.data.revision, event.data.reports);
         return;
       }
 

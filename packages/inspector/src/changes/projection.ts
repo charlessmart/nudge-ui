@@ -9,9 +9,14 @@ import {
   collectRenderedInstanceOverrides,
   instanceSelector,
 } from "../renderedInstance.ts";
+import {
+  applyTextContentProjection,
+  collectTextContentChanges,
+} from "../textProjection.ts";
 import { selectorForInteractionState } from "../styleState.ts";
 import {
   isComponentChange,
+  isTextContentChange,
   isTokenChange,
   type ChangeRecord,
   type PreviewableChangeRecord,
@@ -46,7 +51,7 @@ export function buildManagedStyleRules(changes: ChangeRecord[]): StyleRule[] {
   const sourceRules = new Map<string, StyleRule>();
   const instanceRules = new Map<string, StyleRule>();
   for (const change of changes) {
-    if (isComponentChange(change)) continue;
+    if (isComponentChange(change) || isTextContentChange(change)) continue;
     const value = requestedStyleValue(change);
     if (!value) continue;
     const selector = selectorForManagedChange(change);
@@ -120,9 +125,12 @@ export function applyChangeProjections(
   changes: ChangeRecord[],
 ): ChangeRecord[] {
   applyRenderedInstanceProjection(document, collectRenderedInstanceOverrides(changes));
+  applyTextContentProjection(document, collectTextContentChanges(changes));
   applyRules(buildManagedStyleRules(changes));
   replaceComponentOverrideProjection(
-    changes.filter(isComponentChange).map(componentChangeToOverride),
+    changes.filter(isComponentChange)
+      .map(componentChangeToOverride)
+      .filter((override): override is NonNullable<ReturnType<typeof componentChangeToOverride>> => override !== null),
   );
   return changes;
 }

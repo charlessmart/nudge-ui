@@ -26,6 +26,8 @@ function makeMsg(overrides: Partial<ReplaceStylesMessage> = {}): ReplaceStylesMe
     revision: 1,
     instanceOverrides: [],
     structuralChanges: [],
+    textContentChanges: [],
+    componentOverrides: [],
     ...overrides,
   };
 }
@@ -138,6 +140,36 @@ describe("validateReplaceStyles", () => {
     delete msg.structuralChanges;
     const result = validateReplaceStyles(msg, TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID);
     expect(result).toEqual({ valid: false, reason: "structural changes are invalid" });
+  });
+
+  it("rejects malformed rendered-text projection records", () => {
+    const valid = {
+      kind: "text-content",
+      id: "text-1",
+      target: {
+        sourceSite: { cid: "Copy", src: "src/Copy.tsx:8:3" },
+        occurrence: 0,
+        props: null,
+        ariaLabel: null,
+        beforeText: "Original",
+      },
+      source: { file: "src/Copy.tsx", line: 8, column: 3, component: "Copy" },
+      selector: '[data-cid="Copy"]',
+      before: "Original",
+      after: "Updated",
+      authoredAs: "literal",
+    } as const;
+    expect(validateReplaceStyles(makeMsg({ textContentChanges: [valid] }), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID).valid).toBe(true);
+    const missing = { ...makeMsg() } as Partial<ReplaceStylesMessage>;
+    delete missing.textContentChanges;
+    expect(validateReplaceStyles(missing, TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID)).toEqual({ valid: false, reason: "text content changes are invalid" });
+    expect(validateReplaceStyles(makeMsg({ textContentChanges: [valid, { ...valid, after: "Again" }] }), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID)).toEqual({ valid: false, reason: "text content changes are invalid" });
+    expect(validateReplaceStyles(makeMsg({
+      textContentChanges: [{ ...valid, target: { ...valid.target, beforeText: "Different" } }],
+    }), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID)).toEqual({ valid: false, reason: "text content changes are invalid" });
+    expect(validateReplaceStyles(makeMsg({
+      textContentChanges: [{ ...valid, marker: "forbidden" }],
+    } as unknown as Partial<ReplaceStylesMessage>), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID)).toEqual({ valid: false, reason: "text content changes are invalid" });
   });
 
   it("rejects physical DOM data in a structural delete", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createComponentPropChange } from "./changeAction.ts";
+import { componentChangeToOverride } from "./changeModel.ts";
 import type { EditableComponentTarget } from "./types.ts";
 
 const target: EditableComponentTarget = {
@@ -56,5 +57,44 @@ describe("createComponentPropChange", () => {
         before: { kind: "default" },
         authoredAs: "default",
       });
+  });
+
+  it("never projects repeated evidence without an explicit source-site scope", () => {
+    const change = createComponentPropChange(target, target.contract.props[0]!, "secondary", {
+      evidence: {
+        occurrence: 0,
+        props: null,
+        ariaLabel: null,
+        beforeText: "primary",
+        mountedCount: 2,
+      },
+    });
+    expect(componentChangeToOverride({ ...change, scope: undefined })).toBeNull();
+    expect(componentChangeToOverride({ ...change, scope: "source-site" })).toMatchObject({
+      callsiteId: target.meta.callsiteId,
+      prop: "variant",
+      value: "secondary",
+    });
+    expect(componentChangeToOverride({ ...change, scope: "rendered-instance" })).toBeNull();
+  });
+
+  it("never broadens a repeated expression or spread through source-site scope", () => {
+    const expression = createComponentPropChange({
+      ...target,
+      meta: { ...target.meta, authoredProps: { variant: "expression" } },
+    }, target.contract.props[0]!, "secondary", {
+      scope: "source-site",
+      evidence: {
+        occurrence: 0,
+        props: null,
+        ariaLabel: null,
+        beforeText: "primary",
+        mountedCount: 2,
+      },
+    });
+    expect(componentChangeToOverride(expression)).toBeNull();
+    expect(componentChangeToOverride({ ...expression, authoredAs: "spread" })).toBeNull();
+    expect(componentChangeToOverride({ ...expression, authoredAs: "literal" })).not.toBeNull();
+    expect(componentChangeToOverride({ ...expression, authoredAs: "malformed" as never })).toBeNull();
   });
 });

@@ -4,6 +4,7 @@ import {
   isRenderedInstanceProjectionReportMessage,
   isRendererMessageFor,
   isStructuralProjectionReportMessage,
+  isTextProjectionReportMessage,
 } from "./frameProtocol.ts";
 import type { ElementClickMessage } from "./frameProtocol.ts";
 
@@ -107,5 +108,29 @@ describe("rendered-instance projection report schema", () => {
     { cardId: "card-b" },
   ])("rejects malformed or wrong-card CSS-instance diagnostics: %o", (override) => {
     expect(isRenderedInstanceProjectionReportMessage({ ...message, ...override }, identity)).toBe(false);
+  });
+});
+
+describe("rendered-text projection report schema", () => {
+  const message = {
+    type: "text-projection-report",
+    protocolVersion: PROTOCOL_VERSION,
+    revision: 4,
+    reports: [{ changeId: "text-1", status: "overridden" }],
+    ...identity,
+  };
+
+  it("accepts a versioned JSON-only report for the matching card", () => {
+    expect(isTextProjectionReportMessage(message, identity)).toBe(true);
+  });
+
+  it.each([
+    { reports: [{ changeId: "text-1", status: "unknown" }] },
+    { reports: [{ changeId: "text-1", status: "applied", marker: "forbidden" }] },
+    { reports: [{ changeId: "", status: "applied" }] },
+    { revision: -1 },
+    { cardId: "card-b" },
+  ])("rejects malformed or wrong-card text diagnostics: %o", (override) => {
+    expect(isTextProjectionReportMessage({ ...message, ...override }, identity)).toBe(false);
   });
 });

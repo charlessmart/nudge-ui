@@ -20,6 +20,11 @@ import {
   getRenderedInstanceDiagnosticRevision,
   subscribeRenderedInstanceDiagnostics,
 } from "./renderedInstance.ts";
+import {
+  getTextContentChangeDiagnostics,
+  getTextProjectionDiagnosticRevision,
+  subscribeTextProjectionDiagnostics,
+} from "./textProjection.ts";
 
 interface Group {
   key: string;
@@ -75,6 +80,11 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
     getRenderedInstanceDiagnosticRevision,
     getRenderedInstanceDiagnosticRevision,
   );
+  useSyncExternalStore(
+    subscribeTextProjectionDiagnostics,
+    getTextProjectionDiagnosticRevision,
+    getTextProjectionDiagnosticRevision,
+  );
   const groups = useMemo(() => groupChanges(changes), [changes]);
   const total = changes.length + structuralChanges.length;
 
@@ -105,6 +115,9 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                       && change.instanceOverride
                       ? getRenderedInstanceChangeDiagnostics(change.instanceOverride.id)
                       : [];
+                    const textDiagnostics = change.kind === "text-content"
+                      ? getTextContentChangeDiagnostics(change.id)
+                      : [];
                     return (
                       <div className="dt-changes__row" data-test="change-row" key={`${group.key}\u0000${presentation.property}\u0000${i}`} data-property={presentation.property}>
                         <span className="dt-changes__prop">{presentation.propertyLabel}</span>
@@ -113,11 +126,30 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                           <span className="dt-changes__arrow">→</span>
                           <span className="dt-changes__after">{presentation.after}</span>
                         </span>
+                        {presentation.scope ? (
+                          <span className="dt-changes__scope" data-test="change-scope">
+                            {presentation.scope === "source-site" ? "All outputs at source site" : "This rendered item only"}
+                          </span>
+                        ) : null}
+                        {presentation.evidence ? (
+                          <span className="dt-changes__evidence" data-test="change-evidence">{presentation.evidence}</span>
+                        ) : null}
                         <StaleChangeIndicator change={change} />
                         {instanceDiagnostics.map((diagnostic) => (
                           <span
                             className="dt-changes__diagnostic"
                             data-test="instance-diagnostic"
+                            data-document={diagnostic.document}
+                            data-status={diagnostic.status}
+                            key={`${diagnostic.document}:${diagnostic.status}`}
+                          >
+                            {diagnostic.document}: {diagnostic.status}
+                          </span>
+                        ))}
+                        {textDiagnostics.map((diagnostic) => (
+                          <span
+                            className="dt-changes__diagnostic"
+                            data-test="text-projection-diagnostic"
                             data-document={diagnostic.document}
                             data-status={diagnostic.status}
                             key={`${diagnostic.document}:${diagnostic.status}`}

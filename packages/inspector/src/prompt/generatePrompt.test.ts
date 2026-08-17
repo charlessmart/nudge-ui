@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generatePrompt } from "./generatePrompt.ts";
 import { detectFramework } from "./detectFramework.ts";
-import type { ChangeRecord, ElementChangeRecord } from "../changesLog.ts";
+import type { ChangeRecord, ElementChangeRecord, TextContentChangeRecord } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
@@ -32,7 +32,78 @@ describe("generatePrompt", () => {
     expect(out).toContain("`variant`: `primary` → `secondary` — replace the invocation prop literal");
     expect(out).toContain("Component contract: `src/ui/Button#Button`");
     expect(out).toContain("Component callsite: `src/App.tsx:12:4` (`Button`)");
+    expect(out).toContain('[data-cid="Button"][data-src*="src/App.tsx:12"]');
     expect(out).not.toContain("component-callsite:");
+  });
+
+  it("keeps an explicit repeated-output scope and bounded evidence in component prompts", () => {
+    const out = generatePrompt([makeComponentChange({
+      property: "label",
+      before: { kind: "value", value: "Repeated literal" },
+      after: "All outputs",
+      scope: "source-site",
+      evidence: {
+        occurrence: 1,
+        props: 'label:"Repeated literal"',
+        ariaLabel: null,
+        beforeText: "Repeated literal",
+        mountedCount: 2,
+      },
+    })]);
+    expect(out).toContain("scope: all outputs at this source site");
+    expect(out).toContain("Rendered evidence: occurrence 2; mounted outputs 2");
+    expect(out).toContain('Props evidence: `label:"Repeated literal"`');
+    expect(out).toContain("Before text: `Repeated literal`");
+  });
+
+  it("keeps primitive children authorship guidance in the semantic prompt", () => {
+    const change = makeComponentChange({
+      property: "children",
+      before: { kind: "value", value: "Save" },
+      after: "Publish",
+      authoredAs: "expression",
+      target: { componentName: "Badge" },
+    });
+    const out = generatePrompt([change]);
+    expect(out).toContain("### Badge invocation");
+    expect(out).toContain("`children`: `Save` → `Publish` — preserve the authored expression and update its source logic");
+    expect(out).toContain("Component callsite:");
+  });
+
+  it("tells the agent to replace literal child text", () => {
+    const change = makeComponentChange({
+      property: "children",
+      before: { kind: "value", value: "Save" },
+      after: "Publish",
+      authoredAs: "literal",
+      target: { componentName: "Badge" },
+    });
+    const out = generatePrompt([change]);
+    expect(out).toContain("`children`: `Save` → `Publish` — replace the literal child text");
+    expect(out).not.toContain("children`: `Save` → `Publish` — replace the invocation prop literal");
+  });
+
+  it("fences rendered text containing backticks, tildes, and newlines", () => {
+    const change: TextContentChangeRecord = {
+      kind: "text-content",
+      id: "text-escape",
+      target: {
+        sourceSite: { cid: "Copy", src: "src/Copy.tsx:8:3" },
+        occurrence: 0,
+        props: null,
+        ariaLabel: null,
+        beforeText: "before `tick`\nnext",
+      },
+      source: { file: "src/Copy.tsx", line: 8, column: 3, component: "Copy" },
+      selector: '[data-cid="Copy"][data-src*="src/Copy.tsx:8:3"]',
+      before: "before `tick`\nnext",
+      after: "after ~~~\nnext",
+      authoredAs: "literal",
+    };
+    const out = generatePrompt([change]);
+
+    expect(out).toContain("~~~text\nbefore `tick`\nnext\n~~~");
+    expect(out).toContain("~~~~text\nafter ~~~\nnext\n~~~~");
   });
 
   it("uses canonical structural intent with bounded evidence and no projection marker", () => {

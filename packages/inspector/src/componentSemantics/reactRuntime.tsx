@@ -1,6 +1,7 @@
 import {
   cloneElement,
   createElement,
+  useEffect,
   useSyncExternalStore,
   type ReactElement,
 } from "react";
@@ -32,6 +33,37 @@ type FiberLike = {
 
 let overridesByCallsite = new Map<string, Readonly<Record<string, unknown>>>();
 const listeners = new Set<() => void>();
+/**
+ * Mounted invocation accounting is runtime state, not canonical identity. A
+ * boundary registers by its stable transformed callsite and unregisters on
+ * unmount. This survives rerenders and React Strict Mode's effect probe, and
+ * each Canvas iframe owns an independent registry/module instance.
+ */
+const mountedCallsites = new Map<string, number>();
+
+function registerMountedCallsite(callsiteId: string): () => void {
+  mountedCallsites.set(callsiteId, (mountedCallsites.get(callsiteId) ?? 0) + 1);
+  let active = true;
+  return () => {
+    if (!active) return;
+    active = false;
+    const count = (mountedCallsites.get(callsiteId) ?? 1) - 1;
+    if (count > 0) mountedCallsites.set(callsiteId, count);
+    else mountedCallsites.delete(callsiteId);
+  };
+}
+
+/** Returns null when this runtime has no mounted boundary for the callsite. */
+export function getReactCallsiteMultiplicity(callsiteId: string): number | null {
+  return mountedCallsites.get(callsiteId) ?? null;
+}
+
+/** Test/runtime teardown hook; canonical changes never depend on this state. */
+export function resetReactComponentRuntime(): void {
+  mountedCallsites.clear();
+  overridesByCallsite = new Map();
+  listeners.clear();
+}
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
@@ -43,6 +75,7 @@ function overrideFor(callsiteId: string): Readonly<Record<string, unknown>> {
 }
 
 const ReactComponentOverride = (({ element, meta }: BoundaryProps): ReactElement => {
+  useEffect(() => registerMountedCallsite(meta.callsiteId), [meta.callsiteId]);
   const override = useSyncExternalStore(
     subscribe,
     () => overrideFor(meta.callsiteId),
@@ -93,6 +126,7 @@ export function inspectReactComponentTargets(element: HTMLElement): RuntimeCompo
           ...sourceElement.props,
           ...overrideFor(meta.callsiteId),
         },
+        mountedCount: getReactCallsiteMultiplicity(meta.callsiteId) ?? undefined,
       });
     }
     fiber = fiber.return ?? null;
@@ -116,4 +150,5 @@ export const reactComponentRuntimeAdapter: ComponentRuntimeAdapter = {
   framework: "react",
   inspect: inspectReactComponentTargets,
   replaceOverrides: replaceReactComponentOverrides,
+  getCallsiteMultiplicity: getReactCallsiteMultiplicity,
 };
