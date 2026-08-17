@@ -13,12 +13,15 @@ import {
   verifyManagedStyleProjection,
 } from "./changes/projection.ts";
 import type { StyleRule, PreviewResult } from "./managedStylesheet.ts";
-import { isComponentChange, isElementChange } from "./changes/types.ts";
+import { isComponentChange, isElementChange, isTextContentChange } from "./changes/types.ts";
 import type { ChangeRecord, PreviewableChangeRecord } from "./changes/types.ts";
+import { cancelInlineTextForClear } from "./inlineTextLifecycle.ts";
 
 export {
   isComponentChange,
   isElementChange,
+  isTextContentChange,
+  isTextContentChangeValue,
   isPreviewableChange,
   isTokenChange,
 } from "./changes/types.ts";
@@ -27,6 +30,7 @@ export type {
   ComponentChangeRecord,
   ElementChangeRecord,
   PreviewableChangeRecord,
+  TextContentChangeRecord,
   TokenChangeRecord,
 } from "./changes/types.ts";
 
@@ -88,7 +92,7 @@ function flushVerification(): void {
   let updated: ChangeRecord[] | null = null;
   for (let i = 0; i < current.length; i++) {
     const change = current[i]!;
-    if (isComponentChange(change)) continue;
+    if (isComponentChange(change) || isTextContentChange(change)) continue;
     const key = changeKey(change);
     if (!targets.has(key)) continue;
     const verified = verifyManagedStyleProjection(
@@ -241,6 +245,9 @@ export function loadChanges(incoming: ChangeRecord[]): void {
 }
 
 export function clearChanges(): void {
+  // A pending blur/composition timer must not be able to append a draft after
+  // the canonical set has been cleared.
+  cancelInlineTextForClear();
   changes = [];
   undoStack.length = 0;
   redoStack.length = 0;

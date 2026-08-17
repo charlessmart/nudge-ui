@@ -5,8 +5,10 @@ import {
   loadChanges,
   isComponentChange,
   isTokenChange,
+  isTextContentChangeValue,
   type ComponentChangeRecord,
   type ElementChangeRecord,
+  type TextContentChangeRecord,
   type TokenChangeRecord,
 } from "../changesLog.ts";
 import {
@@ -44,15 +46,22 @@ import {
   type StructuralChange,
 } from "../structuralProjection.ts";
 import { projectToAllReadyCards } from "./projection.ts";
+import type { TextProjectionTarget } from "../textChangeBoundary.ts";
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 8;
 // v3 is the released durable-session schema. v4 was a prerelease schema, v5
-// added structural snapshots, and v6 adds presentation metadata to moves.
-const LEGACY_SCHEMA_VERSIONS = [3, 4, 5] as const;
+// added structural snapshots, v6 added presentation metadata to moves, and v7
+// adds durable rendered-text projection records; v8 adds explicit text scope
+// and bounded semantic evidence.
+const LEGACY_SCHEMA_VERSIONS = [3, 4, 5, 6, 7] as const;
 const STORAGE_PREFIX = "design-tool";
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function isSameOriginUrl(value: unknown): value is string {
@@ -230,6 +239,9 @@ function applyStructuralChangeToScratch(doc: Document, change: StructuralChange)
 function isLegacyRuntimePreview(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
+  // A text-content record must pass its own strict schema. Never let the
+  // legacy preview cleanup silently discard malformed durable text intent.
+  if (record.kind === "text-content") return false;
   // These were document/renderer-local implementation details in the former
   // preview path. A parsed JSON value cannot contain a live Node, but it can
   // still contain one of these stale handles; discard the whole record rather
@@ -250,6 +262,26 @@ function isSerializableChange(value: unknown): value is SerializableChange {
         && (typeof before.value === "string"
           || typeof before.value === "number"
           || typeof before.value === "boolean"));
+    const evidence = change.evidence;
+    const evidenceRecord = isRecord(evidence) ? evidence : null;
+    const validEvidence = evidence === undefined || (
+      evidenceRecord !== null
+      && hasOnlyKeys(evidenceRecord, ["occurrence", "props", "ariaLabel", "beforeText", "mountedCount"])
+      && typeof evidenceRecord.occurrence === "number"
+      && Number.isSafeInteger(evidenceRecord.occurrence)
+      && evidenceRecord.occurrence >= 0
+      && (typeof evidenceRecord.props === "string" || evidenceRecord.props === null)
+      && (typeof evidenceRecord.ariaLabel === "string" || evidenceRecord.ariaLabel === null)
+      && typeof evidenceRecord.beforeText === "string"
+      && typeof evidenceRecord.mountedCount === "number"
+      && Number.isSafeInteger(evidenceRecord.mountedCount)
+      && evidenceRecord.mountedCount >= 0
+    );
+    const mountedCount = evidenceRecord?.mountedCount;
+    const repeatedUnsafeSourceOverride = typeof mountedCount === "number"
+      && mountedCount > 1
+      && (change.authoredAs === "expression" || change.authoredAs === "spread")
+      && change.scope !== "rendered-instance";
     return target !== undefined
       && target.framework === "react"
       && typeof target.componentId === "string"
@@ -266,8 +298,12 @@ function isSerializableChange(value: unknown): value is SerializableChange {
       && (change.authoredAs === "literal"
         || change.authoredAs === "expression"
         || change.authoredAs === "spread"
-        || change.authoredAs === "default");
+        || change.authoredAs === "default")
+      && (change.scope === undefined || change.scope === "source-site" || change.scope === "rendered-instance")
+      && validEvidence
+      && !repeatedUnsafeSourceOverride;
   }
+  if (change.kind === "text-content") return isTextContentChangeValue(change);
   if (
     typeof change.selector !== "string"
     || typeof change.property !== "string"
@@ -368,12 +404,34 @@ export interface SerializableComponentChange {
     | { kind: "value"; value: string | number | boolean };
   after: string | number | boolean;
   authoredAs: "literal" | "expression" | "spread" | "default";
+  scope?: "source-site" | "rendered-instance";
+  evidence?: {
+    occurrence: number;
+    props: string | null;
+    ariaLabel: string | null;
+    beforeText: string;
+    mountedCount: number;
+  };
+}
+
+export interface SerializableTextContentChange {
+  kind: "text-content";
+  id: string;
+  target: TextProjectionTarget;
+  source: { file: string; line: number; column: number; component: string };
+  selector: string;
+  before: string;
+  after: string;
+  authoredAs: "literal" | "expression" | "unknown";
+  scope?: "source-site" | "rendered-instance";
+  evidence?: TextContentChangeRecord["evidence"];
 }
 
 export type SerializableChange =
   | SerializableElementChange
   | SerializableTokenChange
-  | SerializableComponentChange;
+  | SerializableComponentChange
+  | SerializableTextContentChange;
 
 export interface DurableSession {
   schemaVersion: typeof SCHEMA_VERSION;
@@ -448,12 +506,45 @@ function serializeComponentChange(change: ComponentChangeRecord): SerializableCo
       : { kind: "value", value: change.before.value },
     after: change.after,
     authoredAs: change.authoredAs,
+    scope: change.scope,
+    evidence: change.evidence ? { ...change.evidence } : undefined,
+  };
+}
+
+function serializeTextContentChange(change: TextContentChangeRecord): SerializableTextContentChange {
+  return {
+    kind: "text-content",
+    id: change.id,
+    target: {
+      sourceSite: { ...change.target.sourceSite },
+      occurrence: change.target.occurrence,
+      props: change.target.props,
+      ariaLabel: change.target.ariaLabel,
+      beforeText: change.target.beforeText,
+      ...(change.target.textNodePath
+        ? { textNodePath: [...change.target.textNodePath] }
+        : {}),
+    },
+    source: { ...change.source },
+    selector: change.selector,
+    before: change.before,
+    after: change.after,
+    authoredAs: change.authoredAs,
+    scope: change.scope,
+    evidence: change.evidence ? { ...change.evidence } : undefined,
   };
 }
 
 function serializeChange(change: ChangeRecord): SerializableChange | null {
   if (isTokenChange(change)) return serializeTokenChange(change);
-  if (isComponentChange(change)) return serializeComponentChange(change);
+  if (isComponentChange(change)) {
+    const repeatedUnsafeSourceOverride = change.evidence?.mountedCount !== undefined
+      && change.evidence.mountedCount > 1
+      && (change.authoredAs === "expression" || change.authoredAs === "spread")
+      && change.scope !== "rendered-instance";
+    return repeatedUnsafeSourceOverride ? null : serializeComponentChange(change);
+  }
+  if (change.kind === "text-content") return serializeTextContentChange(change);
   return serializeElementChange(change);
 }
 
@@ -517,12 +608,39 @@ function deserializeComponentChange(s: SerializableComponentChange): ComponentCh
       : { kind: "value", value: s.before.value },
     after: s.after,
     authoredAs: s.authoredAs,
+    scope: s.scope,
+    evidence: s.evidence ? { ...s.evidence } : undefined,
+  };
+}
+
+function deserializeTextContentChange(s: SerializableTextContentChange): TextContentChangeRecord {
+  return {
+    kind: "text-content",
+    id: s.id,
+    target: {
+      sourceSite: { ...s.target.sourceSite },
+      occurrence: s.target.occurrence,
+      props: s.target.props,
+      ariaLabel: s.target.ariaLabel,
+      beforeText: s.target.beforeText,
+      ...(s.target.textNodePath
+        ? { textNodePath: [...s.target.textNodePath] }
+        : {}),
+    },
+    source: { ...s.source },
+    selector: s.selector,
+    before: s.before,
+    after: s.after,
+    authoredAs: s.authoredAs,
+    scope: s.scope,
+    evidence: s.evidence ? { ...s.evidence } : undefined,
   };
 }
 
 function deserializeChange(s: SerializableChange): ChangeRecord {
   if (s.kind === "token") return deserializeTokenChange(s);
   if (s.kind === "component-prop") return deserializeComponentChange(s);
+  if (s.kind === "text-content") return deserializeTextContentChange(s);
   return deserializeElementChange(s);
 }
 
@@ -700,11 +818,20 @@ export function hydrateSession(): HydrationResult {
 
   const changesRaw = Array.isArray(s.changes) ? s.changes : [];
   const deserializedChanges: ChangeRecord[] = [];
+  const textChangeIds = new Set<string>();
   for (const c of changesRaw) {
     // A legacy session may contain the former runtime-only preview record. It deliberately
     // has no durable identity, so preserving the rest of the session is safer
     // than attempting to map its generated DOM id onto a new document.
     if (isLegacyRuntimePreview(c)) continue;
+    if (c && typeof c === "object" && (c as Record<string, unknown>).kind === "text-content") {
+      if (!isTextContentChangeValue(c)
+        || textChangeIds.has(c.id)) {
+        safeDiscard(schemaVersion);
+        return { restored: false, changeCount: 0 };
+      }
+      textChangeIds.add(c.id);
+    }
     if (!isSerializableChange(c)) {
       safeDiscard(schemaVersion);
       return { restored: false, changeCount: 0 };
@@ -717,7 +844,11 @@ export function hydrateSession(): HydrationResult {
     }
   }
 
+  // v7 added text records on top of the v6 structural schema. Keep the
+  // structural snapshot while migrating v7 instead of silently dropping it.
   const structuralChanges = schemaVersion === SCHEMA_VERSION
+    || schemaVersion === 7
+    || schemaVersion === 6
     ? s.structuralChanges
     : schemaVersion === 5 ? migrateV5StructuralChanges(s.structuralChanges) : [];
   if (!Array.isArray(structuralChanges) || !structuralChanges.every(isStructuralChange)) {

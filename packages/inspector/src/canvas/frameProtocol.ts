@@ -1,7 +1,10 @@
 import { isDocumentProjectionReport } from "../renderedInstance.ts";
+import { isTextProjectionReport } from "../textProjection.ts";
+import type { ComponentOverride } from "../componentSemantics/types.ts";
 
-// v8 adds controller/renderer gesture messages for iframe canvas cards.
-export const PROTOCOL_VERSION = 8;
+// v10 adds controller-owned component overrides alongside rendered text
+// projections and diagnostics.
+export const PROTOCOL_VERSION = 10;
 
 export interface FrameMessage {
   type: string;
@@ -51,6 +54,10 @@ export interface ReplaceStylesMessage extends FrameMessage {
   instanceOverrides: import("../renderedInstance.ts").RenderedInstanceOverride[];
   /** Controller-owned structural intent; renderers never own this change log. */
   structuralChanges: import("../structuralProjection.ts").StructuralChange[];
+  /** Controller-owned durable rendered text intent. */
+  textContentChanges: import("../changes/types.ts").TextContentChangeRecord[];
+  /** Controller-owned semantic component overrides for Canvas runtimes. */
+  componentOverrides: ComponentOverride[];
 }
 
 /**
@@ -68,6 +75,13 @@ export interface RenderedInstanceProjectionReportMessage extends RendererMessage
   type: "rendered-instance-projection-report";
   revision: number;
   reports: import("../renderedInstance.ts").DocumentProjectionReport[];
+}
+
+/** Renderer-local outcomes for one controller-owned text snapshot. */
+export interface TextProjectionReportMessage extends RendererMessage {
+  type: "text-projection-report";
+  revision: number;
+  reports: import("../textProjection.ts").TextProjectionReport[];
 }
 
 export interface NavigationIntentMessage extends RendererMessage {
@@ -183,6 +197,7 @@ export type FrameProtocolMessage =
   | ReplaceStylesMessage
   | StructuralProjectionReportMessage
   | RenderedInstanceProjectionReportMessage
+  | TextProjectionReportMessage
   | NavigationIntentMessage
   | ElementHoverMessage
   | ElementMeasureStateMessage
@@ -256,7 +271,80 @@ export function isRenderedInstanceProjectionReportMessage(
     && message.reports.every(isDocumentProjectionReport);
 }
 
-function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+/** Strict JSON-only schema for renderer rendered-text diagnostics. */
+export function isTextProjectionReportMessage(
+  value: unknown,
+  identity: FrameIdentity,
+): value is TextProjectionReportMessage {
+  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
+  if (!hasOnlyKeys(value, [
+    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "revision", "reports",
+  ])) return false;
+  const type = ownValue(value, "type");
+  const revision = ownValue(value, "revision");
+  const reports = ownValue(value, "reports");
+  return type === "text-projection-report"
+    && typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 0
+    && Array.isArray(reports)
+    && reports.every(isTextProjectionReport);
+}
+
+export function isComponentOverrideList(value: unknown): value is ComponentOverride[] {
+  if (!Array.isArray(value)) return false;
+  return value.every((candidate) => {
+    if (!isProtocolObject(candidate)
+      || !hasOnlyKeys(candidate, ["framework", "callsiteId", "prop", "value"])) return false;
+    const framework = ownValue(candidate, "framework");
+    const callsiteId = ownValue(candidate, "callsiteId");
+    const prop = ownValue(candidate, "prop");
+    const overrideValue = ownValue(candidate, "value");
+    return framework === "react"
+      && typeof callsiteId === "string" && callsiteId.length > 0
+      && typeof prop === "string" && prop.length > 0
+      && (typeof overrideValue === "string"
+        || typeof overrideValue === "number" && Number.isFinite(overrideValue)
+        || typeof overrideValue === "boolean");
+  });
+}
+
+/** Raw JSON object at the renderer postMessage boundary. */
+interface ProtocolObject {
+  readonly cardId?: unknown;
+  readonly callsiteId?: unknown;
+  readonly framework?: unknown;
+  readonly prop?: unknown;
+  readonly projectId?: unknown;
+  readonly protocolVersion?: unknown;
+  readonly reports?: unknown;
+  readonly revision?: unknown;
+  readonly type?: unknown;
+  readonly value?: unknown;
+  readonly workspaceId?: unknown;
+}
+
+type ProtocolObjectKey = keyof ProtocolObject;
+
+function isProtocolObject(value: unknown): value is ProtocolObject {
+  return typeof value === "object" && value !== null;
+}
+
+function ownValue(value: ProtocolObject, key: ProtocolObjectKey): unknown {
+  switch (key) {
+    case "cardId": return value.cardId;
+    case "callsiteId": return value.callsiteId;
+    case "framework": return value.framework;
+    case "prop": return value.prop;
+    case "projectId": return value.projectId;
+    case "protocolVersion": return value.protocolVersion;
+    case "reports": return value.reports;
+    case "revision": return value.revision;
+    case "type": return value.type;
+    case "value": return value.value;
+    case "workspaceId": return value.workspaceId;
+  }
+}
+
+function hasOnlyKeys(value: ProtocolObject, keys: readonly string[]): boolean {
   return Object.keys(value).every((key) => keys.includes(key));
 }
 

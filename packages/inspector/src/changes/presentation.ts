@@ -5,6 +5,7 @@ import {
 import {
   isComponentChange,
   isTokenChange,
+  isTextContentChange,
   type ChangeRecord,
 } from "./types.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
@@ -17,6 +18,8 @@ export interface ChangePresentation {
   propertyLabel: string;
   before: string;
   after: string;
+  scope?: "source-site" | "rendered-instance";
+  evidence?: string;
 }
 
 export function presentChange(change: ChangeRecord): ChangePresentation {
@@ -50,6 +53,32 @@ export function presentChange(change: ChangeRecord): ChangePresentation {
       propertyLabel: formatInspectorLabel(change.property),
       before: formatComponentPropBaseline(change.before),
       after: formatComponentPropValue(change.after),
+      scope: change.scope ?? "source-site",
+      evidence: change.evidence
+        ? `occurrence ${change.evidence.occurrence + 1} · ${change.evidence.mountedCount} mounted outputs`
+        : undefined,
+    };
+  }
+  if (isTextContentChange(change)) {
+    return {
+      groupKey: [
+        "text-content",
+        change.target.sourceSite.cid,
+        change.target.sourceSite.src,
+        change.target.occurrence,
+        change.target.props ?? "",
+        change.target.ariaLabel ?? "",
+      ].join("\u0000"),
+      groupLabel: `${change.source.component || change.target.sourceSite.cid} · Rendered text`,
+      file: change.source.file,
+      property: "text-content",
+      propertyLabel: "Rendered text",
+      before: change.before,
+      after: change.after,
+      scope: change.scope ?? "rendered-instance",
+      evidence: change.evidence
+        ? `${change.evidence.componentName}.${change.evidence.property} · ${change.evidence.mountedCount} mounted outputs`
+        : undefined,
     };
   }
   return {

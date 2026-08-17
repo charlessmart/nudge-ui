@@ -13,6 +13,7 @@ import { Button } from "../ui/Button.tsx";
 import { setSelectedElement } from "../selectionStore.ts";
 import { clearCanvasStructuralProjectionReports } from "../structuralProjection.ts";
 import { clearCanvasRenderedInstanceProjectionReports } from "../renderedInstance.ts";
+import { clearCanvasTextProjectionReports } from "../textProjection.ts";
 import { getCanvasToolbarScale } from "./toolbarScale.ts";
 
 interface CanvasCardProps {
@@ -40,7 +41,9 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     const iframe = iframeRef.current;
     if (!iframe) return;
     registerCardFrameSource(card.id, iframe);
-    return () => unregisterCardFrame(card.id);
+    return () => {
+      unregisterCardFrame(card.id);
+    };
   }, [card.id]);
 
   function handleReload(): void {
@@ -48,7 +51,8 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
       if (getSelectedCardId() === card.id) setSelectedElement(null);
       setLoadState("loading");
       setErrorMessage(null);
-      iframeRef.current.src = iframeRef.current.src;
+      const currentSrc = iframeRef.current.src;
+      iframeRef.current.setAttribute("src", currentSrc);
     }
   }
 
@@ -131,6 +135,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
       // produced by the old frame while its replacement is handshaking.
       clearCanvasStructuralProjectionReports(card.id);
       clearCanvasRenderedInstanceProjectionReports(card.id);
+      clearCanvasTextProjectionReports(card.id);
       iframeRef.current?.contentWindow?.postMessage({
         type: "parent-ready",
         protocolVersion: PROTOCOL_VERSION,

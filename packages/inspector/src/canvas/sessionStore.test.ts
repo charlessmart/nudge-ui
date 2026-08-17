@@ -15,7 +15,7 @@ import {
   resetAutoSave,
 } from "./sessionStore.ts";
 import { clearChanges, getChangesList, appendChange } from "../changesLog.ts";
-import type { ComponentChangeRecord, ElementChangeRecord, TokenChangeRecord } from "../changesLog.ts";
+import type { ComponentChangeRecord, ElementChangeRecord, TextContentChangeRecord, TokenChangeRecord } from "../changesLog.ts";
 import { makeComponentChange as makeComponentChangeRecord } from "../changes/_testUtils.ts";
 import {
   getCanvasMode,
@@ -84,6 +84,26 @@ function makeComponentChange(): ComponentChangeRecord {
   return makeComponentChangeRecord();
 }
 
+function makeTextChange(overrides: Partial<TextContentChangeRecord> = {}): TextContentChangeRecord {
+  return {
+    kind: "text-content",
+    id: "text-1",
+    target: {
+      sourceSite: { cid: "Copy", src: "src/Copy.tsx:8:3" },
+      occurrence: 0,
+      props: "tone:muted",
+      ariaLabel: null,
+      beforeText: "Original",
+    },
+    source: { file: "src/Copy.tsx", line: 8, column: 3, component: "Copy" },
+    selector: '[data-cid="Copy"][data-src*="src/Copy.tsx:8:3"]',
+    before: "Original",
+    after: "Updated",
+    authoredAs: "literal",
+    ...overrides,
+  };
+}
+
 function resetAllState(): void {
   clearChanges();
   resetStructuralDeleteProjection();
@@ -98,6 +118,8 @@ function resetAllState(): void {
     localStorage.removeItem(`design-tool:${designToolProjectId}:v3`);
     localStorage.removeItem(`design-tool:${designToolProjectId}:v4`);
     localStorage.removeItem(`design-tool:${designToolProjectId}:v5`);
+    localStorage.removeItem(`design-tool:${designToolProjectId}:v6`);
+    localStorage.removeItem(`design-tool:${designToolProjectId}:v7`);
   } catch {
     // ignore
   }
@@ -143,6 +165,63 @@ describe("sessionStore persistence", () => {
       scope: "rendered-instance",
       instanceOverride: { id: "override-1", target: { locator: { occurrence: 1, text: "Two" } } },
     });
+  });
+
+  it("serializes and hydrates a durable rendered-text change", () => {
+    const element = document.createElement("p");
+    element.dataset.cid = "Copy";
+    element.dataset.src = "src/Copy.tsx:8:3";
+    element.dataset.cprops = "tone:muted";
+    element.textContent = "Original";
+    document.body.append(element);
+
+    appendChange(makeTextChange());
+    persistSession();
+    const parsed = JSON.parse(localStorage.getItem(storageKey(designToolProjectId))!);
+    expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(parsed.changes[0]).toMatchObject({
+      kind: "text-content",
+      target: { sourceSite: { cid: "Copy", src: "src/Copy.tsx:8:3" }, beforeText: "Original" },
+      before: "Original",
+      after: "Updated",
+    });
+
+    clearChanges();
+    document.body.replaceChildren(element);
+    const result = hydrateSession();
+    expect(result.restored).toBe(true);
+    expect(getChangesList()).toMatchObject([{ kind: "text-content", after: "Updated" }]);
+    expect(element.textContent).toBe("Updated");
+  });
+
+  it("round-trips the exact text-node path for mixed Canvas projections", () => {
+    const element = document.createElement("button");
+    element.dataset.cid = "Copy";
+    element.dataset.src = "src/Copy.tsx:8:3";
+    element.dataset.cprops = "tone:muted";
+    const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    icon.innerHTML = "<path d=\"M0 0h4v4H0z\" />";
+    const label = document.createElement("span");
+    label.textContent = "Original";
+    element.append(icon, label);
+    document.body.append(element);
+
+    appendChange(makeTextChange({
+      target: {
+        ...makeTextChange().target,
+        textNodePath: [1, 0],
+      },
+    }));
+    persistSession();
+    const parsed = JSON.parse(localStorage.getItem(storageKey(designToolProjectId))!);
+    expect(parsed.changes[0].target.textNodePath).toEqual([1, 0]);
+
+    clearChanges();
+    document.body.replaceChildren(element);
+    hydrateSession();
+    expect(element.querySelector("path")).not.toBeNull();
+    expect(element.querySelector("span")?.textContent).toBe("Updated");
+    expect(getChangesList()[0]).toMatchObject({ target: { textNodePath: [1, 0] } });
   });
 
   it("serializes canonical structural deletes and moves without document-local artefacts", () => {
@@ -253,7 +332,7 @@ describe("sessionStore hydration", () => {
     expect(target.isConnected).toBe(false);
   });
 
-  it("migrates a v5 move to v6 presentation metadata before replaying it", () => {
+  it("migrates a v5 move to the current presentation schema before replaying it", () => {
     const parent = document.createElement("section");
     parent.dataset.cid = "List";
     parent.dataset.src = "src/List.tsx:4:1";
@@ -286,10 +365,35 @@ describe("sessionStore hydration", () => {
     }]);
     expect(Array.from(parent.children).map((element) => element.textContent)).toEqual(["Second", "First"]);
     expect(localStorage.getItem(`design-tool:${designToolProjectId}:v5`)).toBeNull();
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toContain('"schemaVersion":6');
+    expect(localStorage.getItem(storageKey(designToolProjectId))).toContain(`"schemaVersion":${SCHEMA_VERSION}`);
   });
 
-  it.each([3, 4, 5])("reads v%i durable CSS, drops legacy runtime records, and upgrades safely", (legacyVersion) => {
+  it("keeps v6 structural changes while migrating a v7 text session", () => {
+    const target = document.createElement("button");
+    target.dataset.cid = "Item";
+    target.dataset.src = "src/List.tsx:8:1";
+    target.textContent = "Second";
+    document.body.append(target);
+    createStructuralDelete(target, "delete-v7");
+    appendChange(makeTextChange());
+    const legacy = JSON.parse(JSON.stringify(serializeSession())) as Record<string, unknown>;
+    legacy.schemaVersion = 7;
+    localStorage.setItem(`design-tool:${designToolProjectId}:v7`, JSON.stringify(legacy));
+    localStorage.removeItem(storageKey(designToolProjectId));
+
+    resetStructuralDeleteProjection();
+    document.body.replaceChildren(target);
+    clearChanges();
+    const result = hydrateSession();
+
+    expect(result).toMatchObject({ restored: true, changeCount: 2 });
+    expect(getStructuralChanges()).toMatchObject([{ id: "delete-v7", kind: "delete" }]);
+    expect(getChangesList()).toMatchObject([{ kind: "text-content", id: "text-1" }]);
+    expect(target.isConnected).toBe(false);
+    expect(localStorage.getItem(`design-tool:${designToolProjectId}:v7`)).toBeNull();
+  });
+
+  it.each([3, 4, 5, 6])("reads v%i durable CSS, drops legacy runtime records, and upgrades safely", (legacyVersion) => {
     const legacyKey = `design-tool:${designToolProjectId}:v${legacyVersion}`;
     localStorage.setItem(legacyKey, JSON.stringify({
       schemaVersion: legacyVersion,
@@ -306,6 +410,7 @@ describe("sessionStore hydration", () => {
           elementId: "dt-instance-1",
         },
       ],
+      structuralChanges: [],
     }));
 
     const result = hydrateSession();
@@ -313,7 +418,7 @@ describe("sessionStore hydration", () => {
     expect(result).toMatchObject({ restored: true, changeCount: 1 });
     expect(getChangesList()).toHaveLength(1);
     expect(localStorage.getItem(legacyKey)).toBeNull();
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toContain('"schemaVersion":6');
+    expect(localStorage.getItem(storageKey(designToolProjectId))).toContain(`"schemaVersion":${SCHEMA_VERSION}`);
   });
 
   it("rejects structural payloads with generated marker or document-local fields", () => {
@@ -464,6 +569,50 @@ describe("sessionStore hydration", () => {
     localStorage.setItem(storageKey(designToolProjectId), session);
     const result = hydrateSession();
     expect(result.restored).toBe(false);
+  });
+
+  it("rejects duplicate durable text IDs during hydration", () => {
+    const session = serializeSession();
+    session.changes = [
+      makeTextChange(),
+      makeTextChange({ id: "text-1", after: "Second" }),
+    ];
+    localStorage.setItem(storageKey(designToolProjectId), JSON.stringify(session));
+
+    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
+    expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+  });
+
+  it("rejects a restored repeated expression source-site override", () => {
+    const session = serializeSession();
+    session.changes = [makeComponentChange() as typeof session.changes[number]];
+    const malformed = session.changes[0] as Extract<typeof session.changes[number], { kind: "component-prop" }>;
+    malformed.authoredAs = "expression";
+    malformed.scope = "source-site";
+    malformed.evidence = {
+      occurrence: 0,
+      props: null,
+      ariaLabel: null,
+      beforeText: "primary",
+      mountedCount: 2,
+    };
+    localStorage.setItem(storageKey(designToolProjectId), JSON.stringify(session));
+
+    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
+    expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+  });
+
+  it.each(["marker", "projectionMarker", "scope"])("rejects malformed text records with legacy %s fields", (field) => {
+    const session = serializeSession();
+    const malformed = {
+      ...makeTextChange(),
+      [field]: field === "scope" ? "runtime-preview" : "data-dt-projection-text",
+    };
+    session.changes = [malformed as typeof session.changes[number]];
+    localStorage.setItem(storageKey(designToolProjectId), JSON.stringify(session));
+
+    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
+    expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
   });
 
   it("returns no restoration for bad camera data", () => {

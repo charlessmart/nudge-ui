@@ -54,6 +54,8 @@ export default {
         "packages/inspector/src/renderedInstance.ts",
         "packages/inspector/src/resolveSelection.ts",
         "packages/inspector/src/structuralProjectionBoundary.ts",
+        "packages/inspector/src/textChangeBoundary.ts",
+        "packages/inspector/src/textProjection.ts",
         "packages/inspector/src/tokens/resolution/cssomCollector.ts",
       ],
       rules: {

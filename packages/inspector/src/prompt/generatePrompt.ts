@@ -1,14 +1,16 @@
-import { isComponentChange, isTokenChange } from "../changesLog.ts";
+import { isComponentChange, isTextContentChange, isTokenChange } from "../changesLog.ts";
 import type {
   ChangeRecord,
   ComponentChangeRecord,
   ElementChangeRecord,
   PreviewableChangeRecord,
   TokenChangeRecord,
+  TextContentChangeRecord,
 } from "../changesLog.ts";
 import { escapeAttrValue } from "../cssEscapes.ts";
 import type { RenderedInstanceOverride, RenderedInstanceRef } from "../renderedInstance.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
+import type { TextProjectionTarget } from "../textChangeBoundary.ts";
 import { canonicalizeChanges } from "../changes/model.ts";
 import {
   formatComponentPropBaseline,
@@ -104,11 +106,53 @@ function tokenChangeLine(rec: TokenChangeRecord): string {
 
 function componentChangeLine(rec: ComponentChangeRecord): string {
   const sourceGuidance = rec.authoredAs === "literal"
-    ? "replace the invocation prop literal"
+    ? rec.property === "children"
+      ? "replace the literal child text"
+      : "replace the invocation prop literal"
     : rec.authoredAs === "default"
       ? "add the prop at this invocation"
       : `preserve the authored ${rec.authoredAs} and update its source logic`;
-  return `- \`${rec.property}\`: \`${formatComponentPropBaseline(rec.before)}\` → \`${formatComponentPropValue(rec.after)}\` — ${sourceGuidance}`;
+  const scope = rec.scope === "rendered-instance"
+    ? "this rendered item only"
+    : "all outputs at this source site";
+  return `- \`${rec.property}\`: \`${formatComponentPropBaseline(rec.before)}\` → \`${formatComponentPropValue(rec.after)}\` — ${sourceGuidance}; scope: ${scope}`;
+}
+
+function textAuthorshipGuidance(authoredAs: TextContentChangeRecord["authoredAs"]): string {
+  if (authoredAs === "literal") return "replace the authored literal text";
+  if (authoredAs === "expression") return "preserve the expression and update its source logic";
+  return "update the source that produces this rendered copy";
+}
+
+/** Keep arbitrary rendered copy valid inside the Markdown prompt. */
+function promptText(value: string): string {
+  if (!/[`~\r\n]/.test(value)) return `\`${value}\``;
+  const longestTildeRun = Math.max(...(value.match(/~+/g) ?? [""]).map((run) => run.length));
+  const fence = "~".repeat(Math.max(3, longestTildeRun + 1));
+  return `${fence}text\n${value}\n${fence}`;
+}
+
+function textProjectionSourceFallback(target: TextProjectionTarget): string {
+  return `[data-cid="${escapeAttrValue(target.sourceSite.cid)}"][data-src*="${escapeAttrValue(target.sourceSite.src)}"]`;
+}
+
+function textEvidenceLines(target: TextProjectionTarget): string[] {
+  const lines = [
+    `  - Source site: \`${target.sourceSite.cid}\` (\`${target.sourceSite.src}\`)`,
+    `  - Rendered occurrence: ${target.occurrence + 1}`,
+  ];
+  if (target.props) lines.push(`  - Props evidence: \`${target.props}\``);
+  if (target.ariaLabel) lines.push(`  - Accessible name evidence: \`${target.ariaLabel}\``);
+  return lines;
+}
+
+function textScopeLines(change: TextContentChangeRecord): string[] {
+  const scope = change.scope === "source-site" ? "source site / all outputs" : "this rendered item only";
+  const lines = [`  - Scope: ${scope}`];
+  if (change.evidence) {
+    lines.push(`  - Semantic evidence: \`${change.evidence.componentName}.${change.evidence.property}\` at callsite \`${change.evidence.callsiteId}\` (${change.evidence.mountedCount} mounted outputs)`);
+  }
+  return lines;
 }
 
 /**
@@ -177,8 +221,9 @@ export function generatePrompt(
 
   const tokenChanges = deduplicated.filter(isTokenChange);
   const componentChanges = deduplicated.filter(isComponentChange);
+  const textChanges = deduplicated.filter(isTextContentChange);
   const elementChanges = deduplicated.filter((change): change is ElementChangeRecord =>
-    !isTokenChange(change) && !isComponentChange(change));
+    !isTokenChange(change) && !isComponentChange(change) && !isTextContentChange(change));
   const elementGroups = groupElementChanges(elementChanges);
   const firstFile = deduplicated[0]
     ? presentChange(deduplicated[0]).file
@@ -207,6 +252,12 @@ export function generatePrompt(
       lines.push(`### ${target.componentName} invocation (${target.file}:${target.line}:${target.column})`);
       lines.push(componentChangeLine(change));
       lines.push(`  - Component contract: \`${target.componentId}\``);
+      if (change.evidence) {
+        lines.push(`  - Rendered evidence: occurrence ${change.evidence.occurrence + 1}; mounted outputs ${change.evidence.mountedCount}`);
+        if (change.evidence.props) lines.push(`    - Props evidence: \`${change.evidence.props}\``);
+        if (change.evidence.ariaLabel) lines.push(`    - Accessible name evidence: \`${change.evidence.ariaLabel}\``);
+        lines.push(`    - Before text: ${promptText(change.evidence.beforeText)}`);
+      }
       lines.push("");
     }
   }
@@ -228,6 +279,17 @@ export function generatePrompt(
     }
   }
 
+  if (textChanges.length > 0) {
+    lines.push("## Rendered text changes", "");
+    for (const change of textChanges) {
+      lines.push(`### ${change.source.component || change.target.sourceSite.cid} (${change.source.file}:${change.source.line}:${change.source.column})`);
+      lines.push(`- Rendered text: ${promptText(change.before)} → ${promptText(change.after)} — ${textAuthorshipGuidance(change.authoredAs)}`);
+      lines.push(...textScopeLines(change));
+      lines.push(...textEvidenceLines(change.target));
+      lines.push("");
+    }
+  }
+
   if (structuralChanges.length > 0) {
     lines.push("## Structural preview changes", "");
     for (const change of structuralChanges) {
@@ -240,6 +302,9 @@ export function generatePrompt(
   tokenChanges.forEach((change) => lines.push(`- \`${change.tokenName}\` in \`${change.selector}\``));
   componentChanges.forEach((change) =>
     lines.push(`- Component callsite: \`${change.target.file}:${change.target.line}:${change.target.column}\` (\`${change.target.componentName}\`)`));
+  componentChanges.forEach((change) =>
+    lines.push(`- \`[data-cid="${escapeAttrValue(change.target.componentName)}"][data-src*="${escapeAttrValue(`${change.target.file}:${change.target.line}`)}"]\``));
+  textChanges.forEach((change) => lines.push(`- \`${textProjectionSourceFallback(change.target)}\``));
   elementGroups.forEach((group) => lines.push(`- \`${promptSelectorForElement(group)}\``));
   const structuralFallbacks = new Set<string>();
   for (const change of structuralChanges) {
