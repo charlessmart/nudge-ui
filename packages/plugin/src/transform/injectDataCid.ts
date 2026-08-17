@@ -169,7 +169,7 @@ function escapeJsxAttribute(value: string): string {
     .replaceAll(">", "&gt;");
 }
 
-function authoredPropKinds(attrs: Node[]) {
+function authoredPropKinds(attrs: Node[], children: Node[] = []) {
   const result: Record<string, "literal" | "expression" | "spread"> = {};
   for (const attr of attrs) {
     if (attr.type === "JSXSpreadAttribute") {
@@ -190,7 +190,39 @@ function authoredPropKinds(attrs: Node[]) {
       ? "literal"
       : "expression";
   }
+  const childKind = authoredChildrenKind(children);
+  if (childKind) result.children = childKind;
   return result;
+}
+
+/**
+ * Preserve the authored shape of primitive JSX children in invocation
+ * metadata. This is metadata for the dev runtime only; it does not add a
+ * production attribute or wrapper to the application output.
+ */
+function authoredChildrenKind(children: Node[]): "literal" | "expression" | "spread" | null {
+  if (children.length === 0) return null;
+  let kind: "literal" | "expression" | "spread" | null = null;
+  for (const child of children) {
+    if (child.type === "JSXText") {
+      if (String(child.value ?? "").trim() === "") continue;
+      kind = kind === "spread" || kind === "expression" ? kind : "literal";
+      continue;
+    }
+    if (child.type === "JSXSpreadChild") {
+      kind = "spread";
+      continue;
+    }
+    if (child.type !== "JSXExpressionContainer") continue;
+    const expression = child.expression as Node | null | undefined;
+    if (!expression || expression.type === "JSXEmptyExpression") continue;
+    const literal = expression.type === "StringLiteral"
+      || expression.type === "NumericLiteral"
+      || expression.type === "BooleanLiteral";
+    if (kind === "spread") continue;
+    kind = literal && (kind === null || kind === "literal") ? "literal" : "expression";
+  }
+  return kind;
 }
 
 function nodeName(node: Node | null | undefined): string | null {
@@ -342,7 +374,7 @@ function walk(
         file: relPath,
         line,
         column: column + 1,
-        authoredProps: authoredPropKinds(attrs),
+        authoredProps: authoredPropKinds(attrs, (node.children as Node[] | undefined) ?? []),
       };
       const needsExpression = parent?.type === "JSXElement" || parent?.type === "JSXFragment";
       // appendRight preserves insertion order when two JSX siblings have no

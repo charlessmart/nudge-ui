@@ -312,6 +312,32 @@ describe("injectIdentity — React component invocation instrumentation", () => 
     );
   });
 
+  it("records primitive children authorship in component invocation metadata", () => {
+    const literal = injectIdentity(
+      `function App() { return <Button>Save</Button>; }`,
+      "/src/App.tsx",
+      undefined,
+      { instrumentComponents: true },
+    );
+    expect(literal?.code).toContain('"children":"literal"');
+
+    const expression = injectIdentity(
+      `function App({ label }: { label: string }) { return <Button>{label}</Button>; }`,
+      "/src/App.tsx",
+      undefined,
+      { instrumentComponents: true },
+    );
+    expect(expression?.code).toContain('"children":"expression"');
+
+    const spread = injectIdentity(
+      `function App({ children }: { children: string[] }) { return <Button>{...children}</Button>; }`,
+      "/src/App.tsx",
+      undefined,
+      { instrumentComponents: true },
+    );
+    expect(spread?.code).toContain('"children":"spread"');
+  });
+
   it("keeps adjacent component siblings parseable without whitespace", () => {
     const code = `function App() { return <><Meta/><Links/></>; }`;
     const result = injectIdentity(code, "/src/App.tsx", undefined, {

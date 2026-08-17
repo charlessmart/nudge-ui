@@ -26,6 +26,7 @@ describe("extractComponentContracts", () => {
         { name: "variant", control: "select", options: ["primary", "secondary"], optional: true },
         { name: "size", control: "select", options: ["small", "medium", "large"], optional: false },
         { name: "disabled", control: "boolean", options: [false, true], optional: true },
+        { name: "label", control: "text", options: [], optional: false },
       ],
     }]);
   });
@@ -49,7 +50,32 @@ describe("extractComponentContracts", () => {
       type CardProps = { title: string; count: number; data: object; mode: "only" };
       export function Card(props: CardProps) { return <article />; }
     `;
-    expect(extractComponentContracts(code, "src/ui/Card.tsx")).toEqual([]);
+    expect(extractComponentContracts(code, "src/ui/Card.tsx")).toEqual([{
+      componentId: "src/ui/Card#Card",
+      name: "Card",
+      file: "src/ui/Card.tsx",
+      provenance: "typescript",
+      props: [{ name: "title", control: "text", options: [], optional: false }],
+    }]);
+  });
+
+  it("extracts visible string props and ReactNode children, but not implementation strings", () => {
+    const code = `
+      import type { ReactNode } from "react";
+      interface BadgeProps {
+        children: ReactNode;
+        label?: string;
+        headline?: string;
+        href?: string;
+        ariaLabel?: string;
+      }
+      export function Badge(props: BadgeProps) { return <span>{props.children}</span>; }
+    `;
+    expect(extractComponentContracts(code, "src/ui/Badge.tsx")[0]?.props).toEqual([
+      { name: "children", control: "text", options: [], optional: false },
+      { name: "label", control: "text", options: [], optional: true },
+      { name: "headline", control: "text", options: [], optional: true },
+    ]);
   });
 
   it("returns an empty catalog for invalid source", () => {

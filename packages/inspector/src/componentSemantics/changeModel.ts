@@ -4,6 +4,8 @@ import type {
   ComponentPropBaseline,
   ComponentPropContract,
   ComponentPropValue,
+  ComponentChangeScope,
+  ComponentInvocationEvidence,
   EditableComponentTarget,
 } from "./types.ts";
 import { componentPropBaseline } from "./boundaries.ts";
@@ -24,6 +26,10 @@ export function createComponentPropChange(
   target: EditableComponentTarget,
   prop: ComponentPropContract,
   after: ComponentPropValue,
+  options: {
+    scope?: ComponentChangeScope;
+    evidence?: ComponentInvocationEvidence;
+  } = {},
 ): ComponentChangeRecord {
   const authoredAs = target.meta.authoredProps[prop.name]
     ?? (target.meta.authoredProps["..."] ? "spread" : "default");
@@ -42,12 +48,33 @@ export function createComponentPropChange(
     before: componentPropBaseline(target.props[prop.name]),
     after,
     authoredAs,
+    scope: options.scope ?? "source-site",
+    evidence: options.evidence,
   };
 }
 
 export function componentChangeToOverride(
   change: ComponentChangeRecord,
-): ComponentOverride {
+): ComponentOverride | null {
+  if (change.authoredAs !== "literal"
+    && change.authoredAs !== "expression"
+    && change.authoredAs !== "spread"
+    && change.authoredAs !== "default") return null;
+  const mountedCount = change.evidence?.mountedCount;
+  if (mountedCount !== undefined
+    && (!Number.isSafeInteger(mountedCount) || mountedCount < 0)) return null;
+  // A rendered-instance semantic record is intentionally never projected as a
+  // callsite override. Repeated expression/spread props are equally unsafe to
+  // broaden, even when a malformed/internal record asks for source-site scope.
+  // Repeated literals remain explicitly source-editable.
+  const repeatedUnsafeSourceOverride = mountedCount !== undefined
+    && mountedCount > 1
+    && (change.authoredAs === "expression" || change.authoredAs === "spread")
+    && (change.scope === undefined || change.scope === "source-site");
+  const repeatedScopeNotChosen = mountedCount !== undefined
+    && mountedCount > 1
+    && change.scope === undefined;
+  if (change.scope === "rendered-instance" || repeatedUnsafeSourceOverride || repeatedScopeNotChosen) return null;
   return {
     framework: change.target.framework,
     callsiteId: change.target.callsiteId,
