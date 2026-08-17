@@ -46,13 +46,14 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
 
   const hasSelection = await page.evaluate(() => {
     const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const labels = [...(sr?.querySelectorAll(".dt-field-row__label, .dt-side-values__label, .dt-editor__title, .dt-layout__group-title") ?? [])]
+    const labels = [...(sr?.querySelectorAll(".dt-field-row__label, .dt-side-values__label, .dt-editor__title") ?? [])]
       .map((node) => node.textContent?.trim() ?? "");
     return {
       hasSelection: sr?.querySelector('[data-test="selection"]') !== null,
       hasBreadcrumb: sr?.querySelector(".dt-breadcrumb") !== null,
       hasMetadataRows: sr?.querySelectorAll(".dt-selection__row").length ?? 0,
       hasStateControls: sr?.querySelector('[data-test="style-state"]') !== null,
+      legacyGroupTitleCount: sr?.querySelectorAll(".dt-layout__group-title").length ?? 0,
       labels,
     };
   });
@@ -60,6 +61,7 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
   expect(hasSelection.hasBreadcrumb).toBe(true);
   expect(hasSelection.hasMetadataRows).toBe(0);
   expect(hasSelection.hasStateControls).toBe(false);
+  expect(hasSelection.legacyGroupTitleCount).toBe(0);
   expect(hasSelection.labels).toEqual(expect.arrayContaining(["Layout", "Display", "Position"]));
   expect(hasSelection.labels.every((label) => !/[a-z]-[a-z]/.test(label))).toBe(true);
 

@@ -286,6 +286,8 @@ async function commitMs(page: Page, perfId: number, property: string, hostProper
 
 async function expandSpacingSides(page: Page, group: "padding" | "margin"): Promise<void> {
   const section = page.locator(`[data-test="spacing-${group}"]`);
+  const add = section.locator('[data-test="add-value"]');
+  if (await add.count()) await add.click();
   const toggle = section.locator('[data-test="individual-sides"]');
   if ((await toggle.count()) > 0) {
     await toggle.click();

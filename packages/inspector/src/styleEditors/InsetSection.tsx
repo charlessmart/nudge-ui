@@ -8,7 +8,7 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { setStyles } from "../tokens/editActions.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { IconButton } from "../ui/IconButton.tsx";
-import { MarginSideIndicator, SIDE_NAMES, SideControls, type SideValueSlot } from "../ui/SideValuesField.tsx";
+import { MarginSideIndicator, SIDE_NAMES, SideValuesField, type SideValueSlot } from "../ui/SideValuesField.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 
 export interface InsetSectionProps {
@@ -28,7 +28,6 @@ export function InsetSection({
   const position = getStateStyleValue(el, "position", "static").trim().toLowerCase();
   const [fieldsAdded, setFieldsAdded] = useState(false);
   const insetIsEmpty = SIDE_NAMES.every((side) => isEmptyInsetValue(getStateStyleValue(el, side, "auto")));
-  const showFields = !insetIsEmpty || fieldsAdded;
 
   useEffect(() => {
     setFieldsAdded(false);
@@ -62,30 +61,40 @@ export function InsetSection({
   }
 
   return (
-    <div className="dt-editor" data-test="layout-inset" data-empty={showFields ? undefined : "true"}>
-      <div className="dt-editor__title-row">
-        <div className="dt-editor__title">Inset</div>
+    <SideValuesField
+      label="Inset"
+      data-test="layout-inset"
+      data-property="inset"
+      resetKey={el}
+      defaultLinked={false}
+      empty={insetIsEmpty && !fieldsAdded}
+      onAdd={() => setFieldsAdded(true)}
+      emptyAction={(
         <IconButton
           variant="quiet"
           size="default"
-          data-test={showFields ? "remove-inset" : "add-inset"}
-          label={showFields ? "Remove Inset Values" : "Add Inset Values"}
-          title={showFields ? "Remove Inset Values" : "Add Inset Values"}
-          onClick={showFields ? removeValues : () => setFieldsAdded(true)}
+          data-test="add-inset"
+          label="Add Inset Values"
+          title="Add Inset Values"
+          onClick={() => setFieldsAdded(true)}
         >
-          {showFields ? (
-            <IconMinus size={16} stroke={1.8} aria-hidden="true" />
-          ) : (
-            <IconPlus size={16} stroke={1.8} aria-hidden="true" />
-          )}
+          <IconPlus size={16} stroke={1.8} aria-hidden="true" />
         </IconButton>
-      </div>
-      {showFields ? (
-        <div className="dt-spacing">
-          <SideControls label="Inset" sides={sides} />
-        </div>
-      ) : null}
-    </div>
+      )}
+      headerAction={(
+        <IconButton
+          variant="quiet"
+          size="default"
+          data-test="remove-inset"
+          label="Remove Inset Values"
+          title="Remove Inset Values"
+          onClick={removeValues}
+        >
+          <IconMinus size={16} stroke={1.8} aria-hidden="true" />
+        </IconButton>
+      )}
+      sides={sides}
+    />
   );
 }
 

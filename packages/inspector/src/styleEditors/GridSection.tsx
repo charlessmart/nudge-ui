@@ -41,11 +41,11 @@ export function GridSection({
       {showContainer ? <div className="dt-layout__group dt-layout__grid" data-test="layout-grid-container">
         <div className="dt-layout__grid-primary">
           <div className="dt-layout__grid-picker-column">
-            <div className="dt-layout__group-title">Grid</div>
+            <div className="dt-editor__title">Grid</div>
             <GridPicker domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
           </div>
           <div className="dt-layout__grid-gap" data-test="layout-grid-gap">
-            <div className="dt-layout__group-title">Gap</div>
+            <div className="dt-editor__title">Gap</div>
             <div className="dt-layout__grid-gap-fields">
               <ControlSurface className="dt-layout__spacing-field" data-test="layout-grid-row-gap">
                 <IconSpacingVertical
@@ -139,7 +139,7 @@ export function GridSection({
       </div> : null}
 
       {showChild ? <div className="dt-layout__group" data-test="layout-grid-child">
-        <div className="dt-layout__group-title">Grid Child</div>
+        <div className="dt-editor__title">Grid Child</div>
         <GridValueField property="grid-column" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
         <GridValueField property="grid-row" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
         <LayoutDropdown

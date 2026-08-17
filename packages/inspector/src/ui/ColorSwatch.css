@@ -5,5 +5,5 @@
   height: var(--dt-icon-size-large);
   background: var(--dt-swatch-color);
   border-radius: calc(var(--dt-radius-control) - 4px);
-  box-shadow: 0 0 0 1px var(--dt-border-subtle);
+  box-shadow: 0 0 0 1px var(--dt-border-medium);
 }

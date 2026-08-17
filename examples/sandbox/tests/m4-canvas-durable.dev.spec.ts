@@ -23,6 +23,8 @@ async function waitForInspector(page: import("@playwright/test").Page): Promise<
 
 async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
   const spacing = page.locator('[data-test="spacing-padding"]');
+  const add = spacing.locator('[data-test="add-value"]');
+  if (await add.count()) await add.click();
   await spacing.locator('[data-test="individual-sides"]').click();
   await expect(spacing).toHaveAttribute("data-expanded", "true");
 }

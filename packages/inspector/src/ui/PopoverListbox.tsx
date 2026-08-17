@@ -29,6 +29,7 @@ export interface PopoverListboxProps {
   inputOnFocus?: FocusEventHandler<HTMLInputElement>;
   inputOnBlur?: FocusEventHandler<HTMLInputElement>;
   inputOnKeyDown?: KeyboardEventHandler<HTMLInputElement>;
+  disabled?: boolean;
   className?: string;
   onQueryChange: (query: string) => void;
   onOpenChange: (open: boolean) => void;
@@ -53,6 +54,7 @@ export function PopoverListbox({
   inputOnFocus,
   inputOnBlur,
   inputOnKeyDown,
+  disabled = false,
   className,
   onQueryChange,
   onOpenChange,
@@ -84,12 +86,14 @@ export function PopoverListbox({
               className={`dt-popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
               data-test={triggerDataTest}
               aria-label={triggerAriaLabel}
+              disabled={disabled}
             />
           ) : (
             <Combobox.Trigger
               className={`dt-popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
               data-test={triggerDataTest}
               aria-label={triggerAriaLabel}
+              disabled={disabled}
             >
               {trigger}
             </Combobox.Trigger>
@@ -135,6 +139,7 @@ export function PopoverListbox({
             onFocus={inputOnFocus}
             onBlur={inputOnBlur}
             onKeyDownCapture={inputOnKeyDown}
+            disabled={disabled}
           />
           <Autocomplete.Portal container={portalContainer}>
             <Autocomplete.Positioner className="dt-popover-listbox__positioner">

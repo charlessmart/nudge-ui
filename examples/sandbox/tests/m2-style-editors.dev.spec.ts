@@ -24,6 +24,8 @@ async function waitForInspector(page: import("@playwright/test").Page): Promise<
 
 async function expandSpacing(page: import("@playwright/test").Page): Promise<void> {
   const spacing = page.locator('[data-test="spacing-padding"]');
+  const add = spacing.locator('[data-test="add-value"]');
+  if (await add.count()) await add.click();
   await spacing.locator('[data-test="individual-sides"]').click();
   await expect(spacing).toHaveAttribute("data-expanded", "true");
 }
@@ -136,6 +138,9 @@ test("dev: control surfaces own field chrome while token fields provide embedded
   await page.click("text=Save");
   await waitForEditors(page);
 
+  const emptyPadding = page.locator('[data-test="spacing-padding"]');
+  const addPadding = emptyPadding.locator('[data-test="add-value"]');
+  if (await addPadding.count()) await addPadding.click();
   const spacingSurface = page.locator('[data-test="spacing-padding"] [data-test="pair-value-horizontal"]');
   const spacingValue = spacingSurface.locator('[data-test="token-field"][data-property="padding-horizontal"]');
   await expect(spacingSurface).toHaveClass(/dt-control-surface/);
@@ -258,6 +263,27 @@ test("dev: main demo color fixtures expose partial opacity after CSSOM normaliza
     .toHaveValue("rgba(217, 200, 255, 0.2)");
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
     .toHaveValue("20%");
+
+  const opacitySeparator = await page.evaluate(() => {
+    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const input = shadow?.querySelector(
+      '[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]',
+    ) as HTMLInputElement | null;
+    if (!input) return null;
+    const styles = getComputedStyle(input);
+    return {
+      borderLeftColor: styles.borderLeftColor,
+      borderLeftStyle: styles.borderLeftStyle,
+      borderLeftWidth: styles.borderLeftWidth,
+      height: styles.height,
+    };
+  });
+  expect(opacitySeparator).toEqual({
+    borderLeftColor: "rgb(252, 252, 252)",
+    borderLeftStyle: "solid",
+    borderLeftWidth: "1px",
+    height: "28px",
+  });
 });
 
 test("dev: individual side focus ring belongs to the whole side field", async ({ page }) => {
@@ -291,9 +317,15 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
   await waitForEditors(page);
 
   const spacing = page.locator('[data-test="spacing-padding"]');
+  const addPadding = spacing.locator('[data-test="add-value"]');
+  if (await addPadding.count()) await addPadding.click();
   await expect(spacing).toHaveAttribute("data-expanded", "false");
   await expect(spacing.locator('[data-test^="pair-value-"]')).toHaveCount(2);
   await expect(spacing.locator('[data-test^="side-value-"]')).toHaveCount(0);
+
+  const margin = page.locator('[data-test="spacing-margin"]');
+  await expect(margin).toHaveAttribute("data-empty", "true");
+  await margin.locator('[data-test="add-value"]').click();
 
   const iconStyles = await page.evaluate(() => {
     const shadow = document.getElementById("design-tool-root")?.shadowRoot;
@@ -368,7 +400,6 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
   await expect(spacing).toHaveAttribute("data-expanded", "false");
   await expect(spacing.locator('[data-test^="pair-value-"]')).toHaveCount(2);
 
-  const margin = page.locator('[data-test="spacing-margin"]');
   await margin.locator('[data-test="individual-sides"]').click();
   await expect(margin).toHaveAttribute("data-expanded", "true");
   const marginIconStyles = await page.evaluate(() => {
@@ -432,18 +463,68 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   expect(editorOrder).toEqual([
     "layout-section",
     "spacing-box",
-    "layout-inset",
+    "appearance-section",
     "typography",
     "color-picker",
     "color-picker",
     "border-editor",
-    "border-radius-editor",
     "box-shadow-editor",
   ]);
+  await expect(page.locator('[data-test="spacing-box"] [data-test="layout-inset"]')).toHaveCount(1);
+  await expect(page.locator('[data-test="style-editors"] > [data-test="appearance-section"]')).toHaveCount(1);
+  await expect(page.locator('[data-test="appearance-section"] [data-test="border-radius-editor"]')).toHaveCount(1);
+  await expect(page.locator('[data-test="spacing-box"] [data-test="border-radius-editor"]')).toHaveCount(0);
 
   await expect(page.locator('[data-test="border-editor"] .dt-editor__title')).toHaveText("Border");
-  await expect(page.locator('[data-test="border-radius-editor"] .dt-editor__title')).toHaveText("Border Radius");
+  await expect(page.locator('[data-test="appearance-section"] .dt-editor__title')).toHaveText("Appearance");
+  await expect(page.locator('[data-test="opacity-editor"] .dt-appearance__field-label')).toHaveText("Opacity");
+  await expect(page.locator('[data-test="opacity-input"]')).toHaveValue("100%");
+  await expect(page.locator('[data-test="opacity-control"] svg')).toHaveClass(/tabler-icon-background/);
+  await expect(page.locator('[data-test="border-radius-editor"] .dt-appearance__field-label')).toHaveText("Corner Radius");
   await expect(page.locator('[data-test="box-shadow-editor"] .dt-editor__title')).toHaveText("Box Shadow");
+
+  const appearanceGrid = await page.evaluate(() => {
+    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const opacityControl = shadow?.querySelector('[data-test="opacity-control"]');
+    const opacityField = shadow?.querySelector('[data-test="opacity-editor"]');
+    const radiusField = shadow?.querySelector('[data-test="border-radius-editor"] .dt-border-radius-editor__main');
+    const radiusControl = shadow?.querySelector('[data-test="border-radius-editor"] .dt-border-radius-editor__main > .dt-control-surface');
+    const toggle = shadow?.querySelector('[data-test="border-radius-expand"]');
+    const opacityBounds = opacityField?.getBoundingClientRect();
+    const radiusBounds = radiusField?.getBoundingClientRect();
+    return {
+      opacity: opacityControl?.getBoundingClientRect().height ?? 0,
+      radius: radiusControl?.getBoundingClientRect().height ?? 0,
+      sameWidth: opacityBounds && radiusBounds ? Math.abs(opacityBounds.width - radiusBounds.width) <= 1 : false,
+      radiusColumn: radiusField ? getComputedStyle(radiusField).gridColumn : "",
+      toggleColumn: toggle ? getComputedStyle(toggle).gridColumn : "",
+    };
+  });
+  expect(Math.abs(appearanceGrid.opacity - appearanceGrid.radius)).toBeLessThanOrEqual(1);
+  expect(appearanceGrid.sameWidth).toBe(true);
+  expect(appearanceGrid.radiusColumn).toBe("2");
+  expect(appearanceGrid.toggleColumn).toBe("3");
+
+  await page.locator('[data-test="border-radius-expand"]').click();
+  await expect(page.locator('[data-test="border-radius-editor"] [data-test="border-radius-collapse"]')).toHaveCount(1);
+  await expect(page.locator('[data-test="border-radius-editor"] [data-test^="side-value-"]')).toHaveCount(4);
+  const expandedRadiusGridColumn = await page.evaluate(() => {
+    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const individuals = shadow?.querySelector('[data-test="border-radius-editor"] .dt-border-radius-editor__individuals');
+    return individuals ? getComputedStyle(individuals).gridColumn : "";
+  });
+  expect(expandedRadiusGridColumn).toBe("1 / span 2");
+  const expandedRadiusPositions = await page.evaluate(() => {
+    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const opacity = shadow?.querySelector('[data-test="opacity-editor"]')?.getBoundingClientRect();
+    const radius = shadow?.querySelector('[data-test="border-radius-editor"] .dt-border-radius-editor__main')?.getBoundingClientRect();
+    const individuals = shadow?.querySelector('[data-test="border-radius-editor"] .dt-border-radius-editor__individuals')?.getBoundingClientRect();
+    return {
+      sameTop: opacity && radius ? Math.abs(opacity.top - radius.top) <= 1 : false,
+      individualsBelow: radius && individuals ? individuals.top > radius.bottom : false,
+    };
+  });
+  expect(expandedRadiusPositions).toEqual({ sameTop: true, individualsBelow: true });
 
   const colorEditors = page.locator('[data-test="color-picker"]');
   await expect(colorEditors.nth(0).locator(".dt-editor__title")).toHaveText("Color");
@@ -500,10 +581,10 @@ test("dev: spacing expansion resets when selecting a symmetric element", async (
   await waitForEditors(page);
   await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "true");
 
-  await page.locator(".btn").first().click();
-  await expect(page.locator('[data-test="spacing-padding"]')).toHaveAttribute("data-expanded", "false");
-  await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "false");
-  await expect(page.locator('[data-test="spacing-margin"] [data-test="pair-value-horizontal"]')).toBeVisible();
+  await page.locator('[data-test="flex-child-a"]').click();
+  await expect(page.locator('[data-test="spacing-padding"]')).toHaveAttribute("data-empty", "true");
+  await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-empty", "true");
+  await expect(page.locator('[data-test="spacing-margin"] [data-test="pair-value-horizontal"]')).toHaveCount(0);
 });
 
 function hexToRgbString(raw: string): string | null {

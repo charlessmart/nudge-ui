@@ -56,6 +56,8 @@ export interface TokenFieldProps {
   semanticSlot?: TokenSemanticSlot;
   tokenRow?: ResolvedProperty | null;
   initialValue?: string;
+  /** Optional normalized value shown when an authored row is not token-backed. */
+  displayValue?: string;
   domElement: HTMLElement;
   entries: TokenEntry[];
   suggestions?: ReadonlyArray<string>;
@@ -67,6 +69,8 @@ export interface TokenFieldProps {
   className?: string;
   label?: string;
   chipVariant?: "default" | "small";
+  formatRawValue?: (value: string) => string;
+  disabled?: boolean;
 }
 
 const NON_COLOR_FACTS: ColorValueFacts = { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: false };
@@ -364,7 +368,9 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   function handleRawKeyDown(event: React.KeyboardEvent): void {
     const direction = arrowDirection(event.key);
     if (direction && !event.altKey && !event.ctrlKey && !event.metaKey) {
-      const next = nudgeCssValue(property, rawValue, direction, event.shiftKey);
+      const next = property === "opacity"
+        ? nudgeOpacityValue(rawValue, direction, event.shiftKey)
+        : nudgeCssValue(property, rawValue, direction, event.shiftKey);
       if (next) {
         event.preventDefault();
         event.stopPropagation();
@@ -484,6 +490,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             items={[...rawSuggestionItems, ...relevantTokens.map(tokenSuggestion)]}
             onQueryChange={() => undefined}
             onOpenChange={setTokenPickerOpen}
+            disabled={disabled}
             onSelect={(value) => {
               handleSuggestionSelect(value);
             }}
@@ -539,6 +546,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
           setRawValue(value);
         }}
         onOpenChange={setIsFocused}
+        disabled={disabled}
         onSelect={(value) => {
           handleSuggestionSelect(value);
         }}
@@ -562,7 +570,26 @@ function arrowDirection(key: string): -1 | 1 | null {
 }
 
 export function TokenField(props: TokenFieldProps): ReactElement {
-  const { property, semanticSlot, tokenRow, initialValue, domElement: el, entries, suggestions, inputDataTest, onAfterEdit, editMetadata, leading, trailing, className, label, chipVariant } = props;
+  const {
+    property,
+    semanticSlot,
+    tokenRow,
+    initialValue,
+    displayValue,
+    domElement: el,
+    entries,
+    suggestions,
+    inputDataTest,
+    onAfterEdit,
+    editMetadata,
+    leading,
+    trailing,
+    className,
+    label,
+    chipVariant,
+    formatRawValue: formatRawValueProp,
+    disabled = false,
+  } = props;
   const tokenBackedOpacityName = tokenRow?.tokenName
     && tokenRow.opacity
     && tokenRow.opacity.tokenName !== tokenRow.tokenName
@@ -584,9 +611,9 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     : expression || (!activeTokenName && !isCalcAuthored)
     ? structuredBorderValue(property, tokenRow) ?? tokenRow?.authored ?? tokenRow?.declaredValue ?? fallbackValue
     : tokenRow?.resolvedValue ?? fallbackValue;
-  const committedValue = property === "font-family" && !activeTokenName
+  const committedValue = displayValue ?? (property === "font-family" && !activeTokenName
     ? primaryFontFamily(authoredOrComputed)
-    : authoredOrComputed;
+    : authoredOrComputed);
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null
     : null;
@@ -597,7 +624,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       domElement={el}
       semanticSlot={semanticSlot}
       committedValue={committedValue}
-      resolvedValue={tokenRow?.resolvedValue ?? committedValue}
+      resolvedValue={tokenRow?.propertyOpacity?.value ?? tokenRow?.resolvedValue ?? committedValue}
       activeTokenName={activeTokenName}
       attributionTokens={expression
         ? tokenRow?.tokens?.filter((token) => token.name !== tokenRow.opacity?.tokenName).map((token) => token.name)
@@ -607,8 +634,12 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       entries={entries}
       suggestions={suggestions}
       inputDataTest={inputDataTest}
+      disabled={disabled}
       isColor={selectTokens({ property, slot: semanticSlot, entries: [] }).preferredGroup === "color"}
-      formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(property))}
+      formatRawValue={(value) => {
+        if (formatRawValueProp) return formatRawValueProp(value);
+        return completeCssValue(value.trim(), valuePolicyFor(property));
+      }}
       onCommitRaw={(value) => {
         if (setStyle(el, property, value, editMetadata)) onAfterEdit?.();
       }}

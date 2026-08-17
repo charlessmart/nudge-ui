@@ -26,6 +26,16 @@ export interface ColorOpacity {
   token?: TokenReference;
 }
 
+/** The effective opacity of an element's `opacity` property. */
+export interface OpacityValue {
+  value: string;
+  authoredValue: string;
+  tokenName: string | null;
+  token?: TokenReference;
+  /** False when the authored expression cannot be rewritten losslessly. */
+  editable: boolean;
+}
+
 /** UI-relevant color facts derived by value semantics, never by React fields. */
 export interface ColorValueFacts {
   /** The authored or resolved color already carries an alpha channel. */
@@ -180,6 +190,7 @@ export interface ResolvedProperty {
   computed?: string;
   tokens?: TokenReference[];
   opacity?: ColorOpacity;
+  propertyOpacity?: OpacityValue;
   color?: ColorValueFacts;
   modifiers?: ValueModifier[];
   capability?: EditCapability;

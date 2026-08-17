@@ -134,7 +134,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
 
         {isFlexContainer ? (
           <div className="dt-layout__group" data-test="layout-flex-container">
-            <div className="dt-layout__group-title">Flex</div>
+            <div className="dt-editor__title">Flex</div>
             <div className="dt-layout__flex-toolbar">
               <div className="dt-layout__direction-tools">
                 <FlexDirectionControl domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
@@ -171,7 +171,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
 
         {isFlexChild ? (
           <div className="dt-layout__group" data-test="layout-flex-child">
-            <div className="dt-layout__group-title">Flex Child</div>
+            <div className="dt-editor__title">Flex Child</div>
             <div className="dt-layout__flex-child-fields">
               <FlexChildValueField
                 label="Grow"
@@ -492,7 +492,7 @@ function FlexWrapToggle({ domElement, revision = 0, onAfterEdit }: FlexControlPr
 
   return (
     <IconButton
-      variant="quiet"
+      variant="secondary"
       size="default"
       data-active={isWrapped}
       data-test="layout-flex-wrap-toggle"
@@ -622,7 +622,7 @@ function FlexDistributionControl({ domElement, revision = 0, onAfterEdit }: Flex
       open={open}
       triggerElement={(
         <IconButton
-          variant="secondary"
+          variant="quiet"
           size="default"
           label="Item distribution"
           title="Item distribution"

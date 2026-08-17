@@ -215,14 +215,6 @@
   padding-top: 0;
 }
 
-.dt-component-props__source {
-  color: var(--dt-text-muted-subtle);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 .dt-style-editors__title {
   color: var(--dt-text-muted);
   margin-bottom: 8px;

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
@@ -35,35 +36,33 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
   const projection = projectInspectorValues(el, tokenRows);
 
   return (
-    <>
-      <div className="dt-editor" data-test="spacing-box">
-        <div className="dt-editor__title">Spacing</div>
-        <div className="dt-spacing">
-          <SpacingField
-            property="padding"
-            projection={projection.spacing.padding}
-            domElement={el}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-          />
-          <SpacingField
-            property="margin"
-            projection={projection.spacing.margin}
-            domElement={el}
-            entries={allEntries}
-            tokenRows={tokenRows}
-            onAfterEdit={onAfterEdit}
-          />
-        </div>
+    <div className="dt-editor" data-test="spacing-box">
+      <div className="dt-editor__title">Spacing</div>
+      <div className="dt-spacing">
+        <SpacingField
+          property="padding"
+          projection={projection.spacing.padding}
+          domElement={el}
+          entries={allEntries}
+          tokenRows={tokenRows}
+          onAfterEdit={onAfterEdit}
+        />
+        <SpacingField
+          property="margin"
+          projection={projection.spacing.margin}
+          domElement={el}
+          entries={allEntries}
+          tokenRows={tokenRows}
+          onAfterEdit={onAfterEdit}
+        />
+        <InsetSection
+          element={element}
+          entries={allEntries}
+          tokenRows={tokenRows}
+          onAfterEdit={onAfterEdit}
+        />
       </div>
-      <InsetSection
-        element={element}
-        entries={allEntries}
-        tokenRows={tokenRows}
-        onAfterEdit={onAfterEdit}
-      />
-    </>
+    </div>
   );
 }
 
@@ -86,6 +85,7 @@ function SpacingField({
   onAfterEdit,
   showLabel = true,
 }: SpacingFieldProps): ReactElement {
+  const [fieldsAdded, setFieldsAdded] = useState(false);
   const pairDefinitions = [
     { axis: "horizontal", sideProperties: [`${property}-left`, `${property}-right`] as const },
     { axis: "vertical", sideProperties: [`${property}-top`, `${property}-bottom`] as const },
@@ -108,6 +108,15 @@ function SpacingField({
   const forceExpanded = pairDefinitions.some(({ axis }) => (
     spacingProjection.axes[axis].fields[0].value !== spacingProjection.axes[axis].fields[1].value
   ));
+  const spacingIsEmpty = SIDE_NAMES.every((side) => isZeroSpacingValue(spacingProjection.fields[side].value));
+
+  useEffect(() => {
+    setFieldsAdded(false);
+  }, [el]);
+
+  useEffect(() => {
+    if (!spacingIsEmpty) setFieldsAdded(false);
+  }, [spacingIsEmpty]);
   const pairSlots: SideValuePairSlot[] = pairDefinitions.map(({ axis, sideProperties }) => ({
     axis,
     icon: <SpacingAxisIndicator property={property} axis={axis} />,
@@ -134,9 +143,16 @@ function SpacingField({
       defaultExpanded={forceExpanded}
       forceExpanded={forceExpanded}
       showLabel={showLabel}
+      empty={spacingIsEmpty && !fieldsAdded}
+      onAdd={() => setFieldsAdded(true)}
       sides={sideSlots}
     />
   );
+}
+
+function isZeroSpacingValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return !normalized || /^-?0(?:\.0+)?(?:[a-z%]+)?$/.test(normalized);
 }
 
 function PaddingSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): ReactElement {

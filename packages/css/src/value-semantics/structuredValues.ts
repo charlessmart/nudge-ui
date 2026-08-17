@@ -24,12 +24,14 @@ import type {
   BorderStructure,
   ColorOpacity,
   EditCapability,
+  OpacityValue,
   TokenReference,
   ValueModifier,
 } from "../model/index.ts";
 import { splitTopLevelWhitespace, topLevelSlashIndex } from "./cssSyntax.ts";
 import { parseBorderComponents, type BorderComponents } from "./borderSemantics.ts";
 import { parseFontShorthand } from "./fontSemantics.ts";
+import { normalizeOpacityPercent } from "./colorSemantics.ts";
 import { classifyEditCapability } from "./propertyPolicy.ts";
 import { interpretTokenValue, type TokenInterpretationContext, type TokenValueInterpretation } from "./tokenInterpretation.ts";
 import {
@@ -54,6 +56,7 @@ export interface StructuredField {
   resolvedValue: string;
   tokens: TokenReference[];
   opacity?: ColorOpacity;
+  propertyOpacity?: OpacityValue;
   color?: TokenValueInterpretation["color"];
   modifiers: ValueModifier[];
   capability: EditCapability;
@@ -76,6 +79,25 @@ interface PositionValue {
   declaredValue: string;
   resolvedValue: string;
   interpretation: TokenValueInterpretation;
+}
+
+function propertyOpacityFor(
+  authored: string,
+  interpretation: TokenValueInterpretation,
+  capability: EditCapability,
+): OpacityValue | undefined {
+  const value = normalizeOpacityPercent(interpretation.resolvedValue);
+  if (value === null) return undefined;
+  const token = interpretation.tokenName
+    ? interpretation.tokens.find((reference) => reference.name === interpretation.tokenName)
+    : undefined;
+  return {
+    value,
+    authoredValue: authored.trim(),
+    tokenName: interpretation.tokenName,
+    ...(token ? { token } : {}),
+    editable: capability !== "raw" && !/\b(?:calc|min|max|clamp|env|anchor-size)\s*\(/i.test(authored),
+  };
 }
 
 function cycleDiagnostic(cycle: string): string {
@@ -103,6 +125,9 @@ function projectField(projection: FieldProjection): StructuredField {
     resolvedValue: projection.resolvedValue ?? interpretation.resolvedValue,
     tokens: interpretation.tokens,
     opacity: interpretation.opacity,
+    ...(projection.property.toLowerCase() === "opacity"
+      ? { propertyOpacity: propertyOpacityFor(projection.declaredValue, interpretation, projection.capability) }
+      : {}),
     color: interpretation.color,
     modifiers: interpretation.modifiers,
     capability: projection.capability,
@@ -299,6 +324,8 @@ export function interpretValue(
   ctx: StructuredValuesContext,
 ): StructuredField[] {
   const lower = property.toLowerCase();
+
+  if (lower === "opacity") return [rawField(property, authored, ctx)];
 
   const logicalSides = logicalPhysicalSides(lower, ctx.directionality);
   if (logicalSides) {
