@@ -13,6 +13,7 @@ const INTERACTION_CSS = `
     cursor: text !important;
     -webkit-user-select: text !important;
     user-select: text !important;
+    outline: 0 !important;
   }
 `;
 
