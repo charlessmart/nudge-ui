@@ -126,6 +126,21 @@ describe("text projection identity and diagnostics", () => {
     expect(element.textContent).toBe("Application value");
   });
 
+  it("round-trips a root marker id that starts with the map prefix", () => {
+    const element = appendCopy("Original");
+    const change = makeChange({ id: "map:text-1" });
+
+    expect(applyTextContentProjection(document, [change])).toEqual([
+      { changeId: "map:text-1", status: "applied" },
+    ]);
+    expect(element.getAttribute(TEXT_PROJECTION_ATTR)).toBe('map:{"root":"map:text-1"}');
+    expect(element.textContent).toBe("Updated");
+
+    expect(applyTextContentProjection(document, [])).toEqual([]);
+    expect(element.textContent).toBe("Original");
+    expect(element.hasAttribute(TEXT_PROJECTION_ATTR)).toBe(false);
+  });
+
   it("validates and restores an empty projected value", () => {
     const element = appendCopy("Original");
     const change = makeChange({ after: "" });

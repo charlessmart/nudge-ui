@@ -114,8 +114,9 @@ function writeProjectionMarkers(element: HTMLElement, markers: TextProjectionMar
     element.removeAttribute(TEXT_PROJECTION_ATTR);
     return;
   }
-  if (markers.size === 1 && markers.has("root")) {
-    element.setAttribute(TEXT_PROJECTION_ATTR, markers.get("root")!);
+  const singleRootId = markers.size === 1 ? markers.get("root") : undefined;
+  if (singleRootId !== undefined && !singleRootId.startsWith(TEXT_PROJECTION_MARKER_MAP_PREFIX)) {
+    element.setAttribute(TEXT_PROJECTION_ATTR, singleRootId);
     return;
   }
   const ordered = Object.fromEntries([...markers.entries()].sort(([a], [b]) => a.localeCompare(b)));

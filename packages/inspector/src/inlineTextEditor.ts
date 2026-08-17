@@ -1005,7 +1005,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
       }
       const change: TextContentChangeRecord = {
         kind: "text-content",
-        id: `text-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
+        id: `text-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
         target: textTarget,
         source: {
           file: renderedSource.file,
