@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
+import { IconPlus } from "@tabler/icons-react";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
+import { IconButton } from "../ui/IconButton.tsx";
 import {
   SideValuesField,
   SIDE_NAMES,
@@ -16,7 +18,7 @@ import { promoteToToken, setStyle, swapToken } from "../tokens/editActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 import { projectInspectorValues, type InspectorAxisProjection, type InspectorSpacingProjection } from "../spacing/projection.ts";
-import { InsetSection } from "./InsetSection.tsx";
+import { getStateStyleValue } from "../stateValue.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
@@ -34,6 +36,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
   const el = element.domElement;
   const allEntries = entries ?? [];
   const projection = projectInspectorValues(el, tokenRows);
+  const position = getStateStyleValue(el, "position", "static").trim().toLowerCase();
 
   return (
     <div className="dt-editor" data-test="spacing-box">
@@ -55,19 +58,21 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           tokenRows={tokenRows}
           onAfterEdit={onAfterEdit}
         />
-        <InsetSection
-          element={element}
+        {position === "relative" || position === "sticky" ? <SpacingField
+          property="inset"
+          projection={projection.spacing.inset}
+          domElement={el}
           entries={allEntries}
           tokenRows={tokenRows}
           onAfterEdit={onAfterEdit}
-        />
+        /> : null}
       </div>
     </div>
   );
 }
 
-interface SpacingFieldProps {
-  property: "padding" | "margin";
+export interface SpacingFieldProps {
+  property: "padding" | "margin" | "inset";
   projection: InspectorSpacingProjection;
   domElement: HTMLElement;
   entries: TokenEntry[];
@@ -76,7 +81,7 @@ interface SpacingFieldProps {
   showLabel?: boolean;
 }
 
-function SpacingField({
+export function SpacingField({
   property,
   projection: spacingProjection,
   domElement: el,
@@ -87,19 +92,19 @@ function SpacingField({
 }: SpacingFieldProps): ReactElement {
   const [fieldsAdded, setFieldsAdded] = useState(false);
   const pairDefinitions = [
-    { axis: "horizontal", sideProperties: [`${property}-left`, `${property}-right`] as const },
-    { axis: "vertical", sideProperties: [`${property}-top`, `${property}-bottom`] as const },
+    { axis: "horizontal", sideProperties: [sideProperty(property, "left"), sideProperty(property, "right")] as const },
+    { axis: "vertical", sideProperties: [sideProperty(property, "top"), sideProperty(property, "bottom")] as const },
   ] as const;
   const sideSlots: SideValueSlot[] = SIDE_NAMES.map((side) => ({
     side,
     icon: property === "padding" ? <PaddingSideIndicator side={side} /> : <MarginSideIndicator side={side} />,
     control: (
       <TokenField
-        property={`${property}-${side}`}
-        tokenRow={findTokenRow(tokenRows, `${property}-${side}`)}
+        property={sideProperty(property, side)}
+        tokenRow={findTokenRow(tokenRows, sideProperty(property, side))}
         domElement={el}
         entries={entries}
-        editMetadata={metadataFor(findTokenRow(tokenRows, `${property}-${side}`))}
+        editMetadata={metadataFor(findTokenRow(tokenRows, sideProperty(property, side)))}
         onAfterEdit={onAfterEdit}
         chipVariant="small"
       />
@@ -108,7 +113,9 @@ function SpacingField({
   const forceExpanded = pairDefinitions.some(({ axis }) => (
     spacingProjection.axes[axis].fields[0].value !== spacingProjection.axes[axis].fields[1].value
   ));
-  const spacingIsEmpty = SIDE_NAMES.every((side) => isZeroSpacingValue(spacingProjection.fields[side].value));
+  const spacingIsEmpty = SIDE_NAMES.every((side) => property === "inset"
+    ? isEmptyInsetValue(spacingProjection.fields[side].value)
+    : isZeroSpacingValue(spacingProjection.fields[side].value));
 
   useEffect(() => {
     setFieldsAdded(false);
@@ -136,7 +143,7 @@ function SpacingField({
   return (
     <SideValuesField
       label={property}
-      data-test={`spacing-${property}`}
+      data-test={property === "inset" ? "layout-inset" : `spacing-${property}`}
       data-property={property}
       resetKey={el}
       pairedControls={pairSlots}
@@ -145,14 +152,35 @@ function SpacingField({
       showLabel={showLabel}
       empty={spacingIsEmpty && !fieldsAdded}
       onAdd={() => setFieldsAdded(true)}
+      emptyAction={property === "inset" ? (
+        <IconButton
+          variant="quiet"
+          size="default"
+          data-test="add-inset"
+          label="Add Inset Values"
+          title="Add Inset Values"
+          onClick={() => setFieldsAdded(true)}
+        >
+          <IconPlus size={16} stroke={1.8} aria-hidden="true" />
+        </IconButton>
+      ) : undefined}
       sides={sideSlots}
     />
   );
 }
 
+function sideProperty(property: SpacingFieldProps["property"], side: (typeof SIDE_NAMES)[number]): string {
+  return property === "inset" ? side : `${property}-${side}`;
+}
+
 function isZeroSpacingValue(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   return !normalized || /^-?0(?:\.0+)?(?:[a-z%]+)?$/.test(normalized);
+}
+
+function isEmptyInsetValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return !normalized || normalized === "auto" || /^-?0(?:\.0+)?(?:[a-z%]+)?$/.test(normalized);
 }
 
 function PaddingSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): ReactElement {
@@ -195,7 +223,7 @@ function SpacingAxisIndicator({
   property,
   axis,
 }: {
-  property: "padding" | "margin";
+  property: "padding" | "margin" | "inset";
   axis: SideValueAxis;
 }): ReactElement {
   if (property === "padding" && axis === "horizontal") {
@@ -218,7 +246,7 @@ function SpacingAxisIndicator({
     );
   }
 
-  if (property === "margin" && axis === "horizontal") {
+  if (property !== "padding" && axis === "horizontal") {
     return (
       <svg className="dt-side-values__icon dt-side-values__axis-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="6" y="5" width="12" height="14" rx="2" stroke="currentColor" strokeWidth="2" />

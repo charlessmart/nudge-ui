@@ -76,7 +76,7 @@ describe("ChangesLog", () => {
     const details = container.querySelector("details")!;
     const actions = container.querySelector('[data-test="session-actions"]')!;
     expect(actions.previousElementSibling).toBe(details);
-    expect(actions.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Session");
+    expect(actions.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
     expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("dt-button--secondary");
     expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("dt-button--compact");
   });

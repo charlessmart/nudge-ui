@@ -2,7 +2,7 @@ import type { ResolvedProperty } from "@design-tool/css/model";
 import { getStateStyleValue } from "../stateValue.ts";
 
 export type ProjectionSide = "top" | "right" | "bottom" | "left";
-export type ProjectionGroup = "padding" | "margin";
+export type ProjectionGroup = "padding" | "margin" | "inset";
 export type ProjectionAxis = "horizontal" | "vertical";
 export type ProjectionState = "shared" | "mixed";
 
@@ -93,7 +93,7 @@ function spacingProjection(
 ): InspectorSpacingProjection {
   // SAFETY: SIDES contains exactly the ProjectionSide keys, so the resulting record is complete.
   const fields = Object.fromEntries(SIDES.map((side) => {
-    const field = fieldProjection(el, rows, `${property}-${side}`);
+    const field = fieldProjection(el, rows, property === "inset" ? side : `${property}-${side}`);
     return [side, field];
   })) as Record<ProjectionSide, InspectorFieldProjection>;
   const signatures = SIDES.map((side) => fieldSignature(fields[side]));
@@ -123,6 +123,7 @@ export function projectInspectorValues(
     spacing: {
       padding: spacingProjection(el, rows, "padding"),
       margin: spacingProjection(el, rows, "margin"),
+      inset: spacingProjection(el, rows, "inset"),
     },
   };
 }

@@ -191,6 +191,12 @@
   min-width: 0;
 }
 
+.dt-layout__grid-child {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-8);
+}
+
 .dt-layout__grid-alignment {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -52,7 +52,7 @@ describe("InspectorShell", () => {
     expect(shadow.querySelector(".dt-panel__state")).toBeNull();
   });
 
-  it("shows a bounded DOM tree and selects its parent and child layers", () => {
+  it("does not render the DOM tree in the inspector", () => {
     const layers = Array.from({ length: 7 }, (_, index) => {
       const node = document.createElement(index === 0 ? "button" : "div");
       node.setAttribute("data-cid", `Layer${index}`);
@@ -68,25 +68,7 @@ describe("InspectorShell", () => {
     });
 
     const shadow = host.shadowRoot!;
-    const steps = [...shadow.querySelectorAll<HTMLButtonElement>('[data-test="breadcrumb-step"]')];
-    expect(steps).toHaveLength(5);
-    expect(steps.map((step) => step.dataset.cid)).toEqual([
-      "Layer4",
-      "Layer3",
-      "Layer2",
-      "Layer1",
-      "Layer0",
-    ]);
-    expect(shadow.querySelector('[data-test="breadcrumb"]')?.getAttribute("aria-label")).toBe("DOM tree");
-
-    act(() => {
-      shadow.querySelector<HTMLButtonElement>('[data-test="breadcrumb-step"][data-index="2"]')!.click();
-    });
-    expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Layer2");
-
-    act(() => {
-      shadow.querySelector<HTMLButtonElement>('[data-test="breadcrumb-step"][data-index="0"]')!.click();
-    });
+    expect(shadow.querySelector('[data-test="dom-tree"]')).toBeNull();
     expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Layer0");
 
     setSelectedElement(null);
@@ -101,7 +83,7 @@ describe("InspectorShell", () => {
     const shadow = host.shadowRoot!;
     expect(shadow.textContent).not.toContain("Restored 7 changes");
     expect(shadow.querySelector('[data-test="session-actions"]')?.previousElementSibling?.matches(".dt-changes")).toBe(true);
-    expect(shadow.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Session");
+    expect(shadow.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
     expect(shadow.querySelector(".dt-panel__session-actions")).toBeNull();
   });
 

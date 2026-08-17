@@ -360,6 +360,7 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-grid-input-grid-column"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-grid-input-grid-row"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-select-justify-self"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-child"]')?.textContent).not.toContain("Computed preview");
   });
 
   it("refreshes Grid visibility after selecting Grid from Display", () => {

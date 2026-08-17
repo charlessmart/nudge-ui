@@ -47,7 +47,6 @@
   min-width: 0;
   padding: 0 2px 0 8px;
   border: 0;
-  border-left: 1px solid var(--dt-surface-panel);
   outline: 0;
   background: transparent;
   color: var(--dt-text-muted);

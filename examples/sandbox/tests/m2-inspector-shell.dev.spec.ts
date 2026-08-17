@@ -20,7 +20,8 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   });
   expect(hasShellText).not.toContain("Inspector shell ready");
   await expect(page.locator('[data-test="copy-prompt"]')).toBeDisabled();
-  await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/dt-button--disabled/);
+  await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/dt-button--primary/);
+  await expect(page.locator('[data-test="mode-canvas"] svg')).toHaveClass(/tabler-icon-artboard/);
   await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/dt-button--secondary|dt-button--quiet/);
   await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/dt-button--quiet/);
   const headerState = await page.evaluate(() => {

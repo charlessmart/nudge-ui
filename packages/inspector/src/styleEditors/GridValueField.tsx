@@ -69,7 +69,6 @@ export function GridValueField({
       property={property}
       atRules={atRules}
       data-test={`layout-grid-${property}`}
-      hint={getLayoutValue(el, property).authored ? undefined : "Computed preview"}
     >
       <TextInput
         value={draft}

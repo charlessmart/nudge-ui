@@ -1,10 +1,11 @@
 :host {
   all: initial;
-  --dt-surface-panel: #FCFCFC;
+  --dt-surface-panel: #f0f2f4;
   --dt-surface-control: var(--dt-surface-well);
   --dt-surface-control-hover: #ececec;
-  --dt-surface-raised: #ffffff;
-  --dt-surface-well: hsla(0, 0%, 0%, 0.07);
+  --dt-surface-raised: #f9fafa;
+  --dt-surface-raised-hover: #f5f6f7;
+  --dt-surface-well: hsla(0, 0%, 0%, 0.05);
 
   --dt-border-subtle: hsla(0, 0%, 0%, 0.07);
   --dt-border-medium: hsla(0, 0%, 0%, 0.2);
@@ -15,11 +16,11 @@
   --dt-text-muted: #777777;
   --dt-text-muted-subtle: #a1a1a1;
 
-  --dt-accent: #0d99ff;
-  --dt-accent-strong: #087fd4;
-  --dt-accent-text: #0788ed;
-  --dt-accent-surface: #e5f4ff;
-  --dt-focus: #0d99ff;
+  --dt-accent: #00b0ff;
+  --dt-accent-strong: #167ce4;
+  --dt-accent-text: #167ce4;
+  --dt-accent-surface: rgba(0, 176, 255, 0.15);
+  --dt-focus: #00b0ff;
   --dt-warning: #d97706;
   --dt-warning-text: #9a5b00;
   --dt-warning-surface: #fff6e5;
@@ -50,8 +51,8 @@
 
   --dt-radius-control: var(--dt-radius-8);
 
-  --dt-shadow-panel: -8px 0 28px rgba(0, 0, 0, 0.08);
   --dt-shadow-popup: 0 10px 28px rgba(0, 0, 0, 0.14);
+  --dt-shadow-control: inset 0 2px 0 #ffffff, 0 0 1px rgba(0, 0, 0, 0.2), 0 0 3px rgba(0, 0, 0, 0.05);
   --dt-z-index: 2147483647;
 
   --dt-font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

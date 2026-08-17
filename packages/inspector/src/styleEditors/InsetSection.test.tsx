@@ -29,7 +29,7 @@ describe("InsetSection", () => {
     document.body.innerHTML = "";
   });
 
-  it("hides empty inset values until the section is added", () => {
+  it("shows grouped inset values after the section is added", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       position: "relative",
@@ -47,14 +47,24 @@ describe("InsetSection", () => {
       (handle.host.querySelector('[data-test="add-inset"]') as HTMLButtonElement).click();
     });
 
-    expect(handle.host.querySelector('[data-test="remove-inset"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="token-field"][data-property="top"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="pair-value-horizontal"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="pair-value-vertical"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="inset-horizontal"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="top"]')).toBeNull();
     const topIcon = handle.host.querySelector('[data-side="top"] svg') as SVGSVGElement;
-    expect(topIcon.classList.contains("dt-side-values__side-icon")).toBe(true);
-    expect(topIcon.querySelector("rect")?.getAttribute("x")).toBe("19");
+    expect(topIcon).toBeNull();
+
+    act(() => {
+      (handle.host.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click();
+    });
+
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="top"]')).toBeTruthy();
+    const expandedTopIcon = handle.host.querySelector('[data-side="top"] svg') as SVGSVGElement;
+    expect(expandedTopIcon.classList.contains("dt-side-values__side-icon")).toBe(true);
+    expect(expandedTopIcon.querySelector("rect")?.getAttribute("x")).toBe("19");
   });
 
-  it("removes all inset values with the section minus action", () => {
+  it("opens individual inset values when the physical sides differ", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       position: "relative",
@@ -65,13 +75,9 @@ describe("InsetSection", () => {
     });
     handle = mount(createElement(InsetSection, { element: selected }));
 
-    act(() => {
-      (handle.host.querySelector('[data-test="remove-inset"]') as HTMLButtonElement).click();
-    });
-
-    expect(sheetText()).toContain("top: auto;");
-    expect(sheetText()).toContain("right: auto;");
-    expect(sheetText()).toContain("bottom: auto;");
-    expect(sheetText()).toContain("left: auto;");
+    expect(handle.host.querySelector('[data-test="layout-inset"][data-expanded="true"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="token-field"][data-property="top"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="pair-value-horizontal"]')).toBeNull();
+    expect(sheetText()).not.toContain("top: auto;");
   });
 });

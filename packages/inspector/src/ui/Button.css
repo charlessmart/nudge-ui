@@ -27,7 +27,7 @@
 .dt-button--primary {
   background: var(--dt-surface-raised);
   color: var(--dt-text-primary);
-  box-shadow: 0 0 0 1px var(--dt-border-subtle);
+  box-shadow: var(--dt-shadow-control);
 }
 
 .dt-button--secondary {
@@ -45,7 +45,6 @@
 }
 
 .dt-button--disabled {
-  background: var(--dt-surface-control);
   color: var(--dt-text-muted-subtle);
   cursor: not-allowed;
 }
@@ -59,9 +58,9 @@
 }
 
 .dt-button--primary:hover:not(:disabled) {
-  background: var(--dt-surface-control-hover);
+  background: var(--dt-surface-raised-hover);
   color: var(--dt-text-primary);
-  box-shadow: 0 0 0 1px var(--dt-border-subtle);
+  box-shadow: var(--dt-shadow-control);
 }
 
 .dt-button[data-active="true"] {
@@ -80,7 +79,6 @@
 }
 
 .dt-button:disabled {
-  background: var(--dt-surface-control);
   color: var(--dt-text-muted-subtle);
   cursor: not-allowed;
 }

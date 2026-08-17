@@ -109,11 +109,11 @@
 }
 
 .dt-canvas-card__resize-handle:hover {
-  color: var(--dt-accent, #0d99ff);
+  color: var(--dt-accent, #00b0ff);
 }
 
 .dt-canvas-card__resize-handle:focus-visible {
-  outline: 2px solid var(--dt-focus, #0d99ff);
+  outline: 2px solid var(--dt-focus, #00b0ff);
   outline-offset: 1px;
   opacity: 1;
 }

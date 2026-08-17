@@ -138,7 +138,7 @@ export function GridSection({
         </details>
       </div> : null}
 
-      {showChild ? <div className="dt-layout__group" data-test="layout-grid-child">
+      {showChild ? <div className="dt-layout__group dt-layout__grid-child" data-test="layout-grid-child">
         <div className="dt-editor__title">Grid Child</div>
         <GridValueField property="grid-column" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
         <GridValueField property="grid-row" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />

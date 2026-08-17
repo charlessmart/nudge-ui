@@ -361,7 +361,12 @@ test("dev: layout section shows inset controls for a positioned element", async 
   await expect(page.locator('[data-test="add-inset"]')).toBeVisible();
   await page.locator('[data-test="add-inset"]').click();
 
-  // Top inset should use the regular token/raw input.
+  // Inset starts with the same grouped horizontal/vertical controls as padding and margin.
+  await expect(page.locator('[data-test="layout-inset"] [data-test="pair-value-horizontal"]')).toBeVisible();
+  await expect(page.locator('[data-test="layout-inset"] [data-test="pair-value-vertical"]')).toBeVisible();
+  await page.locator('[data-test="layout-inset"] [data-test="individual-sides"]').click();
+
+  // Expanded inset sides use the regular token/raw input.
   await expect(page.locator('[data-test="token-field"][data-property="top"] [data-test="raw-input"]')).toBeVisible();
   expect(await shadowQueryExists(page, "layout-combo-select-top")).toBe(false);
   const topInsetIcon = await page.evaluate(() => {
@@ -409,6 +414,7 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
   await waitForEditors(page);
 
   await page.locator('[data-test="add-inset"]').click();
+  await page.locator('[data-test="layout-inset"] [data-test="individual-sides"]').click();
   await setInput(page, "left", "50%");
 
   await expect

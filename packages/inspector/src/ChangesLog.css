@@ -56,6 +56,10 @@
   padding: 8px 0 20px;
 }
 
+.dt-changes__session-action .dt-button {
+  width: 100%;
+}
+
 .dt-changes__group {
   margin-bottom: 12px;
   padding: 12px;

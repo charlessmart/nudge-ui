@@ -10,9 +10,8 @@
   background: var(--dt-surface-panel);
   color: var(--dt-text-primary);
   border: 1px solid var(--dt-border-subtle);
-  border-right: 0;
+  border-right: 1px solid var(--dt-border-subtle);
   border-radius: var(--dt-radius-0);
-  box-shadow: var(--dt-shadow-panel);
   font-family: var(--dt-font-family);
   font-size: var(--dt-font-size-base);
   line-height: 1.35;
@@ -50,24 +49,6 @@
 .dt-scope__warning {
   color: var(--dt-warning-text);
   font-weight: 500;
-}
-
-.dt-dom-tree {
-  padding: 10px 0 8px;
-  border-bottom: 1px solid var(--dt-border-subtle);
-}
-
-.dt-dom-tree__header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.dt-dom-tree__hint {
-  color: var(--dt-text-muted-subtle);
-  font-size: 10px;
 }
 
 .dt-panel__tabs {
@@ -117,8 +98,8 @@
   align-items: stretch;
   width: 100%;
   min-width: 0;
+  gap: 0.5px;
   border-radius: var(--dt-radius-control);
-  box-shadow: 0 1px 1px var(--dt-border-subtle);
 }
 
 .dt-copy-prompt__main.dt-button {
@@ -130,7 +111,7 @@
 .dt-copy-prompt__menu.dt-icon-button {
   width: var(--dt-control-height-large);
   height: var(--dt-control-height-large);
-  border-left: 1px solid var(--dt-border-subtle);
+  border-left: 0;
   border-radius: 0 var(--dt-radius-control) var(--dt-radius-control) 0;
 }
 

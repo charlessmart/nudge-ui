@@ -32,7 +32,7 @@ export function CopyPromptButton(): ReactElement {
   return (
     <div className="dt-copy-prompt" data-test="copy-prompt-control">
       <Button
-        variant={disabled ? "disabled" : "primary"}
+        variant="primary"
         className="dt-copy-prompt__main"
         data-test="copy-prompt"
         type="button"
@@ -41,10 +41,10 @@ export function CopyPromptButton(): ReactElement {
         onClick={onClick}
       >
         <IconClipboardCheck size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
-        {copied ? "Copied!" : disabled ? "No changes" : "Copy prompt"}
+        {copied ? "Copied!" : "Copy prompt"}
       </Button>
       <IconButton
-        variant={disabled ? "disabled" : "primary"}
+        variant="primary"
         className="dt-copy-prompt__menu"
         label="Copy prompt options"
         title="Copy prompt options"

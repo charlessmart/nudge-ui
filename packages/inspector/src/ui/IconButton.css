@@ -21,7 +21,7 @@
 .dt-icon-button--primary {
   background: var(--dt-surface-raised);
   color: var(--dt-text-primary);
-  box-shadow: 0 0 0 1px var(--dt-border-subtle);
+  box-shadow: var(--dt-shadow-control);
 }
 
 .dt-icon-button--secondary {
@@ -39,7 +39,6 @@
 }
 
 .dt-icon-button--disabled {
-  background: var(--dt-surface-control);
   color: var(--dt-text-muted-subtle);
   cursor: not-allowed;
 }
@@ -49,9 +48,9 @@
 }
 
 .dt-icon-button--primary:hover:not(:disabled) {
-  background: var(--dt-surface-control-hover);
+  background: var(--dt-surface-raised-hover);
   color: var(--dt-text-primary);
-  box-shadow: 0 0 0 1px var(--dt-border-subtle);
+  box-shadow: var(--dt-shadow-control);
 }
 
 .dt-icon-button[data-active="true"] {
@@ -65,7 +64,6 @@
 }
 
 .dt-icon-button:disabled {
-  background: var(--dt-surface-control);
   color: var(--dt-text-muted-subtle);
   cursor: not-allowed;
 }

@@ -459,6 +459,9 @@ describe("TokenField", () => {
     const delink = handle.host.querySelector('[data-test="delink-btn"]') as HTMLButtonElement;
     expect(chip.contains(delink)).toBe(true);
     expect(picker.contains(delink)).toBe(false);
+    expect(delink.classList).toContain("dt-icon-button");
+    expect(delink.classList).toContain("dt-icon-button--quiet");
+    expect(delink.classList).toContain("dt-icon-button--compact");
   });
 
   it("promotes a matching raw-value suggestion into a token chip", () => {
