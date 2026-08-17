@@ -51,6 +51,7 @@ import { deleteElement, nudgeElement } from "./structuralGestures.ts";
 import { redoStructuralChange, undoStructuralChange } from "./structuralProjection.ts";
 import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
+import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "./inlineTextEditor.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -122,6 +123,7 @@ export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const canvasMode = useCanvasMode();
   const selected = useSelectedElement();
+  const inlineTextSession = useInlineTextSession();
   const hierarchy = useHierarchy();
   const hierarchyIndex = useHierarchyIndex();
   const [scopeRevision, refreshScope] = useState(0);
@@ -169,6 +171,7 @@ export function InspectorShell(): ReactElement {
   useEffect(() => {
     if (!isOpen) return;
     function onKeydown(event: KeyboardEvent): void {
+      if (isInlineTextEditingActive()) return;
       const mod = event.metaKey || event.ctrlKey;
       const editable = isEditableEvent(event);
 
@@ -262,6 +265,10 @@ export function InspectorShell(): ReactElement {
 
   function handleCanvasModeButton(): void {
     if (canvasMode !== "canvas") {
+      // Inline text editing is controller-owned. Canvas renderer documents
+      // receive projections only, so dispose the active controller session
+      // before mounting cards rather than probing a stale iframe document.
+      disposeInlineTextEdit("frame-disposed");
       enterCanvas();
       return;
     }
@@ -291,7 +298,10 @@ export function InspectorShell(): ReactElement {
               variant="quiet"
               label="Collapse inspector"
               data-test="collapse-inspector"
-              onClick={() => setInspectorOpen(false)}
+              onClick={() => {
+                cancelInlineTextEdit();
+                setInspectorOpen(false);
+              }}
             >
               <IconLayoutSidebarRightCollapse size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
             </IconButton>
@@ -329,6 +339,80 @@ export function InspectorShell(): ReactElement {
           </div>
         </div>
         <div className="dt-panel__body">
+          {inlineTextSession ? (
+            <section className="dt-inline-text-editor" data-test="inline-text-editor">
+              <div className="dt-editor__title-row">
+                <div className="dt-editor__title">Editing text</div>
+                <span className="dt-component-props__source">
+                  {inlineTextSession.binding.kind === "component-prop" ? "Component" : "Rendered text"}
+                </span>
+              </div>
+              <div className="dt-inline-text-editor__binding" data-test="inline-text-binding">
+                {inlineTextSession.binding.kind === "component-prop"
+                  ? `${inlineTextSession.binding.target.componentName}.${inlineTextSession.binding.property}`
+                  : "Rendered text"}
+              </div>
+              {inlineTextSession.bindingChoices.length > 1 ? (
+                <div className="dt-inline-text-editor__chooser" data-test="inline-binding-chooser">
+                  <div className="dt-inline-text-editor__chooser-label">Choose binding</div>
+                  <div className="dt-inline-text-editor__chooser-options" role="group" aria-label="Text binding">
+                    {inlineTextSession.bindingChoices.map((choice, index) => (
+                      <Button
+                        key={`${choice.binding.target.callsiteId}:${choice.binding.property}`}
+                        size="compact"
+                        variant={inlineTextSession.selectedBindingIndex === index ? "primary" : "quiet"}
+                        data-test="inline-binding-choice"
+                        data-index={index}
+                        aria-pressed={inlineTextSession.selectedBindingIndex === index}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => inlineTextSession.chooseBinding(index)}
+                      >
+                        {choice.binding.target.componentName}.{choice.binding.property}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {inlineTextSession.scopeChoices.length > 0 ? (
+                <div className="dt-inline-text-editor__chooser" data-test="inline-scope-chooser">
+                  <div className="dt-inline-text-editor__chooser-label">Apply to</div>
+                  <div className="dt-inline-text-editor__chooser-options" role="group" aria-label="Text edit scope">
+                    {inlineTextSession.scopeChoices.map((scope) => (
+                      <Button
+                        key={scope}
+                        size="compact"
+                        variant={inlineTextSession.scope === scope ? "primary" : "quiet"}
+                        data-test={`inline-scope-${scope}`}
+                        aria-pressed={inlineTextSession.scope === scope}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => inlineTextSession.chooseScope(scope)}
+                      >
+                        {scope === "source-site" ? "All outputs" : "This rendered item"}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <div className="dt-inline-text-editor__actions">
+                <Button
+                  size="compact"
+                  variant="secondary"
+                  data-test="inline-text-cancel"
+                  onClick={() => inlineTextSession.cancel()}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="compact"
+                  data-test="inline-text-commit"
+                  disabled={inlineTextSession.bindingChoices.length > 1 && inlineTextSession.selectedBindingIndex === null}
+                  onClick={() => inlineTextSession.commit()}
+                >
+                  Done
+                </Button>
+              </div>
+            </section>
+          ) : null}
           {activeTab === "tokens" ? (
             <TokensPanel rows={cssInspection.documentTokens?.tokens ?? []} />
           ) : selected ? (

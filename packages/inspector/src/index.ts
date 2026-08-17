@@ -31,6 +31,7 @@ import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./AppShell.tsx";
 import { clearStructuralChanges, resetStructuralDeleteProjection } from "./structuralProjection.ts";
 import { installInspectionBridge } from "./inspection.ts";
+import { cancelInlineTextEdit } from "./inlineTextEditor.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -122,6 +123,7 @@ function mountLockedNotice(host: HTMLElement): void {
     listenerAttached = false;
   }
   setInspectorOpen(false);
+  cancelInlineTextEdit();
   setSelectedElement(null);
   clearInspectorLayout();
   removeManagedSheet();
@@ -169,6 +171,7 @@ export function unmountInspector(): void {
     window.removeEventListener("keydown", onKeydown);
     listenerAttached = false;
   }
+  cancelInlineTextEdit();
   setSelectedElement(null);
   if (reactRoot) {
     reactRoot.unmount();
@@ -192,6 +195,29 @@ export { DESIGN_TOOL_INSPECTION_VERSION, inspectElement, installInspectionBridge
 export type { DesignToolInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection.ts";
 export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation, ConformanceProjectionExpectation, ConformanceProjectionFieldExpectation } from "./conformance/fixture.ts";
 export { TYPOGRAPHY_CASES } from "./conformance/typographyCases.ts";
+export {
+  beginInlineTextEdit,
+  cancelInlineTextEdit,
+  disposeInlineTextEdit,
+  getInlineTextDiagnostic,
+  getInlineTextDiagnostics,
+  getInlineTextSession,
+  inlineTextEditor,
+  isInlineTextEditingActive,
+  subscribeInlineTextDiagnostics,
+  resolveTextBinding,
+  useInlineTextSession,
+} from "./inlineTextEditor.ts";
+export type {
+  InlineTextEditor,
+  InlineTextDiagnostic,
+  InlineTextSession,
+  InlineTextInputRejectionReason,
+  InlineTextSessionEndReason,
+  TextBindingCandidate,
+  TextEditBinding,
+  TextEditRejection,
+} from "./inlineTextEditor.ts";
 export { projectInspectorValues, projectionSides } from "./spacing/projection.ts";
 export type { InspectorAxisProjection, InspectorFieldProjection, InspectorProjection, InspectorSpacingProjection, ProjectionAxis, ProjectionGroup, ProjectionSide, ProjectionState } from "./spacing/projection.ts";
 export { createBrowserCssInspection } from "./inspection/browserCssInspection.ts";
