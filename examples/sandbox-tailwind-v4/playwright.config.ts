@@ -13,7 +13,7 @@ export default defineConfig({
     { name: "compat-chromium", use: { ...devices["Desktop Chrome"], baseURL: DEV_URL }, testMatch: /compatibility\.dev\.spec\.ts/ },
     { name: "compat-firefox", use: { ...devices["Desktop Firefox"], baseURL: DEV_URL }, testMatch: /compatibility\.dev\.spec\.ts/ },
     { name: "compat-webkit", use: { ...devices["Desktop Safari"], baseURL: DEV_URL }, testMatch: /compatibility\.dev\.spec\.ts/ },
-    { name: "dev", use: { ...devices["Desktop Chrome"], baseURL: DEV_URL }, testMatch: /(?:tailwind-landing|isolation|token-picker|at-rule-context)\.dev\.spec\.ts/ },
+    { name: "dev", use: { ...devices["Desktop Chrome"], baseURL: DEV_URL }, testMatch: /(?:tailwind-landing|isolation|token-picker|at-rule-context|components)\.dev\.spec\.ts/ },
     { name: "prod", use: { ...devices["Desktop Chrome"], baseURL: PROD_URL }, testMatch: /design-tool\.prod\.spec\.ts/ },
   ],
   webServer: [
@@ -21,5 +21,4 @@ export default defineConfig({
     { command: `pnpm build && pnpm preview --port ${PROD_PORT} --strictPort`, url: PROD_URL, reuseExistingServer: !process.env.CI, timeout: 120_000, env: { NODE_ENV: "production" } },
   ],
 });
-
 

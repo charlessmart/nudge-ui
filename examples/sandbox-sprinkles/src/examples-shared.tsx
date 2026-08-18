@@ -4,11 +4,11 @@ export type ExampleId = {
   test: string;
 };
 
-export function exId(category: string, framework: string, index: number): ExampleId {
+export function exId(category: string, framework: string, index: number, sourceFile = "ExamplesSprinklesPage"): ExampleId {
   const cid = `Examples:${category}:${framework}:${String(index).padStart(2, "0")}`;
   return {
     cid,
-    src: `src/ExamplesSprinklesPage.tsx:${cid}`,
+    src: `src/${sourceFile}.tsx:${cid}`,
     test: `examples-${category.toLowerCase()}-${framework}-${String(index).padStart(2, "0")}`,
   };
 }

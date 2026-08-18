@@ -41,6 +41,19 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   expect(headerState.background).toBe("rgba(0, 0, 0, 0)");
   expect(headerState.actions).toEqual(["tokens-tab", "mode-canvas"]);
   expect(headerState.hasDivider).toBe(true);
+  const copyRowInset = await page.evaluate(() => {
+    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const tabs = sr?.querySelector(".dt-panel__tabs");
+    const copyRow = sr?.querySelector('[data-test="copy-prompt-control"]');
+    return tabs && copyRow ? {
+      tabsPaddingLeft: getComputedStyle(tabs).paddingLeft,
+      copyRowLeft: copyRow.getBoundingClientRect().left,
+      tabsContentLeft: tabs.getBoundingClientRect().left + parseFloat(getComputedStyle(tabs).paddingLeft),
+    } : null;
+  });
+  expect(copyRowInset).not.toBeNull();
+  expect(copyRowInset?.tabsPaddingLeft).toBe("24px");
+  expect(copyRowInset?.copyRowLeft).toBe(copyRowInset?.tabsContentLeft);
   await expect(page.locator('[data-test="view-mode-toggle"]')).toHaveCount(0);
   await expect(page.locator('[data-test="mode-preview"]')).toHaveCount(0);
   await expect(page.locator('[data-test="copy-prompt-menu"]')).toBeDisabled();

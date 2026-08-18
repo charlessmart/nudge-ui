@@ -30,11 +30,17 @@ const DevPerfFixturePage = import.meta.env.DEV
 const DevComponentPropsPage = import.meta.env.DEV
   ? lazy(() => import("./ComponentPropsPage").then(({ ComponentPropsPage }) => ({ default: ComponentPropsPage })))
   : null;
+const DevRawCssComponentsPage = import.meta.env.DEV
+  ? lazy(() => import("./ExamplesRawCssComponentsPage").then(({ ExamplesRawCssComponentsPage }) => ({ default: ExamplesRawCssComponentsPage })))
+  : null;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root not found");
 
 function Route() {
+  if (import.meta.env.DEV && window.location.pathname === "/components") {
+    return DevRawCssComponentsPage ? <DevRawCssComponentsPage /> : <App />;
+  }
   if (import.meta.env.DEV && window.location.search.includes("perf=large")) {
     return DevPerfFixturePage ? (
       <Suspense fallback={<main className="spacing-conformance-loading">Loading perf fixture…</main>}>

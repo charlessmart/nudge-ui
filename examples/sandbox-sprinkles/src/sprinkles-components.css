@@ -1,0 +1,79 @@
+.sprinkles-components-page .example-card__stage {
+  color: #123456;
+}
+
+.sprinkles-ui-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.sprinkles-ui-wide {
+  width: 100%;
+}
+
+.sprinkles-ui-button {
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+.sprinkles-ui-button:hover {
+  transform: translateY(-1px);
+}
+
+.sprinkles-ui-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.sprinkles-ui-card {
+  border-radius: 12px;
+}
+
+.sprinkles-ui-card p {
+  margin: 8px 0 0;
+  color: #5d7184;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.sprinkles-ui-alert {
+  border-left: 4px solid #123456;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.sprinkles-ui-avatar {
+  display: inline-grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.sprinkles-ui-avatar:first-child {
+  width: 32px;
+  height: 32px;
+}
+
+.sprinkles-ui-field {
+  display: grid;
+  width: 100%;
+  max-width: 260px;
+  gap: 8px;
+}
+
+.sprinkles-ui-field input {
+  border: 1px solid #b5c5d3;
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+}

@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { tokenCatalog, tokenDiagnostics, tokens } from "virtual:design-tokens";
 import "./order-before.css";
@@ -7,6 +7,10 @@ import "./order-after.css";
 import "./app.css";
 import { ExamplesSprinklesPage } from "./ExamplesSprinklesPage";
 import { sprinkles } from "./sprinkles.css.ts";
+
+const DevSprinklesComponentsPage = import.meta.env.DEV
+  ? lazy(() => import("./ExamplesSprinklesComponentsPage").then(({ ExamplesSprinklesComponentsPage }) => ({ default: ExamplesSprinklesComponentsPage })))
+  : null;
 
 if (import.meta.env.DEV) {
   window.__designTokens = tokens;
@@ -27,6 +31,9 @@ function SprinklesConformancePage() {
 }
 
 function Route() {
+  if (import.meta.env.DEV && window.location.pathname === "/components") {
+    return DevSprinklesComponentsPage ? <Suspense fallback={<main className="compat-page">Loading components…</main>}><DevSprinklesComponentsPage /></Suspense> : <App />;
+  }
   if (window.location.pathname === "/examples") return <ExamplesSprinklesPage />;
   if (window.location.pathname === "/sprinkles") return <SprinklesConformancePage />;
   return <App />;
