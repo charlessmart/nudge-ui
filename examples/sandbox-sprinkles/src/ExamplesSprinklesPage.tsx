@@ -1,5 +1,6 @@
 import "./showroom.css";
 import { sprinkles } from "./sprinkles.css.ts";
+import { themeClass } from "./theme.css.ts";
 import { exId, ExampleCard, CategorySection } from "./examples-shared";
 
 const join = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
@@ -43,6 +44,15 @@ function SprinklesColor() {
     <ExampleCard id={exId("Color", "spr", 2)} label="alias-token" utilities="backgroundColor: surface; color: emphasis">
       <div className={join("color-specimen", sprinkles({ backgroundColor: "surface", color: "emphasis", padding: "md" }))}>Alias resolves through theme contract</div>
     </ExampleCard>
+    <ExampleCard id={exId("Color", "spr", 3)} label="background-alpha" utilities="backgroundColor: brandWash10; color: brand">
+      <div className={join("color-specimen", sprinkles({ backgroundColor: "brandWash10", color: "brand", padding: "md" }))}>Named 10% background wash</div>
+    </ExampleCard>
+    <ExampleCard id={exId("Color", "spr", 4)} label="text-alpha" utilities="backgroundColor: surface; color: brandWash80">
+      <div className={join("color-specimen", sprinkles({ backgroundColor: "surface", color: "brandWash80", padding: "md" }))}>Named 80% text color</div>
+    </ExampleCard>
+    <ExampleCard id={exId("Color", "spr", 5)} label="multi-opacity" utilities="backgroundColor: brandWash30; color: surfaceWash75; borderColor: accentWash40">
+      <div className={join("color-specimen", sprinkles({ backgroundColor: "brandWash30", color: "surfaceWash75", borderColor: "accentWash40", borderWidth: "thin", borderStyle: "solid", padding: "md" }))}>Named alpha variants compose across roles</div>
+    </ExampleCard>
   </>;
 }
 
@@ -72,7 +82,7 @@ function SprinklesLayout() {
 
 export function ExamplesSprinklesPage() {
   return (
-    <main className="examples-page">
+    <main className={`${themeClass} examples-page`}>
       <header className="examples-hero">
         <p>Dev-only showroom</p>
         <h1>Sprinkles<br />examples.</h1>
@@ -80,7 +90,7 @@ export function ExamplesSprinklesPage() {
       </header>
       <CategorySection label="Spacing" title="Space between things." description="Logical spacing and gaps resolve through a real vanilla-extract contract." frameworkName="Sprinkles" frameworkCssClass="spr"><SprinklesSpacing /></CategorySection>
       <CategorySection label="Typography" title="Words on the screen." description="Type scale, weight, leading, color, and alignment are generated from the property set." frameworkName="Sprinkles" frameworkCssClass="spr"><SprinklesTypography /></CategorySection>
-      <CategorySection label="Color" title="Color fills the form." description="Theme-contract aliases stay human-readable while compiler identifiers remain opaque." frameworkName="Sprinkles" frameworkCssClass="spr"><SprinklesColor /></CategorySection>
+      <CategorySection label="Color" title="Color fills the form." description="Sprinkles has no arbitrary slash-opacity modifier: define named alpha variants with color-mix, then reuse them for backgrounds, text, and borders." frameworkName="Sprinkles" frameworkCssClass="spr"><SprinklesColor /></CategorySection>
       <CategorySection label="Border" title="Edges and outlines." description="Structured border properties use generated classes and contract-backed colors." frameworkName="Sprinkles" frameworkCssClass="spr"><SprinklesBorder /></CategorySection>
       <CategorySection label="Layout" title="Structure and space." description="Width, display, grid, and gap are represented by the same real Sprinkles compiler." frameworkName="Sprinkles" frameworkCssClass="spr"><SprinklesLayout /></CategorySection>
     </main>

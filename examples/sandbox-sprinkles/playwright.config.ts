@@ -16,7 +16,7 @@ export default defineConfig({
     { name: "compat-chromium", use: { ...devices["Desktop Chrome"], baseURL: URL }, testMatch: /compatibility\.spec\.ts/ },
     { name: "compat-firefox", use: { ...devices["Desktop Firefox"], baseURL: URL }, testMatch: /compatibility\.spec\.ts/ },
     { name: "compat-webkit", use: { ...devices["Desktop Safari"], baseURL: URL }, testMatch: /compatibility\.spec\.ts/ },
-    { name: "dev", use: { ...devices["Desktop Chrome"], baseURL: URL }, testMatch: /(?:isolation|conformance|components)\.dev\.spec\.ts/ },
+    { name: "dev", use: { ...devices["Desktop Chrome"], baseURL: URL }, testMatch: /(?:isolation|conformance|components|examples)\.dev\.spec\.ts/ },
     { name: "prod", use: { ...devices["Desktop Chrome"], baseURL: `http://127.0.0.1:${process.env.DT_PROD_PORT ?? "4176"}` }, testMatch: /design-tool\.prod\.spec\.ts/ },
   ],
   webServer: [

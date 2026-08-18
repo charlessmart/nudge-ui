@@ -1,11 +1,27 @@
 import { createSprinkles, defineProperties } from "@vanilla-extract/sprinkles";
+import { colorWithAlpha } from "./colorOpacity.ts";
 import { vars } from "./theme.css.ts";
+
+// Unlike Tailwind's arbitrary `/10` modifier, Sprinkles makes the allowed
+// values explicit. Keep alpha variants named and token-backed so the same
+// values can be used for background, text, and border colors.
+const colorProperties = {
+  ...vars.color,
+  brandWash10: colorWithAlpha(vars.color.brand, 10),
+  brandWash20: colorWithAlpha(vars.color.brand, 20),
+  brandWash30: colorWithAlpha(vars.color.brand, 30),
+  brandWash40: colorWithAlpha(vars.color.brand, 40),
+  brandWash60: colorWithAlpha(vars.color.brand, 60),
+  brandWash80: colorWithAlpha(vars.color.brand, 80),
+  accentWash40: colorWithAlpha(vars.color.accent, 40),
+  surfaceWash75: colorWithAlpha(vars.color.surface, 75),
+};
 
 const properties = defineProperties({
   properties: {
-    color: vars.color,
-    backgroundColor: vars.color,
-    borderColor: vars.color,
+    color: colorProperties,
+    backgroundColor: colorProperties,
+    borderColor: colorProperties,
     padding: vars.space,
     paddingInline: vars.space,
     paddingBlock: vars.space,

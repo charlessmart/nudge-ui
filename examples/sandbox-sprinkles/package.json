@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --port 4176 --strictPort",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:unit": "echo 'compatibility assertions run in Playwright'",
+    "test:unit": "vitest run src/colorOpacity.test.ts",
     "test:e2e": "playwright test",
     "test:compat": "playwright test --project=compat-chromium --project=compat-firefox --project=compat-webkit"
   },
@@ -28,6 +28,7 @@
     "@vanilla-extract/vite-plugin": "^5.2.6",
     "@vitejs/plugin-react": "^4.3.0",
     "typescript": "^5.6.0",
-    "vite": "^5.4.0"
+    "vite": "^5.4.0",
+    "vitest": "^2.1.0"
   }
 }
