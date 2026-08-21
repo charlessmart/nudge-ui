@@ -7,7 +7,6 @@ import {
 } from "node:http";
 import {
   existsSync,
-  readFileSync,
   realpathSync,
   statSync,
 } from "node:fs";
@@ -20,9 +19,16 @@ import {
   createStandaloneRuntimeManifest,
   DESIGN_TOOL_CLIENT_PATH,
   DESIGN_TOOL_MANIFEST_PATH,
+  DESIGN_TOOL_RELOAD_PATH,
   DESIGN_TOOL_ROUTE_PREFIX,
   type StandaloneRuntimeManifest,
 } from "./manifest.ts";
+import { createStandaloneTokenSnapshot } from "./tokenManifest.ts";
+import {
+  createStandaloneFileWatcher,
+  type StandaloneFileChange,
+  type StandaloneFileWatcher,
+} from "./watcher.ts";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const HTML_EXTENSIONS = new Set([".html", ".htm"]);
@@ -41,6 +47,8 @@ export interface StandaloneServerOptions {
   readonly clientPath?: string;
   /** Override the deterministic project identity in tests or embedding hosts. */
   readonly projectId?: string;
+  /** Debounce interval for source changes before one reload revision. */
+  readonly watchDebounceMs?: number;
 }
 
 /** A canonical file resolved below the configured project root. */
@@ -89,14 +97,73 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
   validatePort(port);
   const clientPath = options.clientPath ?? resolveDefaultClientPath();
   const projectId = options.projectId ?? createStandaloneProjectId(rootDirectory);
-  const manifest = createStandaloneRuntimeManifest(projectId);
+  let revision = 0;
+  let manifest = createStandaloneRuntimeManifest(
+    projectId,
+    createStandaloneTokenSnapshot({ rootDirectory }),
+    revision,
+  );
+  const reloadClients = new Set<ServerResponse>();
+  let fileWatcher: StandaloneFileWatcher | null = null;
+  let changeQueue = Promise.resolve();
+
+  const getManifest = (): StandaloneRuntimeManifest => manifest;
+  const closeReloadClients = (): void => {
+    for (const client of reloadClients) {
+      client.end();
+    }
+    reloadClients.clear();
+  };
+  const notifyReload = (): void => {
+    const payload = `event: reload\ndata: ${JSON.stringify({ revision })}\n\n`;
+    for (const client of [...reloadClients]) {
+      if (client.destroyed) {
+        reloadClients.delete(client);
+        continue;
+      }
+      try {
+        client.write(payload);
+      } catch {
+        reloadClients.delete(client);
+        client.destroy();
+      }
+    }
+  };
+  const processSettledChanges = (changes: readonly StandaloneFileChange[]): void => {
+    changeQueue = changeQueue.then(() => {
+      if (changes.some((change) => extname(change.absolutePath).toLowerCase() === ".css")) {
+        manifest = createStandaloneRuntimeManifest(
+          projectId,
+          createStandaloneTokenSnapshot({ rootDirectory }),
+          revision + 1,
+        );
+      } else {
+        manifest = createStandaloneRuntimeManifest(
+          projectId,
+          {
+            tokenCatalog: manifest.runtime.tokenCatalog,
+            tokens: manifest.runtime.tokens,
+            tokenDiagnostics: manifest.runtime.tokenDiagnostics,
+            tokenGeneration: manifest.runtime.tokenGeneration,
+          },
+          revision + 1,
+        );
+      }
+      revision += 1;
+      notifyReload();
+    }).catch(() => {
+      // A later settled batch can still rebuild the snapshot after a failed
+      // callback. Source edits must not terminate the static server.
+    });
+  };
   const httpServer = createServer((request, response) => {
     void handleRequest({
       request,
       response,
       rootDirectory,
       clientPath,
-      manifest,
+      getManifest,
+      reloadClients,
     }).catch(() => {
       if (response.headersSent) {
         response.destroy();
@@ -109,11 +176,13 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
   let started = false;
   let startPromise: Promise<StandaloneServerAddress> | null = null;
 
-  return {
+  const server: StandaloneServer = {
     httpServer,
     rootDirectory,
     projectId,
-    manifest,
+    get manifest() {
+      return manifest;
+    },
     start: () => {
       if (started) return Promise.resolve(readAddress(httpServer, host));
       if (startPromise) return startPromise;
@@ -126,6 +195,12 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
         const onListening = () => {
           httpServer.off("error", onError);
           started = true;
+          fileWatcher = createStandaloneFileWatcher({
+            rootDirectory,
+            debounceMs: options.watchDebounceMs,
+            onSettled: processSettledChanges,
+          });
+          fileWatcher.start();
           resolveStart(readAddress(httpServer, host));
         };
         httpServer.once("error", onError);
@@ -135,8 +210,12 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       return startPromise;
     },
     close: () => {
-      if (!started) return Promise.resolve();
-      return new Promise<void>((resolveClose, rejectClose) => {
+      const closeWatcher = fileWatcher?.close() ?? Promise.resolve();
+      fileWatcher = null;
+      closeReloadClients();
+      const settleChanges = closeWatcher.then(() => changeQueue);
+      if (!started) return settleChanges;
+      return settleChanges.then(() => new Promise<void>((resolveClose, rejectClose) => {
         httpServer.close((error) => {
           if (error) rejectClose(error);
           else {
@@ -145,9 +224,10 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
             resolveClose();
           }
         });
-      });
+      }));
     },
   };
+  return server;
 }
 
 /**
@@ -281,7 +361,8 @@ async function handleRequest(input: {
   response: ServerResponse;
   rootDirectory: string;
   clientPath: string;
-  manifest: StandaloneRuntimeManifest;
+  getManifest: () => StandaloneRuntimeManifest;
+  reloadClients: Set<ServerResponse>;
 }): Promise<void> {
   const { request, response } = input;
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -321,12 +402,13 @@ async function handleDesignToolRoute(
     request: IncomingMessage;
     response: ServerResponse;
     clientPath: string;
-    manifest: StandaloneRuntimeManifest;
+    getManifest: () => StandaloneRuntimeManifest;
+    reloadClients: Set<ServerResponse>;
   },
   pathname: string,
 ): Promise<void> {
   if (pathname === DESIGN_TOOL_MANIFEST_PATH) {
-    const body = Buffer.from(JSON.stringify(input.manifest), "utf8");
+    const body = Buffer.from(JSON.stringify(input.getManifest()), "utf8");
     sendBody(input.response, 200, body, "application/json; charset=utf-8", {
       "Cache-Control": "no-store",
     });
@@ -341,6 +423,28 @@ async function handleDesignToolRoute(
     } catch {
       sendText(input.response, 503, "Design Tool client has not been built.");
     }
+    return;
+  }
+  if (pathname === DESIGN_TOOL_RELOAD_PATH) {
+    if (input.request.method === "HEAD") {
+      sendBody(input.response, 200, Buffer.alloc(0), "text/event-stream; charset=utf-8", {
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      });
+      return;
+    }
+    input.response.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    input.response.write(
+      `event: ready\ndata: ${JSON.stringify({ revision: input.getManifest().revision })}\n\n`,
+    );
+    input.reloadClients.add(input.response);
+    input.request.on("close", () => input.reloadClients.delete(input.response));
+    input.response.on("close", () => input.reloadClients.delete(input.response));
     return;
   }
   sendText(input.response, 404, "Not Found");

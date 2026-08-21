@@ -371,6 +371,9 @@ importers:
 
   packages/standalone:
     dependencies:
+      '@design-tool/css':
+        specifier: workspace:*
+        version: link:../css
       '@design-tool/inspector':
         specifier: workspace:*
         version: link:../inspector

@@ -15,9 +15,25 @@ export {
   createStandaloneRuntimeManifest,
   DESIGN_TOOL_CLIENT_PATH,
   DESIGN_TOOL_MANIFEST_PATH,
+  DESIGN_TOOL_RELOAD_PATH,
   DESIGN_TOOL_ROUTE_PREFIX,
   type StandaloneRuntimeManifest,
 } from "./manifest.ts";
+export {
+  createStandaloneTokenSnapshot,
+  discoverStandaloneCssArtifacts,
+  type StandaloneCssArtifact,
+  type StandaloneCssFileReader,
+  type StandaloneTokenManifestOptions,
+  type StandaloneTokenSnapshot,
+} from "./tokenManifest.ts";
+export {
+  createStandaloneFileWatcher,
+  type StandaloneFileChange,
+  type StandaloneFileChangeKind,
+  type StandaloneFileWatcher,
+  type StandaloneFileWatcherOptions,
+} from "./watcher.ts";
 export {
   contentTypeForPath,
   createStandaloneProjectId,

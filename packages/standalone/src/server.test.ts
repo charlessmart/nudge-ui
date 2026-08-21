@@ -16,6 +16,7 @@ import {
 import {
   DESIGN_TOOL_CLIENT_PATH,
   DESIGN_TOOL_MANIFEST_PATH,
+  DESIGN_TOOL_RELOAD_PATH,
 } from "./manifest.ts";
 
 let runningServer: StandaloneServer | null = null;
@@ -131,6 +132,7 @@ describe("createStandaloneServer", () => {
       };
     };
     expect(manifestResponse.status).toBe(200);
+    expect(manifest).toMatchObject({ revision: 0 });
     expect(manifest.runtime).toMatchObject({
       projectId: runningServer.projectId,
       host: "static-html",
@@ -139,9 +141,9 @@ describe("createStandaloneServer", () => {
       tokenCatalog: [],
       tokens: [],
       tokenDiagnostics: [],
-      tokenGeneration: "empty",
       componentContracts: [],
     });
+    expect(manifest.runtime.tokenGeneration).toMatch(/^static-html:/);
 
     const reservedShadow = await fetch(address.url + "__design_tool__/manifest");
     expect(reservedShadow.status).toBe(200);
@@ -185,6 +187,40 @@ describe("createStandaloneServer", () => {
       port: firstAddress.port,
     });
   });
+
+  it("publishes rebuilt token knowledge before one settled reload", async () => {
+    const root = await createFixture();
+    const clientPath = join(root, "test-client.mjs");
+    const cssPath = join(root, "theme.css");
+    await writeFile(clientPath, "export {};");
+    await writeFile(cssPath, ":root { --tone: red; }");
+    runningServer = createStandaloneServer({
+      rootDirectory: root,
+      port: 0,
+      clientPath,
+      watchDebounceMs: 40,
+    });
+    const address = await runningServer.start();
+    const streamResponse = await fetch(address.url + DESIGN_TOOL_RELOAD_PATH.slice(1));
+    const reader = streamResponse.body!.getReader();
+    await readSseEvent(reader, "ready");
+
+    await writeFile(cssPath, ":root { --tone: blue; }");
+    await writeFile(cssPath, ":root { --tone: green; }");
+
+    const reloadEvent = await readSseEvent(reader, "reload");
+    const manifestResponse = await fetch(address.url + DESIGN_TOOL_MANIFEST_PATH.slice(1));
+    const manifest = await manifestResponse.json() as {
+      revision: number;
+      runtime: { tokens: Array<{ cssName?: string; value: string }> };
+    };
+    expect(reloadEvent).toContain('"revision":1');
+    expect(manifest.revision).toBe(1);
+    expect(manifest.runtime.tokens).toEqual([
+      expect.objectContaining({ cssName: "--tone", value: "green" }),
+    ]);
+    await reader.cancel();
+  });
 });
 
 describe("standalone client build", () => {
@@ -218,4 +254,42 @@ async function createFixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "design-tool-standalone-"));
   await writeFile(join(root, "index.html"), "<!doctype html><body>fixture</body>");
   return root;
+}
+
+async function readSseEvent(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  eventName: string,
+): Promise<string> {
+  const decoder = new TextDecoder();
+  let received = "";
+  const deadline = Date.now() + 3_000;
+  while (!received.includes(`event: ${eventName}\n`)) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error(`Timed out waiting for ${eventName} event.`);
+    const result = await readWithTimeout(reader, eventName, remaining);
+    if (result.done) throw new Error(`Reload stream closed before ${eventName} event.`);
+    received += decoder.decode(result.value, { stream: true });
+  }
+  return received;
+}
+
+async function readWithTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  eventName: string,
+  timeoutMs: number,
+): Promise<ReadableStreamReadResult<Uint8Array>> {
+  let timeout: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error(`Timed out waiting for ${eventName} event.`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }

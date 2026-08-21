@@ -1,4 +1,5 @@
 import type { DesignToolRuntimeConfig } from "@design-tool/inspector";
+import type { StandaloneTokenSnapshot } from "./tokenManifest.ts";
 
 /** The reserved URL namespace owned by the standalone Design Tool host. */
 export const DESIGN_TOOL_ROUTE_PREFIX = "/__design_tool__/";
@@ -9,13 +10,19 @@ export const DESIGN_TOOL_MANIFEST_PATH = `${DESIGN_TOOL_ROUTE_PREFIX}manifest`;
 /** The prebundled, self-contained inspector client. */
 export const DESIGN_TOOL_CLIENT_PATH = `${DESIGN_TOOL_ROUTE_PREFIX}client.mjs`;
 
+/** The same-origin server-sent event stream for settled project changes. */
+export const DESIGN_TOOL_RELOAD_PATH = `${DESIGN_TOOL_ROUTE_PREFIX}reload`;
+
 /** The serializable runtime document sent to a standalone client. */
 export interface StandaloneRuntimeManifest {
   readonly version: 1;
+  /** Monotonically increasing document revision for reload coordination. */
+  readonly revision: number;
   readonly runtime: DesignToolRuntimeConfig;
   readonly endpoints: {
     readonly manifest: string;
     readonly client: string;
+    readonly reload: string;
   };
 }
 
@@ -32,23 +39,36 @@ export interface StandaloneRuntimeManifest {
  */
 export function createStandaloneRuntimeManifest(
   projectId: string,
+  tokenSnapshot: StandaloneTokenSnapshot = emptyTokenSnapshot(),
+  revision = 0,
 ): StandaloneRuntimeManifest {
   return {
     version: 1,
+    revision,
     runtime: {
       projectId,
       host: "static-html",
       framework: "HTML",
       stylingSystem: "CSS custom properties",
-      tokenCatalog: [],
-      tokens: [],
-      tokenDiagnostics: [],
-      tokenGeneration: "empty",
+      tokenCatalog: tokenSnapshot.tokenCatalog,
+      tokens: tokenSnapshot.tokens,
+      tokenDiagnostics: tokenSnapshot.tokenDiagnostics,
+      tokenGeneration: tokenSnapshot.tokenGeneration,
       componentContracts: [],
     },
     endpoints: {
       manifest: DESIGN_TOOL_MANIFEST_PATH,
       client: DESIGN_TOOL_CLIENT_PATH,
+      reload: DESIGN_TOOL_RELOAD_PATH,
     },
+  };
+}
+
+function emptyTokenSnapshot(): StandaloneTokenSnapshot {
+  return {
+    tokenCatalog: [],
+    tokens: [],
+    tokenDiagnostics: [],
+    tokenGeneration: "empty",
   };
 }

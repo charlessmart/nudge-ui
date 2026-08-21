@@ -21,6 +21,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@design-tool/css": "workspace:*",
     "@design-tool/inspector": "workspace:*",
     "parse5": "^7.3.0"
   },
