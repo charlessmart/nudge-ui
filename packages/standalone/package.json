@@ -4,18 +4,31 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
+  "bin": {
+    "design-tool": "./bin/design-tool.mjs"
+  },
   "exports": {
     ".": "./src/index.ts",
-    "./html/identity": "./src/html/identity.ts"
+    "./html/identity": "./src/html/identity.ts",
+    "./html/bootstrap": "./src/html/bootstrap.ts",
+    "./manifest": "./src/manifest.ts",
+    "./server": "./src/server.ts"
   },
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:client": "node scripts/build-client.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@design-tool/inspector": "workspace:*",
     "parse5": "^7.3.0"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.21.5",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

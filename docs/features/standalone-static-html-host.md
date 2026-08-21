@@ -21,6 +21,12 @@ publishes token knowledge, watches source files, and reloads the browser after
 agent-authored changes. Design Tool continues to hand source changes to an agent
 through the generated prompt; it does not write prototype files.
 
+The server injects an external same-origin client module and does not inject
+inline JavaScript or JSON. The current inspector still creates style elements
+for its Shadow DOM UI and managed previews, so prototypes with a strict
+`style-src` policy must permit those styles. Nonce-based style support is
+deferred.
+
 This feature adds a second host Adapter at the seam currently occupied only by
 Vite. It does not add a second inspector. Selection, browser CSS inspection,
 value semantics, managed stylesheet projection, change history, persistence,
@@ -291,6 +297,7 @@ Run the repository verification obligations after focused standalone checks.
 | --- | --- |
 | Runtime configuration becomes mutable global policy | Replace only complete immutable snapshots; notify consumers after atomic host refreshes. |
 | Standalone client accidentally depends on host React | Bundle and test the client against a dependency-free fixture. |
+| A strict CSP blocks inspector or managed-preview styles | Keep scripts external, document the current `style-src` requirement, and defer nonce support explicitly. |
 | HTML serialization changes prototype markup | Use source locations and insertion edits; never reserialize the document. |
 | Dynamic DOM receives false source precision | Use generated identity and explicit unknown-source prompt evidence. |
 | Directory token order is mistaken for cascade order | Treat scan order as inventory evidence; browser inspection remains authoritative. |
