@@ -139,6 +139,7 @@ describe("designTool plugin virtual inspector module", () => {
     expect(code).toContain('from "virtual:design-tool-components"');
     expect(code).toContain('host: "vite-react"');
     expect(code).toContain('framework: "React"');
+    expect(code).toContain("capabilities: { canvas: true, componentSemantics: true }");
     expect(code).toContain("stylingSystem: detectFramework(tokens).stylingSystem");
     expect(code).toContain("projectId: designToolProjectId");
     expect(code).toContain("tokenCatalog,");

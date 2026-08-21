@@ -21,6 +21,7 @@ import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rende
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
 import { installRendererElementSelector } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../frameThrottle.ts";
+import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
 
 let rendererBootstrapped = false;
 function sendFrameReady(): void {
@@ -71,6 +72,7 @@ function observeFrameMetadata(): void {
 }
 
 export function bootstrapRenderer(): void {
+  if (!getDesignToolRuntimeConfig().capabilities.canvas) return;
   if (rendererBootstrapped) return;
   rendererBootstrapped = true;
 

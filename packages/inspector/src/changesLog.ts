@@ -14,7 +14,7 @@ import {
 } from "./changes/projection.ts";
 import type { StyleRule, PreviewResult } from "./managedStylesheet.ts";
 import { isComponentChange, isElementChange, isTextContentChange } from "./changes/types.ts";
-import type { ChangeRecord, PreviewableChangeRecord } from "./changes/types.ts";
+import type { ChangeRecord, PreviewableChangeRecord, RuntimeElementEvidence } from "./changes/types.ts";
 import { cancelInlineTextForClear } from "./inlineTextLifecycle.ts";
 
 export {
@@ -32,6 +32,7 @@ export type {
   PreviewableChangeRecord,
   TextContentChangeRecord,
   TokenChangeRecord,
+  RuntimeElementEvidence,
 } from "./changes/types.ts";
 
 let changes: ChangeRecord[] = [];

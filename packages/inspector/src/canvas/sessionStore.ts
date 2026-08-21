@@ -110,6 +110,15 @@ function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[])
   return Object.keys(value).every((key) => allowed.includes(key));
 }
 
+function isRuntimeElementEvidence(value: unknown): value is NonNullable<ElementChangeRecord["runtimeEvidence"]> {
+  if (!isRecord(value)
+    || !hasOnlyKeys(value, ["tagName", "text", "props", "ariaLabel"])) return false;
+  return typeof value.tagName === "string"
+    && (typeof value.text === "string" || value.text === null)
+    && (typeof value.props === "string" || value.props === null)
+    && (typeof value.ariaLabel === "string" || value.ariaLabel === null);
+}
+
 /** Durable instance records must not smuggle document-local projection state. */
 function isStrictRenderedInstanceOverride(value: unknown): value is RenderedInstanceOverride {
   if (!isRenderedInstanceOverride(value) || !value || typeof value !== "object") return false;
@@ -324,6 +333,9 @@ function isSerializableChange(value: unknown): value is SerializableChange {
   }
   return (change.kind === undefined || change.kind === "element")
     && typeof change.cid === "string"
+    && (change.column === undefined
+      || (isFiniteNumber(change.column) && Number.isSafeInteger(change.column) && change.column >= 0))
+    && (change.runtimeEvidence === undefined || isRuntimeElementEvidence(change.runtimeEvidence))
     && isTokenRef(change.oldToken)
     && isTokenRef(change.newToken)
     && (change.scope === undefined || change.scope === "source-site" || change.scope === "rendered-instance")
@@ -363,6 +375,7 @@ export interface SerializableElementChange {
   cid: string;
   file: string;
   line: number;
+  column?: number;
   selector: string;
   property: string;
   sourceProperty?: string;
@@ -372,6 +385,7 @@ export interface SerializableElementChange {
   rawValue?: string;
   oldRawValue?: string;
   source: { file: string; line: number; component: string };
+  runtimeEvidence?: ElementChangeRecord["runtimeEvidence"];
   scope?: "source-site" | "rendered-instance";
   instanceOverride?: RenderedInstanceOverride;
   state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";
@@ -467,6 +481,7 @@ function serializeElementChange(change: ElementChangeRecord): SerializableElemen
     cid: change.cid,
     file: change.file,
     line: change.line,
+    column: change.column,
     selector: change.selector,
     property: change.property,
     sourceProperty: change.sourceProperty,
@@ -476,6 +491,7 @@ function serializeElementChange(change: ElementChangeRecord): SerializableElemen
     rawValue: change.rawValue,
     oldRawValue: change.oldRawValue,
     source: change.source,
+    runtimeEvidence: change.runtimeEvidence ? { ...change.runtimeEvidence } : undefined,
     scope: change.scope === "rendered-instance" ? "rendered-instance" : "source-site",
     instanceOverride: change.scope === "rendered-instance" ? change.instanceOverride : undefined,
     state: change.state,
@@ -571,6 +587,7 @@ function deserializeElementChange(s: SerializableElementChange): ElementChangeRe
     cid: s.cid,
     file: s.file,
     line: s.line,
+    column: s.column,
     selector: s.selector,
     property: s.property,
     sourceProperty: s.sourceProperty,
@@ -580,6 +597,7 @@ function deserializeElementChange(s: SerializableElementChange): ElementChangeRe
     rawValue: s.rawValue,
     oldRawValue: s.oldRawValue,
     source: s.source,
+    runtimeEvidence: s.runtimeEvidence ? { ...s.runtimeEvidence } : undefined,
     scope: s.scope ?? "source-site",
     instanceOverride: s.scope === "rendered-instance" ? s.instanceOverride : undefined,
     state: s.state,

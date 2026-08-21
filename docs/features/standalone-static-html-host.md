@@ -70,6 +70,10 @@ interface DesignToolRuntimeConfig {
   host: "vite-react" | "static-html";
   framework: "React" | "HTML";
   stylingSystem: string;
+  capabilities: {
+    canvas: boolean;
+    componentSemantics: boolean;
+  };
   tokenCatalog: TokenDefinition[];
   tokens: TokenEntry[];
   tokenDiagnostics: TokenCatalogDiagnostic[];

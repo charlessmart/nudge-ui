@@ -10,6 +10,40 @@ import { getEditScope, selectorForElement, sourceSiteSelector } from "../editSco
 import { getRenderedInstanceOverride } from "../renderedInstance.ts";
 import { getActiveStyleState, selectorForInteractionState } from "../styleState.ts";
 import { getStateStyleValue } from "../stateValue.ts";
+import { isRuntimeGeneratedSource } from "../staticHtmlRuntimeIdentity.ts";
+
+function boundedRenderedText(el: HTMLElement): string | null {
+  const text = el.textContent?.replace(/\s+/g, " ").trim().slice(0, 120) ?? "";
+  return text || null;
+}
+
+function sourceFields(el: HTMLElement): {
+  file: string;
+  line: number;
+  column: number;
+  runtimeEvidence?: ElementChangeRecord["runtimeEvidence"];
+} {
+  const src = el.getAttribute("data-src") ?? "";
+  const parsed = parseDataSrc(src);
+  if (isRuntimeGeneratedSource(src)) {
+    return {
+      file: "",
+      line: 0,
+      column: 0,
+      runtimeEvidence: {
+        tagName: el.tagName.toLowerCase(),
+        text: boundedRenderedText(el),
+        props: el.getAttribute("data-cprops"),
+        ariaLabel: el.getAttribute("aria-label"),
+      },
+    };
+  }
+  return {
+    file: parsed?.file ?? src,
+    line: parsed?.line ?? 0,
+    column: parsed?.column ?? 0,
+  };
+}
 
 export type { ChangeRecord } from "../changesLog.ts";
 export { getPendingRules, getChangesList as getChangeRecords, clearChanges as resetPendingRules } from "../changesLog.ts";
@@ -48,20 +82,20 @@ export function swapToken(
   const src = el.getAttribute("data-src") ?? "";
   const { selector, state } = stateFields(el);
   if (!selector) return null;
-  const parsed = parseDataSrc(src);
-  const file = parsed ? parsed.file : src;
-  const line = parsed ? parsed.line : 0;
+  const source = sourceFields(el);
 
   const record: ElementChangeRecord = {
     cid,
-    file,
-    line,
+    file: source.file,
+    line: source.line,
+    column: source.column,
     selector,
     property,
     ...metadata,
     oldToken,
     newToken,
-    source: { file, line, component: cid },
+    source: { file: source.file, line: source.line, component: cid },
+    runtimeEvidence: source.runtimeEvidence,
     state,
     ...scopeFields(el),
   };
@@ -74,16 +108,15 @@ export function setStyle(el: HTMLElement, property: string, value: string, metad
   const src = el.getAttribute("data-src") ?? "";
   const { selector, state } = stateFields(el);
   if (!selector) return null;
-  const parsed = parseDataSrc(src);
-  const file = parsed ? parsed.file : src;
-  const line = parsed ? parsed.line : 0;
+  const source = sourceFields(el);
 
   const oldRawValue = getStateStyleValue(el, property) || undefined;
 
   const record: ElementChangeRecord = {
     cid,
-    file,
-    line,
+    file: source.file,
+    line: source.line,
+    column: source.column,
     selector,
     property,
     ...metadata,
@@ -91,7 +124,8 @@ export function setStyle(el: HTMLElement, property: string, value: string, metad
     newToken: null,
     rawValue: value,
     oldRawValue,
-    source: { file, line, component: cid },
+    source: { file: source.file, line: source.line, component: cid },
+    runtimeEvidence: source.runtimeEvidence,
     state,
     ...scopeFields(el),
   };
@@ -108,13 +142,11 @@ export function setStyles(
   const src = el.getAttribute("data-src") ?? "";
   const { selector, state } = stateFields(el);
   if (!selector) return [];
-  const parsed = parseDataSrc(src);
-  const file = parsed ? parsed.file : src;
-  const line = parsed ? parsed.line : 0;
+  const source = sourceFields(el);
   const records = declarations.map(({ property, value }) => ({
     cid,
-    file,
-    line,
+    file: source.file,
+    line: source.line,
     selector,
     property,
     ...metadata,
@@ -122,7 +154,9 @@ export function setStyles(
     newToken: null,
     rawValue: value,
     oldRawValue: getStateStyleValue(el, property) || undefined,
-    source: { file, line, component: cid },
+    column: source.column,
+    source: { file: source.file, line: source.line, component: cid },
+    runtimeEvidence: source.runtimeEvidence,
     state,
     ...scopeFields(el),
   } satisfies ElementChangeRecord));

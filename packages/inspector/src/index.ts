@@ -32,6 +32,8 @@ import { AppShell } from "./AppShell.tsx";
 import { clearStructuralChanges, resetStructuralDeleteProjection } from "./structuralProjection.ts";
 import { installInspectionBridge } from "./inspection.ts";
 import { cancelInlineTextEdit } from "./inlineTextEditor.ts";
+import { getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
+import { setCanvasMode } from "./canvas/canvasStore.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -52,10 +54,16 @@ function onKeydown(e: KeyboardEvent): void {
 export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
   if (!import.meta.env.DEV) return;
 
+  if (!getDesignToolRuntimeConfig().capabilities.canvas) {
+    // A project can be reopened with a runtime that does not expose Canvas.
+    // Clear any stale in-memory mode before mounting the static inspector.
+    setCanvasMode("inspect");
+  }
+
   removeInspectionBridge?.();
   removeInspectionBridge = installInspectionBridge();
 
-  if (isCanvasRenderer()) {
+  if (getDesignToolRuntimeConfig().capabilities.canvas && isCanvasRenderer()) {
     bootstrapRenderer();
     return;
   }
@@ -191,6 +199,12 @@ export { toggleInspector, setInspectorOpen } from "./InspectorShell.tsx";
 export { InspectorShell } from "./InspectorShell.tsx";
 export { detectFramework } from "./prompt/detectFramework.ts";
 export { FloatingToolbar } from "./FloatingToolbar.tsx";
+export {
+  installStaticHtmlRuntimeIdentity,
+  isRuntimeGeneratedSource,
+  RUNTIME_ELEMENT_CID_PREFIX,
+  RUNTIME_UNKNOWN_SOURCE_PREFIX,
+} from "./staticHtmlRuntimeIdentity.ts";
 export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
 export { DESIGN_TOOL_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection.ts";
 export type { DesignToolInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection.ts";
@@ -229,6 +243,7 @@ export {
 } from "./runtimeConfig.ts";
 export type {
   DesignToolRuntimeConfig,
+  DesignToolRuntimeCapabilities,
   DesignToolRuntimeFramework,
   DesignToolRuntimeHost,
 } from "./runtimeConfig.ts";

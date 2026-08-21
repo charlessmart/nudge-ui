@@ -4,11 +4,21 @@ import type { ComponentChangeRecord } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "../renderedInstance.ts";
 import type { TextContentChangeRecord } from "../textChangeBoundary.ts";
 
+/** Bounded rendered facts retained for a runtime-generated HTML element. */
+export interface RuntimeElementEvidence {
+  tagName: string;
+  text: string | null;
+  props: string | null;
+  ariaLabel: string | null;
+}
+
 export interface ElementChangeRecord {
   kind?: "element";
   cid: string;
   file: string;
   line: number;
+  /** Exact source column for static HTML; omitted by legacy React records. */
+  column?: number;
   selector: string;
   property: string;
   /** CSSOM-declared source context that the inspector projection came from. */
@@ -20,6 +30,8 @@ export interface ElementChangeRecord {
   rawValue?: string;
   oldRawValue?: string;
   source: { file: string; line: number; component: string };
+  /** Present when the selected element has a document-local runtime identity. */
+  runtimeEvidence?: RuntimeElementEvidence;
   scope?: "source-site" | "rendered-instance";
   /** Durable, controller-owned target for one rendered output. */
   instanceOverride?: RenderedInstanceOverride;

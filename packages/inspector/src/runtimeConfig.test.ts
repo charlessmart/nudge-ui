@@ -12,6 +12,7 @@ function makeConfig(tokenGeneration: string): DesignToolRuntimeConfig {
     host: "vite-react",
     framework: "React",
     stylingSystem: "CSS custom properties",
+    capabilities: { canvas: true, componentSemantics: true },
     tokenCatalog: [],
     tokens: [{ name: "--space-1", value: "4px", source: "theme.css:1" }],
     tokenDiagnostics: [],
@@ -55,5 +56,22 @@ describe("Design Tool runtime configuration", () => {
 
     expect(generations).toEqual(["generation-1", "generation-2"]);
     expect(getDesignToolRuntimeConfig().tokenGeneration).toBe("generation-2");
+  });
+
+  it("freezes and replaces host capabilities with the runtime snapshot", () => {
+    previousConfig = getDesignToolRuntimeConfig();
+    const input = makeConfig("generation-capabilities");
+
+    configureDesignToolRuntime({
+      ...input,
+      capabilities: { canvas: false, componentSemantics: false },
+    });
+
+    const snapshot = getDesignToolRuntimeConfig();
+    expect(snapshot.capabilities).toEqual({ canvas: false, componentSemantics: false });
+    expect(Object.isFrozen(snapshot.capabilities)).toBe(true);
+    expect(() => {
+      (snapshot.capabilities as { canvas: boolean }).canvas = true;
+    }).toThrow();
   });
 });

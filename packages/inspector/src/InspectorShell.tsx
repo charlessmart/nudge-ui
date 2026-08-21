@@ -48,6 +48,7 @@ import { redoStructuralChange, undoStructuralChange } from "./structuralProjecti
 import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
 import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "./inlineTextEditor.ts";
+import { getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -105,7 +106,9 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
 
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
-  const canvasMode = useCanvasMode();
+  const canvasEnabled = getDesignToolRuntimeConfig().capabilities.canvas;
+  const activeCanvasMode = useCanvasMode();
+  const canvasMode = canvasEnabled ? activeCanvasMode : "inspect";
   const selected = useSelectedElement();
   const inlineTextSession = useInlineTextSession();
   const [scopeRevision, refreshScope] = useState(0);
@@ -283,19 +286,23 @@ export function InspectorShell(): ReactElement {
               >
                 <IconColorSwatch size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
               </IconButton>
-              <span className="dt-panel__header-divider" aria-hidden="true" />
-              <Button
-                variant="quiet"
-                className="dt-panel__canvas-button"
-                data-test="mode-canvas"
-                data-active={canvasMode === "canvas" ? "true" : "false"}
-                aria-pressed={canvasMode === "canvas"}
-                type="button"
-                onClick={handleCanvasModeButton}
-              >
-                <IconArtboard size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
-                {canvasMode === "canvas" ? "Exit canvas" : "View canvas"}
-              </Button>
+              {canvasEnabled ? (
+                <>
+                  <span className="dt-panel__header-divider" aria-hidden="true" />
+                  <Button
+                    variant="quiet"
+                    className="dt-panel__canvas-button"
+                    data-test="mode-canvas"
+                    data-active={canvasMode === "canvas" ? "true" : "false"}
+                    aria-pressed={canvasMode === "canvas"}
+                    type="button"
+                    onClick={handleCanvasModeButton}
+                  >
+                    <IconArtboard size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+                    {canvasMode === "canvas" ? "Exit canvas" : "View canvas"}
+                  </Button>
+                </>
+              ) : null}
             </div>
           </div>
           <div className="dt-panel__copy-row">

@@ -4,9 +4,12 @@ import { createStandaloneRuntimeManifest } from "./manifest.ts";
 
 describe("isStandaloneClientManifest", () => {
   it("accepts the complete same-origin static HTML manifest", () => {
-    expect(isStandaloneClientManifest(
-      createStandaloneRuntimeManifest("static-html:fixture"),
-    )).toBe(true);
+    const manifest = createStandaloneRuntimeManifest("static-html:fixture");
+    expect(isStandaloneClientManifest(manifest)).toBe(true);
+    expect(manifest.runtime.capabilities).toEqual({
+      canvas: false,
+      componentSemantics: false,
+    });
   });
 
   it("rejects empty project identity and external runtime endpoints", () => {
@@ -18,6 +21,13 @@ describe("isStandaloneClientManifest", () => {
     expect(isStandaloneClientManifest({
       ...manifest,
       endpoints: { ...manifest.endpoints, reload: "https://example.com/events" },
+    })).toBe(false);
+    expect(isStandaloneClientManifest({
+      ...manifest,
+      runtime: {
+        ...manifest.runtime,
+        capabilities: { canvas: true, componentSemantics: false },
+      },
     })).toBe(false);
   });
 });

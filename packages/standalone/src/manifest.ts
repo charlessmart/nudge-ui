@@ -50,6 +50,7 @@ export function createStandaloneRuntimeManifest(
       host: "static-html",
       framework: "HTML",
       stylingSystem: "CSS custom properties",
+      capabilities: { canvas: false, componentSemantics: false },
       tokenCatalog: tokenSnapshot.tokenCatalog,
       tokens: tokenSnapshot.tokens,
       tokenDiagnostics: tokenSnapshot.tokenDiagnostics,

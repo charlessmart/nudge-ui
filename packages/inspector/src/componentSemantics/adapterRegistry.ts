@@ -10,10 +10,8 @@ import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
 const runtimeAdapters: ComponentRuntimeAdapter[] = [reactComponentRuntimeAdapter];
 
 function enabledRuntimeAdapters(): ComponentRuntimeAdapter[] {
-  const { framework } = getDesignToolRuntimeConfig();
-  return framework === "HTML"
-    ? runtimeAdapters.filter((adapter) => adapter.framework !== "react")
-    : runtimeAdapters;
+  if (!getDesignToolRuntimeConfig().capabilities.componentSemantics) return [];
+  return runtimeAdapters;
 }
 
 /** Register a framework adapter without coupling semantic resolution to React. */
@@ -45,6 +43,7 @@ export function callsiteMultiplicity(target: RuntimeComponentTarget): number | n
 export function editableComponentTargets(
   targets: RuntimeComponentTarget[],
 ): EditableComponentTarget[] {
+  if (!getDesignToolRuntimeConfig().capabilities.componentSemantics) return [];
   const { componentContracts } = getDesignToolRuntimeConfig();
   return targets.flatMap((target) => {
     const exact = componentContracts.filter((contract) =>

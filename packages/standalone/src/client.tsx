@@ -1,6 +1,7 @@
 import {
   bootstrapDesignTool,
   configureDesignToolRuntime,
+  installStaticHtmlRuntimeIdentity,
 } from "@design-tool/inspector";
 import {
   isStandaloneClientManifest,
@@ -34,6 +35,7 @@ export async function bootstrapStandaloneClient(): Promise<void> {
   configureDesignToolRuntime(payload.runtime);
   const host = document.getElementById("design-tool-root");
   if (!host) throw new Error("Design Tool mount element is missing from the document.");
+  installStaticHtmlRuntimeIdentity(document);
   bootstrapDesignTool(host);
   connectStandaloneReload(payload);
 }

@@ -11,6 +11,14 @@ export type DesignToolRuntimeHost = "vite-react" | "static-html";
 /** The framework semantics enabled for the active inspector runtime. */
 export type DesignToolRuntimeFramework = "React" | "HTML";
 
+/** Capabilities exposed by the active host Adapter. */
+export interface DesignToolRuntimeCapabilities {
+  /** Whether the multi-page Canvas workspace is available. */
+  readonly canvas: boolean;
+  /** Whether framework component inspection and prop overrides are available. */
+  readonly componentSemantics: boolean;
+}
+
 /**
  * Browser knowledge supplied by a host Adapter before the inspector mounts.
  *
@@ -24,6 +32,7 @@ export interface DesignToolRuntimeConfig {
   readonly host: DesignToolRuntimeHost;
   readonly framework: DesignToolRuntimeFramework;
   readonly stylingSystem: string;
+  readonly capabilities: DesignToolRuntimeCapabilities;
   readonly tokenCatalog: readonly TokenDefinition[];
   readonly tokens: readonly TokenEntry[];
   readonly tokenDiagnostics: readonly TokenCatalogDiagnostic[];
@@ -36,6 +45,7 @@ const DEFAULT_RUNTIME_CONFIG: DesignToolRuntimeConfig = Object.freeze({
   host: "vite-react",
   framework: "React",
   stylingSystem: "CSS custom properties",
+  capabilities: Object.freeze({ canvas: true, componentSemantics: true }),
   tokenCatalog: [],
   tokens: [],
   tokenDiagnostics: [],
@@ -49,6 +59,7 @@ const runtimeListeners = new Set<() => void>();
 function snapshotConfig(config: DesignToolRuntimeConfig): DesignToolRuntimeConfig {
   return Object.freeze({
     ...config,
+    capabilities: Object.freeze({ ...config.capabilities }),
     tokenCatalog: Object.freeze([...config.tokenCatalog]),
     tokens: Object.freeze([...config.tokens]),
     tokenDiagnostics: Object.freeze([...config.tokenDiagnostics]),

@@ -124,6 +124,7 @@ describe("createStandaloneServer", () => {
         host: string;
         framework: string;
         stylingSystem: string;
+        capabilities: { canvas: boolean; componentSemantics: boolean };
         tokenCatalog: unknown[];
         tokens: unknown[];
         tokenDiagnostics: unknown[];
@@ -138,6 +139,7 @@ describe("createStandaloneServer", () => {
       host: "static-html",
       framework: "HTML",
       stylingSystem: "CSS custom properties",
+      capabilities: { canvas: false, componentSemantics: false },
       tokenCatalog: [],
       tokens: [],
       tokenDiagnostics: [],

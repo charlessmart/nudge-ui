@@ -7,6 +7,7 @@ import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { acquireLease, releaseLease } from "./canvas/workspaceLease.ts";
 import { exitCanvas } from "./canvas/canvasStore.ts";
 import { clearRestoreCount, setRestoreCount } from "./canvas/sessionStore.ts";
+import { configureDesignToolRuntime, getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
 
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -126,6 +127,28 @@ describe("InspectorShell", () => {
     act(() => exitCanvas());
     expect(canvas.dataset.active).toBe("false");
     expect(canvas.textContent).toContain("View canvas");
+  });
+
+  it("omits Canvas entry points when the host disables the capability", () => {
+    const previousConfig = getDesignToolRuntimeConfig();
+    try {
+      configureDesignToolRuntime({
+        ...previousConfig,
+        host: "static-html",
+        framework: "HTML",
+        capabilities: { canvas: false, componentSemantics: false },
+      });
+      act(() => {
+        mountInspector(host);
+      });
+
+      const shadow = host.shadowRoot!;
+      expect(shadow.querySelector('[data-test="mode-canvas"]')).toBeNull();
+      expect(shadow.querySelector('[data-test="view-mode-toggle"]')).toBeNull();
+      expect(shadow.querySelector('[data-test="canvas-workspace"]')).toBeNull();
+    } finally {
+      configureDesignToolRuntime(previousConfig);
+    }
   });
 
   it("unmountInspector clears the React tree from the shadow root", () => {

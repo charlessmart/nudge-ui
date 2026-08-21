@@ -150,6 +150,74 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("elementId");
   });
 
+  it("uses exact source coordinates for static HTML changes", () => {
+    const change = rec({
+      cid: "html:button",
+      file: "index.html",
+      line: 3,
+      column: 17,
+      property: "color",
+      rawValue: "blue",
+      selector: '[data-cid="html:button"][data-src="index.html:3:17"]',
+    });
+
+    const out = generatePrompt([change], {
+      framework: "HTML",
+      stylingSystem: "CSS custom properties",
+    });
+
+    expect(out).toContain("Framework: HTML + CSS custom properties");
+    expect(out).toContain("### html:button (index.html:3:17)");
+    expect(out).toContain('[data-cid="html:button"][data-src="index.html:3:17"]');
+    expect(out).not.toContain('data-src*="index.html:3"');
+  });
+
+  it("describes runtime-created HTML with bounded rendered evidence", () => {
+    const out = generatePrompt([rec({
+      cid: "design-tool-runtime-1",
+      file: "",
+      line: 0,
+      column: 0,
+      property: "color",
+      rawValue: "red",
+      selector: '[data-cid="design-tool-runtime-1"][data-src="design-tool:unknown:1"]',
+      source: { file: "", line: 0, component: "design-tool-runtime-1" },
+      runtimeEvidence: {
+        tagName: "button",
+        text: "Save",
+        props: null,
+        ariaLabel: "Save action",
+      },
+    })], { framework: "HTML", stylingSystem: "CSS custom properties" });
+
+    expect(out).toContain("source unknown; runtime-created DOM");
+    expect(out).toContain("Rendered element: `<button>`");
+    expect(out).toContain("Text evidence: `Save`");
+    expect(out).toContain("Accessible name evidence: `Save action`");
+    expect(out).toContain('[data-cid="design-tool-runtime-1"][data-src="design-tool:unknown:1"]');
+    expect(out).not.toContain("(:0");
+  });
+
+  it("uses exact structural source fallbacks for static HTML", () => {
+    const structural: StructuralChange[] = [{
+      id: "delete-html",
+      kind: "delete",
+      target: {
+        sourceSite: { cid: "html:item", src: "index.html:12:5" },
+        locator: { kind: "evidence", occurrence: 0, props: null, text: "Item" },
+      },
+    }];
+
+    const out = generatePrompt(
+      [],
+      { framework: "HTML", stylingSystem: "CSS custom properties" },
+      structural,
+    );
+
+    expect(out).toContain('[data-cid="html:item"][data-src="index.html:12:5"]');
+    expect(out).not.toContain('data-src*="index.html:12:5"');
+  });
+
   it("returns the empty sentinel when there are no changes", () => {
     const out = generatePrompt([]);
     expect(out).toBe(

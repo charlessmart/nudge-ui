@@ -17,6 +17,7 @@ import {
   formatComponentPropValue,
 } from "../componentSemantics/changeModel.ts";
 import { presentChange } from "../changes/presentation.ts";
+import { isRuntimeGeneratedSource } from "../staticHtmlRuntimeIdentity.ts";
 
 export interface FrameworkHints {
   framework?: string;
@@ -31,7 +32,9 @@ interface ElementGroup {
   cid: string;
   file: string;
   line: number;
+  column: number;
   selector: string;
+  runtimeEvidence?: ElementChangeRecord["runtimeEvidence"];
   instanceOverride?: RenderedInstanceOverride;
   changes: ElementChangeRecord[];
 }
@@ -62,7 +65,9 @@ function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
         cid: change.cid,
         file: change.file,
         line: change.source.line || change.line,
+        column: change.column ?? 0,
         selector: change.selector,
+        runtimeEvidence: change.runtimeEvidence,
         instanceOverride,
         changes: [],
       };
@@ -137,8 +142,11 @@ function textProjectionSourceFallback(target: TextProjectionTarget): string {
 }
 
 function textEvidenceLines(target: TextProjectionTarget): string[] {
+  const sourceLabel = isRuntimeGeneratedSource(target.sourceSite.src)
+    ? `${target.sourceSite.cid} (source unknown; runtime-created DOM)`
+    : `${target.sourceSite.cid} (\`${target.sourceSite.src}\`)`;
   const lines = [
-    `  - Source site: \`${target.sourceSite.cid}\` (\`${target.sourceSite.src}\`)`,
+    `  - Source site: ${sourceLabel}`,
     `  - Rendered occurrence: ${target.occurrence + 1}`,
   ];
   if (target.props) lines.push(`  - Props evidence: \`${target.props}\``);
@@ -160,7 +168,8 @@ function textScopeLines(change: TextContentChangeRecord): string[] {
  * source-line form: it is more useful to an agent as a grep fallback and is
  * not used to apply browser styles.
  */
-function promptSelectorForElement(group: ElementGroup): string {
+function promptSelectorForElement(group: ElementGroup, exactSource: boolean): string {
+  if (exactSource) return group.selector;
   if (!group.cid || !group.file || !group.line) return group.selector;
   return `[data-cid="${escapeAttrValue(group.cid)}"][data-src*="${escapeAttrValue(`${group.file}:${group.line}`)}"]`;
 }
@@ -170,7 +179,29 @@ function boundedEvidence(value: string | null): string | null {
 }
 
 function sourceSiteLabel(ref: RenderedInstanceRef): string {
+  if (isRuntimeGeneratedSource(ref.sourceSite.src)) {
+    return `${ref.sourceSite.cid} (source unknown; runtime-created DOM)`;
+  }
   return `${ref.sourceSite.cid} (${ref.sourceSite.src})`;
+}
+
+function runtimeEvidenceLines(group: ElementGroup): string[] {
+  const evidence = group.runtimeEvidence;
+  if (!evidence) return [];
+  const lines = [
+    "  - Source: unknown; locate the JavaScript or template that creates this runtime DOM.",
+    `  - Rendered element: \`<${evidence.tagName}>\``,
+  ];
+  if (evidence.text) lines.push(`  - Text evidence: ${promptText(evidence.text)}`);
+  if (evidence.ariaLabel) lines.push(`  - Accessible name evidence: \`${evidence.ariaLabel}\``);
+  if (evidence.props) lines.push(`  - Props evidence: \`${evidence.props}\``);
+  return lines;
+}
+
+function elementGroupSource(group: ElementGroup, exactSource: boolean): string {
+  if (group.runtimeEvidence) return "source unknown; runtime-created DOM";
+  if (exactSource && group.column > 0) return `${group.file}:${group.line}:${group.column}`;
+  return `${group.file}:${group.line}`;
 }
 
 function instanceEvidenceLines(label: string, ref: RenderedInstanceRef): string[] {
@@ -206,8 +237,9 @@ function structuralChangeLines(change: StructuralChange): string[] {
   ];
 }
 
-function structuralSourceFallback(ref: RenderedInstanceRef): string {
-  return `[data-cid="${escapeAttrValue(ref.sourceSite.cid)}"][data-src*="${escapeAttrValue(ref.sourceSite.src)}"]`;
+function structuralSourceFallback(ref: RenderedInstanceRef, exactSource: boolean): string {
+  const operator = exactSource ? "=" : "*=";
+  return `[data-cid="${escapeAttrValue(ref.sourceSite.cid)}"][data-src${operator}"${escapeAttrValue(ref.sourceSite.src)}"]`;
 }
 
 export function generatePrompt(
@@ -225,11 +257,12 @@ export function generatePrompt(
   const elementChanges = deduplicated.filter((change): change is ElementChangeRecord =>
     !isTokenChange(change) && !isComponentChange(change) && !isTextContentChange(change));
   const elementGroups = groupElementChanges(elementChanges);
-  const firstFile = deduplicated[0]
+  const firstFile = (deduplicated[0]
     ? presentChange(deduplicated[0]).file
-    : structuralChanges[0]!.target.sourceSite.src;
+    : structuralChanges[0]!.target.sourceSite.src) || "runtime-created DOM";
   const framework = frameworkHints?.framework ?? "React";
   const stylingSystem = frameworkHints?.stylingSystem ?? "CSS custom properties";
+  const exactHtmlSource = framework === "HTML";
   const lines = [
     `# Design changes for ${basename(firstFile)}`,
     "",
@@ -266,10 +299,11 @@ export function generatePrompt(
     lines.push("## Changes", "");
     for (const group of elementGroups) {
       const state = group.changes[0]?.state ?? "base";
-      lines.push(`### ${group.cid} (${group.file}:${group.line}) · ${state}`);
+      lines.push(`### ${group.cid} (${elementGroupSource(group, exactHtmlSource)}) · ${state}`);
       if (group.instanceOverride) {
         lines.push(...instanceEvidenceLines("Target", group.instanceOverride.target));
       }
+      lines.push(...runtimeEvidenceLines(group));
       for (const change of group.changes) {
         lines.push(elementChangeLine(change));
         const intent = sourceIntentLine(change);
@@ -282,7 +316,10 @@ export function generatePrompt(
   if (textChanges.length > 0) {
     lines.push("## Rendered text changes", "");
     for (const change of textChanges) {
-      lines.push(`### ${change.source.component || change.target.sourceSite.cid} (${change.source.file}:${change.source.line}:${change.source.column})`);
+      const textSource = isRuntimeGeneratedSource(change.target.sourceSite.src)
+        ? "source unknown; runtime-created DOM"
+        : `${change.source.file}:${change.source.line}:${change.source.column}`;
+      lines.push(`### ${change.source.component || change.target.sourceSite.cid} (${textSource})`);
       lines.push(`- Rendered text: ${promptText(change.before)} → ${promptText(change.after)} — ${textAuthorshipGuidance(change.authoredAs)}`);
       lines.push(...textScopeLines(change));
       lines.push(...textEvidenceLines(change.target));
@@ -305,13 +342,13 @@ export function generatePrompt(
   componentChanges.forEach((change) =>
     lines.push(`- \`[data-cid="${escapeAttrValue(change.target.componentName)}"][data-src*="${escapeAttrValue(`${change.target.file}:${change.target.line}`)}"]\``));
   textChanges.forEach((change) => lines.push(`- \`${textProjectionSourceFallback(change.target)}\``));
-  elementGroups.forEach((group) => lines.push(`- \`${promptSelectorForElement(group)}\``));
+  elementGroups.forEach((group) => lines.push(`- \`${promptSelectorForElement(group, exactHtmlSource)}\``));
   const structuralFallbacks = new Set<string>();
   for (const change of structuralChanges) {
-    structuralFallbacks.add(structuralSourceFallback(change.target));
+    structuralFallbacks.add(structuralSourceFallback(change.target, exactHtmlSource));
     if (change.kind === "move") {
-      structuralFallbacks.add(structuralSourceFallback(change.destination.parent));
-      if (change.destination.before) structuralFallbacks.add(structuralSourceFallback(change.destination.before));
+      structuralFallbacks.add(structuralSourceFallback(change.destination.parent, exactHtmlSource));
+      if (change.destination.before) structuralFallbacks.add(structuralSourceFallback(change.destination.before, exactHtmlSource));
     }
   }
   structuralFallbacks.forEach((selector) => lines.push(`- \`${selector}\``));

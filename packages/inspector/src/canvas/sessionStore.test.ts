@@ -36,6 +36,7 @@ import {
   getStructuralChanges,
   resetStructuralDeleteProjection,
 } from "../structuralProjection.ts";
+import { configureDesignToolRuntime, getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
 
 function localUrl(path: string): string {
   return new URL(path, window.location.href).href;
@@ -142,6 +143,31 @@ describe("sessionStore persistence", () => {
     expect(parsed.projectId).toBe(designToolProjectId);
     expect(parsed.changes).toHaveLength(1);
     expect(parsed.changes[0].selector).toBe('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+  });
+
+  it("namespaces persistence with the configured standalone project identity", () => {
+    const previousConfig = getDesignToolRuntimeConfig();
+    const standaloneProjectId = "static-html:standalone-fixture";
+    try {
+      configureDesignToolRuntime({
+        ...previousConfig,
+        projectId: standaloneProjectId,
+        host: "static-html",
+        framework: "HTML",
+        capabilities: { canvas: false, componentSemantics: false },
+      });
+      appendChange(makeElementChange());
+
+      persistSession();
+
+      expect(localStorage.getItem(storageKey(standaloneProjectId))).toContain(
+        `"projectId":"${standaloneProjectId}"`,
+      );
+      expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+    } finally {
+      localStorage.removeItem(storageKey(standaloneProjectId));
+      configureDesignToolRuntime(previousConfig);
+    }
   });
 
   it("serializes a durable rendered-instance change", () => {
@@ -823,6 +849,37 @@ describe("sessionStore round trip", () => {
     expect(restored[0]!.property).toBe("background");
     expect(restored[1]!.property).toBe("color");
     expect((restored[1] as ElementChangeRecord).rawValue).toBe("red");
+  });
+
+  it("full round-trip preserves standalone source columns and runtime evidence", () => {
+    appendChange(makeElementChange({
+      cid: "design-tool-runtime-1",
+      file: "",
+      line: 0,
+      column: 0,
+      selector: '[data-cid="design-tool-runtime-1"][data-src="design-tool:unknown:1"]',
+      source: { file: "", line: 0, component: "design-tool-runtime-1" },
+      runtimeEvidence: {
+        tagName: "button",
+        text: "Save",
+        props: null,
+        ariaLabel: "Save changes",
+      },
+    }));
+    persistSession();
+
+    clearChanges();
+    hydrateSession();
+
+    expect(getChangesList()).toMatchObject([{
+      column: 0,
+      runtimeEvidence: {
+        tagName: "button",
+        text: "Save",
+        props: null,
+        ariaLabel: "Save changes",
+      },
+    }]);
   });
 
   it("full round-trip preserves token changes", () => {
