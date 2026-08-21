@@ -28,8 +28,8 @@ The current agent loop is slow: describe a change in chat → agent writes code 
 | Agent handoff | Clipboard-paste prompt (v1), MCP server (v2) | v1: structured text prompt with file:line, component, token name, before→after. v2: live MCP bridge where agent calls into the browser. |
 | UI isolation | Shadow DOM React portal | Host app CSS can't leak in or out. Use host's React instance via Vite aliasing if possible; fall back to bundled React (~40KB) for version safety. |
 | Cross-tab sync | **Out of scope for v1** | Canvas re-capture shows the effect of token changes across pages. Sync via BroadcastChannel is a possible v2 but not needed for the core value prop. |
-| Build-tool support | Vite-first | Webpack/CRA/Next deferred. Vite covers the primary audience. Non-Vite users are out for v1 — name it explicitly. |
-| Framework support | React-first | Fiber-walking is React-specific. Vue/Svelte/Angular adapters are possible later but not v1. |
+| Host/build-tool support | Vite apps + standalone static HTML | Vite remains the application build-tool Adapter. A Design Tool-owned static host supports dependency-free HTML/CSS prototypes. Webpack/CRA/Next remain deferred. |
+| Framework support | React + framework-free HTML | React owns semantic component projections. Static HTML supports CSS/token and conservative rendered-text projections without component-prop controls. Vue/Svelte/Angular adapters remain deferred. |
 
 ---
 
@@ -339,7 +339,11 @@ host styles or attributes directly.
 
 5. **html2canvas has rendering gaps.** Some CSS (certain fonts, effects, transforms, web fonts) may render incorrectly in screenshots. Accept this for v1 — the canvas is for comparison, not pixel-perfect reproduction. Consider `modern-screenshot` as a more accurate alternative.
 
-6. **Vite-only for v1.** Webpack, CRA, Next.js, Turbopack users are out. Name this explicitly in docs. The AST transform and virtual module pattern are Vite-specific; porting to other build tools is a separate effort.
+6. **Vite application integration plus standalone static HTML.** Webpack, CRA,
+   Next.js, and Turbopack application integrations remain out of scope. The
+   standalone host is a separate development entry point for framework-free
+   prototypes; it does not make the Vite transform portable to other build
+   tools. See ADR-0009.
 
 ---
 
@@ -351,7 +355,7 @@ host styles or attributes directly.
 | MCP server | Clipboard-paste is sufficient for v1. MCP is significant infrastructure (WebSocket, server, SDK) and is invisible in a portfolio demo. |
 | Chrome extension | Wrong shape for localhost-dev target. Would double the install surface. |
 | Live DOM reconciliation for drag | Unsolved by anyone. Record-and-replay with honest messaging is the pragmatic path. |
-| Non-React frameworks | Fiber-walking is React-specific. Vue/Svelte adapters are possible but separate work. |
+| Non-React frameworks | Framework-free static HTML is supported through the standalone host without semantic component projections. Vue/Svelte adapters remain separate work. |
 | Non-Vite build tools | Vite covers the primary audience. Webpack/Babel/SWC plugins are porting effort. |
 | CSS-in-JS adapters (styled-components, emotion) | High effort, fragmented audience, tokens in JS objects. v2+. |
 | Write-back-to-source | The "agent edits source files directly" endgame. Requires dev-server file access. v2+ via MCP. |
