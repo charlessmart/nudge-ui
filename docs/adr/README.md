@@ -13,3 +13,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0007: Semantic component prop projections](./0007-semantic-component-prop-projections.md)
 - [ADR-0008: Inline text editing uses semantic component projections first](./0008-inline-text-projections.md)
 - [ADR-0009: Standalone static HTML host Adapter](./0009-standalone-static-html-host.md)
+- [ADR-0010: Next.js host Adapter](./0010-nextjs-host-adapter.md)
