@@ -171,6 +171,22 @@ describe("runtime configuration validation and defaults", () => {
     previousConfig = null;
   });
 
+  it("accepts the nextjs-react host and preserves it on the snapshot", () => {
+    previousConfig = getDesignToolRuntimeConfig();
+    const input: DesignToolRuntimeConfig = {
+      ...makeConfig("generation-nextjs"),
+      projectId: "nextjs:9f2a",
+      host: "nextjs-react",
+    };
+
+    configureDesignToolRuntime(input);
+
+    const snapshot = getDesignToolRuntimeConfig();
+    expect(snapshot.host).toBe("nextjs-react");
+    expect(snapshot.projectId).toBe("nextjs:9f2a");
+    expect(Object.isFrozen(snapshot)).toBe(true);
+  });
+
   it("rejects missing or invalid required identity fields", () => {
     const missingProjectId = { ...makeConfig("generation-validation") } as Record<string, unknown>;
     delete missingProjectId.projectId;

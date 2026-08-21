@@ -1,4 +1,5 @@
 import { escapeAttrValue } from "./cssEscapes.ts";
+import { isDesignToolDev } from "./devFlag.ts";
 import { sourceSiteSelector } from "./sourceSite.ts";
 
 /** A JSX instrumentation site. This is stable across documents. */
@@ -271,7 +272,7 @@ export function applyRenderedInstanceProjection(
   doc: Document,
   overrides: ReadonlyArray<RenderedInstanceOverride>,
 ): DocumentProjectionReport[] {
-  if (!import.meta.env.DEV) return [];
+  if (!isDesignToolDev()) return [];
   const state = getDocumentState(doc);
   canonicalOverrides = new Map(overrides.map((override) => [override.id, override]));
   const key = JSON.stringify(overrides);

@@ -34,6 +34,7 @@ import { installInspectionBridge } from "./inspection.ts";
 import { cancelInlineTextEdit } from "./inlineTextEditor.ts";
 import { getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
+import { isDesignToolDev } from "./devFlag.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -52,7 +53,7 @@ function onKeydown(e: KeyboardEvent): void {
 }
 
 export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
-  if (!import.meta.env.DEV) return;
+  if (!isDesignToolDev()) return;
 
   if (!getDesignToolRuntimeConfig().capabilities.canvas) {
     // A project can be reopened with a runtime that does not expose Canvas.
@@ -243,6 +244,7 @@ export {
   subscribeDesignToolRuntime,
 } from "./runtimeConfig.ts";
 export { useDesignToolRuntimeConfig } from "./useRuntimeConfig.ts";
+export { isDesignToolDev, setDesignToolHostDevFlag } from "./devFlag.ts";
 export type {
   DesignToolRuntimeConfig,
   DesignToolRuntimeCapabilities,

@@ -8,6 +8,7 @@ import {
   type TextProjectionReportMessage,
 } from "./frameProtocol.ts";
 import { isComponentOverrideList } from "./frameProtocol.ts";
+import { isDesignToolDev } from "../devFlag.ts";
 import { replaceComponentOverrideProjection } from "../componentSemantics/index.ts";
 import { rulesToCssText, type StyleRule } from "../managedStylesheet.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
@@ -81,7 +82,7 @@ function sendTextProjectionReport(revision: number): void {
 
 /** Installs renderer diagnostics only after the dev-only renderer bootstrap. */
 export function startRendererProjectionDiagnostics(): void {
-  if (!import.meta.env.DEV || stopStructuralDiagnostics || stopRenderedInstanceDiagnostics || stopTextProjectionDiagnostics) return;
+  if (!isDesignToolDev() || stopStructuralDiagnostics || stopRenderedInstanceDiagnostics || stopTextProjectionDiagnostics) return;
   stopStructuralDiagnostics = subscribeStructuralDiagnostics(() => {
     if (lastStructuralReportRevision !== null) {
       sendStructuralProjectionReport(lastStructuralReportRevision);
@@ -193,7 +194,7 @@ export function handleReplaceStyles(
   workspaceId: string,
   cardId: string,
 ): boolean {
-  if (!import.meta.env.DEV) return false;
+  if (!isDesignToolDev()) return false;
   const validation = validateReplaceStyles(msg, projectId, workspaceId, cardId);
   if (!validation.valid) return false;
 

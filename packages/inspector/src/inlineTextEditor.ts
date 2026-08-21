@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { appendChange } from "./changesLog.ts";
 import { registerInlineTextClearHandler } from "./inlineTextLifecycle.ts";
+import { isDesignToolDev } from "./devFlag.ts";
 import {
   createComponentPropChange,
 } from "./componentSemantics/changeModel.ts";
@@ -1080,7 +1081,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
 
 export const inlineTextEditor: InlineTextEditor = {
   begin(element, point) {
-    if (!import.meta.env.DEV) {
+    if (!isDesignToolDev()) {
       return {
         kind: "rejected",
         reason: "no-binding",
@@ -1105,7 +1106,7 @@ export const inlineTextEditor: InlineTextEditor = {
 export function beginInlineTextEditFromEmptyProjection(
   marker: HTMLElement,
 ): InlineTextSession | TextEditRejection {
-  if (!import.meta.env.DEV) {
+  if (!isDesignToolDev()) {
     return {
       kind: "rejected",
       reason: "no-binding",
@@ -1141,7 +1142,7 @@ export function beginInlineTextEdit(
   element: HTMLElement,
   point?: { x: number; y: number },
 ): InlineTextSession | TextEditRejection {
-  if (!import.meta.env.DEV) {
+  if (!isDesignToolDev()) {
     return {
       kind: "rejected",
       reason: "no-binding",

@@ -1,5 +1,6 @@
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty, TokenTable } from "@design-tool/css/model";
+import { isDesignToolDev } from "../devFlag.ts";
 import type { InteractionState } from "../styleState.ts";
 import {
   buildTokenTable,
@@ -277,7 +278,7 @@ function resolveCascadeProperties(
 export function createBrowserCssInspection(
   config: BrowserCssInspectionConfig,
 ): BrowserCssInspection {
-  if (!import.meta.env.DEV) return disabledInspection(config);
+  if (!isDesignToolDev()) return disabledInspection(config);
 
   const definitions = [...config.tokenKnowledge.definitions];
   const knowledgeEntries = [...(config.tokenKnowledge.entries ?? [])];

@@ -2,6 +2,7 @@ import { getElementComputedStyle } from "./domRealm.ts";
 import { notifyBrowserStylesheetChange } from "./inspection/browserCssInspectionRegistry.ts";
 import type { TokenContextWrapper } from "virtual:design-tokens";
 import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
+import { isDesignToolDev } from "./devFlag.ts";
 
 export { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 
@@ -82,7 +83,7 @@ export function ensureManagedSheet(): CSSStyleSheet {
     rehydrateManagedSheet(doc, el);
   }
   installManagedHeadGuard(doc);
-  if (import.meta.env.DEV && doc.defaultView) {
+  if (isDesignToolDev() && doc.defaultView) {
     // Keep authored CSS available to dev diagnostics without writing
     // textContent on the live <style> element (which reparses CSSOM rules).
     doc.defaultView.__designToolGetManagedSheetText = getManagedSheetText;

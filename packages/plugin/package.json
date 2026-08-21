@@ -6,7 +6,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./tokens": "./src/virtual/design-tokens.ts",
-    "./vanilla-extract-runtime": "./src/adapters/vanillaExtractRuntime.ts"
+    "./vanilla-extract-runtime": "./src/adapters/vanillaExtractRuntime.ts",
+    "./identity": "./src/transform/injectDataCid.ts",
+    "./component-contracts": "./src/components/extractContracts.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

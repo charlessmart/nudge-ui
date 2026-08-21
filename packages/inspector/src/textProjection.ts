@@ -1,4 +1,5 @@
 import { sourceSiteSelector } from "./sourceSite.ts";
+import { isDesignToolDev } from "./devFlag.ts";
 import {
   isTextContentChangeValue,
   isTextProjectionTargetValue,
@@ -645,7 +646,7 @@ export function applyTextContentProjection(
   doc: Document,
   changes: ReadonlyArray<TextContentChangeRecord>,
 ): TextProjectionReport[] {
-  if (!import.meta.env.DEV) return [];
+  if (!isDesignToolDev()) return [];
   const state = getDocumentState(doc);
   canonicalChanges = new Map(changes.map((change) => [change.id, change]));
   const key = JSON.stringify(changes);

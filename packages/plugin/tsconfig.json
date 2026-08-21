@@ -3,7 +3,12 @@
   "compilerOptions": {
     "outDir": "dist",
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@design-tool/plugin": ["./src/index.ts"],
+      "@design-tool/plugin/identity": ["./src/transform/injectDataCid.ts"],
+      "@design-tool/plugin/component-contracts": ["./src/components/extractContracts.ts"]
+    }
   },
   "include": ["src"]
 }

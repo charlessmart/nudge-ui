@@ -17,6 +17,7 @@ import { readMargins } from "../overlayGeometry.ts";
 import { installInteractionStyles } from "../interactionStyles.ts";
 import { createFrameThrottle } from "../frameThrottle.ts";
 import { createCidIndex } from "./rendererCidIndex.ts";
+import { isDesignToolDev } from "../devFlag.ts";
 import { isEditableEvent } from "../shortcuts.ts";
 import { resolveSelectionTarget, selectionTargetMode } from "../selectionTarget.ts";
 import { escapeCssString } from "../cssEscapes.ts";
@@ -94,7 +95,7 @@ export function buildSelector(el: HTMLElement): string {
 let installed = false;
 
 export function installRendererElementSelector(): void {
-  if (!import.meta.env.DEV) return;
+  if (!isDesignToolDev()) return;
   if (installed) return;
   installed = true;
   installInteractionStyles();

@@ -6,7 +6,7 @@ import type {
 import type { ComponentContract } from "./componentSemantics/types.ts";
 
 /** The host Adapter that supplied the active inspector runtime. */
-export type DesignToolRuntimeHost = "vite-react" | "static-html";
+export type DesignToolRuntimeHost = "vite-react" | "static-html" | "nextjs-react";
 
 /** The framework semantics enabled for the active inspector runtime. */
 export type DesignToolRuntimeFramework = "React" | "HTML";
@@ -83,7 +83,11 @@ const DEFAULT_RUNTIME_CONFIG = cloneAndFreeze<DesignToolRuntimeConfig>({
   componentContracts: [],
 });
 
-const RUNTIME_HOSTS: readonly DesignToolRuntimeHost[] = ["vite-react", "static-html"];
+const RUNTIME_HOSTS: readonly DesignToolRuntimeHost[] = [
+  "vite-react",
+  "static-html",
+  "nextjs-react",
+];
 const RUNTIME_FRAMEWORKS: readonly DesignToolRuntimeFramework[] = ["React", "HTML"];
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

@@ -170,6 +170,32 @@ describe("sessionStore persistence", () => {
     }
   });
 
+  it("namespaces persistence with the configured nextjs project identity", () => {
+    const previousConfig = getDesignToolRuntimeConfig();
+    const nextProjectId = "nextjs:9f2ab4c1";
+    try {
+      configureDesignToolRuntime({
+        ...previousConfig,
+        projectId: nextProjectId,
+        host: "nextjs-react",
+        framework: "React",
+        capabilities: { canvas: false, componentSemantics: false },
+      });
+      appendChange(makeElementChange());
+
+      persistSession();
+
+      expect(localStorage.getItem(storageKey(nextProjectId))).toContain(
+        `"projectId":"${nextProjectId}"`,
+      );
+      // A Next.js session must neither read nor clobber Vite-host entries.
+      expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+    } finally {
+      localStorage.removeItem(storageKey(nextProjectId));
+      configureDesignToolRuntime(previousConfig);
+    }
+  });
+
   it("serializes a durable rendered-instance change", () => {
     appendChange(makeElementChange({
       scope: "rendered-instance",

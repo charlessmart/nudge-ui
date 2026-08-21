@@ -401,3 +401,40 @@ seam rather than either host.
 - Transport pattern being mirrored:
   `packages/standalone/src/{server,manifest,watcher}.ts`, `src/client.tsx`
 - Consumer harness precedent: `examples/sandbox`, `examples/standalone-html`
+
+## Appendix: transpilePackages guidance
+
+Every Design Tool workspace package ships raw TypeScript: each package's
+`exports` map points directly at `src/*.ts(x)` sources with no build step.
+Vite compiles consumed workspace sources automatically, but Next.js compiles
+only the importing project's own code — anything resolved from `node_modules`
+(which includes pnpm workspace links) is treated as pre-built JavaScript and
+handed to SWC untranspiled. Without opt-in, a Next app importing
+`@design-tool/inspector` fails on JSX and TypeScript syntax.
+
+Consumers — or the `withDesignTool` wrapper on their behalf (Stage 3) — must
+list every Design Tool package reachable from browser code:
+
+```ts
+transpilePackages: [
+  "@design-tool/inspector", // the bootstrap + shared inspector runtime
+  "@design-tool/css",       // model/value-semantics modules pulled in by the inspector
+  "@design-tool/plugin",    // only if client code imports its runtime subpaths
+]
+```
+
+Notes:
+
+- The loader-side Modules (`@design-tool/plugin/identity`,
+  `@design-tool/plugin/component-contracts`) execute inside the Node build
+  pipeline, never in the browser bundle, so they do not force transpilation by
+  themselves; the wrapper includes the plugin package anyway so the
+  `vanilla-extract-runtime` adapter stays usable.
+- `transpilePackages` is additive config: merging it must not clobber entries
+  the host application already declared.
+- This is reduced fidelity by design (see Knowledge transport): the inspector
+  sources are compiled by SWC rather than Vite, which changes nothing about
+  the managed-stylesheet or identity contracts, but any future use of
+  Vite-specific transforms inside workspace sources would break under Next and
+  is therefore prohibited by this guidance.
+
