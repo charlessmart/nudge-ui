@@ -1,17 +1,15 @@
 import {
   DESIGN_TOOL_CLIENT_PATH,
+  DESIGN_TOOL_MOUNT_ID,
   DESIGN_TOOL_MANIFEST_PATH,
 } from "../manifest.ts";
 import { parse, type DefaultTreeAdapterTypes } from "parse5";
 
-const DEFAULT_MOUNT_ID = "design-tool-root";
 const CLIENT_MARKER = "data-design-tool-client";
 const MOUNT_MARKER = "data-design-tool-mount";
 
 /** Options for source-preserving standalone bootstrap injection. */
 export interface StandaloneBootstrapOptions {
-  /** The mount element ID used by the inspector. */
-  readonly mountId?: string;
   /** The browser client URL. */
   readonly clientPath?: string;
   /** The runtime manifest URL passed to the browser client. */
@@ -42,16 +40,15 @@ export function injectStandaloneBootstrap(
   html: string,
   options: StandaloneBootstrapOptions = {},
 ): StandaloneBootstrapResult {
-  const mountId = options.mountId ?? DEFAULT_MOUNT_ID;
   const clientPath = options.clientPath ?? DESIGN_TOOL_CLIENT_PATH;
   const manifestPath = options.manifestPath ?? DESIGN_TOOL_MANIFEST_PATH;
   const document = parse(html, { sourceCodeLocationInfo: true });
-  const sourceFacts = inspectSource(document, mountId, clientPath);
+  const sourceFacts = inspectSource(document, clientPath);
   const nodes: string[] = [];
 
   if (!sourceFacts.hasMount) {
     nodes.push(
-      `<div id="${escapeAttributeValue(mountId)}" ${MOUNT_MARKER}></div>`,
+      `<div id="${DESIGN_TOOL_MOUNT_ID}" ${MOUNT_MARKER}></div>`,
     );
   }
   if (!sourceFacts.hasClient) {
@@ -81,7 +78,6 @@ type HtmlElement = DefaultTreeAdapterTypes.Element;
 
 function inspectSource(
   document: DefaultTreeAdapterTypes.Document,
-  mountId: string,
   clientPath: string,
 ): SourceFacts {
   const facts: SourceFacts = {
@@ -91,10 +87,11 @@ function inspectSource(
     htmlEndOffset: null,
   };
 
+  let body: HtmlElement | null = null;
   visitElements(document, (element) => {
     if (element.namespaceURI !== "http://www.w3.org/1999/xhtml") return;
     const tagName = element.tagName.toLowerCase();
-    if (attributeValue(element, "id") === mountId) facts.hasMount = true;
+    if (tagName === "body") body = element;
     if (
       tagName === "script"
       && (attributeValue(element, CLIENT_MARKER) !== null
@@ -107,6 +104,16 @@ function inspectSource(
     if (tagName === "html" && endOffset !== undefined) facts.htmlEndOffset = endOffset;
   });
 
+  // Only live body descendants can reserve the mount. Template content is
+  // inert and must not suppress injection into the document.
+  if (body) {
+    visitElements(body, (element) => {
+      if (element !== body && attributeValue(element, "id") === DESIGN_TOOL_MOUNT_ID) {
+        facts.hasMount = true;
+      }
+    });
+  }
+
   return facts;
 }
 
@@ -116,6 +123,7 @@ function visitElements(
 ): void {
   for (const child of parent.childNodes) {
     if (!("tagName" in child) || typeof child.tagName !== "string") continue;
+    if (child.tagName.toLowerCase() === "template") continue;
     visit(child);
     visitElements(child, visit);
   }

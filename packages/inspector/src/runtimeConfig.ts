@@ -40,12 +40,34 @@ export interface DesignToolRuntimeConfig {
   readonly componentContracts: readonly ComponentContract[];
 }
 
-const DEFAULT_RUNTIME_CONFIG: DesignToolRuntimeConfig = Object.freeze({
+function cloneAndFreeze<T>(value: T, seen = new WeakMap<object, unknown>()): T {
+  if (value === null || typeof value !== "object") return value;
+
+  const source = value as object;
+  const existing = seen.get(source);
+  if (existing) return existing as T;
+
+  if (Array.isArray(value)) {
+    const copy: unknown[] = [];
+    seen.set(source, copy);
+    for (const item of value) copy.push(cloneAndFreeze(item, seen));
+    return Object.freeze(copy) as T;
+  }
+
+  const copy: Record<string, unknown> = {};
+  seen.set(source, copy);
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    copy[key] = cloneAndFreeze(child, seen);
+  }
+  return Object.freeze(copy) as T;
+}
+
+const DEFAULT_RUNTIME_CONFIG = cloneAndFreeze<DesignToolRuntimeConfig>({
   projectId: "/stub/project",
   host: "vite-react",
   framework: "React",
   stylingSystem: "CSS custom properties",
-  capabilities: Object.freeze({ canvas: true, componentSemantics: true }),
+  capabilities: { canvas: true, componentSemantics: true },
   tokenCatalog: [],
   tokens: [],
   tokenDiagnostics: [],
@@ -57,23 +79,16 @@ let activeRuntimeConfig: DesignToolRuntimeConfig = DEFAULT_RUNTIME_CONFIG;
 const runtimeListeners = new Set<() => void>();
 
 function snapshotConfig(config: DesignToolRuntimeConfig): DesignToolRuntimeConfig {
-  return Object.freeze({
-    ...config,
-    capabilities: Object.freeze({ ...config.capabilities }),
-    tokenCatalog: Object.freeze([...config.tokenCatalog]),
-    tokens: Object.freeze([...config.tokens]),
-    tokenDiagnostics: Object.freeze([...config.tokenDiagnostics]),
-    componentContracts: Object.freeze([...config.componentContracts]),
-  });
+  return cloneAndFreeze(config);
 }
 
 /**
  * Replaces the complete runtime configuration for the active document.
  *
  * Replacement is atomic from the inspector's perspective. The returned
- * snapshot owns new array containers, so a host can safely replace its virtual
- * module values during HMR without leaving shared Modules bound to an old
- * transport object.
+ * snapshot owns recursively cloned and frozen plain data, so a host can safely
+ * replace its virtual module values during HMR without leaving shared Modules
+ * bound to an old transport object or freezing caller-owned values.
  */
 export function configureDesignToolRuntime(config: DesignToolRuntimeConfig): void {
   activeRuntimeConfig = snapshotConfig(config);

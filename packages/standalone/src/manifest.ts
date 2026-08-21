@@ -4,6 +4,9 @@ import type { StandaloneTokenSnapshot } from "./tokenManifest.ts";
 /** The reserved URL namespace owned by the standalone Design Tool host. */
 export const DESIGN_TOOL_ROUTE_PREFIX = "/__design_tool__/";
 
+/** The only mount ID supported by the standalone host contract. */
+export const DESIGN_TOOL_MOUNT_ID = "design-tool-root";
+
 /** The manifest consumed by the standalone browser client. */
 export const DESIGN_TOOL_MANIFEST_PATH = `${DESIGN_TOOL_ROUTE_PREFIX}manifest`;
 

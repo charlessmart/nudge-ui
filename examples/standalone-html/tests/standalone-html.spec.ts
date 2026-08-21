@@ -31,8 +31,15 @@ async function setRawValue(
     await field.locator('[data-test="delink-btn"]').click();
     await expect(raw).toHaveCount(1);
   }
-  await raw.fill(value);
-  await raw.press("Enter");
+  await raw.evaluate((element, nextValue) => {
+    const input = element as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    if (!setter) throw new Error("Native input value setter is unavailable.");
+    input.focus();
+    setter.call(input, nextValue);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.blur();
+  }, value);
 }
 
 async function selectToken(
@@ -193,7 +200,11 @@ test("reloads once and refreshes CSS token knowledge after an agent-style source
       .find((entry) => entry.name === "--color-accent");
     return token?.value ?? "";
   })).toBe("#de446e");
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await expect.poll(async () => page.evaluate(async () => {
+    const response = await fetch("/__design_tool__/manifest");
+    const manifest = await response.json() as { revision?: unknown };
+    return manifest.revision;
+  })).toBe(1);
   expect(navigations).toBe(1);
   expect(await readFile(projectPath("styles.css"), "utf8")).toBe(updatedCss);
 });

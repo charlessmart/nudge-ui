@@ -71,7 +71,7 @@ export function createStandaloneFileWatcher(
     timer = null;
     if (closed || pending.size === 0) return;
     const changes = [...pending.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => comparePosixStrings(a, b))
       .map(([absolutePath, kind]) => ({ absolutePath, kind }));
     pending.clear();
     void Promise.resolve(options.onSettled(changes)).catch(reportError);
@@ -119,7 +119,7 @@ export function createStandaloneFileWatcher(
     watches.set(directory, { directory, canonicalDirectory, watcher: directoryWatcher });
     let entries: string[];
     try {
-      entries = readdirSync(directory).sort((a, b) => a.localeCompare(b));
+      entries = readdirSync(directory).sort(comparePosixStrings);
     } catch {
       return;
     }
@@ -213,4 +213,9 @@ function isWithin(rootDirectory: string, candidate: string): boolean {
     || (!pathFromRoot.startsWith(`..${sep}`)
       && pathFromRoot !== ".."
       && !isAbsolute(pathFromRoot));
+}
+
+/** Compares UTF-8 path bytes so ordering does not depend on the host locale. */
+function comparePosixStrings(a: string, b: string): number {
+  return Buffer.from(a, "utf8").compare(Buffer.from(b, "utf8"));
 }

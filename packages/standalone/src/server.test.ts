@@ -55,6 +55,16 @@ describe("resolveStaticFile", () => {
     expect(resolveStaticFile(root, "/..%5Csecret.txt")).toBeNull();
   });
 
+  it("decodes encoded filenames exactly once", async () => {
+    const root = await createFixture();
+    const fileName = "percent%name.txt";
+    await writeFile(join(root, fileName), "percent file");
+
+    expect(resolveStaticFile(root, `/${encodeURIComponent(fileName)}`)).toMatchObject({
+      projectPath: fileName,
+    });
+  });
+
   it("rejects symlink escapes even when the requested leaf is missing", async () => {
     const root = await createFixture();
     const outside = await mkdtemp(join(tmpdir(), "design-tool-outside-"));
@@ -156,6 +166,26 @@ describe("createStandaloneServer", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("serves percent-containing filenames and rejects encoded traversal", async () => {
+    const root = await createFixture();
+    const fileName = "percent%name.txt";
+    await writeFile(join(root, fileName), "percent file");
+    const clientPath = join(root, "test-client.mjs");
+    await writeFile(clientPath, "export {};");
+
+    runningServer = createStandaloneServer({ rootDirectory: root, port: 0, clientPath });
+    const address = await runningServer.start();
+
+    const fileResponse = await fetch(address.url + encodeURIComponent(fileName));
+    expect(fileResponse.status).toBe(200);
+    expect(await fileResponse.text()).toBe("percent file");
+
+    const traversalResponse = await fetch(address.url + "%2e%2e/secret.txt");
+    // Fetch normalizes dot segments before sending this URL; the resulting
+    // request is still rejected and never serves a file outside the root.
+    expect(traversalResponse.status).toBe(404);
+  });
+
   it("produces a stable identity and enforces loopback binding", async () => {
     const root = await createFixture();
     expect(createStandaloneProjectId(root)).toBe(createStandaloneProjectId(root));
@@ -188,6 +218,20 @@ describe("createStandaloneServer", () => {
     await expect(runningServer.start()).resolves.toMatchObject({
       port: firstAddress.port,
     });
+  });
+
+  it("cancels an in-flight start before leaving a listening server", async () => {
+    const root = await createFixture();
+    const clientPath = join(root, "test-client.mjs");
+    await writeFile(clientPath, "export {};");
+    runningServer = createStandaloneServer({ rootDirectory: root, port: 0, clientPath });
+
+    const startPromise = runningServer.start();
+    const closePromise = runningServer.close();
+
+    await expect(startPromise).rejects.toThrow(/closed during startup/);
+    await expect(closePromise).resolves.toBeUndefined();
+    expect(runningServer.httpServer.listening).toBe(false);
   });
 
   it("publishes rebuilt token knowledge before one settled reload", async () => {

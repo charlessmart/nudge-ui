@@ -129,7 +129,7 @@ export function discoverStandaloneCssArtifacts(
   const visitedFiles = new Set<string>();
 
   walkDirectory(root, root, visitedDirectories, visitedFiles, artifacts, readFile);
-  artifacts.sort((a, b) => a.projectPath.localeCompare(b.projectPath));
+  artifacts.sort((a, b) => comparePosixStrings(a.projectPath, b.projectPath));
   return artifacts;
 }
 
@@ -151,7 +151,7 @@ function walkDirectory(
   } catch {
     return;
   }
-  entries.sort((a, b) => a.name.localeCompare(b.name));
+  entries.sort((a, b) => comparePosixStrings(a.name, b.name));
 
   for (const entry of entries) {
     if (entry.isDirectory() && EXCLUDED_DIRECTORY_NAMES.has(entry.name)) continue;
@@ -251,4 +251,9 @@ function deterministicGeneration(
     .digest("hex")
     .slice(0, 24);
   return `static-html:${digest}`;
+}
+
+/** Compares UTF-8 path bytes so discovery is independent of the host locale. */
+function comparePosixStrings(a: string, b: string): number {
+  return Buffer.from(a, "utf8").compare(Buffer.from(b, "utf8"));
 }

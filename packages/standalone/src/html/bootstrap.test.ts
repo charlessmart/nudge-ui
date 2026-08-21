@@ -46,13 +46,23 @@ describe("injectStandaloneBootstrap", () => {
     const result = injectStandaloneBootstrap("<body></body>", {
       clientPath: "/assets/client.mjs",
       manifestPath: "/assets/manifest.json",
-      mountId: "prototype-inspector",
     });
 
-    expect(result.html).toContain("id=\"prototype-inspector\"");
+    expect(result.html).toContain("id=\"design-tool-root\"");
     expect(result.html).toContain("src=\"/assets/client.mjs\"");
     expect(result.html).toContain("data-design-tool-manifest=\"/assets/manifest.json\"");
     expect(result.html).not.toContain("<script>window");
+  });
+
+  it("does not treat inert template content as a live mount or client", () => {
+    const source = `<body><template><div id="design-tool-root"></div><script data-design-tool-client></script></template><main>Page</main></body>`;
+
+    const result = injectStandaloneBootstrap(source);
+
+    expect(result.injected).toBe(true);
+    expect(result.html.match(/id="design-tool-root"/g)).toHaveLength(2);
+    expect(result.html.match(/data-design-tool-client/g)).toHaveLength(2);
+    expect(result.html).toContain("<main>Page</main>");
   });
 
   it("ignores bootstrap-like text inside scripts", () => {

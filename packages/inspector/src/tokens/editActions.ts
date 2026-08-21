@@ -10,11 +10,16 @@ import { getEditScope, selectorForElement, sourceSiteSelector } from "../editSco
 import { getRenderedInstanceOverride } from "../renderedInstance.ts";
 import { getActiveStyleState, selectorForInteractionState } from "../styleState.ts";
 import { getStateStyleValue } from "../stateValue.ts";
-import { isRuntimeGeneratedSource } from "../staticHtmlRuntimeIdentity.ts";
+import {
+  boundRuntimeEvidence,
+  isRuntimeCreatedElement,
+  isRuntimeGeneratedSource,
+  normalizeRuntimeTag,
+  normalizeRuntimeText,
+} from "../staticHtmlRuntimeIdentity.ts";
 
 function boundedRenderedText(el: HTMLElement): string | null {
-  const text = el.textContent?.replace(/\s+/g, " ").trim().slice(0, 120) ?? "";
-  return text || null;
+  return normalizeRuntimeText(el.textContent);
 }
 
 function sourceFields(el: HTMLElement): {
@@ -25,16 +30,16 @@ function sourceFields(el: HTMLElement): {
 } {
   const src = el.getAttribute("data-src") ?? "";
   const parsed = parseDataSrc(src);
-  if (isRuntimeGeneratedSource(src)) {
+  if (isRuntimeCreatedElement(el) || isRuntimeGeneratedSource(src)) {
     return {
       file: "",
       line: 0,
       column: 0,
       runtimeEvidence: {
-        tagName: el.tagName.toLowerCase(),
+        tagName: normalizeRuntimeTag(el.tagName),
         text: boundedRenderedText(el),
-        props: el.getAttribute("data-cprops"),
-        ariaLabel: el.getAttribute("aria-label"),
+        props: boundRuntimeEvidence(el.getAttribute("data-cprops")),
+        ariaLabel: boundRuntimeEvidence(el.getAttribute("aria-label")),
       },
     };
   }

@@ -7,6 +7,25 @@
  */
 export const RUNTIME_UNKNOWN_SOURCE_PREFIX = "design-tool:unknown:";
 export const RUNTIME_ELEMENT_CID_PREFIX = "design-tool-runtime-";
+/** Maximum length retained for any runtime DOM evidence field. */
+export const RUNTIME_EVIDENCE_MAX_LENGTH = 120;
+
+/** Bounds an untrusted runtime evidence string without changing its content. */
+export function boundRuntimeEvidence(value: string | null): string | null {
+  return value === null ? null : value.slice(0, RUNTIME_EVIDENCE_MAX_LENGTH);
+}
+
+/** Normalizes rendered text before it becomes durable runtime evidence. */
+export function normalizeRuntimeText(value: string | null): string | null {
+  if (value === null) return null;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized ? boundRuntimeEvidence(normalized) : null;
+}
+
+/** Keeps a runtime tag suitable for the prompt's inline element notation. */
+export function normalizeRuntimeTag(value: string): string {
+  return boundRuntimeEvidence(value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "")) ?? "";
+}
 
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 const DOCUMENT_STRUCTURE_TAGS = new Set(["HTML", "HEAD", "BODY"]);
@@ -17,9 +36,16 @@ const EXCLUDED_SUBTREE_TAGS = new Set([
   "NOSCRIPT",
 ]);
 
+const runtimeCreatedElements = new WeakSet<Element>();
+
 /** Returns true for the source values generated for runtime DOM. */
 export function isRuntimeGeneratedSource(src: string | null | undefined): boolean {
   return typeof src === "string" && src.startsWith(RUNTIME_UNKNOWN_SOURCE_PREFIX);
+}
+
+/** Returns whether this document-local element received generated identity. */
+export function isRuntimeCreatedElement(element: Element | null | undefined): boolean {
+  return element !== null && element !== undefined && runtimeCreatedElements.has(element);
 }
 
 function isElement(node: Node): node is Element {
@@ -84,6 +110,7 @@ export function installStaticHtmlRuntimeIdentity(doc: Document = document): () =
     const identity = nextIdentity();
     if (needsCid) element.setAttribute("data-cid", identity.cid);
     if (needsSource) element.setAttribute("data-src", identity.src);
+    runtimeCreatedElements.add(element);
   }
 
   function scanSubtree(node: Node): void {

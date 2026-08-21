@@ -1,8 +1,12 @@
 {
   "name": "@design-tool/standalone",
   "version": "0.0.1",
-  "private": true,
   "type": "module",
+  "files": [
+    "bin",
+    "dist",
+    "src"
+  ],
   "main": "src/index.ts",
   "bin": {
     "design-tool": "./bin/design-tool.mjs"
@@ -17,6 +21,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:client": "node scripts/build-client.mjs",
+    "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run"
   },

@@ -150,14 +150,13 @@ describe("instrumentHtml", () => {
     expect(result.insertedAttributeCount).toBe(0);
   });
 
-  it("supports a custom mount ID without affecting source locations", () => {
-    const source = '<!doctype html><body><div id="prototype-mount"><button>skip</button></div><button>keep</button></body>';
-    const result = instrumentHtml(source, "index.html", { mountId: "prototype-mount" });
+  it("reserves only the fixed Design Tool mount ID", () => {
+    const source = '<!doctype html><body><div id="prototype-mount"><button>instrument</button></div><button>keep</button></body>';
+    const result = instrumentHtml(source, "index.html");
 
     expect(result.html).toContain(
-      '<div id="prototype-mount"><button>skip</button></div>',
+      '<div id="prototype-mount" data-cid="html:div" data-src="index.html:1:22"><button data-cid="html:button" data-src="index.html:1:48">instrument</button></div>',
     );
-    expect(result.html).not.toContain('prototype-mount" data-cid');
-    expect(result.html).toContain('data-src="index.html:1:75"');
+    expect(result.html).toContain('data-src="index.html:1:81"');
   });
 });

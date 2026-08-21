@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { parseDataSrc } from "./resolveSelection.ts";
 import {
   installStaticHtmlRuntimeIdentity,
+  isRuntimeCreatedElement,
   isRuntimeGeneratedSource,
   RUNTIME_UNKNOWN_SOURCE_PREFIX,
 } from "./staticHtmlRuntimeIdentity.ts";
@@ -42,6 +43,28 @@ describe("static HTML runtime identity", () => {
     expect(buttons[3]?.getAttribute("data-src")).toBe("index.html:5:3");
     expect(parseDataSrc(buttons[0]?.getAttribute("data-src") ?? "")).toBeNull();
     expect(isRuntimeGeneratedSource(buttons[0]?.getAttribute("data-src"))).toBe(true);
+    expect(isRuntimeCreatedElement(buttons[1])).toBe(true);
+    expect(isRuntimeCreatedElement(buttons[2])).toBe(true);
+    expect(isRuntimeCreatedElement(buttons[3])).toBe(false);
+  });
+
+  it("marks observer additions runtime-created when either identity attribute is filled", async () => {
+    document.body.innerHTML = "<main data-cid='main' data-src='index.html:1:1'></main>";
+    dispose = installStaticHtmlRuntimeIdentity();
+
+    const sourceOnly = document.createElement("button");
+    sourceOnly.setAttribute("data-src", "author.html:4:2");
+    const cidOnly = document.createElement("a");
+    cidOnly.setAttribute("data-cid", "author-link");
+    document.body.append(sourceOnly, cidOnly);
+    await flushMutations();
+
+    expect(sourceOnly.getAttribute("data-src")).toBe("author.html:4:2");
+    expect(sourceOnly.getAttribute("data-cid")).toBe("design-tool-runtime-1");
+    expect(cidOnly.getAttribute("data-cid")).toBe("author-link");
+    expect(cidOnly.getAttribute("data-src")).toBe(`${RUNTIME_UNKNOWN_SOURCE_PREFIX}2`);
+    expect(isRuntimeCreatedElement(sourceOnly)).toBe(true);
+    expect(isRuntimeCreatedElement(cidOnly)).toBe(true);
   });
 
   it("skips document structure, excluded subtrees, the mount, SVG, and descendants", () => {

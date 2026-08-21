@@ -3,10 +3,12 @@ import {
   configureDesignToolRuntime,
   installStaticHtmlRuntimeIdentity,
 } from "@design-tool/inspector";
+import { DESIGN_TOOL_MOUNT_ID } from "./manifest.ts";
 import {
   isStandaloneClientManifest,
   type StandaloneClientManifest,
 } from "./clientManifest.ts";
+import { reconcileStandaloneRuntime } from "./stylesheetOrder.ts";
 
 export { isStandaloneClientManifest } from "./clientManifest.ts";
 
@@ -32,8 +34,8 @@ export async function bootstrapStandaloneClient(): Promise<void> {
     throw new Error("Design Tool manifest did not contain a valid static-HTML runtime.");
   }
 
-  configureDesignToolRuntime(payload.runtime);
-  const host = document.getElementById("design-tool-root");
+  configureDesignToolRuntime(reconcileStandaloneRuntime(payload.runtime, document));
+  const host = document.getElementById(DESIGN_TOOL_MOUNT_ID);
   if (!host) throw new Error("Design Tool mount element is missing from the document.");
   installStaticHtmlRuntimeIdentity(document);
   bootstrapDesignTool(host);

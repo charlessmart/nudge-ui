@@ -17,7 +17,12 @@ import {
   formatComponentPropValue,
 } from "../componentSemantics/changeModel.ts";
 import { presentChange } from "../changes/presentation.ts";
-import { isRuntimeGeneratedSource } from "../staticHtmlRuntimeIdentity.ts";
+import {
+  boundRuntimeEvidence,
+  isRuntimeGeneratedSource,
+  normalizeRuntimeTag,
+  normalizeRuntimeText,
+} from "../staticHtmlRuntimeIdentity.ts";
 
 export interface FrameworkHints {
   framework?: string;
@@ -149,8 +154,10 @@ function textEvidenceLines(target: TextProjectionTarget): string[] {
     `  - Source site: ${sourceLabel}`,
     `  - Rendered occurrence: ${target.occurrence + 1}`,
   ];
-  if (target.props) lines.push(`  - Props evidence: \`${target.props}\``);
-  if (target.ariaLabel) lines.push(`  - Accessible name evidence: \`${target.ariaLabel}\``);
+  const props = boundRuntimeEvidence(target.props);
+  const ariaLabel = boundRuntimeEvidence(target.ariaLabel);
+  if (props) lines.push(`  - Props evidence: ${promptText(props)}`);
+  if (ariaLabel) lines.push(`  - Accessible name evidence: ${promptText(ariaLabel)}`);
   return lines;
 }
 
@@ -175,7 +182,7 @@ function promptSelectorForElement(group: ElementGroup, exactSource: boolean): st
 }
 
 function boundedEvidence(value: string | null): string | null {
-  return value === null ? null : value.slice(0, 120);
+  return boundRuntimeEvidence(value);
 }
 
 function sourceSiteLabel(ref: RenderedInstanceRef): string {
@@ -188,13 +195,17 @@ function sourceSiteLabel(ref: RenderedInstanceRef): string {
 function runtimeEvidenceLines(group: ElementGroup): string[] {
   const evidence = group.runtimeEvidence;
   if (!evidence) return [];
+  const tagName = normalizeRuntimeTag(evidence.tagName) || "unknown";
+  const text = normalizeRuntimeText(evidence.text);
+  const ariaLabel = boundRuntimeEvidence(evidence.ariaLabel);
+  const props = boundRuntimeEvidence(evidence.props);
   const lines = [
     "  - Source: unknown; locate the JavaScript or template that creates this runtime DOM.",
-    `  - Rendered element: \`<${evidence.tagName}>\``,
+    `  - Rendered element: \`<${tagName}>\``,
   ];
-  if (evidence.text) lines.push(`  - Text evidence: ${promptText(evidence.text)}`);
-  if (evidence.ariaLabel) lines.push(`  - Accessible name evidence: \`${evidence.ariaLabel}\``);
-  if (evidence.props) lines.push(`  - Props evidence: \`${evidence.props}\``);
+  if (text) lines.push(`  - Text evidence: ${promptText(text)}`);
+  if (ariaLabel) lines.push(`  - Accessible name evidence: ${promptText(ariaLabel)}`);
+  if (props) lines.push(`  - Props evidence: ${promptText(props)}`);
   return lines;
 }
 
@@ -287,8 +298,8 @@ export function generatePrompt(
       lines.push(`  - Component contract: \`${target.componentId}\``);
       if (change.evidence) {
         lines.push(`  - Rendered evidence: occurrence ${change.evidence.occurrence + 1}; mounted outputs ${change.evidence.mountedCount}`);
-        if (change.evidence.props) lines.push(`    - Props evidence: \`${change.evidence.props}\``);
-        if (change.evidence.ariaLabel) lines.push(`    - Accessible name evidence: \`${change.evidence.ariaLabel}\``);
+        if (change.evidence.props) lines.push(`    - Props evidence: ${promptText(boundedEvidence(change.evidence.props) ?? "")}`);
+        if (change.evidence.ariaLabel) lines.push(`    - Accessible name evidence: ${promptText(boundedEvidence(change.evidence.ariaLabel) ?? "")}`);
         lines.push(`    - Before text: ${promptText(change.evidence.beforeText)}`);
       }
       lines.push("");

@@ -198,6 +198,36 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("(:0");
   });
 
+  it("bounds and fences arbitrary runtime evidence values", () => {
+    const props = "props `with` backticks\n~~~\n" + "p".repeat(140);
+    const ariaLabel = "accessible `name`\n" + "a".repeat(140);
+    const out = generatePrompt([rec({
+      cid: "design-tool-runtime-2",
+      file: "",
+      line: 0,
+      column: 0,
+      property: "color",
+      rawValue: "red",
+      selector: '[data-cid="design-tool-runtime-2"][data-src="design-tool:unknown:2"]',
+      source: { file: "", line: 0, component: "design-tool-runtime-2" },
+      runtimeEvidence: {
+        tagName: "CUSTOM-ELEMENT",
+        text: "  Save\n   now  ",
+        props,
+        ariaLabel,
+      },
+    })], { framework: "HTML", stylingSystem: "CSS custom properties" });
+
+    expect(out).toContain("Rendered element: `<custom-element>`");
+    expect(out).toContain("Text evidence: `Save now`");
+    expect(out).toContain("Props evidence: ~~~~text");
+    expect(out).toContain("Accessible name evidence: ~~~text");
+    expect(out).toContain(props.slice(0, 120));
+    expect(out).toContain(ariaLabel.slice(0, 120));
+    expect(out).not.toContain(props.slice(0, 121));
+    expect(out).not.toContain(ariaLabel.slice(0, 121));
+  });
+
   it("uses exact structural source fallbacks for static HTML", () => {
     const structural: StructuralChange[] = [{
       id: "delete-html",

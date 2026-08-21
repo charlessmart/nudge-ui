@@ -6,11 +6,12 @@ import {
   type ServerResponse,
 } from "node:http";
 import {
+  constants,
   existsSync,
   realpathSync,
   statSync,
 } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { open, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { instrumentHtml } from "./html/identity.ts";
@@ -129,26 +130,17 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       }
     }
   };
-  const processSettledChanges = (changes: readonly StandaloneFileChange[]): void => {
+  const processSettledChanges = (_changes: readonly StandaloneFileChange[]): void => {
     changeQueue = changeQueue.then(() => {
-      if (changes.some((change) => extname(change.absolutePath).toLowerCase() === ".css")) {
-        manifest = createStandaloneRuntimeManifest(
-          projectId,
-          createStandaloneTokenSnapshot({ rootDirectory }),
-          revision + 1,
-        );
-      } else {
-        manifest = createStandaloneRuntimeManifest(
-          projectId,
-          {
-            tokenCatalog: manifest.runtime.tokenCatalog,
-            tokens: manifest.runtime.tokens,
-            tokenDiagnostics: manifest.runtime.tokenDiagnostics,
-            tokenGeneration: manifest.runtime.tokenGeneration,
-          },
-          revision + 1,
-        );
-      }
+      // Rebuild every settled batch. fs.watch can report a directory or omit a
+      // filename, so an extension check cannot reliably identify CSS changes.
+      // The scan is synchronous and bounded to the project root; rebuilding
+      // once per settled batch keeps the manifest coherent before reload.
+      manifest = createStandaloneRuntimeManifest(
+        projectId,
+        createStandaloneTokenSnapshot({ rootDirectory }),
+        revision + 1,
+      );
       revision += 1;
       notifyReload();
     }).catch(() => {
@@ -175,6 +167,8 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
 
   let started = false;
   let startPromise: Promise<StandaloneServerAddress> | null = null;
+  let closePromise: Promise<void> | null = null;
+  let closeRequested = false;
 
   const server: StandaloneServer = {
     httpServer,
@@ -184,6 +178,9 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       return manifest;
     },
     start: () => {
+      if (closeRequested) {
+        return Promise.reject(new Error("Standalone server is closing."));
+      }
       if (started) return Promise.resolve(readAddress(httpServer, host));
       if (startPromise) return startPromise;
       startPromise = new Promise<StandaloneServerAddress>((resolveStart, rejectStart) => {
@@ -195,6 +192,10 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
         const onListening = () => {
           httpServer.off("error", onError);
           started = true;
+          if (closeRequested) {
+            rejectStart(new Error("Standalone server closed during startup."));
+            return;
+          }
           fileWatcher = createStandaloneFileWatcher({
             rootDirectory,
             debounceMs: options.watchDebounceMs,
@@ -210,21 +211,32 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       return startPromise;
     },
     close: () => {
+      if (closePromise) return closePromise;
+      closeRequested = true;
+      const pendingStart = startPromise;
       const closeWatcher = fileWatcher?.close() ?? Promise.resolve();
       fileWatcher = null;
       closeReloadClients();
-      const settleChanges = closeWatcher.then(() => changeQueue);
-      if (!started) return settleChanges;
-      return settleChanges.then(() => new Promise<void>((resolveClose, rejectClose) => {
-        httpServer.close((error) => {
-          if (error) rejectClose(error);
-          else {
-            started = false;
-            startPromise = null;
-            resolveClose();
-          }
+      closePromise = closeWatcher
+        .then(() => pendingStart?.catch(() => undefined))
+        .then(() => changeQueue)
+        .then(() => {
+          if (!httpServer.listening) return;
+          return new Promise<void>((resolveClose, rejectClose) => {
+            httpServer.close((error) => {
+              if (error) rejectClose(error);
+              else resolveClose();
+            });
+          });
+        })
+        .finally(() => {
+          started = false;
+          startPromise = null;
+          fileWatcher = null;
+          closeRequested = false;
+          closePromise = null;
         });
-      }));
+      return closePromise;
     },
   };
   return server;
@@ -250,6 +262,13 @@ export function resolveStaticFile(
   if (!root) return null;
   const decodedPath = decodeRequestPath(requestPath);
   if (!decodedPath) return null;
+  return resolveDecodedStaticFile(root, decodedPath);
+}
+
+function resolveDecodedStaticFile(
+  root: string,
+  decodedPath: string,
+): StaticFileResolution | null {
   const projectPath = decodedPath.replace(/^\/+/, "") || "index.html";
   const candidate = resolve(root, projectPath);
   if (!isWithin(root, candidate)) return null;
@@ -381,13 +400,13 @@ async function handleRequest(input: {
     return;
   }
 
-  const resolution = resolveStaticFile(input.rootDirectory, decodedPath);
+  const resolution = resolveDecodedStaticFile(input.rootDirectory, decodedPath);
   if (!resolution) {
     sendText(response, 404, "Not Found");
     return;
   }
 
-  let body = await readFile(resolution.absolutePath);
+  let body = await readProjectFile(resolution.absolutePath);
   if (HTML_EXTENSIONS.has(extname(resolution.projectPath).toLowerCase())) {
     const source = body.toString("utf8");
     const identified = instrumentHtml(source, resolution.projectPath);
@@ -416,7 +435,7 @@ async function handleDesignToolRoute(
   }
   if (pathname === DESIGN_TOOL_CLIENT_PATH) {
     try {
-      const body = await readFile(input.clientPath);
+      const body = await readFileFromDescriptor(input.clientPath);
       sendBody(input.response, 200, body, "text/javascript; charset=utf-8", {
         "Cache-Control": "no-cache",
       });
@@ -448,6 +467,40 @@ async function handleDesignToolRoute(
     return;
   }
   sendText(input.response, 404, "Not Found");
+}
+
+const READ_ONLY_NOFOLLOW_FLAGS = constants.O_RDONLY | constants.O_NOFOLLOW;
+
+async function readProjectFile(filePath: string): Promise<Buffer> {
+  const expectedStats = await stat(filePath);
+  return readFileFromDescriptor(filePath, {
+    flags: READ_ONLY_NOFOLLOW_FLAGS,
+    expectedStats,
+  });
+}
+
+async function readFileFromDescriptor(
+  filePath: string,
+  options: {
+    readonly flags?: number;
+    readonly expectedStats?: Awaited<ReturnType<typeof stat>>;
+  } = {},
+): Promise<Buffer> {
+  const fileHandle = await open(filePath, options.flags ?? constants.O_RDONLY);
+  try {
+    const actualStats = await fileHandle.stat();
+    if (!actualStats.isFile()) {
+      throw new Error(`Expected a regular file: ${filePath}`);
+    }
+    if (options.expectedStats
+      && (actualStats.dev !== options.expectedStats.dev
+        || actualStats.ino !== options.expectedStats.ino)) {
+      throw new Error(`File changed while it was being resolved: ${filePath}`);
+    }
+    return await fileHandle.readFile();
+  } finally {
+    await fileHandle.close();
+  }
 }
 
 function resolveDefaultClientPath(): string {

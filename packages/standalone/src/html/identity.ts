@@ -1,7 +1,7 @@
 import { parse, type DefaultTreeAdapterTypes, type ParserError } from "parse5";
+import { DESIGN_TOOL_MOUNT_ID } from "../manifest.ts";
 
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
-const DEFAULT_MOUNT_ID = "design-tool-root";
 const EXCLUDED_TAG_NAMES = new Set([
   "html",
   "head",
@@ -40,12 +40,6 @@ export type HtmlIdentityDiagnosticCode =
   | "missing-source-location"
   | "invalid-source-location";
 
-/** Options for source-preserving HTML identity instrumentation. */
-export interface HtmlIdentityInstrumentationOptions {
-  /** The mount element ID reserved for Design Tool. */
-  readonly mountId?: string;
-}
-
 /** The result of instrumenting one source document. */
 export interface HtmlIdentityResult {
   /** The original source with identity attributes inserted at parser offsets. */
@@ -73,13 +67,11 @@ interface Insertion {
  *
  * @param source The HTML response body to inspect.
  * @param file The project-relative HTML file identity used in `data-src`.
- * @param options Instrumentation options.
  * @returns Transformed source and diagnostics from the parser or inserter.
  */
 export function instrumentHtml(
   source: string,
   file: string,
-  options: HtmlIdentityInstrumentationOptions = {},
 ): HtmlIdentityResult {
   const diagnostics: HtmlIdentityDiagnostic[] = [];
   const parseErrors: ParserError[] = [];
@@ -106,13 +98,12 @@ export function instrumentHtml(
   }
 
   const insertions: Insertion[] = [];
-  const mountId = options.mountId ?? DEFAULT_MOUNT_ID;
   const bodyElements = findBodyElements(document);
 
   for (const body of bodyElements) {
     for (const child of body.childNodes) {
       if (isElement(child)) {
-        visitElement(child, source, file, mountId, insertions, diagnostics);
+        visitElement(child, source, file, insertions, diagnostics);
       }
     }
   }
@@ -156,6 +147,7 @@ function visitChildren(
 ): void {
   for (const child of parent.childNodes) {
     if (!isElement(child)) continue;
+    if (child.tagName.toLowerCase() === "template") continue;
     visit(child);
     if (includeDescendants) visitChildren(child, visit, true);
   }
@@ -165,14 +157,13 @@ function visitElement(
   element: HtmlElement,
   source: string,
   file: string,
-  mountId: string,
   insertions: Insertion[],
   diagnostics: HtmlIdentityDiagnostic[],
 ): void {
   if (element.namespaceURI !== HTML_NAMESPACE) return;
 
   const tagName = element.tagName.toLowerCase();
-  if (EXCLUDED_TAG_NAMES.has(tagName) || hasAttribute(element, "id", mountId)) {
+  if (EXCLUDED_TAG_NAMES.has(tagName) || hasAttribute(element, "id", DESIGN_TOOL_MOUNT_ID)) {
     return;
   }
 
@@ -195,7 +186,7 @@ function visitElement(
 
   for (const child of element.childNodes) {
     if (isElement(child)) {
-      visitElement(child, source, file, mountId, insertions, diagnostics);
+      visitElement(child, source, file, insertions, diagnostics);
     }
   }
 }

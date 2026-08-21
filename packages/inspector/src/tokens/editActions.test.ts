@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   swapToken,
   promoteToToken,
+  setStyle,
   buildSelector,
   resetPendingRules,
   getPendingRules,
@@ -11,6 +12,7 @@ import {
 import type { TokenEntry } from "virtual:design-tokens";
 import { setActiveStyleState } from "../styleState.ts";
 import { getManagedSheetText } from "../managedStylesheet.ts";
+import { installStaticHtmlRuntimeIdentity } from "../staticHtmlRuntimeIdentity.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");
@@ -167,5 +169,34 @@ describe("promoteToToken", () => {
     expect(recs).toHaveLength(1);
     expect("oldToken" in recs[0]! ? recs[0]!.oldToken : undefined).toBeNull();
     expect(recs[0]!.property).toBe("cursor");
+  });
+});
+
+describe("runtime HTML evidence", () => {
+  it("uses unknown-source evidence when generated identity fills a missing cid", async () => {
+    document.body.innerHTML = "";
+    const dispose = installStaticHtmlRuntimeIdentity();
+    const button = document.createElement("button");
+    button.setAttribute("data-src", "author.html:4:2");
+    button.setAttribute("data-cprops", "  prop:`value`\n" + "x".repeat(140));
+    button.setAttribute("aria-label", "  Save\n  this action  ");
+    button.textContent = "  Save\n   this   action  ";
+    document.body.append(button);
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    const record = setStyle(button, "color", "red");
+    dispose();
+
+    expect(record?.file).toBe("");
+    expect(record?.line).toBe(0);
+    expect(record?.column).toBe(0);
+    expect(record?.selector).toBe('[data-cid="design-tool-runtime-1"][data-src="author.html:4:2"]');
+    expect(record?.runtimeEvidence).toEqual({
+      tagName: "button",
+      text: "Save this action",
+      props: ("  prop:`value`\n" + "x".repeat(140)).slice(0, 120),
+      ariaLabel: "  Save\n  this action  ",
+    });
   });
 });

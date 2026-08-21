@@ -48,6 +48,20 @@ describe("standalone CSS token discovery", () => {
     expect(first.tokenCatalog[0]?.declarations[0]?.source).toBe("styles/theme.css:1");
   });
 
+  it("orders discovery by UTF-8 path bytes rather than locale", async () => {
+    const root = await mkdtemp(join(tmpdir(), "design-tool-token-manifest-"));
+    for (const name of ["a_.css", "a~.css", "a.css", "a-.css"]) {
+      await writeFile(join(root, name), `:root { --${name[0]}: 1px; }`);
+    }
+
+    expect(discoverStandaloneCssArtifacts(root).map((artifact) => artifact.projectPath)).toEqual([
+      "a-.css",
+      "a.css",
+      "a_.css",
+      "a~.css",
+    ]);
+  });
+
   it("retains valid knowledge and reports malformed and unreadable CSS", async () => {
     const root = await mkdtemp(join(tmpdir(), "design-tool-token-manifest-"));
     await writeFile(join(root, "valid.css"), ":root { --valid: 1px; }");
