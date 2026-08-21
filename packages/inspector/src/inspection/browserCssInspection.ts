@@ -190,6 +190,7 @@ function cloneProperties(properties: readonly ResolvedProperty[]): readonly Reso
     color: property.color && { ...property.color },
     structure: property.structure && { ...property.structure },
     atRules: property.atRules?.map((atRule) => ({ ...atRule })),
+    atRuleCandidates: property.atRuleCandidates?.map((candidate) => ({ ...candidate })),
     evidence: { ...property.evidence },
   }));
 }

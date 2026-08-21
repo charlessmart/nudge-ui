@@ -222,7 +222,7 @@ a {
 .hero h1 {
   max-width: 570px;
   margin: 26px 0 22px;
-  font-size: clamp(54px, 6vw, 86px);
+  font-size: 86px;
   font-weight: 700;
   letter-spacing: -0.075em;
   line-height: 0.94;
@@ -1459,6 +1459,7 @@ h2 {
   }
 
   .hero-copy { max-width: 650px; }
+  .hero h1 { font-size: 64px; }
   .hero-visual { width: min(720px, 100%); }
   .feature-section,
   .type-section,
@@ -1485,7 +1486,7 @@ h2 {
   .site-nav { display: none; }
   .header-cta { padding: 9px 11px; }
   .hero { min-height: 0; padding: 122px 18px 76px; }
-  .hero h1 { font-size: clamp(52px, 16vw, 72px); }
+  .hero h1 { font-size: 52px; }
   .hero-intro { font-size: 14px; }
   .hero-actions { align-items: flex-start; flex-direction: column; gap: 18px; }
   .visual-body { grid-template-columns: 1fr 138px; min-height: 320px; }

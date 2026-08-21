@@ -257,6 +257,33 @@ test("dev: color swatches are present on color-capable fields", async ({ page })
   await expect(bg.locator('[data-test="token-color-swatch"]')).toHaveCount(1);
 });
 
+test("dev: color swatches are centered in raw fields and token chips", async ({ page }) => {
+  const cases = [
+    { id: "color-hex-six-digit", property: "color" },
+    { id: "color-token-simple", property: "color" },
+  ] as const;
+
+  for (const { id, property } of cases) {
+    await page.goto("/color-conformance");
+    await page.locator(`[data-test="color-case-${id}"]`).click();
+    await waitForEditors(page);
+
+    const field = page.locator(`[data-test="token-field"][data-property="${property}"]`);
+    const control = field.locator(".dt-token-color-control");
+    const swatch = field.locator('[data-test="token-color-swatch"]');
+    await expect(swatch).toHaveCount(1);
+    await expect(swatch).toBeVisible();
+    const controlBox = await control.boundingBox();
+    const swatchBox = await swatch.boundingBox();
+
+    expect(controlBox).not.toBeNull();
+    expect(swatchBox).not.toBeNull();
+    const controlCenter = controlBox!.x + controlBox!.width / 2;
+    const swatchCenter = swatchBox!.x + swatchBox!.width / 2;
+    expect(Math.abs(controlCenter - swatchCenter)).toBeLessThan(0.01);
+  }
+});
+
 test("dev: browser-supported oklch values render in color swatches", async ({ page }) => {
   await page.goto("/color-conformance");
   await page.locator('[data-test="color-case-color-oklch"]').click();

@@ -162,6 +162,12 @@ export interface AtRuleContext {
   params: string;
 }
 
+/** A conditional wrapper that participates in a property's source candidates. */
+export interface AtRuleCandidate extends AtRuleContext {
+  /** True when this context belongs to the declaration currently winning the cascade. */
+  active: boolean;
+}
+
 export interface MatchedRule {
   selectorText: string;
   declarations: StyleDeclaration[];
@@ -204,6 +210,8 @@ export interface ResolvedProperty {
    * capability conditions which can affect the winning declaration.
    */
   atRules?: AtRuleContext[];
+  /** All media-query contexts found on declarations for this property. */
+  atRuleCandidates?: AtRuleCandidate[];
   confidence: "exact" | "probable" | "unknown";
   evidence: AttributionEvidence;
 }

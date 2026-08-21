@@ -11,21 +11,42 @@ async function waitForAtRuleIndicator(
   return indicator;
 }
 
-test("dev: a winning media-query declaration is marked and explained in the inspector", async ({ page }) => {
+test("dev: a winning media-query declaration has a compact context indicator", async ({ page }) => {
   await page.goto("/");
-  await page.addStyleTag({ content: "@media (min-width: 1px) { .btn { font-size: 17px; } }" });
+  await page.addStyleTag({ content: `
+    @media (min-width: 1px) {
+      @media (min-width: 1px) {
+        @media (min-width: 1px) { .btn { font-size: 17px; } }
+      }
+    }
+  ` });
   await page.click("text=Save");
 
   const indicator = await waitForAtRuleIndicator(page, "font-size");
-  await expect(indicator).toContainText("Media");
+  await expect(indicator).toHaveText("@");
   await indicator.hover();
   await expect(page.locator(".dt-at-rule-tooltip-positioner")).toHaveCSS("z-index", "3");
-  await expect(page.locator('[data-test="at-rule-tooltip"]')).toContainText("Active in current preview");
-  await expect(page.locator('[data-test="at-rule-tooltip"]')).toContainText("@media");
-  await expect(page.locator('[data-test="at-rule-tooltip"]')).toContainText("(min-width: 1px)");
+  const activeRule = page.locator('[data-test="at-rule-tooltip"] [data-active="true"]');
+  await expect(activeRule).toHaveText(["(min-width: 1px)", "(min-width: 1px)", "(min-width: 1px)"]);
 });
 
-test("dev: a matching container-query declaration is marked and explained in the inspector", async ({ page }) => {
+test("dev: a media-query popover lists all property candidates and highlights the winner", async ({ page }) => {
+  await page.goto("/");
+  await page.addStyleTag({ content: `
+    @media (min-width: 1px) { .btn { font-size: 17px; } }
+    @media (min-width: 9999px) { .btn { font-size: 19px; } }
+  ` });
+  await page.click("text=Save");
+
+  const indicator = await waitForAtRuleIndicator(page, "font-size");
+  await indicator.hover();
+  const rules = page.locator('[data-test="at-rule-tooltip"] .dt-at-rule-tooltip__rule');
+  await expect(rules).toHaveCount(2);
+  await expect(rules.nth(0)).toHaveAttribute("data-active", "true");
+  await expect(rules.nth(1)).toHaveAttribute("data-active", "false");
+});
+
+test("dev: a matching container-query declaration is shown in the context popover", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => {
     const button = document.querySelector(".btn") as HTMLElement | null;
@@ -37,10 +58,7 @@ test("dev: a matching container-query declaration is marked and explained in the
   await page.click("text=Save");
 
   const indicator = await waitForAtRuleIndicator(page, "font-size");
-  await expect(indicator).toContainText("Container");
+  await expect(indicator).toHaveText("@");
   await indicator.hover();
-  await expect(page.locator('[data-test="at-rule-tooltip"]')).toContainText("Active in current preview");
-  await expect(page.locator('[data-test="at-rule-tooltip"]')).toContainText("@container");
-  await expect(page.locator('[data-test="at-rule-tooltip"]')).toContainText("(width > 100px)");
+  await expect(page.locator('[data-test="at-rule-tooltip"] [data-active="true"]')).toHaveText("(width > 100px)");
 });
-

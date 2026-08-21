@@ -20,5 +20,5 @@
 
 .dt-layout-combo:has(> .dt-at-rule-indicator) > .dt-select,
 .dt-layout-combo:has(> .dt-at-rule-indicator) > .dt-text-input {
-  padding-right: 68px;
+  padding-right: 32px;
 }

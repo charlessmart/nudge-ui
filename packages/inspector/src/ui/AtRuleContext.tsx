@@ -1,11 +1,10 @@
 import { createContext, useContext, useMemo } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Tooltip } from "@base-ui/react/tooltip";
-import { IconAt } from "@tabler/icons-react";
-import type { AtRuleContext, ResolvedProperty } from "@design-tool/css/model";
+import type { AtRuleCandidate, AtRuleContext, ResolvedProperty } from "@design-tool/css/model";
 
-const EMPTY_AT_RULES: readonly AtRuleContext[] = [];
-const FieldAtRuleContext = createContext<ReadonlyMap<string, readonly AtRuleContext[]>>(new Map());
+const EMPTY_AT_RULES: readonly AtRuleCandidate[] = [];
+const FieldAtRuleContext = createContext<ReadonlyMap<string, readonly AtRuleCandidate[]>>(new Map());
 
 export interface AtRuleContextProviderProps {
   rows: readonly ResolvedProperty[];
@@ -18,9 +17,13 @@ export interface AtRuleContextProviderProps {
  */
 export function AtRuleContextProvider({ rows, children }: AtRuleContextProviderProps): ReactElement {
   const atRulesByProperty = useMemo(() => {
-    const next = new Map<string, readonly AtRuleContext[]>();
+    const next = new Map<string, readonly AtRuleCandidate[]>();
     for (const row of rows) {
-      if (row.atRules?.length) next.set(row.property, row.atRules);
+      if (row.atRuleCandidates?.length) {
+        next.set(row.property, row.atRuleCandidates);
+      } else if (row.atRules?.length) {
+        next.set(row.property, row.atRules.map((atRule) => ({ ...atRule, active: true })));
+      }
     }
     return next;
   }, [rows]);
@@ -32,11 +35,11 @@ export function AtRuleContextProvider({ rows, children }: AtRuleContextProviderP
   );
 }
 
-export function useFieldAtRules(property: string): readonly AtRuleContext[] {
+export function useFieldAtRules(property: string): readonly AtRuleCandidate[] {
   return useContext(FieldAtRuleContext).get(property) ?? EMPTY_AT_RULES;
 }
 
-function labelFor(atRules: readonly AtRuleContext[]): string {
+function labelFor(atRules: readonly (AtRuleContext | AtRuleCandidate)[]): string {
   const kinds = Array.from(new Set(atRules.map((atRule) => atRule.kind)));
   if (kinds.length === 1) {
     if (kinds[0] === "media") return "Media query";
@@ -46,22 +49,12 @@ function labelFor(atRules: readonly AtRuleContext[]): string {
   return "Conditional query";
 }
 
-function compactLabelFor(atRules: readonly AtRuleContext[]): string {
-  const kinds = Array.from(new Set(atRules.map((atRule) => atRule.kind)));
-  if (kinds.length === 1) {
-    if (kinds[0] === "media") return "Media";
-    if (kinds[0] === "container") return "Container";
-    return "Supports";
-  }
-  return "Queries";
-}
-
 function portalContainer(): HTMLElement | ShadowRoot | null {
   return document.getElementById("design-tool-root")?.shadowRoot ?? document.body;
 }
 
 export interface AtRuleIndicatorProps {
-  atRules?: readonly AtRuleContext[];
+  atRules?: readonly (AtRuleContext | AtRuleCandidate)[];
   className?: string;
 }
 
@@ -69,6 +62,7 @@ export interface AtRuleIndicatorProps {
 export function AtRuleIndicator({ atRules = EMPTY_AT_RULES, className }: AtRuleIndicatorProps): ReactElement | null {
   if (atRules.length === 0) return null;
   const label = labelFor(atRules);
+  const activeCount = atRules.filter((atRule) => !("active" in atRule) || atRule.active).length;
 
   return (
     <Tooltip.Provider>
@@ -78,22 +72,20 @@ export function AtRuleIndicator({ atRules = EMPTY_AT_RULES, className }: AtRuleI
           delay={0}
           className={`dt-at-rule-indicator${className ? ` ${className}` : ""}`}
           data-test="at-rule-indicator"
-          aria-label={`Active ${label.toLowerCase()}`}
+          aria-label={activeCount > 0 ? `Active ${label.toLowerCase()}` : `${label}s`}
         >
-          <IconAt size={13} stroke={1.8} aria-hidden="true" />
-          <span>{compactLabelFor(atRules)}</span>
+          <span aria-hidden="true">@</span>
         </Tooltip.Trigger>
         <Tooltip.Portal container={portalContainer()}>
           <Tooltip.Positioner className="dt-at-rule-tooltip-positioner" side="top" align="end" sideOffset={7}>
             <Tooltip.Popup className="dt-at-rule-tooltip" data-test="at-rule-tooltip">
-              <div className="dt-at-rule-tooltip__status">
-                <span className="dt-at-rule-tooltip__status-dot" aria-hidden="true" />
-                Active in current preview
-              </div>
               <div className="dt-at-rule-tooltip__rules">
                 {atRules.map((atRule, index) => (
-                  <div className="dt-at-rule-tooltip__rule" key={`${atRule.kind}-${atRule.params}-${index}`}>
-                    <span className="dt-at-rule-tooltip__kind">@{atRule.kind}</span>
+                  <div
+                    className={`dt-at-rule-tooltip__rule${!("active" in atRule) || atRule.active ? " dt-at-rule-tooltip__rule--active" : ""}`}
+                    data-active={!("active" in atRule) || atRule.active ? "true" : "false"}
+                    key={`${atRule.kind}-${atRule.params}-${index}`}
+                  >
                     <code>{atRule.params}</code>
                   </div>
                 ))}

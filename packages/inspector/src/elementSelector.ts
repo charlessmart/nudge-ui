@@ -2,7 +2,6 @@ import type { SelectedElement } from "./selectionStore.ts";
 import { setSelectedElement } from "./selectionStore.ts";
 import { getOpen } from "./openStore.ts";
 import { resolveSelectionFromEvent } from "./resolveSelection.ts";
-import { selectionTargetMode } from "./selectionTarget.ts";
 import {
   beginInlineTextEditFromEmptyProjection,
   beginInlineTextEdit,
@@ -53,18 +52,21 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
       e.stopPropagation();
       return;
     }
-    if (
-      selectionTargetMode(e) !== "deep"
-      && e.target instanceof Element
-      && e.target.closest("a[data-design-tool-navigation]")
-    ) return;
-    // SAFETY: resolveSelectionFromEvent returns SelectedElement when the event passes the navigation guard above.
+    if (isModifiedLinkActivation(e)) return;
+
+    // The inspector is an editing surface while open. Capture every ordinary
+    // application click so buttons, links, and untracked controls cannot run
+    // alongside selection. Command/Ctrl-click is the deliberate exception for
+    // following a normal link with the browser's native behavior.
     const sel = resolveSelectionFromEvent(e, inspectorHost) as SelectedElement | null;
-    if (sel) {
-      e.preventDefault();
-      e.stopPropagation();
-      setSelectedElement(sel);
-    }
+    e.preventDefault();
+    e.stopPropagation();
+    if (sel) setSelectedElement(sel);
+  }
+
+  function isModifiedLinkActivation(event: MouseEvent): boolean {
+    if (!event.metaKey && !event.ctrlKey) return false;
+    return event.target instanceof Element && event.target.closest("a[href]") !== null;
   }
   function resolveSelectionTargetForInlineText(target: Element): HTMLElement | null {
     // Inline editing starts from the deepest visible text host. Holding the

@@ -1431,6 +1431,45 @@ describe("resolveRuleFixture", () => {
     });
   });
 
+  it("retains all media-query candidates for a property and marks the winner", () => {
+    const result = resolveRuleFixture(btn, [
+      {
+        selectorText: ".btn",
+        specificity: 10_000,
+        sourceOrder: 0,
+        declarations: [{ property: "font-size", value: "20px" }],
+      },
+      {
+        selectorText: ".btn",
+        specificity: 10_000,
+        sourceOrder: 1,
+        atRules: [{ kind: "media", params: "(max-width: 920px)" }],
+        declarations: [{ property: "font-size", value: "16px" }],
+      },
+      {
+        selectorText: ".btn",
+        specificity: 10_000,
+        sourceOrder: 2,
+        atRules: [{ kind: "media", params: "(max-width: 640px)" }],
+        declarations: [{ property: "font-size", value: "14px" }],
+      },
+      {
+        selectorText: ".btn",
+        specificity: 10_000,
+        sourceOrder: 3,
+        active: false,
+        atRules: [{ kind: "media", params: "(max-width: 480px)" }],
+        declarations: [{ property: "font-size", value: "12px" }],
+      },
+    ], makeTable([]));
+
+    expect(result[0]?.atRuleCandidates).toEqual([
+      { kind: "media", params: "(max-width: 920px)", active: false },
+      { kind: "media", params: "(max-width: 640px)", active: true },
+      { kind: "media", params: "(max-width: 480px)", active: false },
+    ]);
+  });
+
   it("excludes unsupported capability branches before comparing the cascade", () => {
     const cssDescriptor = Object.getOwnPropertyDescriptor(window, "CSS");
     Object.defineProperty(window, "CSS", {

@@ -69,7 +69,8 @@
 
 .dt-token-field--color .dt-token-color-control {
   align-self: stretch;
-  padding: 4px;
+  /* Keep the 28px color slot while centering the 16px swatch in it. */
+  padding: 4px 6px;
 }
 
 .dt-token-field--color {

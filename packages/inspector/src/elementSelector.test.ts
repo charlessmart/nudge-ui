@@ -11,15 +11,15 @@ import {
   resolveSelectionFromEvent,
 } from "./resolveSelection.ts";
 
-function dispatchClick(target: EventTarget): void {
+function dispatchClick(target: EventTarget, init: MouseEventInit = {}): MouseEvent {
   const event = new MouseEvent("click", {
     bubbles: true,
     composed: true,
     cancelable: true,
+    ...init,
   });
-  Object.defineProperty(event, "target", { value: target });
-  Object.defineProperty(event, "currentTarget", { value: target });
-  document.dispatchEvent(event);
+  target.dispatchEvent(event);
+  return event;
 }
 
 function makeHostElement(
@@ -258,24 +258,52 @@ describe("installElementSelector", () => {
     expect(stop).toHaveBeenCalled();
   });
 
-  it("lets explicitly marked navigation links follow their route", () => {
+  it("selects links and blocks their application behavior", () => {
     const link = document.createElement("a");
     link.href = "/conformance";
-    link.dataset.designToolNavigation = "true";
+    link.setAttribute("data-cid", "RouteLink");
+    link.setAttribute("data-src", "App.tsx:1:1");
+    const onApplicationClick = vi.fn();
+    link.addEventListener("click", onApplicationClick);
+    document.body.appendChild(link);
+
+    const event = dispatchClick(link);
+
+    expect(getSelectedElement()?.domElement).toBe(link);
+    expect(event.defaultPrevented).toBe(true);
+    expect(onApplicationClick).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "Command", init: { metaKey: true } },
+    { name: "Ctrl", init: { ctrlKey: true } },
+  ])("lets $name-click follow a link", ({ init }) => {
+    const link = document.createElement("a");
+    link.href = "/conformance";
     link.setAttribute("data-cid", "RouteLink");
     link.setAttribute("data-src", "App.tsx:1:1");
     document.body.appendChild(link);
+    const allowBrowserNavigation = vi.fn((event: MouseEvent) => event.preventDefault());
+    document.addEventListener("click", allowBrowserNavigation);
 
-    const event = new MouseEvent("click", {
-      bubbles: true,
-      composed: true,
-      cancelable: true,
-    });
-    Object.defineProperty(event, "target", { value: link });
-    const prevent = vi.spyOn(event, "preventDefault");
-    document.dispatchEvent(event);
+    const event = dispatchClick(link, init);
 
     expect(getSelectedElement()).toBeNull();
-    expect(prevent).not.toHaveBeenCalled();
+    expect(allowBrowserNavigation).toHaveBeenCalledOnce();
+    expect(event.defaultPrevented).toBe(true);
+    document.removeEventListener("click", allowBrowserNavigation);
+  });
+
+  it("blocks clicks on untracked application controls", () => {
+    const button = document.createElement("button");
+    const onApplicationClick = vi.fn();
+    button.addEventListener("click", onApplicationClick);
+    document.body.appendChild(button);
+
+    const event = dispatchClick(button);
+
+    expect(getSelectedElement()).toBeNull();
+    expect(event.defaultPrevented).toBe(true);
+    expect(onApplicationClick).not.toHaveBeenCalled();
   });
 });

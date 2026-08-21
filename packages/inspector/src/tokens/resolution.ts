@@ -11,6 +11,7 @@ import { computeSpecificity } from "./resolution/selectorSemantics.ts";
 import { compareAuthorCascade } from "./resolution/cascade.ts";
 export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
 import type {
+  AtRuleCandidate,
   AtRuleContext,
   BorderStructure,
   ColorOpacity,
@@ -521,6 +522,7 @@ interface ElementMatch {
 interface ElementResolution {
   element: HTMLElement;
   matched: ElementMatch[];
+  allMatched: ElementMatch[];
   aliases: ReadonlyMap<string, string>;
 }
 
@@ -807,6 +809,18 @@ function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transfor
 }
 
 /**
+ * Matches selectors without applying conditional wrappers. Resolution still
+ * uses the active-only set for cascade decisions; this set preserves inactive
+ * media-query alternatives for property attribution in the inspector.
+ */
+function getAllElementMatches(el: HTMLElement, rules: MatchedRule[], transform: CascadeTransform): ElementMatch[] {
+  return rulesForTransform(rules, transform).flatMap((entry) => {
+    const match = matchRuleForElement(el, entry);
+    return match ? [match] : [];
+  });
+}
+
+/**
  * One matching pass over the rules for the element and its ancestors, with the
  * selector-match results shared between the element's own resolution and the
  * inherited phase. Local aliases are collected per element so no ancestor
@@ -822,8 +836,10 @@ function resolveLineage(el: HTMLElement, rules: MatchedRule[], transform: Cascad
   lineage.reverse();
 
   const selectorMatches = new Map<HTMLElement, ElementMatch[]>();
+  const allSelectorMatches = new Map<HTMLElement, ElementMatch[]>();
   for (const element of lineage) {
     selectorMatches.set(element, getCachedElementMatches(element, rules, transform));
+    allSelectorMatches.set(element, getAllElementMatches(element, rules, transform));
   }
 
   const byElement = new Map<HTMLElement, ElementResolution>();
@@ -873,7 +889,12 @@ function resolveLineage(el: HTMLElement, rules: MatchedRule[], transform: Cascad
       if (!ruleApplies(match.rule)) continue;
       matched.push(match);
     }
-    byElement.set(element, { element, matched, aliases });
+    byElement.set(element, {
+      element,
+      matched,
+      allMatched: allSelectorMatches.get(element) ?? matched,
+      aliases,
+    });
   }
   return { lineage, byElement };
 }
@@ -883,8 +904,10 @@ function rowsFromMatches(
   matched: ElementMatch[],
   aliases: ReadonlyMap<string, string>,
   tokenTable: TokenTable,
+  allMatched: ElementMatch[] = matched,
 ): ResolvedProperty[] {
   const map = new Map<string, ResolvedProperty>();
+  const mediaCandidatesByProperty = new Map<string, Map<string, AtRuleContext>>();
 
   // Sort by source order ascending so rules are processed lowest-first.
   // Map.set() naturally overwrites: higher specificity rules processed later win,
@@ -893,6 +916,23 @@ function rowsFromMatches(
   const needsDirectionality = sorted.some(({ rule }) =>
     rule.declarations.some(({ property }) => isLogicalBoxProperty(property)));
   const directionality = needsDirectionality ? elementDirectionality(el) : undefined;
+
+  for (const match of allMatched) {
+    const mediaAtRules = match.rule.atRules?.filter((atRule) => atRule.kind === "media") ?? [];
+    if (mediaAtRules.length === 0) continue;
+    for (const declaration of match.rule.declarations) {
+      for (const resolved of resolveDeclaration(declaration, tokenTable, aliases, directionality)) {
+        let candidates = mediaCandidatesByProperty.get(resolved.property);
+        if (!candidates) {
+          candidates = new Map();
+          mediaCandidatesByProperty.set(resolved.property, candidates);
+        }
+        for (const atRule of mediaAtRules) {
+          candidates.set(`${atRule.kind}\u0000${atRule.params}`, atRule);
+        }
+      }
+    }
+  }
 
   for (const m of sorted) {
     const { rule, branch, specificity } = m;
@@ -933,6 +973,29 @@ function rowsFromMatches(
     }
   }
   const rows = Array.from(map.values()).slice(0, MAX_PROPERTIES);
+  for (const row of rows) {
+    const candidates = mediaCandidatesByProperty.get(row.property);
+    if (!candidates || candidates.size === 0) continue;
+    const winningMedia = (row.atRules ?? []).filter((atRule) => atRule.kind === "media");
+    const winningKeys = new Set(winningMedia.map((atRule) => `${atRule.kind}\u0000${atRule.params}`));
+    const allCandidates: AtRuleCandidate[] = [];
+    let insertedWinningStack = false;
+    for (const atRule of candidates.values()) {
+      const key = `${atRule.kind}\u0000${atRule.params}`;
+      if (winningKeys.has(key)) {
+        if (!insertedWinningStack) {
+          allCandidates.push(...winningMedia.map((winningAtRule) => ({ ...winningAtRule, active: true })));
+          insertedWinningStack = true;
+        }
+      } else {
+        allCandidates.push({ ...atRule, active: false });
+      }
+    }
+    if (!insertedWinningStack) {
+      allCandidates.push(...winningMedia.map((winningAtRule) => ({ ...winningAtRule, active: true })));
+    }
+    row.atRuleCandidates = allCandidates;
+  }
   inferTailwindV4ColorOpacity(el, tokenTable, rows);
   for (const row of rows) {
     if (row.capability !== "raw" || row.diagnostic) continue;
@@ -958,14 +1021,17 @@ export function resolveRuleFixture(
 ): ResolvedProperty[] {
   const ruleApplies = makeRuleApplies(el);
   const matched: ElementMatch[] = [];
+  const allMatched: ElementMatch[] = [];
   for (const rule of rules) {
+    const match = matchRuleForElement(el, { rule, selectorText: rule.selectorText });
+    if (!match) continue;
+    allMatched.push(match);
     if (rule.active === false) continue;
     if (!ruleApplies(rule)) continue;
-    const match = matchRuleForElement(el, { rule, selectorText: rule.selectorText });
-    if (match) matched.push(match);
+    matched.push(match);
   }
   const localAliases = collectLocalAliases(el, rules, ruleApplies);
-  return rowsFromMatches(el, matched, localAliases, tokenTable);
+  return rowsFromMatches(el, matched, localAliases, tokenTable, allMatched);
 }
 
 function matchingSelectorBranch(el: Element, selectorText: string): string | null {
@@ -1085,7 +1151,7 @@ function resolveInheritedProperties(
     const entry = lineage.byElement.get(ancestor);
     if (entry) {
       const ancestorComputed = getElementComputedStyle(ancestor);
-      for (const candidate of rowsFromMatches(ancestor, entry.matched, entry.aliases, tokenTable)) {
+      for (const candidate of rowsFromMatches(ancestor, entry.matched, entry.aliases, tokenTable, entry.allMatched)) {
         if (seenProperties.has(candidate.property)) continue;
         if (!INHERITED_PROPERTIES.has(candidate.property) && !candidate.property.startsWith("--")) continue;
         const ancestorVal = ancestorComputed.getPropertyValue(candidate.property).trim();
@@ -1116,7 +1182,7 @@ export function getResolvedProperties(
   const { rules, inaccessible } = collectCssomRules(doc);
   const lineage = resolveLineage(el, rules, "live");
   const entry = lineage.byElement.get(el)!;
-  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
+  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable, entry.allMatched);
   const computed = getElementComputedStyle(el);
   for (const prop of result) {
     const cv = computed.getPropertyValue(prop.property);
@@ -1251,7 +1317,7 @@ export function getResolvedPropertiesForState(
   const { rules, inaccessible } = collectCssomRules(doc);
   const lineage = resolveLineage(el, rules, state);
   const entry = lineage.byElement.get(el)!;
-  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
+  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable, entry.allMatched);
   const computed = getElementComputedStyle(el);
   for (const prop of result) {
     const cv = computed.getPropertyValue(prop.property);
@@ -1320,7 +1386,7 @@ export function getResolvedPropertiesStable(
   const { rules, inaccessible } = collectCssomRules(doc);
   const lineage = resolveLineage(el, rules, "stable");
   const entry = lineage.byElement.get(el)!;
-  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable);
+  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable, entry.allMatched);
   const computed = getElementComputedStyle(el);
   applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
   hydratePropertyOpacityRows(result, computed);

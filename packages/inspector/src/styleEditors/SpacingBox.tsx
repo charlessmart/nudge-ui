@@ -306,7 +306,7 @@ function PairedTokenField({
       committedValue={committedValue}
       resolvedValue={row.resolvedValue}
       activeTokenName={activeTokenName}
-      atRules={row.atRules}
+      atRules={row.atRuleCandidates ?? row.atRules}
       entries={entries}
       chipVariant={chipVariant}
       formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(displayProperty))}

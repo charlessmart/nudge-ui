@@ -193,7 +193,8 @@ interface FontStyleFieldProps {
 function FontStyleField({ element, fontStyleRow, fontWeightRow, onAfterEdit }: FontStyleFieldProps): ReactElement {
   const fontStyleAtRules = useFieldAtRules("font-style");
   const fontWeightAtRules = useFieldAtRules("font-weight");
-  const atRules = fontStyleRow?.atRules ?? fontWeightRow?.atRules
+  const atRules = fontStyleRow?.atRuleCandidates ?? fontStyleRow?.atRules
+    ?? fontWeightRow?.atRuleCandidates ?? fontWeightRow?.atRules
     ?? (fontStyleAtRules.length > 0 ? fontStyleAtRules : fontWeightAtRules);
   const readValue = () => readFontStyle(element);
   const [current, setCurrent] = useState(readValue);

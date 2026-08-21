@@ -42,13 +42,25 @@ describe("AtRuleIndicator", () => {
     );
 
     const indicator = handle.host.querySelector('[data-test="at-rule-indicator"]');
-    expect(indicator?.textContent).toContain("Media");
+    expect(indicator?.textContent).toBe("@");
     expect(indicator?.getAttribute("aria-label")).toBe("Active media query");
-
   });
 
   it("does not render when no responsive context applies", () => {
     handle = mount(createElement(AtRuleIndicator, { atRules: [] }));
     expect(handle.host.querySelector('[data-test="at-rule-indicator"]')).toBeNull();
+  });
+
+  it("shows all media candidates and highlights the winning one", () => {
+    handle = mount(createElement(AtRuleIndicator, {
+      atRules: [
+        { kind: "media", params: "(max-width: 920px)", active: false },
+        { kind: "media", params: "(max-width: 640px)", active: true },
+      ],
+    }));
+
+    const indicator = handle.host.querySelector('[data-test="at-rule-indicator"]');
+    expect(indicator?.textContent).toBe("@");
+    expect(indicator?.getAttribute("aria-label")).toBe("Active media query");
   });
 });

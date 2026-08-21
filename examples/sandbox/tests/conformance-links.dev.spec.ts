@@ -22,13 +22,27 @@ test("dev: main demo links to every conformance page", async ({ page }) => {
   ]);
 });
 
-test("dev: conformance links navigate away from the main demo", async ({ page }) => {
+test("dev: ordinary conformance-link clicks select without navigating", async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 
   await page.locator('[data-conformance-route="/conformance"]').click();
 
-  await expect(page).toHaveURL(/\/conformance$/);
-  await expect(page.getByRole("heading", { name: "Token conformance fixtures" })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator('[data-test="selection"]')).toBeVisible();
+});
+
+test("dev: Command-click follows a conformance link", async ({ page, context }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+
+  const destinationPage = context.waitForEvent("page");
+  await page.locator('[data-conformance-route="/conformance"]').click({ modifiers: ["Meta"] });
+  const destination = await destinationPage;
+
+  await expect(destination).toHaveURL(/\/conformance$/);
+  await expect(destination.getByRole("heading", { name: "Token conformance fixtures" })).toBeVisible();
+  await destination.close();
 });

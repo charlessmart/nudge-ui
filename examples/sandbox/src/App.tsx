@@ -310,7 +310,6 @@ export function App() {
                 <a
                   className="conformance-link"
                   data-conformance-route={page.href}
-                  data-design-tool-navigation="true"
                   data-test="conformance-link"
                   href={page.href}
                   key={page.href}
