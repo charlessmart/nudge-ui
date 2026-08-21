@@ -4,15 +4,18 @@
  * The scanner deliberately reports directory order as discovery evidence.
  * It never supplies stylesheet order because a directory walk cannot prove
  * the order in which a browser imports or applies stylesheets.
+ *
+ * Every filesystem operation is asynchronous so a large prototype tree never
+ * blocks the server's event loop while browser clients hold open connections.
  */
 import { createHash } from "node:crypto";
+import type { Dirent } from "node:fs";
 import {
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  statSync,
-  type Dirent,
-} from "node:fs";
+  readFile as readUtf8File,
+  readdir,
+  realpath,
+  stat,
+} from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   createTokenInventory,
@@ -41,6 +44,14 @@ export interface StandaloneTokenSnapshot {
   readonly tokenGeneration: string;
 }
 
+/** The placeholder used before and in place of a successful project scan. */
+export const EMPTY_STANDALONE_TOKEN_SNAPSHOT: StandaloneTokenSnapshot = {
+  tokenCatalog: [],
+  tokens: [],
+  tokenDiagnostics: [],
+  tokenGeneration: "empty",
+};
+
 /** A CSS file discovered below the project root before inventory parsing. */
 export interface StandaloneCssArtifact {
   readonly absolutePath: string;
@@ -49,8 +60,11 @@ export interface StandaloneCssArtifact {
   readonly readError?: string;
 }
 
-/** Injectable file reader used to keep unreadable-file handling testable. */
-export type StandaloneCssFileReader = (absolutePath: string) => string;
+/**
+ * Injectable file reader used to keep unreadable-file handling testable.
+ * Readers may resolve asynchronously; the scan awaits each result.
+ */
+export type StandaloneCssFileReader = (absolutePath: string) => string | Promise<string>;
 
 /** Options for the deterministic project CSS scan. */
 export interface StandaloneTokenManifestOptions {
@@ -66,11 +80,11 @@ export interface StandaloneTokenManifestOptions {
  * only when their canonical target remains below rootDirectory. Read and
  * parse failures become diagnostics; they never reject the scan.
  */
-export function createStandaloneTokenSnapshot(
+export async function createStandaloneTokenSnapshot(
   options: StandaloneTokenManifestOptions,
-): StandaloneTokenSnapshot {
-  const rootDirectory = canonicalRoot(options.rootDirectory);
-  const artifacts = discoverStandaloneCssArtifacts(rootDirectory, options.readFile);
+): Promise<StandaloneTokenSnapshot> {
+  const rootDirectory = await canonicalRoot(options.rootDirectory);
+  const artifacts = await discoverStandaloneCssArtifacts(rootDirectory, options.readFile);
   const inventory = createTokenInventory();
 
   for (const [discoveryOrder, artifact] of artifacts.entries()) {
@@ -119,35 +133,35 @@ export function createStandaloneTokenSnapshot(
  * This is exported as a discovery seam so callers can test provenance and
  * symlink confinement without depending on PostCSS or inventory internals.
  */
-export function discoverStandaloneCssArtifacts(
+export async function discoverStandaloneCssArtifacts(
   rootDirectory: string,
-  readFile: StandaloneCssFileReader = (absolutePath) => readFileSync(absolutePath, "utf8"),
-): readonly StandaloneCssArtifact[] {
-  const root = canonicalRoot(rootDirectory);
+  readFile: StandaloneCssFileReader = (absolutePath) => readUtf8File(absolutePath, "utf8"),
+): Promise<readonly StandaloneCssArtifact[]> {
+  const root = await canonicalRoot(rootDirectory);
   const artifacts: StandaloneCssArtifact[] = [];
   const visitedDirectories = new Set<string>();
   const visitedFiles = new Set<string>();
 
-  walkDirectory(root, root, visitedDirectories, visitedFiles, artifacts, readFile);
+  await walkDirectory(root, root, visitedDirectories, visitedFiles, artifacts, readFile);
   artifacts.sort((a, b) => comparePosixStrings(a.projectPath, b.projectPath));
   return artifacts;
 }
 
-function walkDirectory(
+async function walkDirectory(
   rootDirectory: string,
   directory: string,
   visitedDirectories: Set<string>,
   visitedFiles: Set<string>,
   artifacts: StandaloneCssArtifact[],
   readFile: StandaloneCssFileReader,
-): void {
-  const canonicalDirectoryPath = canonicalWithinRoot(rootDirectory, directory);
+): Promise<void> {
+  const canonicalDirectoryPath = await canonicalWithinRoot(rootDirectory, directory);
   if (!canonicalDirectoryPath || visitedDirectories.has(canonicalDirectoryPath)) return;
   visitedDirectories.add(canonicalDirectoryPath);
 
   let entries: Dirent[];
   try {
-    entries = readdirSync(directory, { withFileTypes: true });
+    entries = await readdir(directory, { withFileTypes: true });
   } catch {
     return;
   }
@@ -156,19 +170,19 @@ function walkDirectory(
   for (const entry of entries) {
     if (entry.isDirectory() && EXCLUDED_DIRECTORY_NAMES.has(entry.name)) continue;
     const absolutePath = join(directory, entry.name);
-    const canonicalPath = canonicalWithinRoot(rootDirectory, absolutePath);
+    const canonicalPath = await canonicalWithinRoot(rootDirectory, absolutePath);
     if (!canonicalPath) continue;
 
-    let stats: ReturnType<typeof statSync>;
+    let stats: Awaited<ReturnType<typeof stat>>;
     try {
-      stats = statSync(absolutePath);
+      stats = await stat(absolutePath);
     } catch {
       continue;
     }
 
     if (stats.isDirectory()) {
       if (EXCLUDED_DIRECTORY_NAMES.has(entry.name)) continue;
-      walkDirectory(
+      await walkDirectory(
         rootDirectory,
         absolutePath,
         visitedDirectories,
@@ -184,7 +198,8 @@ function walkDirectory(
 
     const projectPath = relative(rootDirectory, absolutePath).split(sep).join("/");
     try {
-      artifacts.push({ absolutePath, projectPath, content: readFile(absolutePath) });
+      const content = await readFile(absolutePath);
+      artifacts.push({ absolutePath, projectPath, content });
     } catch (error) {
       artifacts.push({
         absolutePath,
@@ -195,17 +210,20 @@ function walkDirectory(
   }
 }
 
-function canonicalRoot(rootDirectory: string): string {
-  const root = realpathSync(resolve(rootDirectory));
-  if (!statSync(root).isDirectory()) {
+async function canonicalRoot(rootDirectory: string): Promise<string> {
+  const root = await realpath(resolve(rootDirectory));
+  if (!(await stat(root)).isDirectory()) {
     throw new Error(`Standalone root is not a directory: ${rootDirectory}`);
   }
   return root;
 }
 
-function canonicalWithinRoot(rootDirectory: string, candidate: string): string | null {
+async function canonicalWithinRoot(
+  rootDirectory: string,
+  candidate: string,
+): Promise<string | null> {
   try {
-    const canonical = realpathSync(candidate);
+    const canonical = await realpath(candidate);
     const pathFromRoot = relative(rootDirectory, canonical);
     if (pathFromRoot === ""
       || (!pathFromRoot.startsWith(`..${sep}`)

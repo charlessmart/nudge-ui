@@ -48,7 +48,7 @@ import { redoStructuralChange, undoStructuralChange } from "./structuralProjecti
 import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
 import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "./inlineTextEditor.ts";
-import { getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
+import { useDesignToolRuntimeConfig } from "./useRuntimeConfig.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -106,7 +106,8 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
 
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
-  const canvasEnabled = getDesignToolRuntimeConfig().capabilities.canvas;
+  const runtimeConfig = useDesignToolRuntimeConfig();
+  const canvasEnabled = runtimeConfig.capabilities.canvas;
   const activeCanvasMode = useCanvasMode();
   const canvasMode = canvasEnabled ? activeCanvasMode : "inspect";
   const selected = useSelectedElement();

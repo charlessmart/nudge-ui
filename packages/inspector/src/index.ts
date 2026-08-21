@@ -239,8 +239,10 @@ export { createBrowserCssInspection } from "./inspection/browserCssInspection.ts
 export {
   configureDesignToolRuntime,
   getDesignToolRuntimeConfig,
+  normalizeDesignToolRuntimeConfig,
   subscribeDesignToolRuntime,
 } from "./runtimeConfig.ts";
+export { useDesignToolRuntimeConfig } from "./useRuntimeConfig.ts";
 export type {
   DesignToolRuntimeConfig,
   DesignToolRuntimeCapabilities,

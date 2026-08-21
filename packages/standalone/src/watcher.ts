@@ -6,8 +6,9 @@
  * for directories created later. The public Interface exposes only lifecycle
  * and settled batches; debounce and symlink confinement stay internal.
  */
-import { watch, type FSWatcher } from "node:fs";
-import { readdirSync, realpathSync, statSync } from "node:fs";
+import { watch, type FSWatcher, type Dirent } from "node:fs";
+import { readdir } from "node:fs/promises";
+import { realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const EXCLUDED_DIRECTORY_NAMES = new Set([
@@ -51,6 +52,7 @@ export function createStandaloneFileWatcher(
   const watches = new Map<string, DirectoryWatch>();
   const pending = new Map<string, StandaloneFileChangeKind>();
   let timer: NodeJS.Timeout | null = null;
+  let scanQueue: Promise<void> = Promise.resolve();
   let started = false;
   let closed = false;
 
@@ -117,15 +119,26 @@ export function createStandaloneFileWatcher(
     }
 
     watches.set(directory, { directory, canonicalDirectory, watcher: directoryWatcher });
-    let entries: string[];
+    // The watch is installed before scanning so events raised during the
+    // asynchronous walk are never missed. Scans run serially and re-check
+    // `closed` after every await, so a closed watcher never leaks a late one.
+    scanQueue = scanQueue.then(() => scanSubdirectories(directory)).catch(reportError);
+  };
+
+  const scanSubdirectories = async (directory: string): Promise<void> => {
+    let entries: Dirent[];
     try {
-      entries = readdirSync(directory).sort(comparePosixStrings);
+      entries = await readdir(directory, { withFileTypes: true });
     } catch {
       return;
     }
-    for (const name of entries) {
-      const child = join(directory, name);
-      if (isProjectDirectory(rootDirectory, child)) watchDirectory(child);
+    entries.sort((a, b) => comparePosixStrings(a.name, b.name));
+    for (const entry of entries) {
+      if (closed) return;
+      if (!entry.isDirectory() || EXCLUDED_DIRECTORY_NAMES.has(entry.name)) continue;
+      const child = join(directory, entry.name);
+      if (!isProjectPath(rootDirectory, child)) continue;
+      watchDirectory(child);
     }
   };
 
@@ -144,6 +157,9 @@ export function createStandaloneFileWatcher(
       }
       pending.clear();
       for (const directory of [...watches.keys()]) closeDirectory(directory);
+      // In-flight directory scans observe `closed` between entries; waiting
+      // for the serial queue keeps close() deterministic.
+      await scanQueue;
     },
   };
 }

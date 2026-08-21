@@ -164,3 +164,85 @@ describe("Design Tool runtime configuration", () => {
     }).toThrow();
   });
 });
+
+describe("runtime configuration validation and defaults", () => {
+  afterEach(() => {
+    if (previousConfig) configureDesignToolRuntime(previousConfig);
+    previousConfig = null;
+  });
+
+  it("rejects missing or invalid required identity fields", () => {
+    const missingProjectId = { ...makeConfig("generation-validation") } as Record<string, unknown>;
+    delete missingProjectId.projectId;
+    expect(() => configureDesignToolRuntime(missingProjectId as unknown as DesignToolRuntimeConfig))
+      .toThrow(/"projectId"/);
+
+    expect(() => configureDesignToolRuntime({
+      ...makeConfig("generation-validation"),
+      host: "cloud" as DesignToolRuntimeConfig["host"],
+    })).toThrow(/"host"/);
+
+    expect(() => configureDesignToolRuntime({
+      ...makeConfig("generation-validation"),
+      framework: "Vue" as DesignToolRuntimeConfig["framework"],
+    })).toThrow(/"framework"/);
+  });
+
+  it("supplies safe defaults for absent optional fields", () => {
+    previousConfig = getDesignToolRuntimeConfig();
+    const partial = {
+      projectId: "minimal-host",
+      host: "static-html",
+      framework: "HTML",
+    } as unknown as DesignToolRuntimeConfig;
+
+    configureDesignToolRuntime(partial);
+
+    const snapshot = getDesignToolRuntimeConfig();
+    expect(snapshot).toMatchObject({
+      projectId: "minimal-host",
+      host: "static-html",
+      framework: "HTML",
+      stylingSystem: "",
+      capabilities: { canvas: false, componentSemantics: false },
+      tokenCatalog: [],
+      tokens: [],
+      tokenDiagnostics: [],
+      tokenGeneration: "",
+      componentContracts: [],
+    });
+    expect(Object.isFrozen(snapshot.tokenCatalog)).toBe(true);
+  });
+
+  it("rejects wrong-typed optional fields instead of defaulting them", () => {
+    expect(() => configureDesignToolRuntime({
+      ...makeConfig("generation-types"),
+      tokens: "not-an-array",
+    } as unknown as DesignToolRuntimeConfig)).toThrow(/"tokens" must be an array/);
+
+    expect(() => configureDesignToolRuntime({
+      ...makeConfig("generation-types"),
+      capabilities: { canvas: "yes" },
+    } as unknown as DesignToolRuntimeConfig)).toThrow(/"canvas" must be a boolean/);
+  });
+
+  it("reuses frozen input subtrees by reference across repeated configuration", () => {
+    previousConfig = getDesignToolRuntimeConfig();
+    const sharedTokens = Object.freeze([
+      { name: "--space-1", value: "4px", source: "theme.css:1" },
+    ]);
+    const frozenInput = Object.freeze({
+      ...makeConfig("generation-frozen"),
+      tokens: sharedTokens,
+    });
+
+    configureDesignToolRuntime(frozenInput);
+    const firstSnapshot = getDesignToolRuntimeConfig();
+    configureDesignToolRuntime(frozenInput);
+    const secondSnapshot = getDesignToolRuntimeConfig();
+
+    expect(secondSnapshot).not.toBe(firstSnapshot);
+    expect(secondSnapshot.tokens).toBe(firstSnapshot.tokens);
+    expect(firstSnapshot.tokens).toBe(sharedTokens);
+  });
+});

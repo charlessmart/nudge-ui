@@ -79,6 +79,7 @@ export function instrumentHtml(
     sourceCodeLocationInfo: true,
     onParseError: (error) => parseErrors.push(error),
   });
+  const positions = createSourcePositionIndex(source);
 
   for (const error of parseErrors) {
     // A missing doctype does not affect source locations or browser DOM
@@ -103,7 +104,7 @@ export function instrumentHtml(
   for (const body of bodyElements) {
     for (const child of body.childNodes) {
       if (isElement(child)) {
-        visitElement(child, source, file, insertions, diagnostics);
+        visitElement(child, source, file, positions, insertions, diagnostics);
       }
     }
   }
@@ -157,6 +158,7 @@ function visitElement(
   element: HtmlElement,
   source: string,
   file: string,
+  positions: SourcePositionIndex,
   insertions: Insertion[],
   diagnostics: HtmlIdentityDiagnostic[],
 ): void {
@@ -180,13 +182,13 @@ function visitElement(
       offset: location?.startOffset,
     });
   } else {
-    const insertion = buildInsertion(source, file, element, startTag, diagnostics);
+    const insertion = buildInsertion(source, file, element, startTag, positions, diagnostics);
     if (insertion) insertions.push(insertion);
   }
 
   for (const child of element.childNodes) {
     if (isElement(child)) {
-      visitElement(child, source, file, insertions, diagnostics);
+      visitElement(child, source, file, positions, insertions, diagnostics);
     }
   }
 }
@@ -196,12 +198,12 @@ function buildInsertion(
   file: string,
   element: HtmlElement,
   startTag: StartTagLocation,
+  positions: SourcePositionIndex,
   diagnostics: HtmlIdentityDiagnostic[],
 ): Insertion | null {
   const location = element.sourceCodeLocation;
-  const startLine = location?.startLine ?? startTag.startLine;
-  const startColumn = location?.startCol ?? startTag.startCol;
   const startOffset = location?.startOffset ?? startTag.startOffset;
+  const { line: startLine, column: startColumn } = positionAt(positions, startOffset);
   const insertionOffset = getInsertionOffset(source, startTag);
 
   if (insertionOffset === null) {
@@ -267,6 +269,58 @@ function applyInsertions(source: string, insertions: readonly Insertion[]): stri
     cursor = offset;
   }
   return result + source.slice(cursor);
+}
+
+/**
+ * One-based line/column positions derived from original-source offsets.
+ *
+ * parse5 normalizes `\r\n` and lone `\r` to `\n` internally, so deriving
+ * lines from the parser risks drift from the bytes this module promises to
+ * preserve. Offsets reference the original source, so positions are computed
+ * from them directly, treating `\n`, `\r\n`, and lone `\r` as line breaks the
+ * same way the HTML preprocessing specification does.
+ *
+ * Columns count UTF-16 code units from the line start: one column per tab,
+ * matching grep-style tooling rather than editor tab stops.
+ */
+interface SourcePositionIndex {
+  /** Zero-based source offset of every line's first character. */
+  readonly lineStarts: readonly number[];
+}
+
+function createSourcePositionIndex(source: string): SourcePositionIndex {
+  const lineStarts = [0];
+  for (let offset = 0; offset < source.length; offset += 1) {
+    const character = source[offset];
+    if (character === "\r") {
+      // A `\r\n` pair is one break; advance past its `\n` so the pair does
+      // not register two line starts.
+      const next = source[offset + 1];
+      lineStarts.push(next === "\n" ? offset + 2 : offset + 1);
+      if (next === "\n") offset += 1;
+    } else if (character === "\n") {
+      lineStarts.push(offset + 1);
+    }
+  }
+  return { lineStarts };
+}
+
+/** One-based source position of an offset within the original document. */
+interface SourcePosition {
+  readonly line: number;
+  readonly column: number;
+}
+
+function positionAt(positions: SourcePositionIndex, offset: number): SourcePosition {
+  const { lineStarts } = positions;
+  let low = 0;
+  let high = lineStarts.length - 1;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (lineStarts[middle]! <= offset) low = middle;
+    else high = middle - 1;
+  }
+  return { line: low + 1, column: offset - lineStarts[low]! + 1 };
 }
 
 function hasAttribute(element: HtmlElement, name: string, value?: string): boolean {

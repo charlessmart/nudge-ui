@@ -166,6 +166,68 @@ describe("createStandaloneServer", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("serves non-UTF-8 HTML byte-for-byte without instrumentation", async () => {
+    const root = await createFixture();
+    // "café" encoded in ISO-8859-1: 0xE1 is invalid UTF-8 and must survive.
+    const latin1Bytes = Buffer.from(
+      "<!doctype html>\n<body><button>Caf\xe9</button></body>\n",
+      "latin1",
+    );
+    await writeFile(join(root, "index.html"), latin1Bytes);
+    const clientPath = join(root, "test-client.mjs");
+    await writeFile(clientPath, "export {};");
+
+    runningServer = createStandaloneServer({ rootDirectory: root, port: 0, clientPath });
+    const address = await runningServer.start();
+
+    const response = await fetch(address.url + "index.html");
+    const body = Buffer.from(await response.arrayBuffer());
+    expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(body.equals(latin1Bytes)).toBe(true);
+    expect(body.includes("data-cid")).toBe(false);
+  });
+
+  it("answers HTML HEAD requests without transforming and omits content length", async () => {
+    const root = await createFixture();
+    await writeFile(
+      join(root, "index.html"),
+      "<!doctype html><body><button>Save</button></body>",
+    );
+    const clientPath = join(root, "test-client.mjs");
+    await writeFile(clientPath, "export {};");
+
+    runningServer = createStandaloneServer({ rootDirectory: root, port: 0, clientPath });
+    const address = await runningServer.start();
+
+    const headResponse = await fetch(address.url + "index.html", { method: "HEAD" });
+    expect(headResponse.status).toBe(200);
+    expect(headResponse.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(headResponse.headers.get("cache-control")).toBe("no-cache");
+    expect(headResponse.headers.get("content-length")).toBeNull();
+    expect(await headResponse.text()).toBe("");
+  });
+
+  it("serves transformed HTML with no-cache revalidation", async () => {
+    const root = await createFixture();
+    await writeFile(join(root, "index.html"), "<!doctype html><body>fixture</body>");
+    const clientPath = join(root, "test-client.mjs");
+    await writeFile(clientPath, "export {};");
+
+    runningServer = createStandaloneServer({ rootDirectory: root, port: 0, clientPath });
+    const address = await runningServer.start();
+
+    const htmlResponse = await fetch(address.url + "index.html");
+    expect(htmlResponse.headers.get("cache-control")).toBe("no-cache");
+  });
+
+  it("maps additional common asset types", () => {
+    expect(contentTypeForPath("clip.mp4")).toBe("video/mp4");
+    expect(contentTypeForPath("doc.pdf")).toBe("application/pdf");
+    expect(contentTypeForPath("app.webmanifest")).toBe("application/manifest+json");
+    expect(contentTypeForPath("photo.avif")).toBe("image/avif");
+    expect(contentTypeForPath("readme.md")).toBe("text/markdown; charset=utf-8");
+  });
+
   it("serves percent-containing filenames and rejects encoded traversal", async () => {
     const root = await createFixture();
     const fileName = "percent%name.txt";

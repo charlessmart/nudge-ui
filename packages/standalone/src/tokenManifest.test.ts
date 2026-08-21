@@ -22,7 +22,7 @@ describe("standalone CSS token discovery", () => {
     await writeFile(join(outside, "secret.css"), ":root { --secret: 5px; }");
     await symlink(join(outside, "secret.css"), join(root, "outside.css"));
 
-    const artifacts = discoverStandaloneCssArtifacts(root);
+    const artifacts = await discoverStandaloneCssArtifacts(root);
     expect(artifacts.map((artifact) => artifact.projectPath)).toEqual([
       "nested/a.css",
       "z.css",
@@ -37,8 +37,8 @@ describe("standalone CSS token discovery", () => {
     await mkdir(join(root, "styles"));
     await writeFile(join(root, "styles", "theme.css"), ":root { --brand: #09f; }");
 
-    const first = createStandaloneTokenSnapshot({ rootDirectory: root });
-    const second = createStandaloneTokenSnapshot({ rootDirectory: root });
+    const first = await createStandaloneTokenSnapshot({ rootDirectory: root });
+    const second = await createStandaloneTokenSnapshot({ rootDirectory: root });
     expect(second).toEqual(first);
     expect(first.tokens).toEqual([expect.objectContaining({
       cssName: "--brand",
@@ -54,7 +54,7 @@ describe("standalone CSS token discovery", () => {
       await writeFile(join(root, name), `:root { --${name[0]}: 1px; }`);
     }
 
-    expect(discoverStandaloneCssArtifacts(root).map((artifact) => artifact.projectPath)).toEqual([
+    expect((await discoverStandaloneCssArtifacts(root)).map((artifact) => artifact.projectPath)).toEqual([
       "a-.css",
       "a.css",
       "a_.css",
@@ -68,7 +68,7 @@ describe("standalone CSS token discovery", () => {
     await writeFile(join(root, "broken.css"), ":root { --broken: ;");
     await writeFile(join(root, "unreadable.css"), ":root { --unreadable: 1px; }");
 
-    const snapshot = createStandaloneTokenSnapshot({
+    const snapshot = await createStandaloneTokenSnapshot({
       rootDirectory: root,
       readFile: (absolutePath) => {
         if (absolutePath.endsWith("unreadable.css")) {
@@ -96,19 +96,19 @@ describe("standalone CSS token discovery", () => {
   it("changes generation for CSS add, change, and remove transitions", async () => {
     const root = await mkdtemp(join(tmpdir(), "design-tool-token-manifest-"));
     await writeFile(join(root, "base.css"), ":root { --base: 1px; }");
-    const initial = createStandaloneTokenSnapshot({ rootDirectory: root });
+    const initial = await createStandaloneTokenSnapshot({ rootDirectory: root });
 
     await writeFile(join(root, "added.css"), ":root { --added: 2px; }");
-    const added = createStandaloneTokenSnapshot({ rootDirectory: root });
+    const added = await createStandaloneTokenSnapshot({ rootDirectory: root });
     expect(added.tokenGeneration).not.toBe(initial.tokenGeneration);
 
     await writeFile(join(root, "added.css"), ":root { --added: 3px; }");
-    const changed = createStandaloneTokenSnapshot({ rootDirectory: root });
+    const changed = await createStandaloneTokenSnapshot({ rootDirectory: root });
     expect(changed.tokenGeneration).not.toBe(added.tokenGeneration);
 
     const { unlink } = await import("node:fs/promises");
     await unlink(join(root, "added.css"));
-    const removed = createStandaloneTokenSnapshot({ rootDirectory: root });
+    const removed = await createStandaloneTokenSnapshot({ rootDirectory: root });
     expect(removed.tokenGeneration).toBe(initial.tokenGeneration);
   });
 });

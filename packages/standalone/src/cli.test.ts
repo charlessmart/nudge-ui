@@ -37,4 +37,11 @@ describe("parseServeArguments", () => {
       "70000",
     ], "/prototype")).toThrow(/integer/);
   });
+
+  it("treats an empty --port value as a missing value instead of port zero", () => {
+    for (const argument of ["--port=", "--port"]) {
+      expect(() => parseServeArguments(["serve", argument], "/prototype"))
+        .toThrow(/--port requires a value/);
+    }
+  });
 });

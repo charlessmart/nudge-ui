@@ -150,6 +150,31 @@ describe("instrumentHtml", () => {
     expect(result.insertedAttributeCount).toBe(0);
   });
 
+  it("computes identity from original offsets in CRLF sources without changing bytes", () => {
+    const source = "<!doctype html>\r\n<body>\r\n  <button>Save</button>\r\n</body>";
+    const result = instrumentHtml(source, "index.html");
+
+    expect(result.html).toContain('data-src="index.html:3:3"');
+    expect(
+      result.html.replace(' data-cid="html:button" data-src="index.html:3:3"', ""),
+    ).toBe(source);
+    expect(result.html.includes("\r\n")).toBe(true);
+  });
+
+  it("treats a lone carriage return as a line break like the HTML spec", () => {
+    const source = "<!doctype html><body>\r<button>Save</button>";
+    const result = instrumentHtml(source, "index.html");
+
+    expect(result.html).toContain('data-src="index.html:2:1"');
+  });
+
+  it("counts a tab as one column so offsets stay grep-comparable", () => {
+    const source = "<!doctype html>\n<body>\n\t<button>Save</button>\n</body>";
+    const result = instrumentHtml(source, "index.html");
+
+    expect(result.html).toContain('data-src="index.html:3:2"');
+  });
+
   it("reserves only the fixed Design Tool mount ID", () => {
     const source = '<!doctype html><body><div id="prototype-mount"><button>instrument</button></div><button>keep</button></body>';
     const result = instrumentHtml(source, "index.html");

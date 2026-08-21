@@ -24,7 +24,7 @@ import {
   DESIGN_TOOL_ROUTE_PREFIX,
   type StandaloneRuntimeManifest,
 } from "./manifest.ts";
-import { createStandaloneTokenSnapshot } from "./tokenManifest.ts";
+import { createStandaloneTokenSnapshot, EMPTY_STANDALONE_TOKEN_SNAPSHOT } from "./tokenManifest.ts";
 import {
   createStandaloneFileWatcher,
   type StandaloneFileChange,
@@ -101,9 +101,18 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
   let revision = 0;
   let manifest = createStandaloneRuntimeManifest(
     projectId,
-    createStandaloneTokenSnapshot({ rootDirectory }),
+    EMPTY_STANDALONE_TOKEN_SNAPSHOT,
     revision,
   );
+  // The initial scan runs asynchronously; start() awaits it so the first
+  // request and manifest always observe the complete project token knowledge.
+  const initialTokens = createStandaloneTokenSnapshot({ rootDirectory }).then((tokens) => {
+    manifest = createStandaloneRuntimeManifest(projectId, tokens, revision);
+    return tokens;
+  });
+  // start() awaits and surfaces scan failures; this second handler only
+  // prevents an unhandled rejection when a server is created but never started.
+  void initialTokens.catch(() => undefined);
   const reloadClients = new Set<ServerResponse>();
   let fileWatcher: StandaloneFileWatcher | null = null;
   let changeQueue = Promise.resolve();
@@ -131,21 +140,23 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
     }
   };
   const processSettledChanges = (_changes: readonly StandaloneFileChange[]): void => {
-    changeQueue = changeQueue.then(() => {
+    changeQueue = changeQueue.then(async () => {
       // Rebuild every settled batch. fs.watch can report a directory or omit a
       // filename, so an extension check cannot reliably identify CSS changes.
-      // The scan is synchronous and bounded to the project root; rebuilding
+      // The scan is asynchronous and bounded to the project root; rebuilding
       // once per settled batch keeps the manifest coherent before reload.
-      manifest = createStandaloneRuntimeManifest(
-        projectId,
-        createStandaloneTokenSnapshot({ rootDirectory }),
-        revision + 1,
-      );
+      const tokens = await createStandaloneTokenSnapshot({ rootDirectory });
+      manifest = createStandaloneRuntimeManifest(projectId, tokens, revision + 1);
       revision += 1;
       notifyReload();
-    }).catch(() => {
+    }).catch((error: unknown) => {
       // A later settled batch can still rebuild the snapshot after a failed
-      // callback. Source edits must not terminate the static server.
+      // callback. Source edits must not terminate the static server, but a
+      // skipped reload must be visible to the developer.
+      console.warn(
+        "Design Tool standalone reload was skipped because rebuilding token knowledge failed:",
+        error,
+      );
     });
   };
   const httpServer = createServer((request, response) => {
@@ -183,31 +194,33 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       }
       if (started) return Promise.resolve(readAddress(httpServer, host));
       if (startPromise) return startPromise;
-      startPromise = new Promise<StandaloneServerAddress>((resolveStart, rejectStart) => {
-        const onError = (error: Error) => {
-          httpServer.off("listening", onListening);
-          startPromise = null;
-          rejectStart(error);
-        };
-        const onListening = () => {
-          httpServer.off("error", onError);
-          started = true;
-          if (closeRequested) {
-            rejectStart(new Error("Standalone server closed during startup."));
-            return;
-          }
-          fileWatcher = createStandaloneFileWatcher({
-            rootDirectory,
-            debounceMs: options.watchDebounceMs,
-            onSettled: processSettledChanges,
-          });
-          fileWatcher.start();
-          resolveStart(readAddress(httpServer, host));
-        };
-        httpServer.once("error", onError);
-        httpServer.once("listening", onListening);
-        httpServer.listen(port, host);
-      });
+      startPromise = initialTokens.then(() => new Promise<StandaloneServerAddress>(
+        (resolveStart, rejectStart) => {
+          const onError = (error: Error) => {
+            httpServer.off("listening", onListening);
+            startPromise = null;
+            rejectStart(error);
+          };
+          const onListening = () => {
+            httpServer.off("error", onError);
+            started = true;
+            if (closeRequested) {
+              rejectStart(new Error("Standalone server closed during startup."));
+              return;
+            }
+            fileWatcher = createStandaloneFileWatcher({
+              rootDirectory,
+              debounceMs: options.watchDebounceMs,
+              onSettled: processSettledChanges,
+            });
+            fileWatcher.start();
+            resolveStart(readAddress(httpServer, host));
+          };
+          httpServer.once("error", onError);
+          httpServer.once("listening", onListening);
+          httpServer.listen(port, host);
+        },
+      ));
       return startPromise;
     },
     close: () => {
@@ -406,15 +419,61 @@ async function handleRequest(input: {
     return;
   }
 
-  let body = await readProjectFile(resolution.absolutePath);
-  if (HTML_EXTENSIONS.has(extname(resolution.projectPath).toLowerCase())) {
-    const source = body.toString("utf8");
-    const identified = instrumentHtml(source, resolution.projectPath);
-    const bootstrapped = injectStandaloneBootstrap(identified.html);
-    body = Buffer.from(bootstrapped.html, "utf8");
+  const isHtml = HTML_EXTENSIONS.has(extname(resolution.projectPath).toLowerCase());
+  const contentType = contentTypeForPath(resolution.projectPath);
+
+  if (request.method === "HEAD") {
+    // HEAD answers headers without running the response transform: the body
+    // would be discarded anyway, and the instrumented GET length cannot be
+    // known without performing it. Content-Length is omitted for HTML so the
+    // header cannot disagree with a subsequent GET body; untransformed files
+    // report their exact length.
+    const body = await readProjectFile(resolution.absolutePath);
+    if (isHtml) {
+      response.writeHead(200, {
+        "Content-Type": contentType,
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-cache",
+      });
+      response.end();
+    } else {
+      sendBody(response, 200, body, contentType);
+    }
+    return;
   }
-  sendBody(response, 200, body, contentTypeForPath(resolution.projectPath));
+
+  let body = await readProjectFile(resolution.absolutePath);
+  if (isHtml) {
+    body = instrumentHtmlResponse(body, resolution.projectPath);
+  }
+  sendBody(response, 200, body, contentType, isHtml ? { "Cache-Control": "no-cache" } : {});
 }
+
+/**
+ * Instruments one HTML response while guaranteeing byte preservation.
+ *
+ * The identity inserter only edits the decoded string at parser offsets, so
+ * the decode itself must be lossless. A non-UTF-8 document cannot round-trip
+ * through `toString("utf8")` without replacing every invalid sequence with
+ * U+FFFD, so such documents are served untouched with a warning instead of
+ * being silently corrupted.
+ */
+function instrumentHtmlResponse(body: Buffer, projectPath: string): Buffer {
+  let source: string;
+  try {
+    source = strictUtf8Decoder.decode(body);
+  } catch {
+    console.warn(
+      `Design Tool served ${projectPath} without instrumentation because it is not valid UTF-8.`,
+    );
+    return body;
+  }
+  const identified = instrumentHtml(source, projectPath);
+  const bootstrapped = injectStandaloneBootstrap(identified.html);
+  return Buffer.from(bootstrapped.html, "utf8");
+}
+
+const strictUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
 async function handleDesignToolRoute(
   input: {
@@ -551,6 +610,7 @@ function sendBody(
 }
 
 const MIME_TYPES: Readonly<Record<string, string>> = {
+  ".avif": "image/avif",
   ".css": "text/css; charset=utf-8",
   ".csv": "text/csv; charset=utf-8",
   ".gif": "image/gif",
@@ -562,11 +622,15 @@ const MIME_TYPES: Readonly<Record<string, string>> = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".map": "application/json; charset=utf-8",
+  ".md": "text/markdown; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
+  ".mp4": "video/mp4",
+  ".pdf": "application/pdf",
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".txt": "text/plain; charset=utf-8",
   ".wasm": "application/wasm",
+  ".webmanifest": "application/manifest+json",
   ".webp": "image/webp",
   ".woff": "font/woff",
   ".woff2": "font/woff2",

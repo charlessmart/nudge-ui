@@ -1,4 +1,5 @@
 import type {
+  TokenCatalogDiagnostic,
   TokenDeclaration,
   TokenDefinition,
 } from "@design-tool/css/model";
@@ -40,15 +41,32 @@ export function collectStandaloneStylesheetOrder(
   return { projectPaths, complete };
 }
 
-/** Reorders declarations using CSSOM stylesheet order when that evidence is complete. */
+/** The catalog plus diagnostics produced by one reconciliation pass. */
+export interface StandaloneTokenCatalogReconciliation {
+  /** Definitions whose declaration order is honest given the evidence. */
+  readonly catalog: readonly TokenDefinition[];
+  /** Explanations for definitions left in discovery order. */
+  readonly diagnostics: readonly TokenCatalogDiagnostic[];
+}
+
+/**
+ * Reorders declarations using CSSOM stylesheet order when that evidence is
+ * complete.
+ *
+ * A duplicate definition with incomplete order evidence keeps its discovery
+ * order — directory order is honest inventory evidence — instead of hiding
+ * the duplicate entirely, and the unresolved ordering is reported as a
+ * diagnostic so consumers know the winner was not proven from the browser.
+ */
 export function reconcileStandaloneTokenCatalog(
   catalog: readonly TokenDefinition[],
   evidence: StandaloneStylesheetOrderEvidence,
-): readonly TokenDefinition[] {
+): StandaloneTokenCatalogReconciliation {
   const ranks = new Map(evidence.projectPaths.map((path, index) => [path, index]));
   const stride = Math.max(1, ...catalog.map((definition) => definition.declarations.length)) + 1;
+  const diagnostics: TokenCatalogDiagnostic[] = [];
 
-  return catalog.map((definition) => {
+  const resolved = catalog.map((definition) => {
     if (definition.declarations.length < 2) return definition;
     const declarations = definition.declarations.map((declaration, index) => ({
       declaration,
@@ -57,8 +75,14 @@ export function reconcileStandaloneTokenCatalog(
       rank: ranks.get(sourcePath(declaration)),
     }));
     if (!evidence.complete || declarations.some((entry) => entry.rank === undefined)) {
-      // A duplicate with incomplete order evidence has no honest winner.
-      return { ...definition, declarations: [] };
+      // Incomplete browser order never picks a winner; keep discovery order
+      // (already present on each declaration) and say so.
+      diagnostics.push({
+        code: "token-order-unresolved",
+        message: `Kept ${definition.declarations.length} declarations of "${declarationName(definition)}" in discovery order because browser stylesheet order evidence was incomplete.`,
+        module: declarations.find((entry) => entry.rank === undefined)?.path || "standalone-css",
+      });
+      return definition;
     }
 
     declarations.sort((left, right) =>
@@ -71,6 +95,12 @@ export function reconcileStandaloneTokenCatalog(
       })),
     };
   });
+
+  const changed = resolved.some((definition, index) => definition !== catalog[index]);
+  return {
+    catalog: changed ? resolved : catalog,
+    diagnostics,
+  };
 }
 
 /** Applies the standalone host's browser stylesheet evidence before bootstrap. */
@@ -78,18 +108,25 @@ export function reconcileStandaloneRuntime(
   runtime: DesignToolRuntimeConfig,
   document: Document,
 ): DesignToolRuntimeConfig {
-  const tokenCatalog = reconcileStandaloneTokenCatalog(
+  const { catalog: tokenCatalog, diagnostics } = reconcileStandaloneTokenCatalog(
     runtime.tokenCatalog,
     collectStandaloneStylesheetOrder(document),
   );
-  return tokenCatalog === runtime.tokenCatalog
+  const tokenDiagnostics = diagnostics.length === 0
+    ? runtime.tokenDiagnostics
+    : [...runtime.tokenDiagnostics, ...diagnostics];
+  return tokenCatalog === runtime.tokenCatalog && tokenDiagnostics === runtime.tokenDiagnostics
     ? runtime
-    : { ...runtime, tokenCatalog };
+    : { ...runtime, tokenCatalog, tokenDiagnostics };
 }
 
 function sourcePath(declaration: TokenDeclaration): string {
   const match = declaration.source.match(/^(.*):\d+$/);
   return match?.[1] ?? "";
+}
+
+function declarationName(definition: TokenDefinition): string {
+  return definition.cssName || definition.name;
 }
 
 function stylesheetProjectPath(href: string | null, document: Document): string | null {
