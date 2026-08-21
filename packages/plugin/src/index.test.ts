@@ -128,6 +128,28 @@ describe("designTool plugin virtual inspector module", () => {
     expect(code!).toContain("bootstrapDesignTool");
     expect(code!).toContain('getElementById("design-tool-root")');
   });
+
+  it("configures the inspector from live Vite virtual modules before mounting", async () => {
+    const plugin = designTool() as unknown as {
+      load?: (id: string) => string | null | Promise<string | null>;
+    };
+    const code = await plugin.load!("\0virtual:design-tool-inspector");
+    expect(code).toContain("configureDesignToolRuntime({");
+    expect(code).toContain('from "virtual:design-tokens"');
+    expect(code).toContain('from "virtual:design-tool-components"');
+    expect(code).toContain('host: "vite-react"');
+    expect(code).toContain('framework: "React"');
+    expect(code).toContain("stylingSystem: detectFramework(tokens).stylingSystem");
+    expect(code).toContain("projectId: designToolProjectId");
+    expect(code).toContain("tokenCatalog,");
+    expect(code).toContain("tokens,");
+    expect(code).toContain("tokenDiagnostics,");
+    expect(code).toContain("tokenGeneration,");
+    expect(code).toContain("componentContracts,");
+    expect(code!.indexOf("configureDesignToolRuntime({")).toBeLessThan(
+      code!.indexOf("bootstrapDesignTool(__dt_root)"),
+    );
+  });
 });
 
 describe("designTool component contract catalog", () => {

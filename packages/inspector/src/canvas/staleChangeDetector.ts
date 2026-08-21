@@ -13,8 +13,8 @@ import { getRegisteredFrames } from "./projection.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { getCanvasCards } from "./canvasStore.ts";
 import { isRendererMessageFor } from "./frameProtocol.ts";
-import { tokenCatalog } from "virtual:design-tokens";
-import type { TokenDefinition } from "virtual:design-tokens";
+import type { TokenDefinition } from "@design-tool/css/model";
+import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
 
 const VERIFICATION_TIMEOUT_MS = 5000;
 const STALE_CHECK_DEBOUNCE_MS = 100;
@@ -68,6 +68,7 @@ function buildStaleResult(selector: string, requestedValue: string): PreviewResu
 }
 
 function checkTokenDrift(change: TokenChangeRecord): PreviewResult | null {
+  const { tokenCatalog } = getDesignToolRuntimeConfig();
   const def: TokenDefinition | undefined = tokenCatalog.find(
     (d) => d.name === change.tokenName || d.cssName === change.tokenName,
   );

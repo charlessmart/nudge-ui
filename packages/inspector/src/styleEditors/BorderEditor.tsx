@@ -12,7 +12,6 @@ import {
   IconPlus,
 } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
@@ -25,6 +24,7 @@ import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
+import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
 
 const BORDER_STYLES = ["none", "hidden", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"];
 const INVISIBLE_BORDER_STYLES = new Set(["none", "hidden"]);
@@ -242,7 +242,7 @@ function useBorderLinkedState(dataLinked: boolean, resetKey: HTMLElement): [bool
 export function BorderEditor(props: BorderEditorProps): ReactElement {
   const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
-  const allEntries = entries ?? tokens;
+  const allEntries = entries ?? getDesignToolTokenEntries();
   const borderWidthProperties = BORDER_SIDES.map((side) => `${side}-width`);
   const borderStyleProperties = BORDER_SIDES.map((side) => `${side}-style`);
   const borderColorProperties = BORDER_SIDES.map((side) => `${side}-color`);

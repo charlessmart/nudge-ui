@@ -74,8 +74,10 @@ interface DesignToolRuntimeConfig {
 
 The exact internal storage is not part of the Interface. Callers configure one
 runtime before bootstrap; inspector Modules read one immutable snapshot for the
-active document. Vite HMR or standalone reload replaces the document rather
-than mutating configuration piecemeal.
+active document. A host may atomically replace that complete snapshot when its
+development transport refreshes, including Vite HMR. Standalone source changes
+replace the document through reload rather than mutating configuration
+piecemeal.
 
 ## Identity policy
 
@@ -287,7 +289,7 @@ Run the repository verification obligations after focused standalone checks.
 
 | Risk | Mitigation |
 | --- | --- |
-| Runtime configuration becomes mutable global policy | Configure once before bootstrap and replace only by document reload. |
+| Runtime configuration becomes mutable global policy | Replace only complete immutable snapshots; notify consumers after atomic host refreshes. |
 | Standalone client accidentally depends on host React | Bundle and test the client against a dependency-free fixture. |
 | HTML serialization changes prototype markup | Use source locations and insertion edits; never reserialize the document. |
 | Dynamic DOM receives false source precision | Use generated identity and explicit unknown-source prompt evidence. |

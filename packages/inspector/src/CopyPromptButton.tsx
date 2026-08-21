@@ -2,13 +2,12 @@ import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { IconChevronDown, IconClipboardCheck } from "@tabler/icons-react";
 import { useChanges } from "./changesLog.ts";
-import { tokens } from "virtual:design-tokens";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
-import { detectFramework } from "./prompt/detectFramework.ts";
 import { copyToClipboard } from "./prompt/copyToClipboard.ts";
 import { Button } from "./ui/Button.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
 import { getStructuralChanges, subscribeStructuralChanges } from "./structuralProjection.ts";
+import { getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
 
 export function CopyPromptButton(): ReactElement {
   const changes = useChanges();
@@ -22,7 +21,11 @@ export function CopyPromptButton(): ReactElement {
 
   async function onClick(): Promise<void> {
     if (disabled) return;
-    const hints = detectFramework(tokens);
+    const runtimeConfig = getDesignToolRuntimeConfig();
+    const hints = {
+      framework: runtimeConfig.framework,
+      stylingSystem: runtimeConfig.stylingSystem,
+    };
     const text = generatePrompt(changes, hints, structuralChanges);
     await copyToClipboard(text);
     setCopied(true);

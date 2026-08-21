@@ -1,5 +1,4 @@
-import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
-import { tokenCatalog, tokens } from "virtual:design-tokens";
+import type { TokenDefinition, TokenEntry } from "@design-tool/css/model";
 import { getChangesList, getPendingRules, isPreviewableChange } from "./changesLog.ts";
 import { detectFramework } from "./prompt/detectFramework.ts";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
@@ -14,6 +13,7 @@ import {
   type InspectionSnapshot,
 } from "./inspection/browserCssInspection.ts";
 import { getBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
+import { getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
 
 export const DESIGN_TOOL_INSPECTION_VERSION = 1 as const;
 
@@ -67,17 +67,17 @@ export interface ElementInspection {
 }
 
 export interface InspectElementOptions {
-  catalog?: TokenDefinition[];
-  tokens?: TokenEntry[];
+  catalog?: readonly TokenDefinition[];
+  tokens?: readonly TokenEntry[];
 }
 
 function inspectBrowserFacts(
   element: HTMLElement,
-  definitions: TokenDefinition[],
-  entries?: TokenEntry[],
+  definitions: readonly TokenDefinition[],
+  entries?: readonly TokenEntry[],
 ) {
   const doc = element.ownerDocument ?? document;
-  if (definitions === tokenCatalog && entries === undefined) {
+  if (definitions === getDesignToolRuntimeConfig().tokenCatalog && entries === undefined) {
     const session = getBrowserCssInspection(doc);
     return {
       element: session.inspect(element, { cascade: "live" }),
@@ -127,9 +127,16 @@ export function inspectElement(
   element: HTMLElement,
   options: InspectElementOptions = {},
 ): ElementInspection {
-  const definitions = options.catalog ?? tokenCatalog;
+  const runtimeConfig = getDesignToolRuntimeConfig();
+  const definitions = options.catalog ?? runtimeConfig.tokenCatalog;
+  const frameworkHints = options.tokens
+    ? detectFramework(options.tokens)
+    : {
+      framework: runtimeConfig.framework,
+      stylingSystem: runtimeConfig.stylingSystem,
+    };
   const browserFacts = inspectBrowserFacts(element, definitions, options.tokens);
-  const availableTokens = options.tokens ?? [...browserFacts.element.availableTokens];
+  const availableTokens = options.tokens ? [...options.tokens] : [...browserFacts.element.availableTokens];
   const properties: ResolvedProperty[] = [...browserFacts.element.properties];
   const selection = resolveSelectionFromElement(element);
   const changes = getChangesList();
@@ -173,7 +180,7 @@ export function inspectElement(
     changes,
     managedPreview,
     prompt: changes.length > 0
-      ? generatePrompt(changes, detectFramework(options.tokens ?? tokens))
+      ? generatePrompt(changes, frameworkHints)
       : null,
   };
 }

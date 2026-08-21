@@ -635,7 +635,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
         if (command === "build") {
           return `export {};\n`;
         }
-        return `import { bootstrapDesignTool } from "@design-tool/inspector";\nconst __dt_root = document.getElementById("design-tool-root");\nif (__dt_root) bootstrapDesignTool(__dt_root);\n`;
+        return `import { bootstrapDesignTool, configureDesignToolRuntime, detectFramework } from "@design-tool/inspector";\nimport { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, designToolProjectId } from "virtual:design-tokens";\nimport { componentContracts } from "virtual:design-tool-components";\nconfigureDesignToolRuntime({\n  projectId: designToolProjectId,\n  host: "vite-react",\n  framework: "React",\n  stylingSystem: detectFramework(tokens).stylingSystem,\n  tokenCatalog,\n  tokens,\n  tokenDiagnostics,\n  tokenGeneration,\n  componentContracts,\n});\nconst __dt_root = document.getElementById("design-tool-root");\nif (__dt_root) bootstrapDesignTool(__dt_root);\n`;
       }
       if (id === RESOLVED_COMPONENTS_ID) {
         if (command === "build") return "export const componentContracts = [];\nexport default componentContracts;\n";

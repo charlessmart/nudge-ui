@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { IconBorderSides } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
@@ -13,6 +12,7 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { setStyles } from "./styleActions.ts";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { anchorEditPlan, axisAnchor, axisSide, type Axis, type AxisAnchor, type AxisInsetValues } from "./positionAnchor.ts";
+import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
 
 const OFFSET_PRESETS = ["auto", "0", "50%", "100%"];
 const ANCHOR_OPTIONS: ReadonlyArray<Exclude<AxisAnchor, "none">> = ["start", "end", "stretch"];
@@ -33,7 +33,7 @@ export function PositionAnchorControls({
   revision = 0,
   onAfterEdit,
 }: PositionAnchorControlsProps): ReactElement {
-  const allEntries = entries ?? tokens;
+  const allEntries = entries ?? getDesignToolTokenEntries();
   const [expanded, setExpanded] = useState(false);
   const values = useInsetValues(el, revision);
   const horizontalAnchor = axisAnchor(values.horizontal);

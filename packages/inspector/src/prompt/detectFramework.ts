@@ -5,7 +5,7 @@ export interface DetectedFramework {
   stylingSystem: string;
 }
 
-export function detectFramework(tokens: TokenEntry[]): DetectedFramework {
+export function detectFramework(tokens: readonly TokenEntry[]): DetectedFramework {
   let stylingSystem = "CSS custom properties";
   for (const token of tokens) {
     const adapter = token.adapter;

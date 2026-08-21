@@ -1,5 +1,4 @@
-import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
-import { tokenCatalog, tokens } from "virtual:design-tokens";
+import type { TokenDefinition, TokenEntry } from "@design-tool/css/model";
 import { INTERACTION_STATES } from "../styleState.ts";
 import type { InteractionState } from "../styleState.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
@@ -32,14 +31,15 @@ import {
   type InterpretedValueField,
 } from "@design-tool/css/value-semantics";
 import { createInspectorValueContext, inspectorTokenOrigin } from "./valueSemanticsAdapter.ts";
+import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
 
 const MAX_PROPERTIES = 100;
 const VAR_REF = /var\(\s*(--[\w-]+)/g;
 const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
 
-const tokenTableMemo = new WeakMap<TokenEntry[], TokenTable>();
+const tokenTableMemo = new WeakMap<readonly TokenEntry[], TokenTable>();
 
-export function buildTokenTable(entries: TokenEntry[]): TokenTable {
+export function buildTokenTable(entries: readonly TokenEntry[]): TokenTable {
   const cached = tokenTableMemo.get(entries);
   if (cached) return cached;
   const table: TokenTable = {};
@@ -72,9 +72,10 @@ function canBecomeNumeric(value: string): boolean {
 }
 
 let tableCache: TokenTable | null = null;
-let tableSource: TokenEntry[] | null = null;
+let tableSource: readonly TokenEntry[] | null = null;
 
 export function getTokenTable(): TokenTable {
+  const { tokens } = getDesignToolRuntimeConfig();
   if (tableCache !== null && tableSource === tokens) return tableCache;
   tableCache = buildTokenTable(tokens);
   tableSource = tokens;
@@ -101,7 +102,7 @@ function entryFromDefinition(definition: TokenDefinition, value: string): TokenE
 interface TokenEntriesCacheEntry {
   elementRevision: number;
   stylesheetRevision: number;
-  definitions: TokenDefinition[];
+  definitions: readonly TokenDefinition[];
   entries: TokenEntry[];
 }
 
@@ -125,7 +126,7 @@ function registerWithAncestors(el: HTMLElement): void {
  */
 export function getAvailableTokenEntriesForElement(
   el: HTMLElement,
-  definitions: TokenDefinition[] = tokenCatalog,
+  definitions: readonly TokenDefinition[] = getDesignToolRuntimeConfig().tokenCatalog,
 ): TokenEntry[] {
   const revisions = getDocumentRevisions(el.ownerDocument ?? document);
   const cached = tokenEntriesCache.get(el);
@@ -166,7 +167,7 @@ export function getAvailableTokenEntriesForElement(
  * the browser from the stylesheets currently attached to this document.
  */
 function hydrateTokenCatalogFromCssom(
-  definitions: TokenDefinition[],
+  definitions: readonly TokenDefinition[],
   doc: Document = document,
 ): TokenDefinition[] {
   const needsHydration = (definition: TokenDefinition): boolean =>
@@ -245,7 +246,7 @@ function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
  */
 export function getAvailableTokenCatalog(
   root: HTMLElement = document.documentElement,
-  definitions: TokenDefinition[] = tokenCatalog,
+  definitions: readonly TokenDefinition[] = getDesignToolRuntimeConfig().tokenCatalog,
 ): TokenDefinition[] {
   const computed = getElementComputedStyle(root);
   const loadedSources = loadedStylesheetSources(root.ownerDocument ?? document);

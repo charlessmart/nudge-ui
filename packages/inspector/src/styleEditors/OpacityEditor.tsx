@@ -1,13 +1,13 @@
 import type { ReactElement } from "react";
 import { IconBackground } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { tokens } from "virtual:design-tokens";
 import { normalizeOpacityPercent } from "@design-tool/css/value-semantics";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import type { SelectedElement } from "../selectionStore.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { TokenField } from "../tokens/TokenField.tsx";
+import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
 
 function metadataFor(row: ResolvedProperty | null) {
   return row?.sourceProperty
@@ -31,7 +31,7 @@ export interface OpacityEditorProps {
 
 export function OpacityEditor({ element, entries, tokenRows = [], onAfterEdit }: OpacityEditorProps): ReactElement {
   const el = element.domElement;
-  const allEntries = entries ?? tokens;
+  const allEntries = entries ?? getDesignToolTokenEntries();
   const row = tokenRows.find((candidate) => candidate.property === "opacity") ?? null;
   const value = effectiveOpacity(el, row);
   const editable = row?.propertyOpacity?.editable ?? true;

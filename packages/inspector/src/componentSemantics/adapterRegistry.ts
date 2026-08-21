@@ -1,4 +1,3 @@
-import { componentContracts } from "virtual:design-tool-components";
 import { reactComponentRuntimeAdapter } from "./reactRuntime.tsx";
 import type {
   ComponentOverride,
@@ -6,8 +5,16 @@ import type {
   EditableComponentTarget,
   RuntimeComponentTarget,
 } from "./types.ts";
+import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
 
 const runtimeAdapters: ComponentRuntimeAdapter[] = [reactComponentRuntimeAdapter];
+
+function enabledRuntimeAdapters(): ComponentRuntimeAdapter[] {
+  const { framework } = getDesignToolRuntimeConfig();
+  return framework === "HTML"
+    ? runtimeAdapters.filter((adapter) => adapter.framework !== "react")
+    : runtimeAdapters;
+}
 
 /** Register a framework adapter without coupling semantic resolution to React. */
 export function registerComponentRuntimeAdapter(adapter: ComponentRuntimeAdapter): () => void {
@@ -19,7 +26,7 @@ export function registerComponentRuntimeAdapter(adapter: ComponentRuntimeAdapter
 }
 
 export function inspectComponentTargets(element: HTMLElement): RuntimeComponentTarget[] {
-  return runtimeAdapters.flatMap((adapter) => adapter.inspect(element).map((target) => ({
+  return enabledRuntimeAdapters().flatMap((adapter) => adapter.inspect(element).map((target) => ({
     ...target,
     mountedCount: target.mountedCount
       ?? adapter.getCallsiteMultiplicity?.(target.meta.callsiteId)
@@ -38,6 +45,7 @@ export function callsiteMultiplicity(target: RuntimeComponentTarget): number | n
 export function editableComponentTargets(
   targets: RuntimeComponentTarget[],
 ): EditableComponentTarget[] {
+  const { componentContracts } = getDesignToolRuntimeConfig();
   return targets.flatMap((target) => {
     const exact = componentContracts.filter((contract) =>
       contract.componentId === target.meta.componentId);
@@ -50,7 +58,7 @@ export function editableComponentTargets(
 }
 
 export function replaceComponentOverrideProjection(overrides: ComponentOverride[]): void {
-  for (const adapter of runtimeAdapters) {
+  for (const adapter of enabledRuntimeAdapters()) {
     adapter.replaceOverrides(overrides.filter((override) =>
       override.framework === adapter.framework));
   }

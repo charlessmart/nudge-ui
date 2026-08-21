@@ -1,0 +1,98 @@
+import type {
+  TokenCatalogDiagnostic,
+  TokenDefinition,
+  TokenEntry,
+} from "@design-tool/css/model";
+import type { ComponentContract } from "./componentSemantics/types.ts";
+
+/** The host Adapter that supplied the active inspector runtime. */
+export type DesignToolRuntimeHost = "vite-react" | "static-html";
+
+/** The framework semantics enabled for the active inspector runtime. */
+export type DesignToolRuntimeFramework = "React" | "HTML";
+
+/**
+ * Browser knowledge supplied by a host Adapter before the inspector mounts.
+ *
+ * A host replaces the complete configuration when its document is replaced or
+ * its development transport is refreshed. Shared inspector Modules read the
+ * current snapshot through `getDesignToolRuntimeConfig()` and never import a
+ * host-specific transport directly.
+ */
+export interface DesignToolRuntimeConfig {
+  readonly projectId: string;
+  readonly host: DesignToolRuntimeHost;
+  readonly framework: DesignToolRuntimeFramework;
+  readonly stylingSystem: string;
+  readonly tokenCatalog: readonly TokenDefinition[];
+  readonly tokens: readonly TokenEntry[];
+  readonly tokenDiagnostics: readonly TokenCatalogDiagnostic[];
+  readonly tokenGeneration: string;
+  readonly componentContracts: readonly ComponentContract[];
+}
+
+const DEFAULT_RUNTIME_CONFIG: DesignToolRuntimeConfig = Object.freeze({
+  projectId: "/stub/project",
+  host: "vite-react",
+  framework: "React",
+  stylingSystem: "CSS custom properties",
+  tokenCatalog: [],
+  tokens: [],
+  tokenDiagnostics: [],
+  tokenGeneration: "",
+  componentContracts: [],
+});
+
+let activeRuntimeConfig: DesignToolRuntimeConfig = DEFAULT_RUNTIME_CONFIG;
+const runtimeListeners = new Set<() => void>();
+
+function snapshotConfig(config: DesignToolRuntimeConfig): DesignToolRuntimeConfig {
+  return Object.freeze({
+    ...config,
+    tokenCatalog: Object.freeze([...config.tokenCatalog]),
+    tokens: Object.freeze([...config.tokens]),
+    tokenDiagnostics: Object.freeze([...config.tokenDiagnostics]),
+    componentContracts: Object.freeze([...config.componentContracts]),
+  });
+}
+
+/**
+ * Replaces the complete runtime configuration for the active document.
+ *
+ * Replacement is atomic from the inspector's perspective. The returned
+ * snapshot owns new array containers, so a host can safely replace its virtual
+ * module values during HMR without leaving shared Modules bound to an old
+ * transport object.
+ */
+export function configureDesignToolRuntime(config: DesignToolRuntimeConfig): void {
+  activeRuntimeConfig = snapshotConfig(config);
+  for (const listener of runtimeListeners) {
+    try {
+      listener();
+    } catch {
+      // A runtime listener must not prevent the host from replacing config.
+    }
+  }
+}
+
+/** Returns the immutable runtime snapshot used by shared inspector Modules. */
+export function getDesignToolRuntimeConfig(): DesignToolRuntimeConfig {
+  return activeRuntimeConfig;
+}
+
+/**
+ * Subscribes to complete runtime replacements, such as Vite HMR updates.
+ * Listeners run after the new snapshot is installed.
+ */
+export function subscribeDesignToolRuntime(listener: () => void): () => void {
+  runtimeListeners.add(listener);
+  return () => runtimeListeners.delete(listener);
+}
+
+/** Returns a mutable container for UI controls that require array props. */
+export function getDesignToolTokenEntries(): TokenEntry[] {
+  return [...activeRuntimeConfig.tokens];
+}
+
+export type { TokenCatalogDiagnostic, TokenDefinition, TokenEntry } from "@design-tool/css/model";
+export type { ComponentContract } from "./componentSemantics/types.ts";

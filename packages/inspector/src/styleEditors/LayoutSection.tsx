@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { IconAdjustmentsHorizontal, IconArrowsMaximize, IconArrowsMinimize, IconCheck, IconLetterH, IconLetterW, IconSettings, IconSpacingHorizontal, IconSpacingVertical, IconTextWrap } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { tokens } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
@@ -23,6 +22,7 @@ import { formatInspectorLabel } from "../ui/labels.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
+import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
 
 const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
@@ -52,7 +52,7 @@ export interface LayoutSectionProps {
 export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
-  const allEntries = entries ?? tokens;
+  const allEntries = entries ?? getDesignToolTokenEntries();
 
   const [isFlexContainer, setIsFlexContainer] = useState(false);
   const [isFlexChild, setIsFlexChild] = useState(false);

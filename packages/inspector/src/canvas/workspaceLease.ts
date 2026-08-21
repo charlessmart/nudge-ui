@@ -1,4 +1,4 @@
-import { designToolProjectId } from "virtual:design-tokens";
+import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
 
 export interface WorkspaceLease {
   ownerId: string;
@@ -12,7 +12,7 @@ const HEARTBEAT_INTERVAL_MS = 5000;
 const LEASE_EXPIRY_MS = 15000;
 
 function leaseKey(): string {
-  return `${LEASE_KEY_PREFIX}${designToolProjectId}:lease`;
+  return `${LEASE_KEY_PREFIX}${getDesignToolRuntimeConfig().projectId}:lease`;
 }
 
 function generateOwnerId(): string {
@@ -121,7 +121,7 @@ function loseOwnership(): void {
 function createLease(): WorkspaceLease {
   return {
     ownerId: currentOwnerId!,
-    projectId: designToolProjectId,
+    projectId: getDesignToolRuntimeConfig().projectId,
     acquiredAt: Date.now(),
     lastHeartbeat: Date.now(),
   };

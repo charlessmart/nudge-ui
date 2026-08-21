@@ -6,6 +6,10 @@ import {
   getBrowserCssInspection,
 } from "./browserCssInspectionRegistry.ts";
 import { setDesignTokensStub } from "../__stubs__/design-tokens.ts";
+import {
+  configureDesignToolRuntime,
+  getDesignToolRuntimeConfig,
+} from "../runtimeConfig.ts";
 
 afterEach(() => {
   setDesignTokensStub([], "");
@@ -71,5 +75,26 @@ describe("browser CSS inspection registry", () => {
     expect(next).not.toBe(first);
     expect(getBrowserCssInspection(document)).toBe(next);
     expect(first.inspect(document.createElement("div")).target.status).toBe("disposed");
+  });
+
+  it("refreshes a live document session when the host replaces token generation", () => {
+    const current = getDesignToolRuntimeConfig();
+    configureDesignToolRuntime({
+      ...current,
+      tokenCatalog: [],
+      tokenGeneration: "g-live-1",
+    });
+    const first = getBrowserCssInspection(document);
+
+    configureDesignToolRuntime({
+      ...current,
+      tokenCatalog: [],
+      tokenGeneration: "g-live-2",
+    });
+    const next = getBrowserCssInspection(document);
+
+    expect(next).not.toBe(first);
+    expect(first.inspect(document.createElement("div")).target.status).toBe("disposed");
+    expect(next.inspect(document.createElement("div")).revision.tokenGeneration).toMatch(/^g-live-2(?::\d+)?$/);
   });
 });

@@ -1,4 +1,3 @@
-import { designToolProjectId } from "virtual:design-tokens";
 import type { ChangeRecord } from "../changesLog.ts";
 import {
   getChangesList,
@@ -47,6 +46,7 @@ import {
 } from "../structuralProjection.ts";
 import { projectToAllReadyCards } from "./projection.ts";
 import type { TextProjectionTarget } from "../textChangeBoundary.ts";
+import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
 
 const SCHEMA_VERSION = 8;
 // v3 is the released durable-session schema. v4 was a prerelease schema, v5
@@ -55,6 +55,10 @@ const SCHEMA_VERSION = 8;
 // and bounded semantic evidence.
 const LEGACY_SCHEMA_VERSIONS = [3, 4, 5, 6, 7] as const;
 const STORAGE_PREFIX = "design-tool";
+
+function projectId(): string {
+  return getDesignToolRuntimeConfig().projectId;
+}
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -663,7 +667,7 @@ function buildSession(): DurableSession {
 
   return {
     schemaVersion: SCHEMA_VERSION,
-    projectId: designToolProjectId,
+    projectId: projectId(),
     mode,
     inspectUrl: window.location.href,
     cards: cards.map((c) => ({
@@ -695,10 +699,10 @@ export function persistSession(): boolean {
  * persistence path checks the lease before calling this helper.
  */
 function persistSessionUnchecked(): boolean {
-  if (!designToolProjectId) return false;
+  if (!projectId()) return false;
   try {
     const session = buildSession();
-    localStorage.setItem(storageKey(designToolProjectId), JSON.stringify(session));
+    localStorage.setItem(storageKey(projectId()), JSON.stringify(session));
     return true;
   } catch {
     // Storage unavailable or quota exceeded — silently ignore
@@ -707,15 +711,15 @@ function persistSessionUnchecked(): boolean {
 }
 
 export function hydrateSession(): HydrationResult {
-  if (!designToolProjectId) return { restored: false, changeCount: 0 };
+  if (!projectId()) return { restored: false, changeCount: 0 };
 
   let raw: string | null = null;
   let schemaVersion = SCHEMA_VERSION;
   try {
-    raw = localStorage.getItem(storageKey(designToolProjectId));
+    raw = localStorage.getItem(storageKey(projectId()));
     if (!raw) {
       for (const legacyVersion of LEGACY_SCHEMA_VERSIONS) {
-        raw = localStorage.getItem(storageKeyForVersion(designToolProjectId, legacyVersion));
+        raw = localStorage.getItem(storageKeyForVersion(projectId(), legacyVersion));
         if (raw) {
           schemaVersion = legacyVersion;
           break;
@@ -748,7 +752,7 @@ export function hydrateSession(): HydrationResult {
     return { restored: false, changeCount: 0 };
   }
 
-  if (typeof s.projectId !== "string" || s.projectId !== designToolProjectId) {
+  if (typeof s.projectId !== "string" || s.projectId !== projectId()) {
     safeDiscard(schemaVersion);
     return { restored: false, changeCount: 0 };
   }
@@ -882,7 +886,7 @@ export function hydrateSession(): HydrationResult {
 
 function safeDiscard(schemaVersion = SCHEMA_VERSION): void {
   try {
-    localStorage.removeItem(storageKeyForVersion(designToolProjectId, schemaVersion));
+    localStorage.removeItem(storageKeyForVersion(projectId(), schemaVersion));
   } catch {
     // ignore
   }
@@ -891,9 +895,9 @@ function safeDiscard(schemaVersion = SCHEMA_VERSION): void {
 export function clearSession(): void {
   if (!canWriteWorkspace()) return;
   try {
-    localStorage.removeItem(storageKey(designToolProjectId));
+    localStorage.removeItem(storageKey(projectId()));
     for (const legacyVersion of LEGACY_SCHEMA_VERSIONS) {
-      localStorage.removeItem(storageKeyForVersion(designToolProjectId, legacyVersion));
+      localStorage.removeItem(storageKeyForVersion(projectId(), legacyVersion));
     }
   } catch {
     // ignore

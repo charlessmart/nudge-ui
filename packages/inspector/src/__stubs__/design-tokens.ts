@@ -7,6 +7,10 @@ import type {
   TokenDefinition,
   TokenEntry,
 } from "@design-tool/css/model";
+import {
+  configureDesignToolRuntime,
+  getDesignToolRuntimeConfig,
+} from "../runtimeConfig.ts";
 
 export type {
   TokenCatalogDiagnostic,
@@ -22,7 +26,7 @@ export const tokens: TokenEntry[] = [];
 export let tokenCatalog: TokenDefinition[] = [];
 export const tokenDiagnostics: TokenCatalogDiagnostic[] = [];
 export let tokenGeneration = "";
-export const designToolProjectId = "/stub/project";
+export const designToolProjectId = getDesignToolRuntimeConfig().projectId;
 
 /** Test-only live-binding update that mirrors Vite replacing the virtual module. */
 export function setDesignTokensStub(
@@ -31,6 +35,12 @@ export function setDesignTokensStub(
 ): void {
   tokenCatalog = catalog;
   tokenGeneration = generation;
+  const current = getDesignToolRuntimeConfig();
+  configureDesignToolRuntime({
+    ...current,
+    tokenCatalog: catalog,
+    tokenGeneration: generation,
+  });
 }
 
 export default tokens;

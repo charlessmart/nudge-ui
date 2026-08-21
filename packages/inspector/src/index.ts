@@ -189,6 +189,7 @@ export function unmountInspector(): void {
 
 export { toggleInspector, setInspectorOpen } from "./InspectorShell.tsx";
 export { InspectorShell } from "./InspectorShell.tsx";
+export { detectFramework } from "./prompt/detectFramework.ts";
 export { FloatingToolbar } from "./FloatingToolbar.tsx";
 export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
 export { DESIGN_TOOL_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection.ts";
@@ -221,6 +222,16 @@ export type {
 export { projectInspectorValues, projectionSides } from "./spacing/projection.ts";
 export type { InspectorAxisProjection, InspectorFieldProjection, InspectorProjection, InspectorSpacingProjection, ProjectionAxis, ProjectionGroup, ProjectionSide, ProjectionState } from "./spacing/projection.ts";
 export { createBrowserCssInspection } from "./inspection/browserCssInspection.ts";
+export {
+  configureDesignToolRuntime,
+  getDesignToolRuntimeConfig,
+  subscribeDesignToolRuntime,
+} from "./runtimeConfig.ts";
+export type {
+  DesignToolRuntimeConfig,
+  DesignToolRuntimeFramework,
+  DesignToolRuntimeHost,
+} from "./runtimeConfig.ts";
 export type {
   BrowserCssInspection,
   BrowserCssInspectionConfig,

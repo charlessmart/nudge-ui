@@ -9,13 +9,13 @@ import {
 } from "@tabler/icons-react";
 import { ToggleButton } from "../ui/ToggleButton.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
-import { tokens } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@design-tool/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
 import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
+import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 
@@ -76,7 +76,7 @@ export interface BorderRadiusEditorProps {
 export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement {
   const { element, entries, tokenRows = [], onAfterEdit, embedded = false } = props;
   const el = element.domElement;
-  const allEntries = entries ?? tokens;
+  const allEntries = entries ?? getDesignToolTokenEntries();
   const dataLinked = cornersAreLinked(tokenRows);
 
   const [userUnlinked, setUserUnlinked] = useState(false);

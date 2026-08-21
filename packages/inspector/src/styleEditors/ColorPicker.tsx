@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { IconMinus, IconPlus } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { tokens } from "virtual:design-tokens";
 import { getStateStyleValue } from "../stateValue.ts";
 import type { SelectedElement } from "../selectionStore.ts";
 import type { ResolvedProperty } from "@design-tool/css/model";
@@ -11,6 +10,7 @@ import { formatInspectorLabel } from "../ui/labels.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { setStyle } from "./styleActions.ts";
+import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
 
 export interface ColorPickerProps {
   element: SelectedElement;
@@ -46,7 +46,7 @@ export function isEmptyColorValue(value: string): boolean {
 export function ColorPicker(props: ColorPickerProps): ReactElement {
   const { element, property = "color", entries, tokenRow, onAfterEdit } = props;
   const el = element.domElement;
-  const allEntries = entries ?? tokens;
+  const allEntries = entries ?? getDesignToolTokenEntries();
   const declaredValue = tokenRow?.declaredValue?.trim() ?? "";
   const paintedValue = getStateStyleValue(el, property);
   const resolvedValue = tokenRow?.resolvedValue ?? paintedValue;
