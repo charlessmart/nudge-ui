@@ -16,6 +16,11 @@ await build({
   format: "esm",
   platform: "node",
   target: "node20",
+  // Some CSS inventory dependencies are CommonJS. Provide Node's native
+  // require inside the ESM bundle so their lazy built-in imports remain valid.
+  banner: {
+    js: 'import { createRequire as __designToolCreateRequire } from "node:module"; const require = __designToolCreateRequire(import.meta.url);',
+  },
   sourcemap: false,
   logLevel: "silent",
 });

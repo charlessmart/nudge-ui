@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -240,6 +240,22 @@ describe("standalone client build", () => {
     expect(bundle).toContain("react.development.js");
     expect(bundle).toContain("configureDesignToolRuntime");
     expect(bundle).toContain("bootstrapDesignTool");
+  });
+
+  it("emits an executable Node CLI bundle", () => {
+    const packageRoot = fileURLToPath(new URL("..", import.meta.url));
+    const script = join(packageRoot, "scripts/build.mjs");
+    execFileSync(process.execPath, [script], { cwd: packageRoot, stdio: "pipe" });
+
+    const result = spawnSync(
+      process.execPath,
+      [join(packageRoot, "dist/design-tool.mjs"), "unknown"],
+      { cwd: packageRoot, encoding: "utf8" },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Usage: design-tool serve");
+    expect(result.stderr).not.toContain("Dynamic require");
   });
 });
 

@@ -1,0 +1,61 @@
+:root {
+  --color-accent: #2f6fed;
+  --color-accent-alt: #d9486e;
+  --color-surface: #ffffff;
+  --color-surface-alt: #eef3ff;
+  --space-md: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #f7f8fb;
+  color: #202638;
+  font-family: system-ui, sans-serif;
+}
+
+.prototype-shell {
+  width: min(42rem, calc(100% - 3rem));
+  margin: 4rem auto;
+  padding: 2rem;
+  background: var(--color-surface);
+  border: 1px solid #d9deea;
+  border-radius: 16px;
+}
+
+.eyebrow {
+  color: var(--color-accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.action-button {
+  color: var(--color-accent);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-accent);
+  border-radius: 8px;
+  padding: var(--space-md);
+  font: inherit;
+  cursor: pointer;
+}
+
+#rendered-copy {
+  margin-top: 2rem;
+  color: #59637a;
+}
+
+#runtime-host {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #d9deea;
+}
+
+.runtime-action {
+  margin-top: 1rem;
+}
