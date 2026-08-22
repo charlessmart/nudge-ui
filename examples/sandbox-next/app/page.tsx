@@ -1,6 +1,5 @@
-import { ClientBadge } from "./ClientBadge";
+import { ActionsBar } from "./ActionsBar";
 import { HeroCard } from "./HeroCard";
-import { NavToSecond } from "./NavToSecond";
 import "./sandbox.css";
 
 export default function Home() {
@@ -11,10 +10,7 @@ export default function Home() {
         title="Tracer bullet"
         body="Identity attributes arrive through the loader; previews project into the managed stylesheet."
       />
-      <section className="actions">
-        <ClientBadge label="client island" tone="accent" />
-        <NavToSecond />
-      </section>
+      <ActionsBar />
     </main>
   );
 }

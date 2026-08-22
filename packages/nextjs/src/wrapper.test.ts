@@ -65,7 +65,16 @@ describe("withDesignTool — development output shape", () => {
         /loader-plugin\.cts$/,
       );
       expect(rule!.condition).toEqual({
-        all: [{ not: "foreign" }, { not: { path: "(**/)?\\.next/**" } }],
+        all: [
+          { not: "foreign" },
+          { not: { path: "(**/)?\\.next/**" } },
+          {
+            not: {
+              path:
+                "[\\/]packages[\\/](inspector|nextjs|plugin|css|standalone|compatibility|package-css-fixture)[\\/]",
+            },
+          },
+        ],
       });
     }
   });
@@ -199,7 +208,8 @@ describe("manifest builder", () => {
   it("ships the tracer-bullet capability set with empty knowledge fields", () => {
     const manifest = buildManifest({ root: "/x" });
 
-    expect(manifest.capabilities).toEqual({ canvas: false, componentSemantics: false });
+    // Stage 5 enables semantic component props for client components.
+    expect(manifest.capabilities).toEqual({ canvas: false, componentSemantics: true });
     expect(manifest.tokenCatalog).toEqual([]);
     expect(manifest.componentContracts).toEqual([]);
     expect(manifest.framework).toBe("React");

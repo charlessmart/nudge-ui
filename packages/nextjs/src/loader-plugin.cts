@@ -42,6 +42,39 @@ const { transformNextModuleSource } = require("./loader.ts") as {
     options?: { root?: string; pagesDir?: string },
   ) => { code: string } | null;
 };
+const { extractComponentContracts } = require("@design-tool/plugin/component-contracts") as {
+  extractComponentContracts: (source: string, file: string) => unknown[];
+};
+
+const nodePath = require("node:path");
+const nodeFs = require("node:fs");
+
+/**
+ * Publishes one file's component contracts to the sidecar's aggregation
+ * endpoint (Stage 5). Fire-and-forget: contract transport must never break
+ * compilation. The sidecar port comes from the state file the sidecar writes
+ * under `<root>/.next`; a missing or stale record simply skips publishing.
+ */
+function postContracts(root: string, relativeFile: string, source: string): void {
+  const contracts = extractComponentContracts(source, relativeFile);
+  if (!contracts || contracts.length === 0) return;
+  let port = 0;
+  try {
+    const raw = JSON.parse(
+      nodeFs.readFileSync(nodePath.join(root, ".next", "design-tool-sidecar.json"), "utf8"),
+    ) as { port?: number };
+    port = typeof raw.port === "number" ? raw.port : 0;
+  } catch {
+    return;
+  }
+  if (!port) return;
+  const body = JSON.stringify({ file: relativeFile, contracts });
+  void fetch(`http://127.0.0.1:${port}/__design_tool__/contracts`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+  }).catch(() => {});
+}
 
 function readOptions(context: DesignToolLoaderContext): LoaderOptions {
   if (typeof context.getOptions === "function") {
@@ -60,8 +93,27 @@ function designToolLoader(
 ): string | undefined {
   const options = readOptions(this);
   const moduleId = this.resourcePath ?? "";
+  const root = options.root ?? this.rootContext;
+
+  // Contracts are extracted from the AUTHORED source so line/column
+  // provenance matches what prompts will name.
+  if (root && moduleId) {
+    const normalized = moduleId.split("\\").join("/");
+    const rootPrefix = root.endsWith("/") ? root : `${root}/`;
+    // Confined to first-party sources exactly like identity injection:
+    // workspace tooling components must never enter the contract catalog.
+    if (normalized.startsWith(rootPrefix)) {
+      const relativeFile = normalized.slice(rootPrefix.length);
+      try {
+        postContracts(root, relativeFile, source);
+      } catch {
+        /* never break compilation for knowledge transport */
+      }
+    }
+  }
+
   const result = transformNextModuleSource(source, moduleId, {
-    root: options.root ?? this.rootContext,
+    root,
     pagesDir: options.pagesDir,
   });
 

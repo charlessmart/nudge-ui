@@ -50,7 +50,7 @@ export function buildManifest(input: DesignToolManifestInput): DesignToolManifes
     host: "nextjs-react",
     framework: "React",
     stylingSystem: "CSS custom properties",
-    capabilities: { canvas: false, componentSemantics: false },
+    capabilities: { canvas: false, componentSemantics: true },
     tokenCatalog: [],
     tokens: [],
     tokenDiagnostics: [],

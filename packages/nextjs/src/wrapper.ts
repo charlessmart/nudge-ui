@@ -164,7 +164,19 @@ export function withDesignTool<T extends object>(config: T = {} as T): T {
       // `not: foreign` confines the loader to first-party sources. The path
       // guard additionally keeps build output (.next) out of scope.
       condition: {
-        all: [{ not: "foreign" }, { not: { path: "(**/)?\\.next/**" } }],
+        all: [
+          { not: "foreign" },
+          { not: { path: "(**/)?\\.next/**" } },
+          // Workspace symlinks are NOT foreign (they are source-backed), so
+          // the Design Tool packages themselves must be excluded explicitly:
+          // instrumenting the inspector's own UI would wrap every control in
+          // override boundaries and pollute the panel with identity attrs.
+          {
+            not: {
+              path: "[\\/]packages[\\/](inspector|nextjs|plugin|css|standalone|compatibility|package-css-fixture)[\\/]",
+            },
+          },
+        ],
       },
     };
     turbopackRules["*.tsx"] = { ...identityRule };

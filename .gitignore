@@ -11,6 +11,9 @@ build/
 # Vite
 .vite/
 
+# Next.js
+.next/
+
 # Environment
 .env
 .env.local

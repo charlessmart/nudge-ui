@@ -29,6 +29,13 @@ async function inspectorReady(page: Page): Promise<void> {
     .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
     .toBe(true);
   await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
+  // The bootstrap must have installed the runtime (bridge) before any
+  // interaction, and the app's hydration must have attached fibers — both
+  // race the mount on a cold dev server.
+  await expect
+    .poll(() => page.evaluate(() => Boolean((window as unknown as { __designTool?: unknown }).__designTool)))
+    .toBe(true);
+  await page.waitForTimeout(1500);
 }
 
 test("dev: loader injects identity into server and client components", async ({ page }) => {
@@ -104,23 +111,37 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
     "HeroCard",
   );
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
+  // Let the editor surface finish binding its control handlers.
+  await page.waitForTimeout(1200);
 
-  // Edit the color raw value.
-  await page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
-    const input = root?.querySelector(
-      '[data-test="token-field"][data-property="color"] [data-test="raw-input"]',
-    ) as HTMLInputElement | null;
-    if (!input) throw new Error("Missing color raw input");
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    input.focus();
-    setter.call(input, "rgb(255, 0, 0)");
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    input.blur();
+  // Edit the width raw value (Layout section is expanded by default and the
+  // field is a plain text input; color renders a token chip now that tokens
+  // are catalogued). The editors mount asynchronously after selection, so
+  // wait for the field rather than querying immediately, with one re-select
+  // retry for cold-start compilation.
+  const widthInput = page.locator(
+    '[data-test="token-field"][data-property="width"] [data-test="raw-input"]',
+  );
+  await widthInput.waitFor({ state: "visible", timeout: 15_000 }).catch(async () => {
+    await page.locator(".hero-card h2").evaluate((el) => {
+      if (el instanceof HTMLElement) el.click();
+    });
+    await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
+      "data-selected-cid",
+      "HeroCard",
+    );
+    await widthInput.waitFor({ state: "visible", timeout: 15_000 });
   });
+  await widthInput.evaluate((el, value) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    el.focus();
+    setter.call(el, value);
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    el.blur();
+  }, "240px");
 
-  await expect.poll(() => managedSheetText(page)).toContain("rgb(255, 0, 0)");
-  await expect(target).toHaveCSS("color", "rgb(255, 0, 0)");
+  await expect.poll(() => managedSheetText(page)).toContain("240px");
+  await expect(target).toHaveCSS("width", "240px");
 
   // The durable session must survive leaving the route and reapply to the
   // remounted element on return. Leave via a real navigation, come back
@@ -130,7 +151,7 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
   await page.goto("/second");
   await expect(page.locator("#page-title")).toContainText("Second route");
   // The edited element lives only on "/", so nothing projects here.
-  await expect.poll(() => managedSheetText(page)).not.toContain("rgb(255, 0, 0)");
+  await expect.poll(() => managedSheetText(page)).not.toContain("240px");
 
   await page.goBack({ waitUntil: "domcontentloaded" });
 
@@ -150,8 +171,8 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
   await expect(page.locator(".hero-card")).toBeVisible();
   await expect
     .poll(() => managedSheetText(page), { timeout: 15_000 })
-    .toContain("rgb(255, 0, 0)");
-  await expect(page.locator(".hero-card h2")).toHaveCSS("color", "rgb(255, 0, 0)");
+    .toContain("240px");
+  await expect(page.locator(".hero-card h2")).toHaveCSS("width", "240px");
 });
 
 // Skipped pending issue 0060: React 19-canary click delegation inside the
@@ -175,7 +196,7 @@ test.skip("dev: prompt copy names the source location and selector fallback", as
   await page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;
     const input = root?.querySelector(
-      '[data-test="token-field"][data-property="color"] [data-test="raw-input"]',
+      '[data-test="token-field"][data-property="opacity"] [data-test="raw-input"]',
     ) as HTMLInputElement | null;
     if (!input) throw new Error("Missing color raw input");
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;

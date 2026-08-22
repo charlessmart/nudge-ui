@@ -113,6 +113,22 @@ export async function ensureSidecar(
     // the snapshot without rebuilding the rest of the manifest.
     let tokens: DesignToolTokenSnapshot | null = null;
 
+    // Component contracts aggregate across loader postings, keyed by file so
+    // recompiles replace rather than duplicate (Stage 5). A debounced flush
+    // publishes one revision per settled burst of compilations.
+    const contractsByFile = new Map<string, unknown[]>();
+    let contractsTimer: NodeJS.Timeout | null = null;
+    const flushContracts = (): void => {
+      contractsTimer = null;
+      const flat: unknown[] = [];
+      for (const list of contractsByFile.values()) flat.push(...list);
+      manifest.componentContracts = flat;
+      generation += 1;
+      for (const stream of streams) {
+        stream.write(`data: ${JSON.stringify({ revision: generation })}\n\n`);
+      }
+    };
+
     const manifest: DesignToolManifest = options.manifest ?? buildManifest({ root });
 
     const applySnapshot = (snapshot: DesignToolTokenSnapshot): void => {
@@ -128,8 +144,13 @@ export async function ensureSidecar(
       );
     };
 
+    const receiveContracts = (file: string, contracts: unknown[]): void => {
+      contractsByFile.set(file, contracts);
+      if (!contractsTimer) contractsTimer = setTimeout(flushContracts, 120);
+    };
+
     const server: Server = createServer((req, res) => {
-      respond(req, res, () => manifest, () => generation, streams);
+      respond(req, res, () => manifest, () => generation, streams, receiveContracts);
     });
 
     const port = await new Promise<number>((resolvePort, rejectPort) => {
@@ -223,8 +244,33 @@ function respond(
   currentManifest: () => DesignToolManifest,
   currentGeneration: () => number,
   streams: Set<ServerResponse>,
+  receiveContracts: (file: string, contracts: unknown[]) => void,
 ): void {
   const url = (req.url ?? "").split("?")[0];
+
+  // Loader postings aggregate component contracts (Stage 5). Loopback-only by
+  // virtue of the bind address; payload size is capped defensively.
+  if (url === "/__design_tool__/contracts" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 5 * 1024 * 1024) req.destroy();
+    });
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(body) as { file?: string; contracts?: unknown[] };
+        if (typeof parsed.file !== "string" || !Array.isArray(parsed.contracts)) {
+          res.writeHead(400).end();
+          return;
+        }
+        receiveContracts(parsed.file, parsed.contracts);
+        res.writeHead(204).end();
+      } catch {
+        res.writeHead(400).end();
+      }
+    });
+    return;
+  }
 
   if (req.method !== "GET") {
     res.writeHead(405).end();

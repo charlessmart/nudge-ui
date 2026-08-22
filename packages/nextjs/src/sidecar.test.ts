@@ -134,6 +134,46 @@ async function settle(ms = 900): Promise<void> {
   await new Promise((r) => setTimeout(r, ms));
 }
 
+describe("sidecar contract aggregation (Stage 5)", () => {
+  it("aggregates loader postings into componentContracts with a revision bump", async () => {
+    const root = mkdtempSync(join(tmpdir(), "dt-contracts-"));
+    roots.push(root);
+    const handle = await ensureSidecar(root);
+    handles.push(handle);
+
+    const before = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const emptyBefore = ((await before.json()) as { componentContracts: unknown[] }).componentContracts;
+    expect(emptyBefore).toEqual([]);
+
+    const post = (file: string, contracts: unknown[]) =>
+      fetch(`http://127.0.0.1:${handle.port}/__design_tool__/contracts`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ file, contracts }),
+      });
+
+    expect((await post("app/ClientBadge.tsx", [{ componentId: "app/ClientBadge#ClientBadge", name: "ClientBadge", props: [] }])).status).toBe(204);
+    // Same file reposts REPLACE rather than duplicate.
+    expect((await post("app/ClientBadge.tsx", [{ componentId: "app/ClientBadge#ClientBadge", name: "ClientBadge", props: [{ name: "tone", control: "select", options: ["accent", "quiet"], optional: true }] }])).status).toBe(204);
+    expect((await post("app/HeroCard.tsx", [{ componentId: "app/HeroCard#HeroCard", name: "HeroCard", props: [] }])).status).toBe(204);
+
+    await settle(400);
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string }> };
+    const ids = manifest.componentContracts.map((c) => c.componentId);
+    expect(ids).toContain("app/ClientBadge#ClientBadge");
+    expect(ids).toContain("app/HeroCard#HeroCard");
+    expect(ids.filter((id) => id === "app/ClientBadge#ClientBadge")).toHaveLength(1);
+
+    // Malformed payloads are rejected without poisoning aggregation.
+    const bad = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/contracts`, {
+      method: "POST",
+      body: "not-json",
+    });
+    expect(bad.status).toBe(400);
+  });
+});
+
 describe("sidecar token lifecycle (Stage 4)", () => {
   it("serves scanned custom properties with project-relative provenance", async () => {
     const root = mkdtempSync(join(tmpdir(), "dt-tokens-"));
