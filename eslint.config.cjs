@@ -3,7 +3,13 @@ const globals = require("globals");
 
 module.exports = [
   {
-    ignores: ["**/dist/**", "**/node_modules/**", "**/test-results/**"],
+    ignores: [
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/test-results/**",
+      "**/.next/**",
+      "**/.turbo/**",
+    ],
   },
   {
     files: ["**/*.ts", "**/*.tsx"],

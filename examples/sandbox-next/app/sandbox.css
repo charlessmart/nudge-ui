@@ -1,0 +1,44 @@
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--dt-space);
+}
+
+.hero-card {
+  border: 1px solid color-mix(in srgb, var(--dt-ink) 15%, transparent);
+  border-radius: var(--dt-radius);
+  padding: var(--dt-space);
+  background: white;
+}
+
+.hero-card h2 {
+  margin-top: 0;
+  color: var(--dt-accent);
+}
+
+.actions {
+  display: flex;
+  gap: var(--dt-space);
+  align-items: center;
+  margin-top: var(--dt-space);
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.badge-accent {
+  background: var(--dt-accent);
+  color: white;
+}
+
+.badge-quiet {
+  background: #e2e8f0;
+  color: var(--dt-ink);
+}
+
+.nav-link {
+  color: var(--dt-accent);
+}

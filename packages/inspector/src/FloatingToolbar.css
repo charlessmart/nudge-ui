@@ -18,7 +18,7 @@
 .dt-floating-toolbar__tools {
   display: flex;
   align-items: center;
-  padding-right: var(--dt-spa ce-8);
+  padding-right: var(--dt-space-8);
   border-right: 1px solid var(--dt-border-subtle);
 }
 

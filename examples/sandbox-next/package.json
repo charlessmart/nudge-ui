@@ -1,0 +1,31 @@
+{
+  "name": "sandbox-next",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "echo 'compatibility assertions run in Playwright'",
+    "playwright": "playwright test",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@design-tool/css": "workspace:*",
+    "@design-tool/inspector": "workspace:*",
+    "@design-tool/nextjs": "workspace:*",
+    "@design-tool/plugin": "workspace:*",
+    "next": "~16.3.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.6.0"
+  }
+}

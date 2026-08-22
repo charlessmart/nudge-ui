@@ -76,6 +76,46 @@ importers:
         specifier: ^5.4.0
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.32.0)
 
+  examples/sandbox-next:
+    dependencies:
+      '@design-tool/css':
+        specifier: workspace:*
+        version: link:../../packages/css
+      '@design-tool/inspector':
+        specifier: workspace:*
+        version: link:../../packages/inspector
+      '@design-tool/nextjs':
+        specifier: workspace:*
+        version: link:../../packages/nextjs
+      '@design-tool/plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugin
+      next:
+        specifier: ~16.3.2
+        version: 16.3.2(@playwright/test@1.61.1)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.8(react@19.2.8)
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.48.0
+        version: 1.61.1
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.1
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.4(@types/react@19.2.18)
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   examples/sandbox-sprinkles:
     dependencies:
       '@design-tool/inspector':
@@ -353,6 +393,12 @@ importers:
       '@babel/parser':
         specifier: ^7.25.0
         version: 7.29.7
+      '@design-tool/css':
+        specifier: workspace:*
+        version: link:../css
+      '@design-tool/inspector':
+        specifier: workspace:*
+        version: link:../inspector
       '@design-tool/plugin':
         specifier: workspace:*
         version: link:../plugin
@@ -362,10 +408,22 @@ importers:
       next:
         specifier: '>=15.3 <17'
         version: 16.3.2(@playwright/test@1.61.1)(@types/node@22.20.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react:
+        specifier: ^18.0.0 || ^19.0.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.0.0 || ^19.0.0
+        version: 18.3.1(react@18.3.1)
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
+      '@types/react':
+        specifier: ^18.3.0
+        version: 18.3.31
+      '@types/react-dom':
+        specifier: ^18.3.0
+        version: 18.3.7(@types/react@18.3.31)
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -2415,8 +2473,16 @@ packages:
     peerDependencies:
       '@types/react': ^18.0.0
 
+  '@types/react-dom@19.2.4':
+    resolution: {integrity: sha512-Bsc+QHgp+P/F02XDzNCY9jnZNCUuLki36KT7VKrTXXLdHf+vHMNZnW1rVu5DNW/rCK+fya3DATySbLM4yhtKUw==}
+    peerDependencies:
+      '@types/react': ^19.2.0
+
   '@types/react@18.3.31':
     resolution: {integrity: sha512-vfEqpXTvwT91yhmwdfouStN2hSKwTvyRs8qpLfADyrq/kxDw0hZM7Wk9Ug1FELj8hIby+S/+kQCSRFF32nv2Qw==}
+
+  '@types/react@19.2.18':
+    resolution: {integrity: sha512-AnzbBERsrLKtk2XSfTbYRLjQPdy116Sty4q+T+Bp3IC4l6jNBvreVPAHmpq9qhXQM7CXZPjLVmGMw9sy+hxQ3w==}
 
   '@types/use-sync-external-store@0.0.6':
     resolution: {integrity: sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg==}
@@ -4133,6 +4199,11 @@ packages:
     peerDependencies:
       react: ^18.3.1
 
+  react-dom@19.2.8:
+    resolution: {integrity: sha512-rVprimfGBG3DR+Tq0IQG2DT5PxKth1WIGDmj5yPmlzr4YBe7uyE+Du4oVqTDXZSHGGGXRtTJEGSSePyQCMBglQ==}
+    peerDependencies:
+      react: ^19.2.8
+
   react-is@19.2.8:
     resolution: {integrity: sha512-s5un28nYxKJw5gvUHyW5PCC28CvBqLu9r3cWgzHT4Vo/5fqqkFcdRYsGcKf50WMPpjjFZS5d76fn3YCo2njKwQ==}
 
@@ -4190,6 +4261,10 @@ packages:
 
   react@18.3.1:
     resolution: {integrity: sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==}
+    engines: {node: '>=0.10.0'}
+
+  react@19.2.8:
+    resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
     engines: {node: '>=0.10.0'}
 
   read-cache@1.0.0:
@@ -4285,6 +4360,9 @@ packages:
 
   scheduler@0.23.2:
     resolution: {integrity: sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==}
+
+  scheduler@0.27.0:
+    resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
 
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
@@ -6605,9 +6683,17 @@ snapshots:
     dependencies:
       '@types/react': 18.3.31
 
+  '@types/react-dom@19.2.4(@types/react@19.2.18)':
+    dependencies:
+      '@types/react': 19.2.18
+
   '@types/react@18.3.31':
     dependencies:
       '@types/prop-types': 15.7.15
+      csstype: 3.2.3
+
+  '@types/react@19.2.18':
+    dependencies:
       csstype: 3.2.3
 
   '@types/use-sync-external-store@0.0.6': {}
@@ -7998,6 +8084,32 @@ snapshots:
       - '@types/node'
       - babel-plugin-macros
 
+  next@16.3.2(@playwright/test@1.61.1)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+    dependencies:
+      '@next/env': 16.3.2
+      '@swc/helpers': 0.5.23
+      baseline-browser-mapping: 2.10.42
+      caniuse-lite: 1.0.30001803
+      postcss: 8.5.23
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+      styled-jsx: 5.1.6(react@19.2.8)
+    optionalDependencies:
+      '@next/swc-darwin-arm64': 16.3.2
+      '@next/swc-darwin-x64': 16.3.2
+      '@next/swc-linux-arm64-gnu': 16.3.2
+      '@next/swc-linux-arm64-musl': 16.3.2
+      '@next/swc-linux-x64-gnu': 16.3.2
+      '@next/swc-linux-x64-musl': 16.3.2
+      '@next/swc-win32-arm64-msvc': 16.3.2
+      '@next/swc-win32-x64-msvc': 16.3.2
+      '@playwright/test': 1.61.1
+      sharp: 0.35.3(@types/node@22.20.1)
+    transitivePeerDependencies:
+      - '@babel/core'
+      - '@types/node'
+      - babel-plugin-macros
+
   node-releases@2.0.50: {}
 
   normalize-path@3.0.0: {}
@@ -8361,6 +8473,11 @@ snapshots:
       react: 18.3.1
       scheduler: 0.23.2
 
+  react-dom@19.2.8(react@19.2.8):
+    dependencies:
+      react: 19.2.8
+      scheduler: 0.27.0
+
   react-is@19.2.8: {}
 
   react-redux@9.3.0(@types/react@18.3.31)(react@18.3.1)(redux@5.0.1):
@@ -8409,6 +8526,8 @@ snapshots:
   react@18.3.1:
     dependencies:
       loose-envify: 1.4.0
+
+  react@19.2.8: {}
 
   read-cache@1.0.0:
     dependencies:
@@ -8557,6 +8676,8 @@ snapshots:
   scheduler@0.23.2:
     dependencies:
       loose-envify: 1.4.0
+
+  scheduler@0.27.0: {}
 
   semver@6.3.1: {}
 
@@ -8764,6 +8885,11 @@ snapshots:
     dependencies:
       client-only: 0.0.1
       react: 18.3.1
+
+  styled-jsx@5.1.6(react@19.2.8):
+    dependencies:
+      client-only: 0.0.1
+      react: 19.2.8
 
   sucrase@3.35.1:
     dependencies:

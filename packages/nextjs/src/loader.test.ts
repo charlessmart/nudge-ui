@@ -88,6 +88,18 @@ describe("transformNextModuleSource — client-component policy", () => {
     expect(result!.code).toContain('data-cid="Button"');
   });
 
+  it("keeps the use client directive in prologue position when injecting the runtime import", () => {
+    const result = transform(CLIENT_BUTTON, `${ROOT}/src/Button.tsx`);
+
+    // SWC rejects a module whose first statement is not the directive.
+    expect(result!.code.trimStart().startsWith('"use client";')).toBe(true);
+    expect(
+      result!.code.indexOf('"use client"'),
+    ).toBeLessThan(
+      result!.code.indexOf("@design-tool/inspector/component-runtime"),
+    );
+  });
+
   it("upgrades Pages Router modules without a directive", () => {
     const pagesFixture =
       'function Chip({ label }: { label: string }) { return <b>{label}</b>; }\n'
@@ -139,11 +151,11 @@ describe("instrumentRootLayout", () => {
 
     expect(result!.layoutInstrumented).toBe(true);
     expect(result!.code).toContain("@design-tool/nextjs/mount");
-    expect(result!.code).toContain("{__DesignToolMountElement}");
+    expect(result!.code).toContain("{__DesignToolCreateElement(__DesignToolMountElement)}");
     // The mount lands inside <html>, before its closing tag.
     expect(result!.code.indexOf("__DesignToolMountElement")).toBeGreaterThan(-1);
     expect(result!.code.lastIndexOf("</html>")).toBeGreaterThan(
-      result!.code.indexOf("{__DesignToolMountElement}"),
+      result!.code.indexOf("{__DesignToolCreateElement(__DesignToolMountElement)}"),
     );
   });
 

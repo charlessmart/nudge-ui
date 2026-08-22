@@ -5,7 +5,8 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./loader": "./src/loader.ts"
+    "./loader": "./src/loader.ts",
+    "./mount": "./src/mount.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -14,14 +15,20 @@
   },
   "dependencies": {
     "@babel/parser": "^7.25.0",
+    "@design-tool/css": "workspace:*",
+    "@design-tool/inspector": "workspace:*",
     "@design-tool/plugin": "workspace:*",
     "magic-string": "^0.30.11"
   },
   "peerDependencies": {
-    "next": ">=15.3 <17"
+    "next": ">=15.3 <17",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

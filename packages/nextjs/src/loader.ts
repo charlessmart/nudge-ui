@@ -32,12 +32,17 @@ const EXCLUDED_SEGMENTS = /(^|\/)(node_modules|\.next)\//i;
 
 const MOUNT_LOCAL_NAME = "__DesignToolMountElement";
 
-const MOUNT_IMPORT = `import { DesignToolMount as ${MOUNT_LOCAL_NAME} } from "@design-tool/nextjs/mount";\n`;
+const MOUNT_IMPORT =
+  `import { createElement as __DesignToolCreateElement } from "react";\n`
+  + `import { DesignToolMount as ${MOUNT_LOCAL_NAME} } from "@design-tool/nextjs/mount";\n`;
 
-// The mount renders through a JSX expression container rather than an
-// element so later identity passes cannot see it: `{Component}` produces no
-// JSXElement/JSXOpeningElement nodes, leaving nothing to attribute or wrap.
-const MOUNT_JSX = `\n    {${MOUNT_LOCAL_NAME}}\n  `;
+// The mount renders through an expression container invoking createElement
+// rather than through a JSX element: a bare `{Component}` would hand React
+// the function itself ("Functions are not valid as a React child"), while an
+// element `<Cmp />` would be visible to later identity passes. A
+// `createElement(...)` call produces no JSX nodes — nothing to attribute or
+// wrap — while still yielding a real element for React to render.
+const MOUNT_JSX = `\n    {__DesignToolCreateElement(${MOUNT_LOCAL_NAME})}\n  `;
 
 export interface NextModuleTransformOptions {
   /**
@@ -89,6 +94,15 @@ export function transformNextModuleSource(
   let map = identity ? identity.map : null;
   let layoutInstrumented = false;
 
+  if (identity && clientComponent) {
+    // The shared Module PREPENDS the runtime import, which is fine under
+    // Vite but fatal under SWC: a module starting with an import is no
+    // longer a directive prologue, so Next rejects the file ("use client
+    // must be placed before other expressions"). Relocate the prepended
+    // import to just past the directive prologue.
+    code = relocatePrependedRuntimeImport(code);
+  }
+
   if (isAppRootLayoutPath(normalized)) {
     const mounted = instrumentRootLayout(code);
     if (mounted) {
@@ -105,6 +119,21 @@ export function transformNextModuleSource(
   // this v1 simplification; the identity map (the one prompts rely on) is
   // always against the original bytes because the layout pass runs after it.
   return { code, map, clientComponent, layoutInstrumented };
+}
+
+const RUNTIME_IMPORT =
+  'import { instrumentReactComponent as __designToolInstrumentComponent } from "@design-tool/inspector/component-runtime";\n';
+
+/**
+ * Moves the shared Module's prepended runtime import past the directive
+ * prologue when the source began with one. Sources without a leading
+ * directive are returned untouched (the import is already first).
+ */
+function relocatePrependedRuntimeImport(code: string): string {
+  if (!code.startsWith(RUNTIME_IMPORT)) return code;
+  const rest = code.slice(RUNTIME_IMPORT.length);
+  const insertAt = directivePrologueEnd(rest);
+  return rest.slice(0, insertAt) + RUNTIME_IMPORT + rest.slice(insertAt);
 }
 
 /**

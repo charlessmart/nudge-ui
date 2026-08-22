@@ -1,0 +1,8 @@
+@import "./theme.css";
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  background: var(--dt-surface);
+  color: var(--dt-ink);
+}
