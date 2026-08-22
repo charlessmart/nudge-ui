@@ -172,6 +172,59 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     });
     expect(bad.status).toBe(400);
   });
+
+  it("prunes contracts when an empty result is posted for a known file", async () => {
+    const root = mkdtempSync(join(tmpdir(), "dt-contracts-prune-"));
+    roots.push(root);
+    const handle = await ensureSidecar(root);
+    handles.push(handle);
+    const post = (file: string, contracts: unknown[]) =>
+      fetch(`http://127.0.0.1:${handle.port}/__design_tool__/contracts`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ file, contracts }),
+      });
+
+    await post("app/Badge.tsx", [{ componentId: "app/Badge#Badge", name: "Badge", props: [] }]);
+    await settle(300);
+    let ids = ((await (
+      await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`)
+    ).json()) as { componentContracts: Array<{ componentId: string }> }).componentContracts;
+    expect(ids).toHaveLength(1);
+
+    // The component was deleted; the loader reposts an EMPTY contract list.
+    await post("app/Badge.tsx", []);
+    await settle(300);
+    ids = ((await (
+      await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`)
+    ).json()) as { componentContracts: Array<{ componentId: string }> }).componentContracts;
+    expect(ids).toHaveLength(0);
+  });
+
+  it("prunes contracts when a component file is deleted from disk", async () => {
+    const root = mkdtempSync(join(tmpdir(), "dt-contracts-del-"));
+    roots.push(root);
+    mkdirSync(join(root, "app"), { recursive: true });
+    writeFileSync(join(root, "app", "Gone.tsx"), "// pending compile\n");
+    const handle = await ensureSidecar(root, { tokens: true });
+    handles.push(handle);
+
+    await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/contracts`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ file: "app/Gone.tsx", contracts: [{ componentId: "app/Gone#Gone", name: "Gone", props: [] }] }),
+    });
+    await settle(300);
+
+    // Simulate the file being removed: the watcher settles with a remove
+    // event and the sidecar must drop the stale entry.
+    rmSync(join(root, "app", "Gone.tsx"));
+    await settle(1200);
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string }> };
+    expect(manifest.componentContracts.map((c) => c.componentId)).not.toContain("app/Gone#Gone");
+  });
 });
 
 describe("sidecar token lifecycle (Stage 4)", () => {

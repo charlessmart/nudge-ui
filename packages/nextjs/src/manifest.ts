@@ -15,6 +15,8 @@ export interface DesignToolManifestInput {
 }
 
 export interface DesignToolManifest {
+  /** Monotonic knowledge revision; bumps on every settled token/contract update. */
+  revision: number;
   projectId: string;
   host: "nextjs-react";
   promptHostLabel?: string;
@@ -48,6 +50,7 @@ export function nextjsProjectId(root: string): string {
 
 export function buildManifest(input: DesignToolManifestInput): DesignToolManifest {
   return {
+    revision: 0,
     projectId: nextjsProjectId(input.root),
     host: "nextjs-react",
     framework: "React",

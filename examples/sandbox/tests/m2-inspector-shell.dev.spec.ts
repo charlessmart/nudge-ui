@@ -94,6 +94,26 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/dt-button--secondary|dt-button--quiet/);
 });
 
+test("dev: inspector icon buttons respond to clicks while the element selector is active", async ({ page }) => {
+  // Regression guard: the element selector swallows ordinary application
+  // clicks at the document capture phase, but real browser clicks are
+  // composed and their propagation path includes the document even when they
+  // originate inside the inspector's shadow root. The selector must let
+  // inspector-UI clicks through so the panel's own controls keep working.
+  await page.goto("/");
+
+  const canvasButton = page.locator('[data-test="mode-canvas"]');
+  await expect(canvasButton).toHaveAttribute("data-active", "false");
+
+  await canvasButton.click();
+  await expect(canvasButton).toHaveAttribute("data-active", "true");
+  await expect(canvasButton).toHaveText(/Exit canvas/);
+
+  await canvasButton.click();
+  await expect(canvasButton).toHaveAttribute("data-active", "false");
+  await expect(canvasButton).toHaveText(/View canvas/);
+});
+
 test("dev: inspector can collapse and reopen from its icon controls on a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");

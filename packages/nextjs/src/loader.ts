@@ -79,12 +79,18 @@ export function transformNextModuleSource(
   moduleId: string,
   options: NextModuleTransformOptions = {},
 ): NextModuleTransformResult | null {
+  // ADR-0002 phase gate, defense-in-depth beneath the wrapper: Next sets
+  // NEXT_PHASE per invocation, so even a misconfigured
+  // NODE_ENV=development production build refuses every transform here.
+  // Absent phases still transform — exotic dev harnesses keep working.
+  if (process.env.NEXT_PHASE === "phase-production-build") return null;
+
   const normalized = moduleId.split("\\").join("/");
   if (!APP_SOURCE_EXT.test(normalized)) return null;
   if (EXCLUDED_SEGMENTS.test(normalized)) return null;
 
   const clientComponent =
-    hasUseClientDirective(source) || isPagesRouterModule(normalized, options.pagesDir);
+    hasUseClientDirective(source) || isPagesRouterModule(normalized, options);
 
   const identity = injectIdentity(source, normalized, options.root, {
     instrumentComponents: clientComponent,
@@ -137,16 +143,35 @@ function relocatePrependedRuntimeImport(code: string): string {
 }
 
 /**
- * True when the module resolves inside a Pages Router directory. Such modules
- * always execute in the browser, so the Pages Router rule upgrades them to
- * client components without needing a `"use client"` directive.
+ * True when the module resolves inside the Pages Router directory, anchored
+ * to the router root: only `pages/**` or `src/pages/**` count. An App Router
+ * route nested at `app/pages/Card.tsx` is a server component and MUST NOT
+ * match — wrapping it with the client runtime would break the RSC graph.
+ *
+ * `pagesDir` may itself contain slashes ("src/pages") for exotic layouts.
  */
-function isPagesRouterModule(normalizedId: string, pagesDir = "pages"): boolean {
-  const dir = pagesDir.split("\\").join("/").replace(/^\/+|\/+$/g, "");
-  if (dir.length === 0) return false;
-  return normalizedId === dir
-    || normalizedId.startsWith(`${dir}/`)
-    || normalizedId.includes(`/${dir}/`);
+function isPagesRouterModule(
+  normalizedId: string,
+  options: { root?: string; pagesDir?: string },
+): boolean {
+  const pagesDir = (options.pagesDir ?? "pages").split("\\").join("/").replace(/^\/+|\/+$/g, "");
+  if (pagesDir.length === 0) return false;
+
+  // Anchor against the project root when known; without a root we cannot
+  // distinguish router roots from same-named directories, so fail closed.
+  const root = options.root ? options.root.split("\\").join("/").replace(/\/+$/, "") : null;
+  const relative = root
+    ? normalizedId.startsWith(`${root}/`)
+      ? normalizedId.slice(root.length + 1)
+      : normalizedId.startsWith("./")
+        ? normalizedId.slice(2)
+        : normalizedId
+    : normalizedId;
+
+  return relative === pagesDir
+    || relative.startsWith(`${pagesDir}/`)
+    || (relative.startsWith("src/")
+      && (relative.slice(4) === pagesDir || relative.slice(4).startsWith(`${pagesDir}/`)));
 }
 
 /**

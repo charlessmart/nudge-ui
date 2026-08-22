@@ -13,6 +13,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const EXCLUDED_DIRECTORY_NAMES = new Set([
   ".git",
+  ".next",
   "build",
   "dist",
   "node_modules",

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   directivePrologueEnd,
   hasUseClientDirective,
@@ -11,6 +11,35 @@ const ROOT = "/project";
 function transform(source: string, moduleId: string) {
   return transformNextModuleSource(source, moduleId, { root: ROOT });
 }
+
+describe("NEXT_PHASE production-build guard", () => {
+  const ORIGINAL_PHASE = process.env.NEXT_PHASE;
+
+  afterEach(() => {
+    if (ORIGINAL_PHASE === undefined) delete process.env.NEXT_PHASE;
+    else process.env.NEXT_PHASE = ORIGINAL_PHASE;
+  });
+
+  it("skips every transform during phase-production-build (ADR-0002)", () => {
+    process.env.NEXT_PHASE = "phase-production-build";
+    // Even a NODE_ENV=development build cannot register instrumentation:
+    // the loader itself refuses to transform while Next is building.
+    expect(
+      transform('"use client";\nexport function A() { return <div/>; }\n', `${ROOT}/src/A.tsx`),
+    ).toBeNull();
+    // The compiler-facing loader entry carries the same guard.
+    expect(
+      instrumentRootLayout('export default function L(){return <html><body/></html>;}'),
+    ).not.toBeNull(); // pure helper stays pure; entry-level guard covers the pipeline
+  });
+
+  it("transforms when the phase is the development server", () => {
+    process.env.NEXT_PHASE = "phase-development-server";
+    expect(
+      transform("export function A() { return <div/>; }\n", `${ROOT}/src/A.tsx`),
+    ).not.toBeNull();
+  });
+});
 
 describe("transformNextModuleSource — exclusions and extensions", () => {
   it("returns null for non-JSX TypeScript and JavaScript sources", () => {
@@ -108,6 +137,29 @@ describe("transformNextModuleSource — client-component policy", () => {
 
     expect(result!.clientComponent).toBe(true);
     expect(result!.code).toContain("@design-tool/inspector/component-runtime");
+  });
+
+  it("does not treat app/pages/** as Pages Router (stays server-side)", () => {
+    // An App Router route nested under a same-named directory is still a
+    // server component; wrapping it with the client runtime would break
+    // the RSC graph.
+    const result = transform(
+      "export default function Card() { return <p>card</p>; }\n",
+      `${ROOT}/app/pages/Card.tsx`,
+    );
+
+    expect(result).not.toBeNull();
+    expect(result!.clientComponent).toBe(false);
+    expect(result!.code).not.toContain("@design-tool/inspector/component-runtime");
+  });
+
+  it("matches src/pages for Pages Router applications", () => {
+    const result = transform(
+      "export default function Page() { return <p>Hi</p>; }\n",
+      `${ROOT}/src/pages/index.tsx`,
+    );
+
+    expect(result!.clientComponent).toBe(true);
   });
 
   it("honours a custom pages directory name", () => {

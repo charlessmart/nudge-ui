@@ -235,3 +235,17 @@ test("dev: source files stay byte-for-byte unchanged across a session", async ({
   const after = sourceBytes();
   expect(after).toEqual(before);
 });
+
+test("dev: route-group segments are instrumented through the shared root", async ({ page }) => {
+  await page.goto("/(shop)/pricing");
+  await expect
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .toBe(true);
+  // Route-group pages carry identity like any other app segment.
+  const identity = await page.evaluate(() => ({
+    cid: document.querySelector("#page-title")?.getAttribute("data-cid"),
+    src: document.querySelector("#page-title")?.getAttribute("data-src"),
+  }));
+  expect(identity.cid).toBe("PricingPage");
+  expect(identity.src).toMatch(/^app\/\(shop\)\/pricing\/page\.tsx:\d+:\d+$/);
+});

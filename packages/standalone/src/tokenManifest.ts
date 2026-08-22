@@ -31,6 +31,7 @@ import type {
 
 const EXCLUDED_DIRECTORY_NAMES = new Set([
   ".git",
+  ".next",
   "build",
   "dist",
   "node_modules",

@@ -56,8 +56,9 @@ const nodeFs = require("node:fs");
  * under `<root>/.next`; a missing or stale record simply skips publishing.
  */
 function postContracts(root: string, relativeFile: string, source: string): void {
+  // Empty results are published too: a file whose components were all
+  // removed must PRUNE its stale entry, not silently keep old controls.
   const contracts = extractComponentContracts(source, relativeFile);
-  if (!contracts || contracts.length === 0) return;
   let port = 0;
   try {
     const raw = JSON.parse(
@@ -91,6 +92,15 @@ function designToolLoader(
   this: DesignToolLoaderContext,
   source: string,
 ): string | undefined {
+  // Defense-in-depth for ADR-0002: even if a wrapper were misconfigured into
+  // a production build (e.g. NODE_ENV=development next build through a custom
+  // server), Next sets NEXT_PHASE per invocation — skip every transform when
+  // that phase says production build. Unknown/absent phases still transform,
+  // so exotic dev harnesses keep working.
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return source;
+  }
+
   const options = readOptions(this);
   const moduleId = this.resourcePath ?? "";
   const root = options.root ?? this.rootContext;

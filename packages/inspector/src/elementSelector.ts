@@ -12,8 +12,8 @@ import { EMPTY_TEXT_PROJECTION_ATTR } from "./textProjection.ts";
 export function installElementSelector(inspectorHost: HTMLElement): () => void {
   function onDoubleClick(e: MouseEvent): void {
     if (!getOpen()) return;
+    if (isInsideInspectorUi(e)) return;
     if (isInlineTextEditingActive()) {
-      if (e.target instanceof Element && (inspectorHost === e.target || inspectorHost.contains(e.target))) return;
       e.preventDefault();
       e.stopPropagation();
       return;
@@ -38,10 +38,26 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
     }
   }
 
+  function isInsideInspectorUi(event: MouseEvent): boolean {
+    const target = event.target;
+    if (!(target instanceof Element)) return false;
+    if (inspectorHost === target || inspectorHost.contains(target)) return true;
+    // Composed clicks originating inside the inspector's shadow root are
+    // retargeted to the host before document-level listeners observe them;
+    // this branch covers dispatch paths where retargeting has not applied.
+    const root = target.getRootNode();
+    return root instanceof ShadowRoot && root.host === inspectorHost;
+  }
+
   function onClick(e: MouseEvent): void {
     if (!getOpen()) return;
+    if (isInsideInspectorUi(e)) {
+      // The selector guards the inspected application only. Clicks on the
+      // inspector's own controls must keep their native behavior, so they
+      // pass through untouched (no preventDefault / stopPropagation).
+      return;
+    }
     if (isInlineTextEditingActive()) {
-      if (e.target instanceof Element && (inspectorHost === e.target || inspectorHost.contains(e.target))) return;
       e.preventDefault();
       e.stopPropagation();
       return;

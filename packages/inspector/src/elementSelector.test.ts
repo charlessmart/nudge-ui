@@ -213,11 +213,36 @@ describe("installElementSelector", () => {
     expect(getSelectedElement()).toBeNull();
   });
 
-  it("does not select when target is inside the inspector host", () => {
-    const inner = document.createElement("span");
+  it("does not select or interfere with clicks inside the inspector host", () => {
+    const inner = document.createElement("button");
+    const onInspectorClick = vi.fn();
+    inner.addEventListener("click", onInspectorClick);
     host.appendChild(inner);
-    dispatchClick(inner);
+
+    const event = dispatchClick(inner);
+
+    // The inspector's own controls must keep their native behavior: the
+    // capture selector neither selects nor swallows their clicks.
     expect(getSelectedElement()).toBeNull();
+    expect(onInspectorClick).toHaveBeenCalledOnce();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("lets clicks inside the inspector's shadow root reach their targets", () => {
+    // Real browser clicks are composed; a click on a node inside the open
+    // shadow root propagates through the host up to document, where it is
+    // observed retargeted to the host. The selector must let it through.
+    const shadow = host.attachShadow({ mode: "open" });
+    const button = document.createElement("button");
+    const onInspectorClick = vi.fn();
+    button.addEventListener("click", onInspectorClick);
+    shadow.appendChild(button);
+
+    const event = dispatchClick(button);
+
+    expect(getSelectedElement()).toBeNull();
+    expect(onInspectorClick).toHaveBeenCalledOnce();
+    expect(event.defaultPrevented).toBe(false);
   });
 
   it("does not fire when the inspector is closed", () => {

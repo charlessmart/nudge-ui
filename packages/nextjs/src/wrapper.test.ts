@@ -25,6 +25,29 @@ describe("withDesignTool — phase gating (ADR-0002)", () => {
     expect(result.turbopack).toBeUndefined();
     vi.unstubAllEnvs();
   });
+
+  it("function form instruments only for the development-server phase", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const factory = vi.fn(() => ({ reactStrictMode: true }) as DesignToolNextConfig);
+    const wrapped = withDesignTool(factory);
+
+    expect(typeof wrapped).toBe("function");
+
+    // A production-build phase must pass the config through untouched.
+    const prodResult = (wrapped as (phase: string) => DesignToolNextConfig)(
+      "phase-production-build",
+    );
+    expect(prodResult).toEqual({ reactStrictMode: true });
+    expect(prodResult.turbopack).toBeUndefined();
+    expect(factory).toHaveBeenCalledWith("phase-production-build");
+
+    // The development-server phase instruments.
+    const devResult = (wrapped as (phase: string) => DesignToolNextConfig)(
+      "phase-development-server",
+    );
+    expect(devResult.turbopack).toBeDefined();
+    vi.unstubAllEnvs();
+  });
 });
 
 describe("withDesignTool — development output shape", () => {
@@ -62,7 +85,7 @@ describe("withDesignTool — development output shape", () => {
       const rule = rules[key];
       expect(rule).toBeDefined();
       expect((rule!.loaders as Array<{ loader: string }>)[0]?.loader).toMatch(
-        /loader-plugin\.cts$/,
+        /dist[\\/]+loaders[\\/]loader-plugin\.cjs$/,
       );
       expect(rule!.condition).toEqual({
         all: [
@@ -91,6 +114,17 @@ describe("withDesignTool — development output shape", () => {
     const rules = config.turbopack?.rules as Record<string, unknown>;
     expect(rules["**/*.svg"]).toBeDefined();
     expect(rules["*.tsx"]).toBeDefined();
+
+    // A USER rule for the SAME key composes into a collection instead of
+    // being overwritten.
+    const shared = withDesignTool({
+      turbopack: { rules: { "*.tsx": { loaders: ["user-loader"] } } },
+    } as DesignToolNextConfig) as {
+      turbopack?: { rules?: Record<string, Array<Record<string, unknown>>> };
+    };
+    const composed = shared.turbopack?.rules?.["*.tsx"] as Array<Record<string, unknown>>;
+    expect(Array.isArray(composed)).toBe(true);
+    expect(composed.some((r) => JSON.stringify(r).includes("user-loader"))).toBe(true);
   });
 
   it("composes the webpack hook and only instruments in dev contexts", () => {
@@ -111,7 +145,7 @@ describe("withDesignTool — development output shape", () => {
     expect(rules).toHaveLength(2);
     // Identity rule for first-party TSX/JSX...
     expect(rules[0]?.test).toEqual(/\.(tsx|jsx)$/);
-    expect((rules[0]?.use as Array<{ loader: string }>)[0]?.loader).toMatch(/loader-plugin\.cjs$/);
+    expect((rules[0]?.use as Array<{ loader: string }>)[0]?.loader).toMatch(/identity-loader\.cjs$/);
     // ...and the ?inline CSS rule feeding the shadow stylesheets.
     expect(rules[1]?.resourceQuery).toEqual(/inline/);
     expect((rules[1]?.use as Array<{ loader: string }>)[0]?.loader).toMatch(/css-inline-loader\.cjs$/);
@@ -196,9 +230,11 @@ describe("withDesignTool — development output shape", () => {
     vi.spyOn(process, "cwd").mockReturnValue(root);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    withDesignTool({} as DesignToolNextConfig);
+    const config = withDesignTool({} as DesignToolNextConfig);
 
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("outside the tested range"));
+    // Failing closed: unsupported versions get NO instrumentation.
+    expect(config.turbopack).toBeUndefined();
     warnSpy.mockRestore();
   });
 });

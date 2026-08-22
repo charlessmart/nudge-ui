@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { realpath } from "node:fs/promises";
+import { join, relative } from "node:path";
 import {
   buildManifest,
   type DesignToolManifest,
@@ -101,7 +102,11 @@ export async function ensureSidecar(
   root: string,
   options: SidecarOptions = {},
 ): Promise<SidecarHandle> {
-  const state = globalState(`${options.tokens ? "tokens" : "manifest"}:${root}`);
+  // Watchers and removal events report REAL paths; on macOS the tmp/root
+  // prefix may differ (e.g. /tmp -> /private/tmp), so canonicalize once and
+  // derive every filesystem-relative computation from the canonical root.
+  const fsRoot = await realpath(root).catch(() => root);
+  const state = globalState(`${options.tokens ? "tokens" : "manifest"}:${fsRoot}`);
   if (state.handle) return state.handle;
   if (state.starting) return state.starting;
 
@@ -185,20 +190,27 @@ export async function ensureSidecar(
       generation += 1;
 
       const watcher = createStandaloneFileWatcher({
-        rootDirectory: root,
+        rootDirectory: fsRoot,
         debounceMs: 60,
-        onSettled: async () => {
-          // One settled batch = exactly one scan + one generation bump +
-          // exactly one reload notification, however many fs events fed it.
+        onSettled: async (changes) => {
+          // Deleted component files must prune their aggregated contracts,
+          // or stale controls survive in the manifest forever.
+          for (const change of changes) {
+            if (change.kind !== "remove") continue;
+            const normalized = change.absolutePath.split("\\").join("/");
+            if (!/\.(tsx|jsx)$/.test(normalized)) continue;
+            contractsByFile.delete(relative(fsRoot, normalized));
+          }
+
+          // One settled batch = exactly one token scan + one contract flush
+          // + one generation bump + exactly one reload notification, however
+          // many fs events fed it.
           try {
             applySnapshot(await createStandaloneTokenSnapshot({ rootDirectory: root }));
-            generation += 1;
-            for (const stream of streams) {
-              stream.write(`data: ${JSON.stringify({ revision: generation })}\n\n`);
-            }
           } catch {
             /* unreadable trees keep the previous snapshot */
           }
+          flushContracts();
         },
       });
       watcher.start();
@@ -278,7 +290,9 @@ function respond(
   }
 
   if (url === "/__design_tool__/manifest") {
-    const body = `${JSON.stringify(currentManifest())}\n`;
+    // The served snapshot carries its revision so clients can reconcile
+    // against SSE notifications instead of guessing.
+    const body = `${JSON.stringify({ ...currentManifest(), revision: currentGeneration() })}\n`;
     res.writeHead(200, {
       "content-type": "application/json",
       "cache-control": "no-store",

@@ -50,28 +50,24 @@ const NAMESPACE_PREFIX = "/__design_tool__";
 
 const SUPPORTED_NEXT_RANGE = ">=15.3 <17";
 
-function loaderPluginPath(): string {
-  // .cts: Turbopack's LoaderRunner requires the module itself to be the
-  // loader function (CJS emission), not an ESM default export.
-  return fileURLToPath(new URL("./loader-plugin.cts", import.meta.url));
-}
-
-function cssInlineLoaderPath(): string {
-  return fileURLToPath(new URL("./css-inline-loader.cts", import.meta.url));
-}
-
 /**
- * Webpack cannot execute TypeScript loaders, so webpack mode registers the
- * self-contained CommonJS bundles produced by
- * `pnpm --filter @design-tool/nextjs build` (esbuild -> dist/webpack).
+ * Both compilers register the esbuild-bundled CommonJS loaders from
+ * `dist/loaders/` (built by `pnpm --filter @design-tool/nextjs build`):
+ *
+ * - Turbopack's LoaderRunner requires the module itself to be the loader
+ *   function (CJS emission), and Node 20 cannot parse TypeScript sources —
+ *   so the raw .cts sources are authoring truth only, never registered.
+ * - Webpack cannot execute TypeScript loaders at all.
+ *
+ * The bundles are fully self-contained (plugin modules inlined), so no
+ * runtime resolution of raw TypeScript happens on any supported Node.
  */
-function webpackLoaderPaths(): { identity: string; cssInline: string } | null {
-  const identity = fileURLToPath(new URL("../dist/webpack/loader-plugin.cjs", import.meta.url));
-  const cssInline = fileURLToPath(new URL("../dist/webpack/css-inline-loader.cjs", import.meta.url));
-  if (existsSync(identity) && existsSync(cssInline)) {
-    return { identity, cssInline };
-  }
-  return null;
+function loaderPaths(): { identity: string; cssInline: string; plugin: string } {
+  return {
+    plugin: fileURLToPath(new URL("../dist/loaders/loader-plugin.cjs", import.meta.url)),
+    identity: fileURLToPath(new URL("../dist/loaders/identity-loader.cjs", import.meta.url)),
+    cssInline: fileURLToPath(new URL("../dist/loaders/css-inline-loader.cjs", import.meta.url)),
+  };
 }
 
 /** Absolute directory of a package installed in the host project, or null. */
@@ -93,13 +89,22 @@ function resolveNextVersion(root: string): string | null {
   }
 }
 
-function warnUnsupportedVersion(version: string | null): void {
-  if (version && isVersionSupported(version)) return;
+/**
+ * ADR-0010 gates instrumentation on the supported range: a RESOLVED version
+ * outside it fails closed (no registration) with a diagnostic — instrumenting
+ * an unsupported compiler risks breaking the host build. An unresolvable
+ * version gets the benefit of the doubt and proceeds with a diagnostic,
+ * since refusing to work because we could not read a version number would
+ * make the adapter brittle for no safety gain.
+ */
+function gateUnsupportedVersion(version: string | null): boolean {
+  if (version && isVersionSupported(version)) return true;
   console.warn(
     `[design-tool] Next.js ${version ?? "(version unavailable)"} is outside the tested range `
-      + `${SUPPORTED_NEXT_RANGE} (ADR-0010). Instrumentation will still register; if the dev `
-      + `server misbehaves, remove withDesignTool() and file an issue.`,
+      + `${SUPPORTED_NEXT_RANGE} (ADR-0010). Skipping instrumentation — remove `
+      + `withDesignTool() or align versions to enable Design Tool.`,
   );
+  return false;
 }
 
 function isVersionSupported(version: string): boolean {
@@ -121,23 +126,62 @@ function collectUserRewriteSources(rewrites: RewritesShape): string[] {
     .filter((source) => source.startsWith(NAMESPACE_PREFIX));
 }
 
+/** Mirrors next/constants PHASE_DEVELOPMENT_SERVER. */
+export const DEVELOPMENT_SERVER_PHASE = "phase-development-server";
+
 /**
  * Wraps a Next.js configuration with Design Tool instrumentation.
  *
- * @param config The application's existing configuration (may be undefined).
- * @returns A configuration to export in its place.
+ * Two input forms are supported:
+ *
+ * - **Function form (recommended):** pass `(phase) => nextConfig`; the
+ *   wrapper resolves and instruments ONLY for PHASE_DEVELOPMENT_SERVER, so
+ *   `NODE_ENV=development next build` cannot register instrumentation
+ *   (ADR-0002) regardless of environment tricks.
+ * - **Object form:** gated on NODE_ENV=development as before. Prefer the
+ *   function form — the object form cannot see Next's build phase.
+ *
+ * @param config The application's existing configuration or a config factory.
+ * @returns A configuration (or factory) to export in its place.
  */
-export function withDesignTool<T extends object>(config: T = {} as T): T {
-  // ADR-0002 phase gate. next build evaluates this module with production.
+/** Object form: instruments immediately when running in development. */
+export function withDesignTool<T extends object>(config: T): T;
+/** Function form: gates instrumentation on PHASE_DEVELOPMENT_SERVER. */
+export function withDesignTool<T extends object>(
+  factory: (phase: string) => T,
+): (phase: string) => T;
+export function withDesignTool<T extends object>(
+  config: T | ((phase: string) => T) = {} as T,
+): T | ((phase: string) => T) {
+  if (typeof config === "function") {
+    const factory = config as (phase: string) => T;
+    return (phase: string): T => {
+      const resolved = factory(phase);
+      if (phase !== DEVELOPMENT_SERVER_PHASE) {
+        return resolved;
+      }
+      return instrumentConfig(resolved);
+    };
+  }
+
+  // Object form: no phase information exists at evaluation time, so gate on
+  // the development environment alone.
   if (process.env.NODE_ENV !== "development") {
     return config;
   }
+  return instrumentConfig(config);
+}
+
+function instrumentConfig<T extends object>(config: T): T {
 
   // Consumers pass their real NextConfig object; the structural subset is an
   // internal view so this package stays typecheckable without next installed.
   const source = config as DesignToolNextConfig;
   const root = process.cwd();
-  warnUnsupportedVersion(resolveNextVersion(root));
+  // Fail closed per ADR-0010 when the resolved version is unsupported.
+  if (!gateUnsupportedVersion(resolveNextVersion(root))) {
+    return config;
+  }
 
   // ensureSidecar is a per-process singleton; awaiting it wherever the port
   // is needed removes any config-evaluation race.
@@ -172,9 +216,10 @@ export function withDesignTool<T extends object>(config: T = {} as T): T {
   const turbopackRules: Record<string, unknown> = {
     ...((source.turbopack?.rules as Record<string, unknown> | undefined) ?? {}),
   };
+  const paths = loaderPaths();
   if (process.env.DT_NEXT_TURBOPACK_RULES !== "0") {
     const identityRule = {
-      loaders: [{ loader: loaderPluginPath(), options: { root } }],
+      loaders: [{ loader: paths.plugin, options: { root } }],
       // 'foreign' is Turbopack's builtin condition for dependency code, so
       // `not: foreign` confines the loader to first-party sources. The path
       // guard additionally keeps build output (.next) out of scope.
@@ -194,20 +239,34 @@ export function withDesignTool<T extends object>(config: T = {} as T): T {
         ],
       },
     };
-    turbopackRules["*.tsx"] = { ...identityRule };
-    turbopackRules["*.jsx"] = { ...identityRule };
+    /**
+     * Rules are COMPOSED with any user rule for the same key by building a
+     * rule collection (Next supports arrays of items per glob) — silently
+     * overwriting host configuration is never acceptable.
+     */
+    const compose = (key: string, rule: Record<string, unknown>): void => {
+      const existing = turbopackRules[key];
+      if (existing === undefined) {
+        turbopackRules[key] = rule;
+        return;
+      }
+      // [].concat flattens one level, so an existing collection stays flat.
+      turbopackRules[key] = ([] as unknown[]).concat(existing as never, rule);
+    };
+    compose("*.tsx", { ...identityRule });
+    compose("*.jsx", { ...identityRule });
 
     // Vite's `*.css?inline` convention: the inspector imports its shadow
     // stylesheets as TEXT. Under Next, a loaders rule keyed on the query
     // turns those requests into default-export string modules; unqueried
     // CSS flows through Next's normal pipeline untouched.
-    turbopackRules["*.css"] = {
-      loaders: [{ loader: cssInlineLoaderPath() }],
+    compose("*.css", {
+      loaders: [{ loader: paths.cssInline }],
       condition: { query: /[?&]inline(?=&|$)/ },
       // The loader emits a JavaScript string module; without the rename the
       // result is still routed through PostCSS and fails to parse.
       as: "*.js",
-    };
+    });
   }
   // --- Single React instance (ADR-0004 via module resolution) -------------
   // Design Tool packages carry their own react dependency for standalone
@@ -241,14 +300,7 @@ export function withDesignTool<T extends object>(config: T = {} as T): T {
     if (!context.dev) return merged;
     const module = (merged.module ?? {}) as Record<string, unknown>;
     const rules = Array.isArray(module.rules) ? [...(module.rules as unknown[])] : [];
-    const paths = webpackLoaderPaths();
-    if (!paths) {
-      console.warn(
-        "[design-tool] webpack mode requires built loaders — run "
-          + "`pnpm --filter @design-tool/nextjs build` once. Skipping instrumentation.",
-      );
-      return merged;
-    }
+    const paths = loaderPaths();
     // Next 16 removed the webpack CSS pipeline entirely
     // (nextjs.org/docs/messages/built-in-css-disabled): applications using
     // stylesheets cannot run under `next dev --webpack` on 16 at all,
