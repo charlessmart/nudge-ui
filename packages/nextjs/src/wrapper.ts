@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
@@ -57,6 +58,20 @@ function loaderPluginPath(): string {
 
 function cssInlineLoaderPath(): string {
   return fileURLToPath(new URL("./css-inline-loader.cts", import.meta.url));
+}
+
+/**
+ * Webpack cannot execute TypeScript loaders, so webpack mode registers the
+ * self-contained CommonJS bundles produced by
+ * `pnpm --filter @design-tool/nextjs build` (esbuild -> dist/webpack).
+ */
+function webpackLoaderPaths(): { identity: string; cssInline: string } | null {
+  const identity = fileURLToPath(new URL("../dist/webpack/loader-plugin.cjs", import.meta.url));
+  const cssInline = fileURLToPath(new URL("../dist/webpack/css-inline-loader.cjs", import.meta.url));
+  if (existsSync(identity) && existsSync(cssInline)) {
+    return { identity, cssInline };
+  }
+  return null;
 }
 
 /** Absolute directory of a package installed in the host project, or null. */
@@ -226,11 +241,41 @@ export function withDesignTool<T extends object>(config: T = {} as T): T {
     if (!context.dev) return merged;
     const module = (merged.module ?? {}) as Record<string, unknown>;
     const rules = Array.isArray(module.rules) ? [...(module.rules as unknown[])] : [];
+    const paths = webpackLoaderPaths();
+    if (!paths) {
+      console.warn(
+        "[design-tool] webpack mode requires built loaders — run "
+          + "`pnpm --filter @design-tool/nextjs build` once. Skipping instrumentation.",
+      );
+      return merged;
+    }
+    // Next 16 removed the webpack CSS pipeline entirely
+    // (nextjs.org/docs/messages/built-in-css-disabled): applications using
+    // stylesheets cannot run under `next dev --webpack` on 16 at all,
+    // with or without Design Tool. Registration stays so Next 15.x within
+    // the supported range keeps working; flag the combination loudly.
+    const version = resolveNextVersion(root);
+    if (version && Number(version.split(".")[0]) >= 16) {
+      console.warn(
+        "[design-tool] Next.js " + version + " webpack dev mode has no CSS support "
+          + "(removed upstream); CSS-bearing applications will fail to compile "
+          + "independent of Design Tool. Prefer Turbopack (default) or Next 15.x.",
+      );
+    }
     rules.push({
       test: /\.(tsx|jsx)$/,
       exclude: /node_modules/,
       enforce: "pre",
-      use: [{ loader: loaderPluginPath(), options: { root } }],
+      use: [{ loader: paths.identity, options: { root } }],
+    });
+    // Vite's ?inline convention for the inspector shadow stylesheets; output
+    // is a JS string module, so the rule must override the CSS module type.
+    rules.push({
+      test: /\.css$/,
+      resourceQuery: /inline/,
+      type: "javascript/auto",
+      enforce: "pre",
+      use: [{ loader: paths.cssInline }],
     });
     return { ...merged, module: { ...module, rules } };
   };

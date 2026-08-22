@@ -108,8 +108,13 @@ describe("withDesignTool — development output shape", () => {
     expect(userHook).toHaveBeenCalled();
 
     const rules = ((devOut.module as { rules?: unknown[] }).rules ?? []) as Array<Record<string, unknown>>;
-    expect(rules).toHaveLength(1);
-    expect(rules[0]?.enforce).toBe("pre");
+    expect(rules).toHaveLength(2);
+    // Identity rule for first-party TSX/JSX...
+    expect(rules[0]?.test).toEqual(/\.(tsx|jsx)$/);
+    expect((rules[0]?.use as Array<{ loader: string }>)[0]?.loader).toMatch(/loader-plugin\.cjs$/);
+    // ...and the ?inline CSS rule feeding the shadow stylesheets.
+    expect(rules[1]?.resourceQuery).toEqual(/inline/);
+    expect((rules[1]?.use as Array<{ loader: string }>)[0]?.loader).toMatch(/css-inline-loader\.cjs$/);
 
     // Production context must stay untouched.
     const prodConfig: Record<string, unknown> = { module: { rules: ["keep"] } };

@@ -27,7 +27,16 @@ import {
 export interface FrameworkHints {
   framework?: string;
   stylingSystem?: string;
+  /** Host Adapter label; names the framework line for multi-host prompts. */
+  host?: string;
 }
+
+/** Human-readable host labels keyed by DesignToolRuntimeHost. */
+const HOST_LABELS: Record<string, string> = {
+  "vite-react": "Vite",
+  "static-html": "Static HTML",
+  "nextjs-react": "Next.js (App Router)",
+};
 
 const EMPTY_SENTINEL =
   "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Design Tool inspector first.";
@@ -273,11 +282,17 @@ export function generatePrompt(
     : structuralChanges[0]!.target.sourceSite.src) || "runtime-created DOM";
   const framework = frameworkHints?.framework ?? "React";
   const stylingSystem = frameworkHints?.stylingSystem ?? "CSS custom properties";
+  const hostLabel = frameworkHints?.host
+    ? HOST_LABELS[frameworkHints.host] ?? frameworkHints.host
+    : null;
+  const frameworkLine = hostLabel
+    ? `${framework} on ${hostLabel} + ${stylingSystem}`
+    : `${framework} + ${stylingSystem}`;
   const exactHtmlSource = framework === "HTML";
   const lines = [
     `# Design changes for ${basename(firstFile)}`,
     "",
-    `Framework: ${framework} + ${stylingSystem}`,
+    `Framework: ${frameworkLine}`,
     "",
     "Implementation guidance: Preserve existing tokens, logical properties, and CSS intent while applying these rendered changes.",
     "",

@@ -17,6 +17,8 @@ export interface DesignToolManifestInput {
 export interface DesignToolManifest {
   projectId: string;
   host: "nextjs-react";
+  promptHostLabel?: string;
+  /** Prompt header label for this host (see generatePrompt HOST_LABELS). */
   framework: "React";
   stylingSystem: string;
   capabilities: { canvas: boolean; componentSemantics: boolean };
