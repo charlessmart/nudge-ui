@@ -27,6 +27,17 @@ export interface DesignToolManifest {
   componentContracts: readonly unknown[];
 }
 
+/**
+ * Token knowledge produced by the Stage 4 lifecycle. Shape-compatible with
+ * the standalone adapter's snapshot so the shared scanner feeds both hosts.
+ */
+export interface DesignToolTokenSnapshot {
+  tokenCatalog: readonly unknown[];
+  tokens: readonly unknown[];
+  tokenDiagnostics: readonly unknown[];
+  tokenGeneration: string;
+}
+
 /** Short deterministic digest naming a project across restarts. */
 export function nextjsProjectId(root: string): string {
   const digest = createHash("sha256").update(root).digest("hex").slice(0, 12);

@@ -39,8 +39,23 @@ export function DesignToolMount(): null {
 
       // Token and component knowledge refresh in place; the inspector owns
       // snapshot replacement, so a reconfigure is safe after bootstrapping.
+      // The sidecar announces the current revision on subscribe and then one
+      // frame per settled batch; revisions already reflected by the snapshot
+      // fetched above are deduplicated against Next's own refreshes.
+      let seenRevision: number | null = null;
+      let refreshInFlight = false;
       const source = new EventSource("/__design_tool__/reload");
       source.onmessage = (event: MessageEvent<string>) => {
+        const revision = Number((JSON.parse(event.data) as { revision?: number }).revision);
+        if (Number.isNaN(revision)) return;
+        if (seenRevision === null) {
+          // First frame announces the generation the snapshot was taken at.
+          seenRevision = revision;
+          return;
+        }
+        if (revision === seenRevision || refreshInFlight) return;
+        seenRevision = revision;
+        refreshInFlight = true;
         void fetch("/__design_tool__/manifest", { cache: "no-store" })
           .then((refreshed) => refreshed.json())
           .then((refreshedManifest) => {
@@ -53,6 +68,9 @@ export function DesignToolMount(): null {
           .catch(() => {
             // A failed refresh keeps the last good snapshot; the next
             // revision retries.
+          })
+          .finally(() => {
+            refreshInFlight = false;
           });
       };
       unsubscribeReload = () => source.close();

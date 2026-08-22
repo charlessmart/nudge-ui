@@ -127,7 +127,7 @@ export function withDesignTool<T extends object>(config: T = {} as T): T {
   // ensureSidecar is a per-process singleton; awaiting it wherever the port
   // is needed removes any config-evaluation race.
   const sidecarPort = (): Promise<number> =>
-    ensureSidecar(root, { manifest: buildManifest({ root }) })
+    ensureSidecar(root, { manifest: buildManifest({ root }), tokens: true })
       .then((handle: SidecarHandle) => handle.port)
       .catch((error: unknown) => {
         console.warn("[design-tool] sidecar failed to start:", error);

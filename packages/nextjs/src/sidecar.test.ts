@@ -1,5 +1,14 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -116,5 +125,133 @@ describe("sidecar transport", () => {
     expect(readFileSync(join(root, ".next", "design-tool-sidecar.json"), "utf8")).toContain("4321");
 
     rmSync(root, { recursive: true, force: true });
+  });
+});
+
+/* eslint-disable no-await-in-loop -- sequential settling reads clearer in lifecycle tests */
+
+async function settle(ms = 900): Promise<void> {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+describe("sidecar token lifecycle (Stage 4)", () => {
+  it("serves scanned custom properties with project-relative provenance", async () => {
+    const root = mkdtempSync(join(tmpdir(), "dt-tokens-"));
+    roots.push(root);
+    mkdirSync(join(root, "app"), { recursive: true });
+    writeFileSync(join(root, "app", "theme.css"), ":root {\n  --dt-accent: #4f46e5;\n}\n");
+
+    const handle = await ensureSidecar(root, { tokens: true });
+    handles.push(handle);
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const manifest = (await response.json()) as {
+      tokenGeneration: string;
+      tokens: Array<{ name: string; source?: string }>;
+      tokenCatalog: Array<{ cssName: string; declarations: Array<{ source: string }> }>;
+    };
+
+    expect(manifest.tokenGeneration).toMatch(/^nextjs-token:/);
+    expect(manifest.tokens.map((t) => t.name)).toContain("--dt-accent");
+    const declaration = manifest.tokenCatalog[0]?.declarations[0];
+    expect(declaration?.source).toContain("app/theme.css");
+  });
+
+  it("bumps the generation and emits one reload per settled batch", async () => {
+    const root = mkdtempSync(join(tmpdir(), "dt-tokens-"));
+    roots.push(root);
+    mkdirSync(join(root, "app"), { recursive: true });
+    writeFileSync(join(root, "app", "a.css"), ":root{--a:1px}");
+
+    const handle = await ensureSidecar(root, { tokens: true });
+    handles.push(handle);
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/reload`);
+    const reader = response.body!.getReader();
+    const frames: string[] = [];
+    const reading = (async () => {
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (frames.length < 2) {
+        const chunk = await reader.read();
+        if (chunk.done) return;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        let idx = buffer.indexOf("\n\n");
+        while (idx !== -1 && frames.length < 3) {
+          const frame = buffer.slice(0, idx).trim();
+          buffer = buffer.slice(idx + 2);
+          if (frame.startsWith("data:")) frames.push(frame);
+          idx = buffer.indexOf("\n\n");
+        }
+      }
+    })();
+
+
+    // One burst of many fs events must settle into ONE notification.
+    for (let i = 0; i < 5; i += 1) {
+      appendFileSync(join(root, "app", "a.css"), `--burst-${i}: ${i}px;\n`);
+    }
+
+    await reading;
+    // Announce + exactly ONE notification for the whole settled burst.
+    expect(frames).toHaveLength(2);
+    const revisions = frames.map((f) => JSON.parse(f.slice(5)).revision);
+    expect(revisions[1]).toBe(revisions[0] + 1);
+    reader.cancel().catch(() => {});
+  });
+
+  it("reflects add and remove transitions across scans", async () => {
+    const root = mkdtempSync(join(tmpdir(), "dt-tokens-"));
+    roots.push(root);
+    mkdirSync(join(root, "styles"), { recursive: true });
+
+    const handle = await ensureSidecar(root, { tokens: true });
+    handles.push(handle);
+    await settle();
+
+    const names = async (): Promise<string[]> => {
+      const r = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+      const m = (await r.json()) as { tokens: Array<{ name: string }> };
+      return m.tokens.map((t) => t.name);
+    };
+
+    expect(await names()).toEqual([]);
+
+    writeFileSync(join(root, "styles", "added.css"), ":root{--added-token:red}");
+    await settle();
+    expect(await names()).toContain("--added-token");
+
+    unlinkSync(join(root, "styles", "added.css"));
+    await settle();
+    expect(await names()).not.toContain("--added-token");
+  });
+
+  it("reports unreadable stylesheets as diagnostics without losing inspection", async () => {
+    const root = mkdtempSync(join(tmpdir(), "dt-tokens-"));
+    roots.push(root);
+    mkdirSync(join(root, "css"), { recursive: true });
+    writeFileSync(join(root, "css", "good.css"), ":root{--good:1}");
+    const locked = join(root, "css", "locked.css");
+    writeFileSync(locked, ":root{--locked:1}");
+    chmodSync(locked, 0o000);
+
+    try {
+      const handle = await ensureSidecar(root, { tokens: true });
+      handles.push(handle);
+
+      const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+      const manifest = (await response.json()) as {
+        tokenDiagnostics: Array<{ code: string; module: string }>;
+        tokens: Array<{ name: string }>;
+      };
+      // The readable sheet still feeds inspection...
+      expect(manifest.tokens.map((t) => t.name)).toContain("--good");
+      // ...and the unreadable one surfaces as a diagnostic.
+      expect(
+        manifest.tokenDiagnostics.some((d) => d.module.includes("locked.css")),
+      ).toBe(true);
+    } finally {
+      chmodSync(locked, 0o644);
+    }
   });
 });

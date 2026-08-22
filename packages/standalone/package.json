@@ -16,6 +16,8 @@
     "./html/identity": "./src/html/identity.ts",
     "./html/bootstrap": "./src/html/bootstrap.ts",
     "./manifest": "./src/manifest.ts",
+    "./token-manifest": "./src/tokenManifest.ts",
+    "./watcher": "./src/watcher.ts",
     "./server": "./src/server.ts"
   },
   "scripts": {

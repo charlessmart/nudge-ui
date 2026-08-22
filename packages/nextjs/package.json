@@ -18,7 +18,8 @@
     "@design-tool/css": "workspace:*",
     "@design-tool/inspector": "workspace:*",
     "@design-tool/plugin": "workspace:*",
-    "magic-string": "^0.30.11"
+    "magic-string": "^0.30.11",
+    "@design-tool/standalone": "workspace:*"
   },
   "peerDependencies": {
     "next": ">=15.3 <17",
