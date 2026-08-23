@@ -1,4 +1,3 @@
-import type { TokenEntry } from "virtual:design-tokens";
 import { applyRules, verifyPreview } from "../managedStylesheet.ts";
 import type { StyleRule } from "../managedStylesheet.ts";
 import { getSelectedElement } from "../selectionStore.ts";
@@ -21,10 +20,7 @@ import {
   type ChangeRecord,
   type PreviewableChangeRecord,
 } from "./types.ts";
-
-function tokenReference(token: TokenEntry): string {
-  return token.cssValue ?? `var(${token.cssName ?? token.name})`;
-}
+import { tokenReference } from "./model.ts";
 
 function requestedStyleValue(change: PreviewableChangeRecord): string {
   if (isTokenChange(change)) return change.rawValue;

@@ -11,7 +11,7 @@ import { escapeAttrValue } from "../cssEscapes.ts";
 import type { RenderedInstanceOverride, RenderedInstanceRef } from "../renderedInstance.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
 import type { TextProjectionTarget } from "../textChangeBoundary.ts";
-import { canonicalizeChanges } from "../changes/model.ts";
+import { canonicalizeChanges, tokenReference } from "../changes/model.ts";
 import {
   formatComponentPropBaseline,
   formatComponentPropValue,
@@ -112,7 +112,10 @@ function elementChangeLine(rec: ElementChangeRecord): string {
   }
   if (rec.newToken) {
     const before = rec.oldRawValue !== undefined ? `\`${rec.oldRawValue}\` → ` : "";
-    return `- \`${rec.property}\`: ${before}\`var(${rec.newToken.name})\`${conflictSuffix(rec)}`;
+    // Describe exactly the value the managed stylesheet wrote for this swap
+    // (adapter literal or var(cssName)); a bare var(name) would be invalid
+    // CSS for adapter tokens whose names are not custom-property names.
+    return `- \`${rec.property}\`: ${before}\`${tokenReference(rec.newToken)}\`${conflictSuffix(rec)}`;
   }
   if (rec.rawValue !== undefined) {
     const before = rec.oldRawValue !== undefined ? `\`${rec.oldRawValue}\` → ` : "";
