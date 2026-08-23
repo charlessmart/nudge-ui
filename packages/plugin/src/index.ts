@@ -74,6 +74,22 @@ const COMPONENT_EXT = /\.(?:tsx|jsx)(?:$|[?#])/;
 const MOUNT_DIV = `<div id="design-tool-root"></div>`;
 const INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:design-tool-inspector"></script>`;
 
+/**
+ * Extracts the stylesheet string Vite embeds in dev CSS-module JS wrappers
+ * (`const __vite__css = "…"`). Returns null for anything that is not such a
+ * wrapper, so callers can feed the original code unchanged.
+ */
+export function extractViteModuleCss(code: string): string | null {
+  const match = /(?:^|;)\s*(?:const|let|var)\s+__vite__css\s*=\s*("(?:[^"\\]|\\.)*")/m.exec(code);
+  if (!match) return null;
+  try {
+    const value = JSON.parse(match[1]!) as unknown;
+    return typeof value === "string" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 function relativePath(id: string, root?: string): string {
   if (root) {
     const rootPrefix = root.endsWith("/") ? root : root + "/";
@@ -253,12 +269,22 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
    */
   function feedCssArtifact(
     id: string,
-    code: string,
+    rawCode: string,
     stage: ArtifactStage,
     ordering: { order?: number; discoveryOrder?: number } = {},
   ): void {
     if (!CSS_EXT.test(id)) return;
+    let code = rawCode;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
+    // Astro compiles component <style> blocks into JS wrapper modules keyed
+    // by `.astro?...&lang.css` ids. No authored .css artifact exists for
+    // them, so unwrap the embedded stylesheet string; otherwise the catalog
+    // never sees component-scoped custom properties (ADR-0011). Plain .css
+    // modules keep their authored observation and are untouched.
+    if (!CSS_EXT.test(fileId)) {
+      const unwrapped = extractViteModuleCss(code);
+      if (unwrapped !== null) code = unwrapped;
+    }
     if (isGeneratedBuildOutput(fileId)) return;
     if (ordering.order !== undefined || ordering.discoveryOrder !== undefined) {
       stylesheetOrdering.set(fileId, { ...ordering });

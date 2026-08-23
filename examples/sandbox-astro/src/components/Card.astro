@@ -13,11 +13,26 @@ const { title, body } = Astro.props;
 </article>
 
 <style>
+  /* Eight scoped custom properties alone in one rule: the theme-table policy
+   * (MIN_THEME_TABLE_DECLARATIONS = 8, requiresOnlyCustomProperties) admits
+   * this rule into the token catalog, which lets the e2e suite exercise Astro
+   * scoping-hash sanitization end-to-end (ADR-0011). */
   .card {
-    background: white;
+    --card-radius: 0.75rem;
+    --card-pad: 1rem;
+    --card-gap: 0.75rem;
+    --card-border: #e5e7eb;
+    --card-bg: #ffffff;
+    --card-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+    --card-title-size: 1.05rem;
+    --card-body-size: 0.9rem;
+  }
+
+  .card {
+    background: var(--card-bg);
     border-radius: var(--radius-card);
     padding: var(--space-lg);
-    box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+    box-shadow: var(--card-shadow);
   }
 
   .card-title {

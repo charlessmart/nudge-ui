@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createTokenInventory } from "@design-tool/css/token-inventory";
 import {
   designTool as createDesignToolPlugins,
+  extractViteModuleCss,
   isHostApplicationSource,
   transformIndexHtmlHtml,
 } from "./index.ts";
@@ -153,8 +154,78 @@ describe("designTool plugin virtual inspector module", () => {
   });
 });
 
-describe("designTool react alias configuration", () => {
-  // A root with React installed is required for the resolver to find entries;
+describe("designTool Astro component-style unwrapping (ADR-0011)", () => {
+  it("extracts the stylesheet embedded in Vite CSS-module JS wrappers", () => {
+    const wrapper = [
+      'import { updateStyle as __vite__updateStyle } from "/@vite/client"',
+      'const __vite__css = ".card[data-astro-cid-x]{--a: \\"1px\\";--b: 2px}"',
+      "__vite__updateStyle(__vite__id, __vite__css)",
+      "import.meta.hot.accept()",
+    ].join("\n");
+    expect(extractViteModuleCss(wrapper)).toBe(
+      '.card[data-astro-cid-x]{--a: "1px";--b: 2px}',
+    );
+  });
+
+  it("returns null for non-wrapper code so callers feed it unchanged", () => {
+    expect(extractViteModuleCss(":root { --x: 1px; }")).toBeNull();
+    expect(extractViteModuleCss("const __vite__css = broken")).toBeNull();
+  });
+
+  it("feeds Astro component-style modules into the token catalog as scoped theme tables", async () => {
+    const root = mkdtempSync(join(tmpdir(), "design-tool-astro-css-"));
+    try {
+      const declarations = Array.from({ length: 8 }, (_, index) => `--card-v${index}: ${index}px;`).join("");
+      const wrapper = [
+        'import { createHotContext as __vite__createHotContext } from "/@vite/client";',
+        'import { updateStyle as __vite__updateStyle } from "/@vite/client"',
+        'const __vite__css = `.card[data-astro-cid-x]{${declarations}}`',
+        "__vite__updateStyle(__vite__id, __vite__css)",
+        "import.meta.hot.accept()",
+      ].join("\n");
+      // Build the real wrapper with an escaped JSON string so quotes inside
+      // the CSS survive JS parsing exactly like Vite's serializer emits them.
+      const css = `.card[data-astro-cid-x]{${declarations}}`;
+      const code = wrapper.replace(
+        "`" + `.card[data-astro-cid-x]{\${declarations}}` + "`",
+        JSON.stringify(css),
+      );
+
+      const [plugin, observer] = createDesignToolPlugins() as unknown as [
+        {
+          configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
+          load?: (id: string) => string | null | Promise<string | null>;
+        },
+        { transform?: (code: string, id: string) => unknown },
+      ];
+      plugin.configResolved!({ root, command: "serve" });
+      observer.transform!(
+        code,
+        join(root, "src/components/Card.astro?astro&type=style&index=0&lang.css"),
+      );
+
+      const virtual = await plugin.load!("\0virtual:design-tokens");
+      const catalog = JSON.parse(virtual!.match(/^export const tokenCatalog = (.*);$/m)?.[1] ?? "[]") as Array<{
+        cssName: string;
+        origin?: string;
+        context?: { selector?: string };
+        declarations: Array<{ source: string }>;
+      }>;
+      const cardBg = catalog.find((entry) => entry.cssName === "--card-v0");
+      expect(cardBg).toBeDefined();
+      expect(cardBg?.origin).toBe("project");
+      const declarationContext = (cardBg?.declarations[0] as unknown as {
+        context?: { selector?: string };
+      })?.context;
+      expect(declarationContext?.selector).toContain("[data-astro-cid-x]");
+      expect(cardBg?.declarations[0]?.source).toBe("src/components/Card.astro:1");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("designTool react alias configuration", () => {  // A root with React installed is required for the resolver to find entries;
   // the sandbox fixture is a stable in-repo candidate.
   const sandboxRoot = join(
     fileURLToPath(new URL(".", import.meta.url)),
@@ -249,8 +320,7 @@ describe("designTool component contract catalog", () => {
 });
 
 describe("designTool token catalog compiler", () => {
-  it("emits the empty token module in production builds (ADR-0002)", async () => {
-    const plugin = designTool() as unknown as {
+  it("emits the empty token module in production builds (ADR-0002)", async () => {    const plugin = designTool() as unknown as {
       configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
       load?: (id: string) => string | null | Promise<string | null>;
     };

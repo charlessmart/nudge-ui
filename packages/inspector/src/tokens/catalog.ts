@@ -118,10 +118,36 @@ function pickWinningDeclaration(
   return winner;
 }
 
+/**
+ * Astro compiles component-scoped styles with structural scoping markers:
+ * `[data-astro-cid-<hash>]` attribute selectors (attribute strategy) or
+ * `.astro-<hash>` classes (class strategy). ADR-0011: the hashes are opaque
+ * structure — the raw selector is retained in `context.selector` so resolution
+ * keeps matching the rendered DOM, but human-facing labels and prompts must
+ * present only author vocabulary.
+ *
+ * The `.astro-` prefix is reserved by Astro for class-strategy scoping, so any
+ * author class starting with it is treated as structural. Documented
+ * assumption, not an attempt to hash-match.
+ */
+export function stripScopingHashes(selector: string): string {
+  return selector
+    .replace(/\[data-astro-cid-[^\]]*\]/g, "")
+    .replace(/\.astro-[a-zA-Z0-9_-]+/g, "")
+    // A :where(...) wrapper left empty by the removals disappears entirely.
+    .replace(/:where\(\s*\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function contextLabel(context: TokenContext): string {
   const labels: string[] = [];
-  if (context.selector && context.selector !== ":root") labels.push(context.selector);
-  else if (context.selector === ":root") labels.push("Default");
+  if (context.selector && context.selector !== ":root") {
+    const selectorLabel = stripScopingHashes(context.selector);
+    labels.push(selectorLabel === "" || selectorLabel === ":root" ? "Default" : selectorLabel);
+  } else if (context.selector === ":root") {
+    labels.push("Default");
+  }
   for (const wrapper of context.wrappers ?? []) {
     labels.push(`@${wrapper.kind} ${wrapper.params}`);
   }

@@ -6,6 +6,7 @@ import {
   buildTokenCatalogRows,
   classifyCatalogToken,
   compatibleTokenNames,
+  contextLabel,
   createsAliasCycle,
   filterTokenRows,
   type TokenRuntime,
@@ -52,6 +53,60 @@ describe("token catalog", () => {
     }));
     expect(dark[0]?.authoredValue).toBe("#eee");
     expect(dark[0]?.contextLabel).toContain("dark");
+  });
+
+  it("labels Astro-scoped declarations with author vocabulary only (ADR-0011)", () => {
+    // Astro's compiled scoped selectors carry opaque scoping hashes. The label
+    // must present the author selector; the raw context stays untouched so
+    // resolution still matches the rendered DOM.
+    const scoped: TokenDefinition[] = [{
+      cssName: "--scoped-theme",
+      name: "--scoped-theme",
+      declarations: [
+        {
+          value: "1px",
+          source: "src/components/Card.astro:1",
+          important: false,
+          context: { selector: ".card-theme[data-astro-cid-dohjnao5]" },
+        },
+        {
+          value: "2px",
+          source: "src/components/Card.astro:1",
+          important: false,
+          context: { selector: ".card-theme:where(.astro-baexmxn4)" },
+        },
+        {
+          value: "3px",
+          source: "src/components/Card.astro:1",
+          important: false,
+          context: { selector: "h1[data-astro-cid-baexmxn4]" },
+        },
+      ],
+    }];
+    // Every labeled surface (variants list, change records, prompts) is built
+    // from contextLabel, so no scoping hash reaches author-facing vocabulary.
+    const labels = scoped[0]!.declarations.map((declaration) => contextLabel(declaration.context));
+    expect(labels).toEqual([".card-theme", ".card-theme", "h1"]);
+    expect(labels.join("\n")).not.toContain("data-astro-cid");
+    expect(labels.join("\n")).not.toContain(".astro-baexmxn4");
+
+    // The assembled catalog rows label the active declaration cleanly.
+    const [row] = buildTokenCatalogRows(scoped, document.documentElement, runtime({
+      selectorMatches: () => true,
+    }));
+    expect(row?.contextLabel).toBe(".card-theme");
+    expect(row?.definition.declarations[0]?.context.selector).toBe(
+      ".card-theme[data-astro-cid-dohjnao5]",
+    );
+
+    // A selector made entirely of scoping structure degrades to a structural
+    // label instead of leaking an empty or hashed one.
+    expect(contextLabel({ selector: ":where([data-astro-cid-x])" })).toBe("Default");
+
+    // Resolution facts keep the raw selector.
+    expect(scoped[0]!.declarations[0]!.context.selector).toBe(
+      ".card-theme[data-astro-cid-dohjnao5]",
+    );
   });
 
   it("keeps a token visible but inactive when no declaration applies", () => {
