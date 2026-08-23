@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { generatePrompt } from "./generatePrompt.ts";
 import { detectFramework } from "./detectFramework.ts";
 import type { ChangeRecord, ElementChangeRecord, TextContentChangeRecord } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
+import { configureDesignToolRuntime } from "../runtimeConfig.ts";
 
 const SURFACE_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:1" };
 const SURFACE_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5f5f5", source: "styles.css:2" };
@@ -23,13 +24,59 @@ function rec(
   };
 }
 
+/**
+ * Configures the runtime the way the Astro host Adapter declares it
+ * (packages/astro/src/bootstrap.ts): response-layer `astro:` identity and
+ * `.astro`/`.html` sources keep exact authored coordinates; hydrated-island
+ * JSX keeps line precision.
+ */
+function configureAstroHost(): void {
+  configureDesignToolRuntime({
+    projectId: "prompt-fixture",
+    host: "astro",
+    framework: "Astro",
+    stylingSystem: "CSS custom properties",
+    capabilities: {
+      canvas: false,
+      componentSemantics: true,
+      sourceCoordinates: {
+        exactCidPrefixes: ["astro:"],
+        exactFileExtensions: [".astro", ".html", ".htm"],
+      },
+    },
+    tokenCatalog: [],
+    tokens: [],
+    tokenDiagnostics: [],
+    tokenGeneration: "",
+    componentContracts: [],
+  });
+}
+
+/** Restores a policy-free host so every source site is exact. */
+function configureDefaultHost(): void {
+  configureDesignToolRuntime({
+    projectId: "prompt-fixture",
+    host: "vite-react",
+    framework: "React",
+    stylingSystem: "CSS custom properties",
+    capabilities: { canvas: true, componentSemantics: true },
+    tokenCatalog: [],
+    tokens: [],
+    tokenDiagnostics: [],
+    tokenGeneration: "",
+    componentContracts: [],
+  });
+}
+
+afterEach(configureDefaultHost);
+
 describe("generatePrompt", () => {
   it("renders semantic component prop intent at the invocation callsite", () => {
     const change = makeComponentChange();
     const out = generatePrompt([change]);
     expect(out).toContain("## Component prop changes");
-    // JSX callsites keep line precision under the per-origin policy.
-    expect(out).toContain("### Button invocation (src/App.tsx:12)");
+    // Callsite coordinates are authored-exact under the default host policy.
+    expect(out).toContain("### Button invocation (src/App.tsx:12:4)");
     expect(out).toContain("`variant`: `primary` → `secondary` — replace the invocation prop literal");
     expect(out).toContain("Component contract: `src/ui/Button#Button`");
     expect(out).not.toContain("Selectors (fallback)");
@@ -260,6 +307,23 @@ describe("generatePrompt", () => {
     );
   });
 
+  it("keeps authored columns for JSX sources under hosts that declare no policy", () => {
+    // Vite and Next hosts capture data-src on the authored TSX before
+    // React's transform (plugin transform order "pre"), so their columns
+    // are exact; the default policy must not silently downgrade them.
+    const out = generatePrompt([rec({
+      cid: "Counter",
+      file: "src/components/Counter.tsx",
+      line: 14,
+      column: 9,
+      property: "color",
+      rawValue: "blue",
+      selector: '[data-cid="Counter"][data-src="src/components/Counter.tsx:14:9"]',
+    })]);
+
+    expect(out).toContain("### Counter (src/components/Counter.tsx:14:9)");
+  });
+
   it("uses exact source coordinates for static HTML changes", () => {
     const change = rec({
       cid: "html:button",
@@ -282,6 +346,7 @@ describe("generatePrompt", () => {
   });
 
   it("keys exact source coordinates off each element's identity origin, not the document framework", () => {
+    configureAstroHost();
     const change = rec({
       cid: "astro:H1",
       file: "src/pages/about.astro",
@@ -300,8 +365,8 @@ describe("generatePrompt", () => {
     expect(out).toContain("### astro:H1 (src/pages/about.astro:12:7)");
     expect(out).not.toContain("data-cid");
 
-    // The identity origin decides precision: an astro: element keeps its
-    // authored coordinates even if the document's framework hint changes.
+    // The host-declared policy decides precision: an astro: element keeps
+    // its authored coordinates even if the document's framework hint changes.
     const otherFrameworkOut = generatePrompt([change], {
       framework: "React",
       stylingSystem: "CSS custom properties",
@@ -310,9 +375,10 @@ describe("generatePrompt", () => {
   });
 
   it("renders React island JSX elements at line precision inside an Astro document", () => {
-    // Stage 5 (ADR-0011): island internals carry JSX-transform cids whose
-    // positions are captured before pipeline transforms that can shift them;
-    // the Astro document hint must not upgrade them to exact file:line:column.
+    configureAstroHost();
+    // Stage 5 (ADR-0011): the Astro host declares island internals as
+    // line-precision origins; the document hint must not upgrade them to
+    // exact file:line:column.
     const out = generatePrompt([rec({
       cid: "Counter",
       file: "src/components/Counter.tsx",
@@ -332,8 +398,10 @@ describe("generatePrompt", () => {
   });
 
   it("keeps exact coordinates for author-supplied cids on authored static sources", () => {
-    // Both identity modules preserve author-written data-cid while still
-    // writing exact data-src; precision follows the source file, not the cid.
+    configureAstroHost();
+    // The response identity module preserves author-written data-cid while
+    // still writing exact data-src; precision follows the source file, not
+    // the cid.
     const out = generatePrompt([rec({
       cid: "Hero",
       file: "src/pages/index.astro",
@@ -348,6 +416,7 @@ describe("generatePrompt", () => {
   });
 
   it("renders text changes on JSX elements at line precision inside an Astro document", () => {
+    configureAstroHost();
     const change: TextContentChangeRecord = {
       kind: "text-content",
       id: "text-astro-island",
@@ -374,6 +443,7 @@ describe("generatePrompt", () => {
   });
 
   it("labels degraded Astro identity as unknown source instead of a fabricated location", () => {
+    configureAstroHost();
     // Degraded mode (ADR-0011): Astro dev annotations absent — generated cid,
     // no data-src. The prompt must not invent `file:0` or expose selectors.
     const out = generatePrompt([rec({

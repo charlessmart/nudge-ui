@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 import type { TokenDefinition } from "virtual:design-tokens";
 import {
   aliasName,
@@ -9,8 +9,52 @@ import {
   contextLabel,
   createsAliasCycle,
   filterTokenRows,
+  humanizeSelector,
   type TokenRuntime,
 } from "./catalog.ts";
+import { configureDesignToolRuntime } from "../runtimeConfig.ts";
+
+/**
+ * Configures the runtime the way the Astro host Adapter declares it
+ * (packages/astro/src/bootstrap.ts): Astro's structural scoping markers are
+ * declared at the host seam, not known to the shared catalog.
+ */
+function configureAstroHost(): void {
+  configureDesignToolRuntime({
+    projectId: "catalog-fixture",
+    host: "astro",
+    framework: "Astro",
+    stylingSystem: "CSS custom properties",
+    capabilities: {
+      canvas: false,
+      componentSemantics: true,
+      scopingSelectorPattern: "\\[data-astro-cid-[^\\]]*\\]|\\.astro-[a-zA-Z0-9_-]+",
+    },
+    tokenCatalog: [],
+    tokens: [],
+    tokenDiagnostics: [],
+    tokenGeneration: "",
+    componentContracts: [],
+  });
+}
+
+/** Restores a host that declares no scoping grammar. */
+function configureDefaultHost(): void {
+  configureDesignToolRuntime({
+    projectId: "catalog-fixture",
+    host: "vite-react",
+    framework: "React",
+    stylingSystem: "CSS custom properties",
+    capabilities: { canvas: true, componentSemantics: true },
+    tokenCatalog: [],
+    tokens: [],
+    tokenDiagnostics: [],
+    tokenGeneration: "",
+    componentContracts: [],
+  });
+}
+
+afterEach(configureDefaultHost);
 
 function runtime(overrides: Partial<TokenRuntime> = {}): TokenRuntime {
   const root = document.documentElement;
@@ -56,6 +100,7 @@ describe("token catalog", () => {
   });
 
   it("labels Astro-scoped declarations with author vocabulary only (ADR-0011)", () => {
+    configureAstroHost();
     // Astro's compiled scoped selectors carry opaque scoping hashes. The label
     // must present the author selector; the raw context stays untouched so
     // resolution still matches the rendered DOM.
@@ -107,6 +152,14 @@ describe("token catalog", () => {
     expect(scoped[0]!.declarations[0]!.context.selector).toBe(
       ".card-theme[data-astro-cid-dohjnao5]",
     );
+  });
+
+  it("keeps author vocabulary untouched for hosts that declare no scoping grammar", () => {
+    // The default host declares no scoping markers, so an author class that
+    // merely looks like Astro's reserved prefix must survive labeling —
+    // scoping grammar is host-declared, never assumed by the shared catalog.
+    expect(contextLabel({ selector: ".astro-brand-badge" })).toBe(".astro-brand-badge");
+    expect(humanizeSelector(".card[data-astro-cid-x]", null)).toBe(".card[data-astro-cid-x]");
   });
 
   it("keeps a token visible but inactive when no declaration applies", () => {

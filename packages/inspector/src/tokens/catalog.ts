@@ -4,6 +4,7 @@ import type {
   TokenDefinition,
 } from "virtual:design-tokens";
 import type { StyleRuleContext } from "../managedStylesheet.ts";
+import { getScopingSelectorPattern } from "../runtimeConfig.ts";
 import { getElementComputedStyle, getElementWindow } from "../domRealm.ts";
 import {
   selectTokens,
@@ -119,22 +120,18 @@ function pickWinningDeclaration(
 }
 
 /**
- * Astro compiles component-scoped styles with structural scoping markers:
- * `[data-astro-cid-<hash>]` attribute selectors (attribute strategy) or
- * `.astro-<hash>` classes (class strategy). ADR-0011: the hashes are opaque
- * structure — the raw selector is retained in `context.selector` so resolution
- * keeps matching the rendered DOM, but human-facing labels and prompts must
- * present only author vocabulary.
- *
- * The `.astro-` prefix is reserved by Astro for class-strategy scoping, so any
- * author class starting with it is treated as structural. Documented
- * assumption, not an attempt to hash-match.
+ * Strips host-declared structural scoping markers from a selector so
+ * human-facing labels present only author vocabulary (ADR-0011). The marker
+ * grammar — Astro's `[data-astro-cid-<hash>]` attribute selectors or
+ * `.astro-<hash>` classes, a future Vue/Svelte equivalent — is declared by
+ * the host Adapter through the runtime configuration; the raw selector is
+ * retained in `context.selector` so resolution keeps matching the rendered
+ * DOM. A `:where(...)` wrapper left empty by the removals disappears
+ * entirely.
  */
-export function stripScopingHashes(selector: string): string {
-  return selector
-    .replace(/\[data-astro-cid-[^\]]*\]/g, "")
-    .replace(/\.astro-[a-zA-Z0-9_-]+/g, "")
-    // A :where(...) wrapper left empty by the removals disappears entirely.
+export function humanizeSelector(selector: string, scopingPattern: RegExp | null): string {
+  const stripped = scopingPattern === null ? selector : selector.replace(scopingPattern, "");
+  return stripped
     .replace(/:where\(\s*\)/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -143,7 +140,7 @@ export function stripScopingHashes(selector: string): string {
 export function contextLabel(context: TokenContext): string {
   const labels: string[] = [];
   if (context.selector && context.selector !== ":root") {
-    const selectorLabel = stripScopingHashes(context.selector);
+    const selectorLabel = humanizeSelector(context.selector, getScopingSelectorPattern());
     labels.push(selectorLabel === "" || selectorLabel === ":root" ? "Default" : selectorLabel);
   } else if (context.selector === ":root") {
     labels.push("Default");

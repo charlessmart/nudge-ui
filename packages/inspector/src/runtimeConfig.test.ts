@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   configureDesignToolRuntime,
   getDesignToolRuntimeConfig,
+  getScopingSelectorPattern,
+  getSourceCoordinatePolicy,
   subscribeDesignToolRuntime,
   type DesignToolRuntimeConfig,
 } from "./runtimeConfig.ts";
@@ -204,6 +206,70 @@ describe("runtime configuration validation and defaults", () => {
     expect(snapshot.framework).toBe("Astro");
     expect(snapshot.projectId).toBe("astro-fixture");
     expect(Object.isFrozen(snapshot)).toBe(true);
+  });
+
+  it("preserves host-declared source-coordinate policies and scoping grammar", () => {
+    previousConfig = getDesignToolRuntimeConfig();
+    configureDesignToolRuntime({
+      ...makeConfig("generation-capabilities"),
+      capabilities: {
+        canvas: false,
+        componentSemantics: true,
+        sourceCoordinates: {
+          exactCidPrefixes: ["astro:"],
+          exactFileExtensions: [".astro", ".html", ".htm"],
+        },
+        scopingSelectorPattern: "\\[data-astro-cid-[^\\]]*\\]",
+      },
+    });
+
+    const snapshot = getDesignToolRuntimeConfig();
+    expect(snapshot.capabilities.sourceCoordinates).toEqual({
+      exactCidPrefixes: ["astro:"],
+      exactFileExtensions: [".astro", ".html", ".htm"],
+    });
+    expect(getSourceCoordinatePolicy()).toEqual({
+      exactCidPrefixes: ["astro:"],
+      exactFileExtensions: [".astro", ".html", ".htm"],
+    });
+    expect(getScopingSelectorPattern()?.source).toBe("\\[data-astro-cid-[^\\]]*\\]");
+  });
+
+  it("defaults to exact coordinates and no scoping grammar when the host declares none", () => {
+    previousConfig = getDesignToolRuntimeConfig();
+    configureDesignToolRuntime(makeConfig("generation-default-capabilities"));
+
+    expect(getSourceCoordinatePolicy()).toBeNull();
+    expect(getScopingSelectorPattern()).toBeNull();
+  });
+
+  it("degrades an invalid scoping pattern to no stripping instead of throwing", () => {
+    previousConfig = getDesignToolRuntimeConfig();
+    configureDesignToolRuntime({
+      ...makeConfig("generation-invalid-pattern"),
+      capabilities: { canvas: false, componentSemantics: false, scopingSelectorPattern: "([" },
+    });
+
+    expect(getScopingSelectorPattern()).toBeNull();
+  });
+
+  it("rejects malformed source-coordinate policies and scoping patterns", () => {
+    previousConfig = getDesignToolRuntimeConfig();
+    const invalidPolicy = {
+      ...makeConfig("generation-invalid-policy"),
+      capabilities: {
+        canvas: false,
+        componentSemantics: false,
+        sourceCoordinates: { exactCidPrefixes: [7] },
+      },
+    } as unknown as DesignToolRuntimeConfig;
+    expect(() => configureDesignToolRuntime(invalidPolicy)).toThrow(TypeError);
+
+    const invalidPattern = {
+      ...makeConfig("generation-invalid-pattern-2"),
+      capabilities: { canvas: false, componentSemantics: false, scopingSelectorPattern: "" },
+    } as unknown as DesignToolRuntimeConfig;
+    expect(() => configureDesignToolRuntime(invalidPattern)).toThrow(TypeError);
   });
 
   it("rejects missing or invalid required identity fields", () => {

@@ -1,7 +1,8 @@
 import type { ReactElement } from "react";
 import type { ChangeRecord } from "../changesLog.ts";
 import { isPreviewableChange, isTokenChange } from "../changesLog.ts";
-import { stripScopingHashes } from "../tokens/catalog.ts";
+import { humanizeSelector } from "../tokens/catalog.ts";
+import { getScopingSelectorPattern } from "../runtimeConfig.ts";
 import { isVerificationPending } from "./staleChangeDetector.ts";
 
 interface Props {
@@ -24,10 +25,11 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
   if (change.previewResult.status !== "conflict") return null;
 
   if (change.previewResult.reason === "target-missing") {
-    // ADR-0011: scoping hashes are opaque structure and must not surface as
-    // human-facing guidance; the raw selector stays in change records for
-    // managed-rule targeting.
-    const selectorLabel = stripScopingHashes(change.selector) || change.selector;
+    // ADR-0011: host scoping markers are opaque structure and must not
+    // surface as human-facing guidance; the raw selector stays in change
+    // records for managed-rule targeting.
+    const selectorLabel = humanizeSelector(change.selector, getScopingSelectorPattern())
+      || change.selector;
     return (
       <span
         className="dt-changes__stale"

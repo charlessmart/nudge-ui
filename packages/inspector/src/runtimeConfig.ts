@@ -15,12 +15,39 @@ export type DesignToolRuntimeHost =
 /** The framework semantics enabled for the active inspector runtime. */
 export type DesignToolRuntimeFramework = "React" | "HTML" | "Astro";
 
+/**
+ * Which identity origins carry exact authored coordinates in prompts
+ * (ADR-0011 Stage 5).
+ *
+ * A host whose pipeline captures `data-src` positions from anything other
+ * than the authored source declares the exact subset. Hosts that omit the
+ * policy state that every source site is exact.
+ */
+export interface SourceCoordinatePolicy {
+  /** Cid prefixes whose `data-src` line:column point at authored source. */
+  readonly exactCidPrefixes: readonly string[];
+  /** File extensions whose `data-src` line:column point at authored source. */
+  readonly exactFileExtensions: readonly string[];
+}
+
 /** Capabilities exposed by the active host Adapter. */
 export interface DesignToolRuntimeCapabilities {
   /** Whether the multi-page Canvas workspace is available. */
   readonly canvas: boolean;
   /** Whether framework component inspection and prop overrides are available. */
   readonly componentSemantics: boolean;
+  /**
+   * Source-coordinate precision policy for prompts; every source site is
+   * exact when the host omits it.
+   */
+  readonly sourceCoordinates?: SourceCoordinatePolicy;
+  /**
+   * Regex source matching this host's structural scoping markers, stripped
+   * from human-facing selector labels (ADR-0011). The raw selector stays in
+   * change records so managed-rule targeting keeps matching the rendered
+   * DOM. No stripping when the host omits it.
+   */
+  readonly scopingSelectorPattern?: string;
 }
 
 /**
@@ -156,6 +183,47 @@ function optionalBoolean(input: Record<string, unknown>, field: string): boolean
   return value;
 }
 
+function optionalNonEmptyString(input: Record<string, unknown>, field: string): string | undefined {
+  const value = input[field];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.length === 0) {
+    throw new TypeError(
+      `Design Tool runtime configuration field "${field}" must be a non-empty string.`,
+    );
+  }
+  return value;
+}
+
+function optionalStringArray(
+  input: Record<string, unknown>,
+  field: string,
+): readonly string[] | undefined {
+  const value = input[field];
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+    throw new TypeError(
+      `Design Tool runtime configuration field "${field}" must be an array of strings.`,
+    );
+  }
+  return value as readonly string[];
+}
+
+function normalizeSourceCoordinatePolicy(
+  input: Record<string, unknown>,
+): SourceCoordinatePolicy | undefined {
+  const policy = input.sourceCoordinates;
+  if (policy === undefined) return undefined;
+  if (!isPlainRecord(policy)) {
+    throw new TypeError(
+      'Design Tool runtime capability "sourceCoordinates" must be an object.',
+    );
+  }
+  return {
+    exactCidPrefixes: optionalStringArray(policy, "exactCidPrefixes") ?? [],
+    exactFileExtensions: optionalStringArray(policy, "exactFileExtensions") ?? [],
+  };
+}
+
 function normalizeCapabilities(input: unknown): DesignToolRuntimeCapabilities {
   if (input === undefined) return { canvas: false, componentSemantics: false };
   if (!isPlainRecord(input)) {
@@ -166,6 +234,8 @@ function normalizeCapabilities(input: unknown): DesignToolRuntimeCapabilities {
   return {
     canvas: optionalBoolean(input, "canvas"),
     componentSemantics: optionalBoolean(input, "componentSemantics"),
+    sourceCoordinates: normalizeSourceCoordinatePolicy(input),
+    scopingSelectorPattern: optionalNonEmptyString(input, "scopingSelectorPattern"),
   };
 }
 
@@ -232,6 +302,34 @@ export function configureDesignToolRuntime(config: DesignToolRuntimeConfig): voi
 /** Returns the immutable runtime snapshot used by shared inspector Modules. */
 export function getDesignToolRuntimeConfig(): DesignToolRuntimeConfig {
   return activeRuntimeConfig;
+}
+
+/**
+ * Returns the active host's source-coordinate policy, or null when the host
+ * declares none — every source site is exact in that case.
+ */
+export function getSourceCoordinatePolicy(): SourceCoordinatePolicy | null {
+  return activeRuntimeConfig.capabilities.sourceCoordinates ?? null;
+}
+
+let compiledScopingPattern: { source: string; pattern: RegExp | null } | null = null;
+
+/**
+ * Returns the active host's structural scoping-marker pattern compiled for
+ * global replacement, or null when the host declares none. An invalid regex
+ * source degrades to no stripping rather than breaking labeling.
+ */
+export function getScopingSelectorPattern(): RegExp | null {
+  const source = activeRuntimeConfig.capabilities.scopingSelectorPattern;
+  if (source === undefined) return null;
+  if (compiledScopingPattern?.source !== source) {
+    try {
+      compiledScopingPattern = { source, pattern: new RegExp(source, "g") };
+    } catch {
+      compiledScopingPattern = { source, pattern: null };
+    }
+  }
+  return compiledScopingPattern.pattern;
 }
 
 /**

@@ -21,6 +21,7 @@ import {
   normalizeRuntimeTag,
   normalizeRuntimeText,
 } from "../staticHtmlRuntimeIdentity.ts";
+import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runtimeConfig.ts";
 
 export interface FrameworkHints {
   framework?: string;
@@ -207,28 +208,47 @@ function runtimeEvidenceLines(group: ElementGroup): string[] {
 
 /**
  * Coordinate precision follows each element's identity origin, not the
- * document's framework hint (ADR-0011 Stage 5). Exact authored locations come
- * from the Astro response layer and the static-HTML server (`astro:` /
- * `html:` cids) and from author-supplied cids on `.astro`/`.html` sources;
- * both identity modules preserve author cids while writing exact `data-src`.
- * JSX-derived cids (`Counter`, `Button`) keep line precision only: their
- * positions are captured before pipeline transforms that can shift them.
+ * document's framework hint (ADR-0011 Stage 5). The active host Adapter
+ * declares which origins carry exact authored coordinates through the
+ * runtime configuration; hosts that declare nothing are exact everywhere.
  */
-function hasExactAuthoredCoordinates(cid: string, file: string): boolean {
-  if (cid.startsWith("astro:") || cid.startsWith("html:")) return true;
-  return /\.(astro|html?)$/.test(file);
+function hasExactAuthoredCoordinates(
+  policy: SourceCoordinatePolicy | null,
+  cid: string | undefined,
+  file: string,
+): boolean {
+  if (policy === null) return true;
+  if (cid !== undefined && policy.exactCidPrefixes.some((prefix) => cid.startsWith(prefix))) {
+    return true;
+  }
+  return policy.exactFileExtensions.some((extension) => file.endsWith(extension));
 }
 
-function elementGroupSource(group: ElementGroup): string {
+/**
+ * Formats one source location for a prompt heading. Exact origins keep the
+ * authored column; line-only origins — and sites whose column is unknown —
+ * degrade to `file:line` rather than fabricating precision.
+ */
+function formatSourceLocation(
+  policy: SourceCoordinatePolicy | null,
+  source: { cid?: string; file: string; line: number; column: number },
+): string {
+  if (hasExactAuthoredCoordinates(policy, source.cid, source.file) && source.column > 0) {
+    return `${source.file}:${source.line}:${source.column}`;
+  }
+  return `${source.file}:${source.line}`;
+}
+
+function elementGroupSource(
+  group: ElementGroup,
+  policy: SourceCoordinatePolicy | null,
+): string {
   if (group.runtimeEvidence) {
     return group.runtimeEvidence.reason === "unannotated"
       ? "source unknown; no authored location available"
       : "source unknown; runtime-created DOM";
   }
-  if (hasExactAuthoredCoordinates(group.cid, group.file) && group.column > 0) {
-    return `${group.file}:${group.line}:${group.column}`;
-  }
-  return `${group.file}:${group.line}`;
+  return formatSourceLocation(policy, group);
 }
 
 function renderedInstanceDescription(ref: RenderedInstanceRef): string {
@@ -327,6 +347,7 @@ export function generatePrompt(
   const elementChanges = deduplicated.filter((change): change is ElementChangeRecord =>
     !isTokenChange(change) && !isComponentChange(change) && !isTextContentChange(change));
   const elementGroups = groupElementChanges(elementChanges);
+  const coordinatePolicy = getSourceCoordinatePolicy();
   const sections: PromptSection[] = [];
 
   if (tokenChanges.length > 0) {
@@ -340,12 +361,7 @@ export function generatePrompt(
     const lines: string[] = [];
     for (const change of componentChanges) {
       const target = change.target;
-      // Callsite positions share the element precision policy: authored
-      // response-layer sources keep exact columns; pipeline-transformed JSX
-      // sources keep line precision (ADR-0011 Stage 5).
-      const source = hasExactAuthoredCoordinates("", target.file)
-        ? `${target.file}:${target.line}:${target.column}`
-        : `${target.file}:${target.line}`;
+      const source = formatSourceLocation(coordinatePolicy, target);
       lines.push(`### ${target.componentName} invocation (${source})`);
       lines.push(componentChangeLine(change));
       lines.push(`  - Component contract: \`${target.componentId}\``);
@@ -364,7 +380,7 @@ export function generatePrompt(
     const lines: string[] = [];
     for (const group of elementGroups) {
       const state = group.changes[0]?.state ?? "base";
-      lines.push(`### ${group.cid} (${elementGroupSource(group)}) · ${state}`);
+      lines.push(`### ${group.cid} (${elementGroupSource(group, coordinatePolicy)}) · ${state}`);
       if (group.instanceOverride) {
         lines.push(`- Applies only to ${renderedInstanceDescription(group.instanceOverride.target)}.`);
       }
@@ -383,14 +399,14 @@ export function generatePrompt(
     const lines: string[] = [];
     for (const change of textChanges) {
       const runtimeCreated = isRuntimeGeneratedSource(change.target.sourceSite.src);
-      const exact = !runtimeCreated
-        && hasExactAuthoredCoordinates(change.target.sourceSite.cid, change.source.file)
-        && change.source.column > 0;
       const textSource = runtimeCreated
         ? "source unknown; runtime-created DOM"
-        : exact
-          ? `${change.source.file}:${change.source.line}:${change.source.column}`
-          : `${change.source.file}:${change.source.line}`;
+        : formatSourceLocation(coordinatePolicy, {
+          cid: change.target.sourceSite.cid,
+          file: change.source.file,
+          line: change.source.line,
+          column: change.source.column,
+        });
       lines.push(`### ${change.source.component || change.target.sourceSite.cid} (${textSource})`);
       lines.push(`- Rendered text: ${promptText(change.before)} → ${promptText(change.after)} — ${textAuthorshipGuidance(change.authoredAs)}`);
       lines.push(...textScopeLines(change));
