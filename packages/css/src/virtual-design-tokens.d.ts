@@ -14,5 +14,4 @@ declare module "virtual:design-tokens" {
   export const tokenDiagnostics: TokenCatalogDiagnostic[];
   export const tokenGeneration: string;
   export const designToolProjectId: string;
-  export default tokens;
 }
