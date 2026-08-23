@@ -45,9 +45,19 @@ describe("designToolAstro", () => {
     expect(injectScript).toHaveBeenCalledTimes(1);
     const [stage, content] = injectScript.mock.calls[0] as unknown as [string, string];
     expect(stage).toBe("page");
-    // The entry primes plugin-react's refresh runtime, then loads the
-    // bootstrap dynamically so priming cannot be hoisted away.
+    // The refresh baseline is installed synchronously — before the dynamic
+    // imports — so the inspector graph (loaded via the dynamic bootstrap
+    // import, whose continuation always runs after this script's body) can
+    // never evaluate against a missing `$RefreshReg$`.
+    expect(content.indexOf("window.$RefreshReg$ = () => {};"))
+      .toBeLessThan(content.indexOf('import("/@react-refresh")'));
+    expect(content.indexOf("window.$RefreshReg$ = () => {};"))
+      .toBeLessThan(content.indexOf('import("@design-tool/astro/bootstrap")'));
+    expect(content).toContain("window.$RefreshSig$ = () => (type) => type;");
+    expect(content).toContain("window.__vite_plugin_react_preamble_installed__ = true;");
     expect(content).toContain('import("/@react-refresh")');
+    // The bootstrap loads dynamically so the synchronous baseline cannot be
+    // hoisted away (ESM semantics), and does not wait on the refresh chain.
     expect(content).toContain('import("@design-tool/astro/bootstrap")');
 
     expect(addMiddleware).toHaveBeenCalledTimes(1);

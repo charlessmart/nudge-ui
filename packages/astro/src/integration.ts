@@ -14,34 +14,37 @@ export interface DesignToolAstroOptions extends DesignToolOptions {}
 const BOOTSTRAP_MODULE_SPECIFIER = "@design-tool/astro/bootstrap";
 /**
  * The `page` stage emits our content as a Vite-resolved module on every
- * rendered page. Two ordering facts shape it:
+ * rendered page. The ordering facts that shape it:
  *
- * - React islands' HMR registrations need plugin-react's refresh runtime
- *   primed first; Astro never runs plugin-react's HTML preamble transform,
- *   so shared inspector sources would otherwise evaluate with `$RefreshSig$`
- *   undefined. Run plugin-react's official preamble here, defensively
- *   skipped when React tooling is absent.
- * - Static imports would hoist above any priming statements (ESM semantics),
- *   so the bootstrap itself is imported dynamically after priming settles.
- *
- * Accepted ordering assumption: priming is an async chain, while a hydrated
- * island's module graph may evaluate `$RefreshSig$()` at import time. The
- * `page` script is emitted in the head and starts before body/island module
- * evaluation, and Astro's dev server serves `/@react-refresh` from memory, so
- * the promise settles first in practice. If this ever races, the symptom is
- * `$RefreshSig$ is not defined` during island evaluation — revisit the stage
- * choice (or inline the priming statements) before changing anything else.
+ * - React islands do not need our preamble: `@astrojs/react` injects
+ *   plugin-react's canonical preamble into the island `before-hydration`
+ *   script, which astro-island awaits before importing component modules.
+ * - The inspector module graph DOES need the baseline: its sources are
+ *   plugin-react-transformed and check `window.$RefreshReg$` at evaluation
+ *   time ("can't detect preamble" when missing). This script imports the
+ *   bootstrap dynamically, and a dynamic-import continuation always runs
+ *   after the importing script's body — so setting the baseline
+ *   synchronously here covers the inspector by construction, with no
+ *   dependency on the refresh runtime's timing.
+ * - `injectIntoGlobalHook` only wires the DevTools hook used to schedule
+ *   Fast Refresh (renderers that registered earlier are picked up
+ *   retroactively), so it stays async and best-effort — absent in projects
+ *   without React tooling, where the `catch` keeps the page load clean.
+ * - The baseline no-op values are plugin-react's own canonical preamble
+ *   values; transformed modules swap in the real registration functions
+ *   around their own evaluation, so the baseline never masks HMR
+ *   registration.
  */
 const BOOTSTRAP_ENTRY_CONTENT =
+  "window.$RefreshReg$ = () => {};" +
+  "window.$RefreshSig$ = () => (type) => type;" +
+  "window.__vite_plugin_react_preamble_installed__ = true;" +
   'import("/@react-refresh")' +
   ".then((refreshRuntime) => {" +
   "  refreshRuntime.injectIntoGlobalHook(window);" +
-  '  window.$RefreshReg$ = () => {};' +
-  '  window.$RefreshSig$ = () => (type) => type;' +
-  "  window.__vite_plugin_react_preamble_installed__ = true;" +
   "})" +
-  ".catch(() => {})" +
-  `.then(() => import(${JSON.stringify(BOOTSTRAP_MODULE_SPECIFIER)}));`;
+  ".catch(() => {});" +
+  `import(${JSON.stringify(BOOTSTRAP_MODULE_SPECIFIER)});`;
 const MIDDLEWARE_ENTRYPOINT = new URL("./middleware.ts", import.meta.url);
 
 /**

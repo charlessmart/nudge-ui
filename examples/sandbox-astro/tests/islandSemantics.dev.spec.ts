@@ -218,3 +218,56 @@ test("dev: the astro-island host keeps Astro-derived identity across hydration",
 
   expect(severeErrors()).toEqual([]);
 });
+
+test("dev: a slow react-refresh runtime does not break the page", async ({ page }) => {
+  const severeErrors = trackSevereErrors(page);
+
+  // Trap every `$RefreshReg$` read so the assertion can observe what
+  // plugin-react's transformed modules actually saw. The invariant is
+  // evaluated inside the page: CDP serialization erases functions, so
+  // `typeof` in Node would always read "object".
+  await page.addInitScript(() => {
+    const reads: unknown[] = [];
+    let value: unknown;
+    Object.defineProperty(window, "$RefreshReg$", {
+      configurable: true,
+      get() {
+        reads.push(value);
+        return value;
+      },
+      set(next: unknown) {
+        value = next;
+      },
+    });
+    (window as unknown as { __dtRefreshRegReads?: unknown[] }).__dtRefreshRegReads = reads;
+  });
+
+  // Delay the refresh runtime's module response. Transformed module graphs
+  // (islands and the inspector) statically import it, so everything waits
+  // for it — the page must still come up intact, with no module ever
+  // evaluating against a missing `$RefreshReg$` baseline.
+  await page.route("**/@react-refresh", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.continue();
+  });
+
+  await page.goto("/");
+  await waitForInspector(page);
+  await waitForHydratedIsland(page);
+
+  const summary = await page.evaluate(() => {
+    const reads = (window as unknown as { __dtRefreshRegReads?: unknown[] }).__dtRefreshRegReads
+      ?? [];
+    return {
+      count: reads.length,
+      allReadsFunctions: reads.every((read) => typeof read === "function"),
+    };
+  });
+  // Transformed modules (island and inspector graphs) did read the global…
+  expect(summary.count).toBeGreaterThan(0);
+  // …and every read observed a baseline or the real runtime, never
+  // `undefined`.
+  expect(summary.allReadsFunctions).toBe(true);
+
+  expect(severeErrors()).toEqual([]);
+});
