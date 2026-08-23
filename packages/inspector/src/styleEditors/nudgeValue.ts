@@ -1,8 +1,8 @@
-import { completeCssValue } from "./completeCssValue.ts";
+import { completeCssValue, CSS_NUMBER_SOURCE } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 
-const CSS_NUMBER = /^[+-]?(?:(?:\d+\.?\d*)|(?:\.\d+))(?:e[+-]?\d+)?$/i;
-const CSS_NUMERIC_LITERAL = /^([+-]?(?:(?:\d+\.?\d*)|(?:\.\d+))(?:e[+-]?\d+)?)(px|rem|em|%)?$/i;
+const CSS_NUMBER = new RegExp(`^(?:${CSS_NUMBER_SOURCE})$`, "i");
+const CSS_NUMERIC_LITERAL = new RegExp(`^(${CSS_NUMBER_SOURCE})(px|rem|em|%)?$`, "i");
 
 export type NudgeDirection = -1 | 1;
 

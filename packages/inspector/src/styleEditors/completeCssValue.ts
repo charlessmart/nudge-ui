@@ -3,7 +3,10 @@ import type { ValuePolicy } from "./valuePolicy.ts";
 // CSS <number>, including values such as .5 and 1e3. This intentionally only
 // matches the entire value: units, functions, keywords, and compound values
 // are all valid raw CSS and must be passed through unchanged.
-const BARE_NUMBER = /^[+-]?(?:(?:\d+\.?\d*)|(?:\.\d+))(?:e[+-]?\d+)?$/i;
+// Exported as a source fragment so other editors (e.g. nudgeValue) build
+// their number-aware patterns from the same single grammar definition.
+export const CSS_NUMBER_SOURCE = "[+-]?(?:(?:\\d+\\.?\\d*)|(?:\\.\\d+))(?:e[+-]?\\d+)?";
+const BARE_NUMBER = new RegExp(`^(?:${CSS_NUMBER_SOURCE})$`, "i");
 
 /**
  * Completes a bare numeric entry with its property's default unit. This is a
