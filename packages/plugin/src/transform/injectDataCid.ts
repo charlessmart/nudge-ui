@@ -18,19 +18,18 @@ type Node = {
 
 const PARSEABLE_EXT = /\.(tsx|jsx)$/;
 
-const DECLARATION_SCOPE_TYPES = new Set([
-  "FunctionDeclaration",
-  "ClassDeclaration",
-]);
-
 const EXPRESSION_SCOPE_TYPES = new Set([
   "FunctionExpression",
   "ArrowFunctionExpression",
   "ClassExpression",
 ]);
 
+// Scopes that contribute an id to the scope stack: declarations push their
+// own name; expressions are pushed at their VariableDeclarator binding, or
+// here by their own id (may be null) when anonymous.
 const ALL_SCOPE_TYPES = new Set([
-  ...DECLARATION_SCOPE_TYPES,
+  "FunctionDeclaration",
+  "ClassDeclaration",
   ...EXPRESSION_SCOPE_TYPES,
 ]);
 
@@ -334,15 +333,8 @@ function walk(
     }
   }
 
-  if (DECLARATION_SCOPE_TYPES.has(node.type)) {
-    scopeStack.push(getScopeName(node));
-    walkChildren(node, scopeStack, ms, relPath, options, state);
-    scopeStack.pop();
-    return;
-  }
-
   if (ALL_SCOPE_TYPES.has(node.type)) {
-    // Named/anonymous expression scopes: push their own id (may be null).
+    // Named/anonymous function and class scopes: push their own id (may be null).
     scopeStack.push(getScopeName(node));
     walkChildren(node, scopeStack, ms, relPath, options, state);
     scopeStack.pop();
