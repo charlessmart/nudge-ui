@@ -13,6 +13,7 @@ build/
 
 # Next.js
 .next/
+.next-prod/
 
 # Environment
 .env
@@ -50,3 +51,8 @@ test-results/
 /learning-records/
 /reference/
 /assets/
+
+# Local planning documents
+/docs/features/
+/docs/issues/
+/research/
