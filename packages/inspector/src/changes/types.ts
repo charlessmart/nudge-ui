@@ -4,8 +4,13 @@ import type { ComponentChangeRecord } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "../renderedInstance.ts";
 import type { TextContentChangeRecord } from "../textChangeBoundary.ts";
 
-/** Bounded rendered facts retained for a runtime-generated HTML element. */
+/** Bounded rendered facts retained for one element without an authored source location. */
 export interface RuntimeElementEvidence {
+  /**
+   * Why the location is unknown; prompts phrase their guidance accordingly.
+   * Omitted by legacy records, which are all runtime-created DOM.
+   */
+  reason?: "runtime-created" | "unannotated";
   tagName: string;
   text: string | null;
   props: string | null;

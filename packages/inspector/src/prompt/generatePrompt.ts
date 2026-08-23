@@ -25,8 +25,6 @@ import {
 export interface FrameworkHints {
   framework?: string;
   stylingSystem?: string;
-  /** Host Adapter label; names the framework line for multi-host prompts. */
-  host?: string;
 }
 
 const EMPTY_SENTINEL =
@@ -208,7 +206,11 @@ function runtimeEvidenceLines(group: ElementGroup): string[] {
 }
 
 function elementGroupSource(group: ElementGroup, exactSource: boolean): string {
-  if (group.runtimeEvidence) return "source unknown; runtime-created DOM";
+  if (group.runtimeEvidence) {
+    return group.runtimeEvidence.reason === "unannotated"
+      ? "source unknown; no authored location available"
+      : "source unknown; runtime-created DOM";
+  }
   if (exactSource && group.column > 0) return `${group.file}:${group.line}:${group.column}`;
   return `${group.file}:${group.line}`;
 }
@@ -310,7 +312,9 @@ export function generatePrompt(
     !isTokenChange(change) && !isComponentChange(change) && !isTextContentChange(change));
   const elementGroups = groupElementChanges(elementChanges);
   const framework = frameworkHints?.framework ?? "React";
-  const exactHtmlSource = framework === "HTML";
+  // HTML-family runtimes (static markup, server-rendered Astro templates)
+  // carry exact authored source coordinates; JSX-derived columns do not.
+  const exactHtmlSource = framework === "HTML" || framework === "Astro";
   const sections: PromptSection[] = [];
 
   if (tokenChanges.length > 0) {

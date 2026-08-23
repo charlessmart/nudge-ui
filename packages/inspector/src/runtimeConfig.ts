@@ -6,10 +6,14 @@ import type {
 import type { ComponentContract } from "./componentSemantics/types.ts";
 
 /** The host Adapter that supplied the active inspector runtime. */
-export type DesignToolRuntimeHost = "vite-react" | "static-html" | "nextjs-react";
+export type DesignToolRuntimeHost =
+  | "vite-react"
+  | "static-html"
+  | "nextjs-react"
+  | "astro";
 
 /** The framework semantics enabled for the active inspector runtime. */
-export type DesignToolRuntimeFramework = "React" | "HTML";
+export type DesignToolRuntimeFramework = "React" | "HTML" | "Astro";
 
 /** Capabilities exposed by the active host Adapter. */
 export interface DesignToolRuntimeCapabilities {
@@ -87,8 +91,13 @@ const RUNTIME_HOSTS: readonly DesignToolRuntimeHost[] = [
   "vite-react",
   "static-html",
   "nextjs-react",
+  "astro",
 ];
-const RUNTIME_FRAMEWORKS: readonly DesignToolRuntimeFramework[] = ["React", "HTML"];
+const RUNTIME_FRAMEWORKS: readonly DesignToolRuntimeFramework[] = [
+  "React",
+  "HTML",
+  "Astro",
+];
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

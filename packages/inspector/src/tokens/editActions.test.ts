@@ -193,10 +193,34 @@ describe("runtime HTML evidence", () => {
     expect(record?.column).toBe(0);
     expect(record?.selector).toBe('[data-cid="design-tool-runtime-1"][data-src="author.html:4:2"]');
     expect(record?.runtimeEvidence).toEqual({
+      reason: "runtime-created",
       tagName: "button",
       text: "Save this action",
       props: ("  prop:`value`\n" + "x".repeat(140)).slice(0, 120),
       ariaLabel: "  Save\n  this action  ",
+    });
+  });
+
+  it("uses unannotated-source evidence when authored markup has no usable data-src", () => {
+    // Degraded Astro identity (ADR-0011): server-rendered markup with a
+    // generated cid and no source annotation. Prompts must treat the
+    // location as unknown, not fabricate `file:0`.
+    const heading = document.createElement("h1");
+    heading.setAttribute("data-cid", "astro:H1");
+    heading.textContent = "About the studio";
+    document.body.append(heading);
+
+    const record = setStyle(heading, "color", "blue");
+
+    expect(record?.file).toBe("");
+    expect(record?.line).toBe(0);
+    expect(record?.column).toBe(0);
+    expect(record?.runtimeEvidence).toEqual({
+      reason: "unannotated",
+      tagName: "h1",
+      text: "About the studio",
+      props: null,
+      ariaLabel: null,
     });
   });
 });

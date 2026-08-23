@@ -187,6 +187,25 @@ describe("runtime configuration validation and defaults", () => {
     expect(Object.isFrozen(snapshot)).toBe(true);
   });
 
+  it("accepts the astro host and preserves it on the snapshot", () => {
+    previousConfig = getDesignToolRuntimeConfig();
+    const input: DesignToolRuntimeConfig = {
+      ...makeConfig("generation-astro"),
+      projectId: "astro-fixture",
+      host: "astro",
+      framework: "Astro",
+      capabilities: { canvas: false, componentSemantics: false },
+    };
+
+    configureDesignToolRuntime(input);
+
+    const snapshot = getDesignToolRuntimeConfig();
+    expect(snapshot.host).toBe("astro");
+    expect(snapshot.framework).toBe("Astro");
+    expect(snapshot.projectId).toBe("astro-fixture");
+    expect(Object.isFrozen(snapshot)).toBe(true);
+  });
+
   it("rejects missing or invalid required identity fields", () => {
     const missingProjectId = { ...makeConfig("generation-validation") } as Record<string, unknown>;
     delete missingProjectId.projectId;

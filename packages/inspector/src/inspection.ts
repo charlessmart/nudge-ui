@@ -134,7 +134,6 @@ export function inspectElement(
     : {
       framework: runtimeConfig.framework,
       stylingSystem: runtimeConfig.stylingSystem,
-      host: runtimeConfig.host,
     };
   const browserFacts = inspectBrowserFacts(element, definitions, options.tokens);
   const availableTokens = options.tokens ? [...options.tokens] : [...browserFacts.element.availableTokens];

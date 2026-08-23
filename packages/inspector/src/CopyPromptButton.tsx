@@ -25,9 +25,6 @@ export function CopyPromptButton(): ReactElement {
     const hints = {
       framework: runtimeConfig.framework,
       stylingSystem: runtimeConfig.stylingSystem,
-      // The host names the framework line ("React on Next.js (App Router)")
-      // and must match inspectElement's hint construction.
-      host: runtimeConfig.host,
     };
     const text = generatePrompt(changes, hints, structuralChanges);
     await copyToClipboard(text);

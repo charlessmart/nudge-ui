@@ -30,23 +30,38 @@ function sourceFields(el: HTMLElement): {
 } {
   const src = el.getAttribute("data-src") ?? "";
   const parsed = parseDataSrc(src);
+  const evidence = (reason: NonNullable<
+    ElementChangeRecord["runtimeEvidence"]
+  >["reason"]): ElementChangeRecord["runtimeEvidence"] => ({
+    reason,
+    tagName: normalizeRuntimeTag(el.tagName),
+    text: boundedRenderedText(el),
+    props: boundRuntimeEvidence(el.getAttribute("data-cprops")),
+    ariaLabel: boundRuntimeEvidence(el.getAttribute("aria-label")),
+  });
   if (isRuntimeCreatedElement(el) || isRuntimeGeneratedSource(src)) {
     return {
       file: "",
       line: 0,
       column: 0,
-      runtimeEvidence: {
-        tagName: normalizeRuntimeTag(el.tagName),
-        text: boundedRenderedText(el),
-        props: boundRuntimeEvidence(el.getAttribute("data-cprops")),
-        ariaLabel: boundRuntimeEvidence(el.getAttribute("aria-label")),
-      },
+      runtimeEvidence: evidence("runtime-created"),
+    };
+  }
+  if (!parsed) {
+    // Authored markup whose source annotation is absent or unusable — for
+    // example Astro dev-annotation degraded mode. Prompts must say the
+    // location is unknown instead of rendering a fabricated `file:0`.
+    return {
+      file: "",
+      line: 0,
+      column: 0,
+      runtimeEvidence: evidence("unannotated"),
     };
   }
   return {
-    file: parsed?.file ?? src,
-    line: parsed?.line ?? 0,
-    column: parsed?.column ?? 0,
+    file: parsed.file,
+    line: parsed.line,
+    column: parsed.column,
   };
 }
 

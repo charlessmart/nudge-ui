@@ -280,6 +280,63 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("data-cid");
   });
 
+  it("uses exact source coordinates for Astro changes and line precision for React", () => {
+    const change = rec({
+      cid: "astro:H1",
+      file: "src/pages/about.astro",
+      line: 12,
+      column: 7,
+      property: "color",
+      rawValue: "blue",
+      selector: '[data-cid="astro:H1"][data-src="src/pages/about.astro:12:7"]',
+    });
+
+    const out = generatePrompt([change], {
+      framework: "Astro",
+      stylingSystem: "CSS custom properties",
+    });
+
+    expect(out).toContain("### astro:H1 (src/pages/about.astro:12:7)");
+    expect(out).not.toContain("data-cid");
+
+    // JSX-derived columns are not exact; the same record under React drops
+    // the column rather than implying authored precision it does not have.
+    const reactOut = generatePrompt([change], {
+      framework: "React",
+      stylingSystem: "CSS custom properties",
+    });
+    expect(reactOut).toContain("### astro:H1 (src/pages/about.astro:12)");
+    expect(reactOut).not.toContain("(src/pages/about.astro:12:");
+  });
+
+  it("labels degraded Astro identity as unknown source instead of a fabricated location", () => {
+    // Degraded mode (ADR-0011): Astro dev annotations absent — generated cid,
+    // no data-src. The prompt must not invent `file:0` or expose selectors.
+    const out = generatePrompt([rec({
+      cid: "astro:H1",
+      file: "",
+      line: 0,
+      column: 0,
+      property: "color",
+      rawValue: "blue",
+      selector: '[data-cid="astro:H1"]',
+      source: { file: "", line: 0, component: "astro:H1" },
+      runtimeEvidence: {
+        reason: "unannotated",
+        tagName: "h1",
+        text: "About the studio",
+        props: null,
+        ariaLabel: null,
+      },
+    })], { framework: "Astro", stylingSystem: "CSS custom properties" });
+
+    expect(out).toContain("source unknown; no authored location available");
+    expect(out).toContain("Rendered element: `<h1>`");
+    expect(out).toContain("Text evidence");
+    expect(out).not.toContain("(:0");
+    expect(out).not.toContain("data-cid");
+  });
+
   it("describes runtime-created HTML with bounded rendered evidence", () => {
     const out = generatePrompt([rec({
       cid: "design-tool-runtime-1",

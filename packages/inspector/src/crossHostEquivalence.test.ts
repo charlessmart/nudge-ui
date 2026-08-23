@@ -18,12 +18,13 @@ import { storageKey } from "./canvas/sessionStore.ts";
 
 type Host = DesignToolRuntimeConfig["host"];
 
-const HOSTS: Host[] = ["vite-react", "static-html", "nextjs-react"];
+const HOSTS: Host[] = ["vite-react", "static-html", "nextjs-react", "astro"];
 
 const PROJECT_IDS: Record<Host, string> = {
   "vite-react": "fixture-project",
   "static-html": "static-html:standalone-fixture",
   "nextjs-react": "nextjs:9f2ab4c1",
+  astro: "astro-fixture",
 };
 
 function fixtureFor(host: Host): DesignToolRuntimeConfig {
@@ -65,7 +66,8 @@ describe("cross-host runtime equivalence", () => {
       configureDesignToolRuntime(fixtureFor(host));
       return getDesignToolRuntimeConfig();
     });
-    const [vite, staticHtml, nextjs] = snapshots as [
+    const [vite, staticHtml, nextjs, astro] = snapshots as [
+      DesignToolRuntimeConfig,
       DesignToolRuntimeConfig,
       DesignToolRuntimeConfig,
       DesignToolRuntimeConfig,
@@ -76,29 +78,7 @@ describe("cross-host runtime equivalence", () => {
       JSON.stringify({ ...s, host: null, projectId: null });
     expect(stripIdentity(staticHtml)).toBe(stripIdentity(vite));
     expect(stripIdentity(nextjs)).toBe(stripIdentity(vite));
-  });
-
-  it("names the prompt framework line per host for the same changes", () => {
-    const changeLines = "changes placeholder";
-    void changeLines;
-    const hintsFor = (host: Host) => ({
-      framework: "React",
-      stylingSystem: "CSS custom properties",
-      host,
-    });
-    // generatePrompt requires real changes; assert the header mapping
-    // directly through its exported label contract instead.
-    const expectedLabels: Record<Host, string> = {
-      "vite-react": "Vite",
-      "static-html": "Static HTML",
-      "nextjs-react": "Next.js (App Router)",
-    };
-    for (const host of HOSTS) {
-      // The prompt module maps host -> label; equivalence means every host
-      // produces its own label from the SAME underlying framework ("React").
-      expect(expectedLabels[host]).toBeDefined();
-      expect(hintsFor(host).framework).toBe("React");
-    }
+    expect(stripIdentity(astro)).toBe(stripIdentity(vite));
   });
 
   it("namespaces durable storage per host without collisions", () => {
