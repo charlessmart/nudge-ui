@@ -602,6 +602,9 @@ export function resolveTextBinding(
       scopeChoices: ["source-site"],
     };
   }
+  // Unique invocation (mountedCount === 1): the callsite is unambiguous, so
+  // the source-site edit is always safe and no scope choice is offered. The
+  // mountedCount > 1 cases all returned above.
   return {
     binding,
     editableTarget: match.target,
@@ -609,9 +612,6 @@ export function resolveTextBinding(
     textNode,
     before,
     mountedCount: match.mountedCount!,
-    scope: match.mountedCount! > 1 ? "rendered-instance" : "source-site",
-    scopeChoices: match.mountedCount! > 1 && authoredAs === "literal"
-      ? ["rendered-instance", "source-site"]
-      : undefined,
+    scope: "source-site",
   };
 }
