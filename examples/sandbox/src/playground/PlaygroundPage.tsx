@@ -299,7 +299,7 @@ function App() {
           </div>
           <div className="prompt-preview">
             <div className="prompt-bar"><span>design-changes.md</span><span>copied to clipboard</span></div>
-            <pre>{`# Requested design changes\n\n### Hero (src/Hero.tsx:42)\n- font-size: 56px → 64px\n- color: text.secondary → text.primary\n\n## Selectors (fallback)\nHero / src/Hero.tsx`}</pre>
+            <pre>{`# Requested design changes\n\n### Hero (src/Hero.tsx:42)\n- font-size: 56px → 64px\n- color: text.secondary → text.primary`}</pre>
           </div>
         </section>
 

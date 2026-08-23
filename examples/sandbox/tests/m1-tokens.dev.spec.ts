@@ -87,5 +87,5 @@ test("dev: ordinary CSS inventory reaches browser inspection, managed preview, a
   await page.locator('[data-test="copy-prompt"]').click();
   const prompt = await page.evaluate(() => navigator.clipboard.readText());
   expect(prompt).toContain("`--color-surface-raised` → `--color-surface-sunken`");
-  expect(prompt).toContain("## Selectors (fallback)");
+  expect(prompt).not.toContain("Selectors (fallback)");
 });

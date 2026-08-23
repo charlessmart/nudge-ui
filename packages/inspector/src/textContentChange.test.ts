@@ -137,7 +137,7 @@ describe("text-content canonical changes", () => {
     expect(prompt).toContain("## Rendered text changes");
     expect(prompt).toContain("`Original copy` → `Updated copy`");
     expect(prompt).toContain("replace the authored literal text");
-    expect(prompt).toContain('[data-cid="Copy"][data-src="src/Copy.tsx:8:3"]');
+    expect(prompt).not.toContain("data-cid");
   });
 
   it("retains selected scope and bounded semantic evidence in session and prompt", () => {

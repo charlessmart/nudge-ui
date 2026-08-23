@@ -179,7 +179,7 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
 // shadow-root mount does not dispatch onClick under Next 16 dev, so the
 // copy-prompt button cannot be driven end-to-end yet. Prompt GENERATION
 // itself is covered by unit suites and the Vite sandbox e2e.
-test.skip("dev: prompt copy names the source location and selector fallback", async ({ page }) => {
+test.skip("dev: prompt copy names the source location without runtime selectors", async ({ page }) => {
   await inspectorReady(page);
 
   const target = page.locator(".hero-card h2");
@@ -215,9 +215,7 @@ test.skip("dev: prompt copy names the source location and selector fallback", as
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toContain("app/HeroCard.tsx:");
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
-    "## Selectors (fallback)",
-  );
+  expect(await page.evaluate(() => navigator.clipboard.readText())).not.toContain("data-cid");
 });
 
 test("dev: source files stay byte-for-byte unchanged across a session", async ({ page }) => {

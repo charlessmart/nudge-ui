@@ -40,48 +40,10 @@ UI live in the browser and copying structured prompts for an AI coding agent.
 3. **`data-*` attributes are the identity layer (PLAN.md constraint #3)**: do
    not rely on DOM selectors that drift across re-renders, or on fiber refs that
    change across renders.
-4. **Source mapping is best-effort (PLAN.md constraint #4)**: when `__source` /
-   `_debugSource` is absent, fall back to `data-cid` + grep-ready selector. The
-   prompt generator must always include a selector fallback.
-
-## Verification obligations
-
-- Every implementation issue outcome must include:
-  1. Unit tests for the non-UI logic (Vitest).
-  2. An e2e test (Playwright) for end-user-facing behaviour, when applicable.
-  3. A successful `pnpm --filter sandbox build` with the dev-only contract held
-     (no `data-*` attrs in the production bundle — ADR-0002).
-- Run `pnpm lint` and `pnpm typecheck` before reporting done.
-- Never commit changes unless explicitly asked.
-
-## Issue workflow
-
-- Each active issue lives at `docs/issues/NNNN-slug.md`; completed issues may be
-  moved to `docs/issues/archive/` without changing their number or slug.
-- Issues are vertical (tracer-bullet) slices, not horizontal layer slices.
-- Pick up the lowest-numbered issue whose `Blocked by` list is satisfied.
-- Update the issue's acceptance criteria checkboxes by editing the file when
- Criteria are met.
-
-## Agent skills
-
-### Issue tracker
-
-Local Markdown issues live in `docs/issues/`. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Use the repository's local triage-label vocabulary. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Product scope lives in `PLAN.md`, decisions in `docs/adr/`, and larger feature
-plans in `docs/features/`. See `docs/agents/domain.md`.
-
-### Type safety boundaries
-
-Before bulk-fixing anti-slop findings involving `unknown`, broad dictionaries,
-or assertions, follow `docs/agents/type-safety-boundaries.md`.
+4. **Source mapping is best-effort**: when an authored source location is
+   unavailable, prompts must say so and include bounded rendered evidence such
+   as text, accessible name, props, and element type. Do not expose injected
+   runtime selectors as source guidance.
 
 ## ADRs
 

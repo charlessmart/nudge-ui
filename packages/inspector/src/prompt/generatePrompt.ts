@@ -7,7 +7,6 @@ import type {
   TokenChangeRecord,
   TextContentChangeRecord,
 } from "../changesLog.ts";
-import { escapeAttrValue } from "../cssEscapes.ts";
 import type { RenderedInstanceOverride, RenderedInstanceRef } from "../renderedInstance.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
 import type { TextProjectionTarget } from "../textChangeBoundary.ts";
@@ -39,7 +38,6 @@ interface ElementGroup {
   file: string;
   line: number;
   column: number;
-  selector: string;
   runtimeEvidence?: ElementChangeRecord["runtimeEvidence"];
   instanceOverride?: RenderedInstanceOverride;
   changes: ElementChangeRecord[];
@@ -88,7 +86,6 @@ function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
         file: change.file,
         line: change.source.line || change.line,
         column: change.column ?? 0,
-        selector: change.selector,
         runtimeEvidence: change.runtimeEvidence,
         instanceOverride,
         changes: [],
@@ -159,10 +156,6 @@ function promptText(value: string): string {
   return `${fence}text\n${value}\n${fence}`;
 }
 
-function textProjectionSourceFallback(target: TextProjectionTarget): string {
-  return `[data-cid="${escapeAttrValue(target.sourceSite.cid)}"][data-src="${escapeAttrValue(target.sourceSite.src)}"]`;
-}
-
 function textEvidenceLines(target: TextProjectionTarget): string[] {
   const sourceLabel = isRuntimeGeneratedSource(target.sourceSite.src)
     ? `${target.sourceSite.cid} (source unknown; runtime-created DOM)`
@@ -184,17 +177,6 @@ function textScopeLines(change: TextContentChangeRecord): string[] {
     lines.push(`  - Semantic evidence: \`${change.evidence.componentName}.${change.evidence.property}\` at callsite \`${change.evidence.callsiteId}\` (${change.evidence.mountedCount} mounted outputs)`);
   }
   return lines;
-}
-
-/**
- * Managed rules use an exact source identity. Prompts deliberately keep the
- * source-line form: it is more useful to an agent as a grep fallback and is
- * not used to apply browser styles.
- */
-function promptSelectorForElement(group: ElementGroup, exactSource: boolean): string {
-  if (exactSource) return group.selector;
-  if (!group.cid || !group.file || !group.line) return group.selector;
-  return `[data-cid="${escapeAttrValue(group.cid)}"][data-src*="${escapeAttrValue(`${group.file}:${group.line}`)}"]`;
 }
 
 function boundedEvidence(value: string | null): string | null {
@@ -312,11 +294,6 @@ function canonicalizeStructuralChanges(changes: readonly StructuralChange[]): St
   return canonical;
 }
 
-function structuralSourceFallback(ref: RenderedInstanceRef, exactSource: boolean): string {
-  const operator = exactSource ? "=" : "*=";
-  return `[data-cid="${escapeAttrValue(ref.sourceSite.cid)}"][data-src${operator}"${escapeAttrValue(ref.sourceSite.src)}"]`;
-}
-
 export function generatePrompt(
   changes: ChangeRecord[],
   frameworkHints?: FrameworkHints,
@@ -401,21 +378,6 @@ export function generatePrompt(
       lines: structuralIntent.map(structuralChangeLine),
     });
   }
-
-  const fallbackLines = new Set<string>();
-  tokenChanges.forEach((change) => fallbackLines.add(`- \`${change.tokenName}\` in \`${change.selector}\``));
-  componentChanges.forEach((change) =>
-    fallbackLines.add(`- Component callsite: \`${change.target.file}:${change.target.line}:${change.target.column}\` (\`${change.target.componentName}\`)`));
-  componentChanges.forEach((change) =>
-    fallbackLines.add(`- \`[data-cid="${escapeAttrValue(change.target.componentName)}"][data-src*="${escapeAttrValue(`${change.target.file}:${change.target.line}`)}"]\``));
-  textChanges.forEach((change) => fallbackLines.add(`- \`${textProjectionSourceFallback(change.target)}\``));
-  elementGroups.forEach((group) => fallbackLines.add(`- \`${promptSelectorForElement(group, exactHtmlSource)}\``));
-  const structuralFallbacks = new Set<string>();
-  for (const change of structuralIntent) {
-    structuralFallbacks.add(structuralSourceFallback(change.target, exactHtmlSource));
-  }
-  structuralFallbacks.forEach((selector) => fallbackLines.add(`- \`${selector}\``));
-  sections.push({ heading: "Selectors (fallback)", lines: [...fallbackLines] });
 
   return renderPrompt(sections);
 }

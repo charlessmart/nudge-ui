@@ -31,8 +31,8 @@ describe("generatePrompt", () => {
     expect(out).toContain("### Button invocation (src/App.tsx:12:4)");
     expect(out).toContain("`variant`: `primary` → `secondary` — replace the invocation prop literal");
     expect(out).toContain("Component contract: `src/ui/Button#Button`");
-    expect(out).toContain("Component callsite: `src/App.tsx:12:4` (`Button`)");
-    expect(out).toContain('[data-cid="Button"][data-src*="src/App.tsx:12"]');
+    expect(out).not.toContain("Selectors (fallback)");
+    expect(out).not.toContain("data-cid");
     expect(out).not.toContain("component-callsite:");
   });
 
@@ -68,7 +68,7 @@ describe("generatePrompt", () => {
     const out = generatePrompt([change]);
     expect(out).toContain("### Badge invocation");
     expect(out).toContain("`children`: `Save` → `Publish` — preserve the authored expression and update its source logic");
-    expect(out).toContain("Component callsite:");
+    expect(out).toContain("### Badge invocation");
   });
 
   it("tells the agent to replace literal child text", () => {
@@ -145,7 +145,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("- Move text `Docs` (src/Nav.tsx:8:3) before text `Blog` (src/Nav.tsx:8:3) in Navigation (src/Nav.tsx:4:1).");
     expect(out).not.toContain("rendered occurrence");
     expect(out).not.toContain("Presentation:");
-    expect(out).toContain('[data-cid="RepeatedItem"][data-src*="src/App.tsx:12:5"]');
+    expect(out).not.toContain("data-cid");
     expect(out).not.toContain("data-dt-projection-instance");
     expect(out).not.toContain("elementId");
   });
@@ -207,8 +207,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("before text `Column one` (src/App.tsx:151:14)");
     expect(out).not.toContain("src/App.tsx:156:14");
     expect(out).not.toContain("src/App.tsx:162:14");
-    expect(out).toContain('[data-cid="App"][data-src*="src/App.tsx:157:14"]');
-    expect(out).not.toContain('[data-cid="App"][data-src*="src/App.tsx:150:12"]');
+    expect(out).not.toContain("data-cid");
   });
 
   it("omits a single-target move sequence that returns to its starting position", () => {
@@ -278,8 +277,7 @@ describe("generatePrompt", () => {
 
     expect(out).not.toContain("Framework:");
     expect(out).toContain("### html:button (index.html:3:17)");
-    expect(out).toContain('[data-cid="html:button"][data-src="index.html:3:17"]');
-    expect(out).not.toContain('data-src*="index.html:3"');
+    expect(out).not.toContain("data-cid");
   });
 
   it("describes runtime-created HTML with bounded rendered evidence", () => {
@@ -304,7 +302,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("Rendered element: `<button>`");
     expect(out).toContain("Text evidence: `Save`");
     expect(out).toContain("Accessible name evidence: `Save action`");
-    expect(out).toContain('[data-cid="design-tool-runtime-1"][data-src="design-tool:unknown:1"]');
+    expect(out).not.toContain("data-cid");
     expect(out).not.toContain("(:0");
   });
 
@@ -338,7 +336,7 @@ describe("generatePrompt", () => {
     expect(out).not.toContain(ariaLabel.slice(0, 121));
   });
 
-  it("uses exact structural source fallbacks for static HTML", () => {
+  it("uses exact structural source coordinates for static HTML", () => {
     const structural: StructuralChange[] = [{
       id: "delete-html",
       kind: "delete",
@@ -354,8 +352,8 @@ describe("generatePrompt", () => {
       structural,
     );
 
-    expect(out).toContain('[data-cid="html:item"][data-src="index.html:12:5"]');
-    expect(out).not.toContain('data-src*="index.html:12:5"');
+    expect(out).toContain("text `Item` (index.html:12:5)");
+    expect(out).not.toContain("data-cid");
   });
 
   it("returns the empty sentinel when there are no changes", () => {
@@ -365,7 +363,7 @@ describe("generatePrompt", () => {
     );
   });
 
-  it("renders a token swap matching PLAN.md structure", () => {
+  it("renders a token swap without runtime selectors", () => {
     const r = rec({
       cid: "Button",
       file: "src/Button.tsx",
@@ -379,8 +377,8 @@ describe("generatePrompt", () => {
     expect(out).toContain("## Changes");
     expect(out).toContain("### Button (src/Button.tsx:42)");
     expect(out).toContain("- `background`: `--color-surface-raised` → `--color-surface-sunken`");
-    expect(out).toContain("## Selectors (fallback)");
-    expect(out).toContain('- `[data-cid="Button"][data-src*="src/Button.tsx:42"]');
+    expect(out).not.toContain("Selectors (fallback)");
+    expect(out).not.toContain("data-cid");
   });
 
   it("renders a raw value edit without token advice", () => {
@@ -453,8 +451,7 @@ describe("generatePrompt", () => {
     expect(headings).toHaveLength(1);
     expect(out).toContain("- `background`: `--color-surface-raised` → `--color-surface-sunken`");
     expect(out).toContain("- `border-radius`: `12px`");
-    const selectorLines = out.split("\n").filter((l) => l.startsWith("- `[data-cid=\"Button\"]"));
-    expect(selectorLines).toHaveLength(1);
+    expect(out).not.toContain("data-cid");
   });
 
   it("keeps CSS overrides for separate rendered instances in separate prompt groups", () => {
@@ -512,8 +509,7 @@ describe("generatePrompt", () => {
     const out = generatePrompt([a, b]);
     expect(out).toContain("### Button (src/Button.tsx:42)");
     expect(out).toContain("### NavLink (src/components/Header.tsx:58)");
-    expect(out).toContain('- `[data-cid="Button"][data-src*="src/Button.tsx:42"]');
-    expect(out).toContain('- `[data-cid="NavLink"][data-src*="src/components/Header.tsx:58"]');
+    expect(out).not.toContain("data-cid");
   });
 
   it("uses a neutral title that remains accurate for multi-file changes", () => {
@@ -609,7 +605,7 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("Framework:");
   });
 
-  it("uses a human-readable adapter token in the prompt while selectors keep implementation identity", () => {
+  it("uses human-readable adapter token names", () => {
     const out = generatePrompt([rec({
       cid: "SprinklesCard",
       file: "src/Card.tsx",
@@ -622,7 +618,7 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("--color-accent__hash");
   });
 
-  it("renders global token edits separately with source, context and fallback", () => {
+  it("renders global token edits separately with source and context", () => {
     const out = generatePrompt([{
       kind: "token",
       tokenName: "--color-text",
@@ -639,7 +635,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("## Global token changes");
     expect(out).toContain('`--color-text` (root[data-theme="dark"], src/theme.css:6)');
     expect(out).toContain('`#eeeeee` → `var(--color-neutral-100)`');
-    expect(out).toContain('`--color-text` in `:root[data-theme="dark"]`');
+    expect(out).not.toContain("Selectors (fallback)");
     expect(out).not.toContain("### Global token");
   });
 });

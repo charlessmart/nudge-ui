@@ -115,7 +115,7 @@ test("falls back to rendered text, restores after refresh, and supports prompt/r
   const prompt = await page.evaluate(() => navigator.clipboard.readText());
   expect(prompt).toContain("## Rendered text changes");
   expect(prompt).toContain("`This copy has no semantic prop contract.` → `Updated rendered copy`");
-  expect(prompt).toContain("Selectors (fallback)");
+  expect(prompt).not.toContain("Selectors (fallback)");
 
   await changes.locator('[data-test="change-revert"]').click();
   await expect(refreshedCopy).toHaveText("This copy has no semantic prop contract.");
@@ -232,7 +232,7 @@ test("shows the repeated literal scope choice and applies explicit all-output sc
   await page.locator('[data-test="copy-prompt"]').click();
   const prompt = await page.evaluate(() => navigator.clipboard.readText());
   expect(prompt).toContain("scope: all outputs at this source site");
-  expect(prompt).toContain("mounted outputs 2");
+  expect(prompt).toContain("2 mounted outputs");
 
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();

@@ -129,7 +129,7 @@ test.describe("clipboard permissions", () => {
     expect(text).toContain("# Requested design changes");
     expect(text).not.toContain("Framework:");
     expect(text).toContain("--color-surface-sunken");
-    expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:13"]');
+    expect(text).not.toContain("data-cid");
     expect(text).toContain("border-radius");
     expect(text).toContain("12px");
     expect(text).not.toContain("consider adding");

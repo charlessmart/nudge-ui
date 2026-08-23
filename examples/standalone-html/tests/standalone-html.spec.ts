@@ -115,8 +115,7 @@ test("serves a self-contained inspector and edits static HTML through managed CS
   const prompt = await copyPrompt(page);
   expect(prompt).not.toContain("Framework:");
   expect(prompt).toContain(`### html:button (${STATIC_SOURCE})`);
-  expect(prompt).toContain(selector);
-  expect(prompt).not.toContain('data-src*="index.html:13"');
+  expect(prompt).not.toContain("data-cid");
   expect(await readFile(projectPath("index.html"), "utf8")).toBe(originalHtml);
 });
 
@@ -138,7 +137,7 @@ test("falls back to rendered text and exports an HTML-aware prompt", async ({ pa
   expect(prompt).toContain("## Rendered text changes");
   expect(prompt).toContain("Rendered text");
   expect(prompt).toContain(RENDERED_TEXT_SOURCE);
-  expect(prompt).toContain(`[data-cid="html:p"][data-src="${RENDERED_TEXT_SOURCE}"]`);
+  expect(prompt).not.toContain("data-cid");
   expect(await readFile(projectPath("index.html"), "utf8")).toBe(originalHtml);
 });
 
@@ -151,7 +150,6 @@ test("assigns runtime identity and exports explicit unknown-source evidence", as
   await expect(runtimeButton).toHaveAttribute("data-cid", /^design-tool-runtime-\d+$/);
   await expect(runtimeButton).toHaveAttribute("data-src", /^design-tool:unknown:\d+$/);
   const runtimeCid = await runtimeButton.getAttribute("data-cid");
-  const runtimeSrc = await runtimeButton.getAttribute("data-src");
   await runtimeButton.click();
   await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", runtimeCid ?? "");
   await setRawValue(page, "color", "#7442b8");
@@ -163,7 +161,7 @@ test("assigns runtime identity and exports explicit unknown-source evidence", as
   expect(prompt).toContain("Rendered element: `<button>`");
   expect(prompt).toContain("Text evidence: `Runtime action`");
   expect(prompt).toContain("Accessible name evidence: `Runtime action`");
-  expect(prompt).toContain(`[data-cid="${runtimeCid}"][data-src="${runtimeSrc}"]`);
+  expect(prompt).not.toContain("data-cid");
   expect(prompt).not.toContain("(:0");
 });
 
