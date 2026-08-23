@@ -18,7 +18,7 @@ const CSS_PATH = join(process.cwd(), "src", "styles", "global.css");
 interface CatalogEntry {
   name: string;
   cssName: string;
-  declarations: Array<{ value: string; source: string }>;
+  declarations: Array<{ value: string; source: string; context?: { selector?: string } }>;
 }
 
 /** Inspect an element through the page's bridge and return its token catalog. */
@@ -231,13 +231,7 @@ test("dev: scoped-style tokens resolve per-element with author-vocabulary prompt
   // resolution keeps matching the rendered DOM.
   const rawSelector = await page.evaluate(() => {
     const catalog = (
-      window as unknown as {
-        __designTool?: {
-          inspect(selector: string): {
-            catalog: Array<{ declarations: Array<{ context?: { selector?: string } }> }>;
-          } | null;
-        };
-      }
+      window as unknown as { __designTool?: { inspect(selector: string): { catalog: CatalogEntry[] } | null } }
     ).__designTool?.inspect("article.card")?.catalog ?? [];
     return catalog.find((entry) => entry.cssName === "--card-bg")
       ?.declarations[0]?.context?.selector ?? "";

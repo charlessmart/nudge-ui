@@ -205,13 +205,29 @@ function runtimeEvidenceLines(group: ElementGroup): string[] {
   return lines;
 }
 
-function elementGroupSource(group: ElementGroup, exactSource: boolean): string {
+/**
+ * Coordinate precision follows each element's identity origin, not the
+ * document's framework hint (ADR-0011 Stage 5). Exact authored locations come
+ * from the Astro response layer and the static-HTML server (`astro:` /
+ * `html:` cids) and from author-supplied cids on `.astro`/`.html` sources;
+ * both identity modules preserve author cids while writing exact `data-src`.
+ * JSX-derived cids (`Counter`, `Button`) keep line precision only: their
+ * positions are captured before pipeline transforms that can shift them.
+ */
+function hasExactAuthoredCoordinates(cid: string, file: string): boolean {
+  if (cid.startsWith("astro:") || cid.startsWith("html:")) return true;
+  return /\.(astro|html?)$/.test(file);
+}
+
+function elementGroupSource(group: ElementGroup): string {
   if (group.runtimeEvidence) {
     return group.runtimeEvidence.reason === "unannotated"
       ? "source unknown; no authored location available"
       : "source unknown; runtime-created DOM";
   }
-  if (exactSource && group.column > 0) return `${group.file}:${group.line}:${group.column}`;
+  if (hasExactAuthoredCoordinates(group.cid, group.file) && group.column > 0) {
+    return `${group.file}:${group.line}:${group.column}`;
+  }
   return `${group.file}:${group.line}`;
 }
 
@@ -311,10 +327,6 @@ export function generatePrompt(
   const elementChanges = deduplicated.filter((change): change is ElementChangeRecord =>
     !isTokenChange(change) && !isComponentChange(change) && !isTextContentChange(change));
   const elementGroups = groupElementChanges(elementChanges);
-  const framework = frameworkHints?.framework ?? "React";
-  // HTML-family runtimes (static markup, server-rendered Astro templates)
-  // carry exact authored source coordinates; JSX-derived columns do not.
-  const exactHtmlSource = framework === "HTML" || framework === "Astro";
   const sections: PromptSection[] = [];
 
   if (tokenChanges.length > 0) {
@@ -328,7 +340,13 @@ export function generatePrompt(
     const lines: string[] = [];
     for (const change of componentChanges) {
       const target = change.target;
-      lines.push(`### ${target.componentName} invocation (${target.file}:${target.line}:${target.column})`);
+      // Callsite positions share the element precision policy: authored
+      // response-layer sources keep exact columns; pipeline-transformed JSX
+      // sources keep line precision (ADR-0011 Stage 5).
+      const source = hasExactAuthoredCoordinates("", target.file)
+        ? `${target.file}:${target.line}:${target.column}`
+        : `${target.file}:${target.line}`;
+      lines.push(`### ${target.componentName} invocation (${source})`);
       lines.push(componentChangeLine(change));
       lines.push(`  - Component contract: \`${target.componentId}\``);
       if (change.evidence) {
@@ -346,7 +364,7 @@ export function generatePrompt(
     const lines: string[] = [];
     for (const group of elementGroups) {
       const state = group.changes[0]?.state ?? "base";
-      lines.push(`### ${group.cid} (${elementGroupSource(group, exactHtmlSource)}) · ${state}`);
+      lines.push(`### ${group.cid} (${elementGroupSource(group)}) · ${state}`);
       if (group.instanceOverride) {
         lines.push(`- Applies only to ${renderedInstanceDescription(group.instanceOverride.target)}.`);
       }
@@ -364,9 +382,15 @@ export function generatePrompt(
   if (textChanges.length > 0) {
     const lines: string[] = [];
     for (const change of textChanges) {
-      const textSource = isRuntimeGeneratedSource(change.target.sourceSite.src)
+      const runtimeCreated = isRuntimeGeneratedSource(change.target.sourceSite.src);
+      const exact = !runtimeCreated
+        && hasExactAuthoredCoordinates(change.target.sourceSite.cid, change.source.file)
+        && change.source.column > 0;
+      const textSource = runtimeCreated
         ? "source unknown; runtime-created DOM"
-        : `${change.source.file}:${change.source.line}:${change.source.column}`;
+        : exact
+          ? `${change.source.file}:${change.source.line}:${change.source.column}`
+          : `${change.source.file}:${change.source.line}`;
       lines.push(`### ${change.source.component || change.target.sourceSite.cid} (${textSource})`);
       lines.push(`- Rendered text: ${promptText(change.before)} → ${promptText(change.after)} — ${textAuthorshipGuidance(change.authoredAs)}`);
       lines.push(...textScopeLines(change));

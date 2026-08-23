@@ -88,6 +88,9 @@ importers:
       '@design-tool/astro':
         specifier: workspace:*
         version: link:../../packages/astro
+      '@design-tool/inspector':
+        specifier: workspace:*
+        version: link:../../packages/inspector
       astro:
         specifier: ^5.18.2
         version: 5.18.2(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(rollup@4.62.2)(typescript@5.9.3)(yaml@2.9.0)

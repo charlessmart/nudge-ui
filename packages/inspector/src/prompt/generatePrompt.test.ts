@@ -28,7 +28,8 @@ describe("generatePrompt", () => {
     const change = makeComponentChange();
     const out = generatePrompt([change]);
     expect(out).toContain("## Component prop changes");
-    expect(out).toContain("### Button invocation (src/App.tsx:12:4)");
+    // JSX callsites keep line precision under the per-origin policy.
+    expect(out).toContain("### Button invocation (src/App.tsx:12)");
     expect(out).toContain("`variant`: `primary` → `secondary` — replace the invocation prop literal");
     expect(out).toContain("Component contract: `src/ui/Button#Button`");
     expect(out).not.toContain("Selectors (fallback)");
@@ -280,7 +281,7 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("data-cid");
   });
 
-  it("uses exact source coordinates for Astro changes and line precision for React", () => {
+  it("keys exact source coordinates off each element's identity origin, not the document framework", () => {
     const change = rec({
       cid: "astro:H1",
       file: "src/pages/about.astro",
@@ -299,14 +300,77 @@ describe("generatePrompt", () => {
     expect(out).toContain("### astro:H1 (src/pages/about.astro:12:7)");
     expect(out).not.toContain("data-cid");
 
-    // JSX-derived columns are not exact; the same record under React drops
-    // the column rather than implying authored precision it does not have.
-    const reactOut = generatePrompt([change], {
+    // The identity origin decides precision: an astro: element keeps its
+    // authored coordinates even if the document's framework hint changes.
+    const otherFrameworkOut = generatePrompt([change], {
       framework: "React",
       stylingSystem: "CSS custom properties",
     });
-    expect(reactOut).toContain("### astro:H1 (src/pages/about.astro:12)");
-    expect(reactOut).not.toContain("(src/pages/about.astro:12:");
+    expect(otherFrameworkOut).toContain("### astro:H1 (src/pages/about.astro:12:7)");
+  });
+
+  it("renders React island JSX elements at line precision inside an Astro document", () => {
+    // Stage 5 (ADR-0011): island internals carry JSX-transform cids whose
+    // positions are captured before pipeline transforms that can shift them;
+    // the Astro document hint must not upgrade them to exact file:line:column.
+    const out = generatePrompt([rec({
+      cid: "Counter",
+      file: "src/components/Counter.tsx",
+      line: 14,
+      column: 9,
+      property: "color",
+      rawValue: "blue",
+      selector: '[data-cid="Counter"][data-src="src/components/Counter.tsx:14:9"]',
+    })], {
+      framework: "Astro",
+      stylingSystem: "CSS custom properties",
+    });
+
+    expect(out).toContain("### Counter (src/components/Counter.tsx:14)");
+    expect(out).not.toContain("(src/components/Counter.tsx:14:");
+    expect(out).not.toContain("data-cid");
+  });
+
+  it("keeps exact coordinates for author-supplied cids on authored static sources", () => {
+    // Both identity modules preserve author-written data-cid while still
+    // writing exact data-src; precision follows the source file, not the cid.
+    const out = generatePrompt([rec({
+      cid: "Hero",
+      file: "src/pages/index.astro",
+      line: 8,
+      column: 3,
+      property: "color",
+      rawValue: "blue",
+      selector: '[data-cid="Hero"][data-src="src/pages/index.astro:8:3"]',
+    })], { framework: "Astro", stylingSystem: "CSS custom properties" });
+
+    expect(out).toContain("### Hero (src/pages/index.astro:8:3)");
+  });
+
+  it("renders text changes on JSX elements at line precision inside an Astro document", () => {
+    const change: TextContentChangeRecord = {
+      kind: "text-content",
+      id: "text-astro-island",
+      target: {
+        sourceSite: { cid: "Counter", src: "src/components/Counter.tsx:14:9" },
+        occurrence: 0,
+        props: null,
+        ariaLabel: null,
+        beforeText: "Count",
+      },
+      source: { file: "src/components/Counter.tsx", line: 14, column: 9, component: "Counter" },
+      selector: '[data-cid="Counter"][data-src*="src/components/Counter.tsx:14:9"]',
+      before: "Count",
+      after: "Counter",
+      authoredAs: "literal",
+    };
+    const out = generatePrompt([change], {
+      framework: "Astro",
+      stylingSystem: "CSS custom properties",
+    });
+
+    expect(out).toContain("(src/components/Counter.tsx:14)");
+    expect(out).not.toContain("(src/components/Counter.tsx:14:");
   });
 
   it("labels degraded Astro identity as unknown source instead of a fabricated location", () => {
