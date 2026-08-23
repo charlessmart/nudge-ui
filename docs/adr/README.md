@@ -14,3 +14,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0008: Inline text editing uses semantic component projections first](./0008-inline-text-projections.md)
 - [ADR-0009: Standalone static HTML host Adapter](./0009-standalone-static-html-host.md)
 - [ADR-0010: Next.js host Adapter](./0010-nextjs-host-adapter.md)
+- [ADR-0011: Astro host Adapter with response-level identity](./0011-astro-host-adapter.md)
