@@ -32,7 +32,7 @@ async function fieldState(page: import("@playwright/test").Page): Promise<{
 }
 
 test("dev: style editors expose token-backed and raw values in their relevant fields", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   await page.click("text=Save");
 
@@ -49,7 +49,7 @@ test("dev: style editors expose token-backed and raw values in their relevant fi
 });
 
 test("dev: spacing token suggestions exclude color and typography tokens", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
 
   const input = page.locator('[data-test="token-field"][data-property="padding-vertical"] [data-test="raw-input"]');

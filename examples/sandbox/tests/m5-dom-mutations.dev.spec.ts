@@ -69,7 +69,7 @@ async function dragIntoFlexGap(
 }
 
 test("dev: Inspect drags a tracked element with an insertion guide and records the DOM move", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   const source = page.locator('[data-test="flex-child-a"]');
   const destination = page.locator('[data-test="flex-child-c"]');
   expect(await source.getAttribute("data-cid")).toBeTruthy();
@@ -93,7 +93,7 @@ test("dev: Inspect drags a tracked element with an insertion guide and records t
 });
 
 test("dev: Inspect centres a flex-row insertion guide in a space-between gap", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await dragIntoFlexGap(
     page,
     page.locator('[data-test="flex-child-a"]'),
@@ -105,7 +105,7 @@ test("dev: Inspect centres a flex-row insertion guide in a space-between gap", a
 });
 
 test("dev: Inspect deletes the selected tracked element with the macOS Backspace key and records the removal", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   const heading = page.locator("#hero-title");
   await heading.click();
   await page.keyboard.press("Backspace");
@@ -116,7 +116,7 @@ test("dev: Inspect deletes the selected tracked element with the macOS Backspace
 });
 
 test("dev: Inspect revert and undo/redo operate on canonical structural history", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   const repeated = page.getByText("Repeated 3", { exact: true });
   await repeated.click();
   await page.keyboard.press("Backspace");
@@ -138,7 +138,7 @@ test("dev: Inspect revert and undo/redo operate on canonical structural history"
 });
 
 test("dev: Canvas revert and undo/redo are controller-owned and the card reload keeps the current history", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
   const repeated = frame.getByText("Repeated 3", { exact: true });
@@ -160,7 +160,7 @@ test("dev: Canvas revert and undo/redo are controller-owned and the card reload 
 });
 
 test("dev: an application replacement is reported as overridden and is not reapplied", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   const repeated = page.getByText("Repeated 3", { exact: true });
   await repeated.click();
   await page.keyboard.press("Backspace");
@@ -186,7 +186,7 @@ test("dev: an application replacement is reported as overridden and is not reapp
 });
 
 test("dev: Inspect DOM moves survive switching to Canvas", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await dragBefore(
     page,
     page.locator('[data-test="flex-child-a"]'),
@@ -203,7 +203,7 @@ test("dev: Inspect DOM moves survive switching to Canvas", async ({ page }) => {
 });
 
 test("dev: Inspect arrow keys reorder a selected sibling", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   const first = page.locator('[data-test="flex-child-a"]');
   await first.click();
   const outline = page.locator('[data-test="selected-outline"]');
@@ -220,7 +220,7 @@ test("dev: Inspect arrow keys reorder a selected sibling", async ({ page }) => {
 });
 
 test("dev: Inspect selected outline follows a position-only flex-column nudge", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   const selected = page.getByText("Repeated 1", { exact: true });
   const outline = page.locator('[data-test="selected-outline"]');
   await selected.scrollIntoViewIfNeeded();
@@ -246,7 +246,7 @@ test("dev: Inspect selected outline follows a position-only flex-column nudge", 
 });
 
 test("dev: Canvas drags a tracked element through the controller with an insertion guide", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
   const source = frame.locator('[data-test="flex-child-a"]');
@@ -272,7 +272,7 @@ test("dev: Canvas drags a tracked element through the controller with an inserti
 });
 
 test("dev: Canvas selected outline follows a position-only flex-column nudge", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
   const source = frame.getByText("Repeated 1", { exact: true });
@@ -298,7 +298,7 @@ test("dev: Canvas selected outline follows a position-only flex-column nudge", a
 });
 
 test("dev: Canvas centres a flex-row insertion guide in a space-between gap", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
   await dragIntoFlexGap(
@@ -312,7 +312,7 @@ test("dev: Canvas centres a flex-row insertion guide in a space-between gap", as
 });
 
 test("dev: Canvas deletes a selected tracked element through the controller", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
   const heading = frame.locator("#hero-title");
@@ -328,7 +328,7 @@ test("dev: Canvas deletes a selected tracked element through the controller", as
 });
 
 test("dev: Inspect deletes one repeated item in Canvas and a reloaded card receives the delete", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   const repeated = page.getByText("Repeated 3", { exact: true });
   await repeated.click();
   await page.keyboard.press("Backspace");
@@ -351,7 +351,7 @@ test("dev: Inspect deletes one repeated item in Canvas and a reloaded card recei
 });
 
 test("dev: Canvas deletes one repeated item and the identical host target disappears", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
   const repeated = frame.getByText("Repeated 3", { exact: true });
@@ -371,7 +371,7 @@ test("dev: Canvas deletes one repeated item and the identical host target disapp
 });
 
 test("dev: Canvas delete-only projection advances into every already-ready card", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   await page.locator('[data-test^="canvas-card-duplicate-"]').click();
@@ -390,7 +390,7 @@ test("dev: Canvas delete-only projection advances into every already-ready card"
 });
 
 test("dev: Canvas arrow keys reorder a selected flex-row sibling", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
   const first = frame.locator('[data-test="flex-child-a"]');
@@ -404,7 +404,7 @@ test("dev: Canvas arrow keys reorder a selected flex-row sibling", async ({ page
 });
 
 test("dev: a Canvas reload receives the current sibling reorder snapshot", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
   const first = frame.locator('[data-test="flex-child-a"]');
@@ -418,7 +418,7 @@ test("dev: a Canvas reload receives the current sibling reorder snapshot", async
 });
 
 test("dev: reordering one repeated rendered sibling leaves every other instance intact", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   const selected = page.getByText("Repeated 3", { exact: true });
   await selected.click();
   await page.keyboard.press("ArrowDown");

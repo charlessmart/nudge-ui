@@ -56,7 +56,7 @@ async function setInput(
 
 test.describe("Canvas durable session", () => {
   test("dev: edits survive page refresh without restore-count copy", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForInspector(page);
 
@@ -82,7 +82,7 @@ test.describe("Canvas durable session", () => {
   });
 
   test("dev: canvas mode and cards survive refresh", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await waitForInspector(page);
 
     // Enter Canvas mode
@@ -103,7 +103,7 @@ test.describe("Canvas durable session", () => {
   });
 
   test("dev: inspect mode survives refresh", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await waitForInspector(page);
 
     // Make sure we're in inspect mode
@@ -120,7 +120,7 @@ test.describe("Canvas durable session", () => {
   });
 
   test("dev: clear session removes all edits and workspace state", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForInspector(page);
 
@@ -155,7 +155,7 @@ test.describe("Canvas durable session", () => {
   });
 
   test("dev: global token edits survive refresh", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await waitForInspector(page);
 
     // Switch to Tokens tab and edit a global token
@@ -183,7 +183,7 @@ test.describe("Canvas durable session", () => {
   });
 
   test("dev: one repeated rendered-item override survives refresh, Canvas switching, and frame reload", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await waitForInspector(page);
     await page.click("text=Repeated 3");
     await setInput(page, "font-size", "18px");
@@ -213,7 +213,7 @@ test.describe("Canvas durable session", () => {
   });
 
   test("dev: a rendered-item CSS override captured after a list move restores against the moved order", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await waitForInspector(page);
     const moved = page.getByText("Repeated 3", { exact: true });
     await moved.click();
@@ -247,7 +247,7 @@ test.describe("Canvas durable session", () => {
   });
 
   test("dev: a reconciled rendered-item marker is reported as overridden without reapplying", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await waitForInspector(page);
     await page.getByText("Repeated 3", { exact: true }).click();
     await setInput(page, "font-size", "18px");
@@ -266,7 +266,7 @@ test.describe("Canvas durable session", () => {
   });
 
   test("dev: restored individual CSS, delete, and move project through Canvas reload and clear together", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await waitForInspector(page);
 
     await page.getByText("Repeated 4", { exact: true }).click();
@@ -316,7 +316,7 @@ test.describe("Canvas durable session", () => {
 
 test.describe("Canvas durable session — restore safety", () => {
   test("dev: malformed session data is discarded safely", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await waitForInspector(page);
 
     // Inject malformed session data into localStorage

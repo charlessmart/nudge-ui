@@ -72,7 +72,7 @@ async function expandSpacing(page: import("@playwright/test").Page): Promise<voi
 
 test.describe("Canvas workspace lease — single ownership", () => {
   test("dev: second tab shows locked workspace notice with takeover", async ({ page, context }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForInspector(page);
 
@@ -81,7 +81,7 @@ test.describe("Canvas workspace lease — single ownership", () => {
 
     // Open a second tab
     const page2 = await context.newPage();
-    await page2.goto("/");
+    await page2.goto("/playground");
     await page2.click("text=Save");
     await waitForLockedNotice(page2);
 
@@ -101,13 +101,13 @@ test.describe("Canvas workspace lease — single ownership", () => {
   });
 
   test("dev: takeover transfers ownership and old tab loses authority", async ({ page, context }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForInspector(page);
 
     // Open second tab
     const page2 = await context.newPage();
-    await page2.goto("/");
+    await page2.goto("/playground");
     await page2.click("text=Save");
     await waitForLockedNotice(page2);
 
@@ -128,7 +128,7 @@ test.describe("Canvas workspace lease — single ownership", () => {
 
 test.describe("Canvas workspace lease — expiry recovery", () => {
   test("dev: expired lease allows new tab to acquire ownership", async ({ page, context }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForInspector(page);
 
@@ -147,7 +147,7 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
 
     // Open a second tab — should acquire the expired lease
     const page2 = await context.newPage();
-    await page2.goto("/");
+    await page2.goto("/playground");
     await page2.click("text=Save");
 
     // Should get inspector (not locked notice), since lease was expired
@@ -160,7 +160,7 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
 
 test.describe("Canvas workspace — stale change detection", () => {
   test("dev: restored stale change shows stale indicator", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForInspector(page);
 
@@ -222,7 +222,7 @@ test.describe("Canvas workspace — stale change detection", () => {
   });
 
   test("dev: stale state retains exact selector and source data", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForInspector(page);
 
@@ -292,7 +292,7 @@ test.describe("Canvas workspace — stale change detection", () => {
   });
 
   test("dev: stale changes never falsely claim applied", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForInspector(page);
 
@@ -366,7 +366,7 @@ test.describe("Canvas workspace — stale change detection", () => {
 
 test.describe("Canvas workspace — production output", () => {
   test("dev: InspectorShell is visible in dev mode", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForInspector(page);
     await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();

@@ -59,7 +59,7 @@ async function computedFixtureProp(page: import("@playwright/test").Page, fixtur
 }
 
 test("dev: style editors write through the managed stylesheet and update the .btn live", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForEditors(page);
   await expandSpacing(page);
@@ -134,7 +134,7 @@ test("dev: style editors write through the managed stylesheet and update the .bt
 });
 
 test("dev: control surfaces own field chrome while token fields provide embedded content", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForEditors(page);
 
@@ -160,7 +160,7 @@ test("dev: control surfaces own field chrome while token fields provide embedded
 });
 
 test("dev: color suggestions exclude unrelated tokens from the editor picker", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForEditors(page);
 
@@ -194,7 +194,7 @@ test("dev: color suggestions exclude unrelated tokens from the editor picker", a
 });
 
 test("dev: linked border values expand into icon-labelled individual side fields", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForEditors(page);
 
@@ -218,7 +218,7 @@ test("dev: linked border values expand into icon-labelled individual side fields
 });
 
 test("dev: authored CSS border fixtures parse width, style, and color per side", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await waitForInspector(page);
   const fixture = page.locator('[data-test="css-border-mixed"]');
   await fixture.evaluate((element) => {
@@ -241,7 +241,7 @@ test("dev: authored CSS border fixtures parse width, style, and color per side",
 });
 
 test("dev: main demo color fixtures expose partial opacity after CSSOM normalization", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await waitForInspector(page);
 
   const rgbaFixture = page.locator('[data-test="css-opacity-rgba"]');
@@ -287,7 +287,7 @@ test("dev: main demo color fixtures expose partial opacity after CSSOM normaliza
 });
 
 test("dev: individual side focus ring belongs to the whole side field", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await waitForInspector(page);
   await page.locator('[data-test="css-border-mixed"]').evaluate((element) => {
     element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
@@ -312,7 +312,7 @@ test("dev: individual side focus ring belongs to the whole side field", async ({
 });
 
 test("dev: spacing starts grouped and toggles between pair and four-side views", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForEditors(page);
 
@@ -425,7 +425,7 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
 });
 
 test("dev: linking divergent border widths applies one value and survives reselection", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await waitForInspector(page);
   const fixture = page.locator('[data-test="css-border-mixed"]');
   await fixture.evaluate((element) => {
@@ -450,7 +450,7 @@ test("dev: linking divergent border widths applies one value and survives resele
 });
 
 test("dev: style editors keep layout and spacing ahead of typography and color", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForEditors(page);
 
@@ -549,7 +549,7 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
 });
 
 test("dev: removing a background color hides the transparent empty state", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator(".hero-actions .btn").click();
   await waitForEditors(page);
 
@@ -563,7 +563,7 @@ test("dev: removing a background color hides the transparent empty state", async
 });
 
 test("dev: spacing fields split a three-value margin shorthand by side", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click(".hero h1");
   await waitForEditors(page);
   await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "true");
@@ -576,7 +576,7 @@ test("dev: spacing fields split a three-value margin shorthand by side", async (
 });
 
 test("dev: spacing expansion resets when selecting a symmetric element", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator(".hero h1").click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "true");

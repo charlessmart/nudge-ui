@@ -20,7 +20,7 @@ async function setRaw(page: import("@playwright/test").Page, property: string, v
 }
 
 test("dev: non-forwarding repeated component defaults to source scope and can edit one rendered instance", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Repeated 3");
 
   await expect(page.locator('[data-test="edit-scope"]')).toHaveClass(/dt-status-callout--accent/);

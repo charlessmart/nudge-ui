@@ -75,7 +75,7 @@ async function revertChange(page: import("@playwright/test").Page, property: str
 }
 
 test("dev: layout section shows flex container controls and edits write to managed stylesheet", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   await page.evaluate(() => (document.querySelector('[data-test="flex-container"]') as HTMLElement | null)?.click());
   await waitForEditors(page);
@@ -278,7 +278,7 @@ test("dev: layout section shows flex container controls and edits write to manag
 });
 
 test("dev: layout section shows flex child controls when selecting a child of a flex container", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   await page.click('[data-test="flex-child-a"]');
   await waitForEditors(page);
@@ -338,7 +338,7 @@ test("dev: layout section shows flex child controls when selecting a child of a 
 });
 
 test("dev: layout section shows inset controls for a positioned element", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   await page.click('[data-test="positioned-box"]');
   await waitForEditors(page);
@@ -409,7 +409,7 @@ test("dev: layout section shows inset controls for a positioned element", async 
 });
 
 test("dev: positioned layout edits move the element and revert cleanly", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click('[data-test="positioned-box"]');
   await waitForEditors(page);
 
@@ -432,7 +432,7 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
 });
 
 test("dev: layout size controls edit dimensions and aspect ratio", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click('[data-test="sizing-box"]');
   await waitForEditors(page);
 
@@ -455,7 +455,7 @@ test("dev: layout size controls edit dimensions and aspect ratio", async ({ page
 });
 
 test("dev: absolute position controls route X and Y to their anchors", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click('[data-test="right-anchored-box"]');
   await waitForEditors(page);
 
@@ -478,7 +478,7 @@ test("dev: absolute position controls route X and Y to their anchors", async ({ 
 });
 
 test("dev: stretched absolute positioning exposes both axis insets", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click('[data-test="stretched-box"]');
   await waitForEditors(page);
 
@@ -489,7 +489,7 @@ test("dev: stretched absolute positioning exposes both axis insets", async ({ pa
 });
 
 test("dev: Grid controls preserve authored track expressions and edit managed rules", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click('[data-test="grid-authored-container"]');
   await waitForEditors(page);
 
@@ -540,7 +540,7 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
 });
 
 test("dev: Grid is selectable from the Layout display dropdown", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click('[data-test="grid-switch-target"]');
   await waitForEditors(page);
   await expect(page.locator('[data-test="layout-grid-container"]')).toHaveCount(0);

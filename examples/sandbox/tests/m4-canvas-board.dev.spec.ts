@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Canvas spatial board", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   });
@@ -123,7 +123,7 @@ test.describe("Canvas spatial board", () => {
 
 test.describe("Canvas spatial board — two responsive sizes", () => {
   test("dev: resize a card to a smaller viewport triggers different iframe dimensions", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
@@ -162,7 +162,7 @@ test.describe("Canvas spatial board — two responsive sizes", () => {
 
 test.describe("Canvas board gesture handling", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   });
@@ -274,7 +274,7 @@ test.describe("Canvas board gesture handling", () => {
 
 test.describe("Canvas board — iframe content remains interactive", () => {
   test("dev: clicking same-origin link in iframe creates a card on spatial board", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 

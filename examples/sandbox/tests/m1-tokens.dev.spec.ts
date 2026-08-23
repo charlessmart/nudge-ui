@@ -4,7 +4,7 @@ import { managedSheetText } from "./managedSheet.ts";
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
 test("dev: virtual:design-tokens module renders populated token table", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   const tokensSection = page.locator('[data-test="tokens"]');
   await expect(tokensSection).toBeVisible();
@@ -28,7 +28,7 @@ test("dev: virtual:design-tokens module renders populated token table", async ({
 });
 
 test("dev: first catalog load follows the active package CSS import graph", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   const packageTokens = await page.evaluate(() => {
     const catalog = (window as unknown as {
@@ -52,7 +52,7 @@ test("dev: first catalog load follows the active package CSS import graph", asyn
 });
 
 test("dev: ordinary CSS inventory reaches browser inspection, managed preview, and prompt", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   const inventoryEvidence = await page.evaluate(() => {
     const catalog = (window as unknown as {

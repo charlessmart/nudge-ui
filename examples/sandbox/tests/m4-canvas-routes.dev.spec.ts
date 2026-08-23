@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("dev: clicking same-origin link inside canvas iframe creates a new card", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
@@ -26,7 +26,7 @@ test("dev: clicking same-origin link inside canvas iframe creates a new card", a
 });
 
 test("dev: same-document hash links do not create new cards", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
@@ -44,7 +44,7 @@ test("dev: same-document hash links do not create new cards", async ({ page }) =
 });
 
 test("dev: duplicate button creates a distinct card with independent iframe", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
@@ -70,7 +70,7 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
 });
 
 test("dev: delete key removes the selected card and exits canvas when it is the last card", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
@@ -102,7 +102,7 @@ test("dev: delete key removes the selected card and exits canvas when it is the 
 });
 
 test("dev: edit handoff switches to inspect mode without reloading when editing current route", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
@@ -121,7 +121,7 @@ test("dev: edit handoff switches to inspect mode without reloading when editing 
 });
 
 test("dev: exiting canvas opens the selected card route in inspect mode", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
@@ -144,7 +144,7 @@ test("dev: exiting canvas opens the selected card route in inspect mode", async 
 });
 
 test("dev: canvas card toolbar has preview, duplicate, and refresh controls", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await expect(page.locator('[data-test="mode-canvas"]')).toHaveAttribute("data-active", "true");

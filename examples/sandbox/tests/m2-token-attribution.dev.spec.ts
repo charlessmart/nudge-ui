@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("dev: catalog retains light and dark declarations for one token", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   const surface = await page.evaluate(() => {
     const catalog = (window as unknown as { __designTokenCatalog?: { cssName: string; declarations: unknown[] }[] }).__designTokenCatalog ?? [];
     return catalog.find((token) => token.cssName === "--color-surface-raised");
@@ -20,7 +20,7 @@ test("dev: catalog retains light and dark declarations for one token", async ({ 
 });
 
 test("dev: tokenized and raw values appear in their relevant editors", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("design-tool-root")?.shadowRoot;

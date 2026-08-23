@@ -89,7 +89,7 @@ async function selectPromote(page: import("@playwright/test").Page, property: st
 }
 
 test("dev: swapping a token writes a managed-stylesheet rule and changes background live", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
 
@@ -107,7 +107,7 @@ test("dev: swapping a token writes a managed-stylesheet rule and changes backgro
 });
 
 test("dev: selection defaults to Base and can target an authored hover state", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.addStyleTag({ content: ".btn:focus { outline-color: transparent; } .btn:active { transform: none; }" });
   await page.click("text=Save");
   await waitForRow(page);
@@ -133,7 +133,7 @@ test("dev: selection defaults to Base and can target an authored hover state", a
 });
 
 test("dev: token unlink action appears over the chip on hover", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
 
@@ -148,7 +148,7 @@ test("dev: token unlink action appears over the chip on hover", async ({ page })
 });
 
 test("dev: compact token unlink button stays clear of the chip text", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
   await expandSpacing(page);
@@ -174,7 +174,7 @@ test("dev: compact token unlink button stays clear of the chip text", async ({ p
 });
 
 test("dev: replacing a hardcoded spacing value with a token writes a rule to the sheet", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
   await expandSpacing(page);
@@ -190,7 +190,7 @@ test("dev: replacing a hardcoded spacing value with a token writes a rule to the
 });
 
 test("dev: typing a spacing value keeps its matching token suggestion visible", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
   await expandSpacing(page);
@@ -207,7 +207,7 @@ test("dev: typing a spacing value keeps its matching token suggestion visible", 
 });
 
 test("dev: Enter applies a typed spacing value with no matching token", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
   await expandSpacing(page);
@@ -227,7 +227,7 @@ test("dev: Enter applies a typed spacing value with no matching token", async ({
 });
 
 test("dev: Enter completes a bare spacing number with px", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
   await expandSpacing(page);
@@ -242,7 +242,7 @@ test("dev: Enter completes a bare spacing number with px", async ({ page }) => {
 });
 
 test("dev: Enter completes a bare font-size number with px", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
 
@@ -256,7 +256,7 @@ test("dev: Enter completes a bare font-size number with px", async ({ page }) =>
 });
 
 test("dev: Enter applies a typed hex colour with no matching token", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
 
@@ -278,7 +278,7 @@ test("dev: Enter applies a typed hex colour with no matching token", async ({ pa
 });
 
 test("dev: edits survive a React re-render of the host app", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
 

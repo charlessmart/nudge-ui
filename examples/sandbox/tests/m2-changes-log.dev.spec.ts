@@ -92,7 +92,7 @@ async function revertChange(page: import("@playwright/test").Page, property: str
 }
 
 test("dev: changes log records token swap and font-size edit, single-change revert rebuilds sheet", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
   await waitForEditors(page);
@@ -135,7 +135,7 @@ test("dev: changes log records token swap and font-size edit, single-change reve
 });
 
 test("dev: changes log survives inspector toggle (Alt+I) without losing entries", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.click("text=Save");
   await waitForRow(page);
 

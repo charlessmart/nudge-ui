@@ -113,7 +113,7 @@ test("serves a self-contained inspector and edits static HTML through managed CS
   expect(await managedSheetText(page)).toContain("background-color: var(--color-surface-alt)");
 
   const prompt = await copyPrompt(page);
-  expect(prompt).toContain("Framework: HTML + CSS custom properties");
+  expect(prompt).not.toContain("Framework:");
   expect(prompt).toContain(`### html:button (${STATIC_SOURCE})`);
   expect(prompt).toContain(selector);
   expect(prompt).not.toContain('data-src*="index.html:13"');
@@ -134,7 +134,7 @@ test("falls back to rendered text and exports an HTML-aware prompt", async ({ pa
   await expect(copy).toHaveText("Updated rendered copy");
 
   const prompt = await copyPrompt(page);
-  expect(prompt).toContain("Framework: HTML + CSS custom properties");
+  expect(prompt).not.toContain("Framework:");
   expect(prompt).toContain("## Rendered text changes");
   expect(prompt).toContain("Rendered text");
   expect(prompt).toContain(RENDERED_TEXT_SOURCE);

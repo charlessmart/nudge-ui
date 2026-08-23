@@ -93,7 +93,7 @@ test.describe("clipboard permissions", () => {
   test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
   test("dev: copy prompt writes structured markdown to the clipboard", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForRow(page);
     await waitForEditors(page);
@@ -126,17 +126,17 @@ test.describe("clipboard permissions", () => {
       .toBe(true);
 
     const text = await page.evaluate(() => navigator.clipboard.readText());
-    expect(text).toContain("Design changes for Button.tsx");
-    expect(text).toContain("Framework: React + CSS custom properties");
+    expect(text).toContain("# Requested design changes");
+    expect(text).not.toContain("Framework:");
     expect(text).toContain("--color-surface-sunken");
     expect(text).toContain('[data-cid="Button"][data-src*="src/Button.tsx:13"]');
     expect(text).toContain("border-radius");
     expect(text).toContain("12px");
-    expect(text).toContain("(not a token — consider adding one)");
+    expect(text).not.toContain("consider adding");
   });
 
   test("dev: copy prompt is disabled when the changes log is empty", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/playground");
     await page.click("text=Save");
     await waitForRow(page);
     await waitForEditors(page);
@@ -159,5 +159,24 @@ test.describe("clipboard permissions", () => {
 
     await revertChange(page, "background");
     await expect.poll(async () => copyDisabled(page), { timeout: 5000 }).toBe(true);
+  });
+
+  test("dev: copy prompt exports only the final destination after repeated moves", async ({ page }) => {
+    await page.goto("/playground");
+    const item = page.locator('[data-test="flex-child-a"]');
+    await item.click();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(() => page.locator('[data-test="flex-container"]').textContent()).toBe("BCA");
+
+    await page.evaluate(() => {
+      const root = document.getElementById("design-tool-root")?.shadowRoot;
+      (root?.querySelector('[data-test="copy-prompt"]') as HTMLButtonElement | null)?.click();
+    });
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain("## Structural changes");
+
+    const prompt = await page.evaluate(() => navigator.clipboard.readText());
+    expect(prompt.split("\n").filter((line) => line.startsWith("- Move "))).toHaveLength(1);
+    expect(prompt).not.toContain("position 1");
   });
 });

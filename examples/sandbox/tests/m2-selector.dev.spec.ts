@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("dev: hover overlay highlights and click selects a host element", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   const hasMount = await page.evaluate(() => {
     return document.getElementById("design-tool-root") !== null;
@@ -79,7 +79,7 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
 });
 
 test("dev: primary demo button sizes to its label", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   const buttonMetrics = await page.evaluate(() => {
     const button = document.querySelector("button.btn");
@@ -100,7 +100,7 @@ test("dev: primary demo button sizes to its label", async ({ page }) => {
 });
 
 test("dev: selection shares one stylesheet snapshot across inspector fields", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   const cssRuleReads = await page.evaluate(async () => {
     const stylesheetCount = document.styleSheets.length;
@@ -142,7 +142,7 @@ test("dev: selection shares one stylesheet snapshot across inspector fields", as
 });
 
 test("dev: ordinary clicks choose a button wrapper and Command-click chooses its child", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   const button = page.locator("button.btn").first();
   const label = button.locator(".btn__label");
@@ -162,7 +162,7 @@ test("dev: ordinary clicks choose a button wrapper and Command-click chooses its
 });
 
 test("dev: hover overlay shows margin space while selection keeps only its outline", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   await page.locator("#hero-title").hover();
   await page.waitForTimeout(100);

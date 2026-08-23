@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Button } from "./Button";
-import { Footer } from "./Footer";
-import { RepeatedItem } from "./RepeatedItem";
+import { Button } from "../Button";
+import { Footer } from "../Footer";
+import { RepeatedItem } from "../RepeatedItem";
 import { tokenCatalog, tokenDiagnostics, tokens } from "virtual:design-tokens";
 
 if (import.meta.env.DEV && typeof window !== "undefined") {
@@ -124,7 +124,18 @@ function CssOpacityExamples() {
   );
 }
 
-export function App() {
+/**
+ * PlaygroundPage — dev-only fixture surface preserved from the previous
+ * landing page. The Playwright suite drives the inspector against its
+ * repeated items, flex lab, conformance links, and token table. The public
+ * landing page (App.tsx) is the Penpot "Landing V6 — Mono" design; this route
+ * keeps the old demo corpus available at /playground without polluting it.
+ *
+ * The component keeps its historical internal name `App` so the dev identity
+ * contract injected on its root element still reads data-cid="App"
+ * (asserted by m1-foundation.dev.spec.ts); it is exported as PlaygroundPage.
+ */
+function App() {
   const [clicks, setClicks] = useState(0);
 
   useEffect(() => {
@@ -288,7 +299,7 @@ export function App() {
           </div>
           <div className="prompt-preview">
             <div className="prompt-bar"><span>design-changes.md</span><span>copied to clipboard</span></div>
-            <pre>{`# Design changes for Hero.tsx\n\n### Hero (src/Hero.tsx:42)\n- font-size: 56px → 64px\n- color: text.secondary → text.primary\n\n## Selector fallback\nHero / src/Hero.tsx`}</pre>
+            <pre>{`# Requested design changes\n\n### Hero (src/Hero.tsx:42)\n- font-size: 56px → 64px\n- color: text.secondary → text.primary\n\n## Selectors (fallback)\nHero / src/Hero.tsx`}</pre>
           </div>
         </section>
 
@@ -343,3 +354,5 @@ export function App() {
     </div>
   );
 }
+
+export { App as PlaygroundPage };

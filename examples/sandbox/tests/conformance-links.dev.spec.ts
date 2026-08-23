@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("dev: main demo links to every conformance page", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 
@@ -23,18 +23,18 @@ test("dev: main demo links to every conformance page", async ({ page }) => {
 });
 
 test("dev: ordinary conformance-link clicks select without navigating", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 
   await page.locator('[data-conformance-route="/conformance"]').click();
 
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/playground$/);
   await expect(page.locator('[data-test="selection"]')).toBeVisible();
 });
 
 test("dev: Command-click follows a conformance link", async ({ page, context }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 

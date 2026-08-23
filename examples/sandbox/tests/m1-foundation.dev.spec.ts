@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("dev: data-cid / data-src / data-cprops injected on JSX elements", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   const button = page.locator("button").first();
   await expect(button).toBeVisible();

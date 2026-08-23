@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test("dev: diagonal gaps extend dotted construction lines from hovered edges to selected centrelines", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.evaluate(() => {
     const addFixture = (id: string, cid: string, left: number, top: number) => {
       const element = document.createElement("div");
@@ -49,7 +49,7 @@ test("dev: diagonal gaps extend dotted construction lines from hovered edges to 
 });
 
 test("dev: Option/Alt shows viewport guides and selected-to-hovered measurements", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   await page.locator("#hero-title").click();
   await page.getByRole("button", { name: "Save a change" }).hover();
@@ -109,7 +109,7 @@ test("dev: Option/Alt shows viewport guides and selected-to-hovered measurements
 });
 
 test("dev: Option/Alt guides deactivate over the inspector panel without changing selection", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   await page.locator("#hero-title").click();
   const before = await page.evaluate(() => window.document.getElementById("design-tool-root")?.shadowRoot

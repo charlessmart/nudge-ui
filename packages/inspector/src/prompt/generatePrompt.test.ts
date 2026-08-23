@@ -51,7 +51,8 @@ describe("generatePrompt", () => {
       },
     })]);
     expect(out).toContain("scope: all outputs at this source site");
-    expect(out).toContain("Rendered evidence: occurrence 2; mounted outputs 2");
+    expect(out).toContain("Rendered evidence: 2 mounted outputs");
+    expect(out).not.toContain("Rendered occurrence");
     expect(out).toContain('Props evidence: `label:"Repeated literal"`');
     expect(out).toContain("Before text: `Repeated literal`");
   });
@@ -106,7 +107,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("~~~~text\nafter ~~~\nnext\n~~~~");
   });
 
-  it("uses canonical structural intent with bounded evidence and no projection marker", () => {
+  it("renders structural intent as concise source-edit instructions", () => {
     const structural: StructuralChange[] = [
       {
         id: "delete-1",
@@ -139,15 +140,124 @@ describe("generatePrompt", () => {
 
     const out = generatePrompt([], undefined, structural);
 
-    expect(out).toContain("## Structural preview changes");
-    expect(out).toContain("Remove rendered instance from RepeatedItem (src/App.tsx:12:5)");
-    expect(out).toContain("Target: RepeatedItem (src/App.tsx:12:5); rendered occurrence 3");
-    expect(out).toContain("Move this one rendered instance before the specified sibling within Navigation (src/Nav.tsx:4:1).");
-    expect(out).toContain("Before anchor: NavItem (src/Nav.tsx:8:3); rendered occurrence 2");
-    expect(out).toContain("Presentation: position 4 → 3 within <nav>");
+    expect(out).toContain("## Structural changes");
+    expect(out).toContain("- Remove text `Repeated 3` (src/App.tsx:12:5) from the source.");
+    expect(out).toContain("- Move text `Docs` (src/Nav.tsx:8:3) before text `Blog` (src/Nav.tsx:8:3) in Navigation (src/Nav.tsx:4:1).");
+    expect(out).not.toContain("rendered occurrence");
+    expect(out).not.toContain("Presentation:");
     expect(out).toContain('[data-cid="RepeatedItem"][data-src*="src/App.tsx:12:5"]');
     expect(out).not.toContain("data-dt-projection-instance");
     expect(out).not.toContain("elementId");
+  });
+
+  it("exports only the final destination for each moved element", () => {
+    const target = {
+      sourceSite: { cid: "App", src: "src/App.tsx:157:14" },
+      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Column two" },
+    };
+    const parent = {
+      sourceSite: { cid: "App", src: "src/App.tsx:150:12" },
+      locator: { kind: "evidence" as const, occurrence: 0, props: "className:grid", text: "Grid" },
+    };
+    const structural: StructuralChange[] = [
+      {
+        id: "move-1",
+        kind: "move",
+        target,
+        destination: {
+          parent,
+          before: {
+            sourceSite: { cid: "App", src: "src/App.tsx:156:14" },
+            locator: { kind: "evidence", occurrence: 0, props: "className:divider", text: null },
+          },
+        },
+        presentation: { parentTag: "div", fromIndex: 2, toIndex: 1 },
+      },
+      {
+        id: "move-2",
+        kind: "move",
+        target,
+        destination: {
+          parent,
+          before: {
+            sourceSite: { cid: "App", src: "src/App.tsx:162:14" },
+            locator: { kind: "evidence", occurrence: 0, props: "className:divider", text: null },
+          },
+        },
+        presentation: { parentTag: "div", fromIndex: 1, toIndex: 3 },
+      },
+      {
+        id: "move-3",
+        kind: "move",
+        target,
+        destination: {
+          parent,
+          before: {
+            sourceSite: { cid: "App", src: "src/App.tsx:151:14" },
+            locator: { kind: "evidence", occurrence: 0, props: "className:column", text: "Column one" },
+          },
+        },
+        presentation: { parentTag: "div", fromIndex: 3, toIndex: 0 },
+      },
+    ];
+
+    const out = generatePrompt([], undefined, structural);
+
+    expect(out.split("\n").filter((line) => line.startsWith("- Move text `Column two`"))).toHaveLength(1);
+    expect(out).toContain("before text `Column one` (src/App.tsx:151:14)");
+    expect(out).not.toContain("src/App.tsx:156:14");
+    expect(out).not.toContain("src/App.tsx:162:14");
+    expect(out).toContain('[data-cid="App"][data-src*="src/App.tsx:157:14"]');
+    expect(out).not.toContain('[data-cid="App"][data-src*="src/App.tsx:150:12"]');
+  });
+
+  it("omits a single-target move sequence that returns to its starting position", () => {
+    const target = {
+      sourceSite: { cid: "App", src: "src/App.tsx:153:16" },
+      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Heading" },
+    };
+    const parent = {
+      sourceSite: { cid: "App", src: "src/App.tsx:151:14" },
+      locator: { kind: "evidence" as const, occurrence: 0, props: "className:column", text: "Column" },
+    };
+    const structural: StructuralChange[] = [
+      {
+        id: "move-heading-to-end",
+        kind: "move",
+        target,
+        destination: { parent, before: null },
+        presentation: { parentTag: "article", fromIndex: 1, toIndex: 2 },
+      },
+      {
+        id: "move-heading-home",
+        kind: "move",
+        target,
+        destination: {
+          parent,
+          before: {
+            sourceSite: { cid: "App", src: "src/App.tsx:154:16" },
+            locator: { kind: "evidence", occurrence: 0, props: null, text: "Body" },
+          },
+        },
+        presentation: { parentTag: "article", fromIndex: 2, toIndex: 1 },
+      },
+    ];
+
+    const out = generatePrompt([rec({
+      cid: "App",
+      file: "src/App.tsx",
+      line: 153,
+      property: "font-weight",
+      oldRawValue: "600",
+      rawValue: "700",
+    })], undefined, structural);
+
+    expect(out).not.toContain("## Structural changes");
+    expect(out).not.toContain("src/App.tsx:153:16");
+    expect(out).toContain("- `font-weight`: `600` → `700`");
+    expect(generatePrompt([], undefined, structural)).toBe(
+      "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Design Tool inspector first.",
+    );
   });
 
   it("uses exact source coordinates for static HTML changes", () => {
@@ -166,7 +276,7 @@ describe("generatePrompt", () => {
       stylingSystem: "CSS custom properties",
     });
 
-    expect(out).toContain("Framework: HTML + CSS custom properties");
+    expect(out).not.toContain("Framework:");
     expect(out).toContain("### html:button (index.html:3:17)");
     expect(out).toContain('[data-cid="html:button"][data-src="index.html:3:17"]');
     expect(out).not.toContain('data-src*="index.html:3"');
@@ -264,8 +374,8 @@ describe("generatePrompt", () => {
       newToken: SURFACE_SUNKEN,
     });
     const out = generatePrompt([r]);
-    expect(out).toContain("# Design changes for Button.tsx");
-    expect(out).toContain("Framework: React + CSS custom properties");
+    expect(out).toContain("# Requested design changes");
+    expect(out).not.toContain("Framework:");
     expect(out).toContain("## Changes");
     expect(out).toContain("### Button (src/Button.tsx:42)");
     expect(out).toContain("- `background`: `--color-surface-raised` → `--color-surface-sunken`");
@@ -273,7 +383,7 @@ describe("generatePrompt", () => {
     expect(out).toContain('- `[data-cid="Button"][data-src*="src/Button.tsx:42"]');
   });
 
-  it("renders a raw value edit with the not-a-token marker", () => {
+  it("renders a raw value edit without token advice", () => {
     const r = rec({
       cid: "Button",
       file: "src/Button.tsx",
@@ -282,7 +392,8 @@ describe("generatePrompt", () => {
       oldRawValue: "4px",
     });
     const out = generatePrompt([r]);
-    expect(out).toContain("- `padding`: `4px` → `16px` (not a token — consider adding one)");
+    expect(out).toContain("- `padding`: `4px` → `16px`");
+    expect(out).not.toContain("consider adding");
   });
 
   it("preserves logical source intent when the preview edit is physical", () => {
@@ -307,7 +418,7 @@ describe("generatePrompt", () => {
       rawValue: "16px",
     });
     const out = generatePrompt([r]);
-    expect(out).toContain("- `padding`: `16px` (not a token — consider adding one)");
+    expect(out).toContain("- `padding`: `16px`");
     expect(out).not.toContain("→");
   });
 
@@ -320,9 +431,7 @@ describe("generatePrompt", () => {
       oldRawValue: "8px",
     });
     const out = generatePrompt([r]);
-    expect(out).toContain(
-      "- `border-radius`: `8px` → `var(--space-3)` (promoted from raw value — consider adding a dedicated token)",
-    );
+    expect(out).toContain("- `border-radius`: `8px` → `var(--space-3)`");
   });
 
   it("groups multiple changes for the same element + file under one heading", () => {
@@ -343,7 +452,7 @@ describe("generatePrompt", () => {
     const headings = out.split("\n").filter((l) => l.startsWith("### Button"));
     expect(headings).toHaveLength(1);
     expect(out).toContain("- `background`: `--color-surface-raised` → `--color-surface-sunken`");
-    expect(out).toContain("- `border-radius`: `12px` (not a token — consider adding one)");
+    expect(out).toContain("- `border-radius`: `12px`");
     const selectorLines = out.split("\n").filter((l) => l.startsWith("- `[data-cid=\"Button\"]"));
     expect(selectorLines).toHaveLength(1);
   });
@@ -379,8 +488,8 @@ describe("generatePrompt", () => {
     });
 
     const out = generatePrompt([first, second]);
-    expect(out).toContain("Target: RepeatedItem (src/App.tsx:12:5); rendered occurrence 1");
-    expect(out).toContain("Target: RepeatedItem (src/App.tsx:12:5); rendered occurrence 2");
+    expect(out).toContain("Applies only to text `First`");
+    expect(out).toContain("Applies only to text `Second`");
     expect(out.split("\n").filter((line) => line.startsWith("### RepeatedItem"))).toHaveLength(2);
   });
 
@@ -407,7 +516,7 @@ describe("generatePrompt", () => {
     expect(out).toContain('- `[data-cid="NavLink"][data-src*="src/components/Header.tsx:58"]');
   });
 
-  it("uses the first group file basename in the top header", () => {
+  it("uses a neutral title that remains accurate for multi-file changes", () => {
     const a = rec({
       cid: "Button",
       file: "src/components/Header.tsx",
@@ -416,7 +525,7 @@ describe("generatePrompt", () => {
       newToken: SURFACE_SUNKEN,
     });
     const out = generatePrompt([a]);
-    expect(out).toContain("# Design changes for Header.tsx");
+    expect(out).toContain("# Requested design changes");
   });
 
   it("deduplicates by diffing first vs last, ignoring intermediate changes", () => {
@@ -442,7 +551,7 @@ describe("generatePrompt", () => {
       oldRawValue: "12px",
     });
     const out = generatePrompt([a, b, c]);
-    expect(out).toContain("- `padding`: `4px` → `16px` (not a token — consider adding one)");
+    expect(out).toContain("- `padding`: `4px` → `16px`");
     expect(out).not.toContain("8px → 12px");
   });
 
@@ -488,7 +597,7 @@ describe("generatePrompt", () => {
     expect(out).toContain("`16px`");
   });
 
-  it("accepts framework hints and surfaces them in the header", () => {
+  it("does not surface framework hints in the prompt", () => {
     const r = rec({
       cid: "Button",
       file: "src/Button.tsx",
@@ -497,7 +606,7 @@ describe("generatePrompt", () => {
       newToken: SURFACE_SUNKEN,
     });
     const out = generatePrompt([r], { framework: "React", stylingSystem: "vanilla-extract (sprinkles)" });
-    expect(out).toContain("Framework: React + vanilla-extract (sprinkles)");
+    expect(out).not.toContain("Framework:");
   });
 
   it("uses a human-readable adapter token in the prompt while selectors keep implementation identity", () => {

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 
 test("dev: a blocked managed preview remains visible in the change log", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.addStyleTag({ content: ".btn { font-size: 13px !important; }" });
   await page.click("text=Save");
 

@@ -64,7 +64,7 @@ async function expandSpacing(page: import("@playwright/test").Page): Promise<voi
 }
 
 test("dev: element edits project into canvas renderer frame", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   await page.click("text=Save");
   await waitForInspector(page);
@@ -95,7 +95,7 @@ test("dev: element edits project into canvas renderer frame", async ({ page }) =
 });
 
 test("dev: canvas element edits survive switching back to Inspect", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
@@ -120,7 +120,7 @@ test("dev: canvas element edits survive switching back to Inspect", async ({ pag
 });
 
 test("dev: global token edit projects into canvas frame", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   // Switch to Tokens tab and edit a global token
   await page.locator('[data-test="tokens-tab"]').click();
@@ -153,7 +153,7 @@ test("dev: global token edit projects into canvas frame", async ({ page }) => {
 });
 
 test("dev: frame reload converges on latest projection", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   await page.click("text=Save");
   await waitForInspector(page);
@@ -191,7 +191,7 @@ test("dev: frame reload converges on latest projection", async ({ page }) => {
 });
 
 test("dev: reverting the final change projects empty CSS to canvas frame", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   await page.click("text=Save");
   await waitForInspector(page);
@@ -238,7 +238,7 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
 });
 
 test("dev: canvas renderer protocol is present in dev mode", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   // In dev mode, the Canvas action should be present
   await expect(page.locator('[data-test="mode-canvas"]')).toBeVisible();

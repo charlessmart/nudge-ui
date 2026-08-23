@@ -16,7 +16,6 @@ import {
   formatComponentPropBaseline,
   formatComponentPropValue,
 } from "../componentSemantics/changeModel.ts";
-import { presentChange } from "../changes/presentation.ts";
 import {
   boundRuntimeEvidence,
   isRuntimeGeneratedSource,
@@ -30,13 +29,6 @@ export interface FrameworkHints {
   /** Host Adapter label; names the framework line for multi-host prompts. */
   host?: string;
 }
-
-/** Human-readable host labels keyed by DesignToolRuntimeHost. */
-const HOST_LABELS: Record<string, string> = {
-  "vite-react": "Vite",
-  "static-html": "Static HTML",
-  "nextjs-react": "Next.js (App Router)",
-};
 
 const EMPTY_SENTINEL =
   "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Design Tool inspector first.";
@@ -53,9 +45,25 @@ interface ElementGroup {
   changes: ElementChangeRecord[];
 }
 
-function basename(filePath: string): string {
-  const slash = Math.max(filePath.lastIndexOf("/"), filePath.lastIndexOf("\\"));
-  return slash >= 0 ? filePath.slice(slash + 1) : filePath;
+interface PromptSection {
+  heading: string;
+  lines: string[];
+}
+
+function renderPrompt(sections: PromptSection[]): string {
+  const lines = [
+    "# Requested design changes",
+    "",
+    "Implementation guidance: Preserve existing tokens, logical properties, and CSS intent while applying these rendered changes.",
+  ];
+
+  for (const section of sections) {
+    const content = [...section.lines];
+    while (content.at(-1) === "") content.pop();
+    lines.push("", `## ${section.heading}`, "", ...content);
+  }
+
+  return lines.join("\n");
 }
 
 function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
@@ -104,11 +112,11 @@ function elementChangeLine(rec: ElementChangeRecord): string {
   }
   if (rec.newToken) {
     const before = rec.oldRawValue !== undefined ? `\`${rec.oldRawValue}\` → ` : "";
-    return `- \`${rec.property}\`: ${before}\`var(${rec.newToken.name})\` (promoted from raw value — consider adding a dedicated token)${conflictSuffix(rec)}`;
+    return `- \`${rec.property}\`: ${before}\`var(${rec.newToken.name})\`${conflictSuffix(rec)}`;
   }
   if (rec.rawValue !== undefined) {
     const before = rec.oldRawValue !== undefined ? `\`${rec.oldRawValue}\` → ` : "";
-    return `- \`${rec.property}\`: ${before}\`${rec.rawValue}\` (not a token — consider adding one)${conflictSuffix(rec)}`;
+    return `- \`${rec.property}\`: ${before}\`${rec.rawValue}\`${conflictSuffix(rec)}`;
   }
   return `- \`${rec.property}\`: (no value)`;
 }
@@ -161,7 +169,6 @@ function textEvidenceLines(target: TextProjectionTarget): string[] {
     : `${target.sourceSite.cid} (\`${target.sourceSite.src}\`)`;
   const lines = [
     `  - Source site: ${sourceLabel}`,
-    `  - Rendered occurrence: ${target.occurrence + 1}`,
   ];
   const props = boundRuntimeEvidence(target.props);
   const ariaLabel = boundRuntimeEvidence(target.ariaLabel);
@@ -224,37 +231,85 @@ function elementGroupSource(group: ElementGroup, exactSource: boolean): string {
   return `${group.file}:${group.line}`;
 }
 
-function instanceEvidenceLines(label: string, ref: RenderedInstanceRef): string[] {
-  const evidence = ref.locator;
-  const lines = [`  - ${label}: ${sourceSiteLabel(ref)}; rendered occurrence ${evidence.occurrence + 1}`];
-  const props = boundedEvidence(evidence.props);
-  const text = boundedEvidence(evidence.text);
-  const ariaLabel = boundedEvidence(evidence.ariaLabel ?? null);
-  if (props) lines.push(`    - Props evidence: \`${props}\``);
-  if (text) lines.push(`    - Text evidence: \`${text}\``);
-  if (ariaLabel) lines.push(`    - Accessible name evidence: \`${ariaLabel}\``);
-  return lines;
+function renderedInstanceDescription(ref: RenderedInstanceRef): string {
+  const text = boundedEvidence(ref.locator.text);
+  const ariaLabel = boundedEvidence(ref.locator.ariaLabel ?? null);
+  const props = boundedEvidence(ref.locator.props);
+  const source = isRuntimeGeneratedSource(ref.sourceSite.src)
+    ? sourceSiteLabel(ref)
+    : ref.sourceSite.src;
+
+  if (text) return `text ${promptText(text)} (${source})`;
+  if (ariaLabel) return `the element named ${promptText(ariaLabel)} (${source})`;
+  if (props) return `the element with props ${promptText(props)} (${source})`;
+
+  // With no semantic evidence, the ordinal is the only way to distinguish
+  // repeated outputs from the same source site.
+  return `rendered instance ${ref.locator.occurrence + 1} of ${sourceSiteLabel(ref)}`;
 }
 
-function structuralChangeLines(change: StructuralChange): string[] {
+function structuralChangeLine(change: StructuralChange): string {
+  const target = renderedInstanceDescription(change.target);
   if (change.kind === "delete") {
-    return [
-      `### Remove rendered instance from ${sourceSiteLabel(change.target)}`,
-      "- Remove this one rendered instance in source; do not implement a runtime DOM deletion.",
-      ...instanceEvidenceLines("Target", change.target),
-    ];
+    return `- Remove ${target} from the source.`;
   }
   const before = change.destination.before;
-  return [
-    `### Move rendered instance from ${sourceSiteLabel(change.target)}`,
-    before
-      ? `- Move this one rendered instance before the specified sibling within ${sourceSiteLabel(change.destination.parent)}.`
-      : `- Move this one rendered instance to the end of ${sourceSiteLabel(change.destination.parent)}.`,
-    ...instanceEvidenceLines("Target", change.target),
-    ...instanceEvidenceLines("Destination parent", change.destination.parent),
-    ...(before ? instanceEvidenceLines("Before anchor", before) : []),
-    `  - Presentation: position ${change.presentation.fromIndex + 1} → ${change.presentation.toIndex + 1} within <${change.presentation.parentTag}>`,
-  ];
+  const parent = sourceSiteLabel(change.destination.parent);
+  return before
+    ? `- Move ${target} before ${renderedInstanceDescription(before)} in ${parent}.`
+    : `- Move ${target} to the end of ${parent}.`;
+}
+
+function renderedInstanceKey(ref: RenderedInstanceRef): string {
+  const { sourceSite, locator } = ref;
+  return JSON.stringify([
+    sourceSite.cid,
+    sourceSite.src,
+    locator.props,
+    locator.text,
+    locator.ariaLabel ?? null,
+  ]);
+}
+
+/** Export final intent, not the gesture history required to replay the preview. */
+function canonicalizeStructuralChanges(changes: readonly StructuralChange[]): StructuralChange[] {
+  const historyByTarget = new Map<string, { changes: StructuralChange[]; lastIndex: number }>();
+  const movedTargetsByParent = new Map<string, Set<string>>();
+
+  changes.forEach((change, index) => {
+    const targetKey = renderedInstanceKey(change.target);
+    const history = historyByTarget.get(targetKey) ?? { changes: [], lastIndex: index };
+    history.changes.push(change);
+    history.lastIndex = index;
+    historyByTarget.set(targetKey, history);
+
+    if (change.kind === "move") {
+      const parentKey = renderedInstanceKey(change.destination.parent);
+      const targets = movedTargetsByParent.get(parentKey) ?? new Set<string>();
+      targets.add(targetKey);
+      movedTargetsByParent.set(parentKey, targets);
+    }
+  });
+
+  const canonical: StructuralChange[] = [];
+  const histories = [...historyByTarget.entries()]
+    .sort(([, a], [, b]) => a.lastIndex - b.lastIndex);
+  for (const [targetKey, history] of histories) {
+    const latest = history.changes.at(-1)!;
+    if (latest.kind === "delete") {
+      canonical.push(latest);
+      continue;
+    }
+    const moves = history.changes.filter((change): change is Extract<StructuralChange, { kind: "move" }> =>
+      change.kind === "move");
+    const parentKeys = new Set(moves.map((move) => renderedInstanceKey(move.destination.parent)));
+    const parentKey = parentKeys.size === 1 ? [...parentKeys][0]! : null;
+    const returnedToStart = parentKey !== null
+      && movedTargetsByParent.get(parentKey)?.size === 1
+      && moves[0]?.presentation.fromIndex === latest.presentation.toIndex;
+    if (!returnedToStart) canonical.push(latest);
+  }
+  return canonical;
 }
 
 function structuralSourceFallback(ref: RenderedInstanceRef, exactSource: boolean): string {
@@ -267,9 +322,9 @@ export function generatePrompt(
   frameworkHints?: FrameworkHints,
   structuralChanges: readonly StructuralChange[] = [],
 ): string {
-  if (changes.length === 0 && structuralChanges.length === 0) return EMPTY_SENTINEL;
   const deduplicated = canonicalizeChanges(changes);
-  if (deduplicated.length === 0 && structuralChanges.length === 0) return EMPTY_SENTINEL;
+  const structuralIntent = canonicalizeStructuralChanges(structuralChanges);
+  if (deduplicated.length === 0 && structuralIntent.length === 0) return EMPTY_SENTINEL;
 
   const tokenChanges = deduplicated.filter(isTokenChange);
   const componentChanges = deduplicated.filter(isComponentChange);
@@ -277,57 +332,42 @@ export function generatePrompt(
   const elementChanges = deduplicated.filter((change): change is ElementChangeRecord =>
     !isTokenChange(change) && !isComponentChange(change) && !isTextContentChange(change));
   const elementGroups = groupElementChanges(elementChanges);
-  const firstFile = (deduplicated[0]
-    ? presentChange(deduplicated[0]).file
-    : structuralChanges[0]!.target.sourceSite.src) || "runtime-created DOM";
   const framework = frameworkHints?.framework ?? "React";
-  const stylingSystem = frameworkHints?.stylingSystem ?? "CSS custom properties";
-  const hostLabel = frameworkHints?.host
-    ? HOST_LABELS[frameworkHints.host] ?? frameworkHints.host
-    : null;
-  const frameworkLine = hostLabel
-    ? `${framework} on ${hostLabel} + ${stylingSystem}`
-    : `${framework} + ${stylingSystem}`;
   const exactHtmlSource = framework === "HTML";
-  const lines = [
-    `# Design changes for ${basename(firstFile)}`,
-    "",
-    `Framework: ${frameworkLine}`,
-    "",
-    "Implementation guidance: Preserve existing tokens, logical properties, and CSS intent while applying these rendered changes.",
-    "",
-  ];
+  const sections: PromptSection[] = [];
 
   if (tokenChanges.length > 0) {
-    lines.push("## Global token changes", "");
-    tokenChanges.forEach((change) => lines.push(tokenChangeLine(change)));
-    lines.push("");
+    sections.push({
+      heading: "Global token changes",
+      lines: tokenChanges.map(tokenChangeLine),
+    });
   }
 
   if (componentChanges.length > 0) {
-    lines.push("## Component prop changes", "");
+    const lines: string[] = [];
     for (const change of componentChanges) {
       const target = change.target;
       lines.push(`### ${target.componentName} invocation (${target.file}:${target.line}:${target.column})`);
       lines.push(componentChangeLine(change));
       lines.push(`  - Component contract: \`${target.componentId}\``);
       if (change.evidence) {
-        lines.push(`  - Rendered evidence: occurrence ${change.evidence.occurrence + 1}; mounted outputs ${change.evidence.mountedCount}`);
+        lines.push(`  - Rendered evidence: ${change.evidence.mountedCount} mounted outputs`);
         if (change.evidence.props) lines.push(`    - Props evidence: ${promptText(boundedEvidence(change.evidence.props) ?? "")}`);
         if (change.evidence.ariaLabel) lines.push(`    - Accessible name evidence: ${promptText(boundedEvidence(change.evidence.ariaLabel) ?? "")}`);
         lines.push(`    - Before text: ${promptText(change.evidence.beforeText)}`);
       }
       lines.push("");
     }
+    sections.push({ heading: "Component prop changes", lines });
   }
 
   if (elementGroups.length > 0) {
-    lines.push("## Changes", "");
+    const lines: string[] = [];
     for (const group of elementGroups) {
       const state = group.changes[0]?.state ?? "base";
       lines.push(`### ${group.cid} (${elementGroupSource(group, exactHtmlSource)}) · ${state}`);
       if (group.instanceOverride) {
-        lines.push(...instanceEvidenceLines("Target", group.instanceOverride.target));
+        lines.push(`- Applies only to ${renderedInstanceDescription(group.instanceOverride.target)}.`);
       }
       lines.push(...runtimeEvidenceLines(group));
       for (const change of group.changes) {
@@ -337,10 +377,11 @@ export function generatePrompt(
       }
       lines.push("");
     }
+    sections.push({ heading: "Changes", lines });
   }
 
   if (textChanges.length > 0) {
-    lines.push("## Rendered text changes", "");
+    const lines: string[] = [];
     for (const change of textChanges) {
       const textSource = isRuntimeGeneratedSource(change.target.sourceSite.src)
         ? "source unknown; runtime-created DOM"
@@ -351,32 +392,30 @@ export function generatePrompt(
       lines.push(...textEvidenceLines(change.target));
       lines.push("");
     }
+    sections.push({ heading: "Rendered text changes", lines });
   }
 
-  if (structuralChanges.length > 0) {
-    lines.push("## Structural preview changes", "");
-    for (const change of structuralChanges) {
-      lines.push(...structuralChangeLines(change));
-      lines.push("");
-    }
+  if (structuralIntent.length > 0) {
+    sections.push({
+      heading: "Structural changes",
+      lines: structuralIntent.map(structuralChangeLine),
+    });
   }
 
-  lines.push("## Selectors (fallback)");
-  tokenChanges.forEach((change) => lines.push(`- \`${change.tokenName}\` in \`${change.selector}\``));
+  const fallbackLines = new Set<string>();
+  tokenChanges.forEach((change) => fallbackLines.add(`- \`${change.tokenName}\` in \`${change.selector}\``));
   componentChanges.forEach((change) =>
-    lines.push(`- Component callsite: \`${change.target.file}:${change.target.line}:${change.target.column}\` (\`${change.target.componentName}\`)`));
+    fallbackLines.add(`- Component callsite: \`${change.target.file}:${change.target.line}:${change.target.column}\` (\`${change.target.componentName}\`)`));
   componentChanges.forEach((change) =>
-    lines.push(`- \`[data-cid="${escapeAttrValue(change.target.componentName)}"][data-src*="${escapeAttrValue(`${change.target.file}:${change.target.line}`)}"]\``));
-  textChanges.forEach((change) => lines.push(`- \`${textProjectionSourceFallback(change.target)}\``));
-  elementGroups.forEach((group) => lines.push(`- \`${promptSelectorForElement(group, exactHtmlSource)}\``));
+    fallbackLines.add(`- \`[data-cid="${escapeAttrValue(change.target.componentName)}"][data-src*="${escapeAttrValue(`${change.target.file}:${change.target.line}`)}"]\``));
+  textChanges.forEach((change) => fallbackLines.add(`- \`${textProjectionSourceFallback(change.target)}\``));
+  elementGroups.forEach((group) => fallbackLines.add(`- \`${promptSelectorForElement(group, exactHtmlSource)}\``));
   const structuralFallbacks = new Set<string>();
-  for (const change of structuralChanges) {
+  for (const change of structuralIntent) {
     structuralFallbacks.add(structuralSourceFallback(change.target, exactHtmlSource));
-    if (change.kind === "move") {
-      structuralFallbacks.add(structuralSourceFallback(change.destination.parent, exactHtmlSource));
-      if (change.destination.before) structuralFallbacks.add(structuralSourceFallback(change.destination.before, exactHtmlSource));
-    }
   }
-  structuralFallbacks.forEach((selector) => lines.push(`- \`${selector}\``));
-  return lines.join("\n");
+  structuralFallbacks.forEach((selector) => fallbackLines.add(`- \`${selector}\``));
+  sections.push({ heading: "Selectors (fallback)", lines: [...fallbackLines] });
+
+  return renderPrompt(sections);
 }

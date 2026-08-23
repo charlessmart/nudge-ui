@@ -13,7 +13,7 @@ async function consumerBackgrounds(page: import("@playwright/test").Page): Promi
 }
 
 test("dev: Tokens tab edits only the active theme token and updates every consumer", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
   await page.locator('[data-test="tokens-tab"]').click();
 
@@ -40,7 +40,7 @@ test("dev: Tokens tab edits only the active theme token and updates every consum
 });
 
 test("dev: Tokens tab searches the global catalog", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="tokens-tab"]').click();
   await page.locator('[data-test="token-search"]').fill("text-primary");
   await expect(page.locator('[data-test="global-token-row"]')).toHaveCount(1);

@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
 test("opens the first line of the multiline hero heading and removes the edit outline", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   const hero = page.locator("h1#hero-title");
   await hero.dblclick({ position: { x: 80, y: 30 } });
@@ -20,7 +20,7 @@ test("opens the first line of the multiline hero heading and removes the edit ou
 });
 
 test("edits direct text before a line break without flattening the following markup", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
 
   const showcaseTitle = page.locator("h2#showcase-title");
   await showcaseTitle.dblclick({ position: { x: 80, y: 30 } });

@@ -14,7 +14,7 @@ async function managedSheet(page: import("@playwright/test").Page): Promise<stri
 }
 
 test("dev: focused inspector text inputs keep arrow cursor navigation", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="tokens-tab"]').click();
 
   const search = page.locator('[data-test="token-search"]');
@@ -31,7 +31,7 @@ test("dev: focused inspector text inputs keep arrow cursor navigation", async ({
 });
 
 test("dev: focused inspector inputs do not delete the selected element", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   const heading = page.locator("#hero-title");
   await heading.click();
   await page.locator('[data-test="tokens-tab"]').click();
@@ -45,7 +45,7 @@ test("dev: focused inspector inputs do not delete the selected element", async (
 });
 
 test("dev: numeric fields nudge previews immediately and visibility shortcuts preserve state", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator(".hero-intro").click();
 
   const lineHeight = page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]');
