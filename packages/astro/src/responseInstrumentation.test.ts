@@ -111,4 +111,27 @@ describe("instrumentAstroResponse", () => {
     expect(result).toBe(response);
     expect(diagnostics).toHaveLength(0);
   });
+
+  it("forwards the original response when the body read itself fails", async () => {
+    // A failed stream read must not reject into the middleware chain and
+    // break the dev page load; the original response is the only remaining
+    // representation of the body, so it forwards by reference.
+    const erroredBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error("synthetic stream failure"));
+      },
+    });
+    const response = new Response(erroredBody, {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+
+    const { response: result, diagnostics } = await instrumentAstroResponse(
+      response,
+      PROJECT_ROOT,
+    );
+
+    expect(result).toBe(response);
+    expect(diagnostics).toHaveLength(0);
+  });
 });
