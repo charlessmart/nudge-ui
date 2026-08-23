@@ -86,7 +86,7 @@ describe("instrumentAstroHtml", () => {
     const result = instrumentAstroHtml(source);
 
     expect(result.html).toContain(
-      'data-cid="astro:Astro-island" data-src="src/pages/index.astro:9:1">',
+      'data-cid="astro:Island" data-src="src/pages/index.astro:9:1">',
     );
     expect(result.html).not.toContain("astro:Button");
     expect(result.html).not.toContain("astro:Div");
@@ -274,7 +274,7 @@ describe("instrumentAstroHtml", () => {
       `</body>`;
     const result = instrumentAstroHtml(source);
 
-    expect(result.html).toContain('<astro-island uid="z1" data-cid="astro:Astro-island">');
+    expect(result.html).toContain('<astro-island uid="z1" data-cid="astro:Island">');
     expect(result.html).toContain("<circle r=\"1\"></circle>");
     expect(result.html).toContain("<button>Load</button>");
     expect(result.insertedAttributeCount).toBe(1);

@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "jsxImportSource": "react",
+    "types": ["node"]
+  },
+  "include": ["src", "tests", "astro.config.ts", "playwright.config.ts"]
+}

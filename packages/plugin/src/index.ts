@@ -42,6 +42,13 @@ export interface DesignToolOptions {
   enabled?: boolean;
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
+  /**
+   * Skip the react / react-dom / jsx-runtime dedupe aliases. Hosts whose own
+   * pipeline already resolves React correctly (Astro's SSR module runner
+   * chokes on the raw CJS entry) must set this; the Vite-React host keeps the
+   * default behaviour.
+   */
+  skipReactAliases?: boolean;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
   tailwindV3?: { config: TailwindV3Config; source?: string };
   vanillaExtract?: VanillaExtractAdapterOptions;
@@ -552,6 +559,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
     enforce: "pre",
     config(userConfig, env) {
       if (!enabled || env.command !== "serve") return;
+      if (options.skipReactAliases) return;
       const projectRoot = userConfig.root ?? process.cwd();
       const aliases = resolveReactAliases(projectRoot);
       if (aliases.length === 0) return;

@@ -1,0 +1,9 @@
+# Build output
+dist/
+
+# Generated content (Astro types, collections cache)
+.astro/
+
+# Playwright
+test-results/
+playwright-report/

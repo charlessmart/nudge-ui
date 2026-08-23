@@ -1,0 +1,17 @@
+:root {
+  --color-accent: #0f62fe;
+  --color-surface: #f5f3ee;
+  --color-ink: #1d1c1a;
+  --space-lg: 24px;
+  --radius-card: 12px;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  background: var(--color-surface);
+  color: var(--color-ink);
+}

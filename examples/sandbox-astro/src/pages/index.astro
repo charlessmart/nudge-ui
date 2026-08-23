@@ -1,0 +1,30 @@
+---
+import Base from "../layouts/Base.astro";
+import Card from "../components/Card.astro";
+import Counter from "../components/Counter.tsx";
+---
+
+<Base title="Sandbox Astro — Home">
+  <h1 class="page-title">Home</h1>
+  <p class="lede">A portfolio-shaped fixture for the Design Tool Astro host Adapter.</p>
+  <Card
+    title="Tokens"
+    body="Global CSS custom properties are published to the inspector as tokens."
+  />
+  <Card
+    title="Identity"
+    body="Rendered dev HTML carries data-cid and project-relative data-src attributes."
+  />
+  <Counter client:load label="Island" />
+</Base>
+
+<style>
+  .page-title {
+    color: var(--color-accent);
+    margin-bottom: 0;
+  }
+
+  .lede {
+    color: var(--color-ink);
+  }
+</style>

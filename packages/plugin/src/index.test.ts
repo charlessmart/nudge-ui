@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { createTokenInventory } from "@design-tool/css/token-inventory";
 import {
   designTool as createDesignToolPlugins,
@@ -41,7 +42,6 @@ function codeContainsName(code: string | null | undefined, name: string): boolea
 
 describe("isHostApplicationSource", () => {
   const root = join(tmpdir(), "design-tool-app");
-
   it("includes source files inside the resolved Vite root", () => {
     expect(isHostApplicationSource(
       join(root, "src/ui/Button.tsx"),
@@ -150,6 +150,40 @@ describe("designTool plugin virtual inspector module", () => {
     expect(code!.indexOf("configureDesignToolRuntime({")).toBeLessThan(
       code!.indexOf("bootstrapDesignTool(__dt_root)"),
     );
+  });
+});
+
+describe("designTool react alias configuration", () => {
+  // A root with React installed is required for the resolver to find entries;
+  // the sandbox fixture is a stable in-repo candidate.
+  const sandboxRoot = join(
+    fileURLToPath(new URL(".", import.meta.url)),
+    "../../examples/sandbox",
+  );
+  const serveEnv = { command: "serve" as const };
+  type ConfigHook = (
+    config: unknown,
+    env: { command: string },
+  ) => { resolve: { alias: unknown[] } } | undefined;
+
+  it("aliases React to one instance by default in dev", () => {
+    const plugin = designTool() as unknown as { config?: ConfigHook };
+    const result = plugin.config?.({ root: sandboxRoot }, serveEnv);
+    expect(result?.resolve.alias.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it("returns no alias configuration when skipReactAliases is set (Astro SSR)", () => {
+    const plugin = designTool({ skipReactAliases: true }) as unknown as {
+      config?: ConfigHook;
+    };
+    expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toBeUndefined();
+  });
+
+  it("returns no alias configuration during production builds", () => {
+    const plugin = designTool() as unknown as { config?: ConfigHook };
+    expect(
+      plugin.config?.({ root: sandboxRoot }, { command: "build" }),
+    ).toBeUndefined();
   });
 });
 

@@ -1,0 +1,32 @@
+{
+  "name": "sandbox-astro",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "echo 'compatibility assertions run in Playwright'",
+    "playwright": "playwright test",
+    "test:e2e": "playwright test",
+    "test:purity": "node scripts/build-purity.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "@astrojs/react": "^4.4.2",
+    "@design-tool/astro": "workspace:*",
+    "astro": "^5.18.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

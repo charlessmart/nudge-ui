@@ -368,8 +368,14 @@ function projectRelativePath(
   return relative === "" ? "." : relative;
 }
 
-/** Capitalizes the authored tag name into the generated label, e.g. h1 -> astro:H1. */
+/**
+ * Capitalizes the authored tag name into the generated label, e.g. h1 ->
+ * astro:H1. The island hydration host reads `astro:Island` rather than the
+ * awkward `astro:Astro-island`; prompts name this element often enough to
+ * deserve a clean label.
+ */
 function astroCid(tagName: string): string {
+  if (tagName === ASTRO_ISLAND_TAG_NAME) return "astro:Island";
   return `astro:${tagName.charAt(0).toUpperCase()}${tagName.slice(1)}`;
 }
 

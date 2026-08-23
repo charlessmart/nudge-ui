@@ -1,0 +1,18 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="Sandbox Astro — About">
+  <h1 class="page-title">About</h1>
+  <p>
+    This page proves multi-page instrumentation: every rendered dev response is
+    buffered server-side and annotated with source identity before any client
+    script can strip Astro's own annotations.
+  </p>
+</Base>
+
+<style>
+  .page-title {
+    color: var(--color-accent);
+  }
+</style>
