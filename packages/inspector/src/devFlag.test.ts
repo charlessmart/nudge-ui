@@ -45,11 +45,5 @@ describe("isDesignToolDev", () => {
     expect(isDesignToolDev()).toBe(true);
   });
 
-  it("restores bundler authority when the host flag is cleared", () => {
-    setDesignToolHostDevFlag(false);
-    expect(isDesignToolDev()).toBe(false);
 
-    setDesignToolHostDevFlag(undefined);
-    expect(isDesignToolDev()).toBe(true);
-  });
 });

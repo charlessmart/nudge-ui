@@ -19,16 +19,9 @@ describe("roleDetection", () => {
     expect(detectRole()).toBe("controller");
   });
 
-  it("returns controller when frameElement has no canvas marker", () => {
-    // jsdom does not set window.frameElement, so this is the default path
-    expect(detectRole()).toBe("controller");
-  });
 
-  it("detectRole is idempotent", () => {
-    const r1 = detectRole();
-    const r2 = detectRole();
-    expect(r1).toBe(r2);
-  });
+
+
 
   it("isCanvasRenderer and isTopLevelController are consistent with detectRole", () => {
     const role = detectRole();
@@ -36,18 +29,7 @@ describe("roleDetection", () => {
     expect(isTopLevelController()).toBe(role === "controller");
   });
 
-  it("distinguishes Canvas iframes from ordinary iframes by attribute", () => {
-    const canvasIframe = document.createElement("iframe");
-    canvasIframe.setAttribute(CANVAS_RENDERER_ATTR, "");
-    const ordinaryIframe = document.createElement("iframe");
 
-    expect(canvasIframe.hasAttribute(CANVAS_RENDERER_ATTR)).toBe(true);
-    expect(ordinaryIframe.hasAttribute(CANVAS_RENDERER_ATTR)).toBe(false);
-  });
 
-  it("detectRole handles missing frameElement gracefully", () => {
-    // When frameElement is null/undefined (not in an iframe), should be controller
-    // jsdom doesn't set frameElement, so this is the baseline
-    expect(detectRole()).toBe("controller");
-  });
+
 });

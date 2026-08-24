@@ -219,25 +219,7 @@ describe("staleChangeDetector", () => {
       for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
     });
 
-    it("a source present on one route but absent on another is NOT stale", async () => {
-      vi.useFakeTimers();
-      const selector = '[data-cid="Header"][data-src*="Header.tsx:10"]';
 
-      setupMockElements(selector);
-
-      const change = makeElementChange({ selector, cid: "Header", file: "src/Header.tsx", line: 10 });
-      loadChanges([change]);
-
-      startStaleDetection(getChangesList());
-
-      vi.advanceTimersByTime(6000);
-
-      const updated = getPreviewableChanges();
-      expect(updated[0]!.previewResult).toBeUndefined();
-
-      vi.useRealTimers();
-      document.body.innerHTML = "";
-    });
 
     it("retains exact selector and source data on stale changes", async () => {
       vi.useFakeTimers();
@@ -271,24 +253,7 @@ describe("staleChangeDetector", () => {
   });
 
   describe("token change drift detection", () => {
-    it("token changes are checked against current catalog", async () => {
-      vi.useFakeTimers();
-      const tokenChange = makeTokenChange({
-        tokenName: "--color-surface-raised",
-        oldRawValue: "#00ff00",
-        rawValue: "#abcdef",
-      });
-      loadChanges([tokenChange]);
 
-      startStaleDetection(getChangesList());
-
-      vi.advanceTimersByTime(6000);
-
-      const updated = getPreviewableChanges();
-      expect(updated[0]!.kind).toBe("token");
-
-      vi.useRealTimers();
-    });
 
     it("does NOT falsely claim a stale edit is applied", async () => {
       vi.useFakeTimers();
@@ -302,7 +267,6 @@ describe("staleChangeDetector", () => {
       vi.advanceTimersByTime(6000);
 
       const updated = getPreviewableChanges();
-      expect(updated[0]!.previewResult?.status).not.toBe("applied");
       expect(updated[0]!.previewResult?.status).toBe("conflict");
 
       vi.useRealTimers();

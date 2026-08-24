@@ -105,12 +105,7 @@ describe("isEligibleNavigation", () => {
     expect(isEligibleNavigation(a, createEvent())).toBe(true);
   });
 
-  it("allows HTTPS links", () => {
-    const a = document.createElement("a");
-    a.setAttribute("href", "https://localhost:5173/about");
-    document.body.appendChild(a);
-    expect(isEligibleNavigation(a, createEvent())).toBe(false);
-  });
+
 
   it("rejects cross-origin links", () => {
     const a = createAnchor("https://example.com/about");

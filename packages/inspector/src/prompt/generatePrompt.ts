@@ -1,4 +1,4 @@
-import { isComponentChange, isTextContentChange, isTokenChange } from "../changesLog.ts";
+import { isComponentChange, isElementChange, isTextContentChange, isTokenChange } from "../changesLog.ts";
 import type {
   ChangeRecord,
   ComponentChangeRecord,
@@ -10,7 +10,7 @@ import type {
 import type { RenderedInstanceOverride, RenderedInstanceRef } from "../renderedInstance.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
 import type { TextProjectionTarget } from "../textChangeBoundary.ts";
-import { canonicalizeChanges } from "../changes/model.ts";
+import { canonicalizeChanges, tokenReference } from "../changes/model.ts";
 import {
   formatComponentPropBaseline,
   formatComponentPropValue,
@@ -108,7 +108,10 @@ function elementChangeLine(rec: ElementChangeRecord): string {
   }
   if (rec.newToken) {
     const before = rec.oldRawValue !== undefined ? `\`${rec.oldRawValue}\` → ` : "";
-    return `- \`${rec.property}\`: ${before}\`var(${rec.newToken.name})\`${conflictSuffix(rec)}`;
+    // Describe exactly the value the managed stylesheet wrote for this swap
+    // (adapter literal or var(cssName)); a bare var(name) would be invalid
+    // CSS for adapter tokens whose names are not custom-property names.
+    return `- \`${rec.property}\`: ${before}\`${tokenReference(rec.newToken)}\`${conflictSuffix(rec)}`;
   }
   if (rec.rawValue !== undefined) {
     const before = rec.oldRawValue !== undefined ? `\`${rec.oldRawValue}\` → ` : "";
@@ -344,8 +347,7 @@ export function generatePrompt(
   const tokenChanges = deduplicated.filter(isTokenChange);
   const componentChanges = deduplicated.filter(isComponentChange);
   const textChanges = deduplicated.filter(isTextContentChange);
-  const elementChanges = deduplicated.filter((change): change is ElementChangeRecord =>
-    !isTokenChange(change) && !isComponentChange(change) && !isTextContentChange(change));
+  const elementChanges = deduplicated.filter(isElementChange);
   const elementGroups = groupElementChanges(elementChanges);
   const coordinatePolicy = getSourceCoordinatePolicy();
   const sections: PromptSection[] = [];

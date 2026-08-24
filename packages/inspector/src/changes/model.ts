@@ -7,7 +7,12 @@ import {
   type ChangeRecord,
 } from "./types.ts";
 
-function tokenReference(token: TokenEntry): string {
+/**
+ * The CSS value a token swap writes into the managed stylesheet and the
+ * prompt must describe: an adapter-provided literal when present, otherwise a
+ * var() reference on the authored cssName (falling back to the entry name).
+ */
+export function tokenReference(token: TokenEntry): string {
   return token.cssValue ?? `var(${token.cssName ?? token.name})`;
 }
 

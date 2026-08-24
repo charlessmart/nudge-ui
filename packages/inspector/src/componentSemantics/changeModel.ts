@@ -67,14 +67,11 @@ export function componentChangeToOverride(
   // callsite override. Repeated expression/spread props are equally unsafe to
   // broaden, even when a malformed/internal record asks for source-site scope.
   // Repeated literals remain explicitly source-editable.
-  const repeatedUnsafeSourceOverride = mountedCount !== undefined
-    && mountedCount > 1
-    && (change.authoredAs === "expression" || change.authoredAs === "spread")
-    && (change.scope === undefined || change.scope === "source-site");
-  const repeatedScopeNotChosen = mountedCount !== undefined
-    && mountedCount > 1
-    && change.scope === undefined;
-  if (change.scope === "rendered-instance" || repeatedUnsafeSourceOverride || repeatedScopeNotChosen) return null;
+  if (mountedCount !== undefined && mountedCount > 1) {
+    if (change.scope !== "source-site") return null;
+    if (change.authoredAs === "expression" || change.authoredAs === "spread") return null;
+  }
+  if (change.scope === "rendered-instance") return null;
   return {
     framework: change.target.framework,
     callsiteId: change.target.callsiteId,

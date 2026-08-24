@@ -1,4 +1,5 @@
 import type { TokenEntry } from "../virtual/design-tokens.ts";
+import { isRecord as isPlainRecord } from "./isRecord.ts";
 import type { TokenAdapter, TokenMapping } from "./types.ts";
 
 export interface TailwindV3Config {
@@ -24,10 +25,6 @@ export interface TailwindV3Mapping {
   authored: string;
   confidence: "exact" | "probable" | "unknown";
   diagnostic?: string;
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function detectTailwindV3Config(config: unknown): config is TailwindV3Config {

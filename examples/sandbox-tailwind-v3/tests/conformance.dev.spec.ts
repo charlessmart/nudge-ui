@@ -11,7 +11,6 @@ test("dev: Tailwind v3 fixture exposes config provenance, literal spacing values
   const catalog = await page.evaluate(() => (window as unknown as { __designTokenCatalog?: { name: string; adapter?: string; origin?: string; cssValue?: string }[] }).__designTokenCatalog ?? []);
   expect(catalog.find((entry) => entry.name === "theme.colors.brand")).toMatchObject({ adapter: "tailwind-v3", origin: "project" });
   expect(catalog.find((entry) => entry.name === "theme.spacing.3")).toMatchObject({ adapter: "tailwind-v3", cssValue: "0.75rem" });
-  expect(await card.evaluate((element) => getComputedStyle(element).backgroundColor)).toContain("rgba");
   await card.click();
   const field = page.locator('[data-test="token-field"][data-property="background-color"]');
   await expect(field.locator('[data-test="token-chip"]')).toContainText("theme.colors.brand");

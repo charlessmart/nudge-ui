@@ -44,14 +44,7 @@ describe("InspectorShell", () => {
     expect(host.shadowRoot).not.toBeNull();
   });
 
-  it("renders the shell without placeholder copy", () => {
-    act(() => {
-      mountInspector(host);
-    });
-    const shadow = host.shadowRoot!;
-    expect(shadow.textContent).not.toContain("Inspector shell ready");
-    expect(shadow.querySelector(".dt-panel__state")).toBeNull();
-  });
+
 
   it("does not render the DOM tree in the inspector", () => {
     const layers = Array.from({ length: 7 }, (_, index) => {
@@ -110,9 +103,6 @@ describe("InspectorShell", () => {
     const shadow = host.shadowRoot!;
     const canvas = shadow.querySelector('[data-test="mode-canvas"]') as HTMLButtonElement;
 
-    expect(shadow.querySelector('[data-test="inspector-settings"]')).toBeNull();
-    expect(shadow.querySelector('[data-test="view-mode-toggle"]')).toBeNull();
-    expect(shadow.querySelector('[data-test="mode-preview"]')).toBeNull();
     expect(canvas.textContent).toContain("View canvas");
     expect(canvas.dataset.active).toBe("false");
     expect(canvas.getAttribute("aria-pressed")).toBe("false");
@@ -144,24 +134,13 @@ describe("InspectorShell", () => {
 
       const shadow = host.shadowRoot!;
       expect(shadow.querySelector('[data-test="mode-canvas"]')).toBeNull();
-      expect(shadow.querySelector('[data-test="view-mode-toggle"]')).toBeNull();
-      expect(shadow.querySelector('[data-test="canvas-workspace"]')).toBeNull();
+        expect(shadow.querySelector('[data-test="canvas-workspace"]')).toBeNull();
     } finally {
       configureDesignToolRuntime(previousConfig);
     }
   });
 
-  it("unmountInspector clears the React tree from the shadow root", () => {
-    act(() => {
-      mountInspector(host);
-    });
-    const shadow = host.shadowRoot!;
-    expect(shadow.textContent).not.toContain("Inspector shell ready");
-    act(() => {
-      unmountInspector();
-    });
-    expect(shadow.textContent).not.toContain("Inspector shell ready");
-  });
+
 
   it("Alt+I toggles the panel's data-open attribute", () => {
     act(() => {

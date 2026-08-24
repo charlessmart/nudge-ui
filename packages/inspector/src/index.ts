@@ -199,7 +199,6 @@ export function unmountInspector(): void {
 export { toggleInspector, setInspectorOpen } from "./InspectorShell.tsx";
 export { InspectorShell } from "./InspectorShell.tsx";
 export { detectFramework } from "./prompt/detectFramework.ts";
-export { FloatingToolbar } from "./FloatingToolbar.tsx";
 export {
   installStaticHtmlRuntimeIdentity,
   isRuntimeGeneratedSource,

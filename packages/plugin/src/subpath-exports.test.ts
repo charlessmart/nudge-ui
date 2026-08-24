@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { injectDataCid, injectIdentity } from "@design-tool/plugin/identity";
+import { injectIdentity } from "@design-tool/plugin/identity";
 import { extractComponentContracts } from "@design-tool/plugin/component-contracts";
 
 /**
@@ -11,8 +11,6 @@ import { extractComponentContracts } from "@design-tool/plugin/component-contrac
 describe("@design-tool/plugin subpath exports", () => {
   it("resolves ./identity to the identity-injection Module", () => {
     expect(typeof injectIdentity).toBe("function");
-    expect(typeof injectDataCid).toBe("function");
-
     const result = injectIdentity(
       "export function Button() { return <button/>; }\n",
       "/project/src/Button.tsx",
@@ -22,8 +20,6 @@ describe("@design-tool/plugin subpath exports", () => {
   });
 
   it("resolves ./component-contracts to the contract-extraction Module", () => {
-    expect(typeof extractComponentContracts).toBe("function");
-
     const contracts = extractComponentContracts(
       "type P = { size?: 'sm' | 'lg' };\nexport function Button(props: P) { return <button/>; }\n",
       "src/Button.tsx",

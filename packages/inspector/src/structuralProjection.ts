@@ -72,7 +72,6 @@ interface AppliedMove {
   target: RenderedInstanceRef;
   fromParent: HTMLElement;
   fromBefore: Node | null;
-  expectedParent: HTMLElement;
   expectedBefore: HTMLElement | null;
 }
 
@@ -448,7 +447,6 @@ function applyChangeToDocument(doc: Document, state: DocumentProjectionState, ch
     target: change.target,
     fromParent,
     fromBefore,
-    expectedParent: parent.element,
     // SAFETY: target.element was inserted before a parent element, so its nextElementSibling is an HTMLElement when present.
     expectedBefore: target.element.nextElementSibling as HTMLElement | null,
   });
@@ -460,7 +458,10 @@ function validationStatus(local: AppliedStructuralChange): StructuralProjectionS
   if (local.status === "overridden") return "overridden";
   if (local.kind === "delete") return local.placeholder.isConnected ? "applied" : "overridden";
   return local.element.isConnected
-    && local.element.parentElement === local.expectedParent
+    // Moves restore to the same parent they were recorded from (the record
+    // guard rejects cross-parent moves), so validity is "element still sits
+    // where we left it under that parent".
+    && local.element.parentElement === local.fromParent
     && local.element.nextElementSibling === local.expectedBefore
     && matchesRenderedInstanceEvidence(local.element, local.target)
     ? "applied"

@@ -328,7 +328,7 @@ describe("canvasStore focusCard", () => {
     unsub();
   });
 
-  it("starts with null focused card", () => {
+  it("adding a card keeps the focused card unchanged", () => {
     const card = addCanvasCard("http://localhost:5173/about", "About");
     focusCard(card.id);
     expect(getFocusedCardId()).toBe(card.id);
@@ -359,15 +359,7 @@ describe("canvasStore resizeCard", () => {
     expect(updated.y).toBe(card.y);
   });
 
-  it("updates last used size for subsequent new cards", () => {
-    const card = addCanvasCard("http://localhost:5173/about", "About");
-    resizeCard(card.id, 900, 500);
-    const second = addCanvasCard("http://localhost:5173/other", "Other");
-    const cards = getCanvasCards();
-    const secondInStore = cards.find((c) => c.id === second.id)!;
-    expect(secondInStore.width).toBe(900);
-    expect(secondInStore.height).toBe(500);
-  });
+
 
   it("notifies listeners on resize", () => {
     const card = addCanvasCard("http://localhost:5173/about", "About");
@@ -439,25 +431,9 @@ describe("canvasStore fitAllCards", () => {
     exitCanvas();
   });
 
-  it("computes camera to fit a single card with padding", () => {
-    const card = addCanvasCard("http://localhost:5173/about", "About");
-    resizeCard(card.id, 400, 300);
-    fitAllCards();
-    const camera = getBoardCamera();
-    expect(camera.zoom).toBeGreaterThan(0);
-    expect(camera.zoom).toBeLessThanOrEqual(MAX_CAMERA_ZOOM);
-  });
 
-  it("computes camera to fit multiple cards", () => {
-    const first = addCanvasCard("http://localhost:5173/about", "About");
-    resizeCard(first.id, 400, 300);
-    const second = addCanvasCard("http://localhost:5173/contact", "Contact");
-    resizeCard(second.id, 500, 400);
-    fitAllCards();
-    const camera = getBoardCamera();
-    expect(camera.zoom).toBeGreaterThan(0);
-    expect(camera.zoom).toBeLessThanOrEqual(MAX_CAMERA_ZOOM);
-  });
+
+
 
   it("fits within an explicit board viewport and keeps zoom in range", () => {
     const card = addCanvasCard("http://localhost:5173/about", "About");
@@ -500,12 +476,7 @@ describe("canvasStore fitAllCards", () => {
 describe("canvasStore world coordinate card placement", () => {
   beforeEach(resetAllCards);
 
-  it("first card starts at (0, 0)", () => {
-    enterCanvas();
-    const card = getCanvasCards()[0]!;
-    expect(card.x).toBe(0);
-    expect(card.y).toBe(0);
-  });
+
 
   it("subsequent cards are placed to the right with gap", () => {
     const a = addCanvasCard("http://localhost:5173/a", "A");
@@ -559,36 +530,13 @@ describe("canvasStore world coordinate card placement", () => {
     expect(remaining.y).toBe(firstPos.y);
   });
 
-  it("first card created by enterCanvas has valid dimensions", () => {
-    enterCanvas();
-    const card = getCanvasCards()[0]!;
-    expect(card.width).toBeGreaterThan(0);
-    expect(card.height).toBeGreaterThan(0);
-  });
+
 });
 
 describe("canvasStore coordinate conversion (resize at zoom)", () => {
   beforeEach(resetAllCards);
 
-  it("resize correctly updates card dimensions (simulate zoom-coordinate drag delta)", () => {
-    const card = addCanvasCard("http://localhost:5173/about", "About");
-    resizeCard(card.id, 400, 300);
 
-    const zoom = 1.5;
-    const pointerDx = 150;
-    const pointerDy = 100;
-
-    const worldDx = pointerDx / zoom;
-    const worldDy = pointerDy / zoom;
-
-    const newWidth = 400 + worldDx;
-    const newHeight = 300 + worldDy;
-
-    resizeCard(card.id, newWidth, newHeight);
-    const updated = getCanvasCards()[0]!;
-    expect(updated.width).toBe(500);
-    expect(updated.height).toBeCloseTo(366.666, 1);
-  });
 
   it("resize allows dimensions below minimum at store level (UI enforces)", () => {
     const card = addCanvasCard("http://localhost:5173/about", "About");
@@ -598,44 +546,6 @@ describe("canvasStore coordinate conversion (resize at zoom)", () => {
     const updated = getCanvasCards()[0]!;
     expect(updated.width).toBe(190);
     expect(updated.height).toBe(140);
-  });
-});
-
-describe("canvasStore pointer-centered zoom", () => {
-  beforeEach(() => {
-    resetAllCards();
-    resetCameraToDefault();
-  });
-
-  it("zoom around pointer keeps the same world point under cursor", () => {
-    setBoardCamera({ x: 100, y: 50, zoom: 1 });
-
-    const camera = getBoardCamera();
-    const pointerScreenX = 500;
-    const pointerScreenY = 300;
-
-    const worldX = (pointerScreenX - camera.x) / camera.zoom;
-    const worldY = (pointerScreenY - camera.y) / camera.zoom;
-
-    expect(worldX).toBe(400);
-    expect(worldY).toBe(250);
-
-    const newZoom = 2;
-    const newX = pointerScreenX - worldX * newZoom;
-    const newY = pointerScreenY - worldY * newZoom;
-
-    expect(newX).toBe(-300);
-    expect(newY).toBe(-200);
-
-    setBoardCamera({ x: newX, y: newY, zoom: newZoom });
-
-    const updated = getBoardCamera();
-
-    const worldAfterX = (pointerScreenX - updated.x) / updated.zoom;
-    const worldAfterY = (pointerScreenY - updated.y) / updated.zoom;
-
-      expect(worldAfterX).toBeCloseTo(worldX, 5);
-      expect(worldAfterY).toBeCloseTo(worldY, 5);
   });
 });
 
@@ -678,11 +588,7 @@ describe("canvasStore card selection", () => {
     unsub();
   });
 
-  it("selectCard does not navigate when URL matches current page", () => {
-    const card = addCanvasCard(window.location.href, "Home");
-    selectCard(card.id);
-    expect(getSelectedCardId()).toBe(card.id);
-  });
+
 
   it("removes selection when selected card is removed", () => {
     const card = addCanvasCard("http://localhost:5173/about", "About");

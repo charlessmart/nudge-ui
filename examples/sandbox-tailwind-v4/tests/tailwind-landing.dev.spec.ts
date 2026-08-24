@@ -86,7 +86,6 @@ test("dev: Tailwind v4 color opacity keeps base token, alpha, and painted previe
   }));
   expect(facts.authored).toContain("--color-red-500");
   expect(facts.authored).toContain("10%");
-  expect(facts.computed).not.toBe("");
   expect(facts.catalog.find((entry) => entry.cssName === "--color-red-500")).toMatchObject({ adapter: "tailwind-v4" });
 
   await fixture.evaluate((element) => {

@@ -66,6 +66,10 @@ describe("resolveTextBinding", () => {
       },
       before: "Save",
     });
+    // A uniquely-mounted callsite always resolves to the safe source-site
+    // scope and never offers a rendered-instance choice.
+    expect(resolved).toMatchObject({ scope: "source-site" });
+    expect((resolved as { scopeChoices?: unknown }).scopeChoices).toBeUndefined();
   });
 
   it("resolves runtime string children and rejects implementation-only props", () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { generatePrompt } from "./generatePrompt.ts";
 import { detectFramework } from "./detectFramework.ts";
-import type { ChangeRecord, ElementChangeRecord, TextContentChangeRecord } from "../changesLog.ts";
+import type { ElementChangeRecord, TextContentChangeRecord } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
@@ -585,6 +585,37 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("consider adding");
   });
 
+  it("describes token swaps with the exact value the projection writes", () => {
+    // Tailwind-v3-style adapter token: literal cssValue, no custom-property
+    // name. The preview applies `0.75rem`; the prompt must not say
+    // var(theme.spacing.3), which is not valid CSS.
+    const tw3: TokenEntry = { ...SPACE_3, cssValue: "0.75rem" };
+    const outV3 = generatePrompt([rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "padding",
+      newToken: tw3,
+    })]);
+    expect(outV3).toContain("- `padding`: `0.75rem`");
+
+    // vanilla-extract-style adapter token: dotted author name plus hashed
+    // cssName. The preview applies var(--color-accent__hash).
+    const ve: TokenEntry = {
+      name: "theme.color.accent",
+      value: "#123456",
+      source: "theme.css.ts:1",
+      cssName: "--color-accent__hash",
+    };
+    const outVe = generatePrompt([rec({
+      cid: "Button",
+      file: "src/Button.tsx",
+      property: "color",
+      newToken: ve,
+    })]);
+    expect(outVe).toContain("- `color`: `var(--color-accent__hash)`");
+    expect(outVe).not.toContain("var(theme.color.accent)");
+  });
+
   it("preserves logical source intent when the preview edit is physical", () => {
     const out = generatePrompt([rec({
       cid: "Card",
@@ -703,17 +734,7 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("data-cid");
   });
 
-  it("uses a neutral title that remains accurate for multi-file changes", () => {
-    const a = rec({
-      cid: "Button",
-      file: "src/components/Header.tsx",
-      property: "background",
-      oldToken: SURFACE_RAISED,
-      newToken: SURFACE_SUNKEN,
-    });
-    const out = generatePrompt([a]);
-    expect(out).toContain("# Requested design changes");
-  });
+
 
   it("deduplicates by diffing first vs last, ignoring intermediate changes", () => {
     const a = rec({

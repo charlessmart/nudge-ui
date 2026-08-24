@@ -38,7 +38,10 @@ export interface SidecarHandle {
 }
 
 interface GlobalSidecarEntry {
-  handle?: SidecarHandle;
+  /**
+   * Cached start promise. Resolves to the live handle once started; cleared
+   * on close and on failure (so a failed start can be retried).
+   */
   starting?: Promise<SidecarHandle>;
 }
 
@@ -107,10 +110,11 @@ export async function ensureSidecar(
   // derive every filesystem-relative computation from the canonical root.
   const fsRoot = await realpath(root).catch(() => root);
   const state = globalState(`${options.tokens ? "tokens" : "manifest"}:${fsRoot}`);
-  if (state.handle) return state.handle;
+  // The settled promise doubles as the handle cache: awaiting it replays the
+  // same handle for every caller until close/failure clears the slot.
   if (state.starting) return state.starting;
 
-  state.starting = (async () => {
+  const starting = (async () => {
     let generation = 0;
     const streams = new Set<ServerResponse>();
 
@@ -228,26 +232,32 @@ export async function ensureSidecar(
         // files in one worker, and a dev server shutdown may race an explicit
         // close. Closing twice must not throw.
         if (!server.listening) {
-          state.handle = undefined;
+          state.starting = undefined;
           return Promise.resolve();
         }
         for (const stream of streams) stream.end();
         streams.clear();
         void Promise.all(watchers.map((watcher) => watcher.close().catch(() => {})));
         rmSync(portFilePath(root), { force: true });
-        state.handle = undefined;
+        state.starting = undefined;
         return new Promise((resolveClose, rejectClose) => {
           server.close((error) => (error ? rejectClose(error) : resolveClose()));
         });
       },
     };
 
-    state.handle = handle;
-    state.starting = undefined;
     return handle;
   })();
 
-  return state.starting;
+  // A failed start must not wedge the singleton forever: the Symbol.for key
+  // survives HMR re-evaluation, so a cached rejected promise would be
+  // replayed to every later caller. Observe the rejection and clear the slot
+  // (identity-checked so a concurrent successful start is never discarded).
+  starting.catch(() => {
+    if (state.starting === starting) state.starting = undefined;
+  });
+  state.starting = starting;
+  return starting;
 }
 
 function respond(

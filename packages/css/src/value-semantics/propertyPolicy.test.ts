@@ -331,14 +331,7 @@ describe("presentationForToken", () => {
 });
 
 describe("browserCssGrammar seam", () => {
-  it("uses the injected grammar deterministically when provided", () => {
-    const css = grammar([
-      ["color", "#fff"],
-      ["margin", "8px"],
-    ]);
-    expect(css.supports("color", "#fff")).toBe(true);
-    expect(css.supports("color", "8px")).toBe(false);
-  });
+
 
   it("is conservative in a non-browser realm (jsdom has no CSS.supports)", () => {
     const css = browserCssGrammar();

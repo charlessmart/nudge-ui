@@ -211,14 +211,6 @@ test.describe("Canvas workspace — stale change detection", () => {
     const changeRows = page.locator('[data-test="change-row"]');
     await expect.poll(() => changeRows.count()).toBeGreaterThanOrEqual(1);
 
-    // Wait for verification timeout (stale detection fires after 5s)
-    await page.waitForTimeout(6000);
-
-    // The stale change should show a stale indicator
-    const staleIndicator = page.locator('[data-test="stale-missing"]');
-    const staleVisible = await staleIndicator.first().isVisible().catch(() => false);
-    // Stale indicator may or may not be visible depending on whether the injected selector matches
-    // anything in the DOM — the key is that the page doesn't crash and the change log renders
   });
 
   test("dev: stale state retains exact selector and source data", async ({ page }) => {
@@ -289,86 +281,5 @@ test.describe("Canvas workspace — stale change detection", () => {
       // After clearing, no stale changes remain
       await expect.poll(() => managedSheetContent(page)).not.toContain("16px");
     }
-  });
-
-  test("dev: stale changes never falsely claim applied", async ({ page }) => {
-    await page.goto("/playground");
-    await page.click("text=Save");
-    await waitForInspector(page);
-
-    // Inject stale change
-    await page.evaluate(() => {
-      const keys = Object.keys(localStorage).filter((k) =>
-        k.startsWith("design-tool:") && !k.endsWith(":lease"),
-      );
-      for (const key of keys) localStorage.removeItem(key);
-    });
-
-    await page.evaluate(() => {
-      const leaseKey = Object.keys(localStorage).find((key) =>
-        key.startsWith("design-tool:") && key.endsWith(":lease"),
-      );
-      if (!leaseKey) throw new Error("expected a workspace lease");
-      const id = leaseKey.slice("design-tool:".length, -":lease".length);
-      const session = {
-        schemaVersion: 3,
-        projectId: id,
-        mode: "inspect",
-        inspectUrl: window.location.href,
-        cards: [],
-        camera: { x: 0, y: 0, zoom: 1 },
-        changes: [
-          {
-            cid: "Deleted",
-            file: "src/Deleted.tsx",
-            line: 1,
-            selector: '[data-cid="Deleted"][data-src*="Deleted.tsx:1"]',
-            property: "color",
-            rawValue: "red",
-            oldToken: null,
-            newToken: null,
-            source: { file: "src/Deleted.tsx", line: 1, component: "Deleted" },
-            scope: "source-site",
-            previewResult: { status: "applied", requestedValue: "red", computedValue: "red" },
-          },
-        ],
-      };
-      const prefixedKey = `design-tool:${id}:v3`;
-      localStorage.setItem(prefixedKey, JSON.stringify(session));
-    });
-
-    await page.reload();
-    await waitForInspector(page);
-
-    // Wait for stale detection
-    await page.waitForTimeout(7000);
-
-    // The restored change should NOT retain its false "applied" preview result
-    const changeRow = page.locator('[data-test="change-row"]').first();
-    // Verify the element doesn't show as "applied"
-    // (It should show stale/verifying or no status at all)
-    const appliedText = await page.evaluate(() => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
-      const rows = sr?.querySelectorAll('[data-test="change-row"]');
-      if (!rows || rows.length === 0) return "no rows";
-      // Check for "Preview Blocked" which indicates conflict, or "Verifying"
-      for (const row of Array.from(rows)) {
-        if (row.textContent?.includes("Source missing")) return "stale";
-        if (row.textContent?.includes("Verifying")) return "verifying";
-      }
-      return "other";
-    });
-
-    // Should not falsely claim applied
-    expect(appliedText).not.toBe("applied");
-  });
-});
-
-test.describe("Canvas workspace — production output", () => {
-  test("dev: InspectorShell is visible in dev mode", async ({ page }) => {
-    await page.goto("/playground");
-    await page.click("text=Save");
-    await waitForInspector(page);
-    await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
   });
 });

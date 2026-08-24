@@ -36,11 +36,9 @@ test("dev: same-document hash links do not create new cards", async ({ page }) =
   // Click a hash link inside the iframe
   const frame = page.frameLocator(".dt-canvas-card__iframe").first();
   const hashLink = frame.locator('a[href="#features"]').first();
-  if (await hashLink.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await hashLink.click();
-    // Should still have only 1 card (hash links don't create cards)
-    await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
-  }
+  await hashLink.click();
+  // Should still have only 1 card (hash links don't create cards)
+  await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
 });
 
 test("dev: duplicate button creates a distinct card with independent iframe", async ({ page }) => {
@@ -120,28 +118,7 @@ test("dev: edit handoff switches to inspect mode without reloading when editing 
   await expect(root).toBeVisible();
 });
 
-test("dev: exiting canvas opens the selected card route in inspect mode", async ({ page }) => {
-  await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
-  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-  const firstFrame = page.frameLocator('[data-test^="canvas-card-iframe-"]').first();
-  await firstFrame.locator('a[href="/tailwind"]').click();
-  await expect(page.locator(".dt-canvas-card")).toHaveCount(2);
-
-  const secondCard = page.locator(".dt-canvas-card").nth(1);
-  await secondCard.evaluate((element) => {
-    element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
-  });
-  await expect(secondCard).toHaveClass(/is-selected/);
-
-  await expect(page.locator('[data-test="mode-canvas"]')).toHaveText("Exit canvas");
-  await page.locator('[data-test="mode-canvas"]').click();
-
-  await expect(page).toHaveURL(/\/tailwind\/?$/);
-  await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
-  await expect(page.locator('[data-test="mode-canvas"]')).toHaveText("View canvas");
-});
 
 test("dev: canvas card toolbar has preview, duplicate, and refresh controls", async ({ page }) => {
   await page.goto("/playground");

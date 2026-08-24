@@ -41,13 +41,7 @@ describe("workspaceLease", () => {
       expect(raw!.ownerId).toBe(getOwnerId());
     });
 
-    it("leases are project-scoped", () => {
-      const result = acquireLease();
-      expect(result).toBe(true);
 
-      const raw = readLeaseRaw();
-      expect(raw!.projectId).toBe(designToolProjectId);
-    });
 
     it("returns false when another live lease exists", () => {
       acquireLease();

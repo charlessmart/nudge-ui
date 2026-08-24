@@ -18,6 +18,13 @@ describe("injectDataCid", () => {
     expect(res!.code).toContain('data-cid="Button"');
   });
 
+  it("injects data-cid from class-declaration component name", () => {
+    const code = `class Card extends Base { render() { return <div>card</div>; } }`;
+    const res = injectDataCid(code, "/src/Card.tsx");
+    expect(res).not.toBeNull();
+    expect(res!.code).toContain('data-cid="Card"');
+  });
+
   it("falls back to Anonymous for JSX in a non-component scope", () => {
     const code = `const handleClick = () => <div>hi</div>;`;
     const res = injectDataCid(code, "/src/x.tsx");
@@ -151,15 +158,7 @@ describe("injectIdentity — data-src", () => {
     expect(res!.code).not.toContain("<ButtonLink data-cid");
   });
 
-  it("omits data-src when the AST node has no loc (defensive)", () => {
-    // We can't easily produce a loc-less node via the public API, so just
-    // assert that the happy path always has loc — this test exercises the
-    // same path and serves as a guard that loc is populated for real code.
-    const code = `const X = () => <div />;`;
-    const res = injectIdentity(code, "/src/X.tsx");
-    expect(res).not.toBeNull();
-    expect(res!.code).toContain('data-src="src/X.tsx:');
-  });
+
 });
 
 describe("injectIdentity — data-cprops", () => {

@@ -218,12 +218,11 @@ describe("shared inspector UI", () => {
     expect(onSelect).toHaveBeenCalledWith("--color-next");
   });
 
-  it("keeps four side values linked until the individual sides action is used", () => {
+  it("renders four side values directly when no paired controls are given", () => {
     act(() => {
       root.render(createElement(SideValuesField, {
         label: "padding",
         "data-test": "side-values",
-        linkedControl: createElement("span", { "data-test": "linked-control" }, "shared"),
         sides: SIDE_NAMES.map((side) => ({
           side,
           control: createElement("span", { "data-test": `control-${side}` }, side),
@@ -231,9 +230,6 @@ describe("shared inspector UI", () => {
       }));
     });
 
-    expect(host.querySelector('[data-test="linked-control"]')).not.toBeNull();
-    expect(host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
-    act(() => (host.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click());
     expect(host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
     expect(host.querySelector('[data-side="top"] svg')).not.toBeNull();
     expect(host.querySelector('[data-side="top"]')?.className).toContain("dt-control-surface");
