@@ -149,7 +149,7 @@ describe("createStandaloneServer", () => {
       host: "static-html",
       framework: "HTML",
       stylingSystem: "CSS custom properties",
-      capabilities: { canvas: false, componentSemantics: false },
+      capabilities: { canvas: true, componentSemantics: false },
       tokenCatalog: [],
       tokens: [],
       tokenDiagnostics: [],

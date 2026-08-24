@@ -7,7 +7,7 @@ describe("isStandaloneClientManifest", () => {
     const manifest = createStandaloneRuntimeManifest("static-html:fixture");
     expect(isStandaloneClientManifest(manifest)).toBe(true);
     expect(manifest.runtime.capabilities).toEqual({
-      canvas: false,
+      canvas: true,
       componentSemantics: false,
     });
   });
@@ -26,7 +26,9 @@ describe("isStandaloneClientManifest", () => {
       ...manifest,
       runtime: {
         ...manifest.runtime,
-        capabilities: { canvas: true, componentSemantics: false },
+        // The standalone host never publishes component semantics; a manifest
+        // claiming them fails the client's validation contract.
+        capabilities: { canvas: true, componentSemantics: true },
       },
     })).toBe(false);
   });

@@ -45,6 +45,13 @@ body {
   cursor: pointer;
 }
 
+.nav-link {
+  display: inline-block;
+  margin-top: 1.5rem;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
 #rendered-copy {
   margin-top: 2rem;
   color: #59637a;

@@ -28,7 +28,7 @@ export function isStandaloneClientManifest(
     && runtime.projectId.length > 0
     && typeof runtime.stylingSystem === "string"
     && isRecord(runtime.capabilities)
-    && runtime.capabilities.canvas === false
+    && runtime.capabilities.canvas === true
     && runtime.capabilities.componentSemantics === false
     && typeof runtime.tokenGeneration === "string"
     && Array.isArray(runtime.tokenCatalog)
