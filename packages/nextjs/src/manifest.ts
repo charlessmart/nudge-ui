@@ -55,7 +55,9 @@ export function buildManifest(input: DesignToolManifestInput): DesignToolManifes
     host: "nextjs-react",
     framework: "React",
     stylingSystem: "CSS custom properties",
-    capabilities: { canvas: false, componentSemantics: true },
+    // Canvas shares the Vite host's controller/renderer runtime (ADR-0006);
+    // the mount in every document bootstraps as a renderer inside cards.
+    capabilities: { canvas: true, componentSemantics: true },
     tokenCatalog: [],
     tokens: [],
     tokenDiagnostics: [],

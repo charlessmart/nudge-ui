@@ -175,11 +175,10 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
   await expect(page.locator(".hero-card h2")).toHaveCSS("width", "240px");
 });
 
-// Skipped pending issue 0060: React 19-canary click delegation inside the
-// shadow-root mount does not dispatch onClick under Next 16 dev, so the
-// copy-prompt button cannot be driven end-to-end yet. Prompt GENERATION
-// itself is covered by unit suites and the Vite sandbox e2e.
-test.skip("dev: prompt copy names the source location without runtime selectors", async ({ page }) => {
+// Was skipped pending issue 0060 (React 19-canary click delegation inside the
+// shadow-root mount). The symptom no longer reproduces on the pinned
+// react ^19.2 line; this spec is the regression guard.
+test("dev: prompt copy names the source location without runtime selectors", async ({ page }) => {
   await inspectorReady(page);
 
   const target = page.locator(".hero-card h2");
@@ -194,18 +193,32 @@ test.skip("dev: prompt copy names the source location without runtime selectors"
 
   // The copy control enables once the session holds a change; make one.
   await page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
-    const input = root?.querySelector(
-      '[data-test="token-field"][data-property="opacity"] [data-test="raw-input"]',
-    ) as HTMLInputElement | null;
-    if (!input) throw new Error("Missing color raw input");
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    input.focus();
-    setter.call(input, "rgb(0, 102, 204)");
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    input.blur();
+    const target = document.querySelector(".hero-card h2");
+    if (!(target instanceof HTMLElement)) throw new Error("target is not an HTMLElement");
+    target.click();
   });
-  await expect.poll(() => managedSheetText(page)).toContain("rgb(0, 102, 204)");
+  const input = page.locator(
+    '[data-test="token-field"][data-property="width"] [data-test="raw-input"]',
+  );
+  await input.waitFor({ state: "visible", timeout: 15_000 }).catch(async () => {
+    await page.locator(".hero-card h2").evaluate((el) => {
+      if (!(el instanceof HTMLElement)) throw new Error("target is not an HTMLElement");
+      el.click();
+    });
+    await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
+      "data-selected-cid",
+      "HeroCard",
+    );
+    await input.waitFor({ state: "visible", timeout: 15_000 });
+  });
+  await input.evaluate((el) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    el.focus();
+    setter.call(el, "241px");
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    el.blur();
+  });
+  await expect.poll(() => managedSheetText(page)).toContain("241px");
 
   const copyButton = page.locator('[data-test="copy-prompt"]');
   await expect(copyButton).toBeEnabled();
@@ -235,11 +248,13 @@ test("dev: source files stay byte-for-byte unchanged across a session", async ({
 });
 
 test("dev: route-group segments are instrumented through the shared root", async ({ page }) => {
-  await page.goto("/(shop)/pricing");
+  await page.goto("/pricing");
   await expect
     .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
     .toBe(true);
-  // Route-group pages carry identity like any other app segment.
+  // Route-group pages carry identity like any other app segment. Route groups
+  // are elided from URLs: the file lives at app/(shop)/pricing/page.tsx but
+  // serves /pricing.
   const identity = await page.evaluate(() => ({
     cid: document.querySelector("#page-title")?.getAttribute("data-cid"),
     src: document.querySelector("#page-title")?.getAttribute("data-src"),

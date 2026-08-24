@@ -15,6 +15,7 @@ import type {
   PanModifierMessage,
   PanMoveMessage,
   PanStartMessage,
+  RendererHelloMessage,
   ZoomMessage,
 } from "./frameProtocol.ts";
 import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
@@ -74,16 +75,14 @@ function observeFrameMetadata(): void {
 
 export function bootstrapRenderer(): void {
   if (!getDesignToolRuntimeConfig().capabilities.canvas) return;
+  if (!isDesignToolDev()) return;
   if (rendererBootstrapped) return;
   rendererBootstrapped = true;
-
-  if (!isDesignToolDev()) return;
 
   observeFrameMetadata();
   startRendererProjectionDiagnostics();
   installRendererElementSelector();
   installRendererPanProxy();
-
   document.addEventListener(
     "click",
     (event: MouseEvent) => {
@@ -153,6 +152,17 @@ export function bootstrapRenderer(): void {
       );
     }
   });
+
+  // Solicit the handshake. The controller sends parent-ready on the iframe
+  // load event, which can precede this renderer's asynchronous runtime boot
+  // (dynamic inspector import plus manifest fetch); without an explicit
+  // request the renderer would wait for an identity announcement that has
+  // already been delivered and dropped.
+  const hello: RendererHelloMessage = {
+    type: "renderer-hello",
+    protocolVersion: PROTOCOL_VERSION,
+  };
+  sendToParent(hello);
 }
 
 function isPrimarySelfNavigation(anchor: HTMLAnchorElement, event: MouseEvent): boolean {

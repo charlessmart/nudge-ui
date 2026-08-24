@@ -249,8 +249,9 @@ describe("manifest builder", () => {
   it("ships the tracer-bullet capability set with empty knowledge fields", () => {
     const manifest = buildManifest({ root: "/x" });
 
-    // Stage 5 enables semantic component props for client components.
-    expect(manifest.capabilities).toEqual({ canvas: false, componentSemantics: true });
+    // Canvas shares the Vite host's controller/renderer runtime; semantic
+    // component props cover client components only.
+    expect(manifest.capabilities).toEqual({ canvas: true, componentSemantics: true });
     expect(manifest.tokenCatalog).toEqual([]);
     expect(manifest.componentContracts).toEqual([]);
     expect(manifest.framework).toBe("React");

@@ -2,13 +2,25 @@ import { isDocumentProjectionReport } from "../renderedInstance.ts";
 import { isTextProjectionReport } from "../textProjection.ts";
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 
-// v10 adds controller-owned component overrides alongside rendered text
-// projections and diagnostics.
-export const PROTOCOL_VERSION = 10;
+// v11 adds the renderer-hello handshake solicitation: a renderer whose
+// runtime boots asynchronously (dynamic import plus manifest fetch under
+// Turbopack) can miss the single load-time parent-ready, so it asks the
+// controller to (re)send its identity once its own listeners are live.
+export const PROTOCOL_VERSION = 11;
 
 export interface FrameMessage {
   type: string;
   protocolVersion: number;
+}
+
+/**
+ * Pre-identity solicitation from a renderer whose bootstrap finished after
+ * the controller's load-time parent-ready (or whose document never received
+ * one). Carries no FrameIdentity: the whole point is that the renderer does
+ * not have one yet. The controller answers with ParentReadyMessage.
+ */
+export interface RendererHelloMessage extends FrameMessage {
+  type: "renderer-hello";
 }
 
 export interface FrameIdentity {
@@ -191,6 +203,7 @@ export interface ZoomMessage extends RendererMessage {
 
 export type FrameProtocolMessage =
   | ParentReadyMessage
+  | RendererHelloMessage
   | FrameReadyMessage
   | FrameMetadataMessage
   | FrameLoadError

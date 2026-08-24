@@ -15,11 +15,10 @@ test.use({ permissions: ["clipboard-read", "clipboard-write"] });
  * identity.
  */
 
-// Both flip specs are skipped pending issue 0060 (React 19-canary click
-// delegation inside the shadow-root mount under Next 16 dev): the panel
-// controls render but trusted clicks do not reach their handlers. The
-// server-component isolation spec below passes because it asserts
-// ABSENCE of controls.
+// Both flip specs were skipped pending issue 0060 (React 19-canary click
+// delegation inside the shadow-root mount under Next 16 dev). The symptom
+// does not reproduce on the pinned react ^19.2 line; these specs are the
+// regression guard for panel clicks and prop controls.
 
 async function selectBadge(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("/");
@@ -48,7 +47,7 @@ async function selectBadge(page: import("@playwright/test").Page): Promise<void>
   );
 }
 
-test.skip("dev: flipping a typed enum prop re-renders the real client component", async ({
+test("dev: flipping a typed enum prop re-renders the real client component", async ({
   page,
 }) => {
   await selectBadge(page);
@@ -61,28 +60,13 @@ test.skip("dev: flipping a typed enum prop re-renders the real client component"
     .evaluate((el) => el.className);
   expect(before).toContain("badge-accent");
 
-  // Drive the tone select through its React handler (see issue 0060 note).
-  await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")!.shadowRoot!;
-    const control = sr.querySelector<HTMLElement>('[data-test="component-prop-tone"]')!;
-    const walker = document.createTreeWalker(control, NodeFilter.SHOW_ELEMENT);
-    let node: Element | null = walker.currentNode as Element;
-    while (node) {
-      const keys = Object.keys(node);
-      const propsKey = keys.find((k) => k.startsWith("__reactProps$"));
-      const props = propsKey
-        ? (node as unknown as Record<string, { onValueChange?: (v: string) => void }>)[
-            propsKey
-          ]
-        : null;
-      if (props?.onValueChange) {
-        props.onValueChange("quiet");
-        return;
-      }
-      node = walker.nextNode() as Element | null;
-    }
-    throw new Error("tone control has no onValueChange");
-  });
+  // Drive the tone select like a user: open the popup, pick the option.
+  const trigger = page.locator('[data-test="component-prop-tone"]');
+  await trigger.waitFor({ state: "visible", timeout: 15_000 });
+  await trigger.click();
+  const option = page.locator('.dt-select__item[data-value="quiet"]');
+  await option.waitFor({ state: "visible", timeout: 10_000 });
+  await option.click();
 
   // A TRUE rerender: the real component's output changes.
   await expect
@@ -96,30 +80,12 @@ test.skip("dev: flipping a typed enum prop re-renders the real client component"
   expect(sheet).not.toContain("ClientBadge");
 });
 
-test.skip("dev: boolean prop flips through its segmented control handler", async ({ page }) => {
+test("dev: boolean prop flips through its segmented control handler", async ({ page }) => {
   await selectBadge(page);
 
-  await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")!.shadowRoot!;
-    const control = sr.querySelector<HTMLElement>('[data-test="component-prop-boolean"]')!;
-    const walker = document.createTreeWalker(control, NodeFilter.SHOW_ELEMENT);
-    let node: Element | null = walker.currentNode as Element;
-    while (node) {
-      const keys = Object.keys(node);
-      const propsKey = keys.find((k) => k.startsWith("__reactProps$"));
-      const props = propsKey
-        ? (node as unknown as Record<string, { onValueChange?: (v: string) => void }>)[
-            propsKey
-          ]
-        : null;
-      if (props?.onValueChange) {
-        props.onValueChange("true");
-        return;
-      }
-      node = walker.nextNode() as Element | null;
-    }
-    throw new Error("boolean control has no onValueChange");
-  });
+  const control = page.locator('[data-test="component-prop-boolean"][data-property="disabled"]');
+  await control.waitFor({ state: "visible", timeout: 15_000 });
+  await control.getByText("On", { exact: true }).click();
 
   await expect
     .poll(() => page.locator('[data-testid="client-badge"]').evaluate((el) => el.className))

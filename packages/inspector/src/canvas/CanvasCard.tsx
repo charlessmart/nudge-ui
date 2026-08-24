@@ -69,6 +69,17 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     duplicateCard(card.id);
   }
 
+  /** The controller half of the handshake: announce workspace identity. */
+  function sendParentReady(): void {
+    iframeRef.current?.contentWindow?.postMessage({
+      type: "parent-ready",
+      protocolVersion: PROTOCOL_VERSION,
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+      cardId: card.id,
+    }, window.location.origin);
+  }
+
   useEffect(() => {
     function onMessage(event: MessageEvent): void {
       if (event.origin !== window.location.origin) return;
@@ -76,6 +87,15 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
 
       const msg = event.data;
       if (!msg || typeof msg !== "object") return;
+
+      // A renderer whose runtime finished booting after the iframe load event
+      // asks for the identity announcement it may have missed.
+      if ((msg as { type?: string }).type === "renderer-hello") {
+        const hello = msg as { protocolVersion?: number };
+        if (hello.protocolVersion !== PROTOCOL_VERSION) return;
+        sendParentReady();
+        return;
+      }
 
       if (!isRendererMessageFor(msg, {
         projectId: PROJECT_ID,
@@ -125,6 +145,9 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     }, 15000);
     return () => clearTimeout(timeout);
   }, [loadState]);
+  // A late handshake self-heals this countdown: the message listener stays
+  // installed in the error state, so a slow renderer's frame-ready still
+  // flips the card back to "ready" without user action.
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -136,13 +159,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
       clearCanvasStructuralProjectionReports(card.id);
       clearCanvasRenderedInstanceProjectionReports(card.id);
       clearCanvasTextProjectionReports(card.id);
-      iframeRef.current?.contentWindow?.postMessage({
-        type: "parent-ready",
-        protocolVersion: PROTOCOL_VERSION,
-        projectId: PROJECT_ID,
-        workspaceId: WORKSPACE_ID,
-        cardId: card.id,
-      }, window.location.origin);
+      sendParentReady();
     }
     iframe.addEventListener("load", onLoad);
     return () => iframe.removeEventListener("load", onLoad);
