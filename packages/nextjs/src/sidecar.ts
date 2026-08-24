@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
@@ -7,8 +7,8 @@ import {
   type DesignToolManifest,
   type DesignToolTokenSnapshot,
 } from "./manifest.ts";
-import { createStandaloneFileWatcher } from "@design-tool/standalone/watcher";
-import { createStandaloneTokenSnapshot } from "@design-tool/standalone/token-manifest";
+import { extractComponentContracts } from "@design-tool/plugin/component-contracts";
+import { createStandaloneFileWatcher } from "@design-tool/standalone/watcher";import { createStandaloneTokenSnapshot } from "@design-tool/standalone/token-manifest";
 
 /**
  * Loopback-only manifest/reload sidecar (ADR-0010).
@@ -69,6 +69,52 @@ function stateDirFor(root: string): string {
 
 function portFilePath(root: string): string {
   return join(stateDirFor(root), "design-tool-sidecar.json");
+}
+
+const CONTRACT_SOURCE_EXT = /\.(tsx|jsx)$/;
+const SCAN_EXCLUDED_SEGMENTS = new Set([".git", ".next", "build", "dist", "node_modules"]);
+
+/**
+ * Extracts component contracts directly from project sources.
+ *
+ * Compile-time loader postings alone leave a restart gap: Turbopack's
+ * persistent cache serves previously compiled modules without re-running
+ * loaders, so a fresh sidecar would publish an empty contract catalog until
+ * every file happens to recompile. Reading the same authored sources the
+ * loader reads keeps the manifest coherent across dev-server restarts; keys
+ * match loader postings so both writers replace instead of duplicate.
+ */
+async function scanProjectContracts(
+  root: string,
+  apply: (file: string, contracts: unknown[]) => void,
+): Promise<void> {
+  const queue: string[] = [root];
+  let visited = 0;
+  while (queue.length > 0) {
+    const directory = queue.shift()!;
+    let entries;
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (++visited > 5000) return;
+      const absolutePath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (!SCAN_EXCLUDED_SEGMENTS.has(entry.name)) queue.push(absolutePath);
+        continue;
+      }
+      if (!CONTRACT_SOURCE_EXT.test(entry.name)) continue;
+      const relativeFile = relative(root, absolutePath).split("\\").join("/");
+      try {
+        const source = readFileSync(absolutePath, "utf8");
+        apply(relativeFile, extractComponentContracts(source, relativeFile));
+      } catch {
+        /* unreadable sources contribute no knowledge */
+      }
+    }
+  }
 }
 
 /** Removes a stale port file left by a crashed previous run. */
@@ -182,6 +228,17 @@ export async function ensureSidecar(
     }
 
     const watchers: Array<{ close: () => Promise<void> }> = [];
+    // The startup source scan runs regardless of the token lifecycle so a
+    // restarted sidecar republishes contracts even when Turbopack's
+    // persistent cache skips every loader re-run.
+    try {
+      await scanProjectContracts(root, (file, list) => {
+        contractsByFile.set(file, list);
+      });
+      if (contractsByFile.size > 0) flushContracts();
+    } catch {
+      /* an unreadable tree keeps whatever knowledge postings provided */
+    }
     if (options.tokens) {
       // Initial scan before the first manifest response so early clients see
       // tokens without waiting for a watcher tick. Failures degrade to the
@@ -197,13 +254,24 @@ export async function ensureSidecar(
         rootDirectory: fsRoot,
         debounceMs: 60,
         onSettled: async (changes) => {
-          // Deleted component files must prune their aggregated contracts,
-          // or stale controls survive in the manifest forever.
+          // Changed or deleted component sources update their aggregated
+          // contracts directly: deletions must prune (or stale controls
+          // survive forever), and edits re-extract from the authored bytes
+          // even if a compiler cache never re-runs the loader.
           for (const change of changes) {
-            if (change.kind !== "remove") continue;
             const normalized = change.absolutePath.split("\\").join("/");
-            if (!/\.(tsx|jsx)$/.test(normalized)) continue;
-            contractsByFile.delete(relative(fsRoot, normalized));
+            if (!CONTRACT_SOURCE_EXT.test(normalized)) continue;
+            const key = relative(fsRoot, normalized);
+            if (change.kind === "remove") {
+              contractsByFile.delete(key);
+              continue;
+            }
+            try {
+              const source = readFileSync(normalized, "utf8");
+              contractsByFile.set(key, extractComponentContracts(source, key));
+            } catch {
+              /* unreadable sources keep their previous knowledge */
+            }
           }
 
           // One settled batch = exactly one token scan + one contract flush

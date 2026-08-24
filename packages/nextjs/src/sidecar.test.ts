@@ -348,3 +348,56 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     }
   });
 });
+
+describe("sidecar source contract scan", () => {
+  const BADGE_SOURCE = [
+    "export type BadgeTone = \"accent\" | \"quiet\";",
+    "",
+    "export function Badge({ label, tone = \"quiet\", disabled = false }: {",
+    "  label: string;",
+    "  tone?: \"accent\" | \"quiet\";",
+    "  disabled?: boolean;",
+    "}) {",
+    "  return <span data-badge={tone}>{label}</span>;",
+    "}",
+  ].join("\n");
+
+  it("publishes contracts from authored sources without any loader posting", async () => {
+    const root = mkdtempSync(join(tmpdir(), "dt-scan-"));
+    roots.push(root);
+    mkdirSync(join(root, "app"), { recursive: true });
+    writeFileSync(join(root, "app", "Badge.tsx"), `${BADGE_SOURCE}\n`);
+
+    // No tokens lifecycle and no postings: the startup scan alone must
+    // populate the catalog so a restarted dev server keeps prop controls.
+    const handle = await ensureSidecar(root);
+    handles.push(handle);
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string; props: Array<{ name: string }> }> };
+    const badge = manifest.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
+    expect(badge).toBeTruthy();
+    expect(badge!.props.map((p) => p.name)).toEqual(["label", "tone", "disabled"]);
+  });
+
+  it("re-extracts edited sources on settled watcher batches", async () => {
+    const root = mkdtempSync(join(tmpdir(), "dt-scan-watch-"));
+    roots.push(root);
+    mkdirSync(join(root, "app"), { recursive: true });
+    writeFileSync(join(root, "app", "Badge.tsx"), `${BADGE_SOURCE}\n`);
+    const handle = await ensureSidecar(root, { tokens: true });
+    handles.push(handle);
+
+    writeFileSync(
+      join(root, "app", "Badge.tsx"),
+      `${BADGE_SOURCE.replace('  tone?: "accent" | "quiet";\n', "").replace('tone = "quiet", ', "")}\n`,
+    );
+    await settle();
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string; props: Array<{ name: string }> }> };
+    const badge = manifest.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
+    expect(badge).toBeTruthy();
+    expect(badge!.props.map((p) => p.name)).not.toContain("tone");
+  });
+});
