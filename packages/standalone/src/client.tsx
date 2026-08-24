@@ -2,6 +2,7 @@ import {
   bootstrapDesignTool,
   configureDesignToolRuntime,
   installStaticHtmlRuntimeIdentity,
+  isCanvasRenderer,
 } from "@design-tool/inspector";
 import { DESIGN_TOOL_MOUNT_ID } from "./manifest.ts";
 import {
@@ -45,6 +46,11 @@ export async function bootstrapStandaloneClient(): Promise<void> {
 /** Connects the browser to the server's settled-revision transport. */
 export function connectStandaloneReload(manifest: StandaloneClientManifest): void {
   if (typeof EventSource === "undefined") return;
+  // Canvas renderers never reload themselves: the controller document reloads
+  // first and recreates its card iframes, so a renderer reloading too would
+  // only duplicate every document fetch. An orphaned renderer cannot exist —
+  // iframes do not outlive their parent document.
+  if (isCanvasRenderer()) return;
   const source = new EventSource(manifest.endpoints.reload);
   const handleRevision = (event: Event): void => {
     const revision = parseReloadRevision(event);

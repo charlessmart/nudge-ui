@@ -9,7 +9,9 @@ import type { Page } from "@playwright/test";
  */
 
 async function inspectorReady(page: Page): Promise<void> {
-  await page.goto("/index.html");
+  // The server prints "/" as the project root; users open the directory URL,
+  // not /index.html. Card deduplication must treat both as one route.
+  await page.goto("/");
   await expect
     .poll(() => page.evaluate(() => Boolean((window as unknown as { __designTool?: unknown }).__designTool)))
     .toBe(true);
@@ -61,7 +63,6 @@ test("dev: canonical edits project into renderer cards", async ({ page }) => {
 
   await page.locator('[data-test="mode-canvas"]').click();
   await cardsReady(page, 1);
-  await page.waitForTimeout(800);
 
   const cardFrame = page.frames().find((f) => f !== page.mainFrame())!;
   await expect.poll(() =>
@@ -96,6 +97,21 @@ test("dev: links inside a card discover sibling page cards", async ({ page }) =>
     return paths.includes("/second.html");
   }, undefined, { timeout: 30_000 });
   await cardsReady(page, 2);
+
+  // Navigating the second card back home via /index.html must focus the
+  // existing "/" card: directory and index-file URLs are one route.
+  const secondFrame = page.frames().find((f) => f.url().endsWith("/second.html"));
+  expect(secondFrame).toBeTruthy();
+  await secondFrame!.locator('a[href="/index.html"]').evaluate((el) => {
+    if (!(el instanceof HTMLElement)) throw new Error("nav link is not an HTMLElement");
+    el.click();
+  });
+  await expect
+    .poll(() => page.evaluate(() => {
+      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      return sr?.querySelectorAll("[data-card-id]").length ?? 0;
+    }), { timeout: 15_000 })
+    .toBe(2);
 });
 
 test("dev: canvas layout is durable across a controller reload", async ({ page }) => {

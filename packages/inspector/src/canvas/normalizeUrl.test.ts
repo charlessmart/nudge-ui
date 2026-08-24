@@ -84,4 +84,21 @@ describe("normalizedUrlKey", () => {
     expect(b).not.toBeNull();
     expect(normalizedUrlKey(a!)).not.toBe(normalizedUrlKey(b!));
   });
+
+  it("produces the same key for a directory URL and its index file", () => {
+    // The standalone server maps / to index.html; users open either form.
+    const root = normalizeUrl("http://localhost:4177/");
+    const indexFile = normalizeUrl("http://localhost:4177/index.html");
+    expect(root).not.toBeNull();
+    expect(indexFile).not.toBeNull();
+    expect(normalizedUrlKey(root!)).toBe(normalizedUrlKey(indexFile!));
+
+    const nestedA = normalizeUrl("http://localhost:4177/docs/");
+    const nestedB = normalizeUrl("http://localhost:4177/docs/index.htm");
+    expect(normalizedUrlKey(nestedA!)).toBe(normalizedUrlKey(nestedB!));
+
+    const page = normalizeUrl("http://localhost:4177/about.html");
+    const other = normalizeUrl("http://localhost:4177/about");
+    expect(normalizedUrlKey(page!)).not.toBe(normalizedUrlKey(other!));
+  });
 });

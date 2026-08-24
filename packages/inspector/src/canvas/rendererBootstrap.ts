@@ -153,16 +153,25 @@ export function bootstrapRenderer(): void {
     }
   });
 
-  // Solicit the handshake. The controller sends parent-ready on the iframe
-  // load event, which can precede this renderer's asynchronous runtime boot
-  // (dynamic inspector import plus manifest fetch); without an explicit
-  // request the renderer would wait for an identity announcement that has
-  // already been delivered and dropped.
-  const hello: RendererHelloMessage = {
-    type: "renderer-hello",
-    protocolVersion: PROTOCOL_VERSION,
+  // Solicit the handshake, then retry briefly. The controller answers on
+  // iframe load AND on every hello it receives, but its answering listener
+  // attaches when the card component commits — normally long before any
+  // renderer finishes booting. The retries cover the residual window where
+  // a renderer's listeners go live before the controller's do (fast boot,
+  // slow controller compile). Every path is idempotent: setRendererIdentity
+  // overwrites, re-registration replaces, projection re-sends are safe.
+  let helloAttempts = 0;
+  const solicitHandshake = (): void => {
+    if (getRendererIdentity() || helloAttempts >= 5) return;
+    helloAttempts += 1;
+    const hello: RendererHelloMessage = {
+      type: "renderer-hello",
+      protocolVersion: PROTOCOL_VERSION,
+    };
+    sendToParent(hello);
+    setTimeout(solicitHandshake, 400 * helloAttempts);
   };
-  sendToParent(hello);
+  solicitHandshake();
 }
 
 function isPrimarySelfNavigation(anchor: HTMLAnchorElement, event: MouseEvent): boolean {

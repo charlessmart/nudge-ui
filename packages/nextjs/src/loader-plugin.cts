@@ -50,6 +50,29 @@ const nodePath = require("node:path");
 const nodeFs = require("node:fs");
 
 /**
+ * One canonical project root per loader process. Compilers report
+ * `resourcePath` in canonical form while the wrapper's root comes from
+ * `process.cwd()`, whose textual form can differ on symlinked paths (macOS
+ * `/tmp` vs `/private/tmp`); a textual prefix check would then silently drop
+ * every posting. Canonicalizing both sides keeps the relative file key — the
+ * sidecar's aggregation key — identical to what the scanner and watcher use.
+ */
+const canonicalRootCache = new Map<string, string>();
+
+function canonicalProjectRoot(root: string): string {
+  const cached = canonicalRootCache.get(root);
+  if (cached !== undefined) return cached;
+  let realRoot = root;
+  try {
+    realRoot = nodeFs.realpathSync(root);
+  } catch {
+    /* an unresolvable root keeps its textual form */
+  }
+  canonicalRootCache.set(root, realRoot);
+  return realRoot;
+}
+
+/**
  * Publishes one file's component contracts to the sidecar's aggregation
  * endpoint (Stage 5). Fire-and-forget: contract transport must never break
  * compilation. The sidecar port comes from the state file the sidecar writes
@@ -108,12 +131,12 @@ function designToolLoader(
   // Contracts are extracted from the AUTHORED source so line/column
   // provenance matches what prompts will name.
   if (root && moduleId) {
-    const normalized = moduleId.split("\\").join("/");
-    const rootPrefix = root.endsWith("/") ? root : `${root}/`;
+    const canonicalRoot = canonicalProjectRoot(root);
+    const resolved = nodePath.resolve(moduleId);
     // Confined to first-party sources exactly like identity injection:
     // workspace tooling components must never enter the contract catalog.
-    if (normalized.startsWith(rootPrefix)) {
-      const relativeFile = normalized.slice(rootPrefix.length);
+    const relativeFile = nodePath.relative(canonicalRoot, resolved).split("\\").join("/");
+    if (relativeFile.length > 0 && !relativeFile.startsWith("../")) {
       try {
         postContracts(root, relativeFile, source);
       } catch {

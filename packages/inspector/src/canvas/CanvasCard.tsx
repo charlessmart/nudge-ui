@@ -145,9 +145,9 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     }, 15000);
     return () => clearTimeout(timeout);
   }, [loadState]);
-  // A late handshake self-heals this countdown: the message listener stays
-  // installed in the error state, so a slow renderer's frame-ready still
-  // flips the card back to "ready" without user action.
+  // A late handshake still recovers: the message listener stays installed in
+  // the error state, so a slow renderer's eventual frame-ready flips the card
+  // back to "ready" without user action.
 
   useEffect(() => {
     const iframe = iframeRef.current;

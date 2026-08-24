@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
@@ -73,6 +73,8 @@ function portFilePath(root: string): string {
 
 const CONTRACT_SOURCE_EXT = /\.(tsx|jsx)$/;
 const SCAN_EXCLUDED_SEGMENTS = new Set([".git", ".next", "build", "dist", "node_modules"]);
+/** Upper bound on examined project source files; truncation is announced. */
+const SCAN_MAX_SOURCES = 5000;
 
 /**
  * Extracts component contracts directly from project sources.
@@ -81,15 +83,19 @@ const SCAN_EXCLUDED_SEGMENTS = new Set([".git", ".next", "build", "dist", "node_
  * persistent cache serves previously compiled modules without re-running
  * loaders, so a fresh sidecar would publish an empty contract catalog until
  * every file happens to recompile. Reading the same authored sources the
- * loader reads keeps the manifest coherent across dev-server restarts; keys
- * match loader postings so both writers replace instead of duplicate.
+ * loader reads keeps the manifest coherent across dev-server restarts.
+ *
+ * `canonicalRoot` must be the realpath'd project root so aggregation keys
+ * match both loader postings and watcher events regardless of how the host
+ * spelled the working directory.
  */
 async function scanProjectContracts(
-  root: string,
+  canonicalRoot: string,
   apply: (file: string, contracts: unknown[]) => void,
 ): Promise<void> {
-  const queue: string[] = [root];
-  let visited = 0;
+  const queue: string[] = [canonicalRoot];
+  let examined = 0;
+  let truncated = false;
   while (queue.length > 0) {
     const directory = queue.shift()!;
     let entries;
@@ -98,15 +104,20 @@ async function scanProjectContracts(
     } catch {
       continue;
     }
+    // Deterministic order keeps any truncation boundary stable across runs.
+    entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const entry of entries) {
-      if (++visited > 5000) return;
       const absolutePath = join(directory, entry.name);
       if (entry.isDirectory()) {
         if (!SCAN_EXCLUDED_SEGMENTS.has(entry.name)) queue.push(absolutePath);
         continue;
       }
       if (!CONTRACT_SOURCE_EXT.test(entry.name)) continue;
-      const relativeFile = relative(root, absolutePath).split("\\").join("/");
+      if (++examined > SCAN_MAX_SOURCES) {
+        truncated = true;
+        return;
+      }
+      const relativeFile = relative(canonicalRoot, absolutePath).split("\\").join("/");
       try {
         const source = readFileSync(absolutePath, "utf8");
         apply(relativeFile, extractComponentContracts(source, relativeFile));
@@ -114,6 +125,31 @@ async function scanProjectContracts(
         /* unreadable sources contribute no knowledge */
       }
     }
+  }
+  if (truncated) {
+    console.warn(
+      `[design-tool] component contract scan stopped at ${SCAN_MAX_SOURCES} sources; `
+        + "contracts beyond that bound are missing until their files compile.",
+    );
+  }
+}
+
+/**
+ * Reads one source file only while its size is stable across the read.
+ * Editors that truncate-then-write can expose half a file at read time; a
+ * syntactically valid prefix would otherwise replace good contracts with
+ * wrong ones until the next settled batch.
+ */
+function readStableSource(absolutePath: string): { source: string } | null {
+  try {
+    const sizeBefore = statSync(absolutePath).size;
+    const source = readFileSync(absolutePath, "utf8");
+    if (statSync(absolutePath).size !== sizeBefore || Buffer.byteLength(source) !== sizeBefore) {
+      return null;
+    }
+    return { source };
+  } catch {
+    return null;
   }
 }
 
@@ -232,7 +268,7 @@ export async function ensureSidecar(
     // restarted sidecar republishes contracts even when Turbopack's
     // persistent cache skips every loader re-run.
     try {
-      await scanProjectContracts(root, (file, list) => {
+      await scanProjectContracts(fsRoot, (file, list) => {
         contractsByFile.set(file, list);
       });
       if (contractsByFile.size > 0) flushContracts();
@@ -257,7 +293,8 @@ export async function ensureSidecar(
           // Changed or deleted component sources update their aggregated
           // contracts directly: deletions must prune (or stale controls
           // survive forever), and edits re-extract from the authored bytes
-          // even if a compiler cache never re-runs the loader.
+          // even if a compiler cache never re-runs the loader. A read that
+          // lands mid-write is skipped — the next settled batch retries.
           for (const change of changes) {
             const normalized = change.absolutePath.split("\\").join("/");
             if (!CONTRACT_SOURCE_EXT.test(normalized)) continue;
@@ -266,11 +303,12 @@ export async function ensureSidecar(
               contractsByFile.delete(key);
               continue;
             }
+            const stable = readStableSource(change.absolutePath);
+            if (!stable) continue;
             try {
-              const source = readFileSync(normalized, "utf8");
-              contractsByFile.set(key, extractComponentContracts(source, key));
+              contractsByFile.set(key, extractComponentContracts(stable.source, key));
             } catch {
-              /* unreadable sources keep their previous knowledge */
+              /* syntactically invalid sources keep their previous knowledge */
             }
           }
 

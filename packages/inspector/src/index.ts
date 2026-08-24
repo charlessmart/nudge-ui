@@ -206,6 +206,7 @@ export {
   RUNTIME_UNKNOWN_SOURCE_PREFIX,
 } from "./staticHtmlRuntimeIdentity.ts";
 export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
+export { isCanvasRenderer } from "./canvas/roleDetection.ts";
 export { DESIGN_TOOL_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection.ts";
 export type { DesignToolInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection.ts";
 export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation, ConformanceProjectionExpectation, ConformanceProjectionFieldExpectation } from "./conformance/fixture.ts";

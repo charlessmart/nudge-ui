@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 
 /**
  * Builds the frozen runtime snapshot served over the loopback manifest
@@ -44,7 +45,16 @@ export interface DesignToolTokenSnapshot {
 
 /** Short deterministic digest naming a project across restarts. */
 export function nextjsProjectId(root: string): string {
-  const digest = createHash("sha256").update(root).digest("hex").slice(0, 12);
+  // Canonicalized so a symlinked working directory hashes to the same
+  // project (and therefore the same durable session) as its real path —
+  // matching the standalone host's identity derivation.
+  let canonical = root;
+  try {
+    canonical = realpathSync(root);
+  } catch {
+    /* an unresolvable root keeps its textual form */
+  }
+  const digest = createHash("sha256").update(canonical).digest("hex").slice(0, 12);
   return `nextjs:${digest}`;
 }
 
