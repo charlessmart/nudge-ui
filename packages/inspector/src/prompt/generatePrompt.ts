@@ -1,4 +1,4 @@
-import { isComponentChange, isTextContentChange, isTokenChange } from "../changesLog.ts";
+import { isComponentChange, isElementChange, isTextContentChange, isTokenChange } from "../changesLog.ts";
 import type {
   ChangeRecord,
   ComponentChangeRecord,
@@ -332,8 +332,7 @@ export function generatePrompt(
   const tokenChanges = deduplicated.filter(isTokenChange);
   const componentChanges = deduplicated.filter(isComponentChange);
   const textChanges = deduplicated.filter(isTextContentChange);
-  const elementChanges = deduplicated.filter((change): change is ElementChangeRecord =>
-    !isTokenChange(change) && !isComponentChange(change) && !isTextContentChange(change));
+  const elementChanges = deduplicated.filter(isElementChange);
   const elementGroups = groupElementChanges(elementChanges);
   const framework = frameworkHints?.framework ?? "React";
   const exactHtmlSource = framework === "HTML";

@@ -1,6 +1,7 @@
 import type { TokenContribution } from "@design-tool/css/token-inventory";
 import { isPackageStylesheet } from "../tokens/viteStylesheetArtifacts.ts";
 import type { TokenCatalogDiagnostic, TokenEntry } from "../virtual/design-tokens.ts";
+import { collectContractEntries } from "./vanillaExtractRuntime.ts";
 import type { ThemeContract } from "./vanillaExtract.ts";
 
 export interface MaterializeVanillaExtractContractOptions {
@@ -20,39 +21,17 @@ export interface PublishedVanillaExtractContributionOptions {
   source?: string;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 /** Materialises a compiled vanilla-extract contract without guessing its hash format. */
 export function materializeVanillaExtractContract(
   contract: ThemeContract,
   options: MaterializeVanillaExtractContractOptions,
 ): TokenEntry[] {
-  const entries: TokenEntry[] = [];
-  const prefix = options.prefix ?? "theme";
-
-  function walk(value: unknown, path: string[]): void {
-    if (typeof value === "string") {
-      const cssName = /^var\(\s*(--[\w-]+)(?:\s*,[\s\S]*)?\)$/.exec(value.trim())?.[1];
-      if (!cssName) return;
-      entries.push({
-        name: path.join("."),
-        cssName,
-        value,
-        source: options.source,
-        adapter: "vanilla-extract",
-        origin: options.origin ?? "package",
-        editable: false,
-      });
-      return;
-    }
-    if (!isRecord(value)) return;
-    for (const [key, child] of Object.entries(value)) walk(child, [...path, key]);
-  }
-
-  walk(contract, [prefix]);
-  return entries;
+  return collectContractEntries(contract, {
+    prefix: options.prefix ?? "theme",
+    source: options.source,
+    origin: options.origin ?? "package",
+    editable: false,
+  });
 }
 
 /**

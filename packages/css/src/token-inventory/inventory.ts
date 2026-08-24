@@ -108,6 +108,28 @@ function sameObservationFacts(observation: StoredObservation, artifact: Styleshe
   return JSON.stringify(observation.artifact) === JSON.stringify(artifact);
 }
 
+/**
+ * Scalar-only equality over stylesheet artifacts, used as a cheap pre-parse
+ * no-op guard: identical re-feeds (the common HMR case) must not pay for a
+ * PostCSS parse. Every field is enumerated so a future artifact field cannot
+ * silently bypass the guard; diagnostics are rare and small, so they alone
+ * compare by serialization — content strings never do.
+ */
+function sameArtifactScalars(a: StylesheetArtifact, b: StylesheetArtifact): boolean {
+  return a.buildTool === b.buildTool
+    && a.id === b.id
+    && a.stage === b.stage
+    && a.provenance === b.provenance
+    && a.order === b.order
+    && a.discoveryOrder === b.discoveryOrder
+    && a.content === b.content
+    && a.adapter === b.adapter
+    && a.failed === b.failed
+    && ((a.diagnostics === undefined && b.diagnostics === undefined)
+      || (a.diagnostics !== undefined && b.diagnostics !== undefined
+        && JSON.stringify(a.diagnostics) === JSON.stringify(b.diagnostics)));
+}
+
 function sameContributionFacts(a: TokenContribution, b: TokenContribution): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -324,10 +346,16 @@ export function createTokenInventory(): TokenInventory {
       return;
     }
 
-    const observation = parseObservation(artifact);
     const current = artifact.stage === "authored" ? entry.authored : entry.transformed;
+    const isRecoveringFailedTransform = artifact.stage === "transformed" && entry.transformFailed === true;
+    // Cheap pre-parse guard. A transformed-stage re-feed while the failure
+    // flag is set always falls through so recovery still lands.
+    if (current && !isRecoveringFailedTransform
+      && sameArtifactScalars(current.artifact, artifact)) return;
+
+    const observation = parseObservation(artifact);
     if (current && sameObservationFacts(current, observation.artifact)
-      && !(artifact.stage === "transformed" && entry.transformFailed)) return;
+      && !isRecoveringFailedTransform) return;
     if (artifact.stage === "authored") entry.authored = observation;
     else {
       entry.transformed = observation;

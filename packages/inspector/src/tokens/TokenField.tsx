@@ -289,6 +289,16 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const showOpacity = isColor && !activeTokenHasEmbeddedAlpha
     && authoredColor.opacityEditable
     && (Boolean(activeTokenName) || attributionTokens.length === 0 || Boolean(opacity));
+  // One classification pass per entries change. selectTokens costs up to
+  // three CSS.supports calls per token, so classifying per token per render
+  // (chip mode is unbounded; raw mode runs per keystroke) dominates this
+  // field's render cost. Map misses fall back to direct classification for
+  // synthetic entries that are not part of the catalog list.
+  const groupByTokenName = useMemo(() => {
+    const groups = new Map<string, string>();
+    for (const entry of entries) groups.set(entry.name, tokenGroup(entry));
+    return groups;
+  }, [entries]);
   const relevantTokens = useMemo(() => {
     const candidates = allowedTokenNames
       ? entries.filter((entry) => allowedTokenNames.has(entry.name))
@@ -473,7 +483,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       >
         {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
         {embedColorSwatch ? null : colorControlEl}
-        <TokenChip size={chipVariant} data-group={tokenGroup(activeToken)}>
+        <TokenChip size={chipVariant} data-group={groupByTokenName.get(activeToken.name) ?? tokenGroup(activeToken)}>
           <PopoverListbox
             query=""
             value={activeToken.name}
@@ -487,7 +497,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             triggerClassName="dt-token-chip__trigger"
             triggerDataTest="token-chip"
             triggerAriaLabel={`Change ${property} token`}
-            items={[...rawSuggestionItems, ...relevantTokens.map(tokenSuggestion)]}
+            items={[...rawSuggestionItems, ...relevantTokens.map((entry) => tokenSuggestion(entry, groupByTokenName))]}
             onQueryChange={() => undefined}
             onOpenChange={setTokenPickerOpen}
             disabled={disabled}
@@ -539,7 +549,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         inputOnKeyDown={handleRawKeyDown}
         items={[
           ...availableSuggestions.map(rawSuggestion),
-          ...filteredTokens.slice(0, 30).map(tokenSuggestion),
+          ...filteredTokens.slice(0, 30).map((entry) => tokenSuggestion(entry, groupByTokenName)),
         ]}
         onQueryChange={(value) => {
           isNavigatingSuggestions.current = false;
@@ -683,12 +693,14 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   );
 }
 
-function tokenSuggestion(entry: TokenEntry) {
+function tokenSuggestion(entry: TokenEntry, groups: ReadonlyMap<string, string>) {
   return {
     value: entry.name,
     label: entry.name,
     "data-test": "suggestion-item",
-    leading: tokenGroup(entry) === "color" ? <ColorSwatch color={entry.value} /> : undefined,
+    leading: (groups.get(entry.name) ?? tokenGroup(entry)) === "color"
+      ? <ColorSwatch color={entry.value} />
+      : undefined,
     trailing: <span>{entry.value}</span>,
   };
 }

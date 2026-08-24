@@ -1,6 +1,7 @@
 import type { TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
 import type { TokenContribution } from "@design-tool/css/token-inventory";
 import type { TokenAdapter } from "./types.ts";
+import { tokenEntryFromDefinition } from "./tokenEntryFromDefinition.ts";
 
 export interface TailwindAlphaMapping {
   utility: string;
@@ -31,15 +32,9 @@ export function createTailwindV4NamingContribution(): TokenContribution {
 }
 
 export function entriesFromTailwindV4Catalog(catalog: TokenDefinition[]): TokenEntry[] {
-  return catalog.map((definition) => ({
-    name: definition.name,
-    cssName: definition.cssName,
-    value: definition.declarations[0]?.value ?? "",
-    source: definition.declarations[0]?.source ?? "",
-    cssValue: definition.cssValue,
-    adapter: definition.adapter ?? "tailwind-v4",
-    origin: definition.origin ?? "framework",
-    editable: definition.editable,
+  return catalog.map((definition) => tokenEntryFromDefinition(definition, {
+    adapter: "tailwind-v4",
+    origin: "framework",
   }));
 }
 

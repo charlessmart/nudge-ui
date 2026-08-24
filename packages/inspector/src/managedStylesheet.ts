@@ -134,7 +134,6 @@ interface ManagedRuleEntry {
   selector: string;
   wrappers?: TokenContextWrapper[];
   declarations: Record<string, string>;
-  index: number;
   leaf: CSSStyleRule | null;
 }
 
@@ -185,15 +184,10 @@ function syncModelFromSheet(rules: StyleRule[], sheet: CSSStyleSheet): void {
       selector: rule.selector,
       wrappers: rule.context?.wrappers,
       declarations: { ...rule.declarations },
-      index,
       leaf: leafRule(top, rule.context?.wrappers?.length ?? 0),
     });
     index++;
   }
-}
-
-function syncEntryIndexes(): void {
-  managedEntries.forEach((entry, index) => { entry.index = index; });
 }
 
 /** Synchronous serialized view of the rules currently projected into the managed sheet. */
@@ -282,22 +276,22 @@ export function applyRules(rules: StyleRule[]): void {
     desired.push(rule);
   }
 
-  // Remove rules that no longer have a desired counterpart. Deleting in
-  // descending index order keeps the surviving indexes stable while we go.
-  const stale = managedEntries
-    .filter((entry) => !desiredIds.has(entry.id))
-    .sort((a, b) => b.index - a.index);
-  if (stale.length > 0) {
-    for (const entry of stale) {
-      try {
-        sheet.deleteRule(entry.index);
-      } catch {
-        rebuildSheetText(desired);
-        return;
-      }
+  // Remove rules that no longer have a desired counterpart. Array position is
+  // the CSSOM rule index by invariant, so delete in descending position order
+  // to keep surviving positions stable while we go.
+  let removedStale = false;
+  for (let position = managedEntries.length - 1; position >= 0; position--) {
+    if (desiredIds.has(managedEntries[position]!.id)) continue;
+    try {
+      sheet.deleteRule(position);
+    } catch {
+      rebuildSheetText(desired);
+      return;
     }
+    removedStale = true;
+  }
+  if (removedStale) {
     managedEntries = managedEntries.filter((entry) => desiredIds.has(entry.id));
-    syncEntryIndexes();
     mutated = true;
   }
 
@@ -327,10 +321,8 @@ export function applyRules(rules: StyleRule[]): void {
         selector: rule.selector,
         wrappers: rule.context?.wrappers,
         declarations: { ...rule.declarations },
-        index,
         leaf: leafRule(top, rule.context?.wrappers?.length ?? 0),
       });
-      syncEntryIndexes();
       mutated = true;
       currentIndex = index;
     } else if (currentIndex !== index) {
@@ -351,7 +343,6 @@ export function applyRules(rules: StyleRule[]): void {
       managedEntries.splice(currentIndex, 1);
       managedEntries.splice(index, 0, entry);
       entry.leaf = leafRule(top, entry.wrappers?.length ?? 0);
-      syncEntryIndexes();
       mutated = true;
       currentIndex = index;
     }

@@ -13,8 +13,8 @@ import {
   verifyManagedStyleProjection,
 } from "./changes/projection.ts";
 import type { StyleRule, PreviewResult } from "./managedStylesheet.ts";
-import { isComponentChange, isElementChange, isTextContentChange } from "./changes/types.ts";
-import type { ChangeRecord, PreviewableChangeRecord, RuntimeElementEvidence } from "./changes/types.ts";
+import { isElementChange, isPreviewableChange } from "./changes/types.ts";
+import type { ChangeRecord, RuntimeElementEvidence } from "./changes/types.ts";
 import { cancelInlineTextForClear } from "./inlineTextLifecycle.ts";
 
 export {
@@ -93,12 +93,11 @@ function flushVerification(): void {
   let updated: ChangeRecord[] | null = null;
   for (let i = 0; i < current.length; i++) {
     const change = current[i]!;
-    if (isComponentChange(change) || isTextContentChange(change)) continue;
+    if (!isPreviewableChange(change)) continue;
     const key = changeKey(change);
     if (!targets.has(key)) continue;
     const verified = verifyManagedStyleProjection(
-      // SAFETY: non-component changes are verified as previewable change records after the isComponentChange guard above.
-      change as PreviewableChangeRecord,
+      change,
       targets.get(key) ?? null,
     );
     if (samePreviewResult(change.previewResult, verified.previewResult)) continue;

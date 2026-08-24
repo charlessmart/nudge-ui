@@ -25,89 +25,57 @@ export interface SideValuePairSlot {
 
 export interface SideValuesFieldProps {
   label: ReactNode;
-  linkedControl?: ReactNode;
   sides: readonly SideValueSlot[];
   pairedControls?: readonly SideValuePairSlot[];
-  defaultLinked?: boolean;
-  linked?: boolean;
   defaultExpanded?: boolean;
   forceExpanded?: boolean;
-  expanded?: boolean;
   showLabel?: boolean;
   empty?: boolean;
   onAdd?: () => void;
   emptyAction?: ReactNode;
-  headerAction?: ReactNode;
   resetKey?: unknown;
-  onLinkedChange?: (linked: boolean) => void;
-  onExpandedChange?: (expanded: boolean) => void;
   "data-test"?: string;
   "data-property"?: string;
 }
 
 /**
- * A compact side editor. Callers can provide either a linked/four-side mode or
- * grouped horizontal/vertical controls that expand into the four physical
- * sides. The field owns presentation and mode state while callers own the
- * actual CSS/token controls rendered in each slot.
+ * A compact side editor. Callers provide grouped horizontal/vertical controls
+ * that expand into the four physical sides (or omit `pairedControls` to show
+ * the four sides directly). The field owns presentation and expand state
+ * while callers own the actual CSS/token controls rendered in each slot.
  */
 export function SideValuesField({
   label,
-  linkedControl,
   sides,
   pairedControls,
-  defaultLinked = true,
-  linked: controlledLinked,
   defaultExpanded = false,
   forceExpanded = false,
-  expanded: controlledExpanded,
   showLabel = true,
   empty = false,
   onAdd,
   emptyAction,
-  headerAction,
   resetKey,
-  onLinkedChange,
-  onExpandedChange,
   "data-test": dataTest,
   "data-property": dataProperty,
 }: SideValuesFieldProps): ReactElement {
-  const [uncontrolledLinked, setUncontrolledLinked] = useState(defaultLinked);
   const [uncontrolledExpanded, setUncontrolledExpanded] = useState(defaultExpanded);
   const previousResetKey = useRef(resetKey);
-  const isControlled = controlledLinked !== undefined;
-  const isLinked = controlledLinked ?? uncontrolledLinked;
-  const isExpandedControlled = controlledExpanded !== undefined;
   const isResetting = previousResetKey.current !== resetKey;
-  const isExpanded = forceExpanded || (!isExpandedControlled && isResetting
-    ? defaultExpanded
-    : controlledExpanded ?? uncontrolledExpanded);
+  const isExpanded = forceExpanded || (isResetting ? defaultExpanded : uncontrolledExpanded);
   const hasPairedControls = Boolean(pairedControls && pairedControls.length > 0);
   const labelText = typeof label === "string" ? formatInspectorLabel(label) : String(label);
   const displayLabel = showLabel ? (typeof label === "string" ? labelText : label) : null;
 
   useEffect(() => {
-    // `defaultLinked` describes the newly selected element, not the current
-    // edit. Keep an explicit user choice stable while token rows refresh.
-    if (!isControlled) setUncontrolledLinked(defaultLinked);
-  }, [isControlled, resetKey]);
-
-  useEffect(() => {
-    if (!isExpandedControlled) setUncontrolledExpanded(defaultExpanded);
+    // `defaultExpanded` describes the newly selected element, not the current
+    // edit; reseed when the selection (resetKey) changes.
+    setUncontrolledExpanded(defaultExpanded);
     previousResetKey.current = resetKey;
-  }, [isExpandedControlled, resetKey]);
-
-  function toggleLinked(): void {
-    const next = !isLinked;
-    if (!isControlled) setUncontrolledLinked(next);
-    onLinkedChange?.(next);
-  }
+  }, [resetKey]);
 
   function toggleExpanded(): void {
     if (forceExpanded) return;
-    const next = !isExpanded;
-    if (!isExpandedControlled) setUncontrolledExpanded(next);
-    onExpandedChange?.(next);
+    setUncontrolledExpanded(!isExpanded);
   }
 
   return (
@@ -118,7 +86,7 @@ export function SideValuesField({
       data-empty={empty ? "true" : undefined}
       {...(hasPairedControls
         ? { "data-expanded": isExpanded ? "true" : "false" }
-        : { "data-linked": isLinked ? "true" : "false" })}
+        : {})}
     >
       {empty ? (
         <div className="dt-side-values__header">
@@ -181,44 +149,13 @@ export function SideValuesField({
             </ToggleButton>
           </div>
         </>
-      ) : isLinked ? (
-        <div className={`dt-side-values__value-row dt-side-values__linked-row${showLabel ? "" : " dt-side-values__linked-row--no-label"}`}>
-          {showLabel ? <span className="dt-side-values__label">{displayLabel}</span> : null}
-          <div className="dt-side-values__linked">{linkedControl}</div>
-          <ToggleButton
-            variant="quiet"
-            size="default"
-            data-test="individual-sides"
-            label={`Edit Individual ${labelText} Sides`}
-            title={`Edit Individual ${labelText} Sides`}
-            pressed={!isLinked}
-            onPressedChange={(pressed) => {
-              if (pressed !== !isLinked) toggleLinked();
-            }}
-          >
-            <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-          </ToggleButton>
-        </div>
       ) : (
         <>
-          <div className="dt-side-values__header">
-            <span className="dt-side-values__label">{displayLabel}</span>
-            {headerAction ?? (
-              <ToggleButton
-                variant="quiet"
-                size="default"
-                data-test="individual-sides"
-                label={`Link ${labelText} Sides`}
-                title={`Link ${labelText} Sides`}
-                pressed={!isLinked}
-                onPressedChange={(pressed) => {
-                  if (pressed !== !isLinked) toggleLinked();
-                }}
-              >
-                <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
-              </ToggleButton>
-            )}
-          </div>
+          {showLabel ? (
+            <div className="dt-side-values__header">
+              <span className="dt-side-values__label">{displayLabel}</span>
+            </div>
+          ) : null}
           <SideControls label={label} sides={sides} />
         </>
       )}

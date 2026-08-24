@@ -1,4 +1,5 @@
 import type { TokenEntry } from "../virtual/design-tokens.ts";
+import { isRecord } from "./isRecord.ts";
 import type { TokenAdapter, TokenMapping } from "./types.ts";
 
 export type ThemeContract = Record<string, unknown>;
@@ -16,10 +17,6 @@ export interface VanillaExtractAdapterOptions {
   classMap?: SprinklesClassMap;
   cssValues?: Readonly<Record<string, string>>;
   source?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function walkContract(value: unknown, path: string[], cssValues: Readonly<Record<string, string>>, source: string, out: TokenEntry[]): void {

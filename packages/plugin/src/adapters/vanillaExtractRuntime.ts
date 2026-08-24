@@ -1,4 +1,6 @@
 import type { TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
+import { isRecord } from "./isRecord.ts";
+import { tokenEntryFromDefinition } from "./tokenEntryFromDefinition.ts";
 import type { ThemeContract } from "./vanillaExtract.ts";
 
 export interface MaterializeVanillaExtractOptions {
@@ -13,18 +15,24 @@ export interface MaterializedTokenCatalog {
 
 const CSS_VAR = /^var\(\s*(--[\w-]+)(?:\s*,[\s\S]*)?\)$/;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+export interface CollectContractEntriesOptions {
+  prefix?: string;
+  source: string;
+  origin: TokenEntry["origin"];
+  editable: boolean;
 }
 
-/** Converts vanilla-extract's compiled contract export into semantic entries. */
-export function materializeVanillaExtractContract(
+/**
+ * Shared walker for compiled vanilla-extract contract objects. The two host
+ * materializers differ only in provenance policy (source/origin/editable),
+ * never in the var()-reference grammar, so the traversal lives here once.
+ */
+export function collectContractEntries(
   contract: ThemeContract,
-  options: MaterializeVanillaExtractOptions = {},
+  options: CollectContractEntriesOptions,
 ): TokenEntry[] {
   const entries: TokenEntry[] = [];
   const prefix = options.prefix ?? "theme";
-  const source = options.source ?? "theme-contract.css.ts";
 
   function walk(value: unknown, path: string[]): void {
     if (typeof value === "string") {
@@ -34,10 +42,10 @@ export function materializeVanillaExtractContract(
         name: path.join("."),
         cssName,
         value,
-        source,
+        source: options.source,
         adapter: "vanilla-extract",
-        origin: "project",
-        editable: true,
+        origin: options.origin,
+        editable: options.editable,
       });
       return;
     }
@@ -47,6 +55,19 @@ export function materializeVanillaExtractContract(
 
   walk(contract, [prefix]);
   return entries;
+}
+
+/** Converts vanilla-extract's compiled contract export into semantic entries. */
+export function materializeVanillaExtractContract(
+  contract: ThemeContract,
+  options: MaterializeVanillaExtractOptions = {},
+): TokenEntry[] {
+  return collectContractEntries(contract, {
+    prefix: options.prefix ?? "theme",
+    source: options.source ?? "theme-contract.css.ts",
+    origin: "project",
+    editable: true,
+  });
 }
 
 /**
@@ -92,15 +113,6 @@ export function mergeVanillaExtractContract(
 
   return {
     tokenCatalog: catalog,
-    tokens: catalog.map((definition) => ({
-      name: definition.name,
-      cssName: definition.cssName,
-      value: definition.declarations[0]?.value ?? "",
-      source: definition.declarations[0]?.source ?? "",
-      cssValue: definition.cssValue,
-      adapter: definition.adapter,
-      origin: definition.origin,
-      editable: definition.editable,
-    })),
+    tokens: catalog.map((definition) => tokenEntryFromDefinition(definition)),
   };
 }
