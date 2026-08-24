@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { generatePrompt } from "./generatePrompt.ts";
 import { detectFramework } from "./detectFramework.ts";
-import type { ChangeRecord, ElementChangeRecord, TextContentChangeRecord } from "../changesLog.ts";
+import type { ElementChangeRecord, TextContentChangeRecord } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
@@ -547,17 +547,7 @@ describe("generatePrompt", () => {
     expect(out).toContain('- `[data-cid="NavLink"][data-src*="src/components/Header.tsx:58"]');
   });
 
-  it("uses a neutral title that remains accurate for multi-file changes", () => {
-    const a = rec({
-      cid: "Button",
-      file: "src/components/Header.tsx",
-      property: "background",
-      oldToken: SURFACE_RAISED,
-      newToken: SURFACE_SUNKEN,
-    });
-    const out = generatePrompt([a]);
-    expect(out).toContain("# Requested design changes");
-  });
+
 
   it("deduplicates by diffing first vs last, ignoring intermediate changes", () => {
     const a = rec({

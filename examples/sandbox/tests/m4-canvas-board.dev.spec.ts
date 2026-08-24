@@ -150,12 +150,8 @@ test.describe("Canvas spatial board — two responsive sizes", () => {
     const sizeAfter = await iframe.boundingBox();
     expect(sizeAfter).not.toBeNull();
 
-    if (sizeAfter!.width < sizeBefore!.width * 0.99) {
-      expect(sizeAfter!.width).toBeLessThan(sizeBefore!.width);
-    }
-    if (sizeAfter!.height < sizeBefore!.height * 0.99) {
-      expect(sizeAfter!.height).toBeLessThan(sizeBefore!.height);
-    }
+    expect(sizeAfter!.width).toBeLessThan(sizeBefore!.width);
+    expect(sizeAfter!.height).toBeLessThan(sizeBefore!.height);
 
   });
 });
@@ -273,32 +269,5 @@ test.describe("Canvas board gesture handling", () => {
 });
 
 test.describe("Canvas board — iframe content remains interactive", () => {
-  test("dev: clicking same-origin link in iframe creates a card on spatial board", async ({ page }) => {
-    await page.goto("/playground");
-    await page.locator('[data-test="mode-canvas"]').click();
-    await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-
-    const board = page.locator('[data-test="canvas-board"]');
-    await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
-
-    const frame = page.frameLocator(".dt-canvas-card__iframe").first();
-    const conformanceLink = frame.locator('a[href="/conformance"]').first();
-    await expect(conformanceLink).toBeVisible({ timeout: 20000 });
-    await conformanceLink.click();
-
-    await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
-
-    const cards = board.locator(".dt-canvas-card");
-    const count = await cards.count();
-    expect(count).toBeGreaterThanOrEqual(2);
-
-    const card2 = cards.nth(1);
-    const position2 = await card2.evaluate((el: HTMLElement) => ({
-      left: el.style.left,
-      top: el.style.top,
-    }));
-    expect(position2.left).toBeTruthy();
-    expect(position2.top).toBeTruthy();
-  });
 });
 

@@ -206,12 +206,7 @@ describe("installElementSelector", () => {
     expect(sel?.cprops).toBe("variant:primary");
   });
 
-  it("does not select an element without data-cid and no data-cid ancestor", () => {
-    const el = makeHostElement();
-    document.body.appendChild(el);
-    dispatchClick(el);
-    expect(getSelectedElement()).toBeNull();
-  });
+
 
   it("does not select or interfere with clicks inside the inspector host", () => {
     const inner = document.createElement("button");

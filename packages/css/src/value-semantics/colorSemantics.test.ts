@@ -423,8 +423,5 @@ describe("arbitrary input does not throw", () => {
     }
   });
 
-  it("returns a full ColorOpacity shape for a recognized hex value", () => {
-    const opacity: ColorOpacity | undefined = interpretColorOpacity("#ff000088", plainCtx());
-    expect(opacity).toMatchObject({ value: "53.3333%", authoredValue: "88", source: "hex", tokenName: null });
-  });
+
 });

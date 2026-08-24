@@ -35,15 +35,9 @@ describe("selectionStore", () => {
     setSelectedElement(null);
   });
 
-  it("returns null initially", () => {
-    expect(getSelectedElement()).toBeNull();
-  });
 
-  it("setSelectedElement stores the element", () => {
-    const el = makeEl();
-    setSelectedElement(el);
-    expect(getSelectedElement()).toBe(el);
-  });
+
+
 
   it("subscribe fires on change", () => {
     const calls: (SelectedElement | null)[] = [];

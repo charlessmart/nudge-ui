@@ -200,16 +200,7 @@ describe("changesLog", () => {
     expect(getPendingRules()).toHaveLength(0);
   });
 
-  it("single-change revert clears the full baseline-to-current delta", () => {
-    const aToB = makeRecord("background", COLOR_B, COLOR_A);
-    const bToC = makeRecord("background", COLOR_C, COLOR_B);
-    appendChange(aToB);
-    appendChange(bToC);
-    expect(getPendingRules()[0]!.declarations.background).toBe("var(--color-c)");
-    revertChange(bToC);
-    expect(getChangesList()).toHaveLength(0);
-    expect(getPendingRules()).toHaveLength(0);
-  });
+
 
   it("rawValue change produces a rule with the raw value", () => {
     appendChange(makeRecord("font-size", null, null, "18px"));

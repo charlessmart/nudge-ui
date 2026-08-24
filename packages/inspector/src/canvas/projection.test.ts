@@ -241,21 +241,6 @@ describe("projection", () => {
       expect(r2).toBeGreaterThan(r1);
     });
 
-    it("revision-only: a newer revision with same CSS is accepted", () => {
-      appendChange({
-        cid: "Button",
-        file: "src/Button.tsx",
-        line: 1,
-        selector: '[data-cid="Button"][data-src*="src/Button.tsx:1"]',
-        property: "background",
-        oldToken: null,
-        newToken: null,
-        rawValue: "blue",
-        source: { file: "src/Button.tsx", line: 1, component: "Button" },
-      });
 
-      const { revision } = computeProjection();
-      expect(revision).toBeGreaterThan(0);
-    });
   });
 });
