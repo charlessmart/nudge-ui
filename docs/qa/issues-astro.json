@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-08-24T09:41:24.518Z",
+  "sandbox": "astro",
+  "issueCount": 2,
+  "consoleErrorCount": 0,
+  "consoleWarnCount": 0,
+  "pageErrorCount": 0,
+  "issues": [
+    {
+      "sandbox": "astro",
+      "page": "index",
+      "kind": "canvas-toggle-missing",
+      "severity": "info",
+      "detail": "canvas mode toggle not found — host adapter does not enable canvas capability (see host bootstrap capabilities.canvas)",
+      "ts": "2026-08-24T09:41:17.449Z",
+      "screenshot": "screenshots/astro/index__canvas-toggle-missing__canvas-mode-toggle-not-found-host-adapte__0.png"
+    },
+    {
+      "sandbox": "astro",
+      "page": "about",
+      "kind": "canvas-toggle-missing",
+      "severity": "info",
+      "detail": "canvas mode toggle not found — host adapter does not enable canvas capability (see host bootstrap capabilities.canvas)",
+      "ts": "2026-08-24T09:41:23.543Z",
+      "screenshot": "screenshots/astro/about__canvas-toggle-missing__canvas-mode-toggle-not-found-host-adapte__1.png"
+    }
+  ],
+  "consoleMessages": [],
+  "pageErrors": []
+}

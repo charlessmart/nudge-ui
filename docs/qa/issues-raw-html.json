@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-08-24T09:30:06.231Z",
+  "sandbox": "raw-html",
+  "issueCount": 5,
+  "consoleErrorCount": 0,
+  "consoleWarnCount": 0,
+  "pageErrorCount": 0,
+  "issues": [
+    {
+      "sandbox": "raw-html",
+      "page": "index",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=83 clientW=53, text=\"--color-accent\"",
+      "selector": "span.dt-token-chip__label",
+      "phase": "click-through",
+      "selected": "button \"Static action\"",
+      "ts": "2026-08-24T09:30:02.552Z",
+      "screenshot": "screenshots/raw-html/index__overflow-x__span.dt-token-chip__label__0.png"
+    },
+    {
+      "sandbox": "raw-html",
+      "page": "index",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent\"",
+      "selector": "span.dt-token-chip__label",
+      "phase": "click-through",
+      "selected": "button \"Static action\"",
+      "ts": "2026-08-24T09:30:02.589Z",
+      "screenshot": "screenshots/raw-html/index__truncated-ellipsis__span.dt-token-chip__label__1.png"
+    },
+    {
+      "sandbox": "raw-html",
+      "page": "index",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=122 clientW=108, text=\"--color-accent-alt\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:30:04.302Z",
+      "screenshot": "screenshots/raw-html/index__overflow-x__code.dt-token-row__name__4.png"
+    },
+    {
+      "sandbox": "raw-html",
+      "page": "index",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-alt\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:30:04.330Z",
+      "screenshot": "screenshots/raw-html/index__truncated-ellipsis__code.dt-token-row__name__5.png"
+    },
+    {
+      "sandbox": "raw-html",
+      "page": "index",
+      "kind": "canvas-toggle-missing",
+      "severity": "info",
+      "detail": "canvas mode toggle not found — host adapter does not enable canvas capability (see host bootstrap capabilities.canvas)",
+      "ts": "2026-08-24T09:30:05.238Z",
+      "screenshot": "screenshots/raw-html/index__canvas-toggle-missing__canvas-mode-toggle-not-found-host-adapte__8.png"
+    }
+  ],
+  "consoleMessages": [],
+  "pageErrors": []
+}

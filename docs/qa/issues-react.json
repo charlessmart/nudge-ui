@@ -1,0 +1,1260 @@
+{
+  "generatedAt": "2026-08-24T09:39:43.838Z",
+  "sandbox": "react",
+  "issueCount": 66,
+  "consoleErrorCount": 1,
+  "consoleWarnCount": 96,
+  "pageErrorCount": 0,
+  "issues": [
+    {
+      "sandbox": "react",
+      "page": "index",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=122 clientW=53, text=\"--color-border-subtle\"",
+      "selector": "span.dt-token-chip__label",
+      "phase": "click-through",
+      "selected": "span \"W 320\"",
+      "ts": "2026-08-24T09:36:41.391Z",
+      "screenshot": "screenshots/react/index__overflow-x__span.dt-token-chip__label__0.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "index",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-border-subtle\"",
+      "selector": "span.dt-token-chip__label",
+      "phase": "click-through",
+      "selected": "span \"W 320\"",
+      "ts": "2026-08-24T09:36:41.426Z",
+      "screenshot": "screenshots/react/index__truncated-ellipsis__span.dt-token-chip__label__1.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "index",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:36:48.124Z",
+      "screenshot": "screenshots/react/index__overflow-x__code.dt-token-row__name__18.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "index",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:36:48.151Z",
+      "screenshot": "screenshots/react/index__truncated-ellipsis__code.dt-token-row__name__19.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "index",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:36:49.848Z",
+      "screenshot": "screenshots/react/index__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__22.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "playground",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=128 clientW=53, text=\"--color-surface-raised\"",
+      "selector": "span.dt-token-chip__label",
+      "phase": "click-through",
+      "selected": "span \"Save a change\"",
+      "ts": "2026-08-24T09:37:00.305Z",
+      "screenshot": "screenshots/react/playground__overflow-x__span.dt-token-chip__label__23.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "playground",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-surface-raised\"",
+      "selector": "span.dt-token-chip__label",
+      "phase": "click-through",
+      "selected": "span \"Save a change\"",
+      "ts": "2026-08-24T09:37:00.335Z",
+      "screenshot": "screenshots/react/playground__truncated-ellipsis__span.dt-token-chip__label__24.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "playground",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:37:06.879Z",
+      "screenshot": "screenshots/react/playground__overflow-x__code.dt-token-row__name__25.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "playground",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:37:06.900Z",
+      "screenshot": "screenshots/react/playground__truncated-ellipsis__code.dt-token-row__name__26.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "playground",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:08.773Z",
+      "screenshot": "screenshots/react/playground__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__29.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=82 clientW=53, text=\"--color-border\"",
+      "selector": "span.dt-token-chip__label",
+      "phase": "click-through",
+      "selected": "button[semantic-button] \"Cancel\"",
+      "ts": "2026-08-24T09:37:21.121Z",
+      "screenshot": "screenshots/react/components__overflow-x__span.dt-token-chip__label__30.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-border\"",
+      "selector": "span.dt-token-chip__label",
+      "phase": "click-through",
+      "selected": "button[semantic-button] \"Cancel\"",
+      "ts": "2026-08-24T09:37:21.152Z",
+      "screenshot": "screenshots/react/components__truncated-ellipsis__span.dt-token-chip__label__31.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:37:25.436Z",
+      "screenshot": "screenshots/react/components__overflow-x__code.dt-token-row__name__32.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:37:25.460Z",
+      "screenshot": "screenshots/react/components__truncated-ellipsis__code.dt-token-row__name__33.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "kind": "canvas-click-no-select",
+      "detail": "clicking element inside canvas card did not produce selection outline",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:27.648Z",
+      "screenshot": "screenshots/react/components__canvas-click-no-select__clicking-element-inside-canvas-card-did-__36.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:27.730Z",
+      "screenshot": "screenshots/react/components__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__37.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=82 clientW=53, text=\"--color-border\"",
+      "selector": "span.dt-token-chip__label",
+      "phase": "click-through",
+      "selected": "button[semantic-button] \"Cancel\"",
+      "ts": "2026-08-24T09:37:38.653Z",
+      "screenshot": "screenshots/react/component-props__overflow-x__span.dt-token-chip__label__38.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-border\"",
+      "selector": "span.dt-token-chip__label",
+      "phase": "click-through",
+      "selected": "button[semantic-button] \"Cancel\"",
+      "ts": "2026-08-24T09:37:38.685Z",
+      "screenshot": "screenshots/react/component-props__truncated-ellipsis__span.dt-token-chip__label__39.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:37:41.386Z",
+      "screenshot": "screenshots/react/component-props__overflow-x__code.dt-token-row__name__44.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:37:41.409Z",
+      "screenshot": "screenshots/react/component-props__truncated-ellipsis__code.dt-token-row__name__45.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "kind": "canvas-click-no-select",
+      "detail": "clicking element inside canvas card did not produce selection outline",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:43.564Z",
+      "screenshot": "screenshots/react/component-props__canvas-click-no-select__clicking-element-inside-canvas-card-did-__48.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:43.636Z",
+      "screenshot": "screenshots/react/component-props__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__49.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "kind": "canvas-resize-no-change",
+      "detail": "card resize handle drag did not resize card (573.75 -> 573.75)",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:44.269Z",
+      "screenshot": "screenshots/react/component-props__canvas-resize-no-change__card-resize-handle-drag-did-not-resize-c__50.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "kind": "canvas-duplicate-failed",
+      "detail": "duplicate card: 7 -> 7",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:45.835Z",
+      "screenshot": "screenshots/react/component-props__canvas-duplicate-failed__duplicate-card-7---7__51.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:37:54.329Z",
+      "screenshot": "screenshots/react/conformance__overflow-x__code.dt-token-row__name__52.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:37:54.355Z",
+      "screenshot": "screenshots/react/conformance__truncated-ellipsis__code.dt-token-row__name__53.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "kind": "canvas-click-no-select",
+      "detail": "clicking element inside canvas card did not produce selection outline",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:56.666Z",
+      "screenshot": "screenshots/react/conformance__canvas-click-no-select__clicking-element-inside-canvas-card-did-__56.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:56.725Z",
+      "screenshot": "screenshots/react/conformance__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__57.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "kind": "canvas-resize-no-change",
+      "detail": "card resize handle drag did not resize card (573.75 -> 573.75)",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:57.349Z",
+      "screenshot": "screenshots/react/conformance__canvas-resize-no-change__card-resize-handle-drag-did-not-resize-c__58.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "kind": "canvas-duplicate-failed",
+      "detail": "duplicate card: 8 -> 8",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:37:58.930Z",
+      "screenshot": "screenshots/react/conformance__canvas-duplicate-failed__duplicate-card-8---8__59.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:38:06.899Z",
+      "screenshot": "screenshots/react/examples-hub__overflow-x__code.dt-token-row__name__60.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:38:06.921Z",
+      "screenshot": "screenshots/react/examples-hub__truncated-ellipsis__code.dt-token-row__name__61.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "kind": "canvas-click-no-select",
+      "detail": "clicking element inside canvas card did not produce selection outline",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:09.166Z",
+      "screenshot": "screenshots/react/examples-hub__canvas-click-no-select__clicking-element-inside-canvas-card-did-__64.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:09.238Z",
+      "screenshot": "screenshots/react/examples-hub__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__65.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "kind": "canvas-resize-no-change",
+      "detail": "card resize handle drag did not resize card (573.75 -> 573.75)",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:09.917Z",
+      "screenshot": "screenshots/react/examples-hub__canvas-resize-no-change__card-resize-handle-drag-did-not-resize-c__66.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "kind": "canvas-duplicate-failed",
+      "detail": "duplicate card: 9 -> 9",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:11.524Z",
+      "screenshot": "screenshots/react/examples-hub__canvas-duplicate-failed__duplicate-card-9---9__67.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:38:25.071Z",
+      "screenshot": "screenshots/react/examples-raw-css__overflow-x__code.dt-token-row__name__68.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:38:25.105Z",
+      "screenshot": "screenshots/react/examples-raw-css__truncated-ellipsis__code.dt-token-row__name__69.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "kind": "canvas-click-no-select",
+      "detail": "clicking element inside canvas card did not produce selection outline",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:27.509Z",
+      "screenshot": "screenshots/react/examples-raw-css__canvas-click-no-select__clicking-element-inside-canvas-card-did-__72.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:27.574Z",
+      "screenshot": "screenshots/react/examples-raw-css__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__73.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "kind": "canvas-resize-no-change",
+      "detail": "card resize handle drag did not resize card (573.75 -> 573.75)",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:28.194Z",
+      "screenshot": "screenshots/react/examples-raw-css__canvas-resize-no-change__card-resize-handle-drag-did-not-resize-c__74.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "kind": "canvas-duplicate-failed",
+      "detail": "duplicate card: 10 -> 10",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:29.761Z",
+      "screenshot": "screenshots/react/examples-raw-css__canvas-duplicate-failed__duplicate-card-10---10__75.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:38:47.171Z",
+      "screenshot": "screenshots/react/border-conformance__overflow-x__code.dt-token-row__name__76.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:38:47.196Z",
+      "screenshot": "screenshots/react/border-conformance__truncated-ellipsis__code.dt-token-row__name__77.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "kind": "canvas-click-no-select",
+      "detail": "clicking element inside canvas card did not produce selection outline",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:48.893Z",
+      "screenshot": "screenshots/react/border-conformance__canvas-click-no-select__clicking-element-inside-canvas-card-did-__80.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:49.134Z",
+      "screenshot": "screenshots/react/border-conformance__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__81.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "kind": "canvas-resize-no-change",
+      "detail": "card resize handle drag did not resize card (573.75 -> 573.75)",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:49.763Z",
+      "screenshot": "screenshots/react/border-conformance__canvas-resize-no-change__card-resize-handle-drag-did-not-resize-c__82.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "kind": "canvas-duplicate-failed",
+      "detail": "duplicate card: 11 -> 11",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:38:51.347Z",
+      "screenshot": "screenshots/react/border-conformance__canvas-duplicate-failed__duplicate-card-11---11__83.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:39:01.575Z",
+      "screenshot": "screenshots/react/color-conformance__overflow-x__code.dt-token-row__name__84.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:39:01.596Z",
+      "screenshot": "screenshots/react/color-conformance__truncated-ellipsis__code.dt-token-row__name__85.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "kind": "canvas-click-no-select",
+      "detail": "clicking element inside canvas card did not produce selection outline",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:04.023Z",
+      "screenshot": "screenshots/react/color-conformance__canvas-click-no-select__clicking-element-inside-canvas-card-did-__88.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:04.120Z",
+      "screenshot": "screenshots/react/color-conformance__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__89.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "kind": "canvas-resize-no-change",
+      "detail": "card resize handle drag did not resize card (573.75 -> 573.75)",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:04.786Z",
+      "screenshot": "screenshots/react/color-conformance__canvas-resize-no-change__card-resize-handle-drag-did-not-resize-c__90.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "kind": "canvas-duplicate-failed",
+      "detail": "duplicate card: 12 -> 12",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:06.365Z",
+      "screenshot": "screenshots/react/color-conformance__canvas-duplicate-failed__duplicate-card-12---12__91.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:39:16.139Z",
+      "screenshot": "screenshots/react/typography-conformance__overflow-x__code.dt-token-row__name__92.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:39:16.171Z",
+      "screenshot": "screenshots/react/typography-conformance__truncated-ellipsis__code.dt-token-row__name__93.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "kind": "canvas-click-no-select",
+      "detail": "clicking element inside canvas card did not produce selection outline",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:18.661Z",
+      "screenshot": "screenshots/react/typography-conformance__canvas-click-no-select__clicking-element-inside-canvas-card-did-__96.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:18.765Z",
+      "screenshot": "screenshots/react/typography-conformance__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__97.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "kind": "canvas-resize-no-change",
+      "detail": "card resize handle drag did not resize card (573.75 -> 573.75)",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:19.433Z",
+      "screenshot": "screenshots/react/typography-conformance__canvas-resize-no-change__card-resize-handle-drag-did-not-resize-c__98.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "kind": "canvas-duplicate-failed",
+      "detail": "duplicate card: 13 -> 13",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:21.007Z",
+      "screenshot": "screenshots/react/typography-conformance__canvas-duplicate-failed__duplicate-card-13---13__99.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "kind": "overflow-x",
+      "detail": "text overflows horizontally: scrollW=143 clientW=108, text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:39:34.771Z",
+      "screenshot": "screenshots/react/spacing-conformance__overflow-x__code.dt-token-row__name__100.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "kind": "truncated-ellipsis",
+      "detail": "ellipsis truncation active, full text=\"--color-accent-subtle\"",
+      "selector": "code.dt-token-row__name",
+      "phase": "tokens-tab",
+      "selected": null,
+      "ts": "2026-08-24T09:39:34.794Z",
+      "screenshot": "screenshots/react/spacing-conformance__truncated-ellipsis__code.dt-token-row__name__101.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "kind": "canvas-click-no-select",
+      "detail": "clicking element inside canvas card did not produce selection outline",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:37.655Z",
+      "screenshot": "screenshots/react/spacing-conformance__canvas-click-no-select__clicking-element-inside-canvas-card-did-__104.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "kind": "canvas-drag-skipped",
+      "severity": "info",
+      "detail": "no non-button grab point on card toolbar found",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:37.764Z",
+      "screenshot": "screenshots/react/spacing-conformance__canvas-drag-skipped__no-non-button-grab-point-on-card-toolbar__105.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "kind": "canvas-resize-no-change",
+      "detail": "card resize handle drag did not resize card (573.75 -> 573.75)",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:38.412Z",
+      "screenshot": "screenshots/react/spacing-conformance__canvas-resize-no-change__card-resize-handle-drag-did-not-resize-c__106.png"
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "kind": "canvas-duplicate-failed",
+      "detail": "duplicate card: 14 -> 14",
+      "phase": "canvas",
+      "ts": "2026-08-24T09:39:39.996Z",
+      "screenshot": "screenshots/react/spacing-conformance__canvas-duplicate-failed__duplicate-card-14---14__107.png"
+    }
+  ],
+  "consoleMessages": [
+    {
+      "sandbox": "react",
+      "page": "index",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "index",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "playground",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "playground",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "playground",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "playground",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "components",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "component-props",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-hub",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "examples-raw-css",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_CONNECTION_REFUSED"
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "border-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "color-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "typography-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    },
+    {
+      "sandbox": "react",
+      "page": "spacing-conformance",
+      "type": "warning",
+      "text": "An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing."
+    }
+  ],
+  "pageErrors": []
+}

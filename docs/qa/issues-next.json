@@ -1,0 +1,39 @@
+{
+  "generatedAt": "2026-08-24T09:30:23.821Z",
+  "sandbox": "next",
+  "issueCount": 3,
+  "consoleErrorCount": 0,
+  "consoleWarnCount": 0,
+  "pageErrorCount": 0,
+  "issues": [
+    {
+      "sandbox": "next",
+      "page": "home",
+      "kind": "canvas-toggle-missing",
+      "severity": "info",
+      "detail": "canvas mode toggle not found — host adapter does not enable canvas capability (see host bootstrap capabilities.canvas)",
+      "ts": "2026-08-24T09:30:12.151Z",
+      "screenshot": "screenshots/next/home__canvas-toggle-missing__canvas-mode-toggle-not-found-host-adapte__0.png"
+    },
+    {
+      "sandbox": "next",
+      "page": "second",
+      "kind": "canvas-toggle-missing",
+      "severity": "info",
+      "detail": "canvas mode toggle not found — host adapter does not enable canvas capability (see host bootstrap capabilities.canvas)",
+      "ts": "2026-08-24T09:30:17.390Z",
+      "screenshot": "screenshots/next/second__canvas-toggle-missing__canvas-mode-toggle-not-found-host-adapte__1.png"
+    },
+    {
+      "sandbox": "next",
+      "page": "pricing",
+      "kind": "canvas-toggle-missing",
+      "severity": "info",
+      "detail": "canvas mode toggle not found — host adapter does not enable canvas capability (see host bootstrap capabilities.canvas)",
+      "ts": "2026-08-24T09:30:22.886Z",
+      "screenshot": "screenshots/next/pricing__canvas-toggle-missing__canvas-mode-toggle-not-found-host-adapte__2.png"
+    }
+  ],
+  "consoleMessages": [],
+  "pageErrors": []
+}
