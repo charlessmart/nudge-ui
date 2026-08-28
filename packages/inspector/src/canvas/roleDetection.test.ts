@@ -9,7 +9,7 @@ describe("roleDetection", () => {
   });
 
   it("CANVAS_RENDERER_ATTR has the expected value", () => {
-    expect(CANVAS_RENDERER_ATTR).toBe("data-design-tool-canvas-renderer");
+    expect(CANVAS_RENDERER_ATTR).toBe("data-nudge-ui-canvas-renderer");
   });
 
   it("detects controller role in top-level document (no frameElement)", () => {

@@ -1,5 +1,5 @@
 /** Renderer-owned identity that survives DOM reorders for the lifetime of a node. */
-export const RENDERER_ELEMENT_ID_ATTR = "data-dt-renderer-id";
+export const RENDERER_ELEMENT_ID_ATTR = "data-renderer-id";
 
 export interface CidIndex {
   elementId(el: HTMLElement): string;

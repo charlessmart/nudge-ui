@@ -40,7 +40,7 @@ describe("handleElementClick", () => {
     const button = frameDocument.createElement("button");
     button.setAttribute("data-cid", "Button");
     button.setAttribute("data-src", "/src/Button.tsx:32:5");
-    button.setAttribute("data-dt-renderer-id", "r1");
+    button.setAttribute("data-renderer-id", "r1");
     frameDocument.body.appendChild(button);
 
     expect(button instanceof window.HTMLElement).toBe(false);
@@ -75,7 +75,7 @@ describe("handleElementClick", () => {
       const button = frameDocument.createElement("button");
       button.setAttribute("data-cid", "Button");
       button.setAttribute("data-src", "/src/Button.tsx:32:5");
-      button.setAttribute("data-dt-renderer-id", `r${index + 1}`);
+      button.setAttribute("data-renderer-id", `r${index + 1}`);
       frameDocument.body.appendChild(button);
       buttons.push(button);
     }
@@ -92,7 +92,7 @@ describe("handleElementClick", () => {
     const button = frameDocument.createElement("button");
     button.setAttribute("data-cid", "Button");
     button.setAttribute("data-src", "/src/Button.tsx:32:5");
-    button.setAttribute("data-dt-renderer-id", "r1");
+    button.setAttribute("data-renderer-id", "r1");
     frameDocument.body.appendChild(button);
 
     handleElementClick(clickMessage({ elementId: "r2" }), iframe, "card-1");
@@ -107,7 +107,7 @@ describe("handleElementClick", () => {
       const button = frameDocument.createElement("button");
       button.setAttribute("data-cid", "Button");
       button.setAttribute("data-src", src);
-      button.setAttribute("data-dt-renderer-id", "r1");
+      button.setAttribute("data-renderer-id", "r1");
       frameDocument.body.appendChild(button);
     }
 

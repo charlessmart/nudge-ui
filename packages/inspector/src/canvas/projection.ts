@@ -25,6 +25,22 @@ export const WORKSPACE_ID = crypto.randomUUID?.() ?? `ws-${Date.now()}`;
 let revision = 0;
 let lastRulesKey: string | null = null;
 
+interface FrameProjectionState {
+  iframe: HTMLIFrameElement;
+  document: Document | null;
+  sentRevision: number;
+  appliedRevision: number;
+}
+
+export interface CanvasProjectionStatus {
+  sentRevision: number;
+  appliedRevision: number;
+}
+
+const frameProjectionStates = new Map<string, FrameProjectionState>();
+const projectionAcknowledgementListeners = new Set<() => void>();
+let projectionAcknowledgementVersion = 0;
+
 function rulesKey(
   css: string,
   overrides: ReturnType<typeof collectRenderedInstanceOverrides>,
@@ -69,6 +85,12 @@ function getChangesListForProjection() {
 export function resetProjectionRevision(): void {
   revision = 0;
   lastRulesKey = null;
+  for (const state of frameProjectionStates.values()) {
+    state.sentRevision = -1;
+    state.appliedRevision = -1;
+  }
+  projectionAcknowledgementVersion += 1;
+  notifyProjectionAcknowledgementListeners();
 }
 
 export function sendProjectionToCard(
@@ -91,6 +113,7 @@ export function sendProjectionToCard(
     textContentChanges: [...textContentChanges],
     componentOverrides: [...componentOverrides],
   };
+  markProjectionSent(card.id, iframe, rev);
   win.postMessage(msg, window.location.origin);
 }
 
@@ -102,6 +125,16 @@ export function registerCardFrameSource(cardId: string, iframe: HTMLIFrameElemen
 }
 
 export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): void {
+  const frameDocument = getFrameDocument(iframe);
+  const existing = frameProjectionStates.get(cardId);
+  if (!existing || existing.iframe !== iframe || existing.document !== frameDocument) {
+    frameProjectionStates.set(cardId, {
+      iframe,
+      document: frameDocument,
+      sentRevision: -1,
+      appliedRevision: -1,
+    });
+  }
   frameSourceRegistry.set(cardId, iframe);
   frameRegistry.set(cardId, iframe);
   notifyFrameRegistryListeners();
@@ -110,6 +143,7 @@ export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): vo
 export function unregisterCardFrame(cardId: string): void {
   frameSourceRegistry.delete(cardId);
   frameRegistry.delete(cardId);
+  frameProjectionStates.delete(cardId);
   clearCanvasStructuralProjectionReports(cardId);
   clearCanvasRenderedInstanceProjectionReports(cardId);
   clearCanvasTextProjectionReports(cardId);
@@ -138,6 +172,58 @@ export function subscribeFrameRegistry(listener: () => void): () => void {
   };
 }
 
+function getFrameDocument(iframe: HTMLIFrameElement): Document | null {
+  try {
+    return iframe.contentDocument;
+  } catch {
+    return null;
+  }
+}
+
+function markProjectionSent(cardId: string, iframe: HTMLIFrameElement, sentRevision: number): void {
+  const state = frameProjectionStates.get(cardId);
+  if (!state || state.iframe !== iframe) return;
+  state.sentRevision = Math.max(state.sentRevision, sentRevision);
+}
+
+/** Records the highest complete projection revision accepted by one frame. */
+export function recordCanvasProjectionApplied(cardId: string, appliedRevision: number): void {
+  const state = frameProjectionStates.get(cardId);
+  if (!state || appliedRevision > state.sentRevision || appliedRevision <= state.appliedRevision) return;
+  state.appliedRevision = appliedRevision;
+  projectionAcknowledgementVersion += 1;
+  notifyProjectionAcknowledgementListeners();
+}
+
+/** Returns projection progress for the document containing a selected element. */
+export function getCanvasProjectionStatus(doc: Document): CanvasProjectionStatus | null {
+  for (const state of frameProjectionStates.values()) {
+    if (state.document !== doc) continue;
+    return {
+      sentRevision: state.sentRevision,
+      appliedRevision: state.appliedRevision,
+    };
+  }
+  return null;
+}
+
+export function subscribeCanvasProjectionAcknowledgements(listener: () => void): () => void {
+  projectionAcknowledgementListeners.add(listener);
+  return () => {
+    projectionAcknowledgementListeners.delete(listener);
+  };
+}
+
+export function getCanvasProjectionAcknowledgementVersion(): number {
+  return projectionAcknowledgementVersion;
+}
+
+function notifyProjectionAcknowledgementListeners(): void {
+  for (const listener of projectionAcknowledgementListeners) {
+    try { listener(); } catch { /* ignore */ }
+  }
+}
+
 function notifyFrameRegistryListeners(): void {
   for (const listener of frameRegistryListeners) {
     try { listener(); } catch { /* ignore */ }
@@ -163,6 +249,7 @@ export function projectToAllReadyCards(): void {
       textContentChanges: [...textContentChanges],
       componentOverrides: [...componentOverrides],
     };
+    markProjectionSent(cardId, iframe, rev);
     win.postMessage(msg, window.location.origin);
   }
 }

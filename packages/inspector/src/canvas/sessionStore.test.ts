@@ -28,7 +28,7 @@ import {
   removeCanvasCard as removeCanvasCardStore,
   setBoardCamera,
 } from "./canvasStore.ts";
-import { designToolProjectId } from "virtual:design-tokens";
+import { nudgeUiProjectId } from "virtual:design-tokens";
 import {
   createStructuralDelete,
   createStructuralMove,
@@ -36,7 +36,7 @@ import {
   getStructuralChanges,
   resetStructuralDeleteProjection,
 } from "../structuralProjection.ts";
-import { configureDesignToolRuntime, getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
 function localUrl(path: string): string {
   return new URL(path, window.location.href).href;
@@ -115,12 +115,12 @@ function resetAllState(): void {
   }
   setBoardCamera({ x: 0, y: 0, zoom: 1 });
   try {
-    localStorage.removeItem(storageKey(designToolProjectId));
-    localStorage.removeItem(`design-tool:${designToolProjectId}:v3`);
-    localStorage.removeItem(`design-tool:${designToolProjectId}:v4`);
-    localStorage.removeItem(`design-tool:${designToolProjectId}:v5`);
-    localStorage.removeItem(`design-tool:${designToolProjectId}:v6`);
-    localStorage.removeItem(`design-tool:${designToolProjectId}:v7`);
+    localStorage.removeItem(storageKey(nudgeUiProjectId));
+    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v3`);
+    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v4`);
+    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v5`);
+    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v6`);
+    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v7`);
   } catch {
     // ignore
   }
@@ -136,20 +136,20 @@ describe("sessionStore persistence", () => {
     appendChange(makeElementChange());
     persistSession();
 
-    const raw = localStorage.getItem(storageKey(designToolProjectId));
+    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!);
     expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(parsed.projectId).toBe(designToolProjectId);
+    expect(parsed.projectId).toBe(nudgeUiProjectId);
     expect(parsed.changes).toHaveLength(1);
     expect(parsed.changes[0].selector).toBe('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
   });
 
   it("namespaces persistence with the configured standalone project identity", () => {
-    const previousConfig = getDesignToolRuntimeConfig();
+    const previousConfig = getNudgeUiRuntimeConfig();
     const standaloneProjectId = "static-html:standalone-fixture";
     try {
-      configureDesignToolRuntime({
+      configureNudgeUiRuntime({
         ...previousConfig,
         projectId: standaloneProjectId,
         host: "static-html",
@@ -163,18 +163,18 @@ describe("sessionStore persistence", () => {
       expect(localStorage.getItem(storageKey(standaloneProjectId))).toContain(
         `"projectId":"${standaloneProjectId}"`,
       );
-      expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+      expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
     } finally {
       localStorage.removeItem(storageKey(standaloneProjectId));
-      configureDesignToolRuntime(previousConfig);
+      configureNudgeUiRuntime(previousConfig);
     }
   });
 
   it("namespaces persistence with the configured nextjs project identity", () => {
-    const previousConfig = getDesignToolRuntimeConfig();
+    const previousConfig = getNudgeUiRuntimeConfig();
     const nextProjectId = "nextjs:9f2ab4c1";
     try {
-      configureDesignToolRuntime({
+      configureNudgeUiRuntime({
         ...previousConfig,
         projectId: nextProjectId,
         host: "nextjs-react",
@@ -189,10 +189,10 @@ describe("sessionStore persistence", () => {
         `"projectId":"${nextProjectId}"`,
       );
       // A Next.js session must neither read nor clobber Vite-host entries.
-      expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+      expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
     } finally {
       localStorage.removeItem(storageKey(nextProjectId));
-      configureDesignToolRuntime(previousConfig);
+      configureNudgeUiRuntime(previousConfig);
     }
   });
 
@@ -209,7 +209,7 @@ describe("sessionStore persistence", () => {
     }));
     persistSession();
 
-    const raw = localStorage.getItem(storageKey(designToolProjectId));
+    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!);
     expect(parsed.changes).toHaveLength(1);
@@ -229,7 +229,7 @@ describe("sessionStore persistence", () => {
 
     appendChange(makeTextChange());
     persistSession();
-    const parsed = JSON.parse(localStorage.getItem(storageKey(designToolProjectId))!);
+    const parsed = JSON.parse(localStorage.getItem(storageKey(nudgeUiProjectId))!);
     expect(parsed.schemaVersion).toBe(SCHEMA_VERSION);
     expect(parsed.changes[0]).toMatchObject({
       kind: "text-content",
@@ -265,7 +265,7 @@ describe("sessionStore persistence", () => {
       },
     }));
     persistSession();
-    const parsed = JSON.parse(localStorage.getItem(storageKey(designToolProjectId))!);
+    const parsed = JSON.parse(localStorage.getItem(storageKey(nudgeUiProjectId))!);
     expect(parsed.changes[0].target.textNodePath).toEqual([1, 0]);
 
     clearChanges();
@@ -295,7 +295,7 @@ describe("sessionStore persistence", () => {
     expect(json).toContain('"structuralChanges"');
     expect(json).toContain('"kind":"delete"');
     expect(json).toContain('"kind":"move"');
-    expect(json).not.toContain("design-tool-deleted");
+    expect(json).not.toContain("nudge-ui-deleted");
     expect(json).not.toContain("placeholder");
     expect(json).not.toContain("elementId");
   });
@@ -304,7 +304,7 @@ describe("sessionStore persistence", () => {
     appendChange(makeTokenChange());
     persistSession();
 
-    const raw = localStorage.getItem(storageKey(designToolProjectId));
+    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
     const parsed = JSON.parse(raw!);
     expect(parsed.changes).toHaveLength(1);
     expect(parsed.changes[0].kind).toBe("token");
@@ -326,7 +326,7 @@ describe("sessionStore persistence", () => {
     setBoardCamera({ x: 100, y: 200, zoom: 2 });
     persistSession();
 
-    const raw = localStorage.getItem(storageKey(designToolProjectId));
+    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
     const parsed = JSON.parse(raw!);
     expect(parsed.mode).toBe("canvas");
     expect(parsed.cards).toHaveLength(1);
@@ -341,7 +341,7 @@ describe("sessionStore persistence", () => {
     setCanvasMode("inspect");
     persistSession();
 
-    const raw = localStorage.getItem(storageKey(designToolProjectId));
+    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
     const parsed = JSON.parse(raw!);
     expect(parsed.mode).toBe("inspect");
     expect(parsed.inspectUrl).toBe(window.location.href);
@@ -404,8 +404,8 @@ describe("sessionStore hydration", () => {
     };
     legacy.schemaVersion = 5;
     delete legacy.structuralChanges[0]!.presentation;
-    localStorage.setItem(`design-tool:${designToolProjectId}:v5`, JSON.stringify(legacy));
-    localStorage.removeItem(storageKey(designToolProjectId));
+    localStorage.setItem(`nudge-ui:${nudgeUiProjectId}:v5`, JSON.stringify(legacy));
+    localStorage.removeItem(storageKey(nudgeUiProjectId));
 
     resetStructuralDeleteProjection();
     const result = hydrateSession();
@@ -416,8 +416,8 @@ describe("sessionStore hydration", () => {
       presentation: { parentTag: "section", fromIndex: 1, toIndex: 0 },
     }]);
     expect(Array.from(parent.children).map((element) => element.textContent)).toEqual(["Second", "First"]);
-    expect(localStorage.getItem(`design-tool:${designToolProjectId}:v5`)).toBeNull();
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toContain(`"schemaVersion":${SCHEMA_VERSION}`);
+    expect(localStorage.getItem(`nudge-ui:${nudgeUiProjectId}:v5`)).toBeNull();
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toContain(`"schemaVersion":${SCHEMA_VERSION}`);
   });
 
   it("keeps v6 structural changes while migrating a v7 text session", () => {
@@ -430,8 +430,8 @@ describe("sessionStore hydration", () => {
     appendChange(makeTextChange());
     const legacy = JSON.parse(JSON.stringify(serializeSession())) as Record<string, unknown>;
     legacy.schemaVersion = 7;
-    localStorage.setItem(`design-tool:${designToolProjectId}:v7`, JSON.stringify(legacy));
-    localStorage.removeItem(storageKey(designToolProjectId));
+    localStorage.setItem(`nudge-ui:${nudgeUiProjectId}:v7`, JSON.stringify(legacy));
+    localStorage.removeItem(storageKey(nudgeUiProjectId));
 
     resetStructuralDeleteProjection();
     document.body.replaceChildren(target);
@@ -442,14 +442,14 @@ describe("sessionStore hydration", () => {
     expect(getStructuralChanges()).toMatchObject([{ id: "delete-v7", kind: "delete" }]);
     expect(getChangesList()).toMatchObject([{ kind: "text-content", id: "text-1" }]);
     expect(target.isConnected).toBe(false);
-    expect(localStorage.getItem(`design-tool:${designToolProjectId}:v7`)).toBeNull();
+    expect(localStorage.getItem(`nudge-ui:${nudgeUiProjectId}:v7`)).toBeNull();
   });
 
   it.each([3, 4, 5, 6])("reads v%i durable CSS, drops legacy runtime records, and upgrades safely", (legacyVersion) => {
-    const legacyKey = `design-tool:${designToolProjectId}:v${legacyVersion}`;
+    const legacyKey = `nudge-ui:${nudgeUiProjectId}:v${legacyVersion}`;
     localStorage.setItem(legacyKey, JSON.stringify({
       schemaVersion: legacyVersion,
-      projectId: designToolProjectId,
+      projectId: nudgeUiProjectId,
       mode: "inspect",
       inspectUrl: window.location.href,
       cards: [],
@@ -459,7 +459,7 @@ describe("sessionStore hydration", () => {
         {
           ...makeElementChange({ rawValue: "blue", oldToken: null, newToken: null }),
           scope: "runtime-preview",
-          elementId: "dt-instance-1",
+          elementId: "instance-1",
         },
       ],
       structuralChanges: [],
@@ -470,13 +470,13 @@ describe("sessionStore hydration", () => {
     expect(result).toMatchObject({ restored: true, changeCount: 1 });
     expect(getChangesList()).toHaveLength(1);
     expect(localStorage.getItem(legacyKey)).toBeNull();
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toContain(`"schemaVersion":${SCHEMA_VERSION}`);
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toContain(`"schemaVersion":${SCHEMA_VERSION}`);
   });
 
   it("rejects structural payloads with generated marker or document-local fields", () => {
-    localStorage.setItem(storageKey(designToolProjectId), JSON.stringify({
+    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify({
       schemaVersion: SCHEMA_VERSION,
-      projectId: designToolProjectId,
+      projectId: nudgeUiProjectId,
       mode: "inspect",
       inspectUrl: window.location.href,
       cards: [],
@@ -489,12 +489,12 @@ describe("sessionStore hydration", () => {
           sourceSite: { cid: "Item", src: "src/List.tsx:8:1" },
           locator: { kind: "evidence", occurrence: 0, props: null, text: "Second" },
         },
-        marker: "data-dt-projection-instance",
+        marker: "data-projection-instance",
       }],
     }));
 
     expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
   it("hydration creates no undo entries (loadChanges clears undo stack)", () => {
@@ -547,22 +547,22 @@ describe("sessionStore hydration", () => {
   });
 
   it("returns no restoration for malformed JSON", () => {
-    localStorage.setItem(storageKey(designToolProjectId), "not-valid-json{{");
+    localStorage.setItem(storageKey(nudgeUiProjectId), "not-valid-json{{");
     const result = hydrateSession();
     expect(result.restored).toBe(false);
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
   it("returns no restoration for wrong schema version", () => {
     const session = JSON.stringify({
       schemaVersion: 999,
-      projectId: designToolProjectId,
+      projectId: nudgeUiProjectId,
       mode: "inspect",
       cards: [],
       camera: { x: 0, y: 0, zoom: 1 },
       changes: [],
     });
-    localStorage.setItem(storageKey(designToolProjectId), session);
+    localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
     expect(result.restored).toBe(false);
   });
@@ -576,7 +576,7 @@ describe("sessionStore hydration", () => {
       camera: { x: 0, y: 0, zoom: 1 },
       changes: [],
     });
-    localStorage.setItem(storageKey(designToolProjectId), session);
+    localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
     expect(result.restored).toBe(false);
   });
@@ -584,13 +584,13 @@ describe("sessionStore hydration", () => {
   it("returns no restoration for unknown mode", () => {
     const session = JSON.stringify({
       schemaVersion: SCHEMA_VERSION,
-      projectId: designToolProjectId,
+      projectId: nudgeUiProjectId,
       mode: "unknown",
       cards: [],
       camera: { x: 0, y: 0, zoom: 1 },
       changes: [],
     });
-    localStorage.setItem(storageKey(designToolProjectId), session);
+    localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
     expect(result.restored).toBe(false);
   });
@@ -598,13 +598,13 @@ describe("sessionStore hydration", () => {
   it("returns no restoration for malformed card data", () => {
     const session = JSON.stringify({
       schemaVersion: SCHEMA_VERSION,
-      projectId: designToolProjectId,
+      projectId: nudgeUiProjectId,
       mode: "canvas",
       cards: [{ id: 123, url: null }],
       camera: { x: 0, y: 0, zoom: 1 },
       changes: [],
     });
-    localStorage.setItem(storageKey(designToolProjectId), session);
+    localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
     expect(result.restored).toBe(false);
   });
@@ -612,13 +612,13 @@ describe("sessionStore hydration", () => {
   it("returns no restoration for malformed change data (missing selector)", () => {
     const session = JSON.stringify({
       schemaVersion: SCHEMA_VERSION,
-      projectId: designToolProjectId,
+      projectId: nudgeUiProjectId,
       mode: "inspect",
       cards: [],
       camera: { x: 0, y: 0, zoom: 1 },
       changes: [{ property: "color", source: { file: "x", line: 1, component: "X" } }],
     });
-    localStorage.setItem(storageKey(designToolProjectId), session);
+    localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
     expect(result.restored).toBe(false);
   });
@@ -629,10 +629,10 @@ describe("sessionStore hydration", () => {
       makeTextChange(),
       makeTextChange({ id: "text-1", after: "Second" }),
     ];
-    localStorage.setItem(storageKey(designToolProjectId), JSON.stringify(session));
+    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
 
     expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
   it("rejects a restored repeated expression source-site override", () => {
@@ -648,35 +648,35 @@ describe("sessionStore hydration", () => {
       beforeText: "primary",
       mountedCount: 2,
     };
-    localStorage.setItem(storageKey(designToolProjectId), JSON.stringify(session));
+    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
 
     expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
   it.each(["marker", "projectionMarker", "scope"])("rejects malformed text records with legacy %s fields", (field) => {
     const session = serializeSession();
     const malformed = {
       ...makeTextChange(),
-      [field]: field === "scope" ? "runtime-preview" : "data-dt-projection-text",
+      [field]: field === "scope" ? "runtime-preview" : "data-projection-text",
     };
     session.changes = [malformed as typeof session.changes[number]];
-    localStorage.setItem(storageKey(designToolProjectId), JSON.stringify(session));
+    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
 
     expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
   it("returns no restoration for bad camera data", () => {
     const session = JSON.stringify({
       schemaVersion: SCHEMA_VERSION,
-      projectId: designToolProjectId,
+      projectId: nudgeUiProjectId,
       mode: "inspect",
       cards: [],
       camera: { x: "not-a-number", y: 0, zoom: 1 },
       changes: [],
     });
-    localStorage.setItem(storageKey(designToolProjectId), session);
+    localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
     expect(result.restored).toBe(false);
   });
@@ -704,10 +704,10 @@ describe("sessionStore clear session", () => {
   it("removes localStorage entry", () => {
     appendChange(makeElementChange());
     persistSession();
-    expect(localStorage.getItem(storageKey(designToolProjectId))).not.toBeNull();
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).not.toBeNull();
 
     clearSession();
-    expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
   it("clears all changes from the log", () => {
@@ -787,9 +787,9 @@ describe("sessionStore auto-save", () => {
 
       // The write is coalesced behind a trailing timer so commits never block
       // on serialization; it must land once the debounce window elapses.
-      expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+      expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
       vi.advanceTimersByTime(600);
-      expect(localStorage.getItem(storageKey(designToolProjectId))).not.toBeNull();
+      expect(localStorage.getItem(storageKey(nudgeUiProjectId))).not.toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -800,7 +800,7 @@ describe("sessionStore auto-save", () => {
     appendChange(makeElementChange());
     scheduleAutoSave();
 
-    const raw = localStorage.getItem(storageKey(designToolProjectId));
+    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
     expect(raw).toBeNull();
   });
 
@@ -811,9 +811,9 @@ describe("sessionStore auto-save", () => {
       appendChange(makeElementChange());
       scheduleAutoSave();
 
-      expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+      expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
       window.dispatchEvent(new Event("beforeunload"));
-      expect(localStorage.getItem(storageKey(designToolProjectId))).not.toBeNull();
+      expect(localStorage.getItem(storageKey(nudgeUiProjectId))).not.toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -828,10 +828,10 @@ describe("sessionStore auto-save", () => {
       vi.advanceTimersByTime(600);
 
       const externalSession = JSON.stringify({ source: "another-tab" });
-      localStorage.setItem(storageKey(designToolProjectId), externalSession);
+      localStorage.setItem(storageKey(nudgeUiProjectId), externalSession);
       window.dispatchEvent(new Event("beforeunload"));
 
-      expect(localStorage.getItem(storageKey(designToolProjectId))).toBe(externalSession);
+      expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBe(externalSession);
     } finally {
       vi.useRealTimers();
     }
@@ -846,7 +846,7 @@ describe("sessionStore auto-save", () => {
       clearSession();
       vi.advanceTimersByTime(600);
 
-      expect(localStorage.getItem(storageKey(designToolProjectId))).toBeNull();
+      expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -879,12 +879,12 @@ describe("sessionStore round trip", () => {
 
   it("full round-trip preserves standalone source columns and runtime evidence", () => {
     appendChange(makeElementChange({
-      cid: "design-tool-runtime-1",
+      cid: "nudge-ui-runtime-1",
       file: "",
       line: 0,
       column: 0,
-      selector: '[data-cid="design-tool-runtime-1"][data-src="design-tool:unknown:1"]',
-      source: { file: "", line: 0, component: "design-tool-runtime-1" },
+      selector: '[data-cid="nudge-ui-runtime-1"][data-src="nudge-ui:unknown:1"]',
+      source: { file: "", line: 0, component: "nudge-ui-runtime-1" },
       runtimeEvidence: {
         tagName: "button",
         text: "Save",
@@ -971,7 +971,7 @@ describe("sessionStore exclusions", () => {
     appendChange(makeElementChange({ property: "color", rawValue: "red" }));
     persistSession();
 
-    const raw = localStorage.getItem(storageKey(designToolProjectId));
+    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
     const parsed = JSON.parse(raw!);
     expect(parsed.undoStack).toBeUndefined();
     expect(parsed.redoStack).toBeUndefined();
@@ -981,7 +981,7 @@ describe("sessionStore exclusions", () => {
     appendChange(makeElementChange());
     persistSession();
 
-    const raw = localStorage.getItem(storageKey(designToolProjectId));
+    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
     const parsed = JSON.parse(raw!);
     expect(parsed.selection).toBeUndefined();
     expect(parsed.selectedElement).toBeUndefined();
@@ -997,7 +997,7 @@ describe("sessionStore exclusions", () => {
     }));
     persistSession();
 
-    const raw = localStorage.getItem(storageKey(designToolProjectId));
+    const raw = localStorage.getItem(storageKey(nudgeUiProjectId));
     expect(raw).not.toContain("previewResult");
     expect(raw).not.toContain("computedValue");
   });

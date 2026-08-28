@@ -1,4 +1,4 @@
-.dt-canvas-element-overlay {
+.canvas-element-overlay {
   position: fixed;
   pointer-events: none;
   z-index: 3;
@@ -7,7 +7,7 @@
   outline-offset: -1px;
 }
 
-.dt-canvas-selected-outline {
+.canvas-selected-outline {
   position: fixed;
   pointer-events: none;
   z-index: 3;
@@ -15,14 +15,14 @@
   outline-offset: -2px;
 }
 
-.dt-canvas-hover-margin-fill {
+.canvas-hover-margin-fill {
   position: fixed;
   pointer-events: none;
   z-index: 2;
   background: rgb(59 130 246 / 14%);
 }
 
-.dt-canvas-hover-margin {
+.canvas-hover-margin {
   position: fixed;
   pointer-events: none;
   z-index: 2;
@@ -32,23 +32,23 @@
   opacity: 0.72;
 }
 
-.dt-canvas-hover-margin[data-axis="horizontal"] {
+.canvas-hover-margin[data-axis="horizontal"] {
   border-top-width: 1px;
 }
 
-.dt-canvas-hover-margin[data-axis="vertical"] {
+.canvas-hover-margin[data-axis="vertical"] {
   border-left-width: 1px;
 }
 
-.dt-canvas-dom-drop-line {
+.canvas-dom-drop-line {
   z-index: 2147483647;
   border-radius: 999px;
   background: #3b82f6;
   box-shadow: 0 0 0 1px rgb(255 255 255 / 95%), 0 1px 5px rgb(37 99 235 / 72%);
 }
 
-.dt-canvas-dom-drop-line::before,
-.dt-canvas-dom-drop-line::after {
+.canvas-dom-drop-line::before,
+.canvas-dom-drop-line::after {
   position: absolute;
   top: 50%;
   width: 8px;
@@ -60,20 +60,20 @@
   transform: translateY(-50%);
 }
 
-.dt-canvas-dom-drop-line::before { left: -3px; }
-.dt-canvas-dom-drop-line::after { right: -3px; }
+.canvas-dom-drop-line::before { left: -3px; }
+.canvas-dom-drop-line::after { right: -3px; }
 
-.dt-canvas-dom-drop-line[data-orientation="vertical"]::before,
-.dt-canvas-dom-drop-line[data-orientation="vertical"]::after {
+.canvas-dom-drop-line[data-orientation="vertical"]::before,
+.canvas-dom-drop-line[data-orientation="vertical"]::after {
   left: 50%;
   right: auto;
   transform: translateX(-50%);
 }
 
-.dt-canvas-dom-drop-line[data-orientation="vertical"]::before { top: -3px; }
-.dt-canvas-dom-drop-line[data-orientation="vertical"]::after { top: auto; bottom: -3px; }
+.canvas-dom-drop-line[data-orientation="vertical"]::before { top: -3px; }
+.canvas-dom-drop-line[data-orientation="vertical"]::after { top: auto; bottom: -3px; }
 
-.dt-canvas-dom-drop-target {
+.canvas-dom-drop-target {
   z-index: 2147483646;
   box-sizing: border-box;
   border: 1px solid rgb(59 130 246 / 72%);

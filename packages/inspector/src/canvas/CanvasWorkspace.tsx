@@ -27,12 +27,14 @@ import {
   getRegisteredFrames,
   PROJECT_ID,
   projectToAllReadyCards,
+  recordCanvasProjectionApplied,
   WORKSPACE_ID,
 } from "./projection.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
 import {
   PROTOCOL_VERSION,
   isRendererMessageFor,
+  isProjectionAppliedMessage,
   isRenderedInstanceProjectionReportMessage,
   isTextProjectionReportMessage,
   isStructuralProjectionReportMessage,
@@ -149,6 +151,10 @@ export function CanvasWorkspace(): ReactElement | null {
         workspaceId: WORKSPACE_ID,
         cardId: frame.cardId,
       };
+      if (isProjectionAppliedMessage(event.data, identity)) {
+        recordCanvasProjectionApplied(frame.cardId, event.data.revision);
+        return;
+      }
       if (isStructuralProjectionReportMessage(event.data, identity)) {
         recordCanvasStructuralProjectionReports(frame.cardId, event.data.revision, event.data.reports);
         return;
@@ -340,18 +346,18 @@ export function CanvasWorkspace(): ReactElement | null {
     <>
       <style data-test="canvas-styles">{WORKSPACE_STYLES}</style>
       <div
-        className="dt-canvas-workspace"
+        className="canvas-workspace"
         data-test="canvas-workspace"
         style={{ right: inspectorOpen ? "min(320px, 100vw)" : 0 }}
       >
         <div
-          className={`dt-canvas-workspace__board ${boardCursorClass}`.trim()}
+          className={`canvas-workspace__board ${boardCursorClass}`.trim()}
           data-test="canvas-board"
           ref={boardRef}
           onPointerDown={handleBoardPointerDown}
         >
           <div
-            className="dt-canvas-workspace__board-content"
+            className="canvas-workspace__board-content"
             style={{
               transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`,
               transformOrigin: "0 0",

@@ -1,8 +1,8 @@
-export const CANVAS_RENDERER_ATTR = "data-design-tool-canvas-renderer";
+export const CANVAS_RENDERER_ATTR = "data-nudge-ui-canvas-renderer";
 
-export type DesignToolRole = "controller" | "renderer";
+export type NudgeUiRole = "controller" | "renderer";
 
-export function detectRole(): DesignToolRole {
+export function detectRole(): NudgeUiRole {
   try {
     const frameEl = window.frameElement;
     if (!frameEl) return "controller";

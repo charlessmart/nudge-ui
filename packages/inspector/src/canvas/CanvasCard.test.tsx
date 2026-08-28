@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { createElement } from "react";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { PROTOCOL_VERSION } from "./frameProtocol.ts";
-import { configureDesignToolRuntime } from "../runtimeConfig.ts";
+import { configureNudgeUiRuntime } from "../runtimeConfig.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -22,7 +22,7 @@ describe("CanvasCard renderer handshake", () => {
   let contentWindow: { postMessage: (msg: unknown, origin: string) => void };
 
   beforeEach(() => {
-    configureDesignToolRuntime({
+    configureNudgeUiRuntime({
       projectId: "test-project",
       host: "vite-react",
       framework: "React",

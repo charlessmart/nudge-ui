@@ -22,12 +22,12 @@ export function LockedWorkspaceNotice({ onTakeover }: LockedWorkspaceNoticeProps
   return (
     <>
       <style data-test="locked-workspace-styles">{`${UI_STYLES}\n${lockedWorkspaceStyles}`}</style>
-      <aside className="dt-locked-notice" data-test="locked-workspace-notice" aria-live="polite">
-        <div className="dt-locked-notice__message">
-          Design Tool is open in another tab
+      <aside className="locked-notice" data-test="locked-workspace-notice" aria-live="polite">
+        <div className="locked-notice__message">
+          Nudge UI is open in another tab
         </div>
-        <div className="dt-locked-notice__detail">
-          Another workspace is active. Design Tool writes are disabled in this tab to protect it from conflicting edits.
+        <div className="locked-notice__detail">
+          Another workspace is active. Nudge UI writes are disabled in this tab to protect it from conflicting edits.
           {owner ? ` Active workspace: ${owner.ownerId.slice(0, 8)}...` : ""}
         </div>
         <Button

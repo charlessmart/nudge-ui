@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PROTOCOL_VERSION,
+  isProjectionAppliedMessage,
   isRenderedInstanceProjectionReportMessage,
   isRendererMessageFor,
   isStructuralProjectionReportMessage,
@@ -115,5 +116,28 @@ describe("rendered-text projection report schema", () => {
     { cardId: "card-b" },
   ])("rejects malformed or wrong-card text diagnostics: %o", (override) => {
     expect(isTextProjectionReportMessage({ ...message, ...override }, identity)).toBe(false);
+  });
+});
+
+describe("projection acknowledgement schema", () => {
+  const message = {
+    type: "projection-applied",
+    protocolVersion: PROTOCOL_VERSION,
+    revision: 4,
+    ...identity,
+  };
+
+  it("accepts a versioned acknowledgement for the matching card", () => {
+    expect(isProjectionAppliedMessage(message, identity)).toBe(true);
+  });
+
+  it.each([
+    { revision: -1 },
+    { revision: 1.5 },
+    { revision: Number.MAX_SAFE_INTEGER + 1 },
+    { localId: "forbidden" },
+    { cardId: "card-b" },
+  ])("rejects malformed or wrong-card acknowledgements: %o", (override) => {
+    expect(isProjectionAppliedMessage({ ...message, ...override }, identity)).toBe(false);
   });
 });

@@ -2,11 +2,11 @@ import { isDocumentProjectionReport } from "../renderedInstance.ts";
 import { isTextProjectionReport } from "../textProjection.ts";
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 
-// v11 adds the renderer-hello handshake solicitation: a renderer whose
-// runtime boots asynchronously (dynamic import plus manifest fetch under
-// Turbopack) can miss the single load-time parent-ready, so it asks the
-// controller to (re)send its identity once its own listeners are live.
-export const PROTOCOL_VERSION = 11;
+// v12 adds the projection-applied acknowledgement: the controller can avoid
+// rereading a Canvas iframe until the renderer has applied its revision. v11
+// added the renderer-hello handshake solicitation for runtimes whose boot
+// completes after the controller's load-time parent-ready.
+export const PROTOCOL_VERSION = 12;
 
 export interface FrameMessage {
   type: string;
@@ -70,6 +70,12 @@ export interface ReplaceStylesMessage extends FrameMessage {
   textContentChanges: import("../changes/types.ts").TextContentChangeRecord[];
   /** Controller-owned semantic component overrides for Canvas runtimes. */
   componentOverrides: ComponentOverride[];
+}
+
+/** Renderer acknowledgement that one complete controller snapshot is applied. */
+export interface ProjectionAppliedMessage extends RendererMessage {
+  type: "projection-applied";
+  revision: number;
 }
 
 /**
@@ -208,6 +214,7 @@ export type FrameProtocolMessage =
   | FrameMetadataMessage
   | FrameLoadError
   | ReplaceStylesMessage
+  | ProjectionAppliedMessage
   | StructuralProjectionReportMessage
   | RenderedInstanceProjectionReportMessage
   | TextProjectionReportMessage
@@ -300,6 +307,23 @@ export function isTextProjectionReportMessage(
     && typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 0
     && Array.isArray(reports)
     && reports.every(isTextProjectionReport);
+}
+
+/** Strict JSON-only acknowledgement for a fully applied Canvas snapshot. */
+export function isProjectionAppliedMessage(
+  value: unknown,
+  identity: FrameIdentity,
+): value is ProjectionAppliedMessage {
+  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
+  if (!hasOnlyKeys(value, [
+    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "revision",
+  ])) return false;
+  const type = ownValue(value, "type");
+  const revision = ownValue(value, "revision");
+  return type === "projection-applied"
+    && typeof revision === "number"
+    && Number.isSafeInteger(revision)
+    && revision >= 0;
 }
 
 export function isComponentOverrideList(value: unknown): value is ComponentOverride[] {

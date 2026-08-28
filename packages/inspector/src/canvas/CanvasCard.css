@@ -1,69 +1,69 @@
-.dt-canvas-card {
+.canvas-card {
   position: relative;
 }
 
-.dt-canvas-card__frame {
+.canvas-card__frame {
   position: relative;
   width: 100%;
   height: 100%;
-  background: var(--dt-surface-panel);
-  border-radius: var(--dt-radius-control);
+  background: var(--surface-panel);
+  border-radius: var(--radius-control);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
 
-.dt-canvas-card.is-selected .dt-canvas-card__frame {
-  box-shadow: 0 0 0 2px var(--dt-accent), 0 4px 20px rgba(0, 0, 0, 0.08);
+.canvas-card.is-selected .canvas-card__frame {
+  box-shadow: 0 0 0 2px var(--accent), 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
-.dt-canvas-card.is-focused .dt-canvas-card__frame {
-  animation: dt-canvas-card-focus 900ms ease-out;
+.canvas-card.is-focused .canvas-card__frame {
+  animation: canvas-card-focus 900ms ease-out;
 }
 
-@keyframes dt-canvas-card-focus {
-  0%, 35% { box-shadow: 0 0 0 3px var(--dt-accent), 0 4px 20px rgba(0, 0, 0, 0.08); }
+@keyframes canvas-card-focus {
+  0%, 35% { box-shadow: 0 0 0 3px var(--accent), 0 4px 20px rgba(0, 0, 0, 0.08); }
   100% { box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); }
 }
 
-.dt-canvas-card__toolbar {
+.canvas-card__toolbar {
   display: flex;
   align-items: center;
   position: absolute;
   right: 0;
-  bottom: calc(100% + var(--dt-space-8));
+  bottom: calc(100% + var(--space-8));
   z-index: 1;
   cursor: grab;
 }
 
-.dt-canvas-card.is-dragging .dt-canvas-card__toolbar {
+.canvas-card.is-dragging .canvas-card__toolbar {
   cursor: grabbing;
 }
 
-.dt-canvas-card__actions {
+.canvas-card__actions {
   display: flex;
   align-items: center;
-  gap: var(--dt-space-4);
+  gap: var(--space-4);
   flex-shrink: 0;
 }
 
-.dt-canvas-card__iframe {
+.canvas-card__iframe {
   width: 100%;
   height: 100%;
   border: none;
   display: block;
 }
 
-.dt-canvas-card__loading {
+.canvas-card__loading {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--dt-text-muted, #777777);
+  color: var(--text-muted, #777777);
   font-size: 12px;
   font-weight: 500;
 }
 
-.dt-canvas-card__error {
+.canvas-card__error {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -74,19 +74,19 @@
   text-align: center;
 }
 
-.dt-canvas-card__error p {
+.canvas-card__error p {
   margin: 0;
-  color: var(--dt-text-muted, #777777);
+  color: var(--text-muted, #777777);
   font-size: 12px;
   font-weight: 500;
 }
 
-.dt-canvas-card__error-actions {
+.canvas-card__error-actions {
   display: flex;
   gap: 8px;
 }
 
-.dt-canvas-card__resize-handle {
+.canvas-card__resize-handle {
   position: absolute;
   bottom: 0;
   right: 0;
@@ -97,23 +97,23 @@
   justify-content: flex-end;
   padding: 4px;
   cursor: nwse-resize;
-  color: var(--dt-text-muted, #777777);
+  color: var(--text-muted, #777777);
   opacity: 0;
   transition: opacity 150ms ease;
   touch-action: none;
 }
 
-.dt-canvas-card:hover .dt-canvas-card__resize-handle,
-.dt-canvas-card:focus-within .dt-canvas-card__resize-handle {
+.canvas-card:hover .canvas-card__resize-handle,
+.canvas-card:focus-within .canvas-card__resize-handle {
   opacity: 1;
 }
 
-.dt-canvas-card__resize-handle:hover {
-  color: var(--dt-accent, #00b0ff);
+.canvas-card__resize-handle:hover {
+  color: var(--accent, #00b0ff);
 }
 
-.dt-canvas-card__resize-handle:focus-visible {
-  outline: 2px solid var(--dt-focus, #00b0ff);
+.canvas-card__resize-handle:focus-visible {
+  outline: 2px solid var(--focus, #00b0ff);
   outline-offset: 1px;
   opacity: 1;
 }

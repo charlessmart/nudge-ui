@@ -1,4 +1,4 @@
-.dt-canvas-workspace {
+.canvas-workspace {
   position: fixed;
   inset: 0;
   display: flex;
@@ -7,30 +7,30 @@
   pointer-events: auto;
 }
 
-.dt-canvas-workspace__board {
+.canvas-workspace__board {
   flex: 1;
   overflow: hidden;
   position: relative;
   background: #e8e8ed;
 }
 
-.dt-canvas-workspace__board.is-grabbable {
+.canvas-workspace__board.is-grabbable {
   cursor: grab;
 }
 
-.dt-canvas-workspace__board.is-grabbing {
+.canvas-workspace__board.is-grabbing {
   cursor: grabbing;
 }
 
 /* Canvas gestures take precedence over every card interaction while Space is
    held. This also closes the short postMessage gap before an iframe receives
    its mirrored modifier state. */
-.dt-canvas-workspace__board.is-grabbable .dt-canvas-card,
-.dt-canvas-workspace__board.is-grabbing .dt-canvas-card {
+.canvas-workspace__board.is-grabbable .canvas-card,
+.canvas-workspace__board.is-grabbing .canvas-card {
   pointer-events: none;
 }
 
-.dt-canvas-workspace__board-content {
+.canvas-workspace__board-content {
   position: absolute;
   will-change: transform;
 }

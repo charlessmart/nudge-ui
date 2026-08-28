@@ -14,7 +14,7 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
   if (change.previewResult === undefined) {
     if (isVerificationPending()) {
       return (
-        <span className="dt-changes__verifying" data-test="stale-verifying">
+        <span className="changes__verifying" data-test="stale-verifying">
           Verifying...
         </span>
       );
@@ -32,7 +32,7 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
       || change.selector;
     return (
       <span
-        className="dt-changes__stale"
+        className="changes__stale"
         data-test="stale-missing"
         title={`Selector: ${selectorLabel}`}
       >
@@ -49,7 +49,7 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
     if (isTokenChange(change)) {
       return (
         <span
-          className="dt-changes__stale"
+          className="changes__stale"
           data-test="stale-token-drift"
           title={`Token ${change.tokenName} baseline has changed since this edit was made${currentValue}`}
         >
@@ -63,7 +63,7 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
 
   return (
     <span
-      className="dt-changes__conflict"
+      className="changes__conflict"
       data-test="preview-conflict"
       title={`Computed: ${change.previewResult.computedValue}`}
     >

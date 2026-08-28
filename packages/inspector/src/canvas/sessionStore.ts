@@ -46,7 +46,7 @@ import {
 } from "../structuralProjection.ts";
 import { projectToAllReadyCards } from "./projection.ts";
 import type { TextProjectionTarget } from "../textChangeBoundary.ts";
-import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
 const SCHEMA_VERSION = 8;
 // v3 is the released durable-session schema. v4 was a prerelease schema, v5
@@ -54,10 +54,10 @@ const SCHEMA_VERSION = 8;
 // adds durable rendered-text projection records; v8 adds explicit text scope
 // and bounded semantic evidence.
 const LEGACY_SCHEMA_VERSIONS = [3, 4, 5, 6, 7] as const;
-const STORAGE_PREFIX = "design-tool";
+const STORAGE_PREFIX = "nudge-ui";
 
 function projectId(): string {
-  return getDesignToolRuntimeConfig().projectId;
+  return getNudgeUiRuntimeConfig().projectId;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -188,7 +188,7 @@ function isLegacyStructuralChange(value: unknown): value is LegacyStructuralChan
 function migrateV5StructuralChanges(value: unknown): StructuralChange[] | null {
   if (value === undefined) return [];
   if (!Array.isArray(value)) return null;
-  const scratch = document.implementation.createHTMLDocument("design-tool-session-migration");
+  const scratch = document.implementation.createHTMLDocument("nudge-ui-session-migration");
   scratch.documentElement.innerHTML = document.documentElement.innerHTML;
   const migrated: StructuralChange[] = [];
 
@@ -234,7 +234,7 @@ function applyStructuralChangeToScratch(doc: Document, change: StructuralChange)
   const target = resolveRenderedInstance(doc, change.target);
   if (target.status !== "resolved") return false;
   if (change.kind === "delete") {
-    target.element.replaceWith(doc.createComment("design-tool-session-migration"));
+    target.element.replaceWith(doc.createComment("nudge-ui-session-migration"));
     return true;
   }
   const parent = resolveRenderedInstance(doc, change.destination.parent);

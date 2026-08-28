@@ -3,12 +3,13 @@ import {
   getRendererIdentity,
   sendToParent,
   type ReplaceStylesMessage,
+  type ProjectionAppliedMessage,
   type RenderedInstanceProjectionReportMessage,
   type StructuralProjectionReportMessage,
   type TextProjectionReportMessage,
 } from "./frameProtocol.ts";
 import { isComponentOverrideList } from "./frameProtocol.ts";
-import { isDesignToolDev } from "../devFlag.ts";
+import { isNudgeUiDev } from "../devFlag.ts";
 import { replaceComponentOverrideProjection } from "../componentSemantics/index.ts";
 import { rulesToCssText, type StyleRule } from "../managedStylesheet.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
@@ -31,7 +32,7 @@ import {
 } from "../textProjection.ts";
 import { isTextContentChangeListValue } from "../changes/types.ts";
 
-const SHEET_ID = "design-tool-styles";
+const SHEET_ID = "nudge-ui-styles";
 
 let lastAppliedRevision = -1;
 let lastStructuralReportRevision: number | null = null;
@@ -80,9 +81,21 @@ function sendTextProjectionReport(revision: number): void {
   sendToParent(msg);
 }
 
+function sendProjectionApplied(revision: number): void {
+  const identity = getRendererIdentity();
+  if (!identity) return;
+  const msg: ProjectionAppliedMessage = {
+    type: "projection-applied",
+    protocolVersion: PROTOCOL_VERSION,
+    revision,
+    ...identity,
+  };
+  sendToParent(msg);
+}
+
 /** Installs renderer diagnostics only after the dev-only renderer bootstrap. */
 export function startRendererProjectionDiagnostics(): void {
-  if (!isDesignToolDev() || stopStructuralDiagnostics || stopRenderedInstanceDiagnostics || stopTextProjectionDiagnostics) return;
+  if (!isNudgeUiDev() || stopStructuralDiagnostics || stopRenderedInstanceDiagnostics || stopTextProjectionDiagnostics) return;
   stopStructuralDiagnostics = subscribeStructuralDiagnostics(() => {
     if (lastStructuralReportRevision !== null) {
       sendStructuralProjectionReport(lastStructuralReportRevision);
@@ -194,7 +207,7 @@ export function handleReplaceStyles(
   workspaceId: string,
   cardId: string,
 ): boolean {
-  if (!isDesignToolDev()) return false;
+  if (!isNudgeUiDev()) return false;
   const validation = validateReplaceStyles(msg, projectId, workspaceId, cardId);
   if (!validation.valid) return false;
 
@@ -215,16 +228,18 @@ export function handleReplaceStyles(
   if (!el) {
     const newEl = document.createElement("style");
     newEl.id = SHEET_ID;
-    newEl.setAttribute("data-design-tool", "managed");
+    newEl.setAttribute("data-nudge-ui", "managed");
     document.head.appendChild(newEl);
     newEl.textContent = msg.css;
     lastAppliedRevision = msg.revision;
     notifyBrowserStylesheetChange(document);
+    sendProjectionApplied(msg.revision);
     return true;
   }
 
   el.textContent = msg.css;
   lastAppliedRevision = msg.revision;
   notifyBrowserStylesheetChange(document);
+  sendProjectionApplied(msg.revision);
   return true;
 }

@@ -11,9 +11,9 @@ import {
   readLeaseRaw,
   subscribeOwnership,
 } from "./workspaceLease.ts";
-import { designToolProjectId } from "virtual:design-tokens";
+import { nudgeUiProjectId } from "virtual:design-tokens";
 
-const STORAGE_KEY = `design-tool:${designToolProjectId}:lease`;
+const STORAGE_KEY = `nudge-ui:${nudgeUiProjectId}:lease`;
 
 function clearAllState(): void {
   releaseLease();
@@ -37,7 +37,7 @@ describe("workspaceLease", () => {
 
       const raw = readLeaseRaw();
       expect(raw).not.toBeNull();
-      expect(raw!.projectId).toBe(designToolProjectId);
+      expect(raw!.projectId).toBe(nudgeUiProjectId);
       expect(raw!.ownerId).toBe(getOwnerId());
     });
 
@@ -51,7 +51,7 @@ describe("workspaceLease", () => {
         STORAGE_KEY,
         JSON.stringify({
           ownerId: "other-tab-id",
-          projectId: designToolProjectId,
+          projectId: nudgeUiProjectId,
           acquiredAt: Date.now(),
           lastHeartbeat: Date.now(),
         }),
@@ -70,7 +70,7 @@ describe("workspaceLease", () => {
         STORAGE_KEY,
         JSON.stringify({
           ownerId: "expired-owner",
-          projectId: designToolProjectId,
+          projectId: nudgeUiProjectId,
           acquiredAt: Date.now() - 60000,
           lastHeartbeat: Date.now() - 20000,
         }),
@@ -115,7 +115,7 @@ describe("workspaceLease", () => {
         STORAGE_KEY,
         JSON.stringify({
           ownerId: "other-owner",
-          projectId: designToolProjectId,
+          projectId: nudgeUiProjectId,
           acquiredAt: Date.now(),
           lastHeartbeat: Date.now(),
         }),
@@ -127,7 +127,7 @@ describe("workspaceLease", () => {
         oldValue: null,
         newValue: JSON.stringify({
           ownerId: "other-owner",
-          projectId: designToolProjectId,
+          projectId: nudgeUiProjectId,
           acquiredAt: Date.now(),
           lastHeartbeat: Date.now(),
         }),
@@ -144,7 +144,7 @@ describe("workspaceLease", () => {
         STORAGE_KEY,
         JSON.stringify({
           ownerId: "old-owner",
-          projectId: designToolProjectId,
+          projectId: nudgeUiProjectId,
           acquiredAt: Date.now() - 60000,
           lastHeartbeat: Date.now(),
         }),
@@ -194,7 +194,7 @@ describe("workspaceLease", () => {
     it("returns false for a fresh lease", () => {
       const lease = {
         ownerId: "test",
-        projectId: designToolProjectId,
+        projectId: nudgeUiProjectId,
         acquiredAt: Date.now(),
         lastHeartbeat: Date.now(),
       };
@@ -204,7 +204,7 @@ describe("workspaceLease", () => {
     it("returns true when heartbeat is older than 15 seconds", () => {
       const lease = {
         ownerId: "test",
-        projectId: designToolProjectId,
+        projectId: nudgeUiProjectId,
         acquiredAt: Date.now() - 60000,
         lastHeartbeat: Date.now() - 16000,
       };

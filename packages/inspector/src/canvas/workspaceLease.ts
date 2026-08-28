@@ -1,4 +1,4 @@
-import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
 export interface WorkspaceLease {
   ownerId: string;
@@ -7,12 +7,12 @@ export interface WorkspaceLease {
   lastHeartbeat: number;
 }
 
-const LEASE_KEY_PREFIX = "design-tool:";
+const LEASE_KEY_PREFIX = "nudge-ui:";
 const HEARTBEAT_INTERVAL_MS = 5000;
 const LEASE_EXPIRY_MS = 15000;
 
 function leaseKey(): string {
-  return `${LEASE_KEY_PREFIX}${getDesignToolRuntimeConfig().projectId}:lease`;
+  return `${LEASE_KEY_PREFIX}${getNudgeUiRuntimeConfig().projectId}:lease`;
 }
 
 function generateOwnerId(): string {
@@ -121,7 +121,7 @@ function loseOwnership(): void {
 function createLease(): WorkspaceLease {
   return {
     ownerId: currentOwnerId!,
-    projectId: getDesignToolRuntimeConfig().projectId,
+    projectId: getNudgeUiRuntimeConfig().projectId,
     acquiredAt: Date.now(),
     lastHeartbeat: Date.now(),
   };

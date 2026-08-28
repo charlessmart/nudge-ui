@@ -74,7 +74,7 @@ function setupMockElements(...selectors: string[]): void {
 
 function createMockFrame(): HTMLIFrameElement {
   const iframe = document.createElement("iframe");
-  iframe.setAttribute("data-design-tool-canvas-renderer", "true");
+  iframe.setAttribute("data-nudge-ui-canvas-renderer", "true");
   document.body.appendChild(iframe);
 
   const doc = iframe.contentDocument!;

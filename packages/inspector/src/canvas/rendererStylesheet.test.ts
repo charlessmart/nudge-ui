@@ -10,7 +10,7 @@ import {
 import { PROTOCOL_VERSION, setRendererIdentity, type ReplaceStylesMessage } from "./frameProtocol.ts";
 import { resetStructuralDeleteProjection } from "../structuralProjection.ts";
 
-const SHEET_ID = "design-tool-styles";
+const SHEET_ID = "nudge-ui-styles";
 const TEST_PROJECT = "http://localhost:5173";
 const TEST_WORKSPACE = "ws-abc-123";
 const TEST_CARD_ID = "card-1";
@@ -237,6 +237,23 @@ describe("handleReplaceStyles", () => {
     expect(getLastAppliedRevision()).toBe(1);
   });
 
+  it("acknowledges the revision after applying the complete projection", () => {
+    const postMessage = vi.spyOn(window.parent, "postMessage");
+    setRendererIdentity({ projectId: TEST_PROJECT, workspaceId: TEST_WORKSPACE, cardId: TEST_CARD_ID });
+
+    expect(handleReplaceStyles(makeMsg({ revision: 3 }), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID)).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "projection-applied",
+      protocolVersion: PROTOCOL_VERSION,
+      projectId: TEST_PROJECT,
+      workspaceId: TEST_WORKSPACE,
+      cardId: TEST_CARD_ID,
+      revision: 3,
+    }), window.location.origin);
+
+    postMessage.mockRestore();
+  });
+
   it("creates the stylesheet element if it does not exist", () => {
     expect(document.getElementById(SHEET_ID)).toBeNull();
 
@@ -244,7 +261,7 @@ describe("handleReplaceStyles", () => {
 
     const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
     expect(el).not.toBeNull();
-    expect(el!.getAttribute("data-design-tool")).toBe("managed");
+    expect(el!.getAttribute("data-nudge-ui")).toBe("managed");
   });
 
   it("resolves durable instance targets before applying their managed CSS", () => {
@@ -252,7 +269,7 @@ describe("handleReplaceStyles", () => {
       <button data-cid="Item" data-src="src/App.tsx:5:3">One</button>
       <button data-cid="Item" data-src="src/App.tsx:5:3">Two</button>`;
     const applied = handleReplaceStyles(makeMsg({
-      css: '[data-cid="Item"][data-src="src/App.tsx:5:3"][data-dt-projection-instance="override-1"] { color: blue; }',
+      css: '[data-cid="Item"][data-src="src/App.tsx:5:3"][data-projection-instance="override-1"] { color: blue; }',
       instanceOverrides: [{
         id: "override-1",
         target: {
@@ -263,8 +280,8 @@ describe("handleReplaceStyles", () => {
     }), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID);
 
     expect(applied).toBe(true);
-    expect(document.querySelectorAll('[data-dt-projection-instance="override-1"]')).toHaveLength(1);
-    expect(document.querySelector('[data-dt-projection-instance="override-1"]')?.textContent).toBe("Two");
+    expect(document.querySelectorAll('[data-projection-instance="override-1"]')).toHaveLength(1);
+    expect(document.querySelector('[data-projection-instance="override-1"]')?.textContent).toBe("Two");
   });
 
   it("resolves each structural delete in this renderer without broadening a repeated source site", () => {

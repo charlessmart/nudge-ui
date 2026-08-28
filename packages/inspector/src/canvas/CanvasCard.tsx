@@ -254,7 +254,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
 
   return (
     <div
-      className={`dt-canvas-card${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}`}
+      className={`canvas-card${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}`}
       data-card-id={card.id}
       style={{
         position: "absolute",
@@ -266,14 +266,14 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
       onPointerDown={handleCardPointerDown}
     >
       <div
-        className="dt-canvas-card__toolbar"
+        className="canvas-card__toolbar"
         onPointerDown={handleToolbarPointerDown}
         style={{
           transform: `scale(${toolbarScale})`,
           transformOrigin: "right bottom",
         }}
       >
-        <div className="dt-canvas-card__actions">
+        <div className="canvas-card__actions">
           <Button
             variant="secondary"
             size="default"
@@ -303,15 +303,15 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
           </IconButton>
         </div>
       </div>
-      <div className="dt-canvas-card__frame">
+      <div className="canvas-card__frame">
         {loadState === "loading" ? (
-          <div className="dt-canvas-card__loading" data-test={`canvas-card-loading-${card.id}`}>
+          <div className="canvas-card__loading" data-test={`canvas-card-loading-${card.id}`}>
             Loading preview...
           </div>
         ) : loadState === "error" ? (
-          <div className="dt-canvas-card__error" data-test={`canvas-card-error-${card.id}`}>
+          <div className="canvas-card__error" data-test={`canvas-card-error-${card.id}`}>
             <p>{errorMessage || "Frame could not be loaded"}</p>
-            <div className="dt-canvas-card__error-actions">
+            <div className="canvas-card__error-actions">
               <Button size="compact" variant="secondary" onClick={handleReload}>Retry</Button>
               <Button size="compact" variant="danger" onClick={handleRemove}>Remove</Button>
             </div>
@@ -319,7 +319,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
         ) : null}
         <iframe
           ref={iframeRef}
-          className="dt-canvas-card__iframe"
+          className="canvas-card__iframe"
           src={card.url}
           title={card.title || card.url}
           {...{ [CANVAS_RENDERER_ATTR]: "" }}
@@ -328,7 +328,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
         />
       </div>
       <div
-        className="dt-canvas-card__resize-handle"
+        className="canvas-card__resize-handle"
         data-test={`canvas-card-resize-${card.id}`}
         onPointerDown={handleResizeStart}
         onKeyDown={handleResizeKeyDown}

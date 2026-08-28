@@ -22,8 +22,8 @@ import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rende
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
 import { installRendererElementSelector } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../frameThrottle.ts";
-import { isDesignToolDev } from "../devFlag.ts";
-import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
+import { isNudgeUiDev } from "../devFlag.ts";
+import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
 let rendererBootstrapped = false;
 function sendFrameReady(): void {
@@ -74,8 +74,8 @@ function observeFrameMetadata(): void {
 }
 
 export function bootstrapRenderer(): void {
-  if (!getDesignToolRuntimeConfig().capabilities.canvas) return;
-  if (!isDesignToolDev()) return;
+  if (!getNudgeUiRuntimeConfig().capabilities.canvas) return;
+  if (!isNudgeUiDev()) return;
   if (rendererBootstrapped) return;
   rendererBootstrapped = true;
 

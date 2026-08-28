@@ -124,7 +124,7 @@ export function CanvasElementOverlay(): ReactElement | null {
 
   const selectedFrame = selected?.domElement.ownerDocument.defaultView?.frameElement;
   const selectedInCanvas = selectedFrame instanceof HTMLIFrameElement
-    && selectedFrame.hasAttribute("data-design-tool-canvas-renderer");
+    && selectedFrame.hasAttribute("data-nudge-ui-canvas-renderer");
   const selectedLocalRect = selectedInCanvas && selected
     ? toRect(selected.domElement.getBoundingClientRect())
     : null;
@@ -304,20 +304,20 @@ export function CanvasElementOverlay(): ReactElement | null {
       {projectedHoverRect ? (
         <>
           {hoverMarginFills.map((fill) => (
-            <div key={fill.side} className="dt-canvas-hover-margin-fill" data-side={fill.side} style={overlayStyle(fill)} aria-hidden="true" />
+            <div key={fill.side} className="canvas-hover-margin-fill" data-side={fill.side} style={overlayStyle(fill)} aria-hidden="true" />
           ))}
-          <div className="dt-canvas-element-overlay" data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
+          <div className="canvas-element-overlay" data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
           {hoverMarginGuides.map((guide) => (
-            <div key={guide.side} className="dt-canvas-hover-margin" data-axis={guide.axis} data-distance={guide.distance} data-side={guide.side} style={overlayStyle(guide)} aria-hidden="true" />
+            <div key={guide.side} className="canvas-hover-margin" data-axis={guide.axis} data-distance={guide.distance} data-side={guide.side} style={overlayStyle(guide)} aria-hidden="true" />
           ))}
         </>
       ) : null}
-      {selectedRect ? <div className="dt-canvas-selected-outline" data-test="canvas-selected-outline" style={overlayStyle(selectedRect)} aria-hidden="true" /> : null}
+      {selectedRect ? <div className="canvas-selected-outline" data-test="canvas-selected-outline" style={overlayStyle(selectedRect)} aria-hidden="true" /> : null}
       <DropGuideOverlay
         guide={projectedDropGuide}
-        lineClassName="dt-canvas-dom-drop-line"
+        lineClassName="canvas-dom-drop-line"
         lineTestId="canvas-dom-drop-line"
-        targetClassName="dt-canvas-dom-drop-target"
+        targetClassName="canvas-dom-drop-target"
         targetTestId="canvas-dom-drop-target"
       />
     </>

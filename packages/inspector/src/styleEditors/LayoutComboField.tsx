@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { setStyle } from "./styleActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
@@ -10,8 +10,19 @@ import { getStateStyleValue } from "../stateValue.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import type { ControlAppearance } from "../ui/ControlSurface.tsx";
+import {
+  getCanvasProjectionAcknowledgementVersion,
+  getCanvasProjectionStatus,
+  subscribeCanvasProjectionAcknowledgements,
+} from "../canvas/projection.ts";
 
 const CUSTOM_KEY = "__custom__";
+
+interface PendingProjection {
+  document: Document;
+  property: string;
+  revision: number;
+}
 
 export interface LayoutComboFieldProps {
   property: string;
@@ -45,23 +56,61 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
   const [customValue, setCustomValue] = useState(currentValue);
   const [showCustom, setShowCustom] = useState(false);
   const customInputRef = useRef<HTMLInputElement>(null);
+  const draftDirtyRef = useRef(false);
+  const pendingProjectionRef = useRef<PendingProjection | null>(null);
+  const projectionAcknowledgementVersion = useSyncExternalStore(
+    subscribeCanvasProjectionAcknowledgements,
+    getCanvasProjectionAcknowledgementVersion,
+    getCanvasProjectionAcknowledgementVersion,
+  );
+
+  useEffect(() => {
+    draftDirtyRef.current = false;
+    pendingProjectionRef.current = null;
+  }, [el, property]);
 
   useEffect(() => {
     try {
+      if (draftDirtyRef.current) return;
+
+      const pending = pendingProjectionRef.current;
+      if (pending && (pending.document !== el.ownerDocument || pending.property !== property)) {
+        pendingProjectionRef.current = null;
+      } else if (pending) {
+        const status = getCanvasProjectionStatus(el.ownerDocument);
+        const waitingForProjection = status !== null
+          && status.sentRevision >= pending.revision
+          && status.appliedRevision < pending.revision;
+        if (waitingForProjection) return;
+        pendingProjectionRef.current = null;
+      }
+
       const cv = getStateStyleValue(el, property);
       setCurrentValue(cv);
       setCustomValue(cv);
     } catch {
       // noop
     }
-  }, [el, property, revision]);
+  }, [el, property, revision, projectionAcknowledgementVersion]);
 
   const inPresets = presets.includes(currentValue);
 
   function commit(value: string): void {
     setCurrentValue(value);
     setCustomValue(value);
-    setStyle(el, property, value);
+    draftDirtyRef.current = false;
+    pendingProjectionRef.current = null;
+    const change = setStyle(el, property, value);
+    if (change) {
+      const status = getCanvasProjectionStatus(el.ownerDocument);
+      if (status && status.sentRevision > status.appliedRevision) {
+        pendingProjectionRef.current = {
+          document: el.ownerDocument,
+          property,
+          revision: status.sentRevision,
+        };
+      }
+    }
     onAfterEdit?.();
   }
 
@@ -80,6 +129,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     if (trimmed) {
       commit(completeCssValue(trimmed, valuePolicyFor(property)));
     } else {
+      draftDirtyRef.current = false;
       setCustomValue(currentValue);
     }
     setShowCustom(false);
@@ -99,6 +149,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     if (e.key === "Enter") {
       handleCustomApply();
     } else if (e.key === "Escape") {
+      draftDirtyRef.current = false;
       setCustomValue(currentValue);
       setShowCustom(false);
     }
@@ -115,7 +166,10 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       aria-label={formatInspectorLabel(property)}
       data-test={`layout-combo-input-${property}`}
       value={customValue}
-      onChange={(e) => setCustomValue(e.target.value)}
+      onChange={(e) => {
+        draftDirtyRef.current = true;
+        setCustomValue(e.target.value);
+      }}
       onBlur={handleCustomApply}
       onKeyDown={handleCustomKeyDown}
     />
@@ -123,7 +177,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
 
   return (
     <span
-      className={`dt-layout-combo${compact ? " dt-layout-combo--compact" : ""}`}
+      className={`layout-combo${compact ? " layout-combo--compact" : ""}`}
       data-test="layout-combo"
       data-property={property}
     >
@@ -141,7 +195,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
             onValueChange={handleSelectChange}
           />
           {showCustom || alwaysShowInput ? (
-            <span className="dt-layout-combo__custom">{customInput}</span>
+            <span className="layout-combo__custom">{customInput}</span>
           ) : null}
         </>
       )}

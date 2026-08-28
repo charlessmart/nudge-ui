@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   computeProjection,
   resetProjectionRevision,
@@ -8,8 +8,11 @@ import {
   unregisterCardFrame,
   findCanvasFrameBySource,
   getRegisteredFrames,
+  getCanvasProjectionStatus,
   projectToAllReadyCards,
   PROJECT_ID,
+  recordCanvasProjectionApplied,
+  sendProjectionToCard,
   WORKSPACE_ID,
 } from "./projection.ts";
 import { appendChange, clearChanges, getPendingRules } from "../changesLog.ts";
@@ -24,7 +27,7 @@ describe("projection", () => {
     clearChanges();
     resetStructuralDeleteProjection();
     resetProjectionRevision();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.replaceChildren();
   });
 
@@ -218,6 +221,42 @@ describe("projection", () => {
     registerCardFrame("card-1", iframe);
     expect(getRegisteredFrames().has("card-1")).toBe(true);
     expect(findCanvasFrameBySource(window)).toBeNull();
+    unregisterCardFrame("card-1");
+  });
+
+  it("tracks sent and acknowledged revisions for each frame document", () => {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    const frameWindow = iframe.contentWindow;
+    if (!frameWindow || !iframe.contentDocument) throw new Error("iframe did not initialise");
+    vi.spyOn(frameWindow, "postMessage").mockImplementation(() => undefined);
+
+    registerCardFrame("card-1", iframe);
+    expect(getCanvasProjectionStatus(iframe.contentDocument)).toEqual({
+      sentRevision: -1,
+      appliedRevision: -1,
+    });
+
+    sendProjectionToCard({
+      id: "card-1",
+      url: window.location.href,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    }, iframe);
+
+    expect(getCanvasProjectionStatus(iframe.contentDocument)).toEqual({
+      sentRevision: 1,
+      appliedRevision: -1,
+    });
+    recordCanvasProjectionApplied("card-1", 1);
+    expect(getCanvasProjectionStatus(iframe.contentDocument)).toEqual({
+      sentRevision: 1,
+      appliedRevision: 1,
+    });
+
     unregisterCardFrame("card-1");
   });
 

@@ -10,9 +10,9 @@ describe("canvas gesture coordinate conversion", () => {
       -100,
     );
 
-    expect(next.zoom).toBeCloseTo(1.08);
-    expect(next.x).toBeCloseTo(2.8);
-    expect(next.y).toBeCloseTo(13.6);
+    expect(next.zoom).toBeCloseTo(1.04);
+    expect(next.x).toBeCloseTo(6.4);
+    expect(next.y).toBeCloseTo(16.8);
   });
 
   it("projects iframe-local coordinates through the board camera", () => {
