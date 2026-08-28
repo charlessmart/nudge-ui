@@ -100,6 +100,8 @@
   right: 4px;
   display: inline-flex;
   align-items: center;
+  background: var(--surface-raised);
+  border-radius: var(--radius-control);
   transform: translateY(-50%);
   opacity: 0;
   transition: opacity 100ms ease;
