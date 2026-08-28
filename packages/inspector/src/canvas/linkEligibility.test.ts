@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
-import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
+import {
+  findClosestAnchor,
+  isEligibleNavigation,
+  hasDifferentRoute,
+  shouldPreserveNativeLinkActivation,
+} from "./linkEligibility.ts";
 
 function createAnchor(href: string, attrs: Record<string, string> = {}): HTMLAnchorElement {
   const a = document.createElement("a");
@@ -138,5 +143,24 @@ describe("hasDifferentRoute", () => {
     a.setAttribute("href", "");
     document.body.appendChild(a);
     expect(hasDifferentRoute(a)).toBe(false);
+  });
+});
+
+describe("shouldPreserveNativeLinkActivation", () => {
+  it("consumes Command-click as deep selection", () => {
+    const anchor = createAnchor(sameOriginUrl("/about"));
+    expect(shouldPreserveNativeLinkActivation(anchor, createEvent({ metaKey: true }))).toBe(false);
+  });
+
+  it("preserves Command+Shift-click as explicit application activation", () => {
+    const anchor = createAnchor(sameOriginUrl("/about"));
+    expect(shouldPreserveNativeLinkActivation(anchor, createEvent({ metaKey: true, shiftKey: true }))).toBe(true);
+  });
+
+  it("preserves native behavior for same-document hash links", () => {
+    const anchor = createAnchor(
+      window.location.origin + window.location.pathname + window.location.search + "#section",
+    );
+    expect(shouldPreserveNativeLinkActivation(anchor, createEvent())).toBe(true);
   });
 });

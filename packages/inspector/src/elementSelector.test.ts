@@ -297,21 +297,39 @@ describe("installElementSelector", () => {
   it.each([
     { name: "Command", init: { metaKey: true } },
     { name: "Ctrl", init: { ctrlKey: true } },
-  ])("lets $name-click follow a link", ({ init }) => {
+  ])("uses $name-click to select a link instead of following it", ({ init }) => {
     const link = document.createElement("a");
     link.href = "/conformance";
     link.setAttribute("data-cid", "RouteLink");
     link.setAttribute("data-src", "App.tsx:1:1");
+    const onApplicationClick = vi.fn();
+    link.addEventListener("click", onApplicationClick);
     document.body.appendChild(link);
-    const allowBrowserNavigation = vi.fn((event: MouseEvent) => event.preventDefault());
-    document.addEventListener("click", allowBrowserNavigation);
 
     const event = dispatchClick(link, init);
 
-    expect(getSelectedElement()).toBeNull();
-    expect(allowBrowserNavigation).toHaveBeenCalledOnce();
+    expect(getSelectedElement()?.domElement).toBe(link);
     expect(event.defaultPrevented).toBe(true);
-    document.removeEventListener("click", allowBrowserNavigation);
+    expect(onApplicationClick).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "Command", init: { metaKey: true, shiftKey: true } },
+    { name: "Ctrl", init: { ctrlKey: true, shiftKey: true } },
+  ])("lets $name+Shift-click trigger the application", ({ init }) => {
+    const button = makeHostElement({
+      "data-cid": "Button",
+      "data-src": "Button.tsx:1:1",
+    });
+    const onApplicationClick = vi.fn();
+    button.addEventListener("click", onApplicationClick);
+    document.body.appendChild(button);
+
+    const event = dispatchClick(button, init);
+
+    expect(getSelectedElement()).toBeNull();
+    expect(event.defaultPrevented).toBe(false);
+    expect(onApplicationClick).toHaveBeenCalledOnce();
   });
 
   it("blocks clicks on untracked application controls", () => {

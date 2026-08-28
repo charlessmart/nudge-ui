@@ -33,13 +33,25 @@ test("dev: ordinary conformance-link clicks select without navigating", async ({
   await expect(page.locator('[data-test="selection"]')).toBeVisible();
 });
 
-test("dev: Command-click follows a conformance link", async ({ page, context }) => {
+test("dev: Command-click selects a conformance link without navigating", async ({ page, context }) => {
+  await page.goto("/playground");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+
+  await page.locator('[data-conformance-route="/conformance"]').click({ modifiers: ["Meta"] });
+
+  await expect(page).toHaveURL(/\/playground$/);
+  await expect(page.locator('[data-test="selection"]')).toBeVisible();
+  expect(context.pages()).toHaveLength(1);
+});
+
+test("dev: Command+Shift-click follows a conformance link", async ({ page, context }) => {
   await page.goto("/playground");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 
   const destinationPage = context.waitForEvent("page");
-  await page.locator('[data-conformance-route="/conformance"]').click({ modifiers: ["Meta"] });
+  await page.locator('[data-conformance-route="/conformance"]').click({ modifiers: ["Meta", "Shift"] });
   const destination = await destinationPage;
 
   await expect(destination).toHaveURL(/\/conformance$/);

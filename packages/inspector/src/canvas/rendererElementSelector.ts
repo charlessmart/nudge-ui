@@ -12,7 +12,12 @@ import {
   type ElementDragMoveMessage,
   type ElementDragStartMessage,
 } from "./frameProtocol.ts";
-import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
+import {
+  findClosestAnchor,
+  isEligibleNavigation,
+  hasDifferentRoute,
+  shouldPreserveNativeLinkActivation,
+} from "./linkEligibility.ts";
 import { readMargins } from "../overlayGeometry.ts";
 import { installInteractionStyles } from "../interactionStyles.ts";
 import { createFrameThrottle } from "../frameThrottle.ts";
@@ -21,6 +26,7 @@ import { isNudgeUiDev } from "../devFlag.ts";
 import { isEditableEvent } from "../shortcuts.ts";
 import { resolveSelectionTarget, selectionTargetMode } from "../selectionTarget.ts";
 import { escapeCssString } from "../cssEscapes.ts";
+import { blockApplicationClick, isApplicationActivationClick } from "../clickPolicy.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -316,7 +322,7 @@ export function installRendererElementSelector(): void {
     "click",
     (event: MouseEvent) => {
       const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
+      if (!(target instanceof Element)) return;
 
       // Defer to navigation-intent when the user clicked a navigable same-origin
       // anchor that points to a different route. In canvas mode, anchor clicks
@@ -330,15 +336,23 @@ export function installRendererElementSelector(): void {
         return;
       }
 
-      if (!(target instanceof Element)) return;
+      // Command/Ctrl+Shift-click is the deliberate escape hatch for running
+      // the application action. All other selected canvas clicks are editing
+      // gestures and must not reach the rendered application.
+      if (isApplicationActivationClick(event)) return;
+
+      const preserveNativeLink = anchor
+        ? shouldPreserveNativeLinkActivation(anchor, event)
+        : false;
+
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
-      if (!el) return;
+      if (!el) {
+        if (!preserveNativeLink) blockApplicationClick(event);
+        return;
+      }
       lastSelected = el;
 
-      if (selectionTargetMode(event) === "deep") {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+      if (!preserveNativeLink) blockApplicationClick(event);
 
       const cid = el.getAttribute("data-cid")!;
       const selector = buildSelector(el);

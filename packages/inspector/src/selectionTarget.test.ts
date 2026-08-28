@@ -33,9 +33,14 @@ describe("selection target resolution", () => {
     const label = tracked(document.createElement("span"), "ButtonLabel");
     button.appendChild(label);
 
-    expect(selectionTargetMode({ ctrlKey: true, metaKey: false })).toBe("deep");
-    expect(selectionTargetMode({ ctrlKey: false, metaKey: true })).toBe("deep");
+    expect(selectionTargetMode({ ctrlKey: true, metaKey: false, shiftKey: false })).toBe("deep");
+    expect(selectionTargetMode({ ctrlKey: false, metaKey: true, shiftKey: false })).toBe("deep");
     expect(resolveSelectionTarget(label, "deep")).toBe(label);
+  });
+
+  it("keeps Command/Ctrl+Shift-click on the primary target for activation", () => {
+    expect(selectionTargetMode({ ctrlKey: true, metaKey: false, shiftKey: true })).toBe("primary");
+    expect(selectionTargetMode({ ctrlKey: false, metaKey: true, shiftKey: true })).toBe("primary");
   });
 
   it("falls back to the deepest tracked element without an interactive parent", () => {

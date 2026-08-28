@@ -1,3 +1,5 @@
+import { isDeepSelectionClick, type ClickModifiers } from "./clickPolicy.ts";
+
 export type SelectionTargetMode = "primary" | "deep";
 
 const INTERACTIVE_TAGS = new Set([
@@ -22,8 +24,8 @@ const INTERACTIVE_ROLES = new Set([
   "tab",
 ]);
 
-export function selectionTargetMode(event: Pick<MouseEvent, "ctrlKey" | "metaKey">): SelectionTargetMode {
-  return event.ctrlKey || event.metaKey ? "deep" : "primary";
+export function selectionTargetMode(event: ClickModifiers): SelectionTargetMode {
+  return isDeepSelectionClick(event) ? "deep" : "primary";
 }
 
 export function trackedElementStack(target: EventTarget | null): HTMLElement[] {

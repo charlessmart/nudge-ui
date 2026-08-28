@@ -8,6 +8,7 @@ import {
   isInlineTextEditingActive,
 } from "./inlineTextEditor.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "./textProjection.ts";
+import { blockApplicationClick, isApplicationActivationClick } from "./clickPolicy.ts";
 
 export function installElementSelector(inspectorHost: HTMLElement): () => void {
   function onDoubleClick(e: MouseEvent): void {
@@ -64,26 +65,20 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
     }
     if (e.target instanceof Element
       && e.target.closest(`[${EMPTY_TEXT_PROJECTION_ATTR}]`)) {
-      e.preventDefault();
-      e.stopPropagation();
+      blockApplicationClick(e);
       return;
     }
-    if (isModifiedLinkActivation(e)) return;
+    if (isApplicationActivationClick(e)) return;
 
     // The inspector is an editing surface while open. Capture every ordinary
     // application click so buttons, links, and untracked controls cannot run
-    // alongside selection. Command/Ctrl-click is the deliberate exception for
-    // following a normal link with the browser's native behavior.
+    // alongside selection. Command/Ctrl-click selects the deepest tracked
+    // element; Command/Ctrl+Shift-click is the explicit activation escape hatch.
     const sel = resolveSelectionFromEvent(e, inspectorHost) as SelectedElement | null;
-    e.preventDefault();
-    e.stopPropagation();
+    blockApplicationClick(e);
     if (sel) setSelectedElement(sel);
   }
 
-  function isModifiedLinkActivation(event: MouseEvent): boolean {
-    if (!event.metaKey && !event.ctrlKey) return false;
-    return event.target instanceof Element && event.target.closest("a[href]") !== null;
-  }
   function resolveSelectionTargetForInlineText(target: Element): HTMLElement | null {
     // Inline editing starts from the deepest visible text host. Holding the
     // modifier still opts into the normal deep selection semantics, but the

@@ -36,3 +36,30 @@ export function hasDifferentRoute(anchor: HTMLAnchorElement): boolean {
     return false;
   }
 }
+
+/**
+ * Returns whether the renderer should leave an anchor's browser behavior
+ * intact instead of consuming it as an editing click.
+ */
+export function shouldPreserveNativeLinkActivation(
+  anchor: HTMLAnchorElement,
+  event: MouseEvent,
+): boolean {
+  // Command/Ctrl-click is the deep-selection gesture. Shift makes it the
+  // explicit application-activation gesture instead.
+  if (event.metaKey || event.ctrlKey) return event.shiftKey;
+  if (event.shiftKey) return true;
+
+  if (anchor.hasAttribute("download")) return true;
+  if (anchor.target && anchor.target !== "" && anchor.target !== "_self") return true;
+  if (anchor.protocol !== "http:" && anchor.protocol !== "https:") return true;
+
+  try {
+    const url = new URL(anchor.href);
+    if (url.origin !== window.location.origin) return true;
+  } catch {
+    return true;
+  }
+
+  return !hasDifferentRoute(anchor);
+}

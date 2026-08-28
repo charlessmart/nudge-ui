@@ -194,12 +194,13 @@ test.describe("Canvas board gesture handling", () => {
     expect(transformAfter).toBe(transformBefore);
   });
 
-  test("dev: unmodified iframe interaction remains usable (click inside iframe)", async ({ page }) => {
+  test("dev: ordinary iframe clicks select without triggering the application", async ({ page }) => {
     const frame = page.frameLocator(".canvas-card__iframe").first();
     const button = frame.locator("button.btn").first();
     await expect(button).toBeVisible({ timeout: 10000 });
     await button.click();
-    await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
+    await expect(page.locator('[data-test="selection"]')).toBeVisible();
+    await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
   });
 
   test("dev: Space-drag inside an iframe pans the board", async ({ page }) => {
@@ -270,4 +271,3 @@ test.describe("Canvas board gesture handling", () => {
 
 test.describe("Canvas board — iframe content remains interactive", () => {
 });
-

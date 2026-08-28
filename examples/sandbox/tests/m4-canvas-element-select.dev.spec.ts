@@ -7,8 +7,8 @@ import { test, expect } from "@playwright/test";
  * under test:
  *
  * 1. Clicking a plain tracked element (heading, button, paragraph) inside a
- *    single-card canvas selects it in the inspector without unmounting the
- *    workspace.
+ *    single-card canvas selects it in the inspector without triggering its
+ *    application action or unmounting the workspace.
  * 2. Clicking a same-origin anchor (`<a href="/conformance">`) that has been
  *    authored inside a tracked React component still spawns a new card, so
  *    users can navigate from one route to the next without losing canvas.
@@ -84,7 +84,7 @@ test("dev: canvas mirrors inspector hover margins and selected outline over the 
   await expect(page.locator('[data-test="canvas-selected-outline"]')).toHaveCSS("outline-color", "rgb(59, 130, 246)");
 });
 
-test("dev: clicking a Button component tracked element shows the Button component in the inspector", async ({ page }) => {
+test("dev: clicking a Button component selects it without triggering its application action", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
   const frame = page.frameLocator(".canvas-card__iframe").first();
@@ -99,10 +99,10 @@ test("dev: clicking a Button component tracked element shows the Button componen
   await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", "Button");
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="token-chip"]'))
     .toContainText("--color-text-primary");
-  await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
+  await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
 });
 
-test("dev: ordinary canvas clicks choose a button wrapper and Command-click chooses its child", async ({ page }) => {
+test("dev: ordinary canvas clicks select without triggering and Command-click chooses its child", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
   const frame = page.frameLocator(".canvas-card__iframe").first();
@@ -116,10 +116,19 @@ test("dev: ordinary canvas clicks choose a button wrapper and Command-click choo
 
   await label.click();
   await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-src", buttonSrc as string);
-  await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
+  await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
 
   await label.click({ modifiers: ["Meta"] });
   await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-src", labelSrc as string);
+  await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
+});
+
+test("dev: Command+Shift-click triggers the canvas application action", async ({ page }) => {
+  await waitForIframeReady(page, 0);
+
+  const frame = page.frameLocator(".canvas-card__iframe").first();
+  const button = frame.locator("button.btn").first();
+  await button.click({ modifiers: ["Meta", "Shift"] });
   await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 1");
 });
 
@@ -169,6 +178,19 @@ test("dev: clicking a navigable same-origin anchor inside a tracked tree still s
   await expect(board.locator(".canvas-card")).toHaveCount(2);
 });
 
+test("dev: Command-click selects a canvas link without opening a route card", async ({ page }) => {
+  await waitForIframeReady(page, 0);
+  const board = page.locator('[data-test="canvas-board"]');
+  const link = page.frameLocator(".canvas-card__iframe").first()
+    .locator('a[href="/conformance"]')
+    .first();
+
+  await link.click({ modifiers: ["Meta"] });
+
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
+  await expect(page.locator('[data-test="selection"]')).toBeVisible();
+});
+
 test("dev: clicking a tracked element inside a sibling card whose URL differs from the parent does not navigate the parent away from canvas", async ({ page }) => {
   await waitForIframeReady(page, 0);
   const parentUrlBefore = page.url();
@@ -203,4 +225,3 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
     );
   }
 });
-
