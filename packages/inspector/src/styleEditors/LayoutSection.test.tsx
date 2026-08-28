@@ -318,8 +318,8 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-grid-container"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-grid-picker"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-grid-child"]')).toBeFalsy();
-    expect(handle.host.querySelector('[data-test="layout-grid-input-grid-template-columns"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-select-grid-auto-flow"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-input-grid-template-columns"]')).toBeFalsy();
+    expect(handle.host.querySelector('[data-test="layout-select-grid-auto-flow"]')).toBeFalsy();
     const gridGap = handle.host.querySelector('[data-test="layout-grid-gap"]');
     expect(gridGap).toBeTruthy();
     for (const property of ["row-gap", "column-gap"]) {
@@ -329,9 +329,19 @@ describe("LayoutSection", () => {
       expect(surface?.querySelector(`[data-test="layout-combo-input-${property}"]`)?.className)
         .not.toContain("text-input--compact");
     }
-    expect(handle.host.querySelector('[data-test="layout-grid-alignment"]')).toBeTruthy();
+    const settings = handle.host.querySelector('[data-test="layout-grid-settings"]') as HTMLButtonElement;
+    expect(settings).toBeTruthy();
+    expect(settings.getAttribute("aria-label")).toBe("Grid settings");
+    expect(document.body.querySelector('[data-test="layout-grid-settings-popover"]')).toBeFalsy();
 
-    const autoFlow = handle.host.querySelector('[data-test="layout-select-grid-auto-flow"]') as HTMLElement;
+    act(() => settings.click());
+    const advanced = document.body.querySelector('[data-test="layout-grid-settings-popover"]');
+    expect(advanced).toBeTruthy();
+    expect(advanced?.querySelector('[data-test="layout-grid-advanced"]')).toBeTruthy();
+    expect(advanced?.querySelector('[data-test="layout-grid-input-grid-template-columns"]')).toBeTruthy();
+    expect(advanced?.querySelector('[data-test="layout-grid-alignment"]')).toBeTruthy();
+
+    const autoFlow = advanced?.querySelector('[data-test="layout-select-grid-auto-flow"]') as HTMLElement;
     expect(selectOptionValues(autoFlow)).toEqual(["row", "column", "row dense", "column dense"]);
   });
 
