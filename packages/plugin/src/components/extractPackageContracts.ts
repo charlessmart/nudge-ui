@@ -137,20 +137,68 @@ function literalValue(type: ts.Type): ComponentPropValue | null {
   return null;
 }
 
-function literalOptions(members: readonly ts.Type[]): ComponentPropValue[] | null {
+function conditionalObjectMatches(
+  type: ts.Type,
+  checker: ts.TypeChecker,
+  location: ts.Node,
+  accepts: (member: ts.Type) => boolean,
+): boolean {
+  if (!(type.flags & ts.TypeFlags.Object)) return false;
+  if (checker.getIndexTypeOfType(type, ts.IndexKind.String)
+    || checker.getIndexTypeOfType(type, ts.IndexKind.Number)) return false;
+  const properties = checker.getPropertiesOfType(type);
+  if (properties.length === 0) return false;
+  return properties.every((property) => {
+    const propertyType = checker.getTypeOfSymbolAtLocation(property, location);
+    const propertyMembers = definedTypes(propertyType);
+    return propertyMembers.length > 0 && propertyMembers.every(accepts);
+  });
+}
+
+function literalOptions(
+  members: readonly ts.Type[],
+  checker: ts.TypeChecker,
+  location: ts.Node,
+): ComponentPropValue[] | null {
   const values = members
     .map(literalValue)
     .filter((value): value is ComponentPropValue => value !== null);
-  if (values.length < 2 || values.length !== members.length) return null;
+  // A public prop can accept a finite scalar vocabulary as well as a
+  // responsive/conditional object. The Inspector only offers this select when
+  // the current runtime value is scalar, so retain valid scalar alternatives
+  // without pretending the object form is itself editable here.
+  if (values.length < 2) return null;
   const primitive = typeof values[0];
   if (!values.every((value) => typeof value === primitive)) return null;
+  const allowed = new Set(values.map((value) => `${typeof value}:${String(value)}`));
+  if (!members.every((member) => {
+    const value = literalValue(member);
+    if (value !== null) return allowed.has(`${typeof value}:${String(value)}`);
+    return conditionalObjectMatches(member, checker, location, (propertyMember) => {
+      const propertyValue = literalValue(propertyMember);
+      return propertyValue !== null
+        && allowed.has(`${typeof propertyValue}:${String(propertyValue)}`);
+    });
+  })) return null;
   return values;
 }
 
-function isBooleanType(members: readonly ts.Type[]): boolean {
-  if (members.length === 1 && (members[0]!.flags & ts.TypeFlags.Boolean)) return true;
-  return members.length === 2
-    && members.every((member) => (member.flags & ts.TypeFlags.BooleanLiteral) !== 0);
+function isBooleanType(
+  members: readonly ts.Type[],
+  checker: ts.TypeChecker,
+  location: ts.Node,
+): boolean {
+  const scalarMembers = members.filter((member) => (
+    member.flags & (ts.TypeFlags.Boolean | ts.TypeFlags.BooleanLiteral)
+  ) !== 0);
+  if (scalarMembers.length === 0) return false;
+  if (!members.every((member) => scalarMembers.includes(member)
+    || conditionalObjectMatches(member, checker, location, (propertyMember) => (
+      propertyMember.flags & (ts.TypeFlags.Boolean | ts.TypeFlags.BooleanLiteral)
+    ) !== 0))) return false;
+  if (scalarMembers.some((member) => (member.flags & ts.TypeFlags.Boolean) !== 0)) return true;
+  const values = new Set(scalarMembers.map(literalValue));
+  return values.has(false) && values.has(true);
 }
 
 function propContract(
@@ -164,7 +212,7 @@ function propContract(
   }
 
   const types = definedTypes(checker.getTypeOfSymbolAtLocation(symbol, location));
-  if (isBooleanType(types)) {
+  if (isBooleanType(types, checker, location)) {
     return {
       name,
       control: "boolean",
@@ -172,7 +220,7 @@ function propContract(
       optional: (symbol.flags & ts.SymbolFlags.Optional) !== 0,
     };
   }
-  const options = literalOptions(types);
+  const options = literalOptions(types, checker, location);
   if (options) {
     return {
       name,

@@ -172,6 +172,20 @@ describe("extractPackageComponentContracts", () => {
             ],
             optional: true,
           },
+          {
+            name: "responsiveVariant",
+            control: "select",
+            options: [
+              "critical",
+              "elevated",
+              "neutral",
+              "overlay",
+              "primary",
+              "secondary",
+              "tertiary",
+            ],
+            optional: true,
+          },
         ],
       }]);
     } finally {
@@ -187,6 +201,186 @@ describe("extractPackageComponentContracts", () => {
         hostFile,
         moduleSpecifier: "@envato/missing/components",
       })).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("publishes scalar options from conditional package prop declarations", () => {
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-package-contracts-"));
+    try {
+      const hostFile = writeFixtureFile(
+        root,
+        "src/App.tsx",
+        `
+          import {
+            Container,
+            CustomButtonBase,
+          } from "@envato/design-system/components";
+
+          export const App = () => <>
+            <Container size="medium" />
+            <CustomButtonBase
+              padding="medium"
+              backgroundColor="accent"
+            />
+          </>;
+        `,
+      );
+      writeFixtureFile(
+        root,
+        "node_modules/@envato/design-system/package.json",
+        JSON.stringify({
+          name: "@envato/design-system",
+          exports: {
+            "./components": {
+              types: "./dist/types/components/index.d.ts",
+              import: "./dist/esm/components/index.js",
+            },
+          },
+        }),
+      );
+      writeFixtureFile(
+        root,
+        "node_modules/@envato/design-system/dist/esm/components/index.js",
+        `
+          export { Container } from "./Container/Container.js";
+          export { CustomButtonBase } from "./CustomButtonBase/CustomButtonBase.js";
+        `,
+      );
+      writeFixtureFile(
+        root,
+        "node_modules/@envato/design-system/dist/types/components/index.d.ts",
+        `
+          export { Container, type ContainerProps } from "./Container/Container.js";
+          export {
+            CustomButtonBase,
+            type CustomButtonBaseProps,
+          } from "./CustomButtonBase/CustomButtonBase.js";
+        `,
+      );
+      writeFixtureFile(
+        root,
+        "node_modules/@envato/design-system/dist/types/components/Container/Container.d.ts",
+        `
+          import type { ForwardRefExoticComponent } from "react";
+
+          export type ContainerSizeConditionalValue<T extends string> =
+            | T
+            | { default?: T; sm?: T; md?: T };
+
+          export interface ContainerProps {
+            label?: string;
+            size?: ContainerSizeConditionalValue<"small" | "medium" | "large">;
+            arbitrary?: ContainerSizeConditionalValue<string>;
+            mixed?: "small" | "medium" | 0 | { default?: "small" };
+            broadMixed?: "small" | "medium" | number | { default?: "small" };
+            brandedMixed?:
+              | "small"
+              | "medium"
+              | (string & { readonly __brand: "custom" })
+              | { default?: "small" };
+            unrelatedObject?:
+              | "small"
+              | "medium"
+              | { kind: "custom" };
+          }
+
+          export declare const Container: ForwardRefExoticComponent<ContainerProps>;
+        `,
+      );
+      writeFixtureFile(
+        root,
+        "node_modules/@envato/design-system/dist/types/components/CustomButtonBase/CustomButtonBase.d.ts",
+        `
+          import type { ForwardRefExoticComponent } from "react";
+
+          type ConditionalValue<T> =
+            | T
+            | { default?: T; hover?: T };
+
+          export interface CustomButtonBaseProps {
+            variant?: "solid" | "outline";
+            padding?: ConditionalValue<"small" | "medium" | "large">;
+            backgroundColor?: ConditionalValue<"neutral" | "accent">;
+            disabled?: ConditionalValue<boolean>;
+            mixedDisabled?: boolean | string | { default?: boolean };
+            unrelatedDisabledObject?: boolean | { default?: "yes" };
+          }
+
+          export declare const CustomButtonBase: ForwardRefExoticComponent<CustomButtonBaseProps>;
+        `,
+      );
+      writeFixtureFile(
+        root,
+        "node_modules/react/package.json",
+        JSON.stringify({ name: "react", types: "index.d.ts" }),
+      );
+      writeFixtureFile(
+        root,
+        "node_modules/react/index.d.ts",
+        `
+          export interface ForwardRefExoticComponent<Props> { (props: Props): unknown }
+        `,
+      );
+
+      expect(extractPackageComponentContracts({
+        hostFile,
+        moduleSpecifier: "@envato/design-system/components",
+      })).toEqual([
+        {
+          componentId: "@envato/design-system/components#Container",
+          name: "Container",
+          file: "@envato/design-system/components",
+          provenance: "typescript",
+          props: [
+            {
+              name: "label",
+              control: "text",
+              options: [],
+              optional: true,
+            },
+            {
+              name: "size",
+              control: "select",
+              options: ["small", "medium", "large"],
+              optional: true,
+            },
+          ],
+        },
+        {
+          componentId: "@envato/design-system/components#CustomButtonBase",
+          name: "CustomButtonBase",
+          file: "@envato/design-system/components",
+          provenance: "typescript",
+          props: [
+            {
+              name: "variant",
+              control: "select",
+              options: ["solid", "outline"],
+              optional: true,
+            },
+            {
+              name: "padding",
+              control: "select",
+              options: ["small", "medium", "large"],
+              optional: true,
+            },
+            {
+              name: "backgroundColor",
+              control: "select",
+              options: ["neutral", "accent"],
+              optional: true,
+            },
+            {
+              name: "disabled",
+              control: "boolean",
+              options: [false, true],
+              optional: true,
+            },
+          ],
+        },
+      ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
