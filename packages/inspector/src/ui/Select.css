@@ -50,7 +50,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   pointer-events: auto;
-  background: var(--surface-panel);
+  background: var(--surface-raised);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
@@ -58,10 +58,57 @@
   transform-origin: var(--transform-origin);
 }
 
+.select__popup--searchable {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.select__search-input {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: calc(100% - 16px);
+  min-height: 32px;
+  margin: 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-control);
+  color: var(--text-primary);
+  outline: 0;
+  font: inherit;
+}
+
+.select__search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.select__search-input:focus {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 2px var(--focus);
+}
+
+.select__empty {
+  padding: 12px 14px;
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+}
+
+.select__empty:empty {
+  padding: 0;
+}
+
 .select__list {
   min-width: 0;
   padding: 6px;
   outline: 0;
+}
+
+.select__list--searchable {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .select__group + .select__group {

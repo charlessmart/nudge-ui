@@ -111,6 +111,63 @@ describe("shared inspector UI", () => {
     expect(onValueChange).toHaveBeenCalledWith("one");
   });
 
+  it("renders a searchable select with grouped filtering", () => {
+    const onValueChange = vi.fn<(value: string) => void>();
+    act(() => {
+      root.render(createElement(Select, {
+        searchable: true,
+        value: "red",
+        groups: [
+          {
+            label: "Colors",
+            options: [
+              { value: "red", label: "Red" },
+              { value: "blue", label: "Blue" },
+            ],
+          },
+          {
+            label: "Spacing",
+            options: [{ value: "large", label: "Large" }],
+          },
+        ],
+        searchPlaceholder: "Search values…",
+        searchAriaLabel: "Filter values",
+        onValueChange,
+        "data-test": "searchable-select",
+      }));
+    });
+
+    const trigger = host.querySelector('[data-test="searchable-select"]') as HTMLElement;
+    expect(trigger.getAttribute("role")).toBe("combobox");
+
+    act(() => trigger.click());
+
+    const input = document.body.querySelector('[data-test="searchable-select-search"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.placeholder).toBe("Search values…");
+    expect(input.getAttribute("aria-label")).toBe("Filter values");
+    expect(Array.from(document.body.querySelectorAll<HTMLElement>(".select__item")).map((item) => item.dataset.value))
+      .toEqual(["red", "blue", "large"]);
+
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "blue");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(Array.from(document.body.querySelectorAll<HTMLElement>(".select__item")).map((item) => item.dataset.value))
+      .toEqual(["blue"]);
+    expect(Array.from(document.body.querySelectorAll<HTMLElement>(".select__group-label")).map((label) => label.textContent))
+      .toEqual(["Colors"]);
+
+    act(() => {
+      const option = document.body.querySelector('[data-value="blue"]') as HTMLElement;
+      option.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      option.click();
+    });
+    expect(onValueChange).toHaveBeenCalledWith("blue");
+  });
+
   it("gives actions and statuses semantic attributes", () => {
     act(() => {
       root.render(createElement("div", null,
@@ -216,6 +273,49 @@ describe("shared inspector UI", () => {
 
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith("--color-next");
+  });
+
+  it("filters a searchable trigger combobox from its popup input", () => {
+    const onSelect = vi.fn();
+    act(() => {
+      root.render(createElement(PopoverListbox, {
+        query: "",
+        open: true,
+        searchable: true,
+        searchPlaceholder: "Search tokens…",
+        searchAriaLabel: "Search tokens",
+        trigger: createElement("span", null, "Current token"),
+        triggerDataTest: "searchable-trigger",
+        items: [
+          { value: "--color-brand", label: "--color-brand", "data-test": "color-suggestion" },
+          { value: "--space-large", label: "--space-large", "data-test": "space-suggestion" },
+        ],
+        onQueryChange: () => undefined,
+        onOpenChange: () => undefined,
+        onSelect,
+      }));
+    });
+
+    const input = document.body.querySelector('[data-test="searchable-trigger-search"]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.placeholder).toBe("Search tokens…");
+    expect(input.getAttribute("aria-label")).toBe("Search tokens");
+    expect(document.body.querySelector('[data-test="color-suggestion"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-test="space-suggestion"]')).not.toBeNull();
+
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "space");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(document.body.querySelector('[data-test="color-suggestion"]')).toBeNull();
+    expect(document.body.querySelector('[data-test="space-suggestion"]')).not.toBeNull();
+
+    act(() => {
+      (document.body.querySelector('[data-test="space-suggestion"]') as HTMLElement).click();
+    });
+    expect(onSelect).toHaveBeenCalledWith("--space-large");
   });
 
   it("renders four side values directly when no paired controls are given", () => {

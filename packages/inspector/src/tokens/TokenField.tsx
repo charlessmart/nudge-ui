@@ -497,6 +497,9 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             triggerClassName="token-chip__trigger"
             triggerDataTest="token-chip"
             triggerAriaLabel={`Change ${property} token`}
+            searchable
+            searchPlaceholder="Search tokens…"
+            searchAriaLabel="Search tokens"
             items={[...rawSuggestionItems, ...relevantTokens.map((entry) => tokenSuggestion(entry, groupByTokenName))]}
             onQueryChange={() => undefined}
             onOpenChange={setTokenPickerOpen}

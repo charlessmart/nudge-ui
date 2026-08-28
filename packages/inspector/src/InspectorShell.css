@@ -204,6 +204,13 @@
   text-transform: uppercase;
 }
 
+.component-props .field-row__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .inline-text-editor {
   display: grid;
   gap: 8px;

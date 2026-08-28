@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, beforeEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { act } from "react";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
@@ -149,7 +149,49 @@ describe("TokenDropdown rendering", () => {
     const select = host.querySelector('[data-test="token-promote-select"]') as HTMLElement | null;
     expect(select).not.toBeNull();
     expect(select!.textContent).toContain("Replace with token");
-    expect(select!.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(select!.getAttribute("aria-haspopup")).toBe("dialog");
+    act(() => select!.click());
+    const search = document.body.querySelector('[data-test="token-promote-select-search"]') as HTMLInputElement | null;
+    expect(search).not.toBeNull();
+    expect(search!.getAttribute("aria-label")).toBe("Search tokens");
+    btn.remove();
+  });
+
+  it("filters token candidates before applying a selection", () => {
+    const btn = makeButton();
+    const onAfterEdit = vi.fn();
+    act(() => {
+      root.render(
+        createElement(TokenDropdown, {
+          row: makeRow("border-radius", null),
+          domElement: btn,
+          entries: ENTRIES,
+          onAfterEdit,
+        }),
+      );
+    });
+
+    const select = host.querySelector('[data-test="token-promote-select"]') as HTMLElement;
+    act(() => select.click());
+    const search = document.body.querySelector('[data-test="token-promote-select-search"]') as HTMLInputElement;
+
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(search, "radius");
+      search.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(Array.from(document.body.querySelectorAll<HTMLElement>(".select__item")).map((item) => item.dataset.value))
+      .toEqual(["--radius-md"]);
+
+    act(() => {
+      const option = document.body.querySelector('[data-value="--radius-md"]') as HTMLElement;
+      option.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+      option.click();
+    });
+
+    expect(getManagedSheetText()).toContain("border-radius: var(--radius-md);");
+    expect(onAfterEdit).toHaveBeenCalledTimes(1);
     btn.remove();
   });
 

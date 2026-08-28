@@ -48,8 +48,9 @@
 .token-row__name {
   min-width: 0;
   color: var(--text-primary);
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 11px;
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-base);
 }
 
 .token-variants {

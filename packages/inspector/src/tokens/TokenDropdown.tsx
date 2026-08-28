@@ -91,6 +91,9 @@ export function TokenDropdown(props: TokenDropdownProps): ReactElement {
           data-test="token-select"
           value={selectValue}
           groups={selectGroups}
+          searchable
+          searchPlaceholder="Search"
+          searchAriaLabel="Search tokens"
           onValueChange={handleSelect}
         />
       ) : (
@@ -100,6 +103,9 @@ export function TokenDropdown(props: TokenDropdownProps): ReactElement {
             value=""
             placeholder="Replace with token…"
             groups={selectGroups}
+            searchable
+            searchPlaceholder="Search"
+            searchAriaLabel="Search tokens"
             onValueChange={handlePromote}
           />
         </span>

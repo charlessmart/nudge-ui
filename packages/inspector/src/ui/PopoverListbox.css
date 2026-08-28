@@ -18,15 +18,60 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   pointer-events: auto;
-  background: var(--surface-panel);
+  background: var(--surface-raised);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
   box-shadow: var(--shadow-popup);
 }
 
+.popover-listbox__popup--searchable {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.popover-listbox__search-input {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 32px;
+  padding: var(--space-12) var(--space-16);
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  outline: 0;
+}
+
+.popover-listbox__search-input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.popover-listbox__search-input:focus {
+  border-color: var(--border-strong);
+}
+
+.popover-listbox__empty {
+  padding: var(--space-12) var(--space-16);
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+}
+
+.popover-listbox__empty:empty {
+  padding: 0;
+}
+
 .popover-listbox__list {
   min-width: 0;
-  padding: 6px;
+  padding: var(--space-8);
+}
+
+.popover-listbox__list--searchable {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .popover-listbox__item {
@@ -63,7 +108,7 @@
 .popover-listbox__trailing {
   min-width: 0;
   max-width: 45%;
-  flex: 0 1 45%;
+  flex: 0 1 25%;
   overflow: hidden;
   color: var(--text-muted);
   font-size: var(--font-size-base);

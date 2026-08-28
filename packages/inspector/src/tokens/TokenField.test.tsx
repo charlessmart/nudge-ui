@@ -432,6 +432,41 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain(current.name);
   });
 
+  it("filters alternatives from the active token chip picker", () => {
+    const { selected } = makeSelected();
+    const alternate: TokenEntry = {
+      name: "--font-size-large",
+      value: "20px",
+      source: "styles.css:3",
+    };
+    const other: TokenEntry = {
+      name: "--space-4",
+      value: "16px",
+      source: "styles.css:4",
+    };
+    handle = mount(createElement(TokenField, {
+      property: "font-size",
+      tokenRow: tokenRow(),
+      domElement: selected.domElement,
+      entries: [FONT_SIZE, alternate, other],
+    }));
+
+    act(() => (handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement).click());
+    const search = document.body.querySelector('[data-test="token-chip-search"]') as HTMLInputElement;
+    expect(search).not.toBeNull();
+    expect(search.getAttribute("aria-label")).toBe("Search tokens");
+
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(search, "large");
+      search.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    const suggestions = Array.from(document.body.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]'));
+    expect(suggestions).toHaveLength(1);
+    expect(suggestions[0]?.textContent).toContain(alternate.name);
+  });
+
   it("shows authored functional CSS and token attribution instead of computed pixels", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {
