@@ -30,7 +30,7 @@
 
 .icon-button--quiet {
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-primary);
 }
 
 .icon-button--danger {
@@ -44,7 +44,7 @@
 }
 
 .icon-button:hover:not(:disabled) {
-  background: var(--surface-control-hover);
+  background: var(--surface-well);
 }
 
 .icon-button--primary:hover:not(:disabled) {

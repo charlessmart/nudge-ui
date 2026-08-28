@@ -76,4 +76,35 @@ describe("layout authored values", () => {
       window.matchMedia = originalMatchMedia;
     }
   });
+
+  it("projects an authored gap expression onto both gap axes", () => {
+    const style = document.createElement("style");
+    style.textContent = `
+      .grid-subject {
+        gap: clamp(48px, 8vw, 140px);
+      }
+    `;
+    document.head.appendChild(style);
+    const subject = document.createElement("div");
+    subject.className = "grid-subject";
+    document.body.appendChild(subject);
+
+    expect(readAuthoredStyleValue(subject, "row-gap"))
+      .toBe("clamp(48px, 8vw, 140px)");
+    expect(readAuthoredStyleValue(subject, "column-gap"))
+      .toBe("clamp(48px, 8vw, 140px)");
+  });
+
+  it("keeps separate authored row and column gap values", () => {
+    const style = document.createElement("style");
+    style.textContent = ".grid-subject { gap: 12px clamp(48px, 8vw, 140px); }";
+    document.head.appendChild(style);
+    const subject = document.createElement("div");
+    subject.className = "grid-subject";
+    document.body.appendChild(subject);
+
+    expect(readAuthoredStyleValue(subject, "row-gap")).toBe("12px");
+    expect(readAuthoredStyleValue(subject, "column-gap"))
+      .toBe("clamp(48px, 8vw, 140px)");
+  });
 });

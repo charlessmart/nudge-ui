@@ -98,9 +98,10 @@
 
 .popover-listbox__label {
   min-width: 0;
-  flex: 1 1 0;
+  flex: 1 1 auto;
   overflow: hidden;
   color: var(--text-primary);
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -108,10 +109,11 @@
 .popover-listbox__trailing {
   min-width: 0;
   max-width: 45%;
-  flex: 0 1 25%;
+  flex: 0 1 auto;
   overflow: hidden;
   color: var(--text-muted);
   font-size: var(--font-size-base);
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

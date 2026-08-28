@@ -3,18 +3,15 @@
 }
 
 .tokens-panel__tools {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
+  display: block;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.tokens-panel__count,
-.token-group__heading span:last-child {
+.token-group__count {
   color: var(--text-muted-subtle);
   font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-base);
 }
 
 .token-group {

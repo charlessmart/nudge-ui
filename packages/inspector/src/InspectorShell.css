@@ -115,10 +115,6 @@
   border-radius: 0 var(--radius-control) var(--radius-control) 0;
 }
 
-.panel__icon-tab[data-active="true"] {
-  color: var(--text-primary);
-}
-
 .panel__body {
   min-height: auto;
   padding: 0 20px 28px;

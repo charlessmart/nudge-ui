@@ -4,9 +4,9 @@ import { setStyle } from "./styleActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { nudgeCssValue } from "./nudgeValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
+import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { Select } from "../ui/Select.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
-import { getStateStyleValue } from "../stateValue.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import type { ControlAppearance } from "../ui/ControlSurface.tsx";
@@ -51,7 +51,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
   const atRules = useFieldAtRules(property);
 
   const [currentValue, setCurrentValue] = useState(() =>
-    getStateStyleValue(el, property),
+    meaningfulLayoutValue(el, property),
   );
   const [customValue, setCustomValue] = useState(currentValue);
   const [showCustom, setShowCustom] = useState(false);
@@ -85,7 +85,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
         pendingProjectionRef.current = null;
       }
 
-      const cv = getStateStyleValue(el, property);
+      const cv = meaningfulLayoutValue(el, property);
       setCurrentValue(cv);
       setCustomValue(cv);
     } catch {

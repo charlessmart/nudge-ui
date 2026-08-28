@@ -48,4 +48,13 @@ describe("TokensPanel", () => {
     expect(label.textContent).toBe(tokenName);
     expect(label.querySelector(".token-label__content")?.textContent).toBe(tokenName);
   });
+
+  it("omits the total token count and keeps section counts regular weight", () => {
+    handle = mount(createElement(TokensPanel, {
+      rows: [inactiveTokenRow("--color-accent-subtle")],
+    }));
+
+    expect(handle.host.querySelector('[data-test="token-count"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="token-group-count"]')?.className).toBe("token-group__count");
+  });
 });

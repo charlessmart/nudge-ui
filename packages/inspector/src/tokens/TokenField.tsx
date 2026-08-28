@@ -512,6 +512,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             <IconButton
               variant="quiet"
               size="compact"
+              style={{ borderRadius: "var(--radius-4)" }}
               label="Replace with raw value"
               data-test="delink-btn"
               disabled={disabled}

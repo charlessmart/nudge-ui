@@ -36,6 +36,7 @@ import { classifyEditCapability } from "./propertyPolicy.ts";
 import { interpretTokenValue, type TokenInterpretationContext, type TokenValueInterpretation } from "./tokenInterpretation.ts";
 import {
   BORDER_RADIUS_CORNERS,
+  GAP_AXES,
   SPACING_SIDES,
   expandFourValueShorthand,
   expandTwoValueShorthand,
@@ -311,12 +312,26 @@ function expandSides(
   return sides.map((longhand, index) => projectPositionField(longhand, property, sideValues[index]!));
 }
 
+function expandGap(
+  property: string,
+  axes: readonly string[],
+  authored: string,
+  ctx: StructuredValuesContext,
+): StructuredField[] | null {
+  const rawValues = splitTopLevelWhitespace(authored);
+  const positions = expandPositionValues(rawValues, ctx);
+  const axisValues = expandTwoValueShorthand(positions);
+  if (!axisValues) return null;
+  return axes.map((longhand, index) =>
+    projectPositionField(longhand, property, axisValues[index]!));
+}
+
 /**
  * Interprets one authored value for a property into a structured projection
  * tree. Returns the projected fields, or a single conservative raw/composite
  * field when the value cannot be decomposed faithfully. The declared order of
  * the families mirrors CSS projection precedence: logical sides, border, font,
- * border-radius corners, physical spacing, then the raw fallback.
+ * border-radius corners, gap, physical spacing, then the raw fallback.
  */
 export function interpretValue(
   property: string,
@@ -348,6 +363,13 @@ export function interpretValue(
 
   const corners = BORDER_RADIUS_CORNERS[lower];
   if (corners) return expandCorners(property, corners, authored, ctx);
+
+  const gapAxes = GAP_AXES[lower];
+  if (gapAxes) {
+    const fields = expandGap(property, gapAxes, authored, ctx);
+    if (fields) return fields;
+    return [unsupportedField(property, authored, ctx)];
+  }
 
   const sides = SPACING_SIDES[lower];
   if (sides) {

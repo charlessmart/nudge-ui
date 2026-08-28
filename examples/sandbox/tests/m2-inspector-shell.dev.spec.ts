@@ -23,7 +23,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/button--primary/);
   await expect(page.locator('[data-test="mode-canvas"] svg')).toHaveClass(/tabler-icon-artboard/);
   await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/button--secondary|button--quiet/);
-  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/button--quiet/);
+  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/toggle-button--quiet/);
   const headerState = await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const header = sr?.querySelector('[data-test="inspect-tab"]');
@@ -90,7 +90,8 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-nudge-ui-panel"))).toBe("open");
 
   await page.locator('[data-test="tokens-tab"]').click();
-  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/button--secondary/);
+  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/toggle-button/);
+  await expect(page.locator('[data-test="tokens-tab"]')).toHaveAttribute("data-pressed");
   await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/button--secondary|button--quiet/);
 });
 
@@ -120,9 +121,11 @@ test("dev: inspector can collapse and reopen from its icon controls on a mobile 
 
   const panel = page.locator(".panel");
   await expect(panel).toHaveAttribute("data-open", "true");
+  await expect(page.locator('[data-test="collapse-inspector"] svg')).toHaveClass(/tabler-icon-layout-sidebar-right/);
   await page.locator('[data-test="collapse-inspector"]').click();
   await expect(panel).toHaveAttribute("data-open", "false");
   await expect(page.locator('[data-test="show-inspector"]')).toBeVisible();
+  await expect(page.locator('[data-test="show-inspector"] svg')).toHaveClass(/tabler-icon-layout-sidebar-right/);
   await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute("data-nudge-ui-panel"))).toBe(false);
 
   await page.locator('[data-test="show-inspector"]').click();

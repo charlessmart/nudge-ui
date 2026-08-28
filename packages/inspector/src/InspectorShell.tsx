@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { IconArtboard, IconColorSwatch, IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand } from "@tabler/icons-react";
+import { IconArtboard, IconColorSwatch, IconLayoutSidebarRight } from "@tabler/icons-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -34,6 +34,7 @@ import { Button } from "./ui/Button.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
+import { ToggleButton } from "./ui/ToggleButton.tsx";
 import { UI_STYLES } from "./ui/styles.ts";
 import { TokensPanel } from "./tokens/TokensPanel.tsx";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
@@ -264,6 +265,7 @@ export function InspectorShell(): ReactElement {
         <div className="panel__tabs" aria-label="Inspector controls">
           <div
             className="panel__header-row"
+            style={{ marginLeft: "-8px" }}
             data-test="inspect-tab"
           >
             <IconButton
@@ -275,22 +277,21 @@ export function InspectorShell(): ReactElement {
                 setInspectorOpen(false);
               }}
             >
-              <IconLayoutSidebarRightCollapse size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+              <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             </IconButton>
             <div className="panel__header-actions">
-              <IconButton
-                variant={activeTab === "tokens" ? "secondary" : "quiet"}
-                className={`panel__icon-tab button--${activeTab === "tokens" ? "secondary" : "quiet"}`}
+              <ToggleButton
+                variant="quiet"
                 role="tab"
                 aria-selected={activeTab === "tokens"}
-                data-active={activeTab === "tokens" ? "true" : "false"}
                 data-test="tokens-tab"
                 label="Tokens"
                 title="Tokens"
-                onClick={() => setActiveTab(activeTab === "tokens" ? "inspect" : "tokens")}
+                pressed={activeTab === "tokens"}
+                onPressedChange={(pressed) => setActiveTab(pressed ? "tokens" : "inspect")}
               >
                 <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              </IconButton>
+              </ToggleButton>
               {canvasEnabled ? (
                 <>
                   <span className="panel__header-divider" aria-hidden="true" />
@@ -315,14 +316,11 @@ export function InspectorShell(): ReactElement {
           </div>
         </div>
         <div className="panel__body">
-          {inlineTextSession ? (
+          {inlineTextSession && (
+            inlineTextSession.bindingChoices.length > 1 ||
+            inlineTextSession.scopeChoices.length > 0
+          ) ? (
             <section className="inline-text-editor" data-test="inline-text-editor">
-              <div className="editor__title-row">
-                <div className="editor__title">Editing text</div>
-                <span className="component-props__source">
-                  {inlineTextSession.binding.kind === "component-prop" ? "Component" : "Rendered text"}
-                </span>
-              </div>
               <div className="inline-text-editor__binding" data-test="inline-text-binding">
                 {inlineTextSession.binding.kind === "component-prop"
                   ? `${inlineTextSession.binding.target.componentName}.${inlineTextSession.binding.property}`
@@ -424,31 +422,31 @@ export function InspectorShell(): ReactElement {
                     </div>
                   </div>
                 ) : null}
-                <StatusCallout
-                  tone={editScope === "rendered-instance" ? "neutral" : "accent"}
-                  data-test="edit-scope"
-                  data-lost="false"
-                >
-                  {editScope === "rendered-instance" ? (
-                    <>
-                      <span>Editing only this rendered item.</span>
-                      <Button
-                        size="compact"
-                        className="scope__action"
-                        data-test="relink-element"
-                        onClick={() => {
-                          const overrideId = relinkElement(selected.domElement);
-                          if (overrideId) discardChangesForInstanceOverride(overrideId);
-                          refreshScopeState();
-                        }}
-                      >
-                        Relink To Source
-                      </Button>
-                    </>
-                  ) : (
-                    <div className="scope__linked">
-                      <span>Affects {sourceSiteMatchCount} {sourceSiteMatchCount === 1 ? "element" : "elements"}.</span>
-                      {sourceSiteMatchCount > 1 ? (
+                {editScope === "rendered-instance" || sourceSiteMatchCount > 1 ? (
+                  <StatusCallout
+                    tone={editScope === "rendered-instance" ? "neutral" : "accent"}
+                    data-test="edit-scope"
+                    data-lost="false"
+                  >
+                    {editScope === "rendered-instance" ? (
+                      <>
+                        <span>Editing only this rendered item.</span>
+                        <Button
+                          size="compact"
+                          className="scope__action"
+                          data-test="relink-element"
+                          onClick={() => {
+                            const overrideId = relinkElement(selected.domElement);
+                            if (overrideId) discardChangesForInstanceOverride(overrideId);
+                            refreshScopeState();
+                          }}
+                        >
+                          Relink To Source
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="scope__linked">
+                        <span>Affects {sourceSiteMatchCount} elements.</span>
                         <Button
                           size="compact"
                           variant="quiet"
@@ -460,10 +458,10 @@ export function InspectorShell(): ReactElement {
                         >
                         Unlink
                         </Button>
-                      ) : null}
-                    </div>
-                  )}
-                </StatusCallout>
+                      </div>
+                    )}
+                  </StatusCallout>
+                ) : null}
               </div>
 
               <ComponentPropsSection selected={selected} />
@@ -516,7 +514,7 @@ export function InspectorShell(): ReactElement {
           data-test="show-inspector"
           onClick={() => setInspectorOpen(true)}
         >
-          <IconLayoutSidebarRightExpand size={18} stroke={1.8} aria-hidden="true" />
+          <IconLayoutSidebarRight size={18} stroke={1.8} aria-hidden="true" />
         </IconButton>
       ) : null}
     </>

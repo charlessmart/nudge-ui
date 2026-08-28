@@ -173,6 +173,24 @@ describe("LayoutComboField", () => {
     expect(sheetText()).toContain("column-gap: 12px;");
   });
 
+  it("shows the authored gap expression instead of the resolved pixel value", () => {
+    const { el } = makeSelected();
+    const authored = "clamp(48px, 8vw, 140px)";
+    el.style.setProperty("gap", authored);
+    mockComputedStyle({ "column-gap": "139.68px" });
+    handle = mount(
+      createElement(LayoutComboField, {
+        property: "column-gap",
+        presets: ["0", "1rem"],
+        domElement: el,
+        inputOnly: true,
+      }),
+    );
+
+    const input = handle.host.querySelector('[data-test="layout-combo-input-column-gap"]') as HTMLInputElement;
+    expect(input.value).toBe(authored);
+  });
+
   it("nudges a custom layout value immediately", () => {
     const { el } = makeSelected();
     mockComputedStyle({ "row-gap": "12px" });

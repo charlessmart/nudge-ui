@@ -49,9 +49,6 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
           data-test="token-search"
           onChange={(event) => setQuery(event.target.value)}
         />
-        <span className="tokens-panel__count" data-test="token-count">
-          {visibleRows.length} {visibleRows.length === 1 ? "token" : "tokens"}
-        </span>
       </div>
 
       {TOKEN_GROUP_ORDER.map((group) => {
@@ -61,7 +58,7 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
           <section className="token-group" data-test="token-group" data-group={group} key={group}>
             <div className="token-group__heading">
               <span>{TOKEN_GROUP_LABELS[group]}</span>
-              <span>{groupedRows.length}</span>
+              <span className="token-group__count" data-test="token-group-count">{groupedRows.length}</span>
             </div>
             {groupedRows.map((row) => (
               <TokenCatalogItem key={row.definition.cssName} row={row} rows={rows} entries={entries} />

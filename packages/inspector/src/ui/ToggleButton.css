@@ -29,7 +29,7 @@
 
 .toggle-button--quiet {
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-primary);
 }
 
 .toggle-button--danger {

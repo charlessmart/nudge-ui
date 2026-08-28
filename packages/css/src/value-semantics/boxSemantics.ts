@@ -2,11 +2,12 @@
  * Box and spacing value semantics (plan slice 3.5).
  *
  * One browser-safe Module owns physical and logical box-value expansion:
- * 1–4 value shorthand expansion for `margin`/`padding`/`inset`, border-radius
- * corner names, and the logical→physical side mapping. The logical mapping
- * is a pure function over an explicit `Directionality` fact supplied by the
- * integration (browser CSS inspection reads direction/writing-mode from the
- * selected element); this module never touches the DOM or CSSOM.
+ * 1–4 value shorthand expansion for `margin`/`padding`/`inset`, two-value
+ * expansion for `gap`, border-radius corner names, and the logical→physical
+ * side mapping. The logical mapping is a pure function over an explicit
+ * `Directionality` fact supplied by the integration (browser CSS inspection
+ * reads direction/writing-mode from the selected element); this module never
+ * touches the DOM or CSSOM.
  */
 import type { StringArrayMap } from "./stringMaps.ts";
 
@@ -14,6 +15,11 @@ export const SPACING_SIDES: StringArrayMap = {
   margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
   inset: ["top", "right", "bottom", "left"],
+};
+
+/** CSS `gap` shorthand order: row gap, then column gap. */
+export const GAP_AXES: StringArrayMap = {
+  gap: ["row-gap", "column-gap"],
 };
 
 export const BORDER_RADIUS_CORNERS: StringArrayMap = {

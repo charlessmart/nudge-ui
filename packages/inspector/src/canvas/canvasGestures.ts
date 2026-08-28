@@ -4,7 +4,7 @@ import {
   type CanvasCamera,
 } from "./canvasStore.ts";
 
-export const ZOOM_WHEEL_FACTOR = 1.04;
+export const ZOOM_WHEEL_FACTOR = 1.02;
 
 export interface ClientPoint {
   x: number;

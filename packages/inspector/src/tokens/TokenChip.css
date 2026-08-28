@@ -4,6 +4,7 @@
   flex: 1;
   min-width: 0;
   background: var(--surface-raised);
+  margin-right: -6px;
   align-self: stretch;
   padding-left: var(--space-8);
   border-radius: calc(var(--radius-control) - 2px);
@@ -97,14 +98,12 @@
   position: absolute;
   z-index: 2;
   top: 50%;
-  right: 4px;
+  right: 2px;
   display: inline-flex;
   align-items: center;
   background: var(--surface-raised);
-  border-radius: var(--radius-control);
   transform: translateY(-50%);
   opacity: 0;
-  transition: opacity 100ms ease;
 }
 
 .token-chip:hover > .token-chip__action,

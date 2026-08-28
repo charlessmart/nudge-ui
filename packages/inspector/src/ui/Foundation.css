@@ -2,10 +2,11 @@
   all: initial;
   --surface-panel: #f0f2f4;
   --surface-control: var(--surface-well);
-  --surface-control-hover: #ececec;
+  --surface-control-hover: var(--surface-well-2x);
   --surface-raised: #f9fafa;
   --surface-raised-hover: #f5f6f7;
   --surface-well: hsla(0, 0%, 0%, 0.05);
+  --surface-well-2x: hsla(0, 0%, 0%, 0.10);
 
   --border-subtle: hsla(0, 0%, 0%, 0.07);
   --border-medium: hsla(0, 0%, 0%, 0.2);

@@ -41,9 +41,7 @@ test("edits a unique component label inline and keeps one canonical change", asy
   const button = page.getByRole("button", { name: "Publish changes" });
   await button.dblclick();
 
-  const editor = page.locator('[data-test="inline-text-editor"]');
-  await expect(editor).toBeVisible();
-  await expect(editor.locator('[data-test="inline-text-binding"]')).toHaveText("SemanticButton.label");
+  await expect(page.locator('[data-test="inline-text-editor"]')).toHaveCount(0);
 
   const host = page.locator('[data-inline-editor="true"]');
   await expect(host).toHaveAttribute("contenteditable", "plaintext-only");
@@ -76,7 +74,7 @@ test("cancels an inline children edit without a change", async ({ page }) => {
   await page.goto("/component-props");
   const badge = page.locator('[data-test="semantic-badge"]').filter({ hasText: "Neutral" });
   await badge.dblclick();
-  await expect(page.locator('[data-test="inline-text-binding"]')).toHaveText("SemanticBadge.children");
+  await expect(page.locator('[data-test="inline-text-editor"]')).toHaveCount(0);
 
   const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Changed but cancelled");
@@ -91,7 +89,7 @@ test("falls back to rendered text, restores after refresh, and supports prompt/r
 
   const copy = page.locator('[data-test="rendered-text-fallback"]');
   await copy.dblclick();
-  await expect(page.locator('[data-test="inline-text-binding"]')).toHaveText("Rendered text");
+  await expect(page.locator('[data-test="inline-text-editor"]')).toHaveCount(0);
 
   const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Updated rendered copy");
@@ -185,7 +183,7 @@ test("keeps repeated expression text instance-scoped and projects the evidence i
   await expect(second).toHaveText("Expression B");
   await first.dblclick();
 
-  await expect(page.locator('[data-test="inline-text-binding"]')).toHaveText("Rendered text");
+  await expect(page.locator('[data-test="inline-text-editor"]')).toHaveCount(0);
   await expect(page.locator('[data-test="inline-scope-chooser"]')).toHaveCount(0);
   const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Expression edited");
@@ -298,7 +296,7 @@ test("uses before-text evidence to edit one of distinct repeated rendered roots"
   await expect(first).toHaveText("Distinct A");
   await expect(second).toHaveText("Distinct B");
   await first.dblclick();
-  await expect(page.locator('[data-test="inline-text-binding"]')).toHaveText("Rendered text");
+  await expect(page.locator('[data-test="inline-text-editor"]')).toHaveCount(0);
   const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Distinct edited");
   await host.press("Enter");

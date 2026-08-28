@@ -105,6 +105,16 @@ describe("interpretStructuredValue — box/spacing expansion", () => {
   });
 
   it.each([
+    ["clamp(48px, 8vw, 140px)", ["clamp(48px, 8vw, 140px)", "clamp(48px, 8vw, 140px)"]],
+    ["12px 24px", ["12px", "24px"]],
+  ] as const)("expands gap %s into row-gap and column-gap", (value, expected) => {
+    const fields = interpretStructuredValue("gap", value, ctx(table([])));
+    expect(fields.map((field) => field.property)).toEqual(["row-gap", "column-gap"]);
+    expect(fields.map((field) => field.declaredValue)).toEqual(expected);
+    expect(fields.map((field) => field.sourceProperty)).toEqual(["gap", "gap"]);
+  });
+
+  it.each([
     ["inset", "0", ["top", "right", "bottom", "left"], ["0", "0", "0", "0"]],
     ["inset", "0 4px", ["top", "right", "bottom", "left"], ["0", "4px", "0", "4px"]],
   ] as const)("expands %s into physical inset longhands", (property, value, expectedProps, expectedValues) => {

@@ -113,6 +113,50 @@ describe("InspectorShell", () => {
     }
   });
 
+  it("hides the source-site scope status for a uniquely mounted element", () => {
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    selected.dataset.src = "fixtures/selected.tsx:1:1";
+    document.body.appendChild(selected);
+
+    try {
+      act(() => {
+        setSelectedElement(resolveSelectionFromElement(selected));
+        mountInspector(host);
+      });
+
+      expect(host.shadowRoot?.querySelector('[data-test="edit-scope"]')).toBeNull();
+    } finally {
+      setSelectedElement(null);
+      selected.remove();
+    }
+  });
+
+  it("shows the source-site scope status when multiple elements share a source site", () => {
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    selected.dataset.src = "fixtures/selected.tsx:1:1";
+    const linked = document.createElement("button");
+    linked.dataset.cid = "Selected";
+    linked.dataset.src = "fixtures/selected.tsx:1:1";
+    document.body.append(selected, linked);
+
+    try {
+      act(() => {
+        setSelectedElement(resolveSelectionFromElement(selected));
+        mountInspector(host);
+      });
+
+      const scope = host.shadowRoot?.querySelector('[data-test="edit-scope"]');
+      expect(scope).not.toBeNull();
+      expect(scope?.textContent).toContain("Affects 2 elements.");
+    } finally {
+      setSelectedElement(null);
+      selected.remove();
+      linked.remove();
+    }
+  });
+
   it("hides DOM navigation unless the debug capability is enabled", () => {
     const previousConfig = getNudgeUiRuntimeConfig();
     const selected = document.createElement("button");
@@ -164,7 +208,8 @@ describe("InspectorShell", () => {
     });
     expect(shadow.querySelector('[data-test="tokens-panel"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="tokens-tab"]')?.getAttribute("aria-selected")).toBe("true");
-    expect(shadow.querySelector('[data-test="tokens-tab"]')?.className).toContain("button--secondary");
+    expect(shadow.querySelector('[data-test="tokens-tab"]')?.className).toContain("toggle-button");
+    expect(shadow.querySelector('[data-test="tokens-tab"]')?.getAttribute("data-pressed")).not.toBeNull();
     expect(shadow.querySelector('[data-test="inspect-tab"]')?.className).toBe("panel__header-row");
   });
 
