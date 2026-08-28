@@ -1,0 +1,41 @@
+{
+  "name": "@nudge-ui/mcp",
+  "version": "0.0.1",
+  "type": "module",
+  "files": [
+    "bin",
+    "dist",
+    "scripts",
+    "src"
+  ],
+  "main": "src/index.ts",
+  "bin": {
+    "nudge-mcp": "./bin/nudge-mcp.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./protocol": "./src/protocol.ts",
+    "./bridge": "./src/bridge.ts",
+    "./server": "./src/server.ts",
+    "./registrar": "./src/registrar.ts"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "postinstall": "node scripts/postinstall.mjs",
+    "prepack": "pnpm run build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@nudge-ui/agent-protocol": "workspace:*",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

@@ -4,6 +4,7 @@ import {
   appendChange,
   appendChanges,
   revertChange,
+  reconcileVerifiedChanges,
   clearChanges,
   getChangesList,
   getPendingRules,
@@ -14,6 +15,7 @@ import {
 import type { ChangeRecord, ComponentChangeRecord, ElementChangeRecord } from "./changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "./changes/_testUtils.ts";
+import { changeKey } from "./changes/model.ts";
 import { setSelectedElement } from "./selectionStore.ts";
 import type { RenderedInstanceOverride } from "./renderedInstance.ts";
 
@@ -198,6 +200,21 @@ describe("changesLog", () => {
     clearChanges();
     expect(getChangesList()).toHaveLength(0);
     expect(getPendingRules()).toHaveLength(0);
+  });
+
+  it("reconcileVerifiedChanges removes only verified records and undo cannot restore them", () => {
+    const verified = makeRecord("background", COLOR_B, COLOR_A);
+    const unsent = makeRecord("color", COLOR_C, COLOR_A);
+    appendChange(verified);
+    appendChange(unsent);
+
+    expect(reconcileVerifiedChanges(new Set([changeKey(verified)]))).toBe(1);
+    expect(getChangesList()).toMatchObject([{ property: "color" }]);
+
+    expect(undo()).toBe(true);
+    expect(getChangesList()).toEqual([]);
+    expect(redo()).toBe(true);
+    expect(getChangesList()).toMatchObject([{ property: "color" }]);
   });
 
 

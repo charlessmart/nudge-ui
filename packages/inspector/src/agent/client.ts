@@ -1,0 +1,722 @@
+import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { isNudgeUiDev } from "../devFlag.ts";
+import { HttpAgentBridgeTransport } from "./httpTransport.ts";
+import {
+  AGENT_PROTOCOL_VERSION,
+  type AgentBridgeEvent,
+  type AgentBridgeTransport,
+  type AgentClientOptions,
+  type AgentDiscoveryRequest,
+  type AgentDisconnectRequest,
+  type AgentSessionRequest,
+  type AgentEventsRequest,
+  type AgentPairRequest,
+  type AgentPromptDispatch,
+  type AgentRequestStatus,
+  type AgentStatusSnapshot,
+  type CanvasCommand,
+  type AgentCanvasAcknowledgementRequest,
+  type PromptDispatchResponse,
+} from "./protocol.ts";
+
+export type AgentClientState =
+  | "disabled"
+  | "disconnected"
+  | "available"
+  | "pairing"
+  | "connected"
+  | "working"
+  | "completed"
+  | "failed"
+  | "interrupted";
+
+export interface AgentRequestSnapshot {
+  readonly requestId: string;
+  readonly changeRevision?: number;
+  readonly status: AgentRequestStatus;
+  readonly summary?: string;
+  readonly error?: string;
+}
+
+export interface AgentClientSnapshot {
+  /** Composite state used by the handoff control. */
+  readonly state: AgentClientState;
+  /** Companion state, using the shared protocol vocabulary. */
+  readonly connection: AgentStatusSnapshot["connection"];
+  readonly listenerActive: boolean;
+  readonly paired: boolean;
+  readonly request: AgentRequestSnapshot | null;
+  readonly listenerLabel?: string;
+  readonly error?: string;
+}
+
+const DISABLED_SNAPSHOT: AgentClientSnapshot = Object.freeze({
+  state: "disabled",
+  connection: "offline",
+  listenerActive: false,
+  paired: false,
+  request: null,
+});
+
+const DEFAULT_DISCOVERY_INTERVAL_MS = 2_000;
+const SESSION_STORAGE_PREFIX = "nudge-ui-agent-session:";
+
+interface StoredAgentSession {
+  readonly projectId: string;
+  readonly origin: string;
+  readonly sessionToken: string;
+}
+
+interface ActiveRequest {
+  localRequestId: string;
+  requestId: string;
+  prompt: string;
+  changeRevision?: number;
+  status: AgentRequestStatus;
+  summary?: string;
+  error?: string;
+}
+
+function randomId(prefix: string): string {
+  const random = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}-${random}`;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function sessionStorageKey(projectId: string): string {
+  return `${SESSION_STORAGE_PREFIX}${encodeURIComponent(projectId)}`;
+}
+
+function readStoredSession(projectId: string, origin: string): string | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(sessionStorageKey(projectId));
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const value = parsed as Record<string, unknown>;
+    if (value.projectId !== projectId || value.origin !== origin || typeof value.sessionToken !== "string" || value.sessionToken.length === 0) {
+      localStorage.removeItem(sessionStorageKey(projectId));
+      return null;
+    }
+    return value.sessionToken;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredSession(session: StoredAgentSession): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(sessionStorageKey(session.projectId), JSON.stringify(session));
+  } catch {
+    // Storage can be disabled by browser privacy settings. The in-memory
+    // pairing remains valid for this document in that case.
+  }
+}
+
+function clearStoredSession(projectId: string): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.removeItem(sessionStorageKey(projectId));
+  } catch {
+    // Ignore storage failures; disconnect still clears the live connection.
+  }
+}
+
+function statusForConnection(status: AgentStatusSnapshot): AgentStatusSnapshot["connection"] {
+  if (status.connection === "working" || status.request?.status === "working") return "working";
+  if (status.paired) return "paired";
+  if (status.listenerActive) return "listening";
+  return "offline";
+}
+
+function hashRevision(value: string): number {
+  // FNV-1a is sufficient here: the revision is an opaque, bounded identity
+  // used to prevent a later browser edit from being mistaken for the sent
+  // canonical change set. Keep it in the safe-integer range accepted by the
+  // companion protocol.
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0) & 0x7fff_ffff;
+}
+
+/** Creates a stable numeric revision for one prompt snapshot. */
+export function createPromptRevision(
+  changes: readonly unknown[],
+  structuralChanges: readonly unknown[] = [],
+): number {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify({ changes, structuralChanges }) ?? "";
+  } catch {
+    serialized = `${changes.length}:${structuralChanges.length}`;
+  }
+  return hashRevision(serialized);
+}
+
+/**
+ * Browser-side companion client.
+ *
+ * Discovery is deliberately started by `start()`, which is guarded by the
+ * dev-only flag. Constructing this class never opens a socket or performs a
+ * network request, so importing the inspector remains inert in production.
+ */
+export class AgentClient {
+  readonly projectId: string;
+  readonly origin: string;
+
+  private readonly transport: AgentBridgeTransport;
+  private readonly discoveryIntervalMs: number;
+  private readonly enabled: boolean;
+  private canvasCommandHandler: AgentClientOptions["canvasCommandHandler"];
+  private readonly listeners = new Set<() => void>();
+  private snapshot: AgentClientSnapshot;
+  private listenerLabel: string | undefined;
+  private sessionToken: string | null = null;
+  private activeRequest: ActiveRequest | null = null;
+  private discoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  private discoveryAbort: AbortController | null = null;
+  private dispatchAbort: AbortController | null = null;
+  private eventSubscription: { close: () => void } | null = null;
+  private started = false;
+  private connection: AgentStatusSnapshot["connection"] = "offline";
+  private listenerActive = false;
+  private paired = false;
+  private lastError: string | undefined;
+
+  constructor(options: AgentClientOptions) {
+    this.projectId = options.projectId;
+    this.origin = options.origin ?? (typeof window !== "undefined" ? window.location.origin : "http://localhost");
+    this.transport = options.transport ?? new HttpAgentBridgeTransport(options.endpoint);
+    this.discoveryIntervalMs = options.discoveryIntervalMs ?? DEFAULT_DISCOVERY_INTERVAL_MS;
+    this.canvasCommandHandler = options.canvasCommandHandler;
+    this.enabled = isNudgeUiDev();
+    this.snapshot = this.enabled ? this.makeSnapshot() : DISABLED_SNAPSHOT;
+  }
+
+  /** Installs the controller callback used to acknowledge Canvas commands. */
+  setCanvasCommandHandler(handler: AgentClientOptions["canvasCommandHandler"]): void {
+    this.canvasCommandHandler = handler;
+  }
+
+  getSnapshot = (): AgentClientSnapshot => this.snapshot;
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  /** Starts loopback discovery. Calling it repeatedly is idempotent. */
+  start(): void {
+    if (!this.enabled || this.started) return;
+    this.started = true;
+    void this.restoreOrDiscover();
+  }
+
+  /** Stops discovery and closes the browser event stream. */
+  stop(): void {
+    if (!this.started && !this.eventSubscription) return;
+    this.started = false;
+    if (this.discoveryTimer !== null) {
+      clearTimeout(this.discoveryTimer);
+      this.discoveryTimer = null;
+    }
+    this.discoveryAbort?.abort();
+    this.discoveryAbort = null;
+    this.dispatchAbort?.abort();
+    this.dispatchAbort = null;
+    this.eventSubscription?.close();
+    this.eventSubscription = null;
+    // `stop` is used by React effect cleanup and page remounts. Keep the
+    // request and ephemeral token in memory/storage so a still-running
+    // companion can be resumed; explicit `disconnect()` is the revocation
+    // and interruption path.
+    this.connection = "offline";
+    this.listenerActive = false;
+    this.paired = false;
+    this.publish();
+  }
+
+  private async restoreOrDiscover(): Promise<void> {
+    if (!this.started || !this.enabled) return;
+    const token = this.sessionToken ?? readStoredSession(this.projectId, this.origin);
+    if (token && this.transport.restore) {
+      const abortController = new AbortController();
+      this.discoveryAbort?.abort();
+      this.discoveryAbort = abortController;
+      try {
+        const status = await this.transport.restore({
+          projectId: this.projectId,
+          origin: this.origin,
+          sessionToken: token,
+        } satisfies AgentSessionRequest, abortController.signal);
+        if (!this.started || abortController.signal.aborted) return;
+        if (status?.paired) {
+          this.sessionToken = token;
+          this.connection = "paired";
+          this.paired = true;
+          this.openEvents(token);
+          this.applyStatus(status);
+          return;
+        }
+        clearStoredSession(this.projectId);
+        this.sessionToken = null;
+      } catch (error) {
+        if (abortController.signal.aborted || !this.started) return;
+        // A stale or revoked token is not a connection error. Clearing it
+        // lets the normal listener discovery path offer a fresh pairing.
+        clearStoredSession(this.projectId);
+        this.sessionToken = null;
+        void error;
+      } finally {
+        if (this.discoveryAbort === abortController) this.discoveryAbort = null;
+      }
+    }
+    void this.discover();
+  }
+
+  /** Triggers a new discovery probe after a connection loss. */
+  reconnect(): void {
+    if (!this.enabled) return;
+    if (!this.started) {
+      this.start();
+      return;
+    }
+    this.eventSubscription?.close();
+    this.eventSubscription = null;
+    this.discoveryAbort?.abort();
+    this.connection = "offline";
+    this.listenerActive = false;
+    this.paired = false;
+    this.lastError = undefined;
+    this.publish();
+    void this.restoreOrDiscover();
+  }
+
+  /** Pairs the browser with the currently advertised companion listener. */
+  async connect(): Promise<boolean> {
+    if (!this.enabled || !this.started || this.connection !== "listening") return false;
+    this.connection = "listening";
+    this.lastError = undefined;
+    this.publish("pairing");
+    const request: AgentPairRequest = {
+      projectId: this.projectId,
+      origin: this.origin,
+      ...(typeof window !== "undefined" ? { pageUrl: window.location.href } : {}),
+    };
+    const abortController = new AbortController();
+    this.discoveryAbort?.abort();
+    this.discoveryAbort = abortController;
+    try {
+      const pairing = await this.transport.pair(request, abortController.signal);
+      if (!this.started || abortController.signal.aborted) return false;
+      if (pairing.protocolVersion !== undefined && pairing.protocolVersion !== AGENT_PROTOCOL_VERSION) {
+        throw new Error("Agent bridge protocol version is not supported.");
+      }
+      if (pairing.projectId !== this.projectId) throw new Error("Agent bridge returned a different project.");
+      this.sessionToken = pairing.sessionToken;
+      writeStoredSession({ projectId: this.projectId, origin: this.origin, sessionToken: pairing.sessionToken });
+      this.connection = "paired";
+      this.listenerActive = pairing.status.listenerActive;
+      this.paired = true;
+      if (this.discoveryTimer !== null) {
+        clearTimeout(this.discoveryTimer);
+        this.discoveryTimer = null;
+      }
+      this.applyStatus(pairing.status);
+      this.openEvents(pairing.sessionToken);
+      this.publish();
+      return true;
+    } catch (error) {
+      if (abortController.signal.aborted || !this.started) return false;
+      this.lastError = errorMessage(error, "The agent could not be connected.");
+      this.sessionToken = null;
+      this.connection = "listening";
+      this.listenerActive = true;
+      this.paired = false;
+      this.publish("available");
+      return false;
+    } finally {
+      if (this.discoveryAbort === abortController) this.discoveryAbort = null;
+    }
+  }
+
+  private openEvents(sessionToken: string): void {
+    this.eventSubscription?.close();
+    const eventsRequest: AgentEventsRequest = {
+      projectId: this.projectId,
+      origin: this.origin,
+      sessionToken,
+    };
+    try {
+      this.eventSubscription = this.transport.openEvents(eventsRequest, {
+        onEvent: (event) => this.handleEvent(event),
+        onDisconnect: (reason) => this.handleDisconnect(reason),
+      });
+    } catch (error) {
+      this.handleDisconnect(errorMessage(error, "The agent event stream could not be opened."));
+    }
+  }
+
+  /**
+   * Dispatches one immutable prompt revision. The request enters `working`
+   * synchronously, before the transport promise resolves, so the UI cannot
+   * issue a second prompt while the first one is in flight.
+   */
+  async dispatchPrompt(prompt: string, changeRevision?: number): Promise<PromptDispatchResponse | null> {
+    if (!this.enabled || !this.started || this.connection !== "paired" || !this.sessionToken) return null;
+    if (!prompt || this.activeRequest?.status === "working") return null;
+    const localRequestId = randomId("request");
+    const request: AgentPromptDispatch = {
+      projectId: this.projectId,
+      sessionToken: this.sessionToken,
+      prompt,
+      ...(changeRevision === undefined ? {} : { changeRevision }),
+    };
+    this.activeRequest = {
+      localRequestId,
+      requestId: localRequestId,
+      prompt,
+      ...(changeRevision === undefined ? {} : { changeRevision }),
+      status: "working",
+    };
+    this.connection = "working";
+    this.lastError = undefined;
+    this.publish();
+    const abortController = new AbortController();
+    this.dispatchAbort = abortController;
+    try {
+      const response = await this.transport.dispatch(request, abortController.signal);
+      if (abortController.signal.aborted) return null;
+      if (response?.request?.requestId) {
+        this.activeRequest = this.activeRequest && this.activeRequest.localRequestId === localRequestId
+          ? { ...this.activeRequest, requestId: response.request.requestId }
+          : this.activeRequest;
+      }
+      if (response?.status && response.status !== "working") {
+        this.applyRequestStatus(response.status, response.request.requestId);
+      }
+      return response ?? null;
+    } catch (error) {
+      if (!abortController.signal.aborted && this.activeRequest?.localRequestId === localRequestId) {
+        this.activeRequest = { ...this.activeRequest, status: "failed", error: errorMessage(error, "The agent did not accept the prompt.") };
+        this.connection = "paired";
+        this.lastError = this.activeRequest.error;
+        this.publish();
+      }
+      return null;
+    } finally {
+      if (this.dispatchAbort === abortController) this.dispatchAbort = null;
+    }
+  }
+
+  /** Interrupts local request state and asks the companion to revoke pairing. */
+  disconnect(reason = "browser_disconnected"): void {
+    const token = this.sessionToken;
+    const active = this.activeRequest;
+    if (active?.status === "working") {
+      this.activeRequest = { ...active, status: "interrupted", error: reason };
+    }
+    this.dispatchAbort?.abort();
+    this.eventSubscription?.close();
+    this.eventSubscription = null;
+    this.sessionToken = null;
+    clearStoredSession(this.projectId);
+    this.connection = "offline";
+    this.listenerActive = false;
+    this.paired = false;
+    this.lastError = reason === "reconnect" ? undefined : reason;
+    this.publish();
+    if (token) {
+      const request: AgentDisconnectRequest = {
+        projectId: this.projectId,
+        origin: this.origin,
+        sessionToken: token,
+      };
+      const disconnectResult = this.transport.disconnect?.(request);
+      void disconnectResult?.catch(() => undefined);
+    }
+  }
+
+  private async discover(): Promise<void> {
+    if (!this.started || !this.enabled) return;
+    const abortController = new AbortController();
+    this.discoveryAbort?.abort();
+    this.discoveryAbort = abortController;
+    try {
+      const request: AgentDiscoveryRequest = { projectId: this.projectId, origin: this.origin };
+      const status = await this.transport.discover(request, abortController.signal);
+      if (!this.started || abortController.signal.aborted) return;
+      if (status) {
+        if (status.protocolVersion !== AGENT_PROTOCOL_VERSION || status.projectId !== this.projectId) {
+          this.lastError = "The agent bridge project or protocol does not match this page.";
+        } else if (this.connection !== "paired" && this.connection !== "working") {
+          this.applyStatus(status);
+        }
+      } else if (this.connection !== "paired" && this.connection !== "working") {
+        this.connection = "offline";
+        this.listenerActive = false;
+        this.paired = false;
+        this.lastError = undefined;
+        this.publish();
+      }
+    } catch (error) {
+      if (!abortController.signal.aborted && this.started && this.connection !== "paired" && this.connection !== "working") {
+        this.connection = "offline";
+        this.listenerActive = false;
+        this.paired = false;
+        // Discovery failures are expected while the companion is not running;
+        // retain a quiet disconnected state rather than flashing an error.
+        this.lastError = undefined;
+        this.publish();
+      }
+      void error;
+    } finally {
+      if (this.discoveryAbort === abortController) this.discoveryAbort = null;
+      this.scheduleDiscovery();
+    }
+  }
+
+  private scheduleDiscovery(): void {
+    if (!this.started || this.paired || this.discoveryIntervalMs <= 0 || this.discoveryTimer !== null) return;
+    this.discoveryTimer = setTimeout(() => {
+      this.discoveryTimer = null;
+      void this.discover();
+    }, this.discoveryIntervalMs);
+  }
+
+  private scheduleReconnect(): void {
+    if (!this.started || this.discoveryIntervalMs <= 0 || this.discoveryTimer !== null) return;
+    this.discoveryTimer = setTimeout(() => {
+      this.discoveryTimer = null;
+      void this.restoreOrDiscover();
+    }, this.discoveryIntervalMs);
+  }
+
+  private handleEvent(event: AgentBridgeEvent): void {
+    if (event.type === "status" || event.type === "connected") {
+      if (event.status.projectId !== this.projectId || event.status.protocolVersion !== AGENT_PROTOCOL_VERSION) {
+        this.handleDisconnect("The agent bridge project or protocol does not match this page.");
+        return;
+      }
+      this.applyStatus(event.status);
+      return;
+    }
+    if (event.type === "disconnected") {
+      this.handleDisconnect(event.reason);
+      return;
+    }
+    if (event.type === "canvas-command") {
+      void this.acknowledgeCanvasCommand(event.command);
+    }
+  }
+
+  private async acknowledgeCanvasCommand(command: CanvasCommand): Promise<void> {
+    const handler = this.canvasCommandHandler;
+    const sessionToken = this.sessionToken;
+    if (!handler || !this.transport.acknowledgeCanvasCommand || !sessionToken) return;
+    let acknowledgement: AgentCanvasAcknowledgementRequest["acknowledgement"];
+    try {
+      acknowledgement = await handler(command);
+    } catch (error) {
+      acknowledgement = {
+        commandId: command.commandId,
+        ok: false,
+        error: {
+          code: "controller_error",
+          message: errorMessage(error, "The Canvas controller could not apply the command."),
+        },
+      };
+    }
+    if (acknowledgement.commandId !== command.commandId) {
+      acknowledgement = {
+        commandId: command.commandId,
+        ok: false,
+        error: { code: "command_mismatch", message: "The Canvas controller acknowledged a different command." },
+      };
+    }
+    const request: AgentCanvasAcknowledgementRequest = {
+      projectId: this.projectId,
+      origin: this.origin,
+      sessionToken,
+      acknowledgement,
+    };
+    try {
+      await this.transport.acknowledgeCanvasCommand(request);
+    } catch {
+      // A command acknowledgement is best effort. The companion owns the
+      // bounded timeout and reports any expired command to its agent host.
+    }
+  }
+
+  private applyStatus(status: AgentStatusSnapshot): void {
+    this.listenerActive = status.listenerActive;
+    this.paired = status.paired;
+    this.connection = statusForConnection(status);
+    if (status.paired && this.discoveryTimer !== null) {
+      clearTimeout(this.discoveryTimer);
+      this.discoveryTimer = null;
+    }
+    if (status.request) {
+      this.applyRequestStatus(status.request.status, status.request.requestId, status.request.summary, status.request.error, status.request.changeRevision);
+    } else if (status.listenerActive && status.paired && this.activeRequest?.status !== "working") {
+      // A re-armed MCP listen call is the lifecycle boundary for the previous
+      // terminal request. Drop only that terminal status; newer edits remain
+      // in the inspector's canonical change log.
+      this.activeRequest = null;
+    } else if (this.activeRequest?.status === "working" && status.connection !== "working") {
+      // The bridge may omit a request during a brief re-arm transition. Do
+      // not mark a local request interrupted until the stream disconnects.
+      this.connection = "working";
+    }
+    if (!status.paired && this.sessionToken) {
+      this.handleDisconnect("The agent bridge pairing expired.");
+      return;
+    }
+    this.publish();
+  }
+
+  private applyRequestStatus(
+    status: AgentRequestStatus,
+    requestId: string,
+    summary?: string,
+    error?: string,
+    changeRevision?: number,
+  ): void {
+    const active = this.activeRequest;
+    if (active && active.requestId !== requestId && active.localRequestId !== requestId) {
+      // A fresh server id can arrive before the POST response. Associate it
+      // with the one local request that was just marked working.
+      if (active.status !== "working") return;
+      this.activeRequest = { ...active, requestId };
+    }
+    if (!this.activeRequest) {
+      this.activeRequest = {
+        localRequestId: requestId,
+        requestId,
+        prompt: "",
+        ...(changeRevision === undefined ? {} : { changeRevision }),
+        status,
+        ...(summary === undefined ? {} : { summary }),
+        ...(error === undefined ? {} : { error }),
+      };
+    } else {
+      this.activeRequest = {
+        ...this.activeRequest,
+        requestId,
+        status,
+        ...(changeRevision === undefined ? {} : { changeRevision }),
+        ...(summary === undefined ? {} : { summary }),
+        ...(error === undefined ? {} : { error }),
+      };
+    }
+    if (status === "working") this.connection = "working";
+    else if (this.paired) this.connection = "paired";
+  }
+
+  private handleDisconnect(reason = "The agent connection was lost."): void {
+    this.eventSubscription?.close();
+    this.eventSubscription = null;
+    // An SSE disconnect is not proof that the coding request stopped. Keep
+    // its last known state until an authenticated status restore says
+    // otherwise. Explicit browser disconnect remains the interruption path.
+    this.connection = "offline";
+    this.listenerActive = false;
+    this.paired = false;
+    this.lastError = reason;
+    this.publish();
+    this.scheduleReconnect();
+  }
+
+  private makeSnapshot(stateOverride?: AgentClientState): AgentClientSnapshot {
+    const request = this.activeRequest;
+    const state = stateOverride ?? this.deriveState();
+    return {
+      state,
+      connection: this.connection,
+      listenerActive: this.listenerActive,
+      paired: this.paired,
+      request: request ? {
+        requestId: request.requestId,
+        ...(request.changeRevision === undefined ? {} : { changeRevision: request.changeRevision }),
+        status: request.status,
+        ...(request.summary === undefined ? {} : { summary: request.summary }),
+        ...(request.error === undefined ? {} : { error: request.error }),
+      } : null,
+      ...(this.listenerLabel === undefined ? {} : { listenerLabel: this.listenerLabel }),
+      ...(this.lastError === undefined ? {} : { error: this.lastError }),
+    };
+  }
+
+  private deriveState(): AgentClientState {
+    if (!this.enabled) return "disabled";
+    if (this.connection === "offline") return "disconnected";
+    if (this.connection === "listening") return "available";
+    if (this.connection === "working" || this.activeRequest?.status === "working") return "working";
+    if (this.activeRequest?.status === "completed") return "completed";
+    if (this.activeRequest?.status === "failed") return "failed";
+    if (this.activeRequest?.status === "interrupted") return "interrupted";
+    return "connected";
+  }
+
+  private publish(stateOverride?: AgentClientState): void {
+    this.snapshot = Object.freeze(this.makeSnapshot(stateOverride));
+    for (const listener of this.listeners) listener();
+  }
+}
+
+let configuredTransport: AgentBridgeTransport | undefined;
+const clients = new Map<string, AgentClient>();
+
+/** Sets a host/test transport for subsequently created project clients. */
+export function configureAgentBridgeTransport(transport: AgentBridgeTransport | undefined): void {
+  for (const client of clients.values()) client.stop();
+  clients.clear();
+  configuredTransport = transport;
+}
+
+/** Clears cached clients and their active streams. */
+export function resetAgentClients(): void {
+  for (const client of clients.values()) client.stop();
+  clients.clear();
+}
+
+export function createAgentClient(options: AgentClientOptions): AgentClient {
+  return new AgentClient({ ...options, transport: options.transport ?? configuredTransport });
+}
+
+export function getAgentClient(
+  projectId: string,
+  options: Omit<AgentClientOptions, "projectId"> = {},
+): AgentClient {
+  const origin = options.origin ?? (typeof window !== "undefined" ? window.location.origin : "http://localhost");
+  const key = `${projectId}\u0000${origin}`;
+  let client = clients.get(key);
+  if (!client) {
+    client = createAgentClient({ ...options, projectId, origin });
+    clients.set(key, client);
+  }
+  return client;
+}
+
+/** React hook used by the inspector handoff control. */
+export function useAgentClient(projectId: string, suppliedClient?: AgentClient): AgentClientSnapshot {
+  const client = useMemo(
+    () => suppliedClient ?? getAgentClient(projectId),
+    [projectId, suppliedClient],
+  );
+  useEffect(() => {
+    client.start();
+    return () => client.stop();
+  }, [client]);
+  return useSyncExternalStore(client.subscribe, client.getSnapshot, client.getSnapshot);
+}

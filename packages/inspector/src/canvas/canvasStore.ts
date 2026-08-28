@@ -11,6 +11,26 @@ export interface CanvasCard {
   y: number;
   width: number;
   height: number;
+  /** The agent-created comparison group that owns this card, when present. */
+  comparisonGroupId?: string;
+}
+
+/** A durable, agent-owned collection of Canvas cards. */
+export interface CanvasComparisonGroup {
+  id: string;
+  label: string;
+  /** Public protocol marker. Canvas currently exposes only agent-created groups. */
+  owner: "agent";
+  /** Pairing identity used to authorize removal of this group. */
+  agentId: string;
+  cardIds: string[];
+  routes: CanvasComparisonGroupRoute[];
+}
+
+export interface CanvasComparisonGroupRoute {
+  url: string;
+  title?: string | null;
+  label?: string;
 }
 
 export interface CanvasCamera {
@@ -35,6 +55,7 @@ function defaultViewportSize() {
 
 let mode: CanvasMode = "inspect";
 let cards: CanvasCard[] = [];
+let comparisonGroups: CanvasComparisonGroup[] = [];
 let focusedCardId: string | null = null;
 let selectedCardId: string | null = null;
 let cardIdCounter = 0;
@@ -56,6 +77,10 @@ function getMode(): CanvasMode {
 
 function getCards(): CanvasCard[] {
   return cards;
+}
+
+function getComparisonGroups(): CanvasComparisonGroup[] {
+  return comparisonGroups;
 }
 
 function notify(): void {
@@ -127,6 +152,19 @@ export function exitCanvasToCard(card: CanvasCard): void {
 }
 
 export function addCanvasCard(url: string, title?: string): CanvasCard {
+  return addCanvasCardWithOptions(url, title);
+}
+
+export interface AddCanvasCardOptions {
+  comparisonGroupId?: string;
+}
+
+/** Adds one card while retaining the existing placement policy. */
+export function addCanvasCardWithOptions(
+  url: string,
+  title?: string,
+  options: AddCanvasCardOptions = {},
+): CanvasCard {
   const size = lastUsedCardSize ?? defaultViewportSize();
   const pos = computeNewCardPosition(cards, CARD_GAP);
   const card: CanvasCard = {
@@ -137,6 +175,7 @@ export function addCanvasCard(url: string, title?: string): CanvasCard {
     y: pos.y,
     width: size.width,
     height: size.height,
+    ...(options.comparisonGroupId ? { comparisonGroupId: options.comparisonGroupId } : {}),
   };
   cards = [...cards, card];
   lastUsedCardSize = { width: size.width, height: size.height };
@@ -144,10 +183,103 @@ export function addCanvasCard(url: string, title?: string): CanvasCard {
   return card;
 }
 
+/**
+ * Appends an agent-created comparison group without disturbing existing cards.
+ * Callers validate route URLs and labels at the command boundary; this store
+ * function only enforces the durable identity and placement invariants.
+ */
+export function appendCanvasComparisonGroup(input: {
+  id: string;
+  label: string;
+  agentId: string;
+  owner?: "agent";
+  routes: readonly CanvasComparisonGroupRoute[];
+}): { group: CanvasComparisonGroup; cards: CanvasCard[] } | null {
+  if (!input.id || !input.label || !input.agentId || input.routes.length === 0) return null;
+  if (comparisonGroups.some((group) => group.id === input.id)) return null;
+
+  const nextCards: CanvasCard[] = [];
+  let nextCardsSnapshot = cards;
+  for (const route of input.routes) {
+    const size = lastUsedCardSize ?? defaultViewportSize();
+    const pos = computeNewCardPosition(nextCardsSnapshot, CARD_GAP);
+    const card: CanvasCard = {
+      id: `card-${++cardIdCounter}`,
+      url: route.url,
+      title: route.title ?? null,
+      x: pos.x,
+      y: pos.y,
+      width: size.width,
+      height: size.height,
+      comparisonGroupId: input.id,
+    };
+    nextCards.push(card);
+    nextCardsSnapshot = [...nextCardsSnapshot, card];
+    lastUsedCardSize = { width: size.width, height: size.height };
+  }
+
+  const group: CanvasComparisonGroup = {
+    id: input.id,
+    label: input.label,
+    owner: "agent",
+    agentId: input.agentId,
+    cardIds: nextCards.map((card) => card.id),
+    routes: input.routes.map((route) => ({ ...route })),
+  };
+  cards = [...cards, ...nextCards];
+  comparisonGroups = [...comparisonGroups, group];
+  notify();
+  return { group, cards: nextCards };
+}
+
+export function getCanvasComparisonGroup(id: string): CanvasComparisonGroup | undefined {
+  return comparisonGroups.find((group) => group.id === id);
+}
+
+/** Removes a group and exactly the cards owned by that group. */
+export function removeCanvasComparisonGroup(id: string): CanvasComparisonGroup | null {
+  const group = getCanvasComparisonGroup(id);
+  if (!group) return null;
+  const groupCardIds = new Set(group.cardIds);
+  cards = cards.filter((card) => !groupCardIds.has(card.id));
+  comparisonGroups = comparisonGroups.filter((candidate) => candidate.id !== id);
+  if (groupCardIds.has(selectedCardId ?? "")) selectedCardId = null;
+  if (groupCardIds.has(focusedCardId ?? "")) focusedCardId = null;
+  if (cards.length === 0 && mode === "canvas") mode = "inspect";
+  notify();
+  return group;
+}
+
+/** Clears group metadata while leaving ordinary cards intact. */
+export function clearCanvasComparisonGroups(): void {
+  if (comparisonGroups.length === 0 && !cards.some((card) => card.comparisonGroupId)) return;
+  cards = cards.map(({ comparisonGroupId: _comparisonGroupId, ...card }) => card);
+  comparisonGroups = [];
+  notify();
+}
+
 export function removeCanvasCard(id: string): void {
+  const removed = cards.find((card) => card.id === id);
   cards = cards.filter((c) => c.id !== id);
   if (selectedCardId === id) {
     selectedCardId = null;
+  }
+  if (focusedCardId === id) {
+    focusedCardId = null;
+  }
+  if (removed?.comparisonGroupId) {
+    comparisonGroups = comparisonGroups
+      .map((group) => {
+        if (group.id !== removed.comparisonGroupId) return group;
+        const routeIndex = group.cardIds.indexOf(id);
+        if (routeIndex < 0) return group;
+        return {
+          ...group,
+          cardIds: group.cardIds.filter((_cardId, index) => index !== routeIndex),
+          routes: group.routes.filter((_route, index) => index !== routeIndex),
+        };
+      })
+      .filter((group) => group.cardIds.length > 0);
   }
   if (cards.length === 0 && mode === "canvas") {
     mode = "inspect";
@@ -156,12 +288,36 @@ export function removeCanvasCard(id: string): void {
 }
 
 export function updateCardTitle(id: string, title: string): void {
+  const card = cards.find((candidate) => candidate.id === id);
   cards = cards.map((c) => (c.id === id ? { ...c, title } : c));
+  if (card?.comparisonGroupId) {
+    comparisonGroups = comparisonGroups.map((group) => {
+      if (group.id !== card.comparisonGroupId) return group;
+      const routeIndex = group.cardIds.indexOf(id);
+      if (routeIndex < 0) return group;
+      return {
+        ...group,
+        routes: group.routes.map((route, index) => index === routeIndex ? { ...route, title } : route),
+      };
+    });
+  }
   notify();
 }
 
 export function updateCardUrl(id: string, url: string): void {
+  const card = cards.find((candidate) => candidate.id === id);
   cards = cards.map((c) => (c.id === id ? { ...c, url } : c));
+  if (card?.comparisonGroupId) {
+    comparisonGroups = comparisonGroups.map((group) => {
+      if (group.id !== card.comparisonGroupId) return group;
+      const routeIndex = group.cardIds.indexOf(id);
+      if (routeIndex < 0) return group;
+      return {
+        ...group,
+        routes: group.routes.map((route, index) => index === routeIndex ? { ...route, url } : route),
+      };
+    });
+  }
   notify();
 }
 
@@ -214,14 +370,24 @@ export function updateBoardCamera(partial: Partial<CanvasCamera>): void {
 }
 
 export function fitAllCards(viewport?: { width: number; height: number }): void {
-  if (cards.length === 0) return;
+  fitCanvasCards(cards.map((card) => card.id), viewport);
+}
+
+/** Fits a selected set of cards while preserving cards outside that set. */
+export function fitCanvasCards(
+  cardIds: readonly string[],
+  viewport?: { width: number; height: number },
+): boolean {
+  const selectedIds = new Set(cardIds);
+  const selectedCards = cards.filter((card) => selectedIds.has(card.id));
+  if (selectedCards.length === 0) return false;
 
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
 
-  for (const card of cards) {
+  for (const card of selectedCards) {
     if (card.x < minX) minX = card.x;
     if (card.y < minY) minY = card.y;
     if (card.x + card.width > maxX) maxX = card.x + card.width;
@@ -235,7 +401,7 @@ export function fitAllCards(viewport?: { width: number; height: number }): void 
     cachedBoardCamera = { ...DEFAULT_CAMERA };
     fitAllRan = true;
     notify();
-    return;
+    return true;
   }
 
   const viewW = Math.max(1, (viewport?.width ?? window.innerWidth) - FIT_ALL_PADDING * 2);
@@ -255,6 +421,41 @@ export function fitAllCards(viewport?: { width: number; height: number }): void 
   };
   fitAllRan = true;
   notify();
+  return true;
+}
+
+/** Centers a selected set of cards without changing the current zoom. */
+export function focusCanvasCards(
+  cardIds: readonly string[],
+  viewport?: { width: number; height: number },
+): boolean {
+  const selectedIds = new Set(cardIds);
+  const selectedCards = cards.filter((card) => selectedIds.has(card.id));
+  if (selectedCards.length === 0) return false;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const card of selectedCards) {
+    minX = Math.min(minX, card.x);
+    minY = Math.min(minY, card.y);
+    maxX = Math.max(maxX, card.x + card.width);
+    maxY = Math.max(maxY, card.y + card.height);
+  }
+
+  const viewW = viewport?.width ?? window.innerWidth;
+  const viewH = viewport?.height ?? window.innerHeight;
+  const contentCenterX = minX + (maxX - minX) / 2;
+  const contentCenterY = minY + (maxY - minY) / 2;
+  cachedBoardCamera = {
+    x: -(contentCenterX * cachedBoardCamera.zoom) + viewW / 2,
+    y: -(contentCenterY * cachedBoardCamera.zoom) + viewH / 2,
+    zoom: cachedBoardCamera.zoom,
+  };
+  fitAllRan = true;
+  notify();
+  return true;
 }
 
 export function hasFitAllRan(): boolean {
@@ -316,9 +517,16 @@ export function hydrateCanvasStore(
   newMode: CanvasMode,
   newCards: CanvasCard[],
   newCamera: CanvasCamera,
+  newComparisonGroups: CanvasComparisonGroup[] = [],
 ): void {
   mode = newMode;
-  cards = [...newCards];
+  cards = newCards.map((card) => ({ ...card }));
+  comparisonGroups = newComparisonGroups.map((group) => ({
+    ...group,
+    owner: "agent",
+    cardIds: [...group.cardIds],
+    routes: group.routes.map((route) => ({ ...route })),
+  }));
   focusedCardId = null;
   selectedCardId = null;
   cachedBoardCamera = { ...newCamera };
@@ -337,7 +545,15 @@ export function hydrateCanvasStore(
   notify();
 }
 
-export { subscribe, getMode, getCards, getMode as getCanvasMode, getCards as getCanvasCards };
+export {
+  subscribe,
+  getMode,
+  getCards,
+  getComparisonGroups,
+  getMode as getCanvasMode,
+  getCards as getCanvasCards,
+  getComparisonGroups as getCanvasComparisonGroups,
+};
 
 export function useCanvasMode(): CanvasMode {
   return useSyncExternalStore(subscribe, getMode, getMode);
@@ -345,6 +561,10 @@ export function useCanvasMode(): CanvasMode {
 
 export function useCanvasCards(): CanvasCard[] {
   return useSyncExternalStore(subscribe, getCards, getCards);
+}
+
+export function useCanvasComparisonGroups(): CanvasComparisonGroup[] {
+  return useSyncExternalStore(subscribe, getComparisonGroups, getComparisonGroups);
 }
 
 export function useBoardCamera(): CanvasCamera {

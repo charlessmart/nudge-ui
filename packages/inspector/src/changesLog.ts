@@ -180,6 +180,42 @@ export function revertChange(change: ChangeRecord): void {
   notify();
 }
 
+/**
+ * Removes source-verified records without allowing older undo snapshots to
+ * resurrect their managed previews.
+ *
+ * Agent handoff revisions identify records by the same stable key used by the
+ * canonical change model. Verification can therefore reconcile a subset while
+ * preserving newer, unsent edits and their remaining undo history.
+ */
+export function reconcileVerifiedChanges(verifiedKeys: ReadonlySet<string>): number {
+  if (!canWriteWorkspace() || verifiedKeys.size === 0) return 0;
+  const retainUnverified = (snapshot: ChangeRecord[]): ChangeRecord[] =>
+    snapshot.filter((change) => !verifiedKeys.has(changeKey(change)));
+  const before = changes;
+  const after = retainUnverified(before);
+  const removed = before.length - after.length;
+  if (removed === 0) return 0;
+
+  changes = after;
+  undoStack = undoStack
+    .map((entry) => ({
+      before: retainUnverified(entry.before),
+      after: retainUnverified(entry.after),
+    }))
+    .filter((entry) => !sameEffectiveChanges(entry.before, entry.after));
+  redoStack = redoStack
+    .map((entry) => ({
+      before: retainUnverified(entry.before),
+      after: retainUnverified(entry.after),
+    }))
+    .filter((entry) => !sameEffectiveChanges(entry.before, entry.after));
+  reapply();
+  markForVerification(changes.map(changeKey));
+  notify();
+  return removed;
+}
+
 export function discardChangesForSelector(selector: string): void {
   if (!canWriteWorkspace()) return;
   const before = changes;

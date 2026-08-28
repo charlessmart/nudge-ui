@@ -213,6 +213,49 @@ export function revertStructuralChange(changeId: string): boolean {
   return true;
 }
 
+/**
+ * Removes source-verified structural intents without leaving an undo path that
+ * can recreate their browser-only previews.
+ *
+ * Agent completion can verify a subset of one dispatched snapshot. The
+ * remaining records and their useful history stay intact while every verified
+ * ID is pruned from canonical state, undo/redo snapshots, and Canvas reports.
+ */
+export function reconcileVerifiedStructuralChanges(
+  verifiedIds: ReadonlySet<string>,
+): number {
+  if (verifiedIds.size === 0) return 0;
+  const retainUnverified = (snapshot: readonly StructuralChange[]): StructuralChange[] =>
+    snapshot.filter((change) => !verifiedIds.has(change.id));
+  const after = retainUnverified(changes);
+  const removed = changes.length - after.length;
+  if (removed === 0) return 0;
+
+  changes = after;
+  undoStack = undoStack
+    .map((entry) => ({
+      before: retainUnverified(entry.before),
+      after: retainUnverified(entry.after),
+    }))
+    .filter((entry) => JSON.stringify(entry.before) !== JSON.stringify(entry.after));
+  redoStack = redoStack
+    .map((entry) => ({
+      before: retainUnverified(entry.before),
+      after: retainUnverified(entry.after),
+    }))
+    .filter((entry) => JSON.stringify(entry.before) !== JSON.stringify(entry.after));
+  for (const [cardId, canvasReports] of reportsByCanvasCard) {
+    reportsByCanvasCard.set(cardId, {
+      ...canvasReports,
+      reports: canvasReports.reports.filter((report) => !verifiedIds.has(report.changeId)),
+    });
+  }
+  reprojectKnownDocuments();
+  notifyState();
+  notifyDiagnostics();
+  return removed;
+}
+
 /** Undo/redo histories contain snapshots of serializable canonical intent only. */
 export function undoStructuralChange(): boolean {
   const entry = undoStack.at(-1);

@@ -11,6 +11,7 @@ import {
   getStructuralChanges,
   getStructuralProjectionReports,
   hydrateStructuralChanges,
+  reconcileVerifiedStructuralChanges,
   recordCanvasStructuralProjectionReports,
   redoStructuralChange,
   resetStructuralDeleteProjection,
@@ -214,6 +215,24 @@ describe("structural delete projection", () => {
     expect(revertStructuralChange("delete-1")).toBe(true);
     expect(document.body.textContent).toContain("0.2");
     expect(getStructuralProjectionReports(document)).toEqual([]);
+  });
+
+  it("reconciles only verified structural changes and never restores them through history", () => {
+    const first = add("0.1");
+    const second = add("0.2");
+    createStructuralDelete(first, "delete-verified");
+    createStructuralDelete(second, "delete-review");
+    applyStructuralProjection(document, getStructuralChanges());
+
+    expect(reconcileVerifiedStructuralChanges(new Set(["delete-verified"]))).toBe(1);
+    expect(getStructuralChanges().map((change) => change.id)).toEqual(["delete-review"]);
+
+    while (undoStructuralChange()) {
+      expect(getStructuralChanges().some((change) => change.id === "delete-verified")).toBe(false);
+    }
+    while (redoStructuralChange()) {
+      expect(getStructuralChanges().some((change) => change.id === "delete-verified")).toBe(false);
+    }
   });
 
   it("undoes and redoes a projected same-parent move from its original relative placement", () => {

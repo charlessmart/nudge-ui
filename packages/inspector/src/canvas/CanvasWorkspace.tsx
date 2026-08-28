@@ -46,6 +46,7 @@ import canvasCardStyles from "./CanvasCard.css?inline";
 import foundationStyles from "../ui/Foundation.css?inline";
 import { useInspectorOpen } from "../openStore.ts";
 import { isEditableEvent } from "../shortcuts.ts";
+import { acknowledgeAgentRendererReady } from "./agentPresentation.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");
 
@@ -171,6 +172,7 @@ export function CanvasWorkspace(): ReactElement | null {
       // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
       const msg = event.data as FrameProtocolMessage;
       if (msg.type === "frame-ready") {
+        acknowledgeAgentRendererReady(frame.cardId);
         // A card can finish loading after Space was pressed on the controller.
         // Seed it with the current modifier state before its first pointer event.
         sendPanModifier(frame.iframe, frame.cardId, spaceHeldRef.current);

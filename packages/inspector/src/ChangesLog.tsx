@@ -224,6 +224,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
         <div className="changes__session-action" data-test="session-actions">
           <Button
             variant="secondary"
+            size="compact"
             type="button"
             data-test="clear-session"
             onClick={onClearSession}

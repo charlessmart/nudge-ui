@@ -14,12 +14,14 @@ import {
   getCanvasMode,
   setCanvasMode,
   getCanvasCards,
+  getCanvasComparisonGroups,
   getBoardCamera,
   setBoardCamera,
   hydrateCanvasStore,
   removeCanvasCard,
   type CanvasCamera,
   type CanvasMode,
+  type CanvasComparisonGroup,
 } from "./canvasStore.ts";
 import { applyRules } from "../managedStylesheet.ts";
 import { clearChanges as clearChangesLog } from "../changesLog.ts";
@@ -48,12 +50,12 @@ import { projectToAllReadyCards } from "./projection.ts";
 import type { TextProjectionTarget } from "../textChangeBoundary.ts";
 import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 // v3 is the released durable-session schema. v4 was a prerelease schema, v5
 // added structural snapshots, v6 added presentation metadata to moves, and v7
 // adds durable rendered-text projection records; v8 adds explicit text scope
-// and bounded semantic evidence.
-const LEGACY_SCHEMA_VERSIONS = [3, 4, 5, 6, 7] as const;
+// and bounded semantic evidence; v9 adds durable agent-created Canvas groups.
+const LEGACY_SCHEMA_VERSIONS = [3, 4, 5, 6, 7, 8] as const;
 const STORAGE_PREFIX = "nudge-ui";
 
 function projectId(): string {
@@ -342,6 +344,44 @@ function isSerializableChange(value: unknown): value is SerializableChange {
     && (change.scope !== "rendered-instance" || isStrictRenderedInstanceOverride(change.instanceOverride));
 }
 
+function isSerializableComparisonGroup(value: unknown): value is SerializableComparisonGroup {
+  if (!isRecord(value)
+    || !hasOnlyKeys(value, ["id", "label", "owner", "agentId", "cardIds", "routes"])
+    || typeof value.id !== "string"
+    || value.id.length === 0
+    || value.id.length > 256
+    || typeof value.label !== "string"
+    || value.label.length === 0
+    || value.label.length > 160
+    || value.owner !== "agent"
+    || typeof value.agentId !== "string"
+    || value.agentId.length === 0
+    || value.agentId.length > 256
+    || !Array.isArray(value.cardIds)
+    || value.cardIds.length === 0
+    || value.cardIds.length > 64
+    || !Array.isArray(value.routes)
+    || value.routes.length === 0
+    || value.routes.length > 64) {
+    return false;
+  }
+  if (!value.cardIds.every((cardId) => typeof cardId === "string" && cardId.length > 0 && cardId.length <= 256)) {
+    return false;
+  }
+  return value.routes.every((route) => {
+    if (!isRecord(route)
+      || !hasOnlyKeys(route, ["url", "title", "label"])
+      || !isSameOriginUrl(route.url)
+      || (route.title !== undefined && route.title !== null
+        && (typeof route.title !== "string" || route.title.length > 512))
+      || (route.label !== undefined
+        && (typeof route.label !== "string" || route.label.length > 160))) {
+      return false;
+    }
+    return true;
+  });
+}
+
 function storageKeyForVersion(projectId: string, schemaVersion: number): string {
   return `${STORAGE_PREFIX}:${projectId}:v${schemaVersion}`;
 }
@@ -368,6 +408,20 @@ export interface SerializableCard {
   y: number;
   width: number;
   height: number;
+  comparisonGroupId?: string;
+}
+
+export interface SerializableComparisonGroup {
+  id: string;
+  label: string;
+  owner: "agent";
+  agentId: string;
+  cardIds: string[];
+  routes: Array<{
+    url: string;
+    title?: string | null;
+    label?: string;
+  }>;
 }
 
 export interface SerializableElementChange {
@@ -457,6 +511,7 @@ export interface DurableSession {
   mode: CanvasMode;
   inspectUrl: string;
   cards: SerializableCard[];
+  comparisonGroups: SerializableComparisonGroup[];
   camera: { x: number; y: number; zoom: number };
   changes: SerializableChange[];
   structuralChanges: StructuralChange[];
@@ -680,6 +735,7 @@ function buildSession(): DurableSession {
   }
 
   const cards = getCanvasCards();
+  const comparisonGroups = getCanvasComparisonGroups();
   const camera = getBoardCamera();
   const mode = getCanvasMode();
 
@@ -696,6 +752,19 @@ function buildSession(): DurableSession {
       y: c.y,
       width: c.width,
       height: c.height,
+      ...(c.comparisonGroupId ? { comparisonGroupId: c.comparisonGroupId } : {}),
+    })),
+    comparisonGroups: comparisonGroups.map((group) => ({
+      id: group.id,
+      label: group.label,
+      owner: "agent",
+      agentId: group.agentId,
+      cardIds: [...group.cardIds],
+      routes: group.routes.map((route) => ({
+        url: route.url,
+        ...(route.title === undefined ? {} : { title: route.title }),
+        ...(route.label === undefined ? {} : { label: route.label }),
+      })),
     })),
     camera: { x: camera.x, y: camera.y, zoom: camera.zoom },
     changes: serializableChanges,
@@ -819,12 +888,69 @@ export function hydrateSession(): HydrationResult {
       y: c.y as number,
       width: c.width as number,
       height: c.height as number,
+      ...(typeof c.comparisonGroupId === "string"
+        ? { comparisonGroupId: c.comparisonGroupId }
+        : {}),
     });
   }
 
   if (new Set(serializableCards.map((card) => card.id)).size !== serializableCards.length) {
     safeDiscard(schemaVersion);
     return { restored: false, changeCount: 0 };
+  }
+
+  const comparisonGroupsRaw = s.comparisonGroups;
+  const serializableComparisonGroups: SerializableComparisonGroup[] = [];
+  if (comparisonGroupsRaw !== undefined) {
+    if (!Array.isArray(comparisonGroupsRaw) || comparisonGroupsRaw.length > 128) {
+      safeDiscard(schemaVersion);
+      return { restored: false, changeCount: 0 };
+    }
+    for (const group of comparisonGroupsRaw) {
+      if (!isSerializableComparisonGroup(group)) {
+        safeDiscard(schemaVersion);
+        return { restored: false, changeCount: 0 };
+      }
+      serializableComparisonGroups.push({
+        id: group.id,
+        label: group.label,
+        owner: "agent",
+        agentId: group.agentId,
+        cardIds: [...group.cardIds],
+        routes: group.routes.map((route) => ({ ...route })),
+      });
+    }
+  }
+
+  if (new Set(serializableComparisonGroups.map((group) => group.id)).size
+    !== serializableComparisonGroups.length) {
+    safeDiscard(schemaVersion);
+    return { restored: false, changeCount: 0 };
+  }
+
+  const cardsById = new Map(serializableCards.map((card) => [card.id, card]));
+  const groupedCardIds = new Set<string>();
+  for (const group of serializableComparisonGroups) {
+    if (group.cardIds.length !== group.routes.length) {
+      safeDiscard(schemaVersion);
+      return { restored: false, changeCount: 0 };
+    }
+    for (const [routeIndex, cardId] of group.cardIds.entries()) {
+      const card = cardsById.get(cardId);
+      const route = group.routes[routeIndex];
+      if (!card || !route || card.comparisonGroupId !== group.id || groupedCardIds.has(cardId)
+        || card.url !== route.url) {
+        safeDiscard(schemaVersion);
+        return { restored: false, changeCount: 0 };
+      }
+      groupedCardIds.add(cardId);
+    }
+  }
+  for (const card of serializableCards) {
+    if (card.comparisonGroupId && !serializableComparisonGroups.some((group) => group.id === card.comparisonGroupId)) {
+      safeDiscard(schemaVersion);
+      return { restored: false, changeCount: 0 };
+    }
   }
 
   const cameraRaw = s.camera;
@@ -869,6 +995,7 @@ export function hydrateSession(): HydrationResult {
   // v7 added text records on top of the v6 structural schema. Keep the
   // structural snapshot while migrating v7 instead of silently dropping it.
   const structuralChanges = schemaVersion === SCHEMA_VERSION
+    || schemaVersion === 8
     || schemaVersion === 7
     || schemaVersion === 6
     ? s.structuralChanges
@@ -884,7 +1011,12 @@ export function hydrateSession(): HydrationResult {
     zoom: (cameraRaw as Record<string, unknown>).zoom as number,
   };
 
-  hydrateCanvasStore(s.mode as CanvasMode, serializableCards, camera);
+  hydrateCanvasStore(
+    s.mode as CanvasMode,
+    serializableCards,
+    camera,
+    serializableComparisonGroups as CanvasComparisonGroup[],
+  );
   hydrateStructuralChanges(structuralChanges);
   // Instance evidence captured after a move must resolve against the restored
   // structural order, not the application's pre-move baseline.

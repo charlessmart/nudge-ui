@@ -16,3 +16,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0010: Next.js host Adapter](./0010-nextjs-host-adapter.md)
 - [ADR-0011: Astro host Adapter with response-level identity](./0011-astro-host-adapter.md)
 - [ADR-0012: Canvas on every same-origin host Adapter](./0012-canvas-on-every-same-origin-host.md)
+- [ADR-0013: Agent bridge over MCP and a local controller transport](./0013-agent-bridge-mcp-and-local-controller.md)

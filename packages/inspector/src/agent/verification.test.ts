@@ -1,0 +1,138 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { appendChange, clearChanges, getChangesList, type ElementChangeRecord } from "../changesLog.ts";
+import { setNudgeUiHostDevFlag } from "../devFlag.ts";
+import {
+  applyStructuralProjection,
+  createStructuralDelete,
+  getStructuralChanges,
+  resetStructuralDeleteProjection,
+  undoStructuralChange,
+} from "../structuralProjection.ts";
+import {
+  recordAgentDispatch,
+  resetAgentVerification,
+  verifiedChangeKeys,
+  verifyAndReconcileAgentDispatch,
+} from "./verification.ts";
+
+function styleChange(property: string, rawValue: string): ElementChangeRecord {
+  return {
+    cid: "Card",
+    file: "src/Card.tsx",
+    line: 4,
+    selector: '[data-cid="Card"]',
+    property,
+    oldToken: null,
+    newToken: null,
+    oldRawValue: property === "color" ? "black" : "0px",
+    rawValue,
+    source: { file: "src/Card.tsx", line: 4, component: "Card" },
+  };
+}
+
+function addItem(text: string): HTMLElement {
+  const el = document.createElement("button");
+  el.dataset.cid = "RepeatedItem";
+  el.dataset.src = "src/App.tsx:12:5";
+  el.textContent = text;
+  document.body.append(el);
+  return el;
+}
+
+describe("agent completion verification", () => {
+  beforeEach(() => {
+    setNudgeUiHostDevFlag(true);
+    clearChanges();
+    resetAgentVerification();
+    resetStructuralDeleteProjection();
+    document.head.replaceChildren();
+    const card = document.createElement("div");
+    card.dataset.cid = "Card";
+    document.body.replaceChildren(card);
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+  });
+
+  afterEach(() => {
+    clearChanges();
+    resetAgentVerification();
+    resetStructuralDeleteProjection();
+    vi.unstubAllGlobals();
+  });
+
+  it("does not treat Nudge's own managed preview as source verification", () => {
+    const change = styleChange("color", "rgb(255, 0, 0)");
+    appendChange(change);
+
+    expect(verifiedChangeKeys([change])).toEqual(new Set([expect.any(String)]));
+    document.getElementById("nudge-ui-styles")?.remove();
+    expect(verifiedChangeKeys([change])).toEqual(new Set());
+  });
+
+  it("removes only the sent record that the refreshed source now renders", async () => {
+    const sent = styleChange("color", "rgb(255, 0, 0)");
+    const unresolved = styleChange("margin-left", "12px");
+    appendChange(sent);
+    appendChange(unresolved);
+    const snapshot = getChangesList();
+    recordAgentDispatch(42, snapshot);
+
+    const authored = document.createElement("style");
+    authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
+    document.head.prepend(authored);
+
+    await expect(verifyAndReconcileAgentDispatch(42)).resolves.toBe(1);
+    expect(getChangesList()).toMatchObject([{ property: "margin-left", rawValue: "12px" }]);
+  });
+
+  it("reconciles only the structural deletes the source verifiably applied", async () => {
+    document.body.replaceChildren();
+    const applied = addItem("0.1");
+    const pending = addItem("0.2");
+    createStructuralDelete(applied, "delete-applied");
+    createStructuralDelete(pending, "delete-pending");
+    applyStructuralProjection(document, getStructuralChanges());
+    expect(applied.isConnected).toBe(false);
+    expect(pending.isConnected).toBe(false);
+    recordAgentDispatch(7, [], getStructuralChanges());
+
+    // The source applied only the first delete: React removed that item and
+    // its placeholder comment, while the pending delete's placeholder still
+    // guards the second element. Placeholders were created in snapshot order.
+    const placeholders = Array.from(document.body.childNodes)
+      .filter((node): node is Comment => node.nodeType === node.COMMENT_NODE);
+    expect(placeholders).toHaveLength(2);
+    placeholders[0]!.remove();
+
+    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(1);
+    expect(getStructuralChanges().map((change) => change.id)).toEqual(["delete-pending"]);
+    expect(applied.isConnected).toBe(false);
+    expect(pending.isConnected).toBe(false);
+
+    // Reconciled ids are pruned from history, so undo/redo can never
+    // resurrect the source-verified delete preview.
+    while (undoStructuralChange()) {
+      expect(getStructuralChanges().some((change) => change.id === "delete-applied")).toBe(false);
+    }
+    expect(getStructuralChanges().map((change) => change.id)).toEqual([]);
+    expect(applied.isConnected).toBe(false);
+  });
+
+  it("keeps a structural delete whose element the source still renders", async () => {
+    document.body.replaceChildren();
+    const target = addItem("0.1");
+    const change = createStructuralDelete(target, "delete-1")!;
+    applyStructuralProjection(document, getStructuralChanges());
+    expect(target.isConnected).toBe(false);
+    recordAgentDispatch(7, [], getStructuralChanges());
+
+    // The source did not apply the delete, so lifting the preview returns the
+    // element and verification must not reconcile it.
+    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    expect(getStructuralChanges()).toEqual([change]);
+    expect(target.isConnected).toBe(false);
+  });
+});

@@ -1,6 +1,6 @@
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { IconChevronDown, IconClipboardCheck } from "@tabler/icons-react";
+import { IconChevronDown, IconClipboardCheck, IconPlugConnected, IconSend } from "@tabler/icons-react";
 import { useChanges } from "./changesLog.ts";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { copyToClipboard } from "./prompt/copyToClipboard.ts";
@@ -8,6 +8,17 @@ import { Button } from "./ui/Button.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
 import { getStructuralChanges, subscribeStructuralChanges } from "./structuralProjection.ts";
 import { getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
+import {
+  createPromptRevision,
+  getAgentClient,
+  useAgentClient,
+} from "./agent/client.ts";
+import { createAgentPresentationAdapter } from "./canvas/agentPresentation.ts";
+import {
+  discardAgentDispatch,
+  recordAgentDispatch,
+  verifyAndReconcileAgentDispatch,
+} from "./agent/verification.ts";
 
 export function CopyPromptButton(): ReactElement {
   const changes = useChanges();
@@ -17,16 +28,77 @@ export function CopyPromptButton(): ReactElement {
     getStructuralChanges,
   );
   const [copied, setCopied] = useState(false);
-  const disabled = changes.length + structuralChanges.length === 0;
+  const runtimeConfig = getNudgeUiRuntimeConfig();
+  const agentClient = useMemo(
+    () => getAgentClient(runtimeConfig.projectId, { origin: window.location.origin }),
+    [runtimeConfig.projectId],
+  );
+  const agent = useAgentClient(runtimeConfig.projectId, agentClient);
+  const hasChanges = changes.length + structuralChanges.length > 0;
+
+  useEffect(() => {
+    const canvas = createAgentPresentationAdapter({
+      projectId: runtimeConfig.projectId,
+      agentId: "agent",
+    });
+    agentClient.setCanvasCommandHandler((command) => canvas.execute(command));
+    return () => {
+      agentClient.setCanvasCommandHandler(undefined);
+      canvas.dispose();
+    };
+  }, [agentClient, runtimeConfig.projectId]);
+
+  useEffect(() => {
+    const revision = agent.request?.changeRevision;
+    if (agent.state !== "completed" || revision === undefined) return;
+    void verifyAndReconcileAgentDispatch(revision);
+  }, [agent.request?.changeRevision, agent.state]);
+
+  const connecting = agent.state === "pairing";
+  const working = agent.state === "working";
+  const canConnect = agent.state === "available";
+  const canSend = agent.state === "connected" || agent.state === "completed";
+  const disabled = connecting || working || (!canConnect && !hasChanges);
+
+  const label = copied
+    ? "Copied!"
+    : connecting
+      ? "Connecting…"
+      : working
+        ? "Agent working…"
+        : canConnect
+          ? "Connect agent"
+          : canSend
+            ? "Send prompt"
+            : "Copy prompt";
+
+  const icon = canConnect || connecting
+    ? <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+    : canSend || working
+      ? <IconSend size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+      : <IconClipboardCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />;
 
   async function onClick(): Promise<void> {
     if (disabled) return;
-    const runtimeConfig = getNudgeUiRuntimeConfig();
+    if (canConnect) {
+      await agentClient.connect();
+      return;
+    }
     const hints = {
       framework: runtimeConfig.framework,
       stylingSystem: runtimeConfig.stylingSystem,
     };
     const text = generatePrompt(changes, hints, structuralChanges);
+    if (canSend) {
+      const revision = createPromptRevision(changes, structuralChanges);
+      recordAgentDispatch(revision, changes, structuralChanges);
+      const response = await agentClient.dispatchPrompt(
+        text,
+        revision,
+      );
+      if (response) return;
+      discardAgentDispatch(revision);
+    }
     await copyToClipboard(text);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
@@ -41,10 +113,13 @@ export function CopyPromptButton(): ReactElement {
         type="button"
         disabled={disabled}
         data-copied={copied ? "true" : "false"}
+        data-agent-state={agent.state}
+        aria-busy={working || connecting ? "true" : undefined}
+        title={agent.error}
         onClick={onClick}
       >
-        <IconClipboardCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-        {copied ? "Copied!" : "Copy prompt"}
+        {icon}
+        {label}
       </Button>
       <IconButton
         variant="primary"
@@ -53,7 +128,7 @@ export function CopyPromptButton(): ReactElement {
         title="Copy prompt options"
         data-test="copy-prompt-menu"
         type="button"
-        disabled={disabled}
+        disabled={!hasChanges || working || connecting}
         aria-haspopup="menu"
       >
         <IconChevronDown size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />

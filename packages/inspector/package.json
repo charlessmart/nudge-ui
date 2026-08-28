@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@nudge-ui/agent-protocol": "workspace:*",
     "@nudge-ui/css": "workspace:*",
     "@tabler/icons-react": "^3.45.0"
   }

@@ -25,6 +25,8 @@ import {
   enterCanvas,
   exitCanvas,
   addCanvasCard,
+  appendCanvasComparisonGroup,
+  getCanvasComparisonGroups,
   removeCanvasCard as removeCanvasCardStore,
   setBoardCamera,
 } from "./canvasStore.ts";
@@ -121,6 +123,7 @@ function resetAllState(): void {
     localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v5`);
     localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v6`);
     localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v7`);
+    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v8`);
   } catch {
     // ignore
   }
@@ -420,17 +423,18 @@ describe("sessionStore hydration", () => {
     expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toContain(`"schemaVersion":${SCHEMA_VERSION}`);
   });
 
-  it("keeps v6 structural changes while migrating a v7 text session", () => {
+  it.each([7, 8])("keeps structural changes while migrating a v%i session", (legacyVersion) => {
     const target = document.createElement("button");
     target.dataset.cid = "Item";
     target.dataset.src = "src/List.tsx:8:1";
     target.textContent = "Second";
     document.body.append(target);
-    createStructuralDelete(target, "delete-v7");
+    createStructuralDelete(target, `delete-v${legacyVersion}`);
     appendChange(makeTextChange());
     const legacy = JSON.parse(JSON.stringify(serializeSession())) as Record<string, unknown>;
-    legacy.schemaVersion = 7;
-    localStorage.setItem(`nudge-ui:${nudgeUiProjectId}:v7`, JSON.stringify(legacy));
+    legacy.schemaVersion = legacyVersion;
+    delete legacy.comparisonGroups;
+    localStorage.setItem(`nudge-ui:${nudgeUiProjectId}:v${legacyVersion}`, JSON.stringify(legacy));
     localStorage.removeItem(storageKey(nudgeUiProjectId));
 
     resetStructuralDeleteProjection();
@@ -439,10 +443,10 @@ describe("sessionStore hydration", () => {
     const result = hydrateSession();
 
     expect(result).toMatchObject({ restored: true, changeCount: 2 });
-    expect(getStructuralChanges()).toMatchObject([{ id: "delete-v7", kind: "delete" }]);
+    expect(getStructuralChanges()).toMatchObject([{ id: `delete-v${legacyVersion}`, kind: "delete" }]);
     expect(getChangesList()).toMatchObject([{ kind: "text-content", id: "text-1" }]);
     expect(target.isConnected).toBe(false);
-    expect(localStorage.getItem(`nudge-ui:${nudgeUiProjectId}:v7`)).toBeNull();
+    expect(localStorage.getItem(`nudge-ui:${nudgeUiProjectId}:v${legacyVersion}`)).toBeNull();
   });
 
   it.each([3, 4, 5, 6])("reads v%i durable CSS, drops legacy runtime records, and upgrades safely", (legacyVersion) => {
@@ -694,6 +698,34 @@ describe("sessionStore hydration", () => {
     const cards = getCanvasCards();
     expect(cards).toHaveLength(1);
     expect(cards[0]!.title).toBeNull();
+  });
+
+  it("round-trips agent comparison group ownership with its cards", () => {
+    setCanvasMode("canvas");
+    appendCanvasComparisonGroup({
+      id: "agent-landing-iterations",
+      label: "Landing page iterations",
+      agentId: "paired-agent",
+      routes: [
+        { url: localUrl("/landing-a"), label: "A" },
+        { url: localUrl("/landing-b"), label: "B" },
+      ],
+    });
+    persistSession();
+
+    for (const card of getCanvasCards()) removeCanvasCardStore(card.id);
+    expect(getCanvasComparisonGroups()).toEqual([]);
+    hydrateSession();
+
+    expect(getCanvasComparisonGroups()).toMatchObject([{
+      id: "agent-landing-iterations",
+      label: "Landing page iterations",
+      owner: "agent",
+      agentId: "paired-agent",
+      routes: [{ label: "A" }, { label: "B" }],
+    }]);
+    expect(getCanvasCards()).toHaveLength(2);
+    expect(getCanvasCards().every((card) => card.comparisonGroupId === "agent-landing-iterations")).toBe(true);
   });
 });
 
