@@ -1,7 +1,7 @@
 import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
 import { vanillaExtractPlugin } from "@vanilla-extract/vite-plugin";
-import { designTool } from "../../packages/plugin/src/index.ts";
+import { nudgeUi } from "../../packages/plugin/src/index.ts";
 
 export default defineConfig({
   plugins: [
@@ -10,8 +10,8 @@ export default defineConfig({
     // class and custom-property names. The compiled contract is the only safe
     // source of theme.color.* attribution in this fixture.
     vanillaExtractPlugin({ identifiers: "short" }),
-    // SAFETY: designTool returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
-    designTool({
+    // SAFETY: nudgeUi returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
+    nudgeUi({
       projectId: "sandbox-sprinkles",
       vanillaExtract: {
         themeContractModule: "/src/theme.css.ts",

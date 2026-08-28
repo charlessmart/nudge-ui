@@ -32,9 +32,9 @@ import { AppShell } from "./AppShell.tsx";
 import { clearStructuralChanges, resetStructuralDeleteProjection } from "./structuralProjection.ts";
 import { installInspectionBridge } from "./inspection.ts";
 import { cancelInlineTextEdit } from "./inlineTextEditor.ts";
-import { getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
-import { isDesignToolDev } from "./devFlag.ts";
+import { isNudgeUiDev } from "./devFlag.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -52,10 +52,10 @@ function onKeydown(e: KeyboardEvent): void {
   }
 }
 
-export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
-  if (!isDesignToolDev()) return;
+export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
+  if (!isNudgeUiDev()) return;
 
-  if (!getDesignToolRuntimeConfig().capabilities.canvas) {
+  if (!getNudgeUiRuntimeConfig().capabilities.canvas) {
     // A project can be reopened with a runtime that does not expose Canvas.
     // Clear any stale in-memory mode before mounting the static inspector.
     setCanvasMode("inspect");
@@ -64,7 +64,7 @@ export function bootstrapDesignTool(inspectorHost: HTMLElement): void {
   removeInspectionBridge?.();
   removeInspectionBridge = installInspectionBridge();
 
-  if (getDesignToolRuntimeConfig().capabilities.canvas && isCanvasRenderer()) {
+  if (getNudgeUiRuntimeConfig().capabilities.canvas && isCanvasRenderer()) {
     bootstrapRenderer();
     return;
   }
@@ -207,8 +207,8 @@ export {
 } from "./staticHtmlRuntimeIdentity.ts";
 export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
 export { isCanvasRenderer } from "./canvas/roleDetection.ts";
-export { DESIGN_TOOL_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection.ts";
-export type { DesignToolInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection.ts";
+export { NUDGE_UI_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection.ts";
+export type { NudgeUiInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection.ts";
 export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation, ConformanceProjectionExpectation, ConformanceProjectionFieldExpectation } from "./conformance/fixture.ts";
 export { TYPOGRAPHY_CASES } from "./conformance/typographyCases.ts";
 export {
@@ -238,18 +238,18 @@ export { projectInspectorValues, projectionSides } from "./spacing/projection.ts
 export type { InspectorAxisProjection, InspectorFieldProjection, InspectorProjection, InspectorSpacingProjection, ProjectionAxis, ProjectionGroup, ProjectionSide, ProjectionState } from "./spacing/projection.ts";
 export { createBrowserCssInspection } from "./inspection/browserCssInspection.ts";
 export {
-  configureDesignToolRuntime,
-  getDesignToolRuntimeConfig,
-  normalizeDesignToolRuntimeConfig,
-  subscribeDesignToolRuntime,
+  configureNudgeUiRuntime,
+  getNudgeUiRuntimeConfig,
+  normalizeNudgeUiRuntimeConfig,
+  subscribeNudgeUiRuntime,
 } from "./runtimeConfig.ts";
-export { useDesignToolRuntimeConfig } from "./useRuntimeConfig.ts";
-export { isDesignToolDev, setDesignToolHostDevFlag } from "./devFlag.ts";
+export { useNudgeUiRuntimeConfig } from "./useRuntimeConfig.ts";
+export { isNudgeUiDev, setNudgeUiHostDevFlag } from "./devFlag.ts";
 export type {
-  DesignToolRuntimeConfig,
-  DesignToolRuntimeCapabilities,
-  DesignToolRuntimeFramework,
-  DesignToolRuntimeHost,
+  NudgeUiRuntimeConfig,
+  NudgeUiRuntimeCapabilities,
+  NudgeUiRuntimeFramework,
+  NudgeUiRuntimeHost,
 } from "./runtimeConfig.ts";
 export type {
   BrowserCssInspection,

@@ -10,7 +10,7 @@ export interface StatusCalloutProps {
 
 export function StatusCallout({ children, tone = "neutral", className, "data-test": dataTest, "data-lost": dataLost }: StatusCalloutProps): ReactElement {
   return (
-    <div className={`dt-status-callout dt-status-callout--${tone}${className ? ` ${className}` : ""}`} data-test={dataTest} data-lost={dataLost}>
+    <div className={`status-callout status-callout--${tone}${className ? ` ${className}` : ""}`} data-test={dataTest} data-lost={dataLost}>
       {children}
     </div>
   );

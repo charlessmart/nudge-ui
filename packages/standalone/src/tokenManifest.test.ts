@@ -10,8 +10,8 @@ import {
 
 describe("standalone CSS token discovery", () => {
   it("scans stable project-relative paths and excludes generated directories and escapes", async () => {
-    const root = await mkdtemp(join(tmpdir(), "design-tool-token-manifest-"));
-    const outside = await mkdtemp(join(tmpdir(), "design-tool-token-outside-"));
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
+    const outside = await mkdtemp(join(tmpdir(), "nudge-ui-token-outside-"));
     await writeFile(join(root, "z.css"), ":root { --z: 1px; }");
     await mkdir(join(root, "nested"));
     await writeFile(join(root, "nested", "a.css"), ":root { --a: 2px; }");
@@ -33,7 +33,7 @@ describe("standalone CSS token discovery", () => {
   });
 
   it("publishes authored provenance and a deterministic generation", async () => {
-    const root = await mkdtemp(join(tmpdir(), "design-tool-token-manifest-"));
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
     await mkdir(join(root, "styles"));
     await writeFile(join(root, "styles", "theme.css"), ":root { --brand: #09f; }");
 
@@ -49,7 +49,7 @@ describe("standalone CSS token discovery", () => {
   });
 
   it("orders discovery by UTF-8 path bytes rather than locale", async () => {
-    const root = await mkdtemp(join(tmpdir(), "design-tool-token-manifest-"));
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
     for (const name of ["a_.css", "a~.css", "a.css", "a-.css"]) {
       await writeFile(join(root, name), `:root { --${name[0]}: 1px; }`);
     }
@@ -63,7 +63,7 @@ describe("standalone CSS token discovery", () => {
   });
 
   it("retains valid knowledge and reports malformed and unreadable CSS", async () => {
-    const root = await mkdtemp(join(tmpdir(), "design-tool-token-manifest-"));
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
     await writeFile(join(root, "valid.css"), ":root { --valid: 1px; }");
     await writeFile(join(root, "broken.css"), ":root { --broken: ;");
     await writeFile(join(root, "unreadable.css"), ":root { --unreadable: 1px; }");
@@ -94,7 +94,7 @@ describe("standalone CSS token discovery", () => {
   });
 
   it("changes generation for CSS add, change, and remove transitions", async () => {
-    const root = await mkdtemp(join(tmpdir(), "design-tool-token-manifest-"));
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
     await writeFile(join(root, "base.css"), ":root { --base: 1px; }");
     const initial = await createStandaloneTokenSnapshot({ rootDirectory: root });
 

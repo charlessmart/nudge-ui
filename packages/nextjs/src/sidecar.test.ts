@@ -30,7 +30,7 @@ afterAll(async () => {
 });
 
 async function sidecar(): Promise<{ handle: SidecarHandle; root: string }> {
-  const root = mkdtempSync(join(tmpdir(), "dt-next-sidecar-"));
+  const root = mkdtempSync(join(tmpdir(), "next-sidecar-"));
   roots.push(root);
   const handle = await ensureSidecar(root);
   handles.push(handle);
@@ -41,7 +41,7 @@ describe("sidecar transport", () => {
   it("binds loopback only and serves the frozen manifest", async () => {
     const { handle, root } = await sidecar();
 
-    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
     expect(response.headers.get("content-type")).toContain("application/json");
     const manifest = (await response.json()) as Record<string, unknown>;
     expect(manifest.host).toBe("nextjs-react");
@@ -49,7 +49,7 @@ describe("sidecar transport", () => {
 
     // The port file records this process for diagnostics.
     const record = JSON.parse(
-      readFileSync(join(root, ".next", "design-tool-sidecar.json"), "utf8"),
+      readFileSync(join(root, ".next", "nudge-ui-sidecar.json"), "utf8"),
     ) as { pid: number; port: number };
     expect(record.pid).toBe(process.pid);
     expect(record.port).toBe(handle.port);
@@ -63,7 +63,7 @@ describe("sidecar transport", () => {
 
   it("rejects non-GET manifest requests", async () => {
     const { handle } = await sidecar();
-    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`, {
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`, {
       method: "POST",
       body: "{}",
     });
@@ -74,7 +74,7 @@ describe("sidecar transport", () => {
     const { handle } = await sidecar();
 
     const received: Array<{ revision: number }> = [];
-    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/reload`);
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/reload`);
     expect(response.headers.get("content-type")).toContain("text/event-stream");
 
     const reader = response.body!.getReader();
@@ -107,22 +107,22 @@ describe("sidecar transport", () => {
   });
 
   it("clears stale port files from other processes but keeps its own", () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-next-sidecar-stale-"));
+    const root = mkdtempSync(join(tmpdir(), "next-sidecar-stale-"));
     mkdirSync(join(root, ".next"), { recursive: true });
 
     writeFileSync(
-      join(root, ".next", "design-tool-sidecar.json"),
+      join(root, ".next", "nudge-ui-sidecar.json"),
       `${JSON.stringify({ pid: process.pid + 99999, port: 1234 })}\n`,
     );
     clearStaleSidecarState(root);
-    expect(() => readFileSync(join(root, ".next", "design-tool-sidecar.json"))).toThrow();
+    expect(() => readFileSync(join(root, ".next", "nudge-ui-sidecar.json"))).toThrow();
 
     writeFileSync(
-      join(root, ".next", "design-tool-sidecar.json"),
+      join(root, ".next", "nudge-ui-sidecar.json"),
       `${JSON.stringify({ pid: process.pid, port: 4321 })}\n`,
     );
     clearStaleSidecarState(root);
-    expect(readFileSync(join(root, ".next", "design-tool-sidecar.json"), "utf8")).toContain("4321");
+    expect(readFileSync(join(root, ".next", "nudge-ui-sidecar.json"), "utf8")).toContain("4321");
 
     rmSync(root, { recursive: true, force: true });
   });
@@ -136,17 +136,17 @@ async function settle(ms = 900): Promise<void> {
 
 describe("sidecar contract aggregation (Stage 5)", () => {
   it("aggregates loader postings into componentContracts with a revision bump", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-contracts-"));
+    const root = mkdtempSync(join(tmpdir(), "contracts-"));
     roots.push(root);
     const handle = await ensureSidecar(root);
     handles.push(handle);
 
-    const before = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const before = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
     const emptyBefore = ((await before.json()) as { componentContracts: unknown[] }).componentContracts;
     expect(emptyBefore).toEqual([]);
 
     const post = (file: string, contracts: unknown[]) =>
-      fetch(`http://127.0.0.1:${handle.port}/__design_tool__/contracts`, {
+      fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/contracts`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ file, contracts }),
@@ -158,7 +158,7 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     expect((await post("app/HeroCard.tsx", [{ componentId: "app/HeroCard#HeroCard", name: "HeroCard", props: [] }])).status).toBe(204);
 
     await settle(400);
-    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
     const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string }> };
     const ids = manifest.componentContracts.map((c) => c.componentId);
     expect(ids).toContain("app/ClientBadge#ClientBadge");
@@ -166,7 +166,7 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     expect(ids.filter((id) => id === "app/ClientBadge#ClientBadge")).toHaveLength(1);
 
     // Malformed payloads are rejected without poisoning aggregation.
-    const bad = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/contracts`, {
+    const bad = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/contracts`, {
       method: "POST",
       body: "not-json",
     });
@@ -174,12 +174,12 @@ describe("sidecar contract aggregation (Stage 5)", () => {
   });
 
   it("prunes contracts when an empty result is posted for a known file", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-contracts-prune-"));
+    const root = mkdtempSync(join(tmpdir(), "contracts-prune-"));
     roots.push(root);
     const handle = await ensureSidecar(root);
     handles.push(handle);
     const post = (file: string, contracts: unknown[]) =>
-      fetch(`http://127.0.0.1:${handle.port}/__design_tool__/contracts`, {
+      fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/contracts`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ file, contracts }),
@@ -188,7 +188,7 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     await post("app/Badge.tsx", [{ componentId: "app/Badge#Badge", name: "Badge", props: [] }]);
     await settle(300);
     let ids = ((await (
-      await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`)
+      await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`)
     ).json()) as { componentContracts: Array<{ componentId: string }> }).componentContracts;
     expect(ids).toHaveLength(1);
 
@@ -196,20 +196,20 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     await post("app/Badge.tsx", []);
     await settle(300);
     ids = ((await (
-      await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`)
+      await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`)
     ).json()) as { componentContracts: Array<{ componentId: string }> }).componentContracts;
     expect(ids).toHaveLength(0);
   });
 
   it("prunes contracts when a component file is deleted from disk", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-contracts-del-"));
+    const root = mkdtempSync(join(tmpdir(), "contracts-del-"));
     roots.push(root);
     mkdirSync(join(root, "app"), { recursive: true });
     writeFileSync(join(root, "app", "Gone.tsx"), "// pending compile\n");
     const handle = await ensureSidecar(root, { tokens: true });
     handles.push(handle);
 
-    await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/contracts`, {
+    await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/contracts`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ file: "app/Gone.tsx", contracts: [{ componentId: "app/Gone#Gone", name: "Gone", props: [] }] }),
@@ -221,7 +221,7 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     rmSync(join(root, "app", "Gone.tsx"));
     await settle(1200);
 
-    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
     const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string }> };
     expect(manifest.componentContracts.map((c) => c.componentId)).not.toContain("app/Gone#Gone");
   });
@@ -229,15 +229,15 @@ describe("sidecar contract aggregation (Stage 5)", () => {
 
 describe("sidecar token lifecycle (Stage 4)", () => {
   it("serves scanned custom properties with project-relative provenance", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-tokens-"));
+    const root = mkdtempSync(join(tmpdir(), "tokens-"));
     roots.push(root);
     mkdirSync(join(root, "app"), { recursive: true });
-    writeFileSync(join(root, "app", "theme.css"), ":root {\n  --dt-accent: #4f46e5;\n}\n");
+    writeFileSync(join(root, "app", "theme.css"), ":root {\n  --accent: #4f46e5;\n}\n");
 
     const handle = await ensureSidecar(root, { tokens: true });
     handles.push(handle);
 
-    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
     const manifest = (await response.json()) as {
       tokenGeneration: string;
       tokens: Array<{ name: string; source?: string }>;
@@ -245,13 +245,13 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     };
 
     expect(manifest.tokenGeneration).toMatch(/^nextjs-token:/);
-    expect(manifest.tokens.map((t) => t.name)).toContain("--dt-accent");
+    expect(manifest.tokens.map((t) => t.name)).toContain("--accent");
     const declaration = manifest.tokenCatalog[0]?.declarations[0];
     expect(declaration?.source).toContain("app/theme.css");
   });
 
   it("bumps the generation and emits one reload per settled batch", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-tokens-"));
+    const root = mkdtempSync(join(tmpdir(), "tokens-"));
     roots.push(root);
     mkdirSync(join(root, "app"), { recursive: true });
     writeFileSync(join(root, "app", "a.css"), ":root{--a:1px}");
@@ -259,7 +259,7 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     const handle = await ensureSidecar(root, { tokens: true });
     handles.push(handle);
 
-    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/reload`);
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/reload`);
     const reader = response.body!.getReader();
     const frames: string[] = [];
     const reading = (async () => {
@@ -294,7 +294,7 @@ describe("sidecar token lifecycle (Stage 4)", () => {
   });
 
   it("reflects add and remove transitions across scans", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-tokens-"));
+    const root = mkdtempSync(join(tmpdir(), "tokens-"));
     roots.push(root);
     mkdirSync(join(root, "styles"), { recursive: true });
 
@@ -303,7 +303,7 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     await settle();
 
     const names = async (): Promise<string[]> => {
-      const r = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+      const r = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
       const m = (await r.json()) as { tokens: Array<{ name: string }> };
       return m.tokens.map((t) => t.name);
     };
@@ -320,7 +320,7 @@ describe("sidecar token lifecycle (Stage 4)", () => {
   });
 
   it("reports unreadable stylesheets as diagnostics without losing inspection", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-tokens-"));
+    const root = mkdtempSync(join(tmpdir(), "tokens-"));
     roots.push(root);
     mkdirSync(join(root, "css"), { recursive: true });
     writeFileSync(join(root, "css", "good.css"), ":root{--good:1}");
@@ -332,7 +332,7 @@ describe("sidecar token lifecycle (Stage 4)", () => {
       const handle = await ensureSidecar(root, { tokens: true });
       handles.push(handle);
 
-      const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+      const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
       const manifest = (await response.json()) as {
         tokenDiagnostics: Array<{ code: string; module: string }>;
         tokens: Array<{ name: string }>;
@@ -363,7 +363,7 @@ describe("sidecar source contract scan", () => {
   ].join("\n");
 
   it("publishes contracts from authored sources without any loader posting", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-scan-"));
+    const root = mkdtempSync(join(tmpdir(), "scan-"));
     roots.push(root);
     mkdirSync(join(root, "app"), { recursive: true });
     writeFileSync(join(root, "app", "Badge.tsx"), `${BADGE_SOURCE}\n`);
@@ -373,7 +373,7 @@ describe("sidecar source contract scan", () => {
     const handle = await ensureSidecar(root);
     handles.push(handle);
 
-    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
     const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string; props: Array<{ name: string }> }> };
     const badge = manifest.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
     expect(badge).toBeTruthy();
@@ -381,7 +381,7 @@ describe("sidecar source contract scan", () => {
   });
 
   it("re-extracts edited sources on settled watcher batches", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-scan-watch-"));
+    const root = mkdtempSync(join(tmpdir(), "scan-watch-"));
     roots.push(root);
     mkdirSync(join(root, "app"), { recursive: true });
     writeFileSync(join(root, "app", "Badge.tsx"), `${BADGE_SOURCE}\n`);
@@ -394,7 +394,7 @@ describe("sidecar source contract scan", () => {
     );
     await settle();
 
-    const response = await fetch(`http://127.0.0.1:${handle.port}/__design_tool__/manifest`);
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
     const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string; props: Array<{ name: string }> }> };
     const badge = manifest.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
     expect(badge).toBeTruthy();

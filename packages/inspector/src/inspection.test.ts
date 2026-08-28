@@ -35,7 +35,7 @@ const catalog: TokenDefinition[] = [
 
 afterEach(() => {
   clearChanges();
-  delete window.__designTool;
+  delete window.__nudgeUi;
   document.head.innerHTML = "";
   document.body.innerHTML = "";
 });
@@ -87,12 +87,12 @@ describe("structured inspection contract", () => {
     mount();
     const remove = installInspectionBridge();
 
-    expect(window.__designTool?.version).toBe(1);
-    expect(window.__designTool?.inspect(".card")?.identity.cid).toBe("Card");
-    expect(window.__designTool?.inspect(".missing")).toBeNull();
+    expect(window.__nudgeUi?.version).toBe(1);
+    expect(window.__nudgeUi?.inspect(".card")?.identity.cid).toBe("Card");
+    expect(window.__nudgeUi?.inspect(".missing")).toBeNull();
 
     remove();
-    expect(window.__designTool).toBeUndefined();
+    expect(window.__nudgeUi).toBeUndefined();
   });
 
   it("keeps compiler token entries in compatibility attribution", () => {

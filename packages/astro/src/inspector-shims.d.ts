@@ -13,7 +13,7 @@ declare module "*.css?inline" {
   export default css;
 }
 
-declare module "virtual:design-tool-astro-context" {
+declare module "virtual:nudge-ui-astro-context" {
   /** Vite-resolved project root; empty when unavailable. */
   export const projectRoot: string;
 }

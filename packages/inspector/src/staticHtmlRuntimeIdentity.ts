@@ -5,8 +5,8 @@
  * The value intentionally does not match `file:line:column`. It is a
  * document-local selector identity, not a claim about source location.
  */
-export const RUNTIME_UNKNOWN_SOURCE_PREFIX = "design-tool:unknown:";
-export const RUNTIME_ELEMENT_CID_PREFIX = "design-tool-runtime-";
+export const RUNTIME_UNKNOWN_SOURCE_PREFIX = "nudge-ui:unknown:";
+export const RUNTIME_ELEMENT_CID_PREFIX = "nudge-ui-runtime-";
 /** Maximum length retained for any runtime DOM evidence field. */
 export const RUNTIME_EVIDENCE_MAX_LENGTH = 120;
 
@@ -59,7 +59,7 @@ function isEligibleElement(element: Element): element is HTMLElement {
   while (current) {
     if (current.namespaceURI !== HTML_NAMESPACE) return false;
     if (EXCLUDED_SUBTREE_TAGS.has(current.tagName)) return false;
-    if (current.id === "design-tool-root") return false;
+    if (current.id === "nudge-ui-root") return false;
     current = current.parentElement;
   }
   return true;

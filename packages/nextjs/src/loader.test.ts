@@ -111,8 +111,8 @@ describe("transformNextModuleSource — client-component policy", () => {
     const result = transform(CLIENT_BUTTON, `${ROOT}/src/Button.tsx`);
 
     expect(result!.clientComponent).toBe(true);
-    expect(result!.code).toContain("@design-tool/inspector/component-runtime");
-    expect(result!.code).toContain("__designToolInstrumentComponent(");
+    expect(result!.code).toContain("@nudge-ui/inspector/component-runtime");
+    expect(result!.code).toContain("__nudgeUiInstrumentComponent(");
     // Host elements are attributed but never wrapped.
     expect(result!.code).toContain('data-cid="Button"');
   });
@@ -125,7 +125,7 @@ describe("transformNextModuleSource — client-component policy", () => {
     expect(
       result!.code.indexOf('"use client"'),
     ).toBeLessThan(
-      result!.code.indexOf("@design-tool/inspector/component-runtime"),
+      result!.code.indexOf("@nudge-ui/inspector/component-runtime"),
     );
   });
 
@@ -136,7 +136,7 @@ describe("transformNextModuleSource — client-component policy", () => {
     const result = transform(pagesFixture, `${ROOT}/pages/index.tsx`);
 
     expect(result!.clientComponent).toBe(true);
-    expect(result!.code).toContain("@design-tool/inspector/component-runtime");
+    expect(result!.code).toContain("@nudge-ui/inspector/component-runtime");
   });
 
   it("does not treat app/pages/** as Pages Router (stays server-side)", () => {
@@ -150,7 +150,7 @@ describe("transformNextModuleSource — client-component policy", () => {
 
     expect(result).not.toBeNull();
     expect(result!.clientComponent).toBe(false);
-    expect(result!.code).not.toContain("@design-tool/inspector/component-runtime");
+    expect(result!.code).not.toContain("@nudge-ui/inspector/component-runtime");
   });
 
   it("matches src/pages for Pages Router applications", () => {
@@ -179,7 +179,7 @@ describe("transformNextModuleSource — client-component policy", () => {
     );
 
     expect(result!.clientComponent).toBe(false);
-    expect(result!.code).not.toContain("@design-tool/inspector/component-runtime");
+    expect(result!.code).not.toContain("@nudge-ui/inspector/component-runtime");
     // Identity attributes are still present.
     expect(result!.code).toContain('data-cid="Server"');
   });
@@ -202,12 +202,12 @@ describe("instrumentRootLayout", () => {
     );
 
     expect(result!.layoutInstrumented).toBe(true);
-    expect(result!.code).toContain("@design-tool/nextjs/mount");
-    expect(result!.code).toContain("{__DesignToolCreateElement(__DesignToolMountElement)}");
+    expect(result!.code).toContain("@nudge-ui/nextjs/mount");
+    expect(result!.code).toContain("{__NudgeUiCreateElement(__NudgeUiMountElement)}");
     // The mount lands inside <html>, before its closing tag.
-    expect(result!.code.indexOf("__DesignToolMountElement")).toBeGreaterThan(-1);
+    expect(result!.code.indexOf("__NudgeUiMountElement")).toBeGreaterThan(-1);
     expect(result!.code.lastIndexOf("</html>")).toBeGreaterThan(
-      result!.code.indexOf("{__DesignToolCreateElement(__DesignToolMountElement)}"),
+      result!.code.indexOf("{__NudgeUiCreateElement(__NudgeUiMountElement)}"),
     );
   });
 
@@ -227,7 +227,7 @@ describe("instrumentRootLayout", () => {
 
     expect(result).not.toBeNull();
     const code = result!.code;
-    expect(code.indexOf('"use client"')).toBeLessThan(code.indexOf("@design-tool/nextjs/mount"));
+    expect(code.indexOf('"use client"')).toBeLessThan(code.indexOf("@nudge-ui/nextjs/mount"));
     expect(code.trimStart().startsWith('"use client"')).toBe(true);
   });
 

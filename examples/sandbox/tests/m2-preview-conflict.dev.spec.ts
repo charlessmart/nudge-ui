@@ -7,7 +7,7 @@ test("dev: a blocked managed preview remains visible in the change log", async (
   await page.click("text=Save");
 
   await page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     const input = root?.querySelector(
       '[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]',
     ) as HTMLInputElement | null;
@@ -20,7 +20,7 @@ test("dev: a blocked managed preview remains visible in the change log", async (
 
   await expect.poll(() => page.locator(".btn").evaluate((el) => getComputedStyle(el).fontSize)).toBe("13px");
   await expect.poll(() => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return root?.querySelector('[data-test="preview-conflict"]')?.textContent ?? "";
   })).toContain("important");
 

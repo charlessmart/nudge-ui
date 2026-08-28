@@ -1,10 +1,10 @@
 /**
- * `@design-tool/css/token-inventory` — Node/build-time stylesheet parsing and
+ * `@nudge-ui/css/token-inventory` — Node/build-time stylesheet parsing and
  * aggregation.
  *
  * This subpath is intentionally NOT browser-safe (see the import-graph test):
  * importing it pulls PostCSS into the consumer. Node consumers use it directly
- * through `@design-tool/css/token-inventory`; the root `@design-tool/css`
+ * through `@nudge-ui/css/token-inventory`; the root `@nudge-ui/css`
  * entry stays browser-safe and never re-exports this module.
  *
  * The deep Interface is `createTokenInventory()` — feed ordered stylesheet

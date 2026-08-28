@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Instatic Architecture Analysis — Research for Design Tool</title>
+<title>Instatic Architecture Analysis — Research for Nudge UI</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -157,8 +157,8 @@
 <body>
 
 <h1>Instatic Architecture Analysis</h1>
-<p style="color: var(--text2);">Research for Design Tool — <a href="https://github.com/CoreBunch/Instatic">github.com/CoreBunch/Instatic</a></p>
-<p>Instatic is an open-source, self-hosted CMS with a visual editor comparable to Framer. This analysis examines three subsystems relevant to the Design Tool project: <strong>HTML/CSS import pipeline</strong>, <strong>canvas/preview architecture</strong>, and <strong>layer inspector</strong>.</p>
+<p style="color: var(--text2);">Research for Nudge UI — <a href="https://github.com/CoreBunch/Instatic">github.com/CoreBunch/Instatic</a></p>
+<p>Instatic is an open-source, self-hosted CMS with a visual editor comparable to Framer. This analysis examines three subsystems relevant to the Nudge UI project: <strong>HTML/CSS import pipeline</strong>, <strong>canvas/preview architecture</strong>, and <strong>layer inspector</strong>.</p>
 
 <div class="toc">
 <h3>Table of Contents</h3>
@@ -184,7 +184,7 @@
   <li class="l2"><a href="#s3c">3.3 Drag-and-Drop Reordering</a></li>
   <li class="l2"><a href="#s3d">3.4 Performance Strategy</a></li>
   <li class="l2"><a href="#s3e">3.5 Context Menu &amp; Actions</a></li>
-  <li><a href="#s4">4. Takeaways for Design Tool</a></li>
+  <li><a href="#s4">4. Takeaways for Nudge UI</a></li>
 </ul>
 </div>
 
@@ -925,12 +925,12 @@ border-left: 1px solid var(--rule)
 <!-- ================================================================== -->
 <!-- SECTION 4: Takeaways                                               -->
 <!-- ================================================================== -->
-<h2 id="s4">4. Takeaways for Design Tool</h2>
+<h2 id="s4">4. Takeaways for Nudge UI</h2>
 
 <h3>Import / Style Parsing</h3>
 
 <table>
-  <tr><th>Instatic Approach</th><th>Relevance to Design Tool</th></tr>
+  <tr><th>Instatic Approach</th><th>Relevance to Nudge UI</th></tr>
   <tr>
     <td><strong>Substitution encoding</strong> for <code>var()/env()</code> — rewrite to marker custom props before CSSOM parse</td>
     <td><span class="tag tag-rec">Adopt</span> If you parse user CSS at any point, this technique is essential for reliability. The CSSOM is fundamentally broken for <code>var()</code>. The character-by-character scanner with comment/string/paren tracking is a proven pattern.</td>
@@ -956,7 +956,7 @@ border-left: 1px solid var(--rule)
 <h3>Canvas / Preview</h3>
 
 <table>
-  <tr><th>Instatic Approach</th><th>Relevance to Design Tool</th></tr>
+  <tr><th>Instatic Approach</th><th>Relevance to Nudge UI</th></tr>
   <tr>
     <td><strong>Real iframes per breakpoint</strong> (not scaled divs)</td>
     <td><span class="tag tag-rec">Consider</span> If you need CSS combinators, true <code>&lt;body&gt;</code>, and working media queries, iframes are the answer. The cost is cross-iframe event bridging complexity. Evaluate whether your use case needs combinator/body fidelity vs simpler div-scale approach.</td>
@@ -990,7 +990,7 @@ border-left: 1px solid var(--rule)
 <h3>Layer Inspector</h3>
 
 <table>
-  <tr><th>Instatic Approach</th><th>Relevance to Design Tool</th></tr>
+  <tr><th>Instatic Approach</th><th>Relevance to Nudge UI</th></tr>
   <tr>
     <td><strong>Flat <code>Record&lt;string, PageNode&gt;</code></strong> — tree emerges from <code>children: string[]</code></td>
     <td><span class="tag tag-rec">Adopt</span> Flat storage + denormalized <code>parentId</code> = O(1) node lookups. Tree structure is a view, not the storage model. This is the pattern you should use.</td>
@@ -1061,17 +1061,17 @@ border-left: 1px solid var(--rule)
   </tr>
 </table>
 
-<h3>Things Instatic Does That Design Tool Should Probably NOT Copy</h3>
+<h3>Things Instatic Does That Nudge UI Should Probably NOT Copy</h3>
 
 <table>
   <tr><th>Thing</th><th>Why It May Not Apply</th></tr>
   <tr>
     <td>Bun-only server runtime</td>
-    <td>Design Tool is a Vite plugin. No server runtime needed.</td>
+    <td>Nudge UI is a Vite plugin. No server runtime needed.</td>
   </tr>
   <tr>
     <td>CSS Modules + global CSS variables (no Tailwind)</td>
-    <td>Depends on the host app. Design Tool needs to work with whatever CSS setup the host uses.</td>
+    <td>Depends on the host app. Nudge UI needs to work with whatever CSS setup the host uses.</td>
   </tr>
   <tr>
     <td>Zustand + Mutative patches for undo history</td>
@@ -1083,7 +1083,7 @@ border-left: 1px solid var(--rule)
   </tr>
   <tr>
     <td>Agent snapshot frames (AI integration)</td>
-    <td>Instatic-specific feature. Only relevant if Design Tool adds AI prompt generation.</td>
+    <td>Instatic-specific feature. Only relevant if Nudge UI adds AI prompt generation.</td>
   </tr>
 </table>
 

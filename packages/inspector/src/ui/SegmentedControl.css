@@ -1,45 +1,45 @@
-.dt-segmented-control {
+.segmented-control {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
   align-items: stretch;
   gap: 2px;
   min-width: 0;
-  min-height: var(--dt-control-height-large);
+  min-height: var(--control-height-large);
   padding: 2px;
   box-sizing: border-box;
   overflow: hidden;
-  border-radius: var(--dt-radius-control);
-  background: var(--dt-surface-well);
+  border-radius: var(--radius-control);
+  background: var(--surface-well);
 }
 
-/* dt-button is the base; stretch fills the padded track (grows with text). */
-.dt-button.dt-segmented-control__button {
+/* button is the base; stretch fills the padded track (grows with text). */
+.button.segmented-control__button {
   min-width: 0;
   min-height: 0;
   height: auto;
-  padding: 0 var(--dt-space-8);
+  padding: 0 var(--space-8);
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--dt-text-muted);
-  font-size: var(--dt-font-size-base);
-  font-weight: var(--dt-font-weight-base);
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-base);
   box-shadow: none;
 }
 
-.dt-button.dt-segmented-control__button--selected,
-.dt-button.dt-segmented-control__button--selected:hover:not(:disabled) {
-  background: var(--dt-surface-raised);
-  color: var(--dt-text-primary);
-  box-shadow: 0 0 0 1px var(--dt-border-subtle), 0 1px 2px rgba(0, 0, 0, 0.06);
+.button.segmented-control__button--selected,
+.button.segmented-control__button--selected:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 1px var(--border-subtle), 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
-.dt-button.dt-segmented-control__button:not(.dt-segmented-control__button--selected):hover:not(:disabled) {
+.button.segmented-control__button:not(.segmented-control__button--selected):hover:not(:disabled) {
   background: transparent;
-  color: var(--dt-text-primary);
+  color: var(--text-primary);
 }
 
-.dt-segmented-control__button svg {
+.segmented-control__button svg {
   flex-shrink: 0;
 }

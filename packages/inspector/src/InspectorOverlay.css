@@ -1,11 +1,11 @@
-.dt-hover-outline,
-.dt-selected-outline {
+.hover-outline,
+.selected-outline {
   position: fixed;
   pointer-events: none;
   outline-offset: -2px;
 }
 
-.dt-measurement-overlay {
+.measurement-overlay {
   position: fixed;
   inset: 0;
   z-index: 0;
@@ -13,38 +13,38 @@
   pointer-events: none;
 }
 
-.dt-alignment-guide {
+.alignment-guide {
   stroke: rgb(59 130 246 / 46%);
   stroke-dasharray: 3 4;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
-.dt-measurement-ruler {
+.measurement-ruler {
   stroke: #ef4444;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
-.dt-measurement-projection {
+.measurement-projection {
   stroke: #ef4444;
   stroke-dasharray: 4 4;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
-.dt-measurement-label {
+.measurement-label {
   fill: #fff;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   font-weight: 600;
 }
 
-.dt-measurement-label-chip {
+.measurement-label-chip {
   fill: #ef4444;
 }
 
-.dt-dom-drop-line {
+.dom-drop-line {
   z-index: 4;
   height: 3px;
   margin-top: -1px;
@@ -53,7 +53,7 @@
   box-shadow: 0 0 0 1px rgb(255 255 255 / 80%);
 }
 
-.dt-dom-drop-target {
+.dom-drop-target {
   z-index: 3;
   box-sizing: border-box;
   border: 1px solid rgb(59 130 246 / 72%);
@@ -61,29 +61,29 @@
   background: rgb(59 130 246 / 5%);
 }
 
-.dt-hover-outline {
+.hover-outline {
   outline: 2px solid #3b82f6;
 }
 
-.dt-selected-outline {
+.selected-outline {
   outline: 2px solid #3b82f6;
 }
 
-.dt-hover-margin-fill {
+.hover-margin-fill {
   background: rgb(59 130 246 / 14%);
 }
 
-.dt-hover-margin {
+.hover-margin {
   border-color: rgb(59 130 246 / 52%);
   border-style: dotted;
   border-width: 0;
   opacity: 0.72;
 }
 
-.dt-hover-margin[data-axis="horizontal"] {
+.hover-margin[data-axis="horizontal"] {
   border-top-width: 1px;
 }
 
-.dt-hover-margin[data-axis="vertical"] {
+.hover-margin[data-axis="vertical"] {
   border-left-width: 1px;
 }

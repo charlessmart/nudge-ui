@@ -1,4 +1,4 @@
-const INTERACTION_STYLE_ID = "design-tool-interaction-styles";
+const INTERACTION_STYLE_ID = "nudge-ui-interaction-styles";
 
 const interactionStyleDocuments = new Set<Document>();
 
@@ -26,7 +26,7 @@ const INTERACTION_CSS = `
    * is the affordance, while the normal selected-element outline remains a
    * separate overlay.
    */
-  [data-dt-empty-text] {
+  [data-empty-text] {
     display: inline-block !important;
     width: 0.75em !important;
     min-width: 0.75em !important;
@@ -60,12 +60,12 @@ export function installInteractionStyles(doc: Document = document): () => void {
     created = true;
   }
   interactionStyleDocuments.add(doc);
-  for (const slot of Array.from(doc.querySelectorAll<HTMLElement>("[data-dt-empty-text]"))) {
+  for (const slot of Array.from(doc.querySelectorAll<HTMLElement>("[data-empty-text]"))) {
     slot.hidden = false;
   }
   return () => {
     interactionStyleDocuments.delete(doc);
-    for (const slot of Array.from(doc.querySelectorAll<HTMLElement>("[data-dt-empty-text]"))) {
+    for (const slot of Array.from(doc.querySelectorAll<HTMLElement>("[data-empty-text]"))) {
       slot.hidden = true;
     }
     if (created) style?.remove();

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { projectInspectorValues } from "./projection.ts";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 
 function row(
   property: string,

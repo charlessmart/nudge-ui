@@ -17,7 +17,7 @@ test("dev: token picker stays bounded and supports selection", async ({ page }) 
   if (hasChip) await chip.click();
   else await raw.fill("");
 
-  const popup = page.locator(".dt-popover-listbox__popup");
+  const popup = page.locator(".popover-listbox__popup");
   await expect(popup).toBeVisible();
   const dimensions = await popup.evaluate((element) => ({
     width: element.getBoundingClientRect().width,

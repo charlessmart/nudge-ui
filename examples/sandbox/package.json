@@ -16,16 +16,16 @@
     "perf:baseline": "PERF_RECORD_BASELINE=1 playwright test --project=perf"
   },
   "dependencies": {
-    "@design-tool/css": "workspace:*",
-    "@design-tool/inspector": "workspace:*",
-    "@design-tool/package-css-fixture": "workspace:*",
-    "@design-tool/plugin": "workspace:*",
+    "@nudge-ui/css": "workspace:*",
+    "@nudge-ui/inspector": "workspace:*",
+    "@nudge-ui/package-css-fixture": "workspace:*",
+    "@nudge-ui/plugin": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },
   "devDependencies": {
-    "@design-tool/compatibility": "workspace:*",
-    "@design-tool/css": "workspace:*",
+    "@nudge-ui/compatibility": "workspace:*",
+    "@nudge-ui/css": "workspace:*",
     "@playwright/test": "^1.48.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",

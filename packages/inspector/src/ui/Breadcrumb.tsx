@@ -20,13 +20,13 @@ export interface BreadcrumbProps {
 
 export function Breadcrumb({ items, label = "Selection hierarchy", className, "data-test": dataTest }: BreadcrumbProps): ReactElement {
   return (
-    <nav className={`dt-breadcrumb${className ? ` ${className}` : ""}`} aria-label={label} data-test={dataTest}>
+    <nav className={`breadcrumb${className ? ` ${className}` : ""}`} aria-label={label} data-test={dataTest}>
       {items.map((item, index) => (
-        <span className="dt-breadcrumb__item" key={item.id}>
-          {index > 0 ? <span className="dt-breadcrumb__separator" aria-hidden="true">›</span> : null}
+        <span className="breadcrumb__item" key={item.id}>
+          {index > 0 ? <span className="breadcrumb__separator" aria-hidden="true">›</span> : null}
           <button
             type="button"
-            className="dt-breadcrumb__step"
+            className="breadcrumb__step"
             data-active={item.active ? "true" : "false"}
             data-test={item["data-test"]}
             data-index={item["data-index"]}

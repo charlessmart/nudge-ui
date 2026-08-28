@@ -13,7 +13,7 @@ export function Button({ variant = "secondary", size = "default", className, ...
   return (
     <button
       {...props}
-      className={`dt-button dt-button--${variant} dt-button--${size}${className ? ` ${className}` : ""}`}
+      className={`button button--${variant} button--${size}${className ? ` ${className}` : ""}`}
     />
   );
 }

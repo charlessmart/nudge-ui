@@ -11,10 +11,10 @@ import type { Page } from "@playwright/test";
 async function inspectorReady(page: Page): Promise<void> {
   await page.goto("/");
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
   await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __designTool?: unknown }).__designTool)))
+    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
 }
 
@@ -36,7 +36,7 @@ test("dev: inspector mounts and rendered pages carry astro source identity", asy
 test("dev: server HTML carries Astro's annotations beside our identity layer", async ({ request }) => {
   // Astro's dev toolbar strips its own annotations from the live DOM shortly
   // after load (ADR-0011); the raw server response must still carry them,
-  // forwarded untouched next to Design Tool's identity layer.
+  // forwarded untouched next to Nudge UI's identity layer.
   const response = await request.get("/");
   const html = await response.text();
   expect(html.match(/data-astro-source-file=/g)?.length).toBeGreaterThan(0);
@@ -48,8 +48,8 @@ test("dev: the inspection bridge resolves exact Header.astro identity", async ({
 
   const inspection = await page.evaluate(() =>
     (window as unknown as {
-      __designTool?: { inspect(selector: string): { identity: { cid: string | null; src: string } } | null };
-    }).__designTool?.inspect(".site-header .site-title") ?? null,
+      __nudgeUi?: { inspect(selector: string): { identity: { cid: string | null; src: string } } | null };
+    }).__nudgeUi?.inspect(".site-header .site-title") ?? null,
   );
 
   expect(inspection).not.toBeNull();

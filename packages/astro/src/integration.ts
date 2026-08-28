@@ -1,17 +1,17 @@
 import type { AstroIntegration } from "astro";
-import { designTool, type DesignToolOptions } from "@design-tool/plugin";
+import { nudgeUi, type NudgeUiOptions } from "@nudge-ui/plugin";
 import { createProjectContextPlugin } from "./projectContext.ts";
 
-export type { DesignToolOptions };
+export type { NudgeUiOptions };
 
 /**
- * Options for `designToolAstro`. The token/component knowledge options are
+ * Options for `nudgeUiAstro`. The token/component knowledge options are
  * forwarded to the shared Vite plugin unchanged; Astro-specific concerns
  * (gating, injection, instrumentation) stay internal.
  */
-export interface DesignToolAstroOptions extends DesignToolOptions {}
+export interface NudgeUiAstroOptions extends NudgeUiOptions {}
 
-const BOOTSTRAP_MODULE_SPECIFIER = "@design-tool/astro/bootstrap";
+const BOOTSTRAP_MODULE_SPECIFIER = "@nudge-ui/astro/bootstrap";
 /**
  * The `page` stage emits our content as a Vite-resolved module on every
  * rendered page. The ordering facts that shape it:
@@ -48,7 +48,7 @@ const BOOTSTRAP_ENTRY_CONTENT =
 const MIDDLEWARE_ENTRYPOINT = new URL("./middleware.ts", import.meta.url);
 
 /**
- * Design Tool host Adapter for Astro dev servers (ADR-0011).
+ * Nudge UI host Adapter for Astro dev servers (ADR-0011).
  *
  * Dev-only by contract (ADR-0002): unless `command === "dev"` and
  * `enabled !== false`, the integration registers nothing at all — no Vite
@@ -56,7 +56,7 @@ const MIDDLEWARE_ENTRYPOINT = new URL("./middleware.ts", import.meta.url);
  * byte-identical to a project without the integration.
  *
  * In dev it wires three pieces:
- * 1. the shared `designTool()` Vite plugin (token virtual modules, island JSX
+ * 1. the shared `nudgeUi()` Vite plugin (token virtual modules, island JSX
  *    identity transforms) plus the project-context plugin, through the
  *    project's Vite config;
  * 2. the inspector bootstrap module, injected through the `page` stage so it
@@ -65,14 +65,14 @@ const MIDDLEWARE_ENTRYPOINT = new URL("./middleware.ts", import.meta.url);
  *    responses and adds the response-level identity layer through the
  *    identity Module.
  */
-export function designToolAstro(options: DesignToolAstroOptions = {}): AstroIntegration {
+export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegration {
   const enabled = options.enabled ?? true;
   // Astro's SSR module runner requires externalized React resolution; the
   // shared plugin's react dedupe aliases would feed it the raw CJS entry.
-  const sharedOptions: DesignToolOptions = { ...options, skipReactAliases: true };
+  const sharedOptions: NudgeUiOptions = { ...options, skipReactAliases: true };
 
   return {
-    name: "design-tool",
+    name: "nudge-ui",
     hooks: {
       "astro:config:setup"({ command, updateConfig, injectScript, addMiddleware }) {
         if (!enabled || command !== "dev") return;
@@ -83,7 +83,7 @@ export function designToolAstro(options: DesignToolAstroOptions = {}): AstroInte
         // (config/resolveId/load/transform hooks) is identical.
         updateConfig({
           vite: {
-            plugins: [...designTool(sharedOptions), createProjectContextPlugin()] as never,
+            plugins: [...nudgeUi(sharedOptions), createProjectContextPlugin()] as never,
           },
         });
 

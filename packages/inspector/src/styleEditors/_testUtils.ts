@@ -92,7 +92,7 @@ export function setSelectValue(select: HTMLElement, value: string): void {
     select.click();
   });
 
-  const option = Array.from(document.querySelectorAll<HTMLElement>(".dt-select__item"))
+  const option = Array.from(document.querySelectorAll<HTMLElement>(".select__item"))
     .find((item) => item.dataset.value === value);
   if (!option) {
     throw new Error(`Could not find select option ${value}`);
@@ -106,7 +106,7 @@ export function setSelectValue(select: HTMLElement, value: string): void {
 
 export function selectOptionValues(select: HTMLElement): string[] {
   act(() => select.click());
-  const values = Array.from(document.querySelectorAll<HTMLElement>(".dt-select__item"))
+  const values = Array.from(document.querySelectorAll<HTMLElement>(".select__item"))
     .map((item) => item.dataset.value)
     .filter((value): value is string => value !== undefined);
   act(() => select.click());

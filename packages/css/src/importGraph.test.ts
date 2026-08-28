@@ -20,8 +20,8 @@ const FORBIDDEN_SPECIFIERS = [
   /^react$/,
   /^react\//,
   /^postcss/,
-  /^@design-tool\/plugin/,
-  /^@design-tool\/inspector/,
+  /^@nudge-ui\/plugin/,
+  /^@nudge-ui\/inspector/,
 ];
 
 /** Any import/export of the token-inventory module, bare or relative. */
@@ -78,7 +78,7 @@ function nodePathFiles(): string[] {
   return sourceFiles(join(SRC, NODE_PATH_ROOT));
 }
 
-describe("@design-tool/css import graph (browser-safe vs Node/build-time)", () => {
+describe("@nudge-ui/css import graph (browser-safe vs Node/build-time)", () => {
   it("browser-safe modules (index.ts, model, value-semantics) never import Node, Vite, React, PostCSS, filesystem, or the token-inventory Node path", () => {
     const files = browserSafeFiles();
     expect(files.length).toBeGreaterThan(0);
@@ -116,7 +116,7 @@ describe("@design-tool/css import graph (browser-safe vs Node/build-time)", () =
     const nonBareSpecifiers = files.flatMap((file) => {
       const source = readFileSync(file, "utf8");
       return importSpecifiers(source)
-        .filter((specifier) => specifier.startsWith("@design-tool/"))
+        .filter((specifier) => specifier.startsWith("@nudge-ui/"))
         .map((specifier) => `${file}: ${specifier}`);
     });
     expect(nonBareSpecifiers).toEqual([]);

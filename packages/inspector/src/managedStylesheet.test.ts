@@ -3,14 +3,14 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { ensureManagedSheet, applyRules, escapeAttrValue, rulesToCssText, verifyPreview, getManagedSheetText } from "./managedStylesheet.ts";
 import type { StyleRule } from "./managedStylesheet.ts";
 
-const SHEET_ID = "design-tool-styles";
+const SHEET_ID = "nudge-ui-styles";
 
 describe("ensureManagedSheet", () => {
   afterEach(() => {
     document.getElementById(SHEET_ID)?.remove();
   });
 
-  it("injects a single <style id='design-tool-styles'> into document.head", () => {
+  it("injects a single <style id='nudge-ui-styles'> into document.head", () => {
     expect(document.getElementById(SHEET_ID)).toBeNull();
     const sheet = ensureManagedSheet();
     const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;

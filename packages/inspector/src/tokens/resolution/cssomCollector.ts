@@ -1,5 +1,5 @@
 import { computeSpecificityCore } from "./selectorSemantics.ts";
-import type { AtRuleContext, MatchedRule, StyleDeclaration } from "@design-tool/css/model";
+import type { AtRuleContext, MatchedRule, StyleDeclaration } from "@nudge-ui/css/model";
 
 interface RuleSnapshot {
   revision: number;
@@ -72,14 +72,14 @@ function changesStylesheet(record: MutationRecord): boolean {
 function isProbeNode(node: Node): boolean {
   let current: Node | null = node;
   while (current && current.nodeType !== current.DOCUMENT_NODE) {
-    if (current.nodeType === current.ELEMENT_NODE && (current as Element).hasAttribute("data-design-tool")) return true;
+    if (current.nodeType === current.ELEMENT_NODE && (current as Element).hasAttribute("data-nudge-ui")) return true;
     current = current.parentNode;
   }
   return false;
 }
 
-const CONTAINER_PROBE_MARKER = /^data-dt-container-probe-/;
-const MANAGED_SHEET_ID = "design-tool-styles";
+const CONTAINER_PROBE_MARKER = /^data-container-probe-/;
+const MANAGED_SHEET_ID = "nudge-ui-styles";
 
 function isManagedStylesheetNode(node: Node | null): boolean {
   return isStylesheetNode(node) && (node as Element).id === MANAGED_SHEET_ID;
@@ -100,16 +100,16 @@ function isProbeMutation(record: MutationRecord): boolean {
     // Handle them before the generic unregistered-element fast path.
     if (isStylesheetNode(target)) {
       const name = record.attributeName ?? "";
-      if (isManagedStylesheetNode(target)) return name !== "data-design-tool";
-      return name.startsWith("data-design-tool");
+      if (isManagedStylesheetNode(target)) return name !== "data-nudge-ui";
+      return name.startsWith("data-nudge-ui");
     }
     const name = record.attributeName ?? "";
     // Renderer-owned IDs are lookup metadata, not authored cascade inputs.
     // Ignore them before the registry check so hovering an unregistered canvas
     // node does not invalidate the selected element's resolution snapshot.
-    if (name === "data-dt-renderer-id") return true;
+    if (name === "data-renderer-id") return true;
     if (!registeredElements.has(target)) return true;
-    return name.startsWith("data-design-tool")
+    return name.startsWith("data-nudge-ui")
       || CONTAINER_PROBE_MARKER.test(name);
   }
   if (record.type === "characterData") {
@@ -121,7 +121,7 @@ function isProbeMutation(record: MutationRecord): boolean {
   const nodes = [...record.addedNodes, ...record.removedNodes];
   if (nodes.some(isManagedStylesheetNode)) return false;
   return nodes.length > 0 && nodes.every((node) =>
-    node.nodeType === node.ELEMENT_NODE && (node as Element).hasAttribute("data-design-tool"));
+    node.nodeType === node.ELEMENT_NODE && (node as Element).hasAttribute("data-nudge-ui"));
 }
 
 export function documentRevisions(doc: Document): DocumentRevisions {

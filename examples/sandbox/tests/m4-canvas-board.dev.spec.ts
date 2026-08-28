@@ -24,7 +24,7 @@ test.describe("Canvas spatial board", () => {
   });
 
   test("dev: cards use absolute positioning with world coordinates", async ({ page }) => {
-    const cards = page.locator(".dt-canvas-card");
+    const cards = page.locator(".canvas-card");
     await expect(cards).toHaveCount(1);
 
     const position = await cards.first().evaluate((el: HTMLElement) => {
@@ -45,7 +45,7 @@ test.describe("Canvas spatial board", () => {
   });
 
   test("dev: card resize handle is present and appears on hover", async ({ page }) => {
-    const card = page.locator(".dt-canvas-card").first();
+    const card = page.locator(".canvas-card").first();
     const resizeHandle = card.locator('[data-test^="canvas-card-resize-"]');
     await expect(resizeHandle).toBeAttached();
 
@@ -61,7 +61,7 @@ test.describe("Canvas spatial board", () => {
   });
 
   test("dev: card iframe receives actual width/height from card dimensions", async ({ page }) => {
-    const iframe = page.locator(".dt-canvas-card__iframe").first();
+    const iframe = page.locator(".canvas-card__iframe").first();
 
     const iframeStyles = await iframe.evaluate((el: HTMLElement) => {
       const s = getComputedStyle(el);
@@ -75,7 +75,7 @@ test.describe("Canvas spatial board", () => {
   test("dev: card toolbar keeps its screen size while zooming until its size cap", async ({ page }) => {
     const board = page.locator('[data-test="canvas-board"]');
     const boardContent = page.locator('[data-test="canvas-board-content"]');
-    const toolbar = page.locator(".dt-canvas-card__toolbar").first();
+    const toolbar = page.locator(".canvas-card__toolbar").first();
 
     const readZoom = () => boardContent.evaluate((element: HTMLElement) => {
       const match = /scale\((-?\d+(?:\.\d+)?)\)/.exec(element.style.transform);
@@ -127,8 +127,8 @@ test.describe("Canvas spatial board — two responsive sizes", () => {
     await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-    const card = page.locator(".dt-canvas-card").first();
-    const iframe = card.locator(".dt-canvas-card__iframe").first();
+    const card = page.locator(".canvas-card").first();
+    const iframe = card.locator(".canvas-card__iframe").first();
 
     const sizeBefore = await iframe.boundingBox();
     expect(sizeBefore).not.toBeNull();
@@ -195,7 +195,7 @@ test.describe("Canvas board gesture handling", () => {
   });
 
   test("dev: unmodified iframe interaction remains usable (click inside iframe)", async ({ page }) => {
-    const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+    const frame = page.frameLocator(".canvas-card__iframe").first();
     const button = frame.locator("button.btn").first();
     await expect(button).toBeVisible({ timeout: 10000 });
     await button.click();
@@ -205,14 +205,14 @@ test.describe("Canvas board gesture handling", () => {
   test("dev: Space-drag inside an iframe pans the board", async ({ page }) => {
     const boardContent = page.locator('[data-test="canvas-board-content"]');
     const transformBefore = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
-    const iframe = page.locator(".dt-canvas-card__iframe").first();
+    const iframe = page.locator(".canvas-card__iframe").first();
     await expect(iframe).toBeVisible();
     await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0, { timeout: 10000 });
     const box = await iframe.boundingBox();
     expect(box).not.toBeNull();
 
     // Focus the document inside the card so Space is handled by the renderer.
-    await page.frameLocator(".dt-canvas-card__iframe").first().locator("body").click({
+    await page.frameLocator(".canvas-card__iframe").first().locator("body").click({
       position: { x: 40, y: 40 },
     });
     await page.keyboard.down("Space");
@@ -230,7 +230,7 @@ test.describe("Canvas board gesture handling", () => {
     const board = page.locator('[data-test="canvas-board"]');
     const boardContent = page.locator('[data-test="canvas-board-content"]');
     const transformBefore = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
-    const iframe = page.locator(".dt-canvas-card__iframe").first();
+    const iframe = page.locator(".canvas-card__iframe").first();
     await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0, { timeout: 10000 });
     const box = await iframe.boundingBox();
     expect(box).not.toBeNull();
@@ -252,7 +252,7 @@ test.describe("Canvas board gesture handling", () => {
     test(`dev: ${modifier}-wheel over an iframe zooms the board around the pointer`, async ({ page }) => {
       const boardContent = page.locator('[data-test="canvas-board-content"]');
       const transformBefore = await boardContent.evaluate((el: HTMLElement) => el.style.transform);
-      const iframe = page.locator(".dt-canvas-card__iframe").first();
+      const iframe = page.locator(".canvas-card__iframe").first();
       await expect(page.locator('[data-test^="canvas-card-loading-"]')).toHaveCount(0, { timeout: 10000 });
       const box = await iframe.boundingBox();
       expect(box).not.toBeNull();

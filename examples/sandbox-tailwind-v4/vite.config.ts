@@ -2,14 +2,14 @@ import path from "node:path";
 import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { designTool } from "../../packages/plugin/src/index.ts";
+import { nudgeUi } from "../../packages/plugin/src/index.ts";
 
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    // SAFETY: designTool returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
-    designTool({ projectId: "sandbox-tailwind-v4" }) as PluginOption,
+    // SAFETY: nudgeUi returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
+    nudgeUi({ projectId: "sandbox-tailwind-v4" }) as PluginOption,
   ],
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },

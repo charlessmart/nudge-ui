@@ -413,7 +413,7 @@ function applyChangeToDocument(doc: Document, state: DocumentProjectionState, ch
   }
 
   if (change.kind === "delete") {
-    const placeholder = doc.createComment("design-tool-deleted");
+    const placeholder = doc.createComment("nudge-ui-deleted");
     target.element.replaceWith(placeholder);
     state.applied.set(change.id, { kind: "delete", status: "applied", element: target.element, placeholder });
     state.appliedOrder.push(change.id);

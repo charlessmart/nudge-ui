@@ -23,12 +23,12 @@ test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 async function selectBadge(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("/");
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
   // Bootstrap must have installed the runtime configuration before a
   // selection can resolve semantic targets.
   await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __designTool?: unknown }).__designTool)))
+    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
   // Wait until hydration has attached React fibers to the badge so the
   // selection resolves its semantic target in the same pass.
@@ -64,7 +64,7 @@ test("dev: flipping a typed enum prop re-renders the real client component", asy
   const trigger = page.locator('[data-test="component-prop-tone"]');
   await trigger.waitFor({ state: "visible", timeout: 15_000 });
   await trigger.click();
-  const option = page.locator('.dt-select__item[data-value="quiet"]');
+  const option = page.locator('.select__item[data-value="quiet"]');
   await option.waitFor({ state: "visible", timeout: 10_000 });
   await option.click();
 
@@ -74,7 +74,7 @@ test("dev: flipping a typed enum prop re-renders the real client component", asy
     .toContain("badge-quiet");
   // No managed stylesheet declaration may back a semantic override.
   const sheet = await page.evaluate(() => {
-    const sheetEl = document.getElementById("design-tool-styles") as HTMLStyleElement | null;
+    const sheetEl = document.getElementById("nudge-ui-styles") as HTMLStyleElement | null;
     return sheetEl?.sheet ? Array.from(sheetEl.sheet.cssRules, (r) => r.cssText).join("\n") : "";
   });
   expect(sheet).not.toContain("ClientBadge");
@@ -95,7 +95,7 @@ test("dev: boolean prop flips through its segmented control handler", async ({ p
 test("dev: server-component invocations never produce prop controls", async ({ page }) => {
   await page.goto("/");
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
 
   // HeroCard is a server component; its rendered elements carry identity but

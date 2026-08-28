@@ -318,7 +318,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
           {hoverMarginFills.map((fill) => (
             <div
               key={fill.side}
-              className="dt-hover-margin-fill"
+              className="hover-margin-fill"
               data-side={fill.side}
               style={{
                 position: "fixed",
@@ -331,11 +331,11 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
               aria-hidden="true"
             />
           ))}
-          <div className="dt-hover-outline" style={hoverStyle} aria-hidden="true" />
+          <div className="hover-outline" style={hoverStyle} aria-hidden="true" />
           {hoverMarginGuides.map((guide) => (
             <div
               key={guide.side}
-              className="dt-hover-margin"
+              className="hover-margin"
               data-axis={guide.axis}
               data-distance={guide.distance}
               data-side={guide.side}
@@ -354,16 +354,16 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       ) : null}
       {open && selectedRect && !inlineTextSession ? (
         <>
-          <div className="dt-selected-outline" data-test="selected-outline" style={selectedStyle} aria-hidden="true" />
+          <div className="selected-outline" data-test="selected-outline" style={selectedStyle} aria-hidden="true" />
         </>
       ) : null}
       {open ? <DropGuideOverlay
         guide={dropGuide?.document === document
           ? { orientation: dropGuide.orientation, line: dropGuide.line, target: dropGuide.target }
           : null}
-        lineClassName="dt-dom-drop-line"
+        lineClassName="dom-drop-line"
         lineTestId="dom-drop-line"
-        targetClassName="dt-dom-drop-target"
+        targetClassName="dom-drop-target"
         targetTestId="dom-drop-target"
       /> : null}
     </>

@@ -73,12 +73,12 @@ test("dev: ordinary CSS inventory reaches browser inspection, managed preview, a
   await expect(chip).toBeVisible();
   await chip.click();
   await expect.poll(async () => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return Array.from(root?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
       .some((item) => item.textContent?.includes("--color-surface-sunken"));
   })).toBe(true);
   await page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     Array.from(root?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
       .find((item) => item.textContent?.includes("--color-surface-sunken"))?.click();
   });

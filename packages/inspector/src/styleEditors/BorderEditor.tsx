@@ -12,7 +12,7 @@ import {
   IconPlus,
 } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
@@ -24,7 +24,7 @@ import { formatInspectorLabel } from "../ui/labels.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
+import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 
 const BORDER_STYLES = ["none", "hidden", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"];
 const INVISIBLE_BORDER_STYLES = new Set(["none", "hidden"]);
@@ -242,7 +242,7 @@ function useBorderLinkedState(dataLinked: boolean, resetKey: HTMLElement): [bool
 export function BorderEditor(props: BorderEditorProps): ReactElement {
   const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
-  const allEntries = entries ?? getDesignToolTokenEntries();
+  const allEntries = entries ?? getNudgeUiTokenEntries();
   const borderWidthProperties = BORDER_SIDES.map((side) => `${side}-width`);
   const borderStyleProperties = BORDER_SIDES.map((side) => `${side}-style`);
   const borderColorProperties = BORDER_SIDES.map((side) => `${side}-color`);
@@ -329,15 +329,15 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   }));
 
   return (
-    <div className={`dt-editor`} data-test="border-editor">
-      <div className="dt-editor__title-row">
-        <div className="dt-editor__title">Border</div>
+    <div className={`editor`} data-test="border-editor">
+      <div className="editor__title-row">
+        <div className="editor__title">Border</div>
         {showBorderControls ? (
           <IconButton
             variant="quiet"
             label="Remove Border"
             data-test="remove-border"
-            className="dt-border__remove"
+            className="border__remove"
             onClick={handleRemoveBorder}
           >
             <IconMinus size={16} stroke={1.8} aria-hidden="true" />
@@ -347,7 +347,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             variant="quiet"
             label="Add Border"
             data-test="add-border"
-            className="dt-border__add"
+            className="border__add"
             onClick={handleAddBorder}
           >
             <IconPlus size={16} stroke={1.8} aria-hidden="true" />
@@ -355,7 +355,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
         )}
       </div>
       {showBorderControls && (
-        <div className="dt-border" data-expanded={borderLinked ? "false" : "true"}>
+        <div className="border" data-expanded={borderLinked ? "false" : "true"}>
           {rawBorderFallback ? (
             <FieldRow label="Border">
               <ControlSurface>
@@ -369,10 +369,10 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
               </ControlSurface>
             </FieldRow>
           ) : borderLinked ? (
-            <div className="dt-border__linked-row">
+            <div className="border__linked-row">
               {showWidthAndColor ? (
                 <>
-                  <div className="dt-border__linked-control dt-border__linked-control--color">
+                  <div className="border__linked-control border__linked-control--color">
                     <ControlSurface>
                       <TokenField
                         property="border-color"
@@ -383,7 +383,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                       />
                     </ControlSurface>
                   </div>
-                  <div className="dt-border__linked-control dt-border__linked-control--width">
+                  <div className="border__linked-control border__linked-control--width">
                     <ControlSurface>
                       <TokenField
                         property="border-width"
@@ -417,9 +417,9 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
               </ToggleButton>
             </div>
           ) : (
-            <div className="dt-border__expanded">
-              <div className="dt-border__expanded-header">
-                <span className="dt-side-values__label">{formatInspectorLabel("Individual Sides")}</span>
+            <div className="border__expanded">
+              <div className="border__expanded-header">
+                <span className="side-values__label">{formatInspectorLabel("Individual Sides")}</span>
                 <ToggleButton
                   variant="quiet"
                   size="default"
@@ -435,17 +435,17 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                 </ToggleButton>
               </div>
               {showWidthAndColor ? (
-                <div className="dt-border__side-rows" data-test="border-side-rows">
+                <div className="border__side-rows" data-test="border-side-rows">
                   {sideRows.map(({ side, color, width, style }) => (
                     <div
-                      className="dt-border__side-row"
+                      className="border__side-row"
                       data-side={side}
                       aria-label={`Border ${formatInspectorLabel(side)}`}
                       key={side}
                     >
                       <BorderSideIndicator side={side} />
-                      <div className="dt-border__side-control dt-border__side-control--color">{color}</div>
-                      <div className="dt-border__side-control dt-border__side-control--width">{width}</div>
+                      <div className="border__side-control border__side-control--color">{color}</div>
+                      <div className="border__side-control border__side-control--width">{width}</div>
                       {style}
                     </div>
                   ))}
@@ -469,7 +469,7 @@ const BORDER_SIDE_ICONS = {
 
 function BorderSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): ReactElement {
   const Icon = BORDER_SIDE_ICONS[side];
-  return <Icon className="dt-side-values__icon dt-side-values__side-icon" size={16} stroke={1.8} aria-hidden="true" />;
+  return <Icon className="side-values__icon side-values__side-icon" size={16} stroke={1.8} aria-hidden="true" />;
 }
 
 interface BorderStyleSettingsMenuProps {

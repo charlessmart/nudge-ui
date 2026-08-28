@@ -5,8 +5,8 @@ test("dev: raw sandbox owns a raw CSS graph and catalog", async ({ page }) => {
 
   const facts = await page.evaluate(() => {
     const inspection = (window as unknown as {
-      __designTool?: { inspect(selector: string): { catalog: Array<{ adapter?: string }> } | null };
-    }).__designTool?.inspect('[data-cid="Examples:Spacing:raw:01"]');
+      __nudgeUi?: { inspect(selector: string): { catalog: Array<{ adapter?: string }> } | null };
+    }).__nudgeUi?.inspect('[data-cid="Examples:Spacing:raw:01"]');
     return {
       sheets: Array.from(document.styleSheets).map((sheet) => {
         try { return Array.from(sheet.cssRules).map((rule) => rule.cssText).join("\n"); } catch { return sheet.href ?? ""; }

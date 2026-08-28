@@ -4,7 +4,7 @@ import { act, createElement } from "react";
 import { ColorPicker, isEmptyColorValue } from "./ColorPicker.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import {
   makeSelected,
   mount,
@@ -35,7 +35,7 @@ describe("ColorPicker", () => {
 
   beforeEach(() => {
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -43,7 +43,7 @@ describe("ColorPicker", () => {
     handle?.unmount();
     restoreComputedStyle();
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -54,7 +54,7 @@ describe("ColorPicker", () => {
     const field = handle.host.querySelector('[data-test="token-field"]');
     expect(field).toBeTruthy();
     expect(field!.getAttribute("data-property")).toBe("color");
-    expect(handle.host.querySelector(".dt-editor__title")?.textContent).toBe("Color");
+    expect(handle.host.querySelector(".editor__title")?.textContent).toBe("Color");
     expect(handle.host.querySelector('[data-test="color-swatch"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="color-computed"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="color-picker"]')?.textContent).not.toContain("Value");
@@ -67,7 +67,7 @@ describe("ColorPicker", () => {
     const chip = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
     expect(chip).toBeTruthy();
     expect(chip.textContent).toContain("--color-text-primary");
-    expect(handle.host.querySelector('[data-test="token-field"]')?.classList.contains("dt-token-field--color")).toBe(true);
+    expect(handle.host.querySelector('[data-test="token-field"]')?.classList.contains("token-field--color")).toBe(true);
     expect((handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement).value).toBe("100%");
   });
 
@@ -172,7 +172,7 @@ describe("ColorPicker", () => {
       entries: ENTRIES,
     }));
 
-    expect(handle.host.querySelector(".dt-editor__title")?.textContent).toBe("Background Color");
+    expect(handle.host.querySelector(".editor__title")?.textContent).toBe("Background Color");
     expect(handle.host.querySelector('[data-test="color-swatch"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="color-computed"]')).toBeNull();
   });
@@ -194,7 +194,7 @@ describe("ColorPicker", () => {
     }));
 
     expect(handle.host.querySelector('[data-test="token-field"]')).toBeNull();
-    expect(handle.host.querySelector('[data-test="add-color"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+    expect(handle.host.querySelector('[data-test="add-color"]')?.classList.contains("icon-button--quiet")).toBe(true);
   });
 
   it("reveals an empty token field after adding an empty color", () => {
@@ -208,14 +208,14 @@ describe("ColorPicker", () => {
 
     expect(handle.host.querySelector('[data-test="token-field"]')).toBeTruthy();
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("");
-    expect(handle.host.querySelector('[data-test="remove-color"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+    expect(handle.host.querySelector('[data-test="remove-color"]')?.classList.contains("icon-button--quiet")).toBe(true);
   });
 
   it("shows the remove button when a color is present", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ color: "rgb(17, 17, 17)" });
     handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
-    expect(handle.host.querySelector('[data-test="remove-color"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+    expect(handle.host.querySelector('[data-test="remove-color"]')?.classList.contains("icon-button--quiet")).toBe(true);
     expect(handle.host.querySelector('[data-test="add-color"]')).toBeNull();
   });
 
@@ -240,7 +240,7 @@ describe("ColorPicker", () => {
     act(() => {
       handle.root.render(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
     });
-    expect(handle.host.querySelector('[data-test="add-color"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+    expect(handle.host.querySelector('[data-test="add-color"]')?.classList.contains("icon-button--quiet")).toBe(true);
     expect(handle.host.querySelector('[data-test="remove-color"]')).toBeNull();
   });
 });

@@ -12,10 +12,10 @@ export {
 } from "./html/bootstrap.ts";
 export {
   createStandaloneRuntimeManifest,
-  DESIGN_TOOL_CLIENT_PATH,
-  DESIGN_TOOL_MANIFEST_PATH,
-  DESIGN_TOOL_RELOAD_PATH,
-  DESIGN_TOOL_ROUTE_PREFIX,
+  NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_MANIFEST_PATH,
+  NUDGE_UI_RELOAD_PATH,
+  NUDGE_UI_ROUTE_PREFIX,
   type StandaloneRuntimeManifest,
 } from "./manifest.ts";
 export {
@@ -37,7 +37,7 @@ export {
   contentTypeForPath,
   createStandaloneProjectId,
   createStandaloneServer,
-  isReservedDesignToolRoute,
+  isReservedNudgeUiRoute,
   resolveStaticFile,
   type StandaloneServer,
   type StandaloneServerAddress,

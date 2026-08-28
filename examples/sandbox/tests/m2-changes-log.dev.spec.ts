@@ -9,7 +9,7 @@ async function waitForRow(page: import("@playwright/test").Page): Promise<void> 
   await expect
     .poll(async () => {
       return await page.evaluate(() => {
-        const sr = document.getElementById("design-tool-root")?.shadowRoot;
+        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
         return !!sr?.querySelector('[data-test="style-editors"] [data-test="token-field"]');
       });
     }, { timeout: 5000 })
@@ -20,7 +20,7 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
   await expect
     .poll(async () => {
       return await page.evaluate(() => {
-        const sr = document.getElementById("design-tool-root")?.shadowRoot;
+        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
         return !!sr?.querySelector('[data-test="style-editors"]');
       });
     }, { timeout: 5000 })
@@ -29,7 +29,7 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
 
 async function changeCount(page: import("@playwright/test").Page): Promise<number> {
   return await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return sr?.querySelectorAll('[data-test="change-row"]').length ?? 0;
   });
 }
@@ -53,13 +53,13 @@ async function selectBackground(page: import("@playwright/test").Page, value: st
   await page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]').click();
   await expect
     .poll(async () => page.evaluate((token) => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
         .some((item) => item.textContent?.includes(token));
     }, value), { timeout: 5000 })
     .toBe(true);
   await page.evaluate((token) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
       .find((item) => item.textContent?.includes(token))?.click();
   }, value);
@@ -67,7 +67,7 @@ async function selectBackground(page: import("@playwright/test").Page, value: st
 
 async function setFontSize(page: import("@playwright/test").Page, value: string): Promise<void> {
   await page.evaluate((v) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const raw = sr?.querySelector(
       '[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]',
     ) as HTMLInputElement | null;
@@ -83,7 +83,7 @@ async function setFontSize(page: import("@playwright/test").Page, value: string)
 async function revertChange(page: import("@playwright/test").Page, property: string): Promise<void> {
   await openChangesLog(page);
   const handle = await page.evaluateHandle((p) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const rows = Array.from(sr?.querySelectorAll('[data-test="change-row"]') ?? []);
     const row = rows.find((r) => (r.getAttribute("data-property") ?? "") === p);
     return row?.querySelector('[data-test="change-revert"]') as HTMLElement | null;

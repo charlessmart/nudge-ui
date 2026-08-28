@@ -148,7 +148,7 @@ async function loadFixture(page: Page): Promise<void> {
   await page.goto(FIXTURE_URL);
   await page.waitForSelector('[data-perf-id="perf-0"]');
   await page.waitForFunction(() => document.querySelectorAll("style[data-perf-style]").length === 4);
-  await page.waitForSelector("#design-tool-root");
+  await page.waitForSelector("#nudge-ui-root");
 }
 
 function revealCandidates(perfId: number): string[] {
@@ -179,7 +179,7 @@ async function revealMs(page: Page, perfId: number): Promise<number> {
       }
       const start = probe.clickAt > 0 ? probe.clickAt : performance.now();
       const check = (): void => {
-        const sr = document.getElementById("design-tool-root")?.shadowRoot;
+        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
         const rows = Array.from(sr?.querySelectorAll('[data-test="token-field"]') ?? []);
         const hit = rows.some((row) => {
           if (row.getAttribute("data-property") !== "background-color") return false;
@@ -193,7 +193,7 @@ async function revealMs(page: Page, perfId: number): Promise<number> {
           return;
         }
         if (performance.now() - start > pollTimeoutMs) {
-          const sr = document.getElementById("design-tool-root")?.shadowRoot;
+          const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
           const rows = Array.from(sr?.querySelectorAll('[data-test="token-field"]') ?? []).map((row) => {
             const raw = row.querySelector('[data-test="raw-input"]');
             return `${row.getAttribute("data-property")}=${raw?.getAttribute("value") ?? ""}`;
@@ -213,7 +213,7 @@ async function revealMs(page: Page, perfId: number): Promise<number> {
 async function commitMs(page: Page, perfId: number, property: string, hostProperty: string, value: string): Promise<number> {
   const pre = await page.evaluate(({ id, prop, hostProp }) => {
     const el = document.querySelector(`[data-perf-id="perf-${id}"]`);
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const raw = sr?.querySelector(`[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`);
     if (!(el instanceof HTMLElement)) return { host: "", panel: "", expectedHost: "" };
     return {
@@ -238,7 +238,7 @@ async function commitMs(page: Page, perfId: number, property: string, hostProper
   }, { id: perfId, hostProp: hostProperty, value });
   const result = await page.evaluate(({ id, prop, hostProp, value, preHost, prePanel, expectedHost: targetHost, pollTimeoutMs }) => {
     return new Promise<number>((resolve) => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       const raw = sr?.querySelector(
         `[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`,
       ) as HTMLInputElement | null;
@@ -257,7 +257,7 @@ async function commitMs(page: Page, perfId: number, property: string, hostProper
       raw.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
       const check = (): void => {
         const el = document.querySelector(`[data-perf-id="perf-${id}"]`);
-        const sr2 = document.getElementById("design-tool-root")?.shadowRoot;
+        const sr2 = document.getElementById("nudge-ui-root")?.shadowRoot;
         const raw2 = sr2?.querySelector(
           `[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`,
         );

@@ -1,5 +1,5 @@
 /**
- * Browser-safe value-semantics seam for `@design-tool/css`.
+ * Browser-safe value-semantics seam for `@nudge-ui/css`.
  *
  * The Interface has three conceptual operations: interpret one authored value,
  * select compatible tokens, and apply a meaning-preserving edit. Token, color,

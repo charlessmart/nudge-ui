@@ -8,7 +8,7 @@ test("opens the first line of the multiline hero heading and removes the edit ou
   const hero = page.locator("h1#hero-title");
   await hero.dblclick({ position: { x: 80, y: 30 } });
 
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await expect(host).toHaveText("Inspect the work");
   await expect(page.locator('[data-test="selected-outline"]')).toHaveCount(0);
   await expect(host).toHaveCSS("outline-style", "none");
@@ -25,7 +25,7 @@ test("edits direct text before a line break without flattening the following mar
   const showcaseTitle = page.locator("h2#showcase-title");
   await showcaseTitle.dblclick({ position: { x: 80, y: 30 } });
 
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await expect(host).toHaveText("Everything here is");
   await host.fill("Everything here remains");
   await host.press("Enter");
@@ -45,7 +45,7 @@ test("edits a unique component label inline and keeps one canonical change", asy
   await expect(editor).toBeVisible();
   await expect(editor.locator('[data-test="inline-text-binding"]')).toHaveText("SemanticButton.label");
 
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await expect(host).toHaveAttribute("contenteditable", "plaintext-only");
   await host.pressSequentially("Publish now");
   await host.press("Enter");
@@ -65,7 +65,7 @@ test("edits a unique component label inline and keeps one canonical change", asy
 
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.getByRole("button", { name: "Publish now" })).toHaveCount(1);
 
   await changes.locator('[data-test="change-revert"]').click();
@@ -78,7 +78,7 @@ test("cancels an inline children edit without a change", async ({ page }) => {
   await badge.dblclick();
   await expect(page.locator('[data-test="inline-text-binding"]')).toHaveText("SemanticBadge.children");
 
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Changed but cancelled");
   await host.press("Escape");
   await expect(page.locator('[data-test="semantic-badge"]').filter({ hasText: "Neutral" })).toHaveText("Neutral");
@@ -93,7 +93,7 @@ test("falls back to rendered text, restores after refresh, and supports prompt/r
   await copy.dblclick();
   await expect(page.locator('[data-test="inline-text-binding"]')).toHaveText("Rendered text");
 
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Updated rendered copy");
   await host.press("Enter");
   await expect(copy).toHaveText("Updated rendered copy");
@@ -126,12 +126,12 @@ test("re-enters a rendered text projection after it is committed empty", async (
 
   const copy = page.locator('[data-test="rendered-text-fallback"]');
   await copy.dblclick();
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("");
   await host.press("Enter");
 
   await expect(copy).toHaveText("");
-  const affordance = page.locator('[data-dt-empty-text]');
+  const affordance = page.locator('[data-empty-text]');
   await expect(affordance).toBeVisible();
   await expect(affordance).toHaveCSS("border-style", "none");
 
@@ -142,7 +142,7 @@ test("re-enters a rendered text projection after it is committed empty", async (
   await host.pressSequentially("Restored from empty");
   await host.press("Enter");
   await expect(copy).toHaveText("Restored from empty");
-  await expect(page.locator('[data-dt-empty-text]')).toHaveCount(0);
+  await expect(page.locator('[data-empty-text]')).toHaveCount(0);
 
   const changes = page.locator('[data-test="changes-log"]');
   await changes.locator('[data-test="changes-toggle"]').click();
@@ -159,20 +159,20 @@ test("projects rendered text into Canvas and reapplies it after frame reload", a
   await page.goto("/component-props");
   const copy = page.locator('[data-test="rendered-text-fallback"]');
   await copy.dblclick();
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Canvas rendered copy");
   await host.press("Enter");
 
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator('[data-test="rendered-text-fallback"]')).toHaveText("Canvas rendered copy");
-  await expect(frame.locator('[data-dt-projection-text]')).toHaveCount(1);
+  await expect(frame.locator('[data-projection-text]')).toHaveCount(1);
 
   await page.locator('[data-test^="canvas-card-reload-"]').click();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   await expect(frame.locator('[data-test="rendered-text-fallback"]')).toHaveText("Canvas rendered copy");
-  await expect(frame.locator('[data-dt-projection-text]')).toHaveCount(1);
+  await expect(frame.locator('[data-projection-text]')).toHaveCount(1);
 });
 
 test("keeps repeated expression text instance-scoped and projects the evidence into Canvas", async ({ page }) => {
@@ -187,7 +187,7 @@ test("keeps repeated expression text instance-scoped and projects the evidence i
 
   await expect(page.locator('[data-test="inline-text-binding"]')).toHaveText("Rendered text");
   await expect(page.locator('[data-test="inline-scope-chooser"]')).toHaveCount(0);
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Expression edited");
   await host.press("Enter");
   await expect(first).toHaveText("Expression edited");
@@ -203,7 +203,7 @@ test("keeps repeated expression text instance-scoped and projects the evidence i
 
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator('[data-test="repeated-expression-list"] [data-test="semantic-button"]').filter({ hasText: "Expression edited" })).toHaveCount(1);
   await expect(frame.locator('[data-test="repeated-expression-list"] [data-test="semantic-button"]').filter({ hasText: "Expression B" })).toHaveCount(1);
 });
@@ -220,7 +220,7 @@ test("shows the repeated literal scope choice and applies explicit all-output sc
   await page.locator('[data-test="inline-scope-source-site"]').click();
   await expect(page.locator('[data-test="inline-scope-source-site"]')).toHaveAttribute("aria-pressed", "true");
 
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("All literal outputs");
   await host.press("Enter");
   await expect(buttons).toHaveCount(2);
@@ -236,7 +236,7 @@ test("shows the repeated literal scope choice and applies explicit all-output sc
 
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator('[data-test="repeated-literal-list"] [data-test="semantic-button"]')).toHaveText(["All literal outputs", "All literal outputs"]);
 });
 
@@ -247,7 +247,7 @@ test("requires an inline semantic chooser and rejects identical unresolved rende
   await expect(page.locator('[data-test="inline-binding-chooser"]')).toBeVisible();
   await expect(page.locator('[data-test="inline-binding-choice"]')).toHaveCount(2);
   await page.locator('[data-test="inline-binding-choice"]').first().click();
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Chosen semantic value");
   await host.press("Enter");
   await expect(ambiguous).toHaveText("Chosen semantic value / Ambiguous text");
@@ -263,7 +263,7 @@ test("requires an inline semantic chooser and rejects identical unresolved rende
 
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator('[data-test="semantic-ambiguous-text"]')).toHaveText("Chosen semantic value / Ambiguous text");
   await expect(frame.locator('[data-test="identical-rendered-root"]')).toHaveText(["Identical root", "Identical root"]);
 });
@@ -274,7 +274,7 @@ test("applies the second equal semantic binding visibly and carries it into Canv
   await ambiguous.dblclick();
   await expect(page.locator('[data-test="inline-binding-choice"]')).toHaveCount(2);
   await page.locator('[data-test="inline-binding-choice"]').nth(1).click();
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Chosen second semantic value");
   await host.press("Enter");
   await expect(ambiguous).toHaveText("Ambiguous text / Chosen second semantic value");
@@ -286,7 +286,7 @@ test("applies the second equal semantic binding visibly and carries it into Canv
 
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator('[data-test="semantic-ambiguous-text"]')).toHaveText("Ambiguous text / Chosen second semantic value");
 });
 
@@ -299,7 +299,7 @@ test("uses before-text evidence to edit one of distinct repeated rendered roots"
   await expect(second).toHaveText("Distinct B");
   await first.dblclick();
   await expect(page.locator('[data-test="inline-text-binding"]')).toHaveText("Rendered text");
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Distinct edited");
   await host.press("Enter");
   await expect(first).toHaveText("Distinct edited");
@@ -311,7 +311,7 @@ test("edits an exact nested icon label, pastes plaintext, and suppresses the app
   const button = page.locator('[data-test="nested-icon-label"]');
   await expect(button.locator("svg path")).toHaveCount(1);
   await button.dblclick();
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await expect(host).toBeVisible();
 
   // A click on the interactive host must not invoke the page button while the
@@ -322,7 +322,7 @@ test("edits an exact nested icon label, pastes plaintext, and suppresses the app
 
   await host.selectText();
   await page.evaluate(() => {
-    const target = document.querySelector('[data-dt-inline-editor="true"]');
+    const target = document.querySelector('[data-inline-editor="true"]');
     if (!(target instanceof HTMLElement)) throw new Error("inline host missing");
     const transfer = new DataTransfer();
     transfer.setData("text/plain", "Pasted label");
@@ -336,19 +336,19 @@ test("edits an exact nested icon label, pastes plaintext, and suppresses the app
   await host.press("Enter");
   await expect(button.locator('[data-test="nested-icon-label-text"]')).toHaveText("Pasted label");
   await expect(button.locator("svg path")).toHaveCount(1);
-  await expect(page.locator('[data-dt-inline-editor="true"]')).toHaveCount(0);
+  await expect(page.locator('[data-inline-editor="true"]')).toHaveCount(0);
 });
 
 test("commits on native focus transfer while suppressing an outside app action", async ({ page }) => {
   await page.goto("/component-props");
   const target = page.locator('[data-test="nested-icon-label"]');
   await target.dblclick();
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Committed from outside");
 
   await page.locator('[data-test="inline-outside-action"]').click();
 
-  await expect(page.locator('[data-dt-inline-editor="true"]')).toHaveCount(0);
+  await expect(page.locator('[data-inline-editor="true"]')).toHaveCount(0);
   await expect(target.locator('[data-test="nested-icon-label-text"]')).toHaveText("Committed from outside");
   await expect(page.locator('[data-test="inline-outside-action"]')).toHaveText("Outside action 0");
   await expect(target.locator('[data-test="nested-icon-label-text"]')).not.toHaveText(/Clicked/);
@@ -358,9 +358,9 @@ test("keeps IME composition as one canonical edit and cancels on app reconciliat
   await page.goto("/component-props");
   const button = page.locator('[data-test="nested-icon-label"]');
   await button.dblclick();
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await page.evaluate(() => {
-    const target = document.querySelector('[data-dt-inline-editor="true"]');
+    const target = document.querySelector('[data-inline-editor="true"]');
     if (!(target instanceof HTMLElement)) throw new Error("inline host missing");
     target.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
     target.textContent = "公開ラベル";
@@ -377,20 +377,20 @@ test("keeps IME composition as one canonical edit and cancels on app reconciliat
 
   await button.dblclick();
   await page.evaluate(() => document.querySelector('[data-test="nested-icon-label"]')?.remove());
-  await expect(page.locator('[data-dt-inline-editor="true"]')).toHaveCount(0);
+  await expect(page.locator('[data-inline-editor="true"]')).toHaveCount(0);
 });
 
 test("disposes the active controller edit before entering Canvas", async ({ page }) => {
   await page.goto("/component-props");
   const button = page.locator('[data-test="nested-icon-label"]');
   await button.dblclick();
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Draft that must not enter Canvas");
 
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await expect(page.locator('[data-dt-inline-editor="true"]')).toHaveCount(0);
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  await expect(page.locator('[data-inline-editor="true"]')).toHaveCount(0);
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator('[data-test="nested-icon-label-text"]')).toHaveText("Save");
   await expect(page.locator('[data-test="changes-log"] [data-test="change-row"]')).toHaveCount(0);
 });
@@ -399,12 +399,12 @@ test("disposes an active edit through the scoped SPA history adapter", async ({ 
   await page.goto("/component-props");
   const button = page.getByRole("button", { name: "Publish changes" });
   await button.dblclick();
-  await expect(page.locator('[data-dt-inline-editor="true"]')).toHaveCount(1);
+  await expect(page.locator('[data-inline-editor="true"]')).toHaveCount(1);
 
   await page.evaluate(() => {
     window.history.pushState({}, "", `${window.location.pathname}#inline-route`);
   });
-  await expect(page.locator('[data-dt-inline-editor="true"]')).toHaveCount(0);
+  await expect(page.locator('[data-inline-editor="true"]')).toHaveCount(0);
   await expect(button).toHaveText("Publish changes");
 });
 
@@ -412,16 +412,16 @@ test("cleans text editing state across Canvas reload and card disposal", async (
   await page.goto("/component-props");
   const button = page.locator('[data-test="nested-icon-label"]');
   await button.dblclick();
-  const host = page.locator('[data-dt-inline-editor="true"]');
+  const host = page.locator('[data-inline-editor="true"]');
   await host.fill("Canvas-safe label");
   await host.press("Enter");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator('[data-test="nested-icon-label-text"]')).toHaveText("Canvas-safe label");
-  await expect(frame.locator('[data-dt-inline-editor="true"]')).toHaveCount(0);
+  await expect(frame.locator('[data-inline-editor="true"]')).toHaveCount(0);
   await page.locator('[data-test^="canvas-card-reload-"]').click();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   await expect(frame.locator('[data-test="nested-icon-label-text"]')).toHaveText("Canvas-safe label");
-  await expect(frame.locator('[data-dt-inline-editor="true"]')).toHaveCount(0);
+  await expect(frame.locator('[data-inline-editor="true"]')).toHaveCount(0);
 });

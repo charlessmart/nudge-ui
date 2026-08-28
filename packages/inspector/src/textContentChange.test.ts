@@ -52,7 +52,7 @@ describe("text-content canonical changes", () => {
     appendChange(change);
     expect(getChangesList()).toHaveLength(1);
     expect(getPendingRules()).toEqual([]);
-    expect(document.getElementById("design-tool-styles")?.textContent ?? "").not.toContain("Updated copy");
+    expect(document.getElementById("nudge-ui-styles")?.textContent ?? "").not.toContain("Updated copy");
   });
 
   it("merges edits into original-to-final intent and supports undo/redo", () => {

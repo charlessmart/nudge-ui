@@ -5,14 +5,14 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const sandboxRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const designToolRoot = resolve(sandboxRoot, "../..");
+const nudgeUiRoot = resolve(sandboxRoot, "../..");
 const defaultCheckout = resolve(homedir(), "_work/newvato");
 const newvatoCheckout = resolve(
   process.env["NEWVATO_CHECKOUT"] ?? defaultCheckout,
 );
 const webRoot = resolve(newvatoCheckout, "apps/web");
-const pluginLink = resolve(webRoot, "node_modules/@design-tool/plugin");
-const expectedPlugin = resolve(designToolRoot, "packages/plugin");
+const pluginLink = resolve(webRoot, "node_modules/@nudge-ui/plugin");
+const expectedPlugin = resolve(nudgeUiRoot, "packages/plugin");
 const required = process.env["NEWVATO_CONSUMER_REQUIRED"] === "true";
 
 function skip(message) {
@@ -58,7 +58,7 @@ if (requiredNode && !versionAtLeast(process.versions.node, requiredNode)) {
 if (!linkedToWorkspace(pluginLink, expectedPlugin)) {
   skip(
     [
-      "the Newvato web package is not linked to this Design Tool workspace.",
+      "the Newvato web package is not linked to this Nudge UI workspace.",
       `Expected ${pluginLink} -> ${expectedPlugin}.`,
       `Create it with: ln -s ${expectedPlugin} ${pluginLink}.`,
       "Then rerun pnpm test:newvato.",
@@ -68,7 +68,7 @@ if (!linkedToWorkspace(pluginLink, expectedPlugin)) {
 
 const playwright = resolve(sandboxRoot, "node_modules/.bin/playwright");
 if (!existsSync(playwright)) {
-  skip("Playwright is not installed for the sandbox workspace. Run pnpm install in Design Tool.");
+  skip("Playwright is not installed for the sandbox workspace. Run pnpm install in Nudge UI.");
 }
 
 const result = spawnSync(

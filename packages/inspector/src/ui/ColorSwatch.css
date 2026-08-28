@@ -1,9 +1,9 @@
-.dt-color-swatch {
+.color-swatch {
   display: inline-block;
   flex-shrink: 0;
-  width: var(--dt-icon-size-small);
-  height: var(--dt-icon-size-small);
-  background: var(--dt-swatch-color);
-  border-radius: calc(var(--dt-radius-control) - 4px);
-  box-shadow: 0 0 0 1px var(--dt-border-medium);
+  width: var(--icon-size-small);
+  height: var(--icon-size-small);
+  background: var(--swatch-color);
+  border-radius: calc(var(--radius-control) - 4px);
+  box-shadow: 0 0 0 1px var(--border-medium);
 }

@@ -375,7 +375,7 @@ function walk(
       // second component's opening wrapper.
       ms.appendRight(
         start,
-        `${needsExpression ? "{" : ""}__designToolInstrumentComponent(`,
+        `${needsExpression ? "{" : ""}__nudgeUiInstrumentComponent(`,
       );
       ms.appendRight(end, `, ${JSON.stringify(meta)})${needsExpression ? "}" : ""}`);
       state.changed = true;
@@ -459,7 +459,7 @@ export function injectIdentity(
   if (!state.changed) return null;
   if (state.instrumentedComponents) {
     ms.prepend(
-      'import { instrumentReactComponent as __designToolInstrumentComponent } from "@design-tool/inspector/component-runtime";\n',
+      'import { instrumentReactComponent as __nudgeUiInstrumentComponent } from "@nudge-ui/inspector/component-runtime";\n',
     );
   }
 

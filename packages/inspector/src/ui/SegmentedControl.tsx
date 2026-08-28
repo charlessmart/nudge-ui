@@ -30,7 +30,7 @@ export function SegmentedControl<T extends string>({
 }: SegmentedControlProps<T>): ReactElement {
   return (
     <div
-      className={`dt-segmented-control${className ? ` ${className}` : ""}`}
+      className={`segmented-control${className ? ` ${className}` : ""}`}
       role="group"
       aria-label={ariaLabel}
       data-test={dataTest}
@@ -42,7 +42,7 @@ export function SegmentedControl<T extends string>({
           <button
             key={option.value}
             type="button"
-            className={`dt-button dt-segmented-control__button${selected ? " dt-segmented-control__button--selected" : ""}`}
+            className={`button segmented-control__button${selected ? " segmented-control__button--selected" : ""}`}
             aria-label={option.label}
             aria-pressed={selected}
             data-test={option.testId}

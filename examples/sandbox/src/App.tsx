@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 
 /**
  * Landing page — implementation of the Penpot board "Landing V6 — Mono"
- * (file "Designtool", page "Page 1"). Monochrome zinc palette mapped onto the
- * sandbox's existing tokens; Inter Tight / JetBrains Mono with system fallbacks.
+ * (file "Nudge UI", page "Page 1"). Monochrome zinc palette mapped onto the
+ * sandbox's existing tokens; Test Söhne / JetBrains Mono with system fallbacks.
  *
  * The page is a faithful static mockup (like the design board). Host-element
  * clicks are owned by the inspector's selection layer in dev, so no part of
@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
  * to live here now renders at /playground (dev-only) for the test suite.
  */
 
-const installCommand = "@design-tool/plugin in this project";
+const installCommand = "@nudge-ui/plugin in this project";
 
 function CopyIcon(): ReactNode {
   return (
@@ -72,7 +72,7 @@ function MockInspector() {
         <span className="lwi-section-label">Typography</span>
         <div className="lwi-row">
           <span className="lwi-label">Font</span>
-          <span className="lwi-values"><span className="lwi-input">Inter</span></span>
+          <span className="lwi-values"><span className="lwi-input">Test Söhne</span></span>
         </div>
         <div className="lwi-row">
           <span className="lwi-label">Weight</span>
@@ -92,9 +92,9 @@ export function App() {
   return (
     <div className="landing" id="top">
       <header className="landing-nav landing-inner">
-        <a className="landing-brand" href="#top" aria-label="Design Tool home">
+        <a className="landing-brand" href="#top" aria-label="Nudge UI home">
           <span className="landing-logo" aria-hidden="true"><span className="landing-logo-mark" /></span>
-          Design Tool
+          Nudge UI
         </a>
         <nav className="landing-nav-links" aria-label="Main navigation">
           <a href="https://github.com" target="_blank" rel="noreferrer">GitHub</a>
@@ -110,12 +110,12 @@ export function App() {
               move elements, change text and adjust tokens directly. Then hand
               off to an agent.
             </p>
-            <p className="landing-install-label">Ask your agent to install design-tool:</p>
+            <p className="landing-install-label">Ask your agent to install nudge-ui:</p>
             <InstallCommand />
           </div>
         </section>
 
-        <section className="landing-window-wrap landing-inner" aria-label="A preview of the Design Tool inspector">
+        <section className="landing-window-wrap landing-inner" aria-label="A preview of the Nudge UI inspector">
           <div className="landing-window">
             <div className="lw-titlebar">
               <span className="lw-dots" aria-hidden="true"><i /><i /><i /></span>
@@ -171,7 +171,7 @@ export function App() {
 
       <footer className="landing-footer">
         <div className="landing-footer-content landing-inner">
-          <span>Design Tool — dev-only by design</span>
+          <span>Nudge UI — dev-only by design</span>
           <span className="landing-footer-meta">data-cid · managed css · zero prod footprint</span>
         </div>
       </footer>

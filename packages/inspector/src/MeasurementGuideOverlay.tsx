@@ -49,17 +49,17 @@ export function MeasurementGuideOverlay({
 
   return (
     <svg
-      className="dt-measurement-overlay"
+      className="measurement-overlay"
       data-test={testId}
       width={windowViewport.width}
       height={windowViewport.height}
       viewBox={`0 0 ${windowViewport.width} ${windowViewport.height}`}
       aria-hidden="true"
     >
-      <line className="dt-alignment-guide" x1={resolvedGuideViewport.left} y1={selectedRect.top} x2={guideRight} y2={selectedRect.top} />
-      <line className="dt-alignment-guide" x1={resolvedGuideViewport.left} y1={selectedBottom} x2={guideRight} y2={selectedBottom} />
-      <line className="dt-alignment-guide" x1={selectedRect.left} y1={resolvedGuideViewport.top} x2={selectedRect.left} y2={guideBottom} />
-      <line className="dt-alignment-guide" x1={selectedRight} y1={resolvedGuideViewport.top} x2={selectedRight} y2={guideBottom} />
+      <line className="alignment-guide" x1={resolvedGuideViewport.left} y1={selectedRect.top} x2={guideRight} y2={selectedRect.top} />
+      <line className="alignment-guide" x1={resolvedGuideViewport.left} y1={selectedBottom} x2={guideRight} y2={selectedBottom} />
+      <line className="alignment-guide" x1={selectedRect.left} y1={resolvedGuideViewport.top} x2={selectedRect.left} y2={guideBottom} />
+      <line className="alignment-guide" x1={selectedRight} y1={resolvedGuideViewport.top} x2={selectedRight} y2={guideBottom} />
       {segments.map((segment) => {
         const labelX = (segment.from.x + segment.to.x) / 2;
         const labelY = (segment.from.y + segment.to.y) / 2;
@@ -71,7 +71,7 @@ export function MeasurementGuideOverlay({
         return (
           <g key={segment.id}>
             <line
-              className={segment.kind === "projection" ? "dt-measurement-projection" : "dt-measurement-ruler"}
+              className={segment.kind === "projection" ? "measurement-projection" : "measurement-ruler"}
               data-test={segment.kind === "projection" ? "measurement-projection" : "measurement-ruler"}
               data-segment-id={segment.id}
               data-axis={segment.axis}
@@ -83,7 +83,7 @@ export function MeasurementGuideOverlay({
             {labelText ? (
               <>
                 <rect
-                  className="dt-measurement-label-chip"
+                  className="measurement-label-chip"
                   data-test="measurement-label-chip"
                   x={isHorizontal ? textX - labelWidth / 2 : textX - 4}
                   y={textY - 12}
@@ -92,7 +92,7 @@ export function MeasurementGuideOverlay({
                   rx="2"
                 />
                 <text
-                  className="dt-measurement-label"
+                  className="measurement-label"
                   data-test="measurement-label"
                   x={textX}
                   y={textY}

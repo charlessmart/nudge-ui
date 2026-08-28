@@ -45,7 +45,7 @@ export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
       label={property}
       property={property}
       atRules={atRules}
-      className={stacked ? "dt-field-row--stacked" : undefined}
+      className={stacked ? "field-row--stacked" : undefined}
       data-test="layout-dropdown"
     >
       <Select

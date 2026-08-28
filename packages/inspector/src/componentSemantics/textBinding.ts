@@ -136,7 +136,7 @@ function normalizedText(value: string): string {
 function isApplicationEditingHost(element: HTMLElement): boolean {
   const host = element.closest<HTMLElement>("[contenteditable]");
   if (!host) return false;
-  return host.getAttribute("data-dt-inline-editor") !== "true"
+  return host.getAttribute("data-inline-editor") !== "true"
     && host.getAttribute("contenteditable") !== "false";
 }
 
@@ -146,7 +146,7 @@ function isApplicationEditingTextNode(element: HTMLElement, textNode: Text): boo
   // complete ancestor chain as well.
   const editingHost = textNode.parentElement?.closest<HTMLElement>("[contenteditable]");
   if (!editingHost) return false;
-  return editingHost.getAttribute("data-dt-inline-editor") !== "true"
+  return editingHost.getAttribute("data-inline-editor") !== "true"
     && editingHost.getAttribute("contenteditable") !== "false"
     && (editingHost === element || element.contains(editingHost) || editingHost.contains(element));
 }
@@ -186,7 +186,7 @@ function isSafeRenderedTextHost(element: HTMLElement, textNode: Text): boolean {
   if (UNSAFE_TEXT_TAGS.has(element.tagName)) return false;
   const editingHost = element.closest<HTMLElement>("[contenteditable]");
   if (editingHost
-    && editingHost.getAttribute("data-dt-inline-editor") !== "true"
+    && editingHost.getAttribute("data-inline-editor") !== "true"
     && editingHost.getAttribute("contenteditable") !== "false") return false;
   if (element.children.length === 0) {
     const directTextNodes = Array.from(element.childNodes).filter((node) => node.nodeType === 3);
@@ -201,7 +201,7 @@ function isSafeRenderedTextHost(element: HTMLElement, textNode: Text): boolean {
     if (UNSAFE_MIXED_DESCENDANT_TAGS.has(descendant.tagName)) return false;
     const descendantEditingHost = descendant.closest<HTMLElement>("[contenteditable]");
     if (descendantEditingHost
-      && descendantEditingHost.getAttribute("data-dt-inline-editor") !== "true"
+      && descendantEditingHost.getAttribute("data-inline-editor") !== "true"
       && descendantEditingHost.getAttribute("contenteditable") !== "false") return false;
   }
   return true;

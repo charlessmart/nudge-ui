@@ -63,11 +63,11 @@ function makeInstanceOverride(): RenderedInstanceOverride {
 describe("changesLog", () => {
   beforeEach(() => {
     clearChanges();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
   afterEach(() => {
     clearChanges();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
 
   it("appendChange adds one record and getChangesList returns it", () => {
@@ -420,14 +420,14 @@ describe("changesLog", () => {
     const rules = getPendingRules();
     expect(rules).toHaveLength(2);
     expect(rules[0]!.declarations.color).toBe("red");
-    expect(rules[1]!.selector).toContain('data-dt-projection-instance="override-1"');
+    expect(rules[1]!.selector).toContain('data-projection-instance="override-1"');
     expect(rules[1]!.declarations.color).toBe("blue");
   });
 
   it("clearChanges also empties the managed stylesheet", () => {
     appendChange(makeRecord("color", null, null, "red"));
     clearChanges();
-    expect(document.getElementById("design-tool-styles")?.textContent).toBe("");
+    expect(document.getElementById("nudge-ui-styles")?.textContent).toBe("");
   });
 
   it("stores global token changes without element identity and preserves their context", () => {

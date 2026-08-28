@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  configureDesignToolRuntime,
-  getDesignToolRuntimeConfig,
+  configureNudgeUiRuntime,
+  getNudgeUiRuntimeConfig,
   getScopingSelectorPattern,
   getSourceCoordinatePolicy,
-  subscribeDesignToolRuntime,
-  type DesignToolRuntimeConfig,
+  subscribeNudgeUiRuntime,
+  type NudgeUiRuntimeConfig,
 } from "./runtimeConfig.ts";
-import type { TokenCatalogDiagnostic, TokenDefinition } from "@design-tool/css/model";
+import type { TokenCatalogDiagnostic, TokenDefinition } from "@nudge-ui/css/model";
 import type { ComponentContract } from "./componentSemantics/types.ts";
 
-function makeConfig(tokenGeneration: string): DesignToolRuntimeConfig {
+function makeConfig(tokenGeneration: string): NudgeUiRuntimeConfig {
   return {
     projectId: "fixture-project",
     host: "vite-react",
@@ -25,21 +25,21 @@ function makeConfig(tokenGeneration: string): DesignToolRuntimeConfig {
   };
 }
 
-let previousConfig: DesignToolRuntimeConfig | null = null;
+let previousConfig: NudgeUiRuntimeConfig | null = null;
 
 afterEach(() => {
-  if (previousConfig) configureDesignToolRuntime(previousConfig);
+  if (previousConfig) configureNudgeUiRuntime(previousConfig);
   previousConfig = null;
 });
 
-describe("Design Tool runtime configuration", () => {
+describe("Nudge UI runtime configuration", () => {
   it("publishes a defensive immutable snapshot", () => {
-    previousConfig = getDesignToolRuntimeConfig();
+    previousConfig = getNudgeUiRuntimeConfig();
     const input = makeConfig("generation-1");
 
-    configureDesignToolRuntime(input);
+    configureNudgeUiRuntime(input);
 
-    const snapshot = getDesignToolRuntimeConfig();
+    const snapshot = getNudgeUiRuntimeConfig();
     expect(snapshot).not.toBe(input);
     expect(snapshot).toMatchObject(input);
     expect(snapshot.tokens).not.toBe(input.tokens);
@@ -48,7 +48,7 @@ describe("Design Tool runtime configuration", () => {
   });
 
   it("deep-clones and freezes nested host data without freezing caller inputs", () => {
-    previousConfig = getDesignToolRuntimeConfig();
+    previousConfig = getNudgeUiRuntimeConfig();
     const tokenCatalog: TokenDefinition[] = [{
       cssName: "--color-brand",
       name: "brand",
@@ -84,7 +84,7 @@ describe("Design Tool runtime configuration", () => {
         optional: true,
       }],
     }];
-    const input: DesignToolRuntimeConfig = {
+    const input: NudgeUiRuntimeConfig = {
       ...makeConfig("generation-deep"),
       capabilities,
       tokenCatalog,
@@ -93,9 +93,9 @@ describe("Design Tool runtime configuration", () => {
       componentContracts,
     };
 
-    configureDesignToolRuntime(input);
+    configureNudgeUiRuntime(input);
 
-    const snapshot = getDesignToolRuntimeConfig();
+    const snapshot = getNudgeUiRuntimeConfig();
     expect(snapshot).not.toBe(input);
     expect(snapshot.capabilities).not.toBe(capabilities);
     expect(snapshot.tokenCatalog).not.toBe(tokenCatalog);
@@ -135,30 +135,30 @@ describe("Design Tool runtime configuration", () => {
   });
 
   it("replaces the snapshot and notifies subscribers for host refreshes", () => {
-    previousConfig = getDesignToolRuntimeConfig();
+    previousConfig = getNudgeUiRuntimeConfig();
     const generations: string[] = [];
-    const unsubscribe = subscribeDesignToolRuntime(() => {
-      generations.push(getDesignToolRuntimeConfig().tokenGeneration);
+    const unsubscribe = subscribeNudgeUiRuntime(() => {
+      generations.push(getNudgeUiRuntimeConfig().tokenGeneration);
     });
 
-    configureDesignToolRuntime(makeConfig("generation-1"));
-    configureDesignToolRuntime(makeConfig("generation-2"));
+    configureNudgeUiRuntime(makeConfig("generation-1"));
+    configureNudgeUiRuntime(makeConfig("generation-2"));
     unsubscribe();
 
     expect(generations).toEqual(["generation-1", "generation-2"]);
-    expect(getDesignToolRuntimeConfig().tokenGeneration).toBe("generation-2");
+    expect(getNudgeUiRuntimeConfig().tokenGeneration).toBe("generation-2");
   });
 
   it("freezes and replaces host capabilities with the runtime snapshot", () => {
-    previousConfig = getDesignToolRuntimeConfig();
+    previousConfig = getNudgeUiRuntimeConfig();
     const input = makeConfig("generation-capabilities");
 
-    configureDesignToolRuntime({
+    configureNudgeUiRuntime({
       ...input,
       capabilities: { canvas: false, componentSemantics: false },
     });
 
-    const snapshot = getDesignToolRuntimeConfig();
+    const snapshot = getNudgeUiRuntimeConfig();
     expect(snapshot.capabilities).toEqual({ canvas: false, componentSemantics: false });
     expect(Object.isFrozen(snapshot.capabilities)).toBe(true);
     expect(() => {
@@ -169,29 +169,29 @@ describe("Design Tool runtime configuration", () => {
 
 describe("runtime configuration validation and defaults", () => {
   afterEach(() => {
-    if (previousConfig) configureDesignToolRuntime(previousConfig);
+    if (previousConfig) configureNudgeUiRuntime(previousConfig);
     previousConfig = null;
   });
 
   it("accepts the nextjs-react host and preserves it on the snapshot", () => {
-    previousConfig = getDesignToolRuntimeConfig();
-    const input: DesignToolRuntimeConfig = {
+    previousConfig = getNudgeUiRuntimeConfig();
+    const input: NudgeUiRuntimeConfig = {
       ...makeConfig("generation-nextjs"),
       projectId: "nextjs:9f2a",
       host: "nextjs-react",
     };
 
-    configureDesignToolRuntime(input);
+    configureNudgeUiRuntime(input);
 
-    const snapshot = getDesignToolRuntimeConfig();
+    const snapshot = getNudgeUiRuntimeConfig();
     expect(snapshot.host).toBe("nextjs-react");
     expect(snapshot.projectId).toBe("nextjs:9f2a");
     expect(Object.isFrozen(snapshot)).toBe(true);
   });
 
   it("accepts the astro host and preserves it on the snapshot", () => {
-    previousConfig = getDesignToolRuntimeConfig();
-    const input: DesignToolRuntimeConfig = {
+    previousConfig = getNudgeUiRuntimeConfig();
+    const input: NudgeUiRuntimeConfig = {
       ...makeConfig("generation-astro"),
       projectId: "astro-fixture",
       host: "astro",
@@ -199,9 +199,9 @@ describe("runtime configuration validation and defaults", () => {
       capabilities: { canvas: false, componentSemantics: false },
     };
 
-    configureDesignToolRuntime(input);
+    configureNudgeUiRuntime(input);
 
-    const snapshot = getDesignToolRuntimeConfig();
+    const snapshot = getNudgeUiRuntimeConfig();
     expect(snapshot.host).toBe("astro");
     expect(snapshot.framework).toBe("Astro");
     expect(snapshot.projectId).toBe("astro-fixture");
@@ -209,8 +209,8 @@ describe("runtime configuration validation and defaults", () => {
   });
 
   it("preserves host-declared source-coordinate policies and scoping grammar", () => {
-    previousConfig = getDesignToolRuntimeConfig();
-    configureDesignToolRuntime({
+    previousConfig = getNudgeUiRuntimeConfig();
+    configureNudgeUiRuntime({
       ...makeConfig("generation-capabilities"),
       capabilities: {
         canvas: false,
@@ -223,7 +223,7 @@ describe("runtime configuration validation and defaults", () => {
       },
     });
 
-    const snapshot = getDesignToolRuntimeConfig();
+    const snapshot = getNudgeUiRuntimeConfig();
     expect(snapshot.capabilities.sourceCoordinates).toEqual({
       exactCidPrefixes: ["astro:"],
       exactFileExtensions: [".astro", ".html", ".htm"],
@@ -236,16 +236,16 @@ describe("runtime configuration validation and defaults", () => {
   });
 
   it("defaults to exact coordinates and no scoping grammar when the host declares none", () => {
-    previousConfig = getDesignToolRuntimeConfig();
-    configureDesignToolRuntime(makeConfig("generation-default-capabilities"));
+    previousConfig = getNudgeUiRuntimeConfig();
+    configureNudgeUiRuntime(makeConfig("generation-default-capabilities"));
 
     expect(getSourceCoordinatePolicy()).toBeNull();
     expect(getScopingSelectorPattern()).toBeNull();
   });
 
   it("degrades an invalid scoping pattern to no stripping instead of throwing", () => {
-    previousConfig = getDesignToolRuntimeConfig();
-    configureDesignToolRuntime({
+    previousConfig = getNudgeUiRuntimeConfig();
+    configureNudgeUiRuntime({
       ...makeConfig("generation-invalid-pattern"),
       capabilities: { canvas: false, componentSemantics: false, scopingSelectorPattern: "([" },
     });
@@ -254,7 +254,7 @@ describe("runtime configuration validation and defaults", () => {
   });
 
   it("rejects malformed source-coordinate policies and scoping patterns", () => {
-    previousConfig = getDesignToolRuntimeConfig();
+    previousConfig = getNudgeUiRuntimeConfig();
     const invalidPolicy = {
       ...makeConfig("generation-invalid-policy"),
       capabilities: {
@@ -262,44 +262,44 @@ describe("runtime configuration validation and defaults", () => {
         componentSemantics: false,
         sourceCoordinates: { exactCidPrefixes: [7] },
       },
-    } as unknown as DesignToolRuntimeConfig;
-    expect(() => configureDesignToolRuntime(invalidPolicy)).toThrow(TypeError);
+    } as unknown as NudgeUiRuntimeConfig;
+    expect(() => configureNudgeUiRuntime(invalidPolicy)).toThrow(TypeError);
 
     const invalidPattern = {
       ...makeConfig("generation-invalid-pattern-2"),
       capabilities: { canvas: false, componentSemantics: false, scopingSelectorPattern: "" },
-    } as unknown as DesignToolRuntimeConfig;
-    expect(() => configureDesignToolRuntime(invalidPattern)).toThrow(TypeError);
+    } as unknown as NudgeUiRuntimeConfig;
+    expect(() => configureNudgeUiRuntime(invalidPattern)).toThrow(TypeError);
   });
 
   it("rejects missing or invalid required identity fields", () => {
     const missingProjectId = { ...makeConfig("generation-validation") } as Record<string, unknown>;
     delete missingProjectId.projectId;
-    expect(() => configureDesignToolRuntime(missingProjectId as unknown as DesignToolRuntimeConfig))
+    expect(() => configureNudgeUiRuntime(missingProjectId as unknown as NudgeUiRuntimeConfig))
       .toThrow(/"projectId"/);
 
-    expect(() => configureDesignToolRuntime({
+    expect(() => configureNudgeUiRuntime({
       ...makeConfig("generation-validation"),
-      host: "cloud" as DesignToolRuntimeConfig["host"],
+      host: "cloud" as NudgeUiRuntimeConfig["host"],
     })).toThrow(/"host"/);
 
-    expect(() => configureDesignToolRuntime({
+    expect(() => configureNudgeUiRuntime({
       ...makeConfig("generation-validation"),
-      framework: "Vue" as DesignToolRuntimeConfig["framework"],
+      framework: "Vue" as NudgeUiRuntimeConfig["framework"],
     })).toThrow(/"framework"/);
   });
 
   it("supplies safe defaults for absent optional fields", () => {
-    previousConfig = getDesignToolRuntimeConfig();
+    previousConfig = getNudgeUiRuntimeConfig();
     const partial = {
       projectId: "minimal-host",
       host: "static-html",
       framework: "HTML",
-    } as unknown as DesignToolRuntimeConfig;
+    } as unknown as NudgeUiRuntimeConfig;
 
-    configureDesignToolRuntime(partial);
+    configureNudgeUiRuntime(partial);
 
-    const snapshot = getDesignToolRuntimeConfig();
+    const snapshot = getNudgeUiRuntimeConfig();
     expect(snapshot).toMatchObject({
       projectId: "minimal-host",
       host: "static-html",
@@ -316,19 +316,19 @@ describe("runtime configuration validation and defaults", () => {
   });
 
   it("rejects wrong-typed optional fields instead of defaulting them", () => {
-    expect(() => configureDesignToolRuntime({
+    expect(() => configureNudgeUiRuntime({
       ...makeConfig("generation-types"),
       tokens: "not-an-array",
-    } as unknown as DesignToolRuntimeConfig)).toThrow(/"tokens" must be an array/);
+    } as unknown as NudgeUiRuntimeConfig)).toThrow(/"tokens" must be an array/);
 
-    expect(() => configureDesignToolRuntime({
+    expect(() => configureNudgeUiRuntime({
       ...makeConfig("generation-types"),
       capabilities: { canvas: "yes" },
-    } as unknown as DesignToolRuntimeConfig)).toThrow(/"canvas" must be a boolean/);
+    } as unknown as NudgeUiRuntimeConfig)).toThrow(/"canvas" must be a boolean/);
   });
 
   it("reuses frozen input subtrees by reference across repeated configuration", () => {
-    previousConfig = getDesignToolRuntimeConfig();
+    previousConfig = getNudgeUiRuntimeConfig();
     const sharedTokens = Object.freeze([
       { name: "--space-1", value: "4px", source: "theme.css:1" },
     ]);
@@ -337,10 +337,10 @@ describe("runtime configuration validation and defaults", () => {
       tokens: sharedTokens,
     });
 
-    configureDesignToolRuntime(frozenInput);
-    const firstSnapshot = getDesignToolRuntimeConfig();
-    configureDesignToolRuntime(frozenInput);
-    const secondSnapshot = getDesignToolRuntimeConfig();
+    configureNudgeUiRuntime(frozenInput);
+    const firstSnapshot = getNudgeUiRuntimeConfig();
+    configureNudgeUiRuntime(frozenInput);
+    const secondSnapshot = getNudgeUiRuntimeConfig();
 
     expect(secondSnapshot).not.toBe(firstSnapshot);
     expect(secondSnapshot.tokens).toBe(firstSnapshot.tokens);

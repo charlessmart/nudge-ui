@@ -61,11 +61,11 @@ export function PopoverListbox({
   onSelect,
 }: PopoverListboxProps): ReactElement {
   const portalContainer = typeof document !== "undefined"
-    ? document.getElementById("design-tool-root")?.shadowRoot ?? document.body
+    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
     : null;
 
   return (
-    <div className={`dt-popover-listbox${className ? ` ${className}` : ""}`}>
+    <div className={`popover-listbox${className ? ` ${className}` : ""}`}>
       {trigger || triggerElement ? (
         <Combobox.Root
           value={value}
@@ -83,14 +83,14 @@ export function PopoverListbox({
           {triggerElement ? (
             <Combobox.Trigger
               render={triggerElement}
-              className={`dt-popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
+              className={`popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
               data-test={triggerDataTest}
               aria-label={triggerAriaLabel}
               disabled={disabled}
             />
           ) : (
             <Combobox.Trigger
-              className={`dt-popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
+              className={`popover-listbox__trigger${triggerClassName ? ` ${triggerClassName}` : ""}`}
               data-test={triggerDataTest}
               aria-label={triggerAriaLabel}
               disabled={disabled}
@@ -99,19 +99,19 @@ export function PopoverListbox({
             </Combobox.Trigger>
           )}
           <Combobox.Portal container={portalContainer}>
-            <Combobox.Positioner className="dt-popover-listbox__positioner">
-              <Combobox.Popup className="dt-popover-listbox__popup">
-                <Combobox.List className="dt-popover-listbox__list">
+            <Combobox.Positioner className="popover-listbox__positioner">
+              <Combobox.Popup className="popover-listbox__popup">
+                <Combobox.List className="popover-listbox__list">
                   {items.map((item) => (
                     <Combobox.Item
                       key={item.value}
                       value={item.value}
-                      className="dt-popover-listbox__item"
+                      className="popover-listbox__item"
                       data-test={item["data-test"]}
                     >
-                      {item.leading ? <span className="dt-popover-listbox__leading">{item.leading}</span> : null}
-                      <span className="dt-popover-listbox__label">{item.label}</span>
-                      {item.trailing ? <span className="dt-popover-listbox__trailing">{item.trailing}</span> : null}
+                      {item.leading ? <span className="popover-listbox__leading">{item.leading}</span> : null}
+                      <span className="popover-listbox__label">{item.label}</span>
+                      {item.trailing ? <span className="popover-listbox__trailing">{item.trailing}</span> : null}
                     </Combobox.Item>
                   ))}
                 </Combobox.List>
@@ -133,7 +133,7 @@ export function PopoverListbox({
         >
           <Autocomplete.Input
             ref={inputRef}
-            className={`dt-text-input${inputAppearance === "embedded" ? " dt-text-input--embedded" : ""}${inputClassName ? ` ${inputClassName}` : ""}`}
+            className={`text-input${inputAppearance === "embedded" ? " text-input--embedded" : ""}${inputClassName ? ` ${inputClassName}` : ""}`}
             placeholder={placeholder}
             data-test={inputDataTest}
             onFocus={inputOnFocus}
@@ -142,20 +142,20 @@ export function PopoverListbox({
             disabled={disabled}
           />
           <Autocomplete.Portal container={portalContainer}>
-            <Autocomplete.Positioner className="dt-popover-listbox__positioner">
-              <Autocomplete.Popup className="dt-popover-listbox__popup">
-                <Autocomplete.List className="dt-popover-listbox__list">
+            <Autocomplete.Positioner className="popover-listbox__positioner">
+              <Autocomplete.Popup className="popover-listbox__popup">
+                <Autocomplete.List className="popover-listbox__list">
                   {items.map((item) => (
                     <Autocomplete.Item
                       key={item.value}
                       value={item.value}
-                      className="dt-popover-listbox__item"
+                      className="popover-listbox__item"
                       data-test={item["data-test"]}
                       onClick={() => onSelect(item.value)}
                     >
-                      {item.leading ? <span className="dt-popover-listbox__leading">{item.leading}</span> : null}
-                      <span className="dt-popover-listbox__label">{item.label}</span>
-                      {item.trailing ? <span className="dt-popover-listbox__trailing">{item.trailing}</span> : null}
+                      {item.leading ? <span className="popover-listbox__leading">{item.leading}</span> : null}
+                      <span className="popover-listbox__label">{item.label}</span>
+                      {item.trailing ? <span className="popover-listbox__trailing">{item.trailing}</span> : null}
                     </Autocomplete.Item>
                   ))}
                 </Autocomplete.List>

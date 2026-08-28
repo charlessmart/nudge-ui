@@ -1,10 +1,10 @@
-import type { TokenDefinition } from "@design-tool/css/model";
+import type { TokenDefinition } from "@nudge-ui/css/model";
 import {
   createBrowserCssInspection,
   type BrowserCssInspection,
   type BrowserTokenKnowledge,
 } from "./browserCssInspection.ts";
-import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
 interface DocumentSession {
   session: BrowserCssInspection;
@@ -17,7 +17,7 @@ let catalogSignature = "";
 let catalogRevision = 0;
 
 function currentTokenKnowledge(): BrowserTokenKnowledge {
-  const { tokenCatalog, tokenGeneration } = getDesignToolRuntimeConfig();
+  const { tokenCatalog, tokenGeneration } = getNudgeUiRuntimeConfig();
   // The inventory snapshot generation is the authoritative fingerprint: when
   // observable inventory facts change, the virtual module re-evaluates and
   // `tokenGeneration` carries a new value, so document sessions recreate with

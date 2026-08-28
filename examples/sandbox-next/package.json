@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm --filter @design-tool/nextjs build -q && next dev",
+    "dev": "pnpm --filter @nudge-ui/nextjs build -q && next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -13,10 +13,10 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@design-tool/css": "workspace:*",
-    "@design-tool/inspector": "workspace:*",
-    "@design-tool/nextjs": "workspace:*",
-    "@design-tool/plugin": "workspace:*",
+    "@nudge-ui/css": "workspace:*",
+    "@nudge-ui/inspector": "workspace:*",
+    "@nudge-ui/nextjs": "workspace:*",
+    "@nudge-ui/plugin": "workspace:*",
     "next": "~16.3.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

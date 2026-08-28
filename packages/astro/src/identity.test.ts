@@ -100,10 +100,10 @@ describe("instrumentAstroHtml", () => {
     expect(result.insertedAttributeCount).toBe(4);
   });
 
-  it("skips the Design Tool mount and its subtree", () => {
+  it("skips the Nudge UI mount and its subtree", () => {
     const source = `<!doctype html>
 <body>
-  <div id="design-tool-root" data-astro-source-file="src/pages/index.astro" data-astro-source-loc="2:3">
+  <div id="nudge-ui-root" data-astro-source-file="src/pages/index.astro" data-astro-source-loc="2:3">
     <button data-astro-source-file="src/pages/index.astro" data-astro-source-loc="3:5">mount child</button>
   </div>
   <button data-astro-source-file="src/pages/index.astro" data-astro-source-loc="5:3">eligible</button>
@@ -112,12 +112,12 @@ describe("instrumentAstroHtml", () => {
     const result = instrumentAstroHtml(source);
 
     expect(result.html).toContain(
-      '<div id="design-tool-root" data-astro-source-file="src/pages/index.astro" data-astro-source-loc="2:3">',
+      '<div id="nudge-ui-root" data-astro-source-file="src/pages/index.astro" data-astro-source-loc="2:3">',
     );
     expect(result.html).toContain(
       '<button data-astro-source-file="src/pages/index.astro" data-astro-source-loc="3:5">mount child</button>',
     );
-    expect(result.html).not.toContain("<div id=\"design-tool-root\" data-cid");
+    expect(result.html).not.toContain("<div id=\"nudge-ui-root\" data-cid");
     expect(result.html).toContain(
       'data-astro-source-loc="5:3" data-cid="astro:Button" data-src="src/pages/index.astro:5:3"',
     );

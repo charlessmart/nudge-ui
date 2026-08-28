@@ -1,5 +1,5 @@
 {
-  "name": "@design-tool/astro",
+  "name": "@nudge-ui/astro",
   "version": "0.0.1",
   "type": "module",
   "main": "src/index.ts",
@@ -13,8 +13,8 @@
     "test:unit:watch": "vitest"
   },
   "dependencies": {
-    "@design-tool/inspector": "workspace:*",
-    "@design-tool/plugin": "workspace:*",
+    "@nudge-ui/inspector": "workspace:*",
+    "@nudge-ui/plugin": "workspace:*",
     "parse5": "^7.3.0"
   },
   "peerDependencies": {

@@ -117,18 +117,18 @@ describe("document revision observer", () => {
     const before = revisionsSnapshot();
 
     const attribution = document.createElement("div");
-    attribution.setAttribute("data-design-tool", "attribution-probe");
+    attribution.setAttribute("data-nudge-ui", "attribution-probe");
     document.body.appendChild(attribution);
     attribution.remove();
 
     const container = document.createElement("style");
-    container.setAttribute("data-design-tool", "container-probe");
-    container.textContent = "@container (min-width: 1px) { [data-dt-probe] { --p: 1; } }";
+    container.setAttribute("data-nudge-ui", "container-probe");
+    container.textContent = "@container (min-width: 1px) { [data-probe] { --p: 1; } }";
     document.head.appendChild(container);
     container.remove();
 
     const value = document.createElement("span");
-    value.setAttribute("data-design-tool", "value-probe");
+    value.setAttribute("data-nudge-ui", "value-probe");
     document.body.appendChild(value);
     value.remove();
 
@@ -138,14 +138,14 @@ describe("document revision observer", () => {
 
   it("counts managed-sheet writes as stylesheet changes", async () => {
     const managed = document.createElement("style");
-    managed.setAttribute("data-design-tool", "managed");
-    managed.id = "design-tool-styles";
+    managed.setAttribute("data-nudge-ui", "managed");
+    managed.id = "nudge-ui-styles";
     document.head.appendChild(managed);
     await flushObserver();
 
     const before = revisionsSnapshot();
-    managed.textContent = ".dt-row { color: red; }";
-    managed.textContent = ".dt-row { color: blue; }";
+    managed.textContent = ".row { color: red; }";
+    managed.textContent = ".row { color: blue; }";
     await flushObserver();
     expect(revisionsSnapshot().stylesheet).toBeGreaterThan(before.stylesheet);
   });
@@ -170,8 +170,8 @@ describe("document revision observer", () => {
     await flushObserver();
 
     const before = revisionsSnapshot();
-    canvasNode.setAttribute("data-dt-renderer-id", "r1");
-    canvasNode.setAttribute("data-dt-renderer-id", "r2");
+    canvasNode.setAttribute("data-renderer-id", "r1");
+    canvasNode.setAttribute("data-renderer-id", "r2");
     await flushObserver();
 
     expect(revisionsSnapshot()).toEqual(before);
@@ -199,8 +199,8 @@ describe("document revision observer", () => {
     registerResolutionElement(el);
 
     const before = revisionsSnapshot();
-    el.setAttribute("data-dt-container-probe-3", "");
-    el.removeAttribute("data-dt-container-probe-3");
+    el.setAttribute("data-container-probe-3", "");
+    el.removeAttribute("data-container-probe-3");
     await flushObserver();
     expect(revisionsSnapshot()).toEqual(before);
   });

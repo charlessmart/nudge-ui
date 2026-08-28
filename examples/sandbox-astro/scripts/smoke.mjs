@@ -27,21 +27,21 @@ try {
   await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
 
   // The bootstrap module must have executed and mounted the inspector.
-  await page.waitForSelector("#design-tool-root", { timeout: 30_000 });
+  await page.waitForSelector("#nudge-ui-root", { timeout: 30_000 });
   await page.waitForFunction(
-    () => Boolean(window.__designTool),
+    () => Boolean(window.__nudgeUi),
     null,
     { timeout: 30_000 },
   );
 
   const mountState = await page.evaluate(() => {
-    const mount = document.getElementById("design-tool-root");
+    const mount = document.getElementById("nudge-ui-root");
     return {
       present: Boolean(mount),
       shadowContent: Boolean(mount?.shadowRoot && mount.shadowRoot.childElementCount > 0),
     };
   });
-  assert(mountState.present, "(a) design-tool-root exists");
+  assert(mountState.present, "(a) nudge-ui-root exists");
   assert(
     mountState.shadowContent,
     "(a) inspector mounted content into the mount's shadow root",
@@ -88,9 +88,9 @@ try {
   assert(styles.buttonVisible === true, "(c) island button rendered");
 
   // Selection smoke via the inspector's public inspection bridge
-  // (window.__designTool), installed by bootstrapDesignTool.
+  // (window.__nudgeUi), installed by bootstrapNudgeUi.
   const inspection = await page.evaluate(() =>
-    window.__designTool?.inspect(".site-header .site-title") ?? null,
+    window.__nudgeUi?.inspect(".site-header .site-title") ?? null,
   );
   assert(inspection !== null, "bridge inspect() returns an inspection");
   assert(
@@ -108,7 +108,7 @@ try {
 
   // Second page: multi-page instrumentation.
   await page.goto(`${BASE_URL}/about`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector("#design-tool-root", { timeout: 30_000 });
+  await page.waitForSelector("#nudge-ui-root", { timeout: 30_000 });
   const aboutIdentity = await page.evaluate(() => {
     const element = document.querySelector(".page-title");
     return {

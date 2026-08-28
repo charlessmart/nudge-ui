@@ -19,8 +19,8 @@ test("dev: Tokens tab edits only the active theme token and updates every consum
 
   const row = page.locator('[data-test="global-token-row"][data-token-name="--color-surface-raised"]');
   await expect(row).toBeVisible();
-  await expect(row.locator('.dt-token-row__inline .dt-token-row__name')).toContainText("--color-surface-raised");
-  await expect(row.locator('.dt-token-row__inline [data-test="token-field"]')).toBeVisible();
+  await expect(row.locator('.token-row__inline .token-row__name')).toContainText("--color-surface-raised");
+  await expect(row.locator('.token-row__inline [data-test="token-field"]')).toBeVisible();
   await expect(row.locator('[data-test="token-context"]')).toHaveCount(0);
   await expect(row.locator('[data-test="token-source"]')).toHaveCount(0);
   await expect(row.locator('[data-test="token-color-swatch"]')).toBeVisible();

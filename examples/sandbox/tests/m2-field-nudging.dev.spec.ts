@@ -3,9 +3,9 @@ import { managedSheetText } from "./managedSheet.ts";
 
 async function panelOpen(page: import("@playwright/test").Page): Promise<string | null> {
   return page.evaluate(() => document
-    .getElementById("design-tool-root")
+    .getElementById("nudge-ui-root")
     ?.shadowRoot
-    ?.querySelector(".dt-panel")
+    ?.querySelector(".panel")
     ?.getAttribute("data-open") ?? null);
 }
 
@@ -102,7 +102,7 @@ test("dev: numeric fields nudge previews immediately and visibility shortcuts pr
 
   await lineHeight.focus();
   await page.evaluate(() => {
-    const input = document.getElementById("design-tool-root")?.shadowRoot
+    const input = document.getElementById("nudge-ui-root")?.shadowRoot
       ?.querySelector('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]');
     input?.dispatchEvent(new KeyboardEvent("keydown", {
       key: "\\",

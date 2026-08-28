@@ -38,8 +38,8 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
   })), [rows]);
 
   return (
-    <section className="dt-tokens-panel" data-test="tokens-panel">
-      <div className="dt-tokens-panel__tools">
+    <section className="tokens-panel" data-test="tokens-panel">
+      <div className="tokens-panel__tools">
         <TextInput
           type="search"
           value={query}
@@ -48,7 +48,7 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
           data-test="token-search"
           onChange={(event) => setQuery(event.target.value)}
         />
-        <span className="dt-tokens-panel__count" data-test="token-count">
+        <span className="tokens-panel__count" data-test="token-count">
           {visibleRows.length} {visibleRows.length === 1 ? "token" : "tokens"}
         </span>
       </div>
@@ -57,8 +57,8 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
         const groupedRows = visibleRows.filter((row) => row.group === group);
         if (groupedRows.length === 0) return null;
         return (
-          <section className="dt-token-group" data-test="token-group" data-group={group} key={group}>
-            <div className="dt-token-group__heading">
+          <section className="token-group" data-test="token-group" data-group={group} key={group}>
+            <div className="token-group__heading">
               <span>{TOKEN_GROUP_LABELS[group]}</span>
               <span>{groupedRows.length}</span>
             </div>
@@ -70,7 +70,7 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
       })}
 
       {visibleRows.length === 0 ? (
-        <div className="dt-tokens-panel__empty" data-test="tokens-empty">No matching tokens</div>
+        <div className="tokens-panel__empty" data-test="tokens-empty">No matching tokens</div>
       ) : null}
     </section>
   );
@@ -103,13 +103,13 @@ function TokenCatalogItem({
 
   return (
     <article
-      className="dt-token-row"
+      className="token-row"
       data-test="global-token-row"
       data-token-name={row.definition.cssName}
       data-active={row.activeDeclaration ? "true" : "false"}
     >
-      <div className="dt-token-row__inline">
-        <code className="dt-token-row__name">{row.definition.name || row.definition.cssName}</code>
+      <div className="token-row__inline">
+        <code className="token-row__name">{row.definition.name || row.definition.cssName}</code>
         {row.activeDeclaration ? (
           <ControlSurface>
             <TokenValueField
@@ -131,12 +131,12 @@ function TokenCatalogItem({
       </div>
 
       {variants.length > 0 ? (
-        <details className="dt-token-variants" data-test="token-variants">
+        <details className="token-variants" data-test="token-variants">
           <summary>Variants ({variants.length})</summary>
-          <div className="dt-token-variants__list">
+          <div className="token-variants__list">
             {variants.map((declaration) => (
-              <div className="dt-token-variant" key={`${declaration.source}-${contextLabel(declaration.context)}`}>
-                <span className="dt-token-variant__context">{contextLabel(declaration.context)}</span>
+              <div className="token-variant" key={`${declaration.source}-${contextLabel(declaration.context)}`}>
+                <span className="token-variant__context">{contextLabel(declaration.context)}</span>
                 <code>{declaration.value}</code>
                 <span>{declaration.source}</span>
               </div>

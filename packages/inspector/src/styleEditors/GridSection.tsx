@@ -38,19 +38,19 @@ export function GridSection({
 }: GridSectionProps): ReactElement {
   return (
     <>
-      {showContainer ? <div className="dt-layout__group dt-layout__grid" data-test="layout-grid-container">
-        <div className="dt-layout__grid-primary">
-          <div className="dt-layout__grid-picker-column">
-            <div className="dt-editor__title">Grid</div>
+      {showContainer ? <div className="layout__group layout__grid" data-test="layout-grid-container">
+        <div className="layout__grid-primary">
+          <div className="layout__grid-picker-column">
+            <div className="editor__title">Grid</div>
             <GridPicker domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
           </div>
-          <div className="dt-layout__grid-gap" data-test="layout-grid-gap">
-            <div className="dt-editor__title">Gap</div>
-            <div className="dt-layout__grid-gap-fields">
-              <ControlSurface className="dt-layout__spacing-field" data-test="layout-grid-row-gap">
+          <div className="layout__grid-gap" data-test="layout-grid-gap">
+            <div className="editor__title">Gap</div>
+            <div className="layout__grid-gap-fields">
+              <ControlSurface className="layout__spacing-field" data-test="layout-grid-row-gap">
                 <IconSpacingVertical
-                  className="dt-layout__spacing-icon"
-                  size="var(--dt-icon-size-small)"
+                  className="layout__spacing-icon"
+                  size="var(--icon-size-small)"
                   stroke={1.8}
                   aria-hidden="true"
                   data-test="layout-spacing-icon-row-gap"
@@ -65,10 +65,10 @@ export function GridSection({
                   onAfterEdit={onAfterEdit}
                 />
               </ControlSurface>
-              <ControlSurface className="dt-layout__spacing-field" data-test="layout-grid-column-gap">
+              <ControlSurface className="layout__spacing-field" data-test="layout-grid-column-gap">
                 <IconSpacingHorizontal
-                  className="dt-layout__spacing-icon"
-                  size="var(--dt-icon-size-small)"
+                  className="layout__spacing-icon"
+                  size="var(--icon-size-small)"
                   stroke={1.8}
                   aria-hidden="true"
                   data-test="layout-spacing-icon-column-gap"
@@ -86,9 +86,9 @@ export function GridSection({
             </div>
           </div>
         </div>
-        <details className="dt-layout__grid-advanced" data-test="layout-grid-advanced">
+        <details className="layout__grid-advanced" data-test="layout-grid-advanced">
           <summary>Advanced grid CSS</summary>
-          <div className="dt-layout__grid-fields">
+          <div className="layout__grid-fields">
             <GridValueField property="grid-template-columns" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
             <GridValueField property="grid-template-rows" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
             <LayoutDropdown
@@ -101,7 +101,7 @@ export function GridSection({
             <GridValueField property="grid-auto-columns" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
             <GridValueField property="grid-auto-rows" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
           </div>
-          <div className="dt-layout__grid-alignment" data-test="layout-grid-alignment">
+          <div className="layout__grid-alignment" data-test="layout-grid-alignment">
             <LayoutDropdown
               property="justify-content"
               options={GRID_CONTENT_ALIGNMENT_OPTIONS}
@@ -138,8 +138,8 @@ export function GridSection({
         </details>
       </div> : null}
 
-      {showChild ? <div className="dt-layout__group dt-layout__grid-child" data-test="layout-grid-child">
-        <div className="dt-editor__title">Grid Child</div>
+      {showChild ? <div className="layout__group layout__grid-child" data-test="layout-grid-child">
+        <div className="editor__title">Grid Child</div>
         <GridValueField property="grid-column" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
         <GridValueField property="grid-row" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
         <LayoutDropdown

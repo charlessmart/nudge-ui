@@ -18,7 +18,7 @@ describe("GridValueField", () => {
 
   beforeEach(() => {
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -26,7 +26,7 @@ describe("GridValueField", () => {
     handle?.unmount();
     restoreComputedStyle();
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 

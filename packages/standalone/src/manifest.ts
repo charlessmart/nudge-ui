@@ -1,27 +1,27 @@
-import type { DesignToolRuntimeConfig } from "@design-tool/inspector";
+import type { NudgeUiRuntimeConfig } from "@nudge-ui/inspector";
 import type { StandaloneTokenSnapshot } from "./tokenManifest.ts";
 
-/** The reserved URL namespace owned by the standalone Design Tool host. */
-export const DESIGN_TOOL_ROUTE_PREFIX = "/__design_tool__/";
+/** The reserved URL namespace owned by the standalone Nudge UI host. */
+export const NUDGE_UI_ROUTE_PREFIX = "/__nudge_ui__/";
 
 /** The only mount ID supported by the standalone host contract. */
-export const DESIGN_TOOL_MOUNT_ID = "design-tool-root";
+export const NUDGE_UI_MOUNT_ID = "nudge-ui-root";
 
 /** The manifest consumed by the standalone browser client. */
-export const DESIGN_TOOL_MANIFEST_PATH = `${DESIGN_TOOL_ROUTE_PREFIX}manifest`;
+export const NUDGE_UI_MANIFEST_PATH = `${NUDGE_UI_ROUTE_PREFIX}manifest`;
 
 /** The prebundled, self-contained inspector client. */
-export const DESIGN_TOOL_CLIENT_PATH = `${DESIGN_TOOL_ROUTE_PREFIX}client.mjs`;
+export const NUDGE_UI_CLIENT_PATH = `${NUDGE_UI_ROUTE_PREFIX}client.mjs`;
 
 /** The same-origin server-sent event stream for settled project changes. */
-export const DESIGN_TOOL_RELOAD_PATH = `${DESIGN_TOOL_ROUTE_PREFIX}reload`;
+export const NUDGE_UI_RELOAD_PATH = `${NUDGE_UI_ROUTE_PREFIX}reload`;
 
 /** The serializable runtime document sent to a standalone client. */
 export interface StandaloneRuntimeManifest {
   readonly version: 1;
   /** Monotonically increasing document revision for reload coordination. */
   readonly revision: number;
-  readonly runtime: DesignToolRuntimeConfig;
+  readonly runtime: NudgeUiRuntimeConfig;
   readonly endpoints: {
     readonly manifest: string;
     readonly client: string;
@@ -64,9 +64,9 @@ export function createStandaloneRuntimeManifest(
       componentContracts: [],
     },
     endpoints: {
-      manifest: DESIGN_TOOL_MANIFEST_PATH,
-      client: DESIGN_TOOL_CLIENT_PATH,
-      reload: DESIGN_TOOL_RELOAD_PATH,
+      manifest: NUDGE_UI_MANIFEST_PATH,
+      client: NUDGE_UI_CLIENT_PATH,
+      reload: NUDGE_UI_RELOAD_PATH,
     },
   };
 }

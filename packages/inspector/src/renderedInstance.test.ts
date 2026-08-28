@@ -91,8 +91,8 @@ describe("rendered instance resolver", () => {
     const reports = applyRenderedInstanceProjection(document, [override]);
 
     expect(reports).toEqual([{ overrideId: "override-42", status: "applied" }]);
-    expect(target.getAttribute("data-dt-projection-instance")).toBe("override-42");
-    expect(instanceSelector(override)).toContain('[data-dt-projection-instance="override-42"]');
+    expect(target.getAttribute("data-projection-instance")).toBe("override-42");
+    expect(instanceSelector(override)).toContain('[data-projection-instance="override-42"]');
   });
 
   it("reports a removed marker as overridden and never reapplies the same snapshot", async () => {
@@ -100,7 +100,7 @@ describe("rendered instance resolver", () => {
     const override: RenderedInstanceOverride = { id: "override-42", target: captureRenderedInstance(target)! };
     applyRenderedInstanceProjection(document, [override]);
 
-    target.removeAttribute("data-dt-projection-instance");
+    target.removeAttribute("data-projection-instance");
     await Promise.resolve();
     await Promise.resolve();
 
@@ -108,7 +108,7 @@ describe("rendered instance resolver", () => {
       .toEqual([{ overrideId: "override-42", status: "overridden" }]);
     expect(applyRenderedInstanceProjection(document, [override]))
       .toEqual([{ overrideId: "override-42", status: "overridden" }]);
-    expect(target.hasAttribute("data-dt-projection-instance")).toBe(false);
+    expect(target.hasAttribute("data-projection-instance")).toBe(false);
   });
 
   it("reports in-place evidence changes as overridden", async () => {

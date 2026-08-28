@@ -18,10 +18,10 @@ import { instrumentHtml } from "./html/identity.ts";
 import { injectStandaloneBootstrap } from "./html/bootstrap.ts";
 import {
   createStandaloneRuntimeManifest,
-  DESIGN_TOOL_CLIENT_PATH,
-  DESIGN_TOOL_MANIFEST_PATH,
-  DESIGN_TOOL_RELOAD_PATH,
-  DESIGN_TOOL_ROUTE_PREFIX,
+  NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_MANIFEST_PATH,
+  NUDGE_UI_RELOAD_PATH,
+  NUDGE_UI_ROUTE_PREFIX,
   type StandaloneRuntimeManifest,
 } from "./manifest.ts";
 import { createStandaloneTokenSnapshot, EMPTY_STANDALONE_TOKEN_SNAPSHOT } from "./tokenManifest.ts";
@@ -78,7 +78,7 @@ export interface StandaloneServer {
 }
 
 /**
- * Creates a Design Tool-owned static server for one explicit project root.
+ * Creates a Nudge UI-owned static server for one explicit project root.
  *
  * The server binds to loopback, reserves its own route namespace, and only
  * reads prototype files. HTML instrumentation and bootstrap nodes exist in
@@ -154,7 +154,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       // callback. Source edits must not terminate the static server, but a
       // skipped reload must be visible to the developer.
       console.warn(
-        "Design Tool standalone reload was skipped because rebuilding token knowledge failed:",
+        "Nudge UI standalone reload was skipped because rebuilding token knowledge failed:",
         error,
       );
     });
@@ -322,9 +322,9 @@ export function contentTypeForPath(filePath: string): string {
 }
 
 /** Returns whether a decoded pathname belongs to the server-owned route space. */
-export function isReservedDesignToolRoute(pathname: string): boolean {
-  return pathname === DESIGN_TOOL_ROUTE_PREFIX.slice(0, -1)
-    || pathname.startsWith(DESIGN_TOOL_ROUTE_PREFIX);
+export function isReservedNudgeUiRoute(pathname: string): boolean {
+  return pathname === NUDGE_UI_ROUTE_PREFIX.slice(0, -1)
+    || pathname.startsWith(NUDGE_UI_ROUTE_PREFIX);
 }
 
 function canonicalDirectory(directory: string): string {
@@ -408,8 +408,8 @@ async function handleRequest(input: {
     return;
   }
 
-  if (isReservedDesignToolRoute(decodedPath)) {
-    await handleDesignToolRoute(input, decodedPath);
+  if (isReservedNudgeUiRoute(decodedPath)) {
+    await handleNudgeUiRoute(input, decodedPath);
     return;
   }
 
@@ -464,7 +464,7 @@ function instrumentHtmlResponse(body: Buffer, projectPath: string): Buffer {
     source = strictUtf8Decoder.decode(body);
   } catch {
     console.warn(
-      `Design Tool served ${projectPath} without instrumentation because it is not valid UTF-8.`,
+      `Nudge UI served ${projectPath} without instrumentation because it is not valid UTF-8.`,
     );
     return body;
   }
@@ -475,7 +475,7 @@ function instrumentHtmlResponse(body: Buffer, projectPath: string): Buffer {
 
 const strictUtf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
-async function handleDesignToolRoute(
+async function handleNudgeUiRoute(
   input: {
     request: IncomingMessage;
     response: ServerResponse;
@@ -485,25 +485,25 @@ async function handleDesignToolRoute(
   },
   pathname: string,
 ): Promise<void> {
-  if (pathname === DESIGN_TOOL_MANIFEST_PATH) {
+  if (pathname === NUDGE_UI_MANIFEST_PATH) {
     const body = Buffer.from(JSON.stringify(input.getManifest()), "utf8");
     sendBody(input.response, 200, body, "application/json; charset=utf-8", {
       "Cache-Control": "no-store",
     });
     return;
   }
-  if (pathname === DESIGN_TOOL_CLIENT_PATH) {
+  if (pathname === NUDGE_UI_CLIENT_PATH) {
     try {
       const body = await readFileFromDescriptor(input.clientPath);
       sendBody(input.response, 200, body, "text/javascript; charset=utf-8", {
         "Cache-Control": "no-cache",
       });
     } catch {
-      sendText(input.response, 503, "Design Tool client has not been built.");
+      sendText(input.response, 503, "Nudge UI client has not been built.");
     }
     return;
   }
-  if (pathname === DESIGN_TOOL_RELOAD_PATH) {
+  if (pathname === NUDGE_UI_RELOAD_PATH) {
     if (input.request.method === "HEAD") {
       sendBody(input.response, 200, Buffer.alloc(0), "text/event-stream; charset=utf-8", {
         "Cache-Control": "no-cache",

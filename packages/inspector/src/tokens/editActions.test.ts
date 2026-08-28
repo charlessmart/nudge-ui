@@ -58,13 +58,13 @@ describe("swapToken", () => {
     setActiveStyleState("base");
     resetPendingRules();
     document.body.innerHTML = "";
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
   afterEach(() => {
     setActiveStyleState("base");
     resetPendingRules();
     document.body.innerHTML = "";
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
 
   it("writes a rule keyed by [data-cid][data-src*] mapping property to var(name)", () => {
@@ -144,12 +144,12 @@ describe("promoteToToken", () => {
   beforeEach(() => {
     resetPendingRules();
     document.body.innerHTML = "";
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
   afterEach(() => {
     resetPendingRules();
     document.body.innerHTML = "";
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
 
   it("promotes a hardcoded border-radius 8px to a token (oldToken is null)", () => {
@@ -191,7 +191,7 @@ describe("runtime HTML evidence", () => {
     expect(record?.file).toBe("");
     expect(record?.line).toBe(0);
     expect(record?.column).toBe(0);
-    expect(record?.selector).toBe('[data-cid="design-tool-runtime-1"][data-src="author.html:4:2"]');
+    expect(record?.selector).toBe('[data-cid="nudge-ui-runtime-1"][data-src="author.html:4:2"]');
     expect(record?.runtimeEvidence).toEqual({
       reason: "runtime-created",
       tagName: "button",

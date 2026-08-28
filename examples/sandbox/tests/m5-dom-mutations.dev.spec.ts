@@ -140,7 +140,7 @@ test("dev: Inspect revert and undo/redo operate on canonical structural history"
 test("dev: Canvas revert and undo/redo are controller-owned and the card reload keeps the current history", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const repeated = frame.getByText("Repeated 3", { exact: true });
   await repeated.click();
   await repeated.press("Backspace");
@@ -169,7 +169,7 @@ test("dev: an application replacement is reported as overridden and is not reapp
   await page.evaluate(() => {
     const list = document.querySelector('[data-test="repeated-items"]');
     const placeholder = Array.from(list?.childNodes ?? []).find((node) =>
-      node.nodeType === Node.COMMENT_NODE && node.nodeValue === "design-tool-deleted");
+      node.nodeType === Node.COMMENT_NODE && node.nodeValue === "nudge-ui-deleted");
     if (!placeholder) throw new Error("Expected structural projection placeholder");
     const replacement = document.createElement("div");
     replacement.className = "repeated-item";
@@ -198,7 +198,7 @@ test("dev: Inspect DOM moves survive switching to Canvas", async ({ page }) => {
   await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
@@ -215,7 +215,7 @@ test("dev: Inspect arrow keys reorder a selected sibling", async ({ page }) => {
   await expect.poll(async () => (await outline.boundingBox())?.x ?? 0).toBeGreaterThan(before?.x ?? 0);
 
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
@@ -248,7 +248,7 @@ test("dev: Inspect selected outline follows a position-only flex-column nudge", 
 test("dev: Canvas drags a tracked element through the controller with an insertion guide", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const source = frame.locator('[data-test="flex-child-a"]');
   const destination = frame.locator('[data-test="flex-child-c"]');
   await expect(source).toBeVisible();
@@ -274,7 +274,7 @@ test("dev: Canvas drags a tracked element through the controller with an inserti
 test("dev: Canvas selected outline follows a position-only flex-column nudge", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const source = frame.getByText("Repeated 1", { exact: true });
   const outline = page.locator('[data-test="canvas-selected-outline"]');
 
@@ -300,7 +300,7 @@ test("dev: Canvas selected outline follows a position-only flex-column nudge", a
 test("dev: Canvas centres a flex-row insertion guide in a space-between gap", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await dragIntoFlexGap(
     page,
     frame.locator('[data-test="flex-child-a"]'),
@@ -314,7 +314,7 @@ test("dev: Canvas centres a flex-row insertion guide in a space-between gap", as
 test("dev: Canvas deletes a selected tracked element through the controller", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const heading = frame.locator("#hero-title");
   await expect(heading).toBeVisible();
   await heading.click();
@@ -338,7 +338,7 @@ test("dev: Inspect deletes one repeated item in Canvas and a reloaded card recei
   ]);
 
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator(".repeated-item")).toHaveText([
     "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
   ]);
@@ -353,7 +353,7 @@ test("dev: Inspect deletes one repeated item in Canvas and a reloaded card recei
 test("dev: Canvas deletes one repeated item and the identical host target disappears", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const repeated = frame.getByText("Repeated 3", { exact: true });
   await expect(repeated).toBeVisible();
   await repeated.click();
@@ -375,11 +375,11 @@ test("dev: Canvas delete-only projection advances into every already-ready card"
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   await page.locator('[data-test^="canvas-card-duplicate-"]').click();
-  await expect(page.locator(".dt-canvas-card__iframe")).toHaveCount(2);
+  await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
 
-  const first = page.frameLocator(".dt-canvas-card__iframe").nth(0);
-  const second = page.frameLocator(".dt-canvas-card__iframe").nth(1);
+  const first = page.frameLocator(".canvas-card__iframe").nth(0);
+  const second = page.frameLocator(".canvas-card__iframe").nth(1);
   const repeated = first.getByText("Repeated 3", { exact: true });
   await repeated.click();
   await repeated.press("Backspace");
@@ -392,7 +392,7 @@ test("dev: Canvas delete-only projection advances into every already-ready card"
 test("dev: Canvas arrow keys reorder a selected flex-row sibling", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const first = frame.locator('[data-test="flex-child-a"]');
   await first.click();
   await first.press("ArrowRight");
@@ -406,7 +406,7 @@ test("dev: Canvas arrow keys reorder a selected flex-row sibling", async ({ page
 test("dev: a Canvas reload receives the current sibling reorder snapshot", async ({ page }) => {
   await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const first = frame.locator('[data-test="flex-child-a"]');
   await first.click();
   await first.press("ArrowRight");
@@ -426,6 +426,6 @@ test("dev: reordering one repeated rendered sibling leaves every other instance 
   const expectedOrder = ["Repeated 1", "Repeated 2", "Repeated 4", "Repeated 3", "Repeated 5", "Repeated 6"];
   await expect(page.locator(".repeated-item")).toHaveText(expectedOrder);
   await page.locator('[data-test="mode-canvas"]').click();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator(".repeated-item")).toHaveText(expectedOrder);
 });

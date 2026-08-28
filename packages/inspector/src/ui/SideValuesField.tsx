@@ -80,7 +80,7 @@ export function SideValuesField({
 
   return (
     <div
-      className="dt-side-values"
+      className="side-values"
       data-test={dataTest}
       data-property={dataProperty}
       data-empty={empty ? "true" : undefined}
@@ -89,8 +89,8 @@ export function SideValuesField({
         : {})}
     >
       {empty ? (
-        <div className="dt-side-values__header">
-          <span className="dt-side-values__label">{displayLabel}</span>
+        <div className="side-values__header">
+          <span className="side-values__label">{displayLabel}</span>
           {emptyAction ?? (
             <IconButton
               variant="quiet"
@@ -107,18 +107,18 @@ export function SideValuesField({
       ) : hasPairedControls ? (
         <>
           {showLabel ? (
-            <div className="dt-side-values__header">
-              <span className="dt-side-values__label">{displayLabel}</span>
+            <div className="side-values__header">
+              <span className="side-values__label">{displayLabel}</span>
             </div>
           ) : null}
-          <div className="dt-side-values__value-row">
+          <div className="side-values__value-row">
             {isExpanded ? (
               <SideControls label={label} sides={sides} />
             ) : (
-              <div className="dt-side-values__pairs" role="group" aria-label={`${labelText} Grouped Sides`}>
+              <div className="side-values__pairs" role="group" aria-label={`${labelText} Grouped Sides`}>
                 {pairedControls!.map(({ axis, control, icon }) => (
                   <ControlSurface
-                    className="dt-side-values__side"
+                    className="side-values__side"
                     data-test={`pair-value-${axis}`}
                     data-axis={axis}
                     aria-label={`${labelText} ${axis === "horizontal" ? "Left And Right" : "Top And Bottom"}`}
@@ -126,7 +126,7 @@ export function SideValuesField({
                     key={axis}
                   >
                     {icon ?? <AxisIndicator axis={axis} />}
-                    <div className="dt-side-values__control">{control}</div>
+                    <div className="side-values__control">{control}</div>
                   </ControlSurface>
                 ))}
               </div>
@@ -152,8 +152,8 @@ export function SideValuesField({
       ) : (
         <>
           {showLabel ? (
-            <div className="dt-side-values__header">
-              <span className="dt-side-values__label">{displayLabel}</span>
+            <div className="side-values__header">
+              <span className="side-values__label">{displayLabel}</span>
             </div>
           ) : null}
           <SideControls label={label} sides={sides} />
@@ -171,17 +171,17 @@ export function SideControls({
   sides: readonly SideValueSlot[];
 }): ReactElement {
   return (
-    <div className="dt-side-values__grid" role="group" aria-label={`${typeof label === "string" ? formatInspectorLabel(label) : String(label)} Individual Sides`}>
+    <div className="side-values__grid" role="group" aria-label={`${typeof label === "string" ? formatInspectorLabel(label) : String(label)} Individual Sides`}>
       {sides.map(({ side, control, icon }) => (
         <ControlSurface
-          className="dt-side-values__side"
+          className="side-values__side"
           data-test={`side-value-${side}`}
           data-side={side}
           aria-label={`${typeof label === "string" ? formatInspectorLabel(label) : String(label)} ${formatInspectorLabel(side)}`}
           key={side}
         >
           {icon ?? <SideIndicator side={side} />}
-          <div className="dt-side-values__control">{control}</div>
+          <div className="side-values__control">{control}</div>
         </ControlSurface>
       ))}
     </div>
@@ -194,9 +194,9 @@ function AxisIndicator({ axis }: { axis: SideValueAxis }): ReactElement {
     : <><path d="M4 5h8" /><path d="M4 11h8" /></>;
 
   return (
-    <svg className="dt-side-values__icon" viewBox="0 0 16 16" aria-hidden="true">
+    <svg className="side-values__icon" viewBox="0 0 16 16" aria-hidden="true">
       <rect x="3.5" y="3.5" width="9" height="9" rx="1" />
-      <g className="dt-side-values__icon-emphasis">{emphasis}</g>
+      <g className="side-values__icon-emphasis">{emphasis}</g>
     </svg>
   );
 }
@@ -210,9 +210,9 @@ function SideIndicator({ side }: { side: SideName }): ReactElement {
   }[side];
 
   return (
-    <svg className="dt-side-values__icon" viewBox="0 0 16 16" aria-hidden="true">
+    <svg className="side-values__icon" viewBox="0 0 16 16" aria-hidden="true">
       <rect x="3.5" y="3.5" width="9" height="9" rx="1" />
-      <path d={emphasis} className="dt-side-values__icon-emphasis" />
+      <path d={emphasis} className="side-values__icon-emphasis" />
     </svg>
   );
 }
@@ -220,7 +220,7 @@ function SideIndicator({ side }: { side: SideName }): ReactElement {
 export function MarginSideIndicator({ side }: { side: SideName }): ReactElement {
   if (side === "left") {
     return (
-      <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="7" y="5" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
         <line x1="3" y1="5" x2="3" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
@@ -229,7 +229,7 @@ export function MarginSideIndicator({ side }: { side: SideName }): ReactElement 
 
   if (side === "right") {
     return (
-      <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="3" y="5" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
         <line x1="21" y1="5" x2="21" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
@@ -238,7 +238,7 @@ export function MarginSideIndicator({ side }: { side: SideName }): ReactElement 
 
   if (side === "top") {
     return (
-      <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="19" y="7" width="14" height="14" rx="2" transform="rotate(90 19 7)" stroke="currentColor" strokeWidth="2" />
         <line x1="19" y1="3" x2="5" y2="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       </svg>
@@ -246,7 +246,7 @@ export function MarginSideIndicator({ side }: { side: SideName }): ReactElement 
   }
 
   return (
-    <svg className="dt-side-values__icon dt-side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect x="19" y="3" width="14" height="14" rx="2" transform="rotate(90 19 3)" stroke="currentColor" strokeWidth="2" />
       <line x1="19" y1="21" x2="5" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>

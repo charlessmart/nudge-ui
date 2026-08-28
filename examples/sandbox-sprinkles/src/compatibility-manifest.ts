@@ -1,4 +1,4 @@
-import { CSS_LIBRARY_CORPUS, type CompatibilityManifest } from "@design-tool/compatibility";
+import { CSS_LIBRARY_CORPUS, type CompatibilityManifest } from "@nudge-ui/compatibility";
 
 const brandProperty = {
   property: "color",

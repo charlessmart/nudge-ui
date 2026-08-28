@@ -21,7 +21,7 @@ describe("edit scope", () => {
     const id = unlinkElement(first);
     expect(id).toMatch(/^override-/);
     expect(getEditScope(first)).toBe("rendered-instance");
-    expect(first.hasAttribute("data-dt-instance")).toBe(false);
+    expect(first.hasAttribute("data-instance")).toBe(false);
     expect(selectorForElement(first)).toContain("data-cid");
     expect(relinkElement(first)).toBe(id);
     expect(getEditScope(first)).toBe("source-site");

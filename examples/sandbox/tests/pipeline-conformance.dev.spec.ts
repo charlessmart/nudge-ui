@@ -15,7 +15,7 @@ async function setRawInput(
   value: string,
 ): Promise<void> {
   await page.evaluate(({ property: prop, next }) => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     const input = shadow?.querySelector(
       `[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`,
     ) as HTMLInputElement | null;

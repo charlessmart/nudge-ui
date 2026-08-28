@@ -3,7 +3,7 @@ import { managedSheetText } from "./managedSheet.ts";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect.poll(async () => page.evaluate(() => Boolean(
-    document.getElementById("design-tool-root")?.shadowRoot?.querySelector('[data-test="style-editors"]'),
+    document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector('[data-test="style-editors"]'),
   ))).toBe(true);
 }
 
@@ -269,7 +269,7 @@ test("dev: color swatches are centered in raw fields and token chips", async ({ 
     await waitForEditors(page);
 
     const field = page.locator(`[data-test="token-field"][data-property="${property}"]`);
-    const control = field.locator(".dt-token-color-control");
+    const control = field.locator(".token-color-control");
     const swatch = field.locator('[data-test="token-color-swatch"]');
     await expect(swatch).toHaveCount(1);
     await expect(swatch).toBeVisible();
@@ -316,7 +316,7 @@ test("dev: token alias chain resolves correctly", async ({ page }) => {
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-error");
-  await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveAttribute("style", /--dt-swatch-color:\s*#dc2626/);
+  await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveAttribute("style", /--swatch-color:\s*#dc2626/);
   await fg.locator('[data-test="token-chip"]').click();
   await expect(page.getByRole("option", { name: "--color-danger #dc2626" })).toBeVisible();
 });
@@ -328,5 +328,5 @@ test("dev: inherited local color tokens remain attributable", async ({ page }) =
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-ink");
-  await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveAttribute("style", /--dt-swatch-color:\s*#1a1a2e/);
+  await expect(fg.locator('[data-test="token-color-swatch"]')).toHaveAttribute("style", /--swatch-color:\s*#1a1a2e/);
 });

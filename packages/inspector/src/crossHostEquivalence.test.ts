@@ -2,9 +2,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
 import {
-  configureDesignToolRuntime,
-  getDesignToolRuntimeConfig,
-  type DesignToolRuntimeConfig,
+  configureNudgeUiRuntime,
+  getNudgeUiRuntimeConfig,
+  type NudgeUiRuntimeConfig,
 } from "./runtimeConfig.ts";
 import { storageKey } from "./canvas/sessionStore.ts";
 
@@ -16,7 +16,7 @@ import { storageKey } from "./canvas/sessionStore.ts";
  * Modules and must behave identically.
  */
 
-type Host = DesignToolRuntimeConfig["host"];
+type Host = NudgeUiRuntimeConfig["host"];
 
 const HOSTS: Host[] = ["vite-react", "static-html", "nextjs-react", "astro"];
 
@@ -27,7 +27,7 @@ const PROJECT_IDS: Record<Host, string> = {
   astro: "astro-fixture",
 };
 
-function fixtureFor(host: Host): DesignToolRuntimeConfig {
+function fixtureFor(host: Host): NudgeUiRuntimeConfig {
   return {
     projectId: PROJECT_IDS[host],
     host,
@@ -42,19 +42,19 @@ function fixtureFor(host: Host): DesignToolRuntimeConfig {
   };
 }
 
-let previousConfig: DesignToolRuntimeConfig | null = null;
+let previousConfig: NudgeUiRuntimeConfig | null = null;
 
 afterEach(() => {
-  if (previousConfig) configureDesignToolRuntime(previousConfig);
+  if (previousConfig) configureNudgeUiRuntime(previousConfig);
   previousConfig = null;
 });
 
 describe("cross-host runtime equivalence", () => {
   it("validates the same fixture under every supported host", () => {
     for (const host of HOSTS) {
-      previousConfig = getDesignToolRuntimeConfig();
-      expect(() => configureDesignToolRuntime(fixtureFor(host))).not.toThrow();
-      const snapshot = getDesignToolRuntimeConfig();
+      previousConfig = getNudgeUiRuntimeConfig();
+      expect(() => configureNudgeUiRuntime(fixtureFor(host))).not.toThrow();
+      const snapshot = getNudgeUiRuntimeConfig();
       expect(snapshot.host).toBe(host);
       expect(snapshot.tokenGeneration).toBe("generation-equivalence");
       expect(Object.isFrozen(snapshot)).toBe(true);
@@ -63,18 +63,18 @@ describe("cross-host runtime equivalence", () => {
 
   it("produces identical snapshots except for the identity fields", () => {
     const snapshots = HOSTS.map((host) => {
-      configureDesignToolRuntime(fixtureFor(host));
-      return getDesignToolRuntimeConfig();
+      configureNudgeUiRuntime(fixtureFor(host));
+      return getNudgeUiRuntimeConfig();
     });
     const [vite, staticHtml, nextjs, astro] = snapshots as [
-      DesignToolRuntimeConfig,
-      DesignToolRuntimeConfig,
-      DesignToolRuntimeConfig,
-      DesignToolRuntimeConfig,
+      NudgeUiRuntimeConfig,
+      NudgeUiRuntimeConfig,
+      NudgeUiRuntimeConfig,
+      NudgeUiRuntimeConfig,
     ];
 
     // Everything except host/projectId is byte-identical across hosts.
-    const stripIdentity = (s: DesignToolRuntimeConfig) =>
+    const stripIdentity = (s: NudgeUiRuntimeConfig) =>
       JSON.stringify({ ...s, host: null, projectId: null });
     expect(stripIdentity(staticHtml)).toBe(stripIdentity(vite));
     expect(stripIdentity(nextjs)).toBe(stripIdentity(vite));

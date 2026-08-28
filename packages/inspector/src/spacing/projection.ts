@@ -1,4 +1,4 @@
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { getStateStyleValue } from "../stateValue.ts";
 
 export type ProjectionSide = "top" | "right" | "bottom" | "left";

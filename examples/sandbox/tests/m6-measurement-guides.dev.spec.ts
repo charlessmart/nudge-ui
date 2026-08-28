@@ -28,7 +28,7 @@ test("dev: diagonal gaps extend dotted construction lines from hovered edges to 
   await page.keyboard.down("Alt");
 
   await expect.poll(() => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     const read = (id: string) => {
       const line = root?.querySelector<SVGLineElement>(`[data-segment-id='${id}']`);
       return line ? {
@@ -56,13 +56,13 @@ test("dev: Option/Alt shows viewport guides and selected-to-hovered measurements
   await page.keyboard.down("Alt");
 
   await expect.poll(() => page.evaluate(() => {
-    const overlay = window.document.getElementById("design-tool-root")?.shadowRoot
+    const overlay = window.document.getElementById("nudge-ui-root")?.shadowRoot
       ?.querySelector("[data-test='measurement-overlay']");
-    const root = window.document.getElementById("design-tool-root")?.shadowRoot;
+    const root = window.document.getElementById("nudge-ui-root")?.shadowRoot;
     return {
       overlay: overlay !== null,
       pointerEvents: overlay ? getComputedStyle(overlay).pointerEvents : null,
-      alignmentGuides: root?.querySelectorAll(".dt-alignment-guide").length ?? 0,
+      alignmentGuides: root?.querySelectorAll(".alignment-guide").length ?? 0,
       rulers: root?.querySelectorAll("[data-test='measurement-ruler']").length ?? 0,
       projections: root?.querySelectorAll("[data-test='measurement-projection']").length ?? 0,
       labelChips: root?.querySelectorAll("[data-test='measurement-label-chip']").length ?? 0,
@@ -84,7 +84,7 @@ test("dev: Option/Alt shows viewport guides and selected-to-hovered measurements
   }));
 
   const overlay = await page.evaluate(() => {
-    const root = window.document.getElementById("design-tool-root")?.shadowRoot;
+    const root = window.document.getElementById("nudge-ui-root")?.shadowRoot;
     return {
       rulers: root?.querySelectorAll("[data-test='measurement-ruler']").length ?? 0,
       labels: [...(root?.querySelectorAll("[data-test='measurement-label']") ?? [])]
@@ -104,7 +104,7 @@ test("dev: Option/Alt shows viewport guides and selected-to-hovered measurements
   ))).toBe(true);
 
   await page.keyboard.up("Alt");
-  await expect.poll(() => page.evaluate(() => window.document.getElementById("design-tool-root")?.shadowRoot
+  await expect.poll(() => page.evaluate(() => window.document.getElementById("nudge-ui-root")?.shadowRoot
     ?.querySelector("[data-test='measurement-overlay']") === null)).toBe(true);
 });
 
@@ -112,19 +112,19 @@ test("dev: Option/Alt guides deactivate over the inspector panel without changin
   await page.goto("/playground");
 
   await page.locator("#hero-title").click();
-  const before = await page.evaluate(() => window.document.getElementById("design-tool-root")?.shadowRoot
+  const before = await page.evaluate(() => window.document.getElementById("nudge-ui-root")?.shadowRoot
     ?.querySelector("[data-test='selection']")?.getAttribute("data-selected-cid"));
 
   await page.getByRole("button", { name: "Save a change" }).hover();
   await page.keyboard.down("Alt");
-  await expect.poll(() => page.evaluate(() => window.document.getElementById("design-tool-root")?.shadowRoot
+  await expect.poll(() => page.evaluate(() => window.document.getElementById("nudge-ui-root")?.shadowRoot
     ?.querySelector("[data-test='measurement-overlay']") !== null)).toBe(true);
 
   await page.locator('[data-test="inspect-tab"]').hover();
-  await expect.poll(() => page.evaluate(() => window.document.getElementById("design-tool-root")?.shadowRoot
+  await expect.poll(() => page.evaluate(() => window.document.getElementById("nudge-ui-root")?.shadowRoot
     ?.querySelector("[data-test='measurement-overlay']") === null)).toBe(true);
 
-  const after = await page.evaluate(() => window.document.getElementById("design-tool-root")?.shadowRoot
+  const after = await page.evaluate(() => window.document.getElementById("nudge-ui-root")?.shadowRoot
     ?.querySelector("[data-test='selection']")?.getAttribute("data-selected-cid"));
   expect(after).toBe(before);
   await page.keyboard.up("Alt");

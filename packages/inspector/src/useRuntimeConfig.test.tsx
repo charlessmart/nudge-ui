@@ -4,15 +4,15 @@ import { createElement, type ReactElement } from "react";
 import { act } from "react";
 import { mount, type MountHandle } from "./styleEditors/_testUtils.ts";
 import {
-  configureDesignToolRuntime,
-  getDesignToolRuntimeConfig,
-  type DesignToolRuntimeConfig,
+  configureNudgeUiRuntime,
+  getNudgeUiRuntimeConfig,
+  type NudgeUiRuntimeConfig,
 } from "./runtimeConfig.ts";
-import { useDesignToolRuntimeConfig } from "./useRuntimeConfig.ts";
+import { useNudgeUiRuntimeConfig } from "./useRuntimeConfig.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-function makeConfig(projectId: string): DesignToolRuntimeConfig {
+function makeConfig(projectId: string): NudgeUiRuntimeConfig {
   return {
     projectId,
     host: "static-html",
@@ -27,25 +27,25 @@ function makeConfig(projectId: string): DesignToolRuntimeConfig {
   };
 }
 
-let previousConfig: DesignToolRuntimeConfig | null = null;
+let previousConfig: NudgeUiRuntimeConfig | null = null;
 let handle: MountHandle | undefined;
 
 afterEach(() => {
   handle?.unmount();
   handle = undefined;
-  if (previousConfig) configureDesignToolRuntime(previousConfig);
+  if (previousConfig) configureNudgeUiRuntime(previousConfig);
   previousConfig = null;
 });
 
-describe("useDesignToolRuntimeConfig", () => {
+describe("useNudgeUiRuntimeConfig", () => {
   it("re-renders the subscribed tree when the host replaces the configuration", () => {
-    previousConfig = getDesignToolRuntimeConfig();
-    configureDesignToolRuntime(makeConfig("first-host"));
+    previousConfig = getNudgeUiRuntimeConfig();
+    configureNudgeUiRuntime(makeConfig("first-host"));
 
     let renderCount = 0;
     const Probe = (): ReactElement => {
       renderCount += 1;
-      const config = useDesignToolRuntimeConfig();
+      const config = useNudgeUiRuntimeConfig();
       return createElement("div", {}, config.projectId);
     };
 
@@ -54,7 +54,7 @@ describe("useDesignToolRuntimeConfig", () => {
     const rendersAfterMount = renderCount;
 
     act(() => {
-      configureDesignToolRuntime(makeConfig("second-host"));
+      configureNudgeUiRuntime(makeConfig("second-host"));
     });
 
     expect(handle.host.textContent).toBe("second-host");

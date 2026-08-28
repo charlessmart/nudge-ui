@@ -1,4 +1,4 @@
-.dt-select {
+.select {
   display: inline-flex;
   width: 100%;
   align-items: center;
@@ -8,39 +8,39 @@
   cursor: pointer;
 }
 
-.dt-select:disabled {
-  color: var(--dt-text-muted-subtle);
+.select:disabled {
+  color: var(--text-muted-subtle);
   cursor: not-allowed;
 }
 
-.dt-select__value,
-.dt-select [data-slot="select-value"] {
+.select__value,
+.select [data-slot="select-value"] {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.dt-select__icon {
+.select__icon {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  color: var(--dt-text-muted);
+  color: var(--text-muted);
   transition: transform 120ms ease;
 }
 
-.dt-select[data-popup-open] .dt-select__icon {
-  color: var(--dt-text-primary);
+.select[data-popup-open] .select__icon {
+  color: var(--text-primary);
   transform: rotate(180deg);
 }
 
-.dt-select__positioner {
-  z-index: var(--dt-z-index);
+.select__positioner {
+  z-index: var(--z-index);
   min-width: var(--anchor-width);
   pointer-events: auto;
 }
 
-.dt-select__popup {
+.select__popup {
   box-sizing: border-box;
   width: min(420px, max(var(--anchor-width, 0px), 260px));
   min-width: 0;
@@ -50,36 +50,36 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   pointer-events: auto;
-  background: var(--dt-surface-panel);
-  color: var(--dt-text-primary);
-  border: 1px solid var(--dt-border-subtle);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  box-shadow: var(--dt-shadow-popup);
+  box-shadow: var(--shadow-popup);
   transform-origin: var(--transform-origin);
 }
 
-.dt-select__list {
+.select__list {
   min-width: 0;
   padding: 6px;
   outline: 0;
 }
 
-.dt-select__group + .dt-select__group {
+.select__group + .select__group {
   margin-top: 4px;
   padding-top: 4px;
-  border-top: 1px solid var(--dt-border-subtle);
+  border-top: 1px solid var(--border-subtle);
 }
 
-.dt-select__group-label {
+.select__group-label {
   padding: 5px 8px 4px;
-  color: var(--dt-text-muted);
+  color: var(--text-muted);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.dt-select__item {
+.select__item {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -87,22 +87,22 @@
   min-height: 34px;
   padding: 6px 9px;
   border-radius: 8px;
-  color: var(--dt-text-primary);
+  color: var(--text-primary);
   outline: 0;
-  font-size: var(--dt-font-size-base);
+  font-size: var(--font-size-base);
   cursor: pointer;
 }
 
-.dt-select__item[data-highlighted] {
-  background: var(--dt-surface-control);
+.select__item[data-highlighted] {
+  background: var(--surface-control);
 }
 
-.dt-select__item[data-disabled] {
-  color: var(--dt-text-muted-subtle);
+.select__item[data-disabled] {
+  color: var(--text-muted-subtle);
   cursor: not-allowed;
 }
 
-.dt-select__item-indicator {
+.select__item-indicator {
   display: inline-flex;
   width: 16px;
   flex: 0 0 16px;
@@ -110,7 +110,7 @@
   justify-content: center;
 }
 
-.dt-select__item-text {
+.select__item-text {
   min-width: 0;
   flex: 1 1 0;
   overflow: hidden;

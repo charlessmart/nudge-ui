@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  DESIGN_TOOL_CLIENT_PATH,
-  DESIGN_TOOL_MANIFEST_PATH,
+  NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_MANIFEST_PATH,
 } from "../manifest.ts";
 import { injectStandaloneBootstrap } from "./bootstrap.ts";
 
@@ -11,13 +11,13 @@ describe("injectStandaloneBootstrap", () => {
     const result = injectStandaloneBootstrap(source);
 
     expect(result.injected).toBe(true);
-    expect(result.html).toContain("<div id=\"design-tool-root\" data-design-tool-mount></div>");
+    expect(result.html).toContain("<div id=\"nudge-ui-root\" data-nudge-ui-mount></div>");
     expect(result.html).toContain(
-      "<script type=\"module\" src=\"" + DESIGN_TOOL_CLIENT_PATH
-        + "\" data-design-tool-client data-design-tool-manifest=\"" + DESIGN_TOOL_MANIFEST_PATH
+      "<script type=\"module\" src=\"" + NUDGE_UI_CLIENT_PATH
+        + "\" data-nudge-ui-client data-nudge-ui-manifest=\"" + NUDGE_UI_MANIFEST_PATH
         + "\"></script>",
     );
-    expect(result.html.indexOf("design-tool-root")).toBeLessThan(
+    expect(result.html.indexOf("nudge-ui-root")).toBeLessThan(
       result.html.indexOf("</body>"),
     );
   });
@@ -29,17 +29,17 @@ describe("injectStandaloneBootstrap", () => {
 
     expect(second.injected).toBe(false);
     expect(second.html).toBe(first);
-    expect(first.match(/data-design-tool-mount/g)).toHaveLength(1);
-    expect(first.match(/data-design-tool-client/g)).toHaveLength(1);
+    expect(first.match(/data-nudge-ui-mount/g)).toHaveLength(1);
+    expect(first.match(/data-nudge-ui-client/g)).toHaveLength(1);
   });
 
   it("adds only missing nodes and preserves an authored mount", () => {
-    const source = "<body><div id=\"design-tool-root\">author content</div></body>";
+    const source = "<body><div id=\"nudge-ui-root\">author content</div></body>";
     const result = injectStandaloneBootstrap(source);
 
-    expect(result.html).toContain("id=\"design-tool-root\">author content");
-    expect(result.html.match(/id=\"design-tool-root\"/g)).toHaveLength(1);
-    expect(result.html.match(/data-design-tool-client/g)).toHaveLength(1);
+    expect(result.html).toContain("id=\"nudge-ui-root\">author content");
+    expect(result.html.match(/id=\"nudge-ui-root\"/g)).toHaveLength(1);
+    expect(result.html.match(/data-nudge-ui-client/g)).toHaveLength(1);
   });
 
   it("supports custom paths without embedding executable configuration", () => {
@@ -48,32 +48,32 @@ describe("injectStandaloneBootstrap", () => {
       manifestPath: "/assets/manifest.json",
     });
 
-    expect(result.html).toContain("id=\"design-tool-root\"");
+    expect(result.html).toContain("id=\"nudge-ui-root\"");
     expect(result.html).toContain("src=\"/assets/client.mjs\"");
-    expect(result.html).toContain("data-design-tool-manifest=\"/assets/manifest.json\"");
+    expect(result.html).toContain("data-nudge-ui-manifest=\"/assets/manifest.json\"");
     expect(result.html).not.toContain("<script>window");
   });
 
   it("does not treat inert template content as a live mount or client", () => {
-    const source = `<body><template><div id="design-tool-root"></div><script data-design-tool-client></script></template><main>Page</main></body>`;
+    const source = `<body><template><div id="nudge-ui-root"></div><script data-nudge-ui-client></script></template><main>Page</main></body>`;
 
     const result = injectStandaloneBootstrap(source);
 
     expect(result.injected).toBe(true);
-    expect(result.html.match(/id="design-tool-root"/g)).toHaveLength(2);
-    expect(result.html.match(/data-design-tool-client/g)).toHaveLength(2);
+    expect(result.html.match(/id="nudge-ui-root"/g)).toHaveLength(2);
+    expect(result.html.match(/data-nudge-ui-client/g)).toHaveLength(2);
     expect(result.html).toContain("<main>Page</main>");
   });
 
   it("ignores bootstrap-like text inside scripts", () => {
-    const source = `<body><script>const sample = '</body><div id="design-tool-root">';</script><main>Page</main></body>`;
+    const source = `<body><script>const sample = '</body><div id="nudge-ui-root">';</script><main>Page</main></body>`;
 
     const result = injectStandaloneBootstrap(source);
 
-    expect(result.html.indexOf("data-design-tool-mount")).toBeGreaterThan(
+    expect(result.html.indexOf("data-nudge-ui-mount")).toBeGreaterThan(
       result.html.indexOf("<main>Page</main>"),
     );
-    expect(result.html.indexOf("data-design-tool-mount")).toBeLessThan(
+    expect(result.html.indexOf("data-nudge-ui-mount")).toBeLessThan(
       result.html.lastIndexOf("</body>"),
     );
   });

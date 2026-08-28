@@ -50,4 +50,4 @@ await Promise.all([
   }),
 ]);
 
-console.log("design-tool loaders built ->", outdir);
+console.log("nudge-ui loaders built ->", outdir);

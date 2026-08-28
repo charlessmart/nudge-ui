@@ -13,9 +13,9 @@ import {
   resetSourceSiteMatchCache,
   sourceSiteMatchCacheSize,
 } from "./resolution.ts";
-import { interpretValue } from "@design-tool/css/value-semantics";
+import { interpretValue } from "@nudge-ui/css/value-semantics";
 import { createInspectorValueContext } from "./valueSemanticsAdapter.ts";
-import type { MatchedRule, TokenTable } from "@design-tool/css/model";
+import type { MatchedRule, TokenTable } from "@nudge-ui/css/model";
 import { unlinkElement } from "../editScope.ts";
 import { applyRenderedInstanceProjection, getRenderedInstanceOverride } from "../renderedInstance.ts";
 import {
@@ -40,7 +40,7 @@ function resolveTokenValue(
   table: TokenTable,
   localAliases: ReadonlyMap<string, string> = new Map(),
 ): ReturnType<typeof interpretValue>[number] {
-  return interpretValue("--design-tool-token", value, createInspectorValueContext(table, localAliases))[0]!;
+  return interpretValue("--nudge-ui-token", value, createInspectorValueContext(table, localAliases))[0]!;
 }
 
 describe("buildTokenTable", () => {
@@ -285,7 +285,7 @@ describe("source-site matched-rule cache", () => {
     const style = document.createElement("style");
     style.textContent = `
       .row { background: var(--color-a); }
-      .row[data-dt-projection-instance] { background: var(--color-b); }
+      .row[data-projection-instance] { background: var(--color-b); }
     `;
     document.head.appendChild(style);
     const container = document.createElement("div");

@@ -1,10 +1,10 @@
-import type { DesignToolRuntimeConfig } from "@design-tool/inspector";
+import type { NudgeUiRuntimeConfig } from "@nudge-ui/inspector";
 
 /** Runtime document accepted by the standalone browser bootstrap. */
 export interface StandaloneClientManifest {
   readonly version: 1;
   readonly revision: number;
-  readonly runtime: DesignToolRuntimeConfig;
+  readonly runtime: NudgeUiRuntimeConfig;
   readonly endpoints: {
     readonly manifest: string;
     readonly client: string;
@@ -42,7 +42,7 @@ export function isStandaloneClientManifest(
 }
 
 function isReservedEndpoint(value: unknown): value is string {
-  return typeof value === "string" && value.startsWith("/__design_tool__/");
+  return typeof value === "string" && value.startsWith("/__nudge_ui__/");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

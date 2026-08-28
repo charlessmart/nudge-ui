@@ -1,24 +1,24 @@
-.dt-badge {
+.badge {
   display: inline-flex;
   align-items: center;
-  border-radius: var(--dt-radius-pill);
-  color: var(--dt-text-muted);
-  font-size: var(--dt-font-size-base);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
   line-height: 1;
   padding: 5px 8px;
 }
 
-.dt-badge--accent {
-  background: var(--dt-accent-surface);
-  color: var(--dt-accent-text);
+.badge--accent {
+  background: var(--accent-surface);
+  color: var(--accent-text);
 }
 
-.dt-badge--warning {
-  background: var(--dt-warning-surface);
-  color: var(--dt-warning-text);
+.badge--warning {
+  background: var(--warning-surface);
+  color: var(--warning-text);
 }
 
-.dt-badge--danger {
-  background: var(--dt-danger-surface);
-  color: var(--dt-danger-text);
+.badge--danger {
+  background: var(--danger-surface);
+  color: var(--danger-text);
 }

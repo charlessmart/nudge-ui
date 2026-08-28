@@ -140,7 +140,7 @@ export async function runPage({ context, sandbox, url, name, discoverPages = fal
     // Cards render synchronously with mode; iframes load async.
     let cardsReady = false;
     for (let w = 0; w < 10; w++) {
-      if ((await page.locator(".dt-canvas-card").count()) > 0) { cardsReady = true; break; }
+      if ((await page.locator(".canvas-card").count()) > 0) { cardsReady = true; break; }
       await page.waitForTimeout(400);
     }
     const ws = page.locator("[data-test='canvas-workspace']");
@@ -148,7 +148,7 @@ export async function runPage({ context, sandbox, url, name, discoverPages = fal
       await recordIssue(page, sandbox, name, { kind: "canvas-not-rendered", detail: `canvas workspace/cards missing after enabling canvas mode (cardsReady=${cardsReady}, wasActiveAtLoad=${activeAtLoad})` });
     } else {
       await screenshot(page, sandbox, `${name}-canvas-initial`);
-      const cardEl = page.locator(".dt-canvas-card").first();
+      const cardEl = page.locator(".canvas-card").first();
       const beforeDrag = await cardEl.boundingBox();
       if (!beforeDrag) {
         await recordIssue(page, sandbox, name, { kind: "canvas-no-cards", detail: "no canvas cards present in canvas mode" });
@@ -180,9 +180,9 @@ export async function runPage({ context, sandbox, url, name, discoverPages = fal
         }
         // 5b. drag card by toolbar non-button area (buttons opt out of drag)
         const grabPoint = await cardEl.evaluate((card) => {
-          const tb = card.querySelector(".dt-canvas-card__toolbar")?.getBoundingClientRect();
+          const tb = card.querySelector(".canvas-card__toolbar")?.getBoundingClientRect();
           if (!tb) return null;
-          const buttons = [...card.querySelectorAll(".dt-canvas-card__toolbar button")].map((b) => b.getBoundingClientRect());
+          const buttons = [...card.querySelectorAll(".canvas-card__toolbar button")].map((b) => b.getBoundingClientRect());
           const candidates = [
             [tb.left + 3, tb.top + 3], [tb.left + 3, tb.bottom - 3],
             [tb.right - 3, tb.top + 3], [tb.right - 3, tb.bottom - 3],
@@ -230,10 +230,10 @@ export async function runPage({ context, sandbox, url, name, discoverPages = fal
         // 5d. duplicate card = create new canvas page
         const dup = page.locator("[data-test^='canvas-card-duplicate-']").first();
         if (await dup.count()) {
-          const cardsBefore = await page.locator(".dt-canvas-card").count();
+          const cardsBefore = await page.locator(".canvas-card").count();
           await dup.click({ timeout: 3000, force: true }).catch(() => {});
           await page.waitForTimeout(1500);
-          const cardsAfter = await page.locator(".dt-canvas-card").count();
+          const cardsAfter = await page.locator(".canvas-card").count();
           if (cardsAfter <= cardsBefore) {
             await recordIssue(page, sandbox, name, { kind: "canvas-duplicate-failed", detail: `duplicate card: ${cardsBefore} -> ${cardsAfter}`, phase: "canvas" });
           } else {

@@ -3,7 +3,7 @@
  * (ADR-0010): the queried import must yield the stylesheet TEXT as a
  * default export so the inspector can inject it into its shadow root.
  *
- * Registered by `withDesignTool` for `*.css` requests whose query carries
+ * Registered by `withNudgeUi` for `*.css` requests whose query carries
  * `?inline`; plain CSS requests never match and flow through Next's normal
  * CSS pipeline.
  *

@@ -25,8 +25,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function waitForIframeReady(page: import("@playwright/test").Page, index = 0): Promise<void> {
-  await expect(page.locator(".dt-canvas-card__iframe").nth(index)).toBeAttached();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").nth(index);
+  await expect(page.locator(".canvas-card__iframe").nth(index)).toBeAttached();
+  const frame = page.frameLocator(".canvas-card__iframe").nth(index);
   await expect(frame.locator("body")).toBeVisible({ timeout: 20000 });
 }
 
@@ -36,7 +36,7 @@ async function setInspectorInput(
   value: string,
 ): Promise<void> {
   await page.evaluate(({ property, value }) => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     const input = shadow?.querySelector(
       `[data-test="token-field"][data-property="${property}"] [data-test="raw-input"]`,
     ) as HTMLInputElement | null;
@@ -53,7 +53,7 @@ async function setInspectorInput(
 test("dev: clicking a tracked non-anchor element inside an iframe selects it in the inspector", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const heading = frame.locator("#hero-title");
   await expect(heading).toBeVisible();
   const headingCid = await heading.getAttribute("data-cid");
@@ -71,13 +71,13 @@ test("dev: clicking a tracked non-anchor element inside an iframe selects it in 
 test("dev: canvas mirrors inspector hover margins and selected outline over the iframe", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const heading = frame.locator("#hero-title");
   await heading.hover();
 
   await expect(page.locator('[data-test="canvas-hover-outline"]')).toBeVisible();
-  await expect(page.locator(".dt-canvas-hover-margin-fill")).toHaveCount(2);
-  await expect(page.locator('.dt-canvas-hover-margin[data-side="top"]')).toHaveAttribute("data-distance", /\d/);
+  await expect(page.locator(".canvas-hover-margin-fill")).toHaveCount(2);
+  await expect(page.locator('.canvas-hover-margin[data-side="top"]')).toHaveAttribute("data-distance", /\d/);
 
   await heading.click();
   await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
@@ -87,7 +87,7 @@ test("dev: canvas mirrors inspector hover margins and selected outline over the 
 test("dev: clicking a Button component tracked element shows the Button component in the inspector", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const button = frame.locator('button.btn').first();
   await expect(button).toBeVisible();
   const buttonCid = await button.getAttribute("data-cid");
@@ -105,7 +105,7 @@ test("dev: clicking a Button component tracked element shows the Button componen
 test("dev: ordinary canvas clicks choose a button wrapper and Command-click chooses its child", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const button = frame.locator("button.btn").first();
   const label = button.locator(".btn__label");
   const buttonSrc = await button.getAttribute("data-src");
@@ -126,7 +126,7 @@ test("dev: ordinary canvas clicks choose a button wrapper and Command-click choo
 test("dev: editing a selected canvas element updates that element inside the iframe", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const button = frame.locator("button.btn").first();
   await button.click();
   await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", "Button");
@@ -145,7 +145,7 @@ test("dev: editing a selected canvas element updates that element inside the ifr
 test("dev: reloading the selected card clears its stale element selection", async ({ page }) => {
   await waitForIframeReady(page, 0);
 
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await frame.locator("button.btn").first().click();
   await expect(page.locator('[data-test="selection"]')).toBeVisible();
 
@@ -158,15 +158,15 @@ test("dev: reloading the selected card clears its stale element selection", asyn
 test("dev: clicking a navigable same-origin anchor inside a tracked tree still spawns a new card", async ({ page }) => {
   await waitForIframeReady(page, 0);
   const board = page.locator('[data-test="canvas-board"]');
-  await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
 
   // The conformance anchor carries `data-cid="App"`; its click must reach the
   // navigation listener instead of being swallowed by element selection.
-  await page.frameLocator(".dt-canvas-card__iframe").first()
+  await page.frameLocator(".canvas-card__iframe").first()
     .locator('a[href="/conformance"]')
     .click();
 
-  await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
+  await expect(board.locator(".canvas-card")).toHaveCount(2);
 });
 
 test("dev: clicking a tracked element inside a sibling card whose URL differs from the parent does not navigate the parent away from canvas", async ({ page }) => {
@@ -176,14 +176,14 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
   // Create a sibling through the renderer's normal, identity-bound navigation
   // protocol. The regression under test is that selecting in that sibling must
   // not navigate the parent away from Canvas.
-  await page.frameLocator(".dt-canvas-card__iframe").first()
+  await page.frameLocator(".canvas-card__iframe").first()
     .locator('a[href="/conformance"]')
     .click();
 
-  await expect(page.locator(".dt-canvas-card")).toHaveCount(2);
+  await expect(page.locator(".canvas-card")).toHaveCount(2);
   await waitForIframeReady(page, 1);
 
-  const secondFrame = page.frameLocator(".dt-canvas-card__iframe").nth(1);
+  const secondFrame = page.frameLocator(".canvas-card__iframe").nth(1);
   const heading = secondFrame.locator("h1, h2, [data-cid]").first();
   await expect(heading).toBeVisible({ timeout: 20000 });
   const cidBefore = await heading.getAttribute("data-cid");

@@ -4,7 +4,7 @@ Guidance for AI coding agents working on this repository.
 
 ## Project overview
 
-Design Tool is a dev-only Vite plugin + runtime inspector for visually editing
+Nudge UI is a dev-only Vite plugin + runtime inspector for visually editing
 UI live in the browser and copying structured prompts for an AI coding agent.
 
 
@@ -19,7 +19,7 @@ UI live in the browser and copying structured prompts for an AI coding agent.
 
 ## Layout
 
-- `packages/plugin` — Vite plugin (`@design-tool/plugin`).
+- `packages/plugin` — Vite plugin (`@nudge-ui/plugin`).
 - `packages/inspector` — runtime inspector UI.
 - `examples/sandbox` — sandbox app + e2e harness.
 - `docs/adr/` — architecture decision records (immutable once written).

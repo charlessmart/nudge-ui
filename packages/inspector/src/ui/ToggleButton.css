@@ -1,78 +1,78 @@
-.dt-toggle-button {
+.toggle-button {
   appearance: none;
-  background: var(--dt-surface-control);
+  background: var(--surface-control);
   border: 0;
-  color: var(--dt-text-primary);
+  color: var(--text-primary);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: var(--dt-control-height-large);
-  height: var(--dt-control-height-large);
+  width: var(--control-height-large);
+  height: var(--control-height-large);
   padding: 0;
-  border-radius: var(--dt-radius-control);
+  border-radius: var(--radius-control);
   font: inherit;
-  font-size: var(--dt-font-size-base);
+  font-size: var(--font-size-base);
   font-weight: 650;
   transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
 
-.dt-toggle-button--primary {
-  background: var(--dt-accent);
+.toggle-button--primary {
+  background: var(--accent);
   color: #ffffff;
 }
 
-.dt-toggle-button--secondary {
-  background: var(--dt-surface-control);
+.toggle-button--secondary {
+  background: var(--surface-control);
 }
 
-.dt-toggle-button--quiet {
+.toggle-button--quiet {
   background: transparent;
-  color: var(--dt-text-muted);
+  color: var(--text-muted);
 }
 
-.dt-toggle-button--danger {
-  background: var(--dt-danger-surface);
-  color: var(--dt-danger-text);
+.toggle-button--danger {
+  background: var(--danger-surface);
+  color: var(--danger-text);
 }
 
-.dt-toggle-button--disabled {
-  background: var(--dt-surface-control);
-  color: var(--dt-text-muted-subtle);
+.toggle-button--disabled {
+  background: var(--surface-control);
+  color: var(--text-muted-subtle);
   cursor: not-allowed;
 }
 
-.dt-toggle-button:hover:not(:disabled) {
-  background: var(--dt-surface-control-hover);
+.toggle-button:hover:not(:disabled) {
+  background: var(--surface-control-hover);
 }
 
-.dt-toggle-button--primary:hover:not(:disabled) {
-  background: var(--dt-accent-strong);
+.toggle-button--primary:hover:not(:disabled) {
+  background: var(--accent-strong);
 }
 
-.dt-toggle-button[data-pressed] {
-  background: var(--dt-accent-surface);
-  color: var(--dt-accent-text);
+.toggle-button[data-pressed] {
+  background: var(--accent-surface);
+  color: var(--accent-text);
 }
 
-.dt-toggle-button[data-pressed]:hover:not(:disabled) {
-  background: var(--dt-accent-surface);
-  color: var(--dt-accent-text);
+.toggle-button[data-pressed]:hover:not(:disabled) {
+  background: var(--accent-surface);
+  color: var(--accent-text);
 }
 
-.dt-toggle-button:focus-visible {
+.toggle-button:focus-visible {
   outline: 0;
-  box-shadow: inset 0 0 0 2px var(--dt-focus);
+  box-shadow: inset 0 0 0 2px var(--focus);
 }
 
-.dt-toggle-button:disabled {
-  background: var(--dt-surface-control);
-  color: var(--dt-text-muted-subtle);
+.toggle-button:disabled {
+  background: var(--surface-control);
+  color: var(--text-muted-subtle);
   cursor: not-allowed;
 }
 
-.dt-toggle-button--compact {
+.toggle-button--compact {
   width: 26px;
   height: 26px;
 }

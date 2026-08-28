@@ -19,7 +19,7 @@ describe("LayoutDropdown", () => {
 
   beforeEach(() => {
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -27,7 +27,7 @@ describe("LayoutDropdown", () => {
     handle?.unmount();
     restoreComputedStyle();
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -73,7 +73,7 @@ describe("LayoutDropdown", () => {
       }),
     );
 
-    expect(handle.host.querySelector('[data-test="layout-dropdown"]')?.className).toContain("dt-field-row--stacked");
+    expect(handle.host.querySelector('[data-test="layout-dropdown"]')?.className).toContain("field-row--stacked");
   });
 
   it("writes to managed stylesheet on select change", () => {

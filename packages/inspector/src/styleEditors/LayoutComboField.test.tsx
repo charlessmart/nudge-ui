@@ -19,7 +19,7 @@ describe("LayoutComboField", () => {
 
   beforeEach(() => {
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -27,7 +27,7 @@ describe("LayoutComboField", () => {
     handle?.unmount();
     restoreComputedStyle();
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 

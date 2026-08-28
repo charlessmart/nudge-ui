@@ -1,13 +1,13 @@
 import type { ReactElement } from "react";
 import { IconBackground } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { normalizeOpacityPercent } from "@design-tool/css/value-semantics";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import { normalizeOpacityPercent } from "@nudge-ui/css/value-semantics";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import type { SelectedElement } from "../selectionStore.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { TokenField } from "../tokens/TokenField.tsx";
-import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
+import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 
 function metadataFor(row: ResolvedProperty | null) {
   return row?.sourceProperty
@@ -31,15 +31,15 @@ export interface OpacityEditorProps {
 
 export function OpacityEditor({ element, entries, tokenRows = [], onAfterEdit }: OpacityEditorProps): ReactElement {
   const el = element.domElement;
-  const allEntries = entries ?? getDesignToolTokenEntries();
+  const allEntries = entries ?? getNudgeUiTokenEntries();
   const row = tokenRows.find((candidate) => candidate.property === "opacity") ?? null;
   const value = effectiveOpacity(el, row);
   const editable = row?.propertyOpacity?.editable ?? true;
   const activeToken = row?.propertyOpacity?.tokenName ?? row?.tokenName;
 
   return (
-    <div className="dt-appearance__field dt-opacity-editor" data-test="opacity-editor">
-      <div className="dt-appearance__field-label">Opacity</div>
+    <div className="appearance__field opacity-editor" data-test="opacity-editor">
+      <div className="appearance__field-label">Opacity</div>
       <ControlSurface data-test="opacity-control">
         <TokenField
           property="opacity"
@@ -54,7 +54,7 @@ export function OpacityEditor({ element, entries, tokenRows = [], onAfterEdit }:
           disabled={!editable}
           formatRawValue={(raw) => normalizeOpacityPercent(raw) ?? ""}
           leading={<IconBackground size={16} stroke={1.8} aria-hidden="true" />}
-          trailing={activeToken ? <span className="dt-opacity-editor__effective" data-test="opacity-effective">{value}</span> : undefined}
+          trailing={activeToken ? <span className="opacity-editor__effective" data-test="opacity-effective">{value}</span> : undefined}
           label="Opacity"
           onAfterEdit={onAfterEdit}
         />

@@ -10,7 +10,7 @@ describe("AspectRatioField", () => {
 
   beforeEach(() => {
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -18,7 +18,7 @@ describe("AspectRatioField", () => {
     handle?.unmount();
     restoreComputedStyle();
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
 
   it("preserves authored ratio syntax and variables", () => {

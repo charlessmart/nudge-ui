@@ -1,10 +1,10 @@
 export {
-  withDesignTool,
-  type DesignToolNextConfig,
+  withNudgeUi,
+  type NudgeUiNextConfig,
   type RewritesShape,
   type RewritesSource,
 } from "./wrapper.ts";
-export { buildManifest, nextjsProjectId, type DesignToolManifest } from "./manifest.ts";
+export { buildManifest, nextjsProjectId, type NudgeUiManifest } from "./manifest.ts";
 export {
   ensureSidecar,
   clearStaleSidecarState,

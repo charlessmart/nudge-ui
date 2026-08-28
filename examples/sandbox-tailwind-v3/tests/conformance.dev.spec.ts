@@ -4,7 +4,7 @@ import { managedSheetText } from "./managedSheet.ts";
 test("dev: Tailwind v3 fixture exposes config provenance, literal spacing values, and opacity helper", async ({ page }) => {
   await page.goto("/tailwind-v3");
   await expect.poll(() => page.evaluate(() => Boolean(
-    document.getElementById("design-tool-root")?.shadowRoot?.querySelector('[data-test="inspect-tab"]'),
+    document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector('[data-test="inspect-tab"]'),
   ))).toBe(true);
   const card = page.locator('[data-test="tailwind-v3-card"]');
   await expect(card).toBeVisible();

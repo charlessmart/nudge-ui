@@ -85,11 +85,11 @@ async function persistBaseline(): Promise<void> {
 async function loadCanvas(page: Page): Promise<FrameLocator> {
   await page.goto(FIXTURE_URL);
   await page.waitForSelector('[data-perf-id="perf-0"]');
-  await page.waitForSelector("#design-tool-root");
+  await page.waitForSelector("#nudge-ui-root");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await expect(page.locator(".dt-canvas-card__iframe").first()).toBeAttached();
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  await expect(page.locator(".canvas-card__iframe").first()).toBeAttached();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator("body")).toBeVisible({ timeout: 20_000 });
   // A visible frame can still be between document load and renderer bootstrap.
   // Establish readiness with one real hover message before measuring or
@@ -142,7 +142,7 @@ async function probeThenMeasure(
   const elapsed = await page.evaluate(({ testId, timeoutMs }) => new Promise<number>((resolve) => {
     const started = performance.now();
     const check = (): void => {
-      const root = document.getElementById("design-tool-root")?.shadowRoot;
+      const root = document.getElementById("nudge-ui-root")?.shadowRoot;
       const outline = root?.querySelector(`[data-test="${testId}"]`);
       const probe = (window as unknown as { __canvasProbe?: number }).__canvasProbe ?? 0;
       if (outline && probe > 0) {

@@ -90,24 +90,24 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
 
   return (
     <>
-      <details className="dt-changes" data-test="changes-log">
-        <summary className="dt-changes__title" data-test="changes-toggle">
-          <span className="dt-changes__title-label">Changes</span>
-          {total > 0 ? <span className="dt-changes__count">{total}</span> : null}
-          <IconChevronDown className="dt-changes__toggle-icon" size={15} stroke={2} aria-hidden="true" />
+      <details className="changes" data-test="changes-log">
+        <summary className="changes__title" data-test="changes-toggle">
+          <span className="changes__title-label">Changes</span>
+          {total > 0 ? <span className="changes__count">{total}</span> : null}
+          <IconChevronDown className="changes__toggle-icon" size={15} stroke={2} aria-hidden="true" />
         </summary>
-        <div className="dt-changes__content">
+        <div className="changes__content">
           {groups.length === 0 && structuralChanges.length === 0 ? (
-            <div className="dt-changes__empty" data-test="changes-empty">
+            <div className="changes__empty" data-test="changes-empty">
               No changes yet
             </div>
           ) : (
             <>
               {groups.map((group) => (
-                <div className="dt-changes__group" data-test="changes-group" key={group.key} data-cid={group.label}>
-                  <div className="dt-changes__group-title">
+                <div className="changes__group" data-test="changes-group" key={group.key} data-cid={group.label}>
+                  <div className="changes__group-title">
                     <span>{group.label}</span>
-                    <span className="dt-changes__group-file">{group.file}</span>
+                    <span className="changes__group-file">{group.file}</span>
                   </div>
                   {group.changes.map((change, i) => {
                     const presentation = presentChange(change);
@@ -119,25 +119,25 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                       ? getTextContentChangeDiagnostics(change.id)
                       : [];
                     return (
-                      <div className="dt-changes__row" data-test="change-row" key={`${group.key}\u0000${presentation.property}\u0000${i}`} data-property={presentation.property}>
-                        <span className="dt-changes__prop">{presentation.propertyLabel}</span>
-                        <span className="dt-changes__value">
-                          <span className="dt-changes__before">{presentation.before}</span>
-                          <span className="dt-changes__arrow">→</span>
-                          <span className="dt-changes__after">{presentation.after}</span>
+                      <div className="changes__row" data-test="change-row" key={`${group.key}\u0000${presentation.property}\u0000${i}`} data-property={presentation.property}>
+                        <span className="changes__prop">{presentation.propertyLabel}</span>
+                        <span className="changes__value">
+                          <span className="changes__before">{presentation.before}</span>
+                          <span className="changes__arrow">→</span>
+                          <span className="changes__after">{presentation.after}</span>
                         </span>
                         {presentation.scope ? (
-                          <span className="dt-changes__scope" data-test="change-scope">
+                          <span className="changes__scope" data-test="change-scope">
                             {presentation.scope === "source-site" ? "All outputs at source site" : "This rendered item only"}
                           </span>
                         ) : null}
                         {presentation.evidence ? (
-                          <span className="dt-changes__evidence" data-test="change-evidence">{presentation.evidence}</span>
+                          <span className="changes__evidence" data-test="change-evidence">{presentation.evidence}</span>
                         ) : null}
                         <StaleChangeIndicator change={change} />
                         {instanceDiagnostics.map((diagnostic) => (
                           <span
-                            className="dt-changes__diagnostic"
+                            className="changes__diagnostic"
                             data-test="instance-diagnostic"
                             data-document={diagnostic.document}
                             data-status={diagnostic.status}
@@ -148,7 +148,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                         ))}
                         {textDiagnostics.map((diagnostic) => (
                           <span
-                            className="dt-changes__diagnostic"
+                            className="changes__diagnostic"
                             data-test="text-projection-diagnostic"
                             data-document={diagnostic.document}
                             data-status={diagnostic.status}
@@ -159,7 +159,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                         ))}
                         <Button
                           size="compact"
-                          className="dt-changes__revert"
+                          className="changes__revert"
                           data-test="change-revert"
                           data-property={presentation.property}
                           onClick={() => revertChange(change)}
@@ -172,31 +172,31 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                 </div>
               ))}
               {structuralChanges.map((change) => (
-                <div className="dt-changes__group" data-test="dom-change" key={change.id} data-cid={change.target.sourceSite.cid}>
-                  <div className="dt-changes__group-title">
+                <div className="changes__group" data-test="dom-change" key={change.id} data-cid={change.target.sourceSite.cid}>
+                  <div className="changes__group-title">
                     <span>{change.target.sourceSite.cid}</span>
-                    <span className="dt-changes__group-file">{sourceFile(change)}</span>
+                    <span className="changes__group-file">{sourceFile(change)}</span>
                   </div>
-                  <div className="dt-changes__row" data-test="dom-change-row" data-action={change.kind}>
-                    <span className="dt-changes__source-site" data-test="structural-source-site">Source site: {change.target.sourceSite.cid}</span>
-                    <span className="dt-changes__prop">{change.kind === "move" ? "Move in DOM" : "Delete from DOM"}</span>
-                    <span className="dt-changes__value">
-                      <span className="dt-changes__before">
+                  <div className="changes__row" data-test="dom-change-row" data-action={change.kind}>
+                    <span className="changes__source-site" data-test="structural-source-site">Source site: {change.target.sourceSite.cid}</span>
+                    <span className="changes__prop">{change.kind === "move" ? "Move in DOM" : "Delete from DOM"}</span>
+                    <span className="changes__value">
+                      <span className="changes__before">
                         {change.kind === "move"
                           ? `${change.presentation.parentTag} position ${change.presentation.fromIndex + 1}`
                           : "Visible"}
                       </span>
-                      <span className="dt-changes__arrow">→</span>
-                      <span className="dt-changes__after">
+                      <span className="changes__arrow">→</span>
+                      <span className="changes__after">
                         {change.kind === "move"
                           ? `${change.presentation.parentTag} position ${change.presentation.toIndex + 1}`
                           : "Removed"}
                       </span>
                     </span>
-                    <span className="dt-changes__scope" data-test="structural-scope">This rendered item only</span>
+                    <span className="changes__scope" data-test="structural-scope">This rendered item only</span>
                     {getStructuralChangeDiagnostics(change.id).map((diagnostic) => (
                       <span
-                        className="dt-changes__diagnostic"
+                        className="changes__diagnostic"
                         data-test="structural-diagnostic"
                         data-document={diagnostic.document}
                         data-status={diagnostic.status}
@@ -207,7 +207,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                     ))}
                     <Button
                       size="compact"
-                      className="dt-changes__revert"
+                      className="changes__revert"
                       data-test="dom-change-revert"
                       onClick={() => revertStructuralChange(change.id)}
                     >
@@ -221,7 +221,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
         </div>
       </details>
       {onClearSession ? (
-        <div className="dt-changes__session-action" data-test="session-actions">
+        <div className="changes__session-action" data-test="session-actions">
           <Button
             variant="secondary"
             size="compact"

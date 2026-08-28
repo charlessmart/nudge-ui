@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TokenDefinition } from "@design-tool/css/model";
+import type { TokenDefinition } from "@nudge-ui/css/model";
 import { reconcileStandaloneTokenCatalog } from "./stylesheetOrder.ts";
 
 const duplicateToken: TokenDefinition = {

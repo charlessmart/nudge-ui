@@ -5,7 +5,7 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
   await expect
     .poll(async () => {
       return await page.evaluate(() => {
-        const sr = document.getElementById("design-tool-root")?.shadowRoot;
+        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
         return !!sr?.querySelector('[data-test="style-editors"]');
       });
     }, { timeout: 5000 })
@@ -18,14 +18,14 @@ async function sheetText(page: import("@playwright/test").Page): Promise<string>
 
 async function setSelect(page: import("@playwright/test").Page, testId: string, value: string): Promise<void> {
   await page.locator(`[data-test="${testId}"]`).click();
-  const option = page.locator(`.dt-select__item:visible[data-value="${value}"]`);
+  const option = page.locator(`.select__item:visible[data-value="${value}"]`);
   await expect(option).toBeVisible();
   await option.click();
 }
 
 async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
   await page.evaluate(({ p, v }) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const input = sr?.querySelector(
       `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
     ) as HTMLInputElement | null;
@@ -54,14 +54,14 @@ async function computedPropOn(page: import("@playwright/test").Page, testId: str
 
 async function shadowQueryExists(page: import("@playwright/test").Page, testId: string): Promise<boolean> {
   return await page.evaluate((t) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return !!sr?.querySelector(`[data-test="${t}"]`);
   }, testId);
 }
 
 async function changesLogText(page: import("@playwright/test").Page): Promise<string> {
   return await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const log = sr?.querySelector('[data-test="changes-log"]');
     return log?.textContent ?? "";
   });
@@ -87,7 +87,7 @@ test("dev: layout section shows flex container controls and edits write to manag
 
   const displaySelect = page.locator('[data-test="layout-select-display"]');
   await expect(displaySelect).toHaveAttribute("role", "combobox");
-  await expect(displaySelect.locator(".dt-select__icon")).toBeVisible();
+  await expect(displaySelect.locator(".select__icon")).toBeVisible();
 
   // Flex container sub-section should be visible
   const flexContainer = await shadowQueryExists(page, "layout-flex-container");
@@ -95,14 +95,14 @@ test("dev: layout section shows flex container controls and edits write to manag
 
   // The compact flex direction control should expose row as the active state.
   const rowDirectionActive = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const control = sr?.querySelector('[data-test="layout-direction-row"]');
     return control?.getAttribute("aria-pressed") === "true";
   });
   expect(rowDirectionActive).toBe(true);
 
   const initialGapProperties = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return Array.from(sr?.querySelectorAll('[data-test="layout-gap"] [data-test="layout-combo"]') ?? [])
       .map((field) => field.getAttribute("data-property"));
   });
@@ -114,7 +114,7 @@ test("dev: layout section shows flex container controls and edits write to manag
   const columnGapInput = page.locator('[data-test="layout-gap"] [data-test="layout-combo-input-column-gap"]');
   await expect(columnGapInput).toBeVisible();
   await expect(columnGapInput).toHaveCSS("height", "32px");
-  const spacingFieldSurface = page.locator('[data-test="layout-gap"] .dt-layout__spacing-primary .dt-layout__spacing-field');
+  const spacingFieldSurface = page.locator('[data-test="layout-gap"] .layout__spacing-primary .layout__spacing-field');
   await expect(spacingFieldSurface.locator('[data-test="layout-spacing-icon-column-gap"]')).toHaveCount(1);
   const surfaceColors = await spacingFieldSurface.evaluate((field) => ({
     field: getComputedStyle(field).backgroundColor,
@@ -130,7 +130,7 @@ test("dev: layout section shows flex container controls and edits write to manag
     .toBe(true);
 
   const alignmentGridSize = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const grid = sr?.querySelector('[data-test^="layout-align-"]')?.parentElement;
     if (!grid) return null;
     const rect = grid.getBoundingClientRect();
@@ -140,14 +140,14 @@ test("dev: layout section shows flex container controls and edits write to manag
   expect(Math.abs((alignmentGridSize?.width ?? 0) - (alignmentGridSize?.height ?? 0))).toBeLessThan(2);
 
   await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-flex-wrap-toggle"]') as HTMLButtonElement | null)?.click();
   });
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "flex-wrap"), { timeout: 5000 })
     .toBe("wrap");
   await expect.poll(async () => page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return Array.from(sr?.querySelectorAll('[data-test="layout-gap"] [data-test="layout-combo"]') ?? [])
       .map((field) => field.getAttribute("data-property"))
       .sort();
@@ -158,7 +158,7 @@ test("dev: layout section shows flex container controls and edits write to manag
 
   // Change flex-direction to column.
   await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-direction-column"]') as HTMLButtonElement | null)?.click();
   });
 
@@ -166,12 +166,12 @@ test("dev: layout section shows flex container controls and edits write to manag
   await expect
     .poll(async () => computedPropOn(page, "flex-container", "flex-direction"), { timeout: 5000 })
     .toBe("column");
-  await expect(page.locator('.dt-layout__spacing-primary [data-test="layout-spacing-icon-row-gap"]')).toHaveCount(1);
+  await expect(page.locator('.layout__spacing-primary [data-test="layout-spacing-icon-row-gap"]')).toHaveCount(1);
 
   // In a column layout, the grid's top-right cell means top + right:
   // justify-content: flex-start and align-items: flex-end.
   await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-align-flex-end-flex-start"]') as HTMLButtonElement | null)?.click();
   });
   await expect
@@ -183,15 +183,15 @@ test("dev: layout section shows flex container controls and edits write to manag
 
   // Lower-frequency flex settings live behind the settings icon.
   await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
   });
   await expect.poll(async () => page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return !!sr?.querySelector('[data-test="layout-flex-setting-align-content-center"]');
   }), { timeout: 5000 }).toBe(true);
   await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
   });
   await page.locator('[data-test="layout-flex-distribution"]').click();
@@ -201,13 +201,13 @@ test("dev: layout section shows flex container controls and edits write to manag
     .toBe("space-between");
   await expect(page.locator('[data-test="layout-flex-distribution"]')).toHaveAttribute("data-active", "true");
   await expect.poll(async () => page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    return !!sr?.querySelector(".dt-layout__distribution-preview");
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
+    return !!sr?.querySelector(".layout__distribution-preview");
   }), { timeout: 5000 }).toBe(true);
 
   const betweenMarkers = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    return Array.from(sr?.querySelectorAll(".dt-layout__distribution-preview span") ?? []).map((marker) => ({
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
+    return Array.from(sr?.querySelectorAll(".layout__distribution-preview span") ?? []).map((marker) => ({
       top: marker.getBoundingClientRect().top,
       shadow: getComputedStyle(marker).boxShadow,
     }));
@@ -221,23 +221,23 @@ test("dev: layout section shows flex container controls and edits write to manag
     .poll(async () => computedPropOn(page, "flex-container", "justify-content"), { timeout: 5000 })
     .toBe("space-around");
   const aroundMarkers = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    return Array.from(sr?.querySelectorAll(".dt-layout__distribution-preview span") ?? [])
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
+    return Array.from(sr?.querySelectorAll(".layout__distribution-preview span") ?? [])
       .map((marker) => marker.getBoundingClientRect().top);
   });
   expect(aroundMarkers[0]!).toBeGreaterThan(betweenMarkers[0]!.top);
   expect(aroundMarkers[2]!).toBeLessThan(betweenMarkers[2]!.top);
 
   await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
   });
   await expect.poll(async () => page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return !!sr?.querySelector('[data-test="layout-flex-setting-align-items-stretch"]');
   }), { timeout: 5000 }).toBe(true);
   await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-flex-setting-align-items-stretch"]') as HTMLElement | null)?.click();
   });
   await expect
@@ -245,15 +245,15 @@ test("dev: layout section shows flex container controls and edits write to manag
     .toBe("stretch");
 
   await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement | null)?.click();
   });
   await expect.poll(async () => page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return !!sr?.querySelector('[data-test="layout-flex-setting-align-content-center"]');
   }), { timeout: 5000 }).toBe(true);
   await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     (sr?.querySelector('[data-test="layout-flex-setting-align-content-center"]') as HTMLElement | null)?.click();
   });
   await expect
@@ -349,8 +349,8 @@ test("dev: layout section shows inset controls for a positioned element", async 
   // Inset sub-section should be visible (position is relative)
   expect(await shadowQueryExists(page, "layout-inset")).toBe(true);
   const editorOrder = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    return Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="style-editors"] > .dt-editor') ?? [])
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
+    return Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="style-editors"] > .editor') ?? [])
       .map((editor) => editor.getAttribute("data-test"));
   });
   expect(editorOrder).toContain("spacing-box");
@@ -370,7 +370,7 @@ test("dev: layout section shows inset controls for a positioned element", async 
   await expect(page.locator('[data-test="token-field"][data-property="top"] [data-test="raw-input"]')).toBeVisible();
   expect(await shadowQueryExists(page, "layout-combo-select-top")).toBe(false);
   const topInsetIcon = await page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     const svg = shadow?.querySelector('[data-test="layout-inset"] [data-side="top"] svg') as SVGSVGElement | null;
     const rect = svg?.querySelector("rect");
     return {
@@ -495,15 +495,15 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
 
   await expect(page.locator('[data-test="layout-grid-container"]')).toBeVisible({ timeout: 10000 });
   const gridGap = page.locator('[data-test="layout-grid-gap"]');
-  await expect(gridGap.locator('.dt-layout__spacing-field')).toHaveCount(2);
+  await expect(gridGap.locator('.layout__spacing-field')).toHaveCount(2);
   for (const property of ["row-gap", "column-gap"]) {
     const surface = gridGap.locator(`[data-test="layout-grid-${property}"]`);
-    await expect(surface).toHaveClass(/dt-layout__spacing-field/);
+    await expect(surface).toHaveClass(/layout__spacing-field/);
     await expect(surface).toHaveCSS("height", "32px");
     await expect(surface.locator(`[data-test="layout-spacing-icon-${property}"]`)).toHaveCount(1);
     const input = surface.locator(`[data-test="layout-combo-input-${property}"]`);
     await expect(input).toHaveCSS("height", "32px");
-    await expect(input).not.toHaveClass(/dt-text-input--compact/);
+    await expect(input).not.toHaveClass(/text-input--compact/);
   }
   const picker = page.locator('[data-test="layout-grid-picker-trigger"]');
   await expect(picker).toBeVisible();

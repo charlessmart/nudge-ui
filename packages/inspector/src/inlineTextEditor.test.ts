@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { componentContracts } from "virtual:design-tool-components";
+import { componentContracts } from "virtual:nudge-ui-components";
 import { registerComponentRuntimeAdapter } from "./componentSemantics/adapterRegistry.ts";
 import type { ComponentRuntimeAdapter } from "./componentSemantics/types.ts";
 import { clearChanges, getChangesList, redo, undo } from "./changesLog.ts";
@@ -16,7 +16,7 @@ import { getTextProjectionReports, TEXT_PROJECTION_ATTR } from "./textProjection
 
 function boundary(meta: Record<string, unknown>, props: Record<string, unknown>) {
   const type = Object.assign(() => null, {
-    [Symbol.for("design-tool.react-component-boundary")]: true,
+    [Symbol.for("nudge-ui.react-component-boundary")]: true,
   });
   return {
     type,
@@ -102,14 +102,14 @@ describe("inlineTextEditor", () => {
     const session = getInlineTextSession();
     expect(session).not.toBeNull();
     expect(session?.binding).toMatchObject({ kind: "component-prop", property: "label" });
-    expect(element.querySelector('[data-dt-inline-editor="true"]')?.getAttribute("contenteditable"))
+    expect(element.querySelector('[data-inline-editor="true"]')?.getAttribute("contenteditable"))
       .toBe("plaintext-only");
 
-    const host = element.querySelector('[data-dt-inline-editor="true"]') as HTMLElement;
+    const host = element.querySelector('[data-inline-editor="true"]') as HTMLElement;
     host.textContent = "Publish now";
     const change = session!.commit();
 
-    expect(element.querySelector('[data-dt-inline-editor="true"]')).toBeNull();
+    expect(element.querySelector('[data-inline-editor="true"]')).toBeNull();
     expect(element.textContent).toBe("Publish");
     expect(change).toMatchObject({ kind: "component-prop", property: "label", after: "Publish now" });
     expect(getChangesList()).toHaveLength(1);
@@ -166,13 +166,13 @@ describe("inlineTextEditor", () => {
 
     expect(element.querySelector("svg")).toBe(icon);
     expect(element.querySelector("path")).not.toBeNull();
-    expect(label?.querySelector('[data-dt-inline-editor="true"]')).not.toBeNull();
+    expect(label?.querySelector('[data-inline-editor="true"]')).not.toBeNull();
     result.host.textContent = "Save file";
     result.commit();
 
     expect(element.querySelector("svg")).toBe(icon);
     expect(element.querySelector("path")).not.toBeNull();
-    expect(element.querySelector('[data-dt-inline-editor="true"]')).toBeNull();
+    expect(element.querySelector('[data-inline-editor="true"]')).toBeNull();
     expect(element.querySelector("span")?.textContent).toBe("Save");
     expect(label?.firstChild).toBe(originalTextNode);
     expect(document.getSelection()?.getRangeAt(0).startContainer).toBe(label);
@@ -595,7 +595,7 @@ describe("inlineTextEditor", () => {
     await Promise.resolve();
 
     expect(getInlineTextSession()).toBeNull();
-    expect(moved.querySelector('[data-dt-inline-editor="true"]')).toBeNull();
+    expect(moved.querySelector('[data-inline-editor="true"]')).toBeNull();
     expect(element.textContent).toBe("Publish");
     expect(getInlineTextDiagnostic()).toMatchObject({ status: "cancelled", reason: "app-reconciled" });
   });
@@ -611,7 +611,7 @@ describe("inlineTextEditor", () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
 
     expect(getInlineTextSession()).toBeNull();
-    expect(element.querySelector('[data-dt-inline-editor="true"]')).toBeNull();
+    expect(element.querySelector('[data-inline-editor="true"]')).toBeNull();
     expect(element.textContent).toBe("!");
     expect(getInlineTextDiagnostic()).toMatchObject({ status: "cancelled", reason: "app-reconciled" });
   });
@@ -627,7 +627,7 @@ describe("inlineTextEditor", () => {
     result.cancel();
 
     expect(getInlineTextSession()).toBeNull();
-    expect(element.querySelector('[data-dt-inline-editor="true"]')).toBeNull();
+    expect(element.querySelector('[data-inline-editor="true"]')).toBeNull();
     expect(element.textContent).toBe("!");
     expect(getInlineTextDiagnostic()).toMatchObject({ status: "cancelled", reason: "app-reconciled" });
   });
@@ -701,7 +701,7 @@ describe("inlineTextEditor", () => {
     result.cancel();
 
     expect(element.getAttribute("spellcheck")).toBe("false");
-    expect(element.querySelector('[data-dt-inline-editor="true"]')).toBeNull();
+    expect(element.querySelector('[data-inline-editor="true"]')).toBeNull();
   });
 
   it("clears a pending blur before it can resurrect a draft", () => {
@@ -732,7 +732,7 @@ describe("inlineTextEditor", () => {
     result.cancel();
 
     expect(element.textContent).toBe("Publish");
-    expect(element.querySelector('[data-dt-inline-editor="true"]')).toBeNull();
+    expect(element.querySelector('[data-inline-editor="true"]')).toBeNull();
     expect(getChangesList()).toEqual([]);
   });
 
@@ -760,7 +760,7 @@ describe("inlineTextEditor", () => {
     expect(element.textContent).toBe("Updated copy");
     expect(element.getAttribute(TEXT_PROJECTION_ATTR)).toBe(change && "id" in change ? change.id : null);
     expect(getTextProjectionReports(document)).toMatchObject([{ status: "applied" }]);
-    expect(document.getElementById("design-tool-styles")?.textContent ?? "").not.toContain("Updated copy");
+    expect(document.getElementById("nudge-ui-styles")?.textContent ?? "").not.toContain("Updated copy");
   });
 
   it("re-enters an empty rendered projection and merges into one canonical record", () => {
@@ -773,7 +773,7 @@ describe("inlineTextEditor", () => {
     expect(emptied).toMatchObject({ kind: "text-content", before: "Original copy", after: "" });
     expect(element.textContent).toBe("");
 
-    const marker = element.querySelector("[data-dt-empty-text]");
+    const marker = element.querySelector("[data-empty-text]");
     expect(marker).toBeInstanceOf(HTMLElement);
     if (!(marker instanceof HTMLElement)) throw new Error("empty projection affordance missing");
     const second = beginInlineTextEditFromEmptyProjection(marker);
@@ -785,7 +785,7 @@ describe("inlineTextEditor", () => {
 
     expect(restored).toMatchObject({ kind: "text-content", before: "", after: "Restored copy" });
     expect(element.textContent).toBe("Restored copy");
-    expect(element.querySelector("[data-dt-empty-text]")).toBeNull();
+    expect(element.querySelector("[data-empty-text]")).toBeNull();
     expect(getChangesList()).toHaveLength(1);
     expect(getChangesList()[0]).toMatchObject({
       kind: "text-content",

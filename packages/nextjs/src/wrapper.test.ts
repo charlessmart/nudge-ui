@@ -2,11 +2,11 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { withDesignTool, type DesignToolNextConfig } from "./wrapper.ts";
+import { withNudgeUi, type NudgeUiNextConfig } from "./wrapper.ts";
 import { buildManifest, nextjsProjectId } from "./manifest.ts";
 
 function makeProject(): string {
-  const root = mkdtempSync(join(tmpdir(), "dt-next-wrapper-"));
+  const root = mkdtempSync(join(tmpdir(), "next-wrapper-"));
   writeFileSync(
     join(root, "package.json"),
     `${JSON.stringify({ name: "fixture", dependencies: { next: "16.3.2" } })}\n`,
@@ -14,12 +14,12 @@ function makeProject(): string {
   return root;
 }
 
-describe("withDesignTool — phase gating (ADR-0002)", () => {
+describe("withNudgeUi — phase gating (ADR-0002)", () => {
   it("returns the original config untouched outside development", () => {
     vi.stubEnv("NODE_ENV", "production");
-    const config = { reactStrictMode: true } as DesignToolNextConfig;
+    const config = { reactStrictMode: true } as NudgeUiNextConfig;
 
-    const result = withDesignTool(config);
+    const result = withNudgeUi(config);
 
     expect(result).toBe(config);
     expect(result.turbopack).toBeUndefined();
@@ -28,13 +28,13 @@ describe("withDesignTool — phase gating (ADR-0002)", () => {
 
   it("function form instruments only for the development-server phase", () => {
     vi.stubEnv("NODE_ENV", "development");
-    const factory = vi.fn(() => ({ reactStrictMode: true }) as DesignToolNextConfig);
-    const wrapped = withDesignTool(factory);
+    const factory = vi.fn(() => ({ reactStrictMode: true }) as NudgeUiNextConfig);
+    const wrapped = withNudgeUi(factory);
 
     expect(typeof wrapped).toBe("function");
 
     // A production-build phase must pass the config through untouched.
-    const prodResult = (wrapped as (phase: string) => DesignToolNextConfig)(
+    const prodResult = (wrapped as (phase: string) => NudgeUiNextConfig)(
       "phase-production-build",
     );
     expect(prodResult).toEqual({ reactStrictMode: true });
@@ -42,7 +42,7 @@ describe("withDesignTool — phase gating (ADR-0002)", () => {
     expect(factory).toHaveBeenCalledWith("phase-production-build");
 
     // The development-server phase instruments.
-    const devResult = (wrapped as (phase: string) => DesignToolNextConfig)(
+    const devResult = (wrapped as (phase: string) => NudgeUiNextConfig)(
       "phase-development-server",
     );
     expect(devResult.turbopack).toBeDefined();
@@ -50,7 +50,7 @@ describe("withDesignTool — phase gating (ADR-0002)", () => {
   });
 });
 
-describe("withDesignTool — development output shape", () => {
+describe("withNudgeUi — development output shape", () => {
   let projectRoots: string[] = [];
 
   beforeEach(() => {
@@ -65,11 +65,11 @@ describe("withDesignTool — development output shape", () => {
     }
   });
 
-  function wrapperFor(): DesignToolNextConfig {
+  function wrapperFor(): NudgeUiNextConfig {
     const root = makeProject();
     projectRoots.push(root);
     vi.spyOn(process, "cwd").mockReturnValue(root);
-    return withDesignTool({} as DesignToolNextConfig);
+    return withNudgeUi({} as NudgeUiNextConfig);
   }
 
   it("registers the identity loader as a Turbopack rule confined to first-party sources", () => {
@@ -103,13 +103,13 @@ describe("withDesignTool — development output shape", () => {
   });
 
   it("preserves user turbopack rules alongside the injected one", () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-next-wrapper-"));
+    const root = mkdtempSync(join(tmpdir(), "next-wrapper-"));
     projectRoots.push(root);
     vi.spyOn(process, "cwd").mockReturnValue(root);
 
-    const config = withDesignTool({
+    const config = withNudgeUi({
       turbopack: { rules: { "**/*.svg": { loaders: ["svg-loader"] } } },
-    } as DesignToolNextConfig);
+    } as NudgeUiNextConfig);
 
     const rules = config.turbopack?.rules as Record<string, unknown>;
     expect(rules["**/*.svg"]).toBeDefined();
@@ -117,9 +117,9 @@ describe("withDesignTool — development output shape", () => {
 
     // A USER rule for the SAME key composes into a collection instead of
     // being overwritten.
-    const shared = withDesignTool({
+    const shared = withNudgeUi({
       turbopack: { rules: { "*.tsx": { loaders: ["user-loader"] } } },
-    } as DesignToolNextConfig) as {
+    } as NudgeUiNextConfig) as {
       turbopack?: { rules?: Record<string, Array<Record<string, unknown>>> };
     };
     const composed = shared.turbopack?.rules?.["*.tsx"] as Array<Record<string, unknown>>;
@@ -129,7 +129,7 @@ describe("withDesignTool — development output shape", () => {
 
   it("composes the webpack hook and only instruments in dev contexts", () => {
     const userHook = vi.fn((base: Record<string, unknown>) => base);
-    const composed = withDesignTool({ webpack: userHook } as DesignToolNextConfig);
+    const composed = withNudgeUi({ webpack: userHook } as NudgeUiNextConfig);
 
     expect(typeof composed.webpack).toBe("function");
     expect(composed.webpack).not.toBe(userHook);
@@ -164,16 +164,16 @@ describe("withDesignTool — development output shape", () => {
 
     const transpile = config.transpilePackages as string[];
     for (const required of [
-      "@design-tool/nextjs",
-      "@design-tool/plugin",
-      "@design-tool/inspector",
-      "@design-tool/css",
+      "@nudge-ui/nextjs",
+      "@nudge-ui/plugin",
+      "@nudge-ui/inspector",
+      "@nudge-ui/css",
     ]) {
       expect(transpile).toContain(required);
     }
   });
 
-  it("proxies /__design_tool__ to a live loopback sidecar before user rewrites", async () => {
+  it("proxies /__nudge_ui__ to a live loopback sidecar before user rewrites", async () => {
     const config = wrapperFor();
 
     const resolved = await (config.rewrites as () => Promise<{
@@ -182,30 +182,30 @@ describe("withDesignTool — development output shape", () => {
     }>)();
 
     const proxy = resolved.beforeFiles[0];
-    expect(proxy?.source).toBe("/__design_tool__/:path*");
-    expect(proxy?.destination).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/__design_tool__/);
+    expect(proxy?.source).toBe("/__nudge_ui__/:path*");
+    expect(proxy?.destination).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/__nudge_ui__/);
     expect(Number(proxy!.destination.match(/:(\d+)/)?.[1])).toBeGreaterThan(0);
 
     // The transport is live end-to-end.
     const port = Number(proxy!.destination.match(/:(\d+)/)?.[1]);
-    const response = await fetch(`http://127.0.0.1:${port}/__design_tool__/manifest`);
+    const response = await fetch(`http://127.0.0.1:${port}/__nudge_ui__/manifest`);
     const manifest = (await response.json()) as { projectId?: string; host?: string };
     expect(manifest.host).toBe("nextjs-react");
     expect(manifest.projectId).toMatch(/^nextjs:[0-9a-f]{12}$/);
   });
 
   it("shadows reserved-namespace user rewrites and keeps their other entries", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-next-wrapper-"));
+    const root = mkdtempSync(join(tmpdir(), "next-wrapper-"));
     projectRoots.push(root);
     vi.spyOn(process, "cwd").mockReturnValue(root);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const config = withDesignTool({
+    const config = withNudgeUi({
       rewrites: async () => ({
-        beforeFiles: [{ source: "/__design_tool__/evil", destination: "/elsewhere" }],
+        beforeFiles: [{ source: "/__nudge_ui__/evil", destination: "/elsewhere" }],
         afterFiles: [{ source: "/blog/:slug", destination: "/posts/:slug" }],
       }),
-    } as DesignToolNextConfig);
+    } as NudgeUiNextConfig);
 
     const resolved = await (config.rewrites as () => Promise<{
       beforeFiles: Array<{ source: string }>;
@@ -213,14 +213,14 @@ describe("withDesignTool — development output shape", () => {
     }>)();
 
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("reserved namespace"), [
-      "/__design_tool__/evil",
+      "/__nudge_ui__/evil",
     ]);
-    expect(resolved.beforeFiles.map((rule) => rule.source)).toContain("/__design_tool__/:path*");
+    expect(resolved.beforeFiles.map((rule) => rule.source)).toContain("/__nudge_ui__/:path*");
     expect(resolved.afterFiles.map((rule) => rule.source)).toContain("/blog/:slug");
   });
 
   it("warns when the resolved Next version is unsupported", async () => {
-    const root = mkdtempSync(join(tmpdir(), "dt-next-wrapper-"));
+    const root = mkdtempSync(join(tmpdir(), "next-wrapper-"));
     mkdirSync(join(root, "node_modules", "next"), { recursive: true });
     writeFileSync(
       join(root, "node_modules", "next", "package.json"),
@@ -230,7 +230,7 @@ describe("withDesignTool — development output shape", () => {
     vi.spyOn(process, "cwd").mockReturnValue(root);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const config = withDesignTool({} as DesignToolNextConfig);
+    const config = withNudgeUi({} as NudgeUiNextConfig);
 
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("outside the tested range"));
     // Failing closed: unsupported versions get NO instrumentation.

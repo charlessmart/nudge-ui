@@ -1,22 +1,22 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { componentContracts } from "./design-tool-components.ts";
+import { componentContracts } from "./nudge-ui-components.ts";
 import {
-  configureDesignToolRuntime,
-  getDesignToolRuntimeConfig,
+  configureNudgeUiRuntime,
+  getNudgeUiRuntimeConfig,
 } from "../runtimeConfig.ts";
-import type { DesignToolRuntimeConfig } from "../runtimeConfig.ts";
+import type { NudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
-let previousConfig: DesignToolRuntimeConfig | null = null;
+let previousConfig: NudgeUiRuntimeConfig | null = null;
 
 afterEach(() => {
   componentContracts.length = 0;
-  if (previousConfig) configureDesignToolRuntime(previousConfig);
+  if (previousConfig) configureNudgeUiRuntime(previousConfig);
   previousConfig = null;
 });
 
-describe("design-tool-components Vitest stub", () => {
+describe("nudge-ui-components Vitest stub", () => {
   it("keeps the fixture mutable while updating an immutable runtime snapshot", () => {
-    previousConfig = getDesignToolRuntimeConfig();
+    previousConfig = getNudgeUiRuntimeConfig();
     const contract = {
       componentId: "src/Button.tsx#Button",
       name: "Button",
@@ -27,7 +27,7 @@ describe("design-tool-components Vitest stub", () => {
 
     componentContracts.push(contract);
 
-    const snapshot = getDesignToolRuntimeConfig();
+    const snapshot = getNudgeUiRuntimeConfig();
     expect(componentContracts).toEqual([contract]);
     expect(snapshot.componentContracts).toEqual([contract]);
     expect(snapshot.componentContracts).not.toBe(componentContracts);
@@ -36,6 +36,6 @@ describe("design-tool-components Vitest stub", () => {
     componentContracts.length = 0;
 
     expect(componentContracts).toEqual([]);
-    expect(getDesignToolRuntimeConfig().componentContracts).toEqual([]);
+    expect(getNudgeUiRuntimeConfig().componentContracts).toEqual([]);
   });
 });

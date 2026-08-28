@@ -10,14 +10,14 @@ import {
   selectTokens,
   TOKEN_GROUP_LABELS,
   TOKEN_GROUP_ORDER,
-} from "@design-tool/css/value-semantics";
-import type { TokenGroup } from "@design-tool/css/value-semantics";
+} from "@nudge-ui/css/value-semantics";
+import type { TokenGroup } from "@nudge-ui/css/value-semantics";
 import { cascadeLayerOrder } from "./resolution/cssomCollector.ts";
 import { compareAuthorCascade } from "./resolution/cascade.ts";
 import { computeSpecificityCore } from "./resolution/selectorSemantics.ts";
 
 export type TokenCatalogGroup = TokenGroup;
-export { TOKEN_GROUP_LABELS, TOKEN_GROUP_ORDER } from "@design-tool/css/value-semantics";
+export { TOKEN_GROUP_LABELS, TOKEN_GROUP_ORDER } from "@nudge-ui/css/value-semantics";
 
 export interface TokenCatalogRow {
   definition: TokenDefinition;
@@ -176,7 +176,6 @@ export function buildTokenCatalogRows(
 ): TokenCatalogRow[] {
   const runtime = suppliedRuntime ?? defaultRuntime(root);
   return catalog
-    .filter((definition) => !definition.cssName.startsWith("--dt-"))
     .map((definition) => {
       const activeDeclaration = pickWinningDeclaration(definition.declarations, runtime);
       const source = activeDeclaration?.source ?? definition.declarations[0]?.source ?? "";

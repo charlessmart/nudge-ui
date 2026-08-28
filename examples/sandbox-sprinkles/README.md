@@ -1,6 +1,6 @@
 # Standalone vanilla-extract/Sprinkles sandbox
 
-This app is a real Vite + vanilla-extract + Sprinkles consumer of Design Tool.
+This app is a real Vite + vanilla-extract + Sprinkles consumer of Nudge UI.
 It deliberately enables short generated identifiers so token attribution cannot
 depend on semantic text surviving in a CSS variable or class name.
 

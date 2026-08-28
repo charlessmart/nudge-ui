@@ -6,7 +6,7 @@ import { BorderRadiusEditor } from "./BorderRadiusEditor.tsx";
 import { BoxShadowEditor } from "./BoxShadowEditor.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import {
   makeSelected,
   mount,
@@ -36,7 +36,7 @@ describe("BorderEditor", () => {
 
   beforeEach(() => {
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -44,7 +44,7 @@ describe("BorderEditor", () => {
     handle?.unmount();
     restoreComputedStyle();
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -149,7 +149,7 @@ describe("BorderEditor", () => {
     });
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES, tokenRows: [] }));
 
-    expect(handle.host.querySelector('[data-test="add-border"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+    expect(handle.host.querySelector('[data-test="add-border"]')?.classList.contains("icon-button--quiet")).toBe(true);
     expect(handle.host.querySelector('[data-test="border-style-settings"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-width"]')).toBeNull();
   });
@@ -222,7 +222,7 @@ describe("BorderEditor", () => {
       ],
     }));
 
-    expect(handle.host.querySelector('[data-test="add-border"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+    expect(handle.host.querySelector('[data-test="add-border"]')?.classList.contains("icon-button--quiet")).toBe(true);
     expect(handle.host.querySelector('[data-test="border-style-settings"]')).toBeNull();
   });
 
@@ -288,7 +288,7 @@ describe("BorderEditor", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
-    expect(handle.host.querySelector('[data-test="remove-border"]')?.classList.contains("dt-icon-button--quiet")).toBe(true);
+    expect(handle.host.querySelector('[data-test="remove-border"]')?.classList.contains("icon-button--quiet")).toBe(true);
   });
 
   it("removes the border when the remove button is clicked", () => {
@@ -499,7 +499,7 @@ describe("BorderEditor", () => {
       ],
     }));
 
-    expect(handle.host.querySelector('.dt-border')?.getAttribute("data-expanded")).toBe("true");
+    expect(handle.host.querySelector('.border')?.getAttribute("data-expanded")).toBe("true");
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-width"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-left-width"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="border-style-right"]')).not.toBeNull();
@@ -648,12 +648,12 @@ describe("BorderEditor", () => {
         { ...BORDER_COLOR_ROW, property: "border-left-color" },
       ],
     }));
-    expect(handle.host.querySelector('.dt-border')?.getAttribute("data-expanded")).toBe("false");
-    expect(handle.host.querySelector('.dt-border__linked-row')).not.toBeNull();
+    expect(handle.host.querySelector('.border')?.getAttribute("data-expanded")).toBe("false");
+    expect(handle.host.querySelector('.border__linked-row')).not.toBeNull();
     act(() => (handle.host.querySelector('[data-test="border-expand"]') as HTMLButtonElement).click());
-    expect(handle.host.querySelector('.dt-border')?.getAttribute("data-expanded")).toBe("true");
+    expect(handle.host.querySelector('.border')?.getAttribute("data-expanded")).toBe("true");
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-width"]')).not.toBeNull();
-    const borderIcons = handle.host.querySelectorAll('[data-test="border-side-rows"] .dt-border__side-row > .dt-side-values__side-icon');
+    const borderIcons = handle.host.querySelectorAll('[data-test="border-side-rows"] .border__side-row > .side-values__side-icon');
     expect(borderIcons).toHaveLength(4);
     expect(borderIcons[0]?.classList.contains("tabler-icon-border-top")).toBe(true);
     expect(borderIcons[1]?.classList.contains("tabler-icon-border-right")).toBe(true);
@@ -694,9 +694,9 @@ describe("BorderEditor", () => {
     });
     handle = mount(createElement(BorderEditor, { element: selected, entries: ENTRIES }));
 
-    expect(handle.host.querySelector('.dt-border')?.getAttribute("data-expanded")).toBe("true");
+    expect(handle.host.querySelector('.border')?.getAttribute("data-expanded")).toBe("true");
     act(() => (handle.host.querySelector('[data-test="border-collapse"]') as HTMLButtonElement).click());
-    expect(handle.host.querySelector('.dt-border')?.getAttribute("data-expanded")).toBe("false");
+    expect(handle.host.querySelector('.border')?.getAttribute("data-expanded")).toBe("false");
 
     expect(sheetText()).toContain("border-width: 2px;");
     expect(sheetText()).toContain("border-style: dashed;");

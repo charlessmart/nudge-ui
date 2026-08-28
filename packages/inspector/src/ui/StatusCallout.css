@@ -1,24 +1,24 @@
-.dt-status-callout {
+.status-callout {
   padding: 12px 14px;
-  background: var(--dt-surface-control);
+  background: var(--surface-control);
   border: 0;
   border-radius: 12px;
-  color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size-base);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
   line-height: 1.4;
 }
 
-.dt-status-callout--warning {
-  background: var(--dt-warning-surface);
-  color: var(--dt-warning-text);
+.status-callout--warning {
+  background: var(--warning-surface);
+  color: var(--warning-text);
 }
 
-.dt-status-callout--accent {
-  background: var(--dt-accent-surface);
-  color: var(--dt-accent-strong);
+.status-callout--accent {
+  background: var(--accent-surface);
+  color: var(--accent-strong);
 }
 
-.dt-status-callout--danger {
-  background: var(--dt-danger-surface);
-  color: var(--dt-danger-text);
+.status-callout--danger {
+  background: var(--danger-surface);
+  color: var(--danger-text);
 }

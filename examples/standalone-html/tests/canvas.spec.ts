@@ -13,7 +13,7 @@ async function inspectorReady(page: Page): Promise<void> {
   // not /index.html. Card deduplication must treat both as one route.
   await page.goto("/");
   await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __designTool?: unknown }).__designTool)))
+    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
   await expect(page.locator('[data-test="inspect-tab"]')).toBeAttached();
 }
@@ -21,11 +21,11 @@ async function inspectorReady(page: Page): Promise<void> {
 async function cardsReady(page: Page, expected: number): Promise<void> {
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await page.waitForFunction((count) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const iframes = [...(sr?.querySelectorAll<HTMLIFrameElement>("iframe[data-test^='canvas-card-iframe-']") ?? [])];
     return iframes.length >= count && iframes.every((f) => {
       try {
-        return Boolean((f.contentWindow as (Window & { __designTool?: unknown }) | null)?.__designTool);
+        return Boolean((f.contentWindow as (Window & { __nudgeUi?: unknown }) | null)?.__nudgeUi);
       } catch {
         return false;
       }
@@ -85,7 +85,7 @@ test("dev: links inside a card discover sibling page cards", async ({ page }) =>
   });
 
   await page.waitForFunction(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const paths = [...(sr?.querySelectorAll("[data-card-id]") ?? [])].map((c) => {
       const f = c.querySelector("iframe");
       try {
@@ -108,7 +108,7 @@ test("dev: links inside a card discover sibling page cards", async ({ page }) =>
   });
   await expect
     .poll(() => page.evaluate(() => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       return sr?.querySelectorAll("[data-card-id]").length ?? 0;
     }), { timeout: 15_000 })
     .toBe(2);
@@ -125,18 +125,18 @@ test("dev: canvas layout is durable across a controller reload", async ({ page }
     el.click();
   });
   await page.waitForFunction(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return (sr?.querySelectorAll("[data-card-id]") ?? []).length >= 2;
   }, undefined, { timeout: 30_000 });
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible({ timeout: 20_000 });
   await expect
     .poll(() => page.evaluate(() => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       return sr?.querySelectorAll("[data-card-id]").length ?? 0;
     }))
     .toBe(2);

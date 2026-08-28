@@ -29,7 +29,7 @@ describe("TokenChip", () => {
     const picker = handle.host.querySelector('[data-test="token-chip-picker"]') as HTMLElement;
     const action = handle.host.querySelector('[data-test="token-chip-action"]') as HTMLElement;
 
-    expect(chip.className).toContain("dt-token-chip--small");
+    expect(chip.className).toContain("token-chip--small");
     expect(chip.dataset.group).toBe("color");
     expect(picker.querySelector('[data-test="token-chip-swatch"]')).not.toBeNull();
     expect(picker.textContent).toContain("--color-primary");

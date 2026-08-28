@@ -1,14 +1,14 @@
 import type { ComponentContract } from "../componentSemantics/types.ts";
 import {
-  configureDesignToolRuntime,
-  getDesignToolRuntimeConfig,
+  configureNudgeUiRuntime,
+  getNudgeUiRuntimeConfig,
 } from "../runtimeConfig.ts";
 
 /**
  * Vitest uses this module in place of the host-generated virtual module.
  *
  * Tests intentionally mutate the exported fixture between cases. The real
- * host passes component contracts through `configureDesignToolRuntime`, which
+ * host passes component contracts through `configureNudgeUiRuntime`, which
  * defensively clones and freezes them. Mirror that boundary after each test
  * fixture mutation so the fixture stays mutable while the runtime keeps its
  * production snapshot semantics.
@@ -16,8 +16,8 @@ import {
 const mutableComponentContracts: ComponentContract[] = [];
 
 function syncComponentContracts(): void {
-  configureDesignToolRuntime({
-    ...getDesignToolRuntimeConfig(),
+  configureNudgeUiRuntime({
+    ...getNudgeUiRuntimeConfig(),
     componentContracts: mutableComponentContracts,
   });
 }

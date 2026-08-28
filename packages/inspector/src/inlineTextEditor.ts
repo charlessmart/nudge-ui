@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { appendChange } from "./changesLog.ts";
 import { registerInlineTextClearHandler } from "./inlineTextLifecycle.ts";
-import { isDesignToolDev } from "./devFlag.ts";
+import { isNudgeUiDev } from "./devFlag.ts";
 import {
   createComponentPropChange,
 } from "./componentSemantics/changeModel.ts";
@@ -451,7 +451,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   const capturedTarget = candidate.renderedTarget
     ?? captureTextProjectionTarget(candidate.element, candidate.before, candidate.textNode);
   const host = doc.createElement("span");
-  host.setAttribute("data-dt-inline-editor", "true");
+  host.setAttribute("data-inline-editor", "true");
   host.setAttribute("contenteditable", "plaintext-only");
   host.contentEditable = "plaintext-only";
   candidate.textNode.replaceWith(host);
@@ -820,7 +820,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
       event.stopPropagation();
       return;
     }
-    const inspectorRoot = doc.getElementById("design-tool-root");
+    const inspectorRoot = doc.getElementById("nudge-ui-root");
     if (inspectorRoot && (target === inspectorRoot || inspectorRoot.contains(target))) return;
     // At the document boundary, application actions are suspended for the
     // duration of the draft. Inspector controls live in the scoped shadow
@@ -1081,7 +1081,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
 
 export const inlineTextEditor: InlineTextEditor = {
   begin(element, point) {
-    if (!isDesignToolDev()) {
+    if (!isNudgeUiDev()) {
       return {
         kind: "rejected",
         reason: "no-binding",
@@ -1106,7 +1106,7 @@ export const inlineTextEditor: InlineTextEditor = {
 export function beginInlineTextEditFromEmptyProjection(
   marker: HTMLElement,
 ): InlineTextSession | TextEditRejection {
-  if (!isDesignToolDev()) {
+  if (!isNudgeUiDev()) {
     return {
       kind: "rejected",
       reason: "no-binding",
@@ -1142,7 +1142,7 @@ export function beginInlineTextEdit(
   element: HTMLElement,
   point?: { x: number; y: number },
 ): InlineTextSession | TextEditRejection {
-  if (!isDesignToolDev()) {
+  if (!isNudgeUiDev()) {
     return {
       kind: "rejected",
       reason: "no-binding",

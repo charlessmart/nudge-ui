@@ -8,7 +8,7 @@ describe("computeHierarchy", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
     host = document.createElement("div");
-    host.id = "design-tool-root";
+    host.id = "nudge-ui-root";
     document.body.appendChild(host);
   });
   afterEach(() => {

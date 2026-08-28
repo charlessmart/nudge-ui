@@ -1,4 +1,4 @@
-.dt-at-rule-indicator {
+.at-rule-indicator {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -9,7 +9,7 @@
   border: 0;
   border-radius: 3px;
   background: transparent;
-  color: var(--dt-accent-strong);
+  color: var(--accent-strong);
   font: inherit;
   font-size: 14px;
   font-weight: 650;
@@ -18,53 +18,57 @@
   cursor: help;
 }
 
-.dt-at-rule-indicator:hover {
-  color: var(--dt-accent-text);
+.at-rule-indicator:hover {
+  color: var(--accent-text);
 }
 
-.dt-at-rule-indicator:focus-visible {
+.at-rule-indicator__symbol {
+  color: var(--text-secondary);
+}
+
+.at-rule-indicator:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 2px var(--dt-focus);
+  box-shadow: 0 0 0 2px var(--focus);
 }
 
-.dt-at-rule-tooltip-positioner {
+.at-rule-tooltip-positioner {
   /* The portal is a sibling of the panel in the inspector shadow root. */
   z-index: 3;
   pointer-events: auto;
 }
 
-.dt-at-rule-tooltip {
+.at-rule-tooltip {
   width: max-content;
   max-width: min(320px, calc(100vw - 24px));
   padding: 4px;
-  border: 1px solid color-mix(in srgb, var(--dt-border-strong) 70%, transparent);
-  border-radius: var(--dt-radius-control);
-  background: var(--dt-surface-raised);
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
   box-shadow: 0 8px 22px rgb(0 0 0 / 18%);
-  color: var(--dt-text-primary);
-  font-size: var(--dt-font-size-base);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
 }
 
-.dt-at-rule-tooltip__rules {
+.at-rule-tooltip__rules {
   display: grid;
   gap: 2px;
 }
 
-.dt-at-rule-tooltip__rule {
+.at-rule-tooltip__rule {
   min-width: 0;
   padding: 5px 6px;
   border-radius: 4px;
 }
 
-.dt-at-rule-tooltip__rule--active {
-  background: var(--dt-accent-surface);
+.at-rule-tooltip__rule--active {
+  background: var(--accent-surface);
 }
 
-.dt-at-rule-tooltip code {
+.at-rule-tooltip code {
   display: block;
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--dt-text-primary);
+  color: var(--text-primary);
   font: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;

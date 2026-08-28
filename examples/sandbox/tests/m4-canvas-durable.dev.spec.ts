@@ -12,7 +12,7 @@ async function waitForInspector(page: import("@playwright/test").Page): Promise<
         page.evaluate(() =>
           Boolean(
             document
-              .getElementById("design-tool-root")
+              .getElementById("nudge-ui-root")
               ?.shadowRoot?.querySelector('[data-test="inspect-tab"]'),
           ),
         ),
@@ -36,7 +36,7 @@ async function setInput(
 ): Promise<void> {
   await page.evaluate(
     ({ p, v }) => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       const raw = sr?.querySelector(
         `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
       ) as HTMLInputElement | null;
@@ -75,7 +75,7 @@ test.describe("Canvas durable session", () => {
 
     // The restore-count message should stay hidden, while the clear action remains available below Changes
     await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
-    await expect(page.locator('[data-test="session-actions"]')).toHaveClass(/dt-changes__session-action/);
+    await expect(page.locator('[data-test="session-actions"]')).toHaveClass(/changes__session-action/);
 
     // The edit should still be present
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
@@ -91,7 +91,7 @@ test.describe("Canvas durable session", () => {
 
     // Card should exist
     const board = page.locator('[data-test="canvas-board"]');
-    await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
+    await expect(board.locator(".canvas-card")).toHaveCount(1);
 
     // Reload
     await page.reload();
@@ -99,7 +99,7 @@ test.describe("Canvas durable session", () => {
 
     // Should return to Canvas mode with the card
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-    await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
+    await expect(board.locator(".canvas-card")).toHaveCount(1);
   });
 
   test("dev: inspect mode survives refresh", async ({ page }) => {
@@ -202,7 +202,7 @@ test.describe("Canvas durable session", () => {
 
     await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
-    const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+    const frame = page.frameLocator(".canvas-card__iframe").first();
     const frameFontSize = () => frame.locator(".repeated-item").evaluateAll((els) =>
       els.map((el) => getComputedStyle(el).fontSize));
     await expect.poll(frameFontSize).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
@@ -238,7 +238,7 @@ test.describe("Canvas durable session", () => {
 
     await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
-    const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+    const frame = page.frameLocator(".canvas-card__iframe").first();
     await expect(frame.locator(".repeated-item")).toHaveText([
       "Repeated 1", "Repeated 3", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
     ]);
@@ -253,16 +253,16 @@ test.describe("Canvas durable session", () => {
     await setInput(page, "font-size", "18px");
     await page.locator('[data-test="unlink-element"]').click();
     await setInput(page, "font-size", "24px");
-    await expect(page.locator('.repeated-item[data-dt-projection-instance]')).toHaveCount(1);
+    await expect(page.locator('.repeated-item[data-projection-instance]')).toHaveCount(1);
 
     await page.evaluate(() => {
-      document.querySelector('.repeated-item[data-dt-projection-instance]')
-        ?.removeAttribute("data-dt-projection-instance");
+      document.querySelector('.repeated-item[data-projection-instance]')
+        ?.removeAttribute("data-projection-instance");
     });
     await page.locator('[data-test="changes-toggle"]').click();
     await expect(page.locator('[data-test="instance-diagnostic"][data-document="Inspect"][data-status="overridden"]'))
       .toBeVisible();
-    await expect(page.locator('.repeated-item[data-dt-projection-instance]')).toHaveCount(0);
+    await expect(page.locator('.repeated-item[data-projection-instance]')).toHaveCount(0);
   });
 
   test("dev: restored individual CSS, delete, and move project through Canvas reload and clear together", async ({ page }) => {
@@ -294,7 +294,7 @@ test.describe("Canvas durable session", () => {
 
     await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
-    const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+    const frame = page.frameLocator(".canvas-card__iframe").first();
     await expect(frame.getByText("Repeated 3", { exact: true })).not.toBeAttached();
     await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("BAC");
     const frameFontSize = () => frame.locator(".repeated-item").evaluateAll((els) =>
@@ -321,8 +321,8 @@ test.describe("Canvas durable session — restore safety", () => {
 
     // Inject malformed session data into localStorage
     await page.evaluate(() => {
-      // Find any existing design-tool key and corrupt it
-      const keys = Object.keys(localStorage).filter((k) => k.startsWith("design-tool:"));
+      // Find any existing nudge-ui key and corrupt it
+      const keys = Object.keys(localStorage).filter((k) => k.startsWith("nudge-ui:"));
       for (const key of keys) {
         localStorage.setItem(key, "not-valid-json{{");
       }

@@ -140,19 +140,19 @@ function App() {
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    window.__designToolRerender = () =>
+    window.__nudgeUiRerender = () =>
       setClicks((c) => c + 1);
     return () => {
-      delete window.__designToolRerender;
+      delete window.__nudgeUiRerender;
     };
   }, []);
 
   return (
     <div className="site-shell">
       <header className="site-header">
-        <a className="wordmark" href="#top" aria-label="Design Tool home">
+        <a className="wordmark" href="#top" aria-label="Nudge UI home">
           <span className="wordmark-mark" aria-hidden="true">✳</span>
-          <span>design tool</span>
+          <span>nudge ui</span>
         </a>
         <nav className="site-nav" aria-label="Main navigation">
           <a href="#features">Why it works</a>
@@ -177,7 +177,7 @@ function App() {
             <p className="hero-meta"><span className="status-dot" /> local, private, dev-only <span className="meta-divider">·</span> <span {...(import.meta.env.DEV ? { "data-test": "click-counter" } : {})}>clicks: {clicks}</span></p>
           </div>
 
-          <div className="hero-visual" aria-label="A preview of the Design Tool inspector">
+          <div className="hero-visual" aria-label="A preview of the Nudge UI inspector">
             <div className="visual-topline">
               <span className="window-dots"><i /><i /><i /></span>
               <span className="visual-url">localhost:5173 / sandbox</span>

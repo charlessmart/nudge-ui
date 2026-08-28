@@ -63,7 +63,7 @@ export function resolveSelectionFromEvent(
   if (!(target instanceof Element)) return null;
   if (inspectorHost === target || inspectorHost.contains(target)) return null;
   const root = target.getRootNode();
-  if (root instanceof ShadowRoot && root.host instanceof HTMLElement && root.host.id === "design-tool-root") {
+  if (root instanceof ShadowRoot && root.host instanceof HTMLElement && root.host.id === "nudge-ui-root") {
     return null;
   }
   const el = resolveSelectionTarget(target, mode);

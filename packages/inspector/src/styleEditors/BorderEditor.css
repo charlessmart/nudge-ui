@@ -1,51 +1,51 @@
-.dt-border__linked-row {
+.border__linked-row {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.dt-border__linked-control {
+.border__linked-control {
   flex: 1 1 0;
   min-width: 0;
 }
 
-.dt-border__linked-control--color {
+.border__linked-control--color {
   flex: 3 1 0;
 }
 
-.dt-border__linked-control--width {
+.border__linked-control--width {
   flex: 1 1 0;
 }
 
-.dt-border__linked-row > .dt-popover-listbox,
-.dt-border__linked-row > .dt-toggle-button {
+.border__linked-row > .popover-listbox,
+.border__linked-row > .toggle-button {
   flex: 0 0 auto;
 }
 
-.dt-border__linked-row > .dt-popover-listbox {
+.border__linked-row > .popover-listbox {
   width: auto;
 }
 
-.dt-border__expanded {
+.border__expanded {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.dt-border__expanded-header {
+.border__expanded-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 26px;
 }
 
-.dt-border__side-rows {
+.border__side-rows {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.dt-border__side-row {
+.border__side-row {
   display: grid;
   min-width: 0;
   grid-template-columns: auto minmax(0, 3fr) minmax(0, 1fr) auto;
@@ -53,14 +53,14 @@
   gap: 6px;
 }
 
-.dt-border__side-row > .dt-side-values__side-icon {
+.border__side-row > .side-values__side-icon {
   justify-self: center;
 }
 
-.dt-border__side-control {
+.border__side-control {
   min-width: 0;
 }
 
-.dt-border__side-row > .dt-popover-listbox {
+.border__side-row > .popover-listbox {
   flex: 0 0 auto;
 }

@@ -1,5 +1,5 @@
 import type { TokenDefinition, TokenEntry } from "../virtual/design-tokens.ts";
-import type { TokenContribution } from "@design-tool/css/token-inventory";
+import type { TokenContribution } from "@nudge-ui/css/token-inventory";
 import type { TokenAdapter } from "./types.ts";
 import { tokenEntryFromDefinition } from "./tokenEntryFromDefinition.ts";
 

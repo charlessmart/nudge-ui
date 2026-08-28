@@ -33,11 +33,11 @@ describe("static HTML runtime identity", () => {
     dispose = installStaticHtmlRuntimeIdentity();
 
     const buttons = Array.from(document.querySelectorAll("button"));
-    expect(buttons[0]?.getAttribute("data-cid")).toBe("design-tool-runtime-1");
+    expect(buttons[0]?.getAttribute("data-cid")).toBe("nudge-ui-runtime-1");
     expect(buttons[0]?.getAttribute("data-src")).toBe(`${RUNTIME_UNKNOWN_SOURCE_PREFIX}1`);
     expect(buttons[1]?.getAttribute("data-cid")).toBe("author-cid");
     expect(buttons[1]?.getAttribute("data-src")).toBe(`${RUNTIME_UNKNOWN_SOURCE_PREFIX}2`);
-    expect(buttons[2]?.getAttribute("data-cid")).toBe("design-tool-runtime-3");
+    expect(buttons[2]?.getAttribute("data-cid")).toBe("nudge-ui-runtime-3");
     expect(buttons[2]?.getAttribute("data-src")).toBe("index.html:4:3");
     expect(buttons[3]?.getAttribute("data-cid")).toBe("static");
     expect(buttons[3]?.getAttribute("data-src")).toBe("index.html:5:3");
@@ -60,7 +60,7 @@ describe("static HTML runtime identity", () => {
     await flushMutations();
 
     expect(sourceOnly.getAttribute("data-src")).toBe("author.html:4:2");
-    expect(sourceOnly.getAttribute("data-cid")).toBe("design-tool-runtime-1");
+    expect(sourceOnly.getAttribute("data-cid")).toBe("nudge-ui-runtime-1");
     expect(cidOnly.getAttribute("data-cid")).toBe("author-link");
     expect(cidOnly.getAttribute("data-src")).toBe(`${RUNTIME_UNKNOWN_SOURCE_PREFIX}2`);
     expect(isRuntimeCreatedElement(sourceOnly)).toBe(true);
@@ -73,7 +73,7 @@ describe("static HTML runtime identity", () => {
       "<style>.x { color: red; }</style>",
       "<template><button id='template-child'>Template</button></template>",
       "<noscript><button id='noscript-child'>No script</button></noscript>",
-      "<div id='design-tool-root'><button id='mount-child'>Mount</button></div>",
+      "<div id='nudge-ui-root'><button id='mount-child'>Mount</button></div>",
       "<svg><foreignObject><div id='svg-child'>SVG</div></foreignObject></svg>",
       "<article><button id='eligible'>Eligible</button></article>",
     ].join("");
@@ -96,7 +96,7 @@ describe("static HTML runtime identity", () => {
     content.replaceChildren(document.createElement("section"));
     await flushMutations();
     const replacement = content.firstElementChild!;
-    expect(replacement.getAttribute("data-cid")).toBe("design-tool-runtime-1");
+    expect(replacement.getAttribute("data-cid")).toBe("nudge-ui-runtime-1");
     expect(replacement.getAttribute("data-src")).toBe(`${RUNTIME_UNKNOWN_SOURCE_PREFIX}1`);
 
     dispose();

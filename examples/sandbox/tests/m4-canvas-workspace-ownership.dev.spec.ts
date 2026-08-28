@@ -8,7 +8,7 @@ async function waitForInspector(page: import("@playwright/test").Page): Promise<
         page.evaluate(() =>
           Boolean(
             document
-              .getElementById("design-tool-root")
+              .getElementById("nudge-ui-root")
               ?.shadowRoot?.querySelector('[data-test="inspect-tab"]'),
           ),
         ),
@@ -24,7 +24,7 @@ async function waitForLockedNotice(page: import("@playwright/test").Page): Promi
         page.evaluate(() =>
           Boolean(
             document
-              .getElementById("design-tool-root")
+              .getElementById("nudge-ui-root")
               ?.shadowRoot?.querySelector('[data-test="locked-workspace-notice"]'),
           ),
         ),
@@ -44,7 +44,7 @@ async function setInput(
 ): Promise<void> {
   await page.evaluate(
     ({ p, v }) => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       const raw = sr?.querySelector(
         `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
       ) as HTMLInputElement | null;
@@ -89,7 +89,7 @@ test.describe("Canvas workspace lease — single ownership", () => {
     const lockedNotice = page2.locator('[data-test="locked-workspace-notice"]');
     await expect(lockedNotice).toBeVisible();
     const noticeText = await lockedNotice.textContent();
-    expect(noticeText).toContain("Design Tool writes are disabled");
+    expect(noticeText).toContain("Nudge UI writes are disabled");
     expect(noticeText).toContain("Another workspace is active");
 
     // Takeover button should exist
@@ -134,7 +134,7 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
 
     // Simulate an expired lease by writing one with old heartbeat
     await page.evaluate(() => {
-      const keys = Object.keys(localStorage).filter((k) => k.startsWith("design-tool:") && k.endsWith(":lease"));
+      const keys = Object.keys(localStorage).filter((k) => k.startsWith("nudge-ui:") && k.endsWith(":lease"));
       if (keys.length > 0) {
         const raw = localStorage.getItem(keys[0]!);
         if (raw) {
@@ -175,7 +175,7 @@ test.describe("Canvas workspace — stale change detection", () => {
     // Now inject a fake "stale" change into the session — one that won't match any DOM element
     await page.evaluate(() => {
       const keys = Object.keys(localStorage).filter((k) =>
-        k.startsWith("design-tool:") && k.endsWith(":v3"),
+        k.startsWith("nudge-ui:") && k.endsWith(":v3"),
       );
       if (keys.length === 0) return;
       const raw = localStorage.getItem(keys[0]!);
@@ -205,7 +205,7 @@ test.describe("Canvas workspace — stale change detection", () => {
     const clearSession = page.locator('[data-test="clear-session"]');
     await expect(clearSession).toBeVisible();
     await expect(clearSession.locator(".."))
-      .toHaveClass(/dt-changes__session-action/);
+      .toHaveClass(/changes__session-action/);
 
     // The stale change should be in the changes log
     const changeRows = page.locator('[data-test="change-row"]');
@@ -221,7 +221,7 @@ test.describe("Canvas workspace — stale change detection", () => {
     // Prepare a session with a known stale change
     await page.evaluate(() => {
       const keys = Object.keys(localStorage).filter((k) =>
-        k.startsWith("design-tool:") && !k.endsWith(":lease"),
+        k.startsWith("nudge-ui:") && !k.endsWith(":lease"),
       );
       // Clear any existing session
       for (const key of keys) localStorage.removeItem(key);
@@ -230,10 +230,10 @@ test.describe("Canvas workspace — stale change detection", () => {
     // Write a fresh session with a stale change
     await page.evaluate(() => {
       const leaseKey = Object.keys(localStorage).find((key) =>
-        key.startsWith("design-tool:") && key.endsWith(":lease"),
+        key.startsWith("nudge-ui:") && key.endsWith(":lease"),
       );
       if (!leaseKey) throw new Error("expected a workspace lease");
-      const id = leaseKey.slice("design-tool:".length, -":lease".length);
+      const id = leaseKey.slice("nudge-ui:".length, -":lease".length);
       const session = {
         schemaVersion: 3,
         projectId: id,
@@ -256,7 +256,7 @@ test.describe("Canvas workspace — stale change detection", () => {
           },
         ],
       };
-      const prefixedKey = `design-tool:${id}:v3`;
+      const prefixedKey = `nudge-ui:${id}:v3`;
       localStorage.setItem(prefixedKey, JSON.stringify(session));
     });
 

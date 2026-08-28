@@ -21,13 +21,13 @@ import {
   createTokenInventory,
   type InventoryDiagnostic,
   type StylesheetArtifact,
-} from "@design-tool/css/token-inventory";
+} from "@nudge-ui/css/token-inventory";
 import type {
   TokenCatalogDiagnostic,
   TokenDeclaration,
   TokenDefinition,
   TokenEntry,
-} from "@design-tool/css/model";
+} from "@nudge-ui/css/model";
 
 const EXCLUDED_DIRECTORY_NAMES = new Set([
   ".git",

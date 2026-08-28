@@ -1,5 +1,5 @@
-const LAYOUT_STYLE_ID = "design-tool-panel-layout";
-const PANEL_LAYOUT_ATTRIBUTE = "data-design-tool-panel";
+const LAYOUT_STYLE_ID = "nudge-ui-panel-layout";
+const PANEL_LAYOUT_ATTRIBUTE = "data-nudge-ui-panel";
 
 const LAYOUT_STYLES = `
 html[${PANEL_LAYOUT_ATTRIBUTE}="open"] body {

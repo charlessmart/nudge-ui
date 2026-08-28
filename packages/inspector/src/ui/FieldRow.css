@@ -1,73 +1,73 @@
-.dt-field-row {
+.field-row {
   display: grid;
-  grid-template-columns: var(--dt-label-column) minmax(0, 1fr);
-  gap: var(--dt-space-8);
+  grid-template-columns: var(--label-column) minmax(0, 1fr);
+  gap: var(--space-8);
   align-items: center;
-  min-height: var(--dt-control-height-large);
+  min-height: var(--control-height-large);
 }
 
-.dt-field-row--has-action {
-  grid-template-columns: var(--dt-label-column) minmax(0, 1fr) auto;
+.field-row--has-action {
+  grid-template-columns: var(--label-column) minmax(0, 1fr) auto;
 }
 
-.dt-field-row__label {
-  color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size-base);
+.field-row__label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
   line-height: 1.25;
 }
 
-.dt-field-row__label--hidden {
+.field-row__label--hidden {
   position: absolute;
-  width: var(--dt-space-0);
-  height: var(--dt-space-0);
+  width: var(--space-0);
+  height: var(--space-0);
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
 }
 
-.dt-field-row__control {
+.field-row__control {
   display: block;
   min-width: 0;
 }
 
-.dt-field-row__action {
+.field-row__action {
   display: inline-flex;
   min-width: 0;
   align-items: center;
   justify-content: flex-end;
 }
 
-.dt-field-row__control[data-has-at-rule="true"] {
+.field-row__control[data-has-at-rule="true"] {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.dt-field-row__control[data-has-at-rule="true"] > :not(.dt-at-rule-indicator):not(.dt-field-row__hint) {
+.field-row__control[data-has-at-rule="true"] > :not(.at-rule-indicator):not(.field-row__hint) {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.dt-field-row__control[data-has-at-rule="true"] > .dt-at-rule-indicator {
+.field-row__control[data-has-at-rule="true"] > .at-rule-indicator {
   margin-left: auto;
 }
 
-.dt-field-row--stacked {
+.field-row--stacked {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--dt-space-8);
+  gap: var(--space-8);
   min-height: 0;
 }
 
-.dt-field-row--stacked .dt-field-row__control {
+.field-row--stacked .field-row__control {
   width: 100%;
 }
 
-.dt-field-row__hint {
+.field-row__hint {
   display: block;
-  margin-top: var(--dt-space-4);
-  color: var(--dt-text-muted-subtle);
-  font-size: var(--dt-font-size-base);
+  margin-top: var(--space-4);
+  color: var(--text-muted-subtle);
+  font-size: var(--font-size-base);
   line-height: 1.3;
 }

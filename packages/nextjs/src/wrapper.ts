@@ -6,12 +6,12 @@ import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
 
 /**
- * `withDesignTool(nextConfig)` — the single user touchpoint (ADR-0010).
+ * `withNudgeUi(nextConfig)` — the single user touchpoint (ADR-0010).
  *
  * Development-phase gated per ADR-0002: when the config is evaluated outside
  * `next dev` (`NODE_ENV !== "development"`), the original configuration
  * object is returned untouched and nothing is registered, spawned, or
- * injected. Production builds cannot observe Design Tool.
+ * injected. Production builds cannot observe Nudge UI.
  *
  * The wrapper is written against a structural subset of Next's config types
  * so this package stays typecheckable without `next` installed; consumers
@@ -19,7 +19,7 @@ import { buildManifest } from "./manifest.ts";
  */
 
 /** Structural subset of Next.js config this wrapper reads and writes. */
-export interface DesignToolNextConfig {
+export interface NudgeUiNextConfig {
   [key: string]: unknown;
   turbopack?: {
     rules?: Record<string, unknown>;
@@ -46,13 +46,13 @@ export interface RewritesShape {
   [key: string]: unknown;
 }
 
-const NAMESPACE_PREFIX = "/__design_tool__";
+const NAMESPACE_PREFIX = "/__nudge_ui__";
 
 const SUPPORTED_NEXT_RANGE = ">=15.3 <17";
 
 /**
  * Both compilers register the esbuild-bundled CommonJS loaders from
- * `dist/loaders/` (built by `pnpm --filter @design-tool/nextjs build`):
+ * `dist/loaders/` (built by `pnpm --filter @nudge-ui/nextjs build`):
  *
  * - Turbopack's LoaderRunner requires the module itself to be the loader
  *   function (CJS emission), and Node 20 cannot parse TypeScript sources —
@@ -100,9 +100,9 @@ function resolveNextVersion(root: string): string | null {
 function gateUnsupportedVersion(version: string | null): boolean {
   if (version && isVersionSupported(version)) return true;
   console.warn(
-    `[design-tool] Next.js ${version ?? "(version unavailable)"} is outside the tested range `
+    `[nudge-ui] Next.js ${version ?? "(version unavailable)"} is outside the tested range `
       + `${SUPPORTED_NEXT_RANGE} (ADR-0010). Skipping instrumentation — remove `
-      + `withDesignTool() or align versions to enable Design Tool.`,
+      + `withNudgeUi() or align versions to enable Nudge UI.`,
   );
   return false;
 }
@@ -130,7 +130,7 @@ function collectUserRewriteSources(rewrites: RewritesShape): string[] {
 export const DEVELOPMENT_SERVER_PHASE = "phase-development-server";
 
 /**
- * Wraps a Next.js configuration with Design Tool instrumentation.
+ * Wraps a Next.js configuration with Nudge UI instrumentation.
  *
  * Two input forms are supported:
  *
@@ -145,12 +145,12 @@ export const DEVELOPMENT_SERVER_PHASE = "phase-development-server";
  * @returns A configuration (or factory) to export in its place.
  */
 /** Object form: instruments immediately when running in development. */
-export function withDesignTool<T extends object>(config: T): T;
+export function withNudgeUi<T extends object>(config: T): T;
 /** Function form: gates instrumentation on PHASE_DEVELOPMENT_SERVER. */
-export function withDesignTool<T extends object>(
+export function withNudgeUi<T extends object>(
   factory: (phase: string) => T,
 ): (phase: string) => T;
-export function withDesignTool<T extends object>(
+export function withNudgeUi<T extends object>(
   config: T | ((phase: string) => T) = {} as T,
 ): T | ((phase: string) => T) {
   if (typeof config === "function") {
@@ -176,7 +176,7 @@ function instrumentConfig<T extends object>(config: T): T {
 
   // Consumers pass their real NextConfig object; the structural subset is an
   // internal view so this package stays typecheckable without next installed.
-  const source = config as DesignToolNextConfig;
+  const source = config as NudgeUiNextConfig;
   const root = process.cwd();
   // Fail closed per ADR-0010 when the resolved version is unsupported.
   if (!gateUnsupportedVersion(resolveNextVersion(root))) {
@@ -189,27 +189,27 @@ function instrumentConfig<T extends object>(config: T): T {
     ensureSidecar(root, { manifest: buildManifest({ root }), tokens: true })
       .then((handle: SidecarHandle) => handle.port)
       .catch((error: unknown) => {
-        console.warn("[design-tool] sidecar failed to start:", error);
+        console.warn("[nudge-ui] sidecar failed to start:", error);
         return 0;
       });
 
-  const nextConfig: DesignToolNextConfig = { ...source };
+  const nextConfig: NudgeUiNextConfig = { ...source };
 
   // --- transpilePackages -------------------------------------------------
-  // Workspace Design Tool packages ship raw TypeScript that SWC refuses to
+  // Workspace Nudge UI packages ship raw TypeScript that SWC refuses to
   // compile from node_modules unless listed (see feature-plan appendix).
-  const designToolPackages = [
-    "@design-tool/nextjs",
-    "@design-tool/plugin",
-    "@design-tool/inspector",
-    "@design-tool/css",
+  const nudgeUiPackages = [
+    "@nudge-ui/nextjs",
+    "@nudge-ui/plugin",
+    "@nudge-ui/inspector",
+    "@nudge-ui/css",
   ];
   const userTranspile = Array.isArray(source.transpilePackages)
     ? source.transpilePackages
     : [];
   nextConfig.transpilePackages = [
     ...userTranspile,
-    ...designToolPackages.filter((name) => !userTranspile.includes(name)),
+    ...nudgeUiPackages.filter((name) => !userTranspile.includes(name)),
   ];
 
   // --- Turbopack rules (primary compiler) ---------------------------------
@@ -217,7 +217,7 @@ function instrumentConfig<T extends object>(config: T): T {
     ...((source.turbopack?.rules as Record<string, unknown> | undefined) ?? {}),
   };
   const paths = loaderPaths();
-  if (process.env.DT_NEXT_TURBOPACK_RULES !== "0") {
+  if (process.env.NUDGE_UI_NEXT_TURBOPACK_RULES !== "0") {
     const identityRule = {
       loaders: [{ loader: paths.plugin, options: { root } }],
       // 'foreign' is Turbopack's builtin condition for dependency code, so
@@ -228,7 +228,7 @@ function instrumentConfig<T extends object>(config: T): T {
           { not: "foreign" },
           { not: { path: "(**/)?\\.next/**" } },
           // Workspace symlinks are NOT foreign (they are source-backed), so
-          // the Design Tool packages themselves must be excluded explicitly:
+          // the Nudge UI packages themselves must be excluded explicitly:
           // instrumenting the inspector's own UI would wrap every control in
           // override boundaries and pollute the panel with identity attrs.
           {
@@ -269,7 +269,7 @@ function instrumentConfig<T extends object>(config: T): T {
     });
   }
   // --- Single React instance (ADR-0004 via module resolution) -------------
-  // Design Tool packages carry their own react dependency for standalone
+  // Nudge UI packages carry their own react dependency for standalone
   // consumers. Without an alias, SWC resolves their `react` imports against
   // those copies while the host application runs its own — two Reacts in one
   // document, and inspector state updates silently stop rendering. Aliasing
@@ -304,14 +304,14 @@ function instrumentConfig<T extends object>(config: T): T {
     // Next 16 removed the webpack CSS pipeline entirely
     // (nextjs.org/docs/messages/built-in-css-disabled): applications using
     // stylesheets cannot run under `next dev --webpack` on 16 at all,
-    // with or without Design Tool. Registration stays so Next 15.x within
+    // with or without Nudge UI. Registration stays so Next 15.x within
     // the supported range keeps working; flag the combination loudly.
     const version = resolveNextVersion(root);
     if (version && Number(version.split(".")[0]) >= 16) {
       console.warn(
-        "[design-tool] Next.js " + version + " webpack dev mode has no CSS support "
+        "[nudge-ui] Next.js " + version + " webpack dev mode has no CSS support "
           + "(removed upstream); CSS-bearing applications will fail to compile "
-          + "independent of Design Tool. Prefer Turbopack (default) or Next 15.x.",
+          + "independent of Nudge UI. Prefer Turbopack (default) or Next 15.x.",
       );
     }
     rules.push({
@@ -334,8 +334,8 @@ function instrumentConfig<T extends object>(config: T): T {
 
   // --- Manifest transport rewrite ----------------------------------------
   const proxyRewrite = (port: number): RewritesSource => ({
-    source: "/__design_tool__/:path*",
-    destination: `http://127.0.0.1:${port}/__design_tool__/:path*`,
+    source: "/__nudge_ui__/:path*",
+    destination: `http://127.0.0.1:${port}/__nudge_ui__/:path*`,
   });
 
   const resolveRewrites = async (): Promise<RewritesShape> => {
@@ -352,7 +352,7 @@ function instrumentConfig<T extends object>(config: T): T {
     const collisions = collectUserRewriteSources(shape);
     if (collisions.length > 0) {
       console.warn(
-        "[design-tool] /__design_tool__ is a reserved namespace (ADR-0010); "
+        "[nudge-ui] /__nudge_ui__ is a reserved namespace (ADR-0010); "
           + "your rewrites also declare it and will be shadowed:",
         collisions,
       );

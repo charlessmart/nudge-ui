@@ -1,6 +1,6 @@
 /**
  * Compiler-facing loader entry (webpack shape) registered by
- * `withDesignTool` for both Turbopack rules and webpack module rules
+ * `withNudgeUi` for both Turbopack rules and webpack module rules
  * (ADR-0010).
  *
  * Shape constraints established against Next 16.3.2, whose Turbopack runs
@@ -22,7 +22,7 @@
  * passthrough when nothing applies.
  */
 
-interface DesignToolLoaderContext {
+interface NudgeUiLoaderContext {
   resourcePath?: string;
   query?: string | Record<string, unknown>;
   getOptions?: () => Record<string, unknown>;
@@ -42,7 +42,7 @@ const { transformNextModuleSource } = require("./loader.ts") as {
     options?: { root?: string; pagesDir?: string },
   ) => { code: string } | null;
 };
-const { extractComponentContracts } = require("@design-tool/plugin/component-contracts") as {
+const { extractComponentContracts } = require("@nudge-ui/plugin/component-contracts") as {
   extractComponentContracts: (source: string, file: string) => unknown[];
 };
 
@@ -85,7 +85,7 @@ function postContracts(root: string, relativeFile: string, source: string): void
   let port = 0;
   try {
     const raw = JSON.parse(
-      nodeFs.readFileSync(nodePath.join(root, ".next", "design-tool-sidecar.json"), "utf8"),
+      nodeFs.readFileSync(nodePath.join(root, ".next", "nudge-ui-sidecar.json"), "utf8"),
     ) as { port?: number };
     port = typeof raw.port === "number" ? raw.port : 0;
   } catch {
@@ -93,14 +93,14 @@ function postContracts(root: string, relativeFile: string, source: string): void
   }
   if (!port) return;
   const body = JSON.stringify({ file: relativeFile, contracts });
-  void fetch(`http://127.0.0.1:${port}/__design_tool__/contracts`, {
+  void fetch(`http://127.0.0.1:${port}/__nudge_ui__/contracts`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body,
   }).catch(() => {});
 }
 
-function readOptions(context: DesignToolLoaderContext): LoaderOptions {
+function readOptions(context: NudgeUiLoaderContext): LoaderOptions {
   if (typeof context.getOptions === "function") {
     return context.getOptions() as LoaderOptions;
   }
@@ -111,8 +111,8 @@ function readOptions(context: DesignToolLoaderContext): LoaderOptions {
   return {};
 }
 
-function designToolLoader(
-  this: DesignToolLoaderContext,
+function nudgeUiLoader(
+  this: NudgeUiLoaderContext,
   source: string,
 ): string | undefined {
   // Defense-in-depth for ADR-0002: even if a wrapper were misconfigured into
@@ -159,4 +159,4 @@ function designToolLoader(
   return undefined;
 }
 
-module.exports = designToolLoader;
+module.exports = nudgeUiLoader;

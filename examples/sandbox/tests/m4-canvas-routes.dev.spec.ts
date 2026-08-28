@@ -6,19 +6,19 @@ test("dev: clicking same-origin link inside canvas iframe creates a new card", a
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   const board = page.locator('[data-test="canvas-board"]');
-  await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
 
   // Click the conformance link inside the iframe
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const conformanceLink = frame.locator('a[href="/conformance"]').first();
   await expect(conformanceLink).toBeVisible({ timeout: 20000 });
   await conformanceLink.click();
 
   // A second card should appear for the retained conformance route
-  await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
+  await expect(board.locator(".canvas-card")).toHaveCount(2);
 
-  const cards = board.locator(".dt-canvas-card");
-  const frameUrls = await cards.locator(".dt-canvas-card__iframe").evaluateAll((frames) =>
+  const cards = board.locator(".canvas-card");
+  const frameUrls = await cards.locator(".canvas-card__iframe").evaluateAll((frames) =>
     frames.map((frame) => (frame as HTMLIFrameElement).src),
   );
   const hasConformance = frameUrls.some((url) => url.includes("/conformance"));
@@ -31,14 +31,14 @@ test("dev: same-document hash links do not create new cards", async ({ page }) =
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   const board = page.locator('[data-test="canvas-board"]');
-  await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
 
   // Click a hash link inside the iframe
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   const hashLink = frame.locator('a[href="#features"]').first();
   await hashLink.click();
   // Should still have only 1 card (hash links don't create cards)
-  await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
 });
 
 test("dev: duplicate button creates a distinct card with independent iframe", async ({ page }) => {
@@ -47,7 +47,7 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   const board = page.locator('[data-test="canvas-board"]');
-  await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
 
   // Click the duplicate button on the first card
   const duplicateBtn = page.locator('[data-test^="canvas-card-duplicate-"]').first();
@@ -55,10 +55,10 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
   await duplicateBtn.click();
 
   // Two cards now
-  await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
+  await expect(board.locator(".canvas-card")).toHaveCount(2);
 
   // Both cards should have distinct IDs
-  const cards = board.locator(".dt-canvas-card");
+  const cards = board.locator(".canvas-card");
   const ids = await cards.evaluateAll((els) =>
     els.map((el) => el.getAttribute("data-card-id")),
   );
@@ -83,13 +83,13 @@ test("dev: delete key removes the selected card and exits canvas when it is the 
   await duplicateBtn.click();
 
   const board = page.locator('[data-test="canvas-board"]');
-  await expect(board.locator(".dt-canvas-card")).toHaveCount(2);
+  await expect(board.locator(".canvas-card")).toHaveCount(2);
 
   // Delete the selected card.
   await page.keyboard.press("Delete");
 
   // One card remains
-  await expect(board.locator(".dt-canvas-card")).toHaveCount(1);
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
 
   // Select the remaining card, then delete it (should exit Canvas).
   await board.locator('[data-test^="canvas-card-reload-"]').click();
@@ -130,16 +130,16 @@ test("dev: canvas card toolbar has preview, duplicate, and refresh controls", as
   await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toBeVisible();
   const preview = page.locator('[data-test^="canvas-card-preview-"]');
   await expect(preview).toHaveText("Page view");
-  await expect(preview).toHaveClass(/dt-button--secondary/);
-  await expect(preview).toHaveClass(/dt-button--default/);
+  await expect(preview).toHaveClass(/button--secondary/);
+  await expect(preview).toHaveClass(/button--default/);
   await expect(page.locator('[data-test^="canvas-card-reload-"]')).toBeVisible();
-  await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toHaveClass(/dt-icon-button--secondary/);
-  await expect(page.locator('[data-test^="canvas-card-reload-"]')).toHaveClass(/dt-icon-button--secondary/);
+  await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toHaveClass(/icon-button--secondary/);
+  await expect(page.locator('[data-test^="canvas-card-reload-"]')).toHaveClass(/icon-button--secondary/);
   await expect(page.locator('[data-test^="canvas-card-remove-"]')).toHaveCount(0);
 
-  const card = page.locator(".dt-canvas-card").first();
-  const toolbar = card.locator(".dt-canvas-card__toolbar");
-  const frame = card.locator(".dt-canvas-card__frame");
+  const card = page.locator(".canvas-card").first();
+  const toolbar = card.locator(".canvas-card__toolbar");
+  const frame = card.locator(".canvas-card__frame");
   const toolbarBox = await toolbar.boundingBox();
   const frameBox = await frame.boundingBox();
   expect(toolbarBox).not.toBeNull();

@@ -5,9 +5,9 @@ import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { TokenDropdown } from "./TokenDropdown.tsx";
-import { selectTokens } from "@design-tool/css/value-semantics";
+import { selectTokens } from "@nudge-ui/css/value-semantics";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { getChangeRecords, resetPendingRules } from "./editActions.ts";
 import { isElementChange } from "../changesLog.ts";
 import { selectOptionValues, setSelectValue } from "../styleEditors/_testUtils.ts";
@@ -79,7 +79,7 @@ describe("TokenDropdown rendering", () => {
 
   beforeEach(() => {
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
@@ -91,7 +91,7 @@ describe("TokenDropdown rendering", () => {
     });
     host.remove();
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 

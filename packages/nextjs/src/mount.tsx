@@ -13,7 +13,7 @@ import { useEffect } from "react";
  * browser-only while Next compiles it into the client bundle.
  *
  * Because the dynamic module is compiled by Next's own compiler inside the
- * host application, `@design-tool/inspector` resolves the app's React
+ * host application, `@nudge-ui/inspector` resolves the app's React
  * instance naturally — ADR-0004's single-React-instance goal through module
  * resolution instead of Vite aliasing.
  *
@@ -23,41 +23,41 @@ import { useEffect } from "react";
  * observed revision wins and a trailing fetch reconciles anything the
  * in-flight request missed.
  */
-export function DesignToolMount(): null {
+export function NudgeUiMount(): null {
   useEffect(() => {
     let disposed = false;
     let unsubscribeReload: (() => void) | undefined;
 
     const root = document.createElement("div");
-    root.id = "design-tool-root";
+    root.id = "nudge-ui-root";
     document.body.appendChild(root);
 
     async function activate(): Promise<void> {
-      const inspector = await import("@design-tool/inspector");
+      const inspector = await import("@nudge-ui/inspector");
       if (disposed) return;
 
-      inspector.setDesignToolHostDevFlag(true);
+      inspector.setNudgeUiHostDevFlag(true);
 
-      const initial = await fetch("/__design_tool__/manifest", { cache: "no-store" }).then(
+      const initial = await fetch("/__nudge_ui__/manifest", { cache: "no-store" }).then(
         (response) => response.json(),
       );
       if (disposed) return;
-      inspector.configureDesignToolRuntime(
-        initial as Parameters<typeof inspector.configureDesignToolRuntime>[0],
+      inspector.configureNudgeUiRuntime(
+        initial as Parameters<typeof inspector.configureNudgeUiRuntime>[0],
       );
-      inspector.bootstrapDesignTool(root);
+      inspector.bootstrapNudgeUi(root);
 
       let seenRevision = Number((initial as { revision?: number }).revision ?? 0);
       let latestObserved = seenRevision;
       let refreshInFlight = false;
 
       async function reconcile(): Promise<void> {
-        const refreshed = await fetch("/__design_tool__/manifest", { cache: "no-store" }).then(
+        const refreshed = await fetch("/__nudge_ui__/manifest", { cache: "no-store" }).then(
           (response) => response.json(),
         );
         if (!disposed) {
-          inspector.configureDesignToolRuntime(
-            refreshed as Parameters<typeof inspector.configureDesignToolRuntime>[0],
+          inspector.configureNudgeUiRuntime(
+            refreshed as Parameters<typeof inspector.configureNudgeUiRuntime>[0],
           );
         }
         seenRevision = Math.max(
@@ -66,7 +66,7 @@ export function DesignToolMount(): null {
         );
       }
 
-      const source = new EventSource("/__design_tool__/reload");
+      const source = new EventSource("/__nudge_ui__/reload");
       source.onmessage = (event: MessageEvent<string>) => {
         const revision = Number((JSON.parse(event.data) as { revision?: number }).revision);
         if (Number.isNaN(revision)) return;
@@ -88,7 +88,7 @@ export function DesignToolMount(): null {
     }
 
     void activate().catch((error: unknown) => {
-      console.warn("[design-tool] inspector bootstrap failed:", error);
+      console.warn("[nudge-ui] inspector bootstrap failed:", error);
     });
 
     return () => {

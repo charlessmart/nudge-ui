@@ -92,8 +92,8 @@ function readDimensions(el: HTMLElement): GridDimensions {
 function gridStyle(columns: number, rows: number): CSSProperties {
   // SAFETY: CSSProperties allows custom properties through index signatures; the object only sets known custom properties.
   return {
-    "--dt-grid-picker-columns": columns,
-    "--dt-grid-picker-rows": rows,
+    "--grid-picker-columns": columns,
+    "--grid-picker-rows": rows,
   } as CSSProperties;
 }
 
@@ -160,7 +160,7 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
 
   return (
     <div
-      className="dt-grid-picker"
+      className="grid-picker"
       data-test="layout-grid-picker"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
@@ -171,7 +171,7 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
     >
       <button
         type="button"
-        className="dt-grid-picker__trigger"
+        className="grid-picker__trigger"
         data-test="layout-grid-picker-trigger"
         ref={triggerRef}
         aria-label={`Grid ${dimensions.columns} by ${dimensions.rows}`}
@@ -182,17 +182,17 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
           setOpen((current) => !current);
         }}
       >
-        <span className="dt-grid-picker__preview" style={gridStyle(dimensions.columns, dimensions.rows)} aria-hidden="true">
+        <span className="grid-picker__preview" style={gridStyle(dimensions.columns, dimensions.rows)} aria-hidden="true">
           {previewCells.map(({ column, row }) => (
-            <span className="dt-grid-picker__preview-cell" key={`${column}-${row}`} />
+            <span className="grid-picker__preview-cell" key={`${column}-${row}`} />
           ))}
-          <span className="dt-grid-picker__preview-label">{dimensions.columns} × {dimensions.rows}</span>
+          <span className="grid-picker__preview-label">{dimensions.columns} × {dimensions.rows}</span>
         </span>
       </button>
 
       {open ? (
         <div
-          className="dt-grid-picker__popover"
+          className="grid-picker__popover"
           data-test="layout-grid-picker-popover"
           role="dialog"
           aria-label="Choose grid size"
@@ -202,14 +202,14 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
             visibility: "visible",
           } : undefined}
         >
-          <div className="dt-grid-picker__cell-grid" style={gridStyle(GRID_PICKER_MAX_COLUMNS, GRID_PICKER_MAX_ROWS)}>
+          <div className="grid-picker__cell-grid" style={gridStyle(GRID_PICKER_MAX_COLUMNS, GRID_PICKER_MAX_ROWS)}>
             {pickerCells.map(({ column, row }) => {
               const active = column <= visible.columns && row <= visible.rows;
               return (
                 <button
                   key={`${column}-${row}`}
                   type="button"
-                  className={`dt-grid-picker__cell${active ? " dt-grid-picker__cell--active" : ""}`}
+                  className={`grid-picker__cell${active ? " grid-picker__cell--active" : ""}`}
                   data-test={`layout-grid-cell-${column}-${row}`}
                   aria-label={`${column} columns by ${row} rows`}
                   onMouseEnter={() => setHovered({ columns: column, rows: row })}
@@ -219,7 +219,7 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
               );
             })}
           </div>
-          <div className="dt-grid-picker__popover-value" aria-live="polite">
+          <div className="grid-picker__popover-value" aria-live="polite">
             {visible.columns} × {visible.rows}
           </div>
         </div>

@@ -18,12 +18,12 @@ describe("setStyle", () => {
   beforeEach(() => {
     resetPendingRules();
     document.body.innerHTML = "";
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
   afterEach(() => {
     resetPendingRules();
     document.body.innerHTML = "";
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
 
   it("writes a rule keyed by [data-cid][data-src] mapping property to the raw value", () => {

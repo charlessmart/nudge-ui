@@ -5,12 +5,12 @@ import type {
   EditableComponentTarget,
   RuntimeComponentTarget,
 } from "./types.ts";
-import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
 const runtimeAdapters: ComponentRuntimeAdapter[] = [reactComponentRuntimeAdapter];
 
 function enabledRuntimeAdapters(): ComponentRuntimeAdapter[] {
-  if (!getDesignToolRuntimeConfig().capabilities.componentSemantics) return [];
+  if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
   return runtimeAdapters;
 }
 
@@ -43,8 +43,8 @@ export function callsiteMultiplicity(target: RuntimeComponentTarget): number | n
 export function editableComponentTargets(
   targets: RuntimeComponentTarget[],
 ): EditableComponentTarget[] {
-  if (!getDesignToolRuntimeConfig().capabilities.componentSemantics) return [];
-  const { componentContracts } = getDesignToolRuntimeConfig();
+  if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
+  const { componentContracts } = getNudgeUiRuntimeConfig();
   return targets.flatMap((target) => {
     const exact = componentContracts.filter((contract) =>
       contract.componentId === target.meta.componentId);

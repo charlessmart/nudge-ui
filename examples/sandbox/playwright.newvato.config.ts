@@ -7,7 +7,7 @@ if (!newvatoCheckout) {
   );
 }
 
-const port = process.env["DT_NEWVATO_PORT"] ?? "5189";
+const port = process.env["NUDGE_UI_NEWVATO_PORT"] ?? "5189";
 const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
@@ -21,14 +21,14 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: `npm --workspace=web run dev:design-tool -- --host 127.0.0.1 --port ${port} --strictPort`,
+    command: `npm --workspace=web run dev:nudge-ui -- --host 127.0.0.1 --port ${port} --strictPort`,
     cwd: newvatoCheckout,
     env: {
       NODE_ENV: "development",
-      VITE_DESIGN_TOOL: "true",
-      VITE_DESIGN_TOOL_E2E: "true",
+      VITE_NUDGE_UI: "true",
+      VITE_NUDGE_UI_E2E: "true",
     },
-    url: `${baseURL}/__design-tool/e2e`,
+    url: `${baseURL}/__nudge-ui/e2e`,
     reuseExistingServer: false,
     timeout: 120_000,
     name: "newvato-web",

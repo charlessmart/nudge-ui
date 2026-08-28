@@ -14,9 +14,9 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
-    "@design-tool/compatibility": "workspace:*",
-    "@design-tool/inspector": "workspace:*",
-    "@design-tool/plugin": "workspace:*",
+    "@nudge-ui/compatibility": "workspace:*",
+    "@nudge-ui/inspector": "workspace:*",
+    "@nudge-ui/plugin": "workspace:*",
     "@fontsource-variable/geist": "^5.3.0",
     "@shadcn/react": "^0.3.0",
     "class-variance-authority": "^0.7.1",

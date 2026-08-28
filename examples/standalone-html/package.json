@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:e2e": "pnpm --filter @design-tool/standalone build && playwright test",
+    "test:e2e": "pnpm --filter @nudge-ui/standalone build && playwright test",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {

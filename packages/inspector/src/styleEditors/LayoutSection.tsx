@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { IconAdjustmentsHorizontal, IconArrowsMaximize, IconArrowsMinimize, IconCheck, IconLetterH, IconLetterW, IconSettings, IconSpacingHorizontal, IconSpacingVertical, IconTextWrap } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selectionStore.ts";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
@@ -22,7 +22,7 @@ import { formatInspectorLabel } from "../ui/labels.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
+import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 
 const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
@@ -52,7 +52,7 @@ export interface LayoutSectionProps {
 export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
-  const allEntries = entries ?? getDesignToolTokenEntries();
+  const allEntries = entries ?? getNudgeUiTokenEntries();
 
   const [isFlexContainer, setIsFlexContainer] = useState(false);
   const [isFlexChild, setIsFlexChild] = useState(false);
@@ -101,10 +101,10 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
   }, [el, layoutRevision]);
 
   return (
-    <div className="dt-editor" data-test="layout-section">
-      <div className="dt-editor__title">Layout</div>
-      <div className="dt-layout">
-        <div className="dt-layout__basic">
+    <div className="editor" data-test="layout-section">
+      <div className="editor__title">Layout</div>
+      <div className="layout">
+        <div className="layout__basic">
           <SizeSection
             domElement={el}
             entries={allEntries}
@@ -113,7 +113,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             onAfterEdit={notifyAfterEdit}
           />
 
-          <div className="dt-layout__tool-row">
+          <div className="layout__tool-row">
             <LayoutDropdown
               property="display"
               options={DISPLAY_OPTIONS}
@@ -133,20 +133,20 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
         </div>
 
         {isFlexContainer ? (
-          <div className="dt-layout__group" data-test="layout-flex-container">
-            <div className="dt-editor__title">Flex</div>
-            <div className="dt-layout__flex-toolbar">
-              <div className="dt-layout__direction-tools">
+          <div className="layout__group" data-test="layout-flex-container">
+            <div className="editor__title">Flex</div>
+            <div className="layout__flex-toolbar">
+              <div className="layout__direction-tools">
                 <FlexDirectionControl domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
                 <FlexWrapToggle domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
                 <FlexSettingsMenu domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
               </div>
             </div>
-            <div className="dt-layout__flex-lower">
+            <div className="layout__flex-lower">
               <FlexAlignmentGrid domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
-              <div className="dt-layout__gap-column" data-test="layout-gap">
-                <div className="dt-layout__gap-fields">
-                  <div className="dt-layout__spacing-primary">
+              <div className="layout__gap-column" data-test="layout-gap">
+                <div className="layout__gap-fields">
+                  <div className="layout__spacing-primary">
                     <FlexGapField
                       property={relevantGap}
                       domElement={el}
@@ -170,9 +170,9 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
         ) : null}
 
         {isFlexChild ? (
-          <div className="dt-layout__group" data-test="layout-flex-child">
-            <div className="dt-editor__title">Flex Child</div>
-            <div className="dt-layout__flex-child-fields">
+          <div className="layout__group" data-test="layout-flex-child">
+            <div className="editor__title">Flex Child</div>
+            <div className="layout__flex-child-fields">
               <FlexChildValueField
                 label="Grow"
                 property="flex-grow"
@@ -255,7 +255,7 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
 
   function renderTokenField(property: string, presets: string[]): ReactElement {
     return (
-      <ControlSurface className={property === "width" || property === "height" ? "dt-layout__size-field--icon" : undefined}>
+      <ControlSurface className={property === "width" || property === "height" ? "layout__size-field--icon" : undefined}>
         <TokenField
           property={property}
           tokenRow={tokenRows.find((row) => row.property === property) ?? null}
@@ -264,9 +264,9 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
           entries={entries}
           suggestions={presets}
           leading={property === "width"
-            ? <IconLetterW size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+            ? <IconLetterW size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             : property === "height"
-              ? <IconLetterH size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+              ? <IconLetterH size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               : undefined}
           onAfterEdit={onAfterEdit}
         />
@@ -275,16 +275,16 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
   }
 
   return (
-    <div className="dt-layout__size" data-test="layout-size" data-expanded={expanded ? "true" : "false"}>
-      <div className="dt-layout__size-grid">
-        <FieldRow label="Width" hideLabel data-test="layout-size-width" className="dt-layout__size-cell dt-layout__size-cell--width">
+    <div className="layout__size" data-test="layout-size" data-expanded={expanded ? "true" : "false"}>
+      <div className="layout__size-grid">
+        <FieldRow label="Width" hideLabel data-test="layout-size-width" className="layout__size-cell layout__size-cell--width">
           {renderTokenField("width", SIZE_PRESETS)}
         </FieldRow>
-        <FieldRow label="Height" hideLabel data-test="layout-size-height" className="dt-layout__size-cell dt-layout__size-cell--height">
+        <FieldRow label="Height" hideLabel data-test="layout-size-height" className="layout__size-cell layout__size-cell--height">
           {renderTokenField("height", SIZE_PRESETS)}
         </FieldRow>
         <IconButton
-          className="dt-layout__size-cell dt-layout__size-cell--toggle"
+          className="layout__size-cell layout__size-cell--toggle"
           variant="quiet"
           size="default"
           data-test={expanded ? "layout-size-collapse" : "layout-size-expand"}
@@ -304,14 +304,14 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
             key={property}
             label={property}
             data-test={`layout-size-${property}`}
-            className={`dt-layout__size-cell dt-layout__size-cell--${property}`}
+            className={`layout__size-cell layout__size-cell--${property}`}
           >
             {renderTokenField(property, presets)}
           </FieldRow>
         ))}
         {expanded && (
           <AspectRatioField
-            className="dt-layout__size-cell dt-layout__size-cell--aspect-ratio"
+            className="layout__size-cell layout__size-cell--aspect-ratio"
             domElement={el}
             entries={entries}
             tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
@@ -339,7 +339,7 @@ interface FlexChildValueFieldProps extends FlexControlProps {
 
 function FlexChildValueField({ label, property, presets, inputOnly = false, domElement, revision = 0, onAfterEdit }: FlexChildValueFieldProps): ReactElement {
   return (
-    <FieldRow label={label} className="dt-layout__flex-child-field">
+    <FieldRow label={label} className="layout__flex-child-field">
       <LayoutComboField
         property={property}
         presets={presets}
@@ -374,8 +374,8 @@ function FlexChildSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexCo
       open={open}
       onOpenChange={setOpen}
     >
-      <div className="dt-layout__flex-child-settings" data-test="layout-flex-child-settings-content">
-        <div className="dt-layout__flex-child-settings-title">Flex Child Settings</div>
+      <div className="layout__flex-child-settings" data-test="layout-flex-child-settings-content">
+        <div className="layout__flex-child-settings-title">Flex Child Settings</div>
         <LayoutDropdown
           property="align-self"
           options={ALIGN_SELF_OPTIONS}
@@ -415,19 +415,19 @@ function FlexGapField({ property, domElement, revision = 0, onAfterEdit }: FlexG
   );
 
   return (
-    <ControlSurface className="dt-layout__spacing-field">
+    <ControlSurface className="layout__spacing-field">
       {property === "column-gap" ? (
         <IconSpacingHorizontal
-          className="dt-layout__spacing-icon"
-          size="var(--dt-icon-size-small)"
+          className="layout__spacing-icon"
+          size="var(--icon-size-small)"
           stroke={1.8}
           aria-hidden="true"
           data-test={`layout-spacing-icon-${property}`}
         />
       ) : (
         <IconSpacingVertical
-          className="dt-layout__spacing-icon"
-          size="var(--dt-icon-size-small)"
+          className="layout__spacing-icon"
+          size="var(--icon-size-small)"
           stroke={1.8}
           aria-hidden="true"
           data-test={`layout-spacing-icon-${property}`}
@@ -616,7 +616,7 @@ function FlexDistributionControl({ domElement, revision = 0, onAfterEdit }: Flex
 
   return (
     <PopoverListbox
-      className="dt-layout__distribution-control"
+      className="layout__distribution-control"
       query=""
       value={distributed ? justify : "packed"}
       open={open}
@@ -686,7 +686,7 @@ function FlexAlignmentGrid({ domElement, revision = 0, onAfterEdit }: FlexContro
 
   return (
     <div
-      className="dt-layout__alignment-grid"
+      className="layout__alignment-grid"
       role="group"
       aria-label="Place flex items"
       data-direction={isColumn ? "column" : "row"}
@@ -695,7 +695,7 @@ function FlexAlignmentGrid({ domElement, revision = 0, onAfterEdit }: FlexContro
       data-distributed={distributed}
     >
       {distributed ? (
-        <span className="dt-layout__distribution-preview" aria-hidden="true">
+        <span className="layout__distribution-preview" aria-hidden="true">
           <span /><span /><span />
         </span>
       ) : null}
@@ -709,7 +709,7 @@ function FlexAlignmentGrid({ domElement, revision = 0, onAfterEdit }: FlexContro
               key={`${alignValue}-${justifyValue}`}
               size="default"
               variant="quiet"
-              className="dt-layout__alignment-button"
+              className="layout__alignment-button"
               data-active={active}
               data-test={`layout-align-${alignValue}-${justifyValue}`}
               label={formatInspectorLabel(`Align ${alignValue.replace("flex-", "")} And Distribute ${justifyValue.replace("flex-", "")}`)}

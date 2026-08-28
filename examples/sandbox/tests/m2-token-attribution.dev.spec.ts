@@ -23,7 +23,7 @@ test("dev: tokenized and raw values appear in their relevant editors", async ({ 
   await page.goto("/playground");
   await page.click("text=Save");
   await expect.poll(async () => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return {
       background: Boolean(root?.querySelector('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]')),
       cursor: Boolean(root?.querySelector('[data-test="token-field"][data-property="cursor"]')),

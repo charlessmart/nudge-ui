@@ -5,7 +5,7 @@ import type { ElementChangeRecord, TextContentChangeRecord } from "../changesLog
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
-import { configureDesignToolRuntime } from "../runtimeConfig.ts";
+import { configureNudgeUiRuntime } from "../runtimeConfig.ts";
 
 const SURFACE_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:1" };
 const SURFACE_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5f5f5", source: "styles.css:2" };
@@ -31,7 +31,7 @@ function rec(
  * JSX keeps line precision.
  */
 function configureAstroHost(): void {
-  configureDesignToolRuntime({
+  configureNudgeUiRuntime({
     projectId: "prompt-fixture",
     host: "astro",
     framework: "Astro",
@@ -54,7 +54,7 @@ function configureAstroHost(): void {
 
 /** Restores a policy-free host so every source site is exact. */
 function configureDefaultHost(): void {
-  configureDesignToolRuntime({
+  configureNudgeUiRuntime({
     projectId: "prompt-fixture",
     host: "vite-react",
     framework: "React",
@@ -194,7 +194,7 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("rendered occurrence");
     expect(out).not.toContain("Presentation:");
     expect(out).not.toContain("data-cid");
-    expect(out).not.toContain("data-dt-projection-instance");
+    expect(out).not.toContain("data-projection-instance");
     expect(out).not.toContain("elementId");
   });
 
@@ -303,7 +303,7 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("src/App.tsx:153:16");
     expect(out).toContain("- `font-weight`: `600` → `700`");
     expect(generatePrompt([], undefined, structural)).toBe(
-      "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Design Tool inspector first.",
+      "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Nudge UI inspector first.",
     );
   });
 
@@ -473,14 +473,14 @@ describe("generatePrompt", () => {
 
   it("describes runtime-created HTML with bounded rendered evidence", () => {
     const out = generatePrompt([rec({
-      cid: "design-tool-runtime-1",
+      cid: "nudge-ui-runtime-1",
       file: "",
       line: 0,
       column: 0,
       property: "color",
       rawValue: "red",
-      selector: '[data-cid="design-tool-runtime-1"][data-src="design-tool:unknown:1"]',
-      source: { file: "", line: 0, component: "design-tool-runtime-1" },
+      selector: '[data-cid="nudge-ui-runtime-1"][data-src="nudge-ui:unknown:1"]',
+      source: { file: "", line: 0, component: "nudge-ui-runtime-1" },
       runtimeEvidence: {
         tagName: "button",
         text: "Save",
@@ -501,14 +501,14 @@ describe("generatePrompt", () => {
     const props = "props `with` backticks\n~~~\n" + "p".repeat(140);
     const ariaLabel = "accessible `name`\n" + "a".repeat(140);
     const out = generatePrompt([rec({
-      cid: "design-tool-runtime-2",
+      cid: "nudge-ui-runtime-2",
       file: "",
       line: 0,
       column: 0,
       property: "color",
       rawValue: "red",
-      selector: '[data-cid="design-tool-runtime-2"][data-src="design-tool:unknown:2"]',
-      source: { file: "", line: 0, component: "design-tool-runtime-2" },
+      selector: '[data-cid="nudge-ui-runtime-2"][data-src="nudge-ui:unknown:2"]',
+      source: { file: "", line: 0, component: "nudge-ui-runtime-2" },
       runtimeEvidence: {
         tagName: "CUSTOM-ELEMENT",
         text: "  Save\n   now  ",
@@ -550,7 +550,7 @@ describe("generatePrompt", () => {
   it("returns the empty sentinel when there are no changes", () => {
     const out = generatePrompt([]);
     expect(out).toBe(
-      "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Design Tool inspector first.",
+      "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Nudge UI inspector first.",
     );
   });
 

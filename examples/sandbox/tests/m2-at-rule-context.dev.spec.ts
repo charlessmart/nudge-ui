@@ -25,7 +25,7 @@ test("dev: a winning media-query declaration has a compact context indicator", a
   const indicator = await waitForAtRuleIndicator(page, "font-size");
   await expect(indicator).toHaveText("@");
   await indicator.hover();
-  await expect(page.locator(".dt-at-rule-tooltip-positioner")).toHaveCSS("z-index", "3");
+  await expect(page.locator(".at-rule-tooltip-positioner")).toHaveCSS("z-index", "3");
   const activeRule = page.locator('[data-test="at-rule-tooltip"] [data-active="true"]');
   await expect(activeRule).toHaveText(["(min-width: 1px)", "(min-width: 1px)", "(min-width: 1px)"]);
 });
@@ -40,7 +40,7 @@ test("dev: a media-query popover lists all property candidates and highlights th
 
   const indicator = await waitForAtRuleIndicator(page, "font-size");
   await indicator.hover();
-  const rules = page.locator('[data-test="at-rule-tooltip"] .dt-at-rule-tooltip__rule');
+  const rules = page.locator('[data-test="at-rule-tooltip"] .at-rule-tooltip__rule');
   await expect(rules).toHaveCount(2);
   await expect(rules.nth(0)).toHaveAttribute("data-active", "true");
   await expect(rules.nth(1)).toHaveAttribute("data-active", "false");

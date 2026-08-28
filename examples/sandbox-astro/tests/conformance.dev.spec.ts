@@ -11,10 +11,10 @@ import { join } from "node:path";
 
 async function waitForInspector(page: Page): Promise<void> {
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
   await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __designTool?: unknown }).__designTool)))
+    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
 }
 
@@ -33,7 +33,7 @@ test("dev: rendered-text edits project to prompts with authored .astro coordinat
 
   const lede = page.locator("p.lede");
   await lede.dblclick();
-  const editor = page.locator('[data-dt-inline-editor="true"]');
+  const editor = page.locator('[data-inline-editor="true"]');
   await expect(editor).toBeVisible();
   await editor.fill("Edited live through the inspector");
   await editor.press("Enter");
@@ -54,7 +54,7 @@ test("dev: rendered-text edits project to prompts with authored .astro coordinat
 test("dev: repeated component outputs keep distinct selectable identity at one source site", async ({ page }) => {
   const severeErrors: string[] = [];
   page.on("console", (message) => {
-    if (message.type() === "error" && /design-tool/i.test(message.text())) {
+    if (message.type() === "error" && /nudge-ui/i.test(message.text())) {
       severeErrors.push(message.text());
     }
   });

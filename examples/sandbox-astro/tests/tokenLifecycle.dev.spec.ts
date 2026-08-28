@@ -26,11 +26,11 @@ function bridgeCatalog(page: Page, selector: string): Promise<CatalogEntry[]> {
   return page.evaluate((sel) =>
     (
       window as unknown as {
-        __designTool?: {
+        __nudgeUi?: {
           inspect(selector: string): { catalog: CatalogEntry[] } | null;
         };
       }
-    ).__designTool?.inspect(sel)?.catalog ?? [],
+    ).__nudgeUi?.inspect(sel)?.catalog ?? [],
   selector);
 }
 
@@ -40,10 +40,10 @@ function findEntry(catalog: CatalogEntry[], cssName: string): CatalogEntry | und
 
 async function waitForInspector(page: Page): Promise<void> {
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
   await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __designTool?: unknown }).__designTool)))
+    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
 }
 
@@ -69,12 +69,12 @@ async function readVirtualTokenModule(request: {
 test("dev: :root custom properties are listed with project-relative provenance", async ({ page }) => {
   const severeErrors: string[] = [];
   page.on("console", (message) => {
-    if (message.type() === "error" && /design-tool|\$RefreshSig/i.test(message.text())) {
+    if (message.type() === "error" && /nudge-ui|\$RefreshSig/i.test(message.text())) {
       severeErrors.push(message.text());
     }
   });
   page.on("pageerror", (error) => {
-    if (/design-tool|\$RefreshSig/i.test(error.message)) severeErrors.push(error.message);
+    if (/nudge-ui|\$RefreshSig/i.test(error.message)) severeErrors.push(error.message);
   });
 
   await page.goto("/");
@@ -156,7 +156,7 @@ test("dev: editing project CSS refreshes tokens once through exactly one reload"
 
     // No second reload followed the first.
     await expect.poll(() => navigations, { timeout: 10_000 }).toBe(1);
-    expect(await page.locator("#design-tool-root").count()).toBe(1);
+    expect(await page.locator("#nudge-ui-root").count()).toBe(1);
   } finally {
     await writeFile(CSS_PATH, originalCss);
     await expect.poll(async () => {
@@ -231,8 +231,8 @@ test("dev: scoped-style tokens resolve per-element with author-vocabulary prompt
   // resolution keeps matching the rendered DOM.
   const rawSelector = await page.evaluate(() => {
     const catalog = (
-      window as unknown as { __designTool?: { inspect(selector: string): { catalog: CatalogEntry[] } | null } }
-    ).__designTool?.inspect("article.card")?.catalog ?? [];
+      window as unknown as { __nudgeUi?: { inspect(selector: string): { catalog: CatalogEntry[] } | null } }
+    ).__nudgeUi?.inspect("article.card")?.catalog ?? [];
     return catalog.find((entry) => entry.cssName === "--card-bg")
       ?.declarations[0]?.context?.selector ?? "";
   });

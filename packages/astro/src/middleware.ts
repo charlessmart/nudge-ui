@@ -1,4 +1,4 @@
-import { projectRoot } from "virtual:design-tool-astro-context";
+import { projectRoot } from "virtual:nudge-ui-astro-context";
 import { instrumentAstroResponse } from "./responseInstrumentation.ts";
 
 /**
@@ -6,7 +6,7 @@ import { instrumentAstroResponse } from "./responseInstrumentation.ts";
  *
  * Registered through `addMiddleware({ order: "pre" })`, this runs inside
  * Astro's own middleware chain — before user middleware, around page
- * rendering. It buffers the rendered HTML response, adds the Design Tool
+ * rendering. It buffers the rendered HTML response, adds the Nudge UI
  * identity layer server-side (before any client script can strip Astro's
  * annotations), and forwards every non-HTML response untouched.
  *
@@ -24,7 +24,7 @@ export const onRequest = async (
   );
   for (const diagnostic of result.diagnostics) {
     console.warn(
-      `[design-tool] ${diagnostic.code}: ${diagnostic.message}`,
+      `[nudge-ui] ${diagnostic.code}: ${diagnostic.message}`,
     );
   }
   return result.response;

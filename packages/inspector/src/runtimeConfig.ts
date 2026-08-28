@@ -2,18 +2,18 @@ import type {
   TokenCatalogDiagnostic,
   TokenDefinition,
   TokenEntry,
-} from "@design-tool/css/model";
+} from "@nudge-ui/css/model";
 import type { ComponentContract } from "./componentSemantics/types.ts";
 
 /** The host Adapter that supplied the active inspector runtime. */
-export type DesignToolRuntimeHost =
+export type NudgeUiRuntimeHost =
   | "vite-react"
   | "static-html"
   | "nextjs-react"
   | "astro";
 
 /** The framework semantics enabled for the active inspector runtime. */
-export type DesignToolRuntimeFramework = "React" | "HTML" | "Astro";
+export type NudgeUiRuntimeFramework = "React" | "HTML" | "Astro";
 
 /**
  * Which identity origins carry exact authored coordinates in prompts
@@ -31,7 +31,7 @@ export interface SourceCoordinatePolicy {
 }
 
 /** Capabilities exposed by the active host Adapter. */
-export interface DesignToolRuntimeCapabilities {
+export interface NudgeUiRuntimeCapabilities {
   /** Whether the multi-page Canvas workspace is available. */
   readonly canvas: boolean;
   /** Whether framework component inspection and prop overrides are available. */
@@ -55,15 +55,15 @@ export interface DesignToolRuntimeCapabilities {
  *
  * A host replaces the complete configuration when its document is replaced or
  * its development transport is refreshed. Shared inspector Modules read the
- * current snapshot through `getDesignToolRuntimeConfig()` and never import a
+ * current snapshot through `getNudgeUiRuntimeConfig()` and never import a
  * host-specific transport directly.
  */
-export interface DesignToolRuntimeConfig {
+export interface NudgeUiRuntimeConfig {
   readonly projectId: string;
-  readonly host: DesignToolRuntimeHost;
-  readonly framework: DesignToolRuntimeFramework;
+  readonly host: NudgeUiRuntimeHost;
+  readonly framework: NudgeUiRuntimeFramework;
   readonly stylingSystem: string;
-  readonly capabilities: DesignToolRuntimeCapabilities;
+  readonly capabilities: NudgeUiRuntimeCapabilities;
   readonly tokenCatalog: readonly TokenDefinition[];
   readonly tokens: readonly TokenEntry[];
   readonly tokenDiagnostics: readonly TokenCatalogDiagnostic[];
@@ -101,7 +101,7 @@ function cloneAndFreeze<T>(value: T, seen = new WeakMap<object, unknown>()): T {
   return Object.freeze(copy) as T;
 }
 
-const DEFAULT_RUNTIME_CONFIG = cloneAndFreeze<DesignToolRuntimeConfig>({
+const DEFAULT_RUNTIME_CONFIG = cloneAndFreeze<NudgeUiRuntimeConfig>({
   projectId: "/stub/project",
   host: "vite-react",
   framework: "React",
@@ -114,13 +114,13 @@ const DEFAULT_RUNTIME_CONFIG = cloneAndFreeze<DesignToolRuntimeConfig>({
   componentContracts: [],
 });
 
-const RUNTIME_HOSTS: readonly DesignToolRuntimeHost[] = [
+const RUNTIME_HOSTS: readonly NudgeUiRuntimeHost[] = [
   "vite-react",
   "static-html",
   "nextjs-react",
   "astro",
 ];
-const RUNTIME_FRAMEWORKS: readonly DesignToolRuntimeFramework[] = [
+const RUNTIME_FRAMEWORKS: readonly NudgeUiRuntimeFramework[] = [
   "React",
   "HTML",
   "Astro",
@@ -134,7 +134,7 @@ function requireString(input: Record<string, unknown>, field: string): string {
   const value = input[field];
   if (typeof value === "string" && value.length > 0) return value;
   throw new TypeError(
-    `Design Tool runtime configuration requires a non-empty string "${field}"; received ${
+    `Nudge UI runtime configuration requires a non-empty string "${field}"; received ${
       value === undefined ? "undefined" : JSON.stringify(value)
     }.`,
   );
@@ -148,7 +148,7 @@ function requireEnum(
   const value = input[field];
   if (typeof value === "string" && allowed.includes(value)) return value;
   throw new TypeError(
-    `Design Tool runtime configuration requires "${field}" to be one of ${allowed.map(
+    `Nudge UI runtime configuration requires "${field}" to be one of ${allowed.map(
       (candidate) => JSON.stringify(candidate),
     ).join(", ")}; received ${value === undefined ? "undefined" : JSON.stringify(value)}.`,
   );
@@ -158,7 +158,7 @@ function optionalString(input: Record<string, unknown>, field: string): string {
   const value = input[field];
   if (value === undefined) return "";
   if (typeof value !== "string") {
-    throw new TypeError(`Design Tool runtime configuration field "${field}" must be a string.`);
+    throw new TypeError(`Nudge UI runtime configuration field "${field}" must be a string.`);
   }
   return value;
 }
@@ -167,7 +167,7 @@ function optionalArray(input: Record<string, unknown>, field: string): readonly 
   const value = input[field];
   if (value === undefined) return [];
   if (!Array.isArray(value)) {
-    throw new TypeError(`Design Tool runtime configuration field "${field}" must be an array.`);
+    throw new TypeError(`Nudge UI runtime configuration field "${field}" must be an array.`);
   }
   return value;
 }
@@ -177,7 +177,7 @@ function optionalBoolean(input: Record<string, unknown>, field: string): boolean
   if (value === undefined) return false;
   if (typeof value !== "boolean") {
     throw new TypeError(
-      `Design Tool runtime capability "${field}" must be a boolean; received ${JSON.stringify(value)}.`,
+      `Nudge UI runtime capability "${field}" must be a boolean; received ${JSON.stringify(value)}.`,
     );
   }
   return value;
@@ -188,7 +188,7 @@ function optionalNonEmptyString(input: Record<string, unknown>, field: string): 
   if (value === undefined) return undefined;
   if (typeof value !== "string" || value.length === 0) {
     throw new TypeError(
-      `Design Tool runtime configuration field "${field}" must be a non-empty string.`,
+      `Nudge UI runtime configuration field "${field}" must be a non-empty string.`,
     );
   }
   return value;
@@ -202,7 +202,7 @@ function optionalStringArray(
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
     throw new TypeError(
-      `Design Tool runtime configuration field "${field}" must be an array of strings.`,
+      `Nudge UI runtime configuration field "${field}" must be an array of strings.`,
     );
   }
   return value as readonly string[];
@@ -215,7 +215,7 @@ function normalizeSourceCoordinatePolicy(
   if (policy === undefined) return undefined;
   if (!isPlainRecord(policy)) {
     throw new TypeError(
-      'Design Tool runtime capability "sourceCoordinates" must be an object.',
+      'Nudge UI runtime capability "sourceCoordinates" must be an object.',
     );
   }
   return {
@@ -224,11 +224,11 @@ function normalizeSourceCoordinatePolicy(
   };
 }
 
-function normalizeCapabilities(input: unknown): DesignToolRuntimeCapabilities {
+function normalizeCapabilities(input: unknown): NudgeUiRuntimeCapabilities {
   if (input === undefined) return { canvas: false, componentSemantics: false };
   if (!isPlainRecord(input)) {
     throw new TypeError(
-      'Design Tool runtime configuration field "capabilities" must be an object.',
+      'Nudge UI runtime configuration field "capabilities" must be an object.',
     );
   }
   return {
@@ -251,45 +251,45 @@ function normalizeCapabilities(input: unknown): DesignToolRuntimeCapabilities {
  * @param input The configuration supplied by a host Adapter.
  * @returns A complete plain-data configuration ready to snapshot.
  */
-export function normalizeDesignToolRuntimeConfig(input: unknown): DesignToolRuntimeConfig {
+export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeConfig {
   if (!isPlainRecord(input)) {
-    throw new TypeError("Design Tool runtime configuration must be an object.");
+    throw new TypeError("Nudge UI runtime configuration must be an object.");
   }
   return {
     projectId: requireString(input, "projectId"),
-    host: requireEnum(input, "host", RUNTIME_HOSTS) as DesignToolRuntimeHost,
-    framework: requireEnum(input, "framework", RUNTIME_FRAMEWORKS) as DesignToolRuntimeFramework,
+    host: requireEnum(input, "host", RUNTIME_HOSTS) as NudgeUiRuntimeHost,
+    framework: requireEnum(input, "framework", RUNTIME_FRAMEWORKS) as NudgeUiRuntimeFramework,
     stylingSystem: optionalString(input, "stylingSystem"),
     capabilities: normalizeCapabilities(input.capabilities),
-    tokenCatalog: optionalArray(input, "tokenCatalog") as DesignToolRuntimeConfig["tokenCatalog"],
-    tokens: optionalArray(input, "tokens") as DesignToolRuntimeConfig["tokens"],
+    tokenCatalog: optionalArray(input, "tokenCatalog") as NudgeUiRuntimeConfig["tokenCatalog"],
+    tokens: optionalArray(input, "tokens") as NudgeUiRuntimeConfig["tokens"],
     tokenDiagnostics: optionalArray(
       input,
       "tokenDiagnostics",
-    ) as DesignToolRuntimeConfig["tokenDiagnostics"],
+    ) as NudgeUiRuntimeConfig["tokenDiagnostics"],
     tokenGeneration: optionalString(input, "tokenGeneration"),
     componentContracts: optionalArray(
       input,
       "componentContracts",
-    ) as DesignToolRuntimeConfig["componentContracts"],
+    ) as NudgeUiRuntimeConfig["componentContracts"],
   };
 }
 
-let activeRuntimeConfig: DesignToolRuntimeConfig = DEFAULT_RUNTIME_CONFIG;
+let activeRuntimeConfig: NudgeUiRuntimeConfig = DEFAULT_RUNTIME_CONFIG;
 const runtimeListeners = new Set<() => void>();
 
 /**
  * Replaces the complete runtime configuration for the active document.
  *
  * The input is validated and incomplete optional fields receive safe defaults
- * (see `normalizeDesignToolRuntimeConfig`). Replacement is atomic from the
+ * (see `normalizeNudgeUiRuntimeConfig`). Replacement is atomic from the
  * inspector's perspective. The returned snapshot owns recursively cloned and
  * frozen plain data, so a host can safely replace its virtual module values
  * during HMR without leaving shared Modules bound to an old transport object
  * or freezing caller-owned values.
  */
-export function configureDesignToolRuntime(config: DesignToolRuntimeConfig): void {
-  activeRuntimeConfig = cloneAndFreeze(normalizeDesignToolRuntimeConfig(config));
+export function configureNudgeUiRuntime(config: NudgeUiRuntimeConfig): void {
+  activeRuntimeConfig = cloneAndFreeze(normalizeNudgeUiRuntimeConfig(config));
   for (const listener of runtimeListeners) {
     try {
       listener();
@@ -300,7 +300,7 @@ export function configureDesignToolRuntime(config: DesignToolRuntimeConfig): voi
 }
 
 /** Returns the immutable runtime snapshot used by shared inspector Modules. */
-export function getDesignToolRuntimeConfig(): DesignToolRuntimeConfig {
+export function getNudgeUiRuntimeConfig(): NudgeUiRuntimeConfig {
   return activeRuntimeConfig;
 }
 
@@ -336,15 +336,15 @@ export function getScopingSelectorPattern(): RegExp | null {
  * Subscribes to complete runtime replacements, such as Vite HMR updates.
  * Listeners run after the new snapshot is installed.
  */
-export function subscribeDesignToolRuntime(listener: () => void): () => void {
+export function subscribeNudgeUiRuntime(listener: () => void): () => void {
   runtimeListeners.add(listener);
   return () => runtimeListeners.delete(listener);
 }
 
 /** Returns a mutable container for UI controls that require array props. */
-export function getDesignToolTokenEntries(): TokenEntry[] {
+export function getNudgeUiTokenEntries(): TokenEntry[] {
   return [...activeRuntimeConfig.tokens];
 }
 
-export type { TokenCatalogDiagnostic, TokenDefinition, TokenEntry } from "@design-tool/css/model";
+export type { TokenCatalogDiagnostic, TokenDefinition, TokenEntry } from "@nudge-ui/css/model";
 export type { ComponentContract } from "./componentSemantics/types.ts";

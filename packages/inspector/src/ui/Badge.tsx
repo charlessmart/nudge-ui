@@ -9,7 +9,7 @@ export interface BadgeProps {
 
 export function Badge({ children, tone = "neutral", className, "data-test": dataTest }: BadgeProps): ReactElement {
   return (
-    <span className={`dt-badge dt-badge--${tone}${className ? ` ${className}` : ""}`} data-test={dataTest}>
+    <span className={`badge badge--${tone}${className ? ` ${className}` : ""}`} data-test={dataTest}>
       {children}
     </span>
   );

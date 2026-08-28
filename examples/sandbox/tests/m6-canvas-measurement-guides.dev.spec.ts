@@ -4,8 +4,8 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await expect(page.locator(".dt-canvas-card__iframe").first()).toBeAttached();
-  await expect(page.frameLocator(".dt-canvas-card__iframe").first().locator("body")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".canvas-card__iframe").first()).toBeAttached();
+  await expect(page.frameLocator(".canvas-card__iframe").first().locator("body")).toBeVisible({ timeout: 20_000 });
 });
 
 async function installMeasurementFixtures(frame: import("@playwright/test").FrameLocator): Promise<void> {
@@ -33,7 +33,7 @@ async function installMeasurementFixtures(frame: import("@playwright/test").Fram
 }
 
 test("dev: Canvas projects the shared measurement geometry while keeping labels in iframe CSS pixels", async ({ page }) => {
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await installMeasurementFixtures(frame);
 
   await frame.locator("#canvas-measurement-selected").click();
@@ -42,11 +42,11 @@ test("dev: Canvas projects the shared measurement geometry while keeping labels 
   await page.keyboard.down("Alt");
 
   await expect.poll(() => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     const overlay = root?.querySelector("[data-test='canvas-measurement-overlay']");
     return {
       visible: overlay !== null,
-      guides: root?.querySelectorAll("[data-test='canvas-measurement-overlay'] .dt-alignment-guide").length ?? 0,
+      guides: root?.querySelectorAll("[data-test='canvas-measurement-overlay'] .alignment-guide").length ?? 0,
       rulers: root?.querySelectorAll("[data-test='canvas-measurement-overlay'] [data-test='measurement-ruler']").length ?? 0,
       projections: root?.querySelectorAll("[data-test='canvas-measurement-overlay'] [data-test='measurement-projection']").length ?? 0,
       labels: [...(root?.querySelectorAll("[data-test='canvas-measurement-overlay'] [data-test='measurement-label']") ?? [])]
@@ -65,7 +65,7 @@ test("dev: Canvas projects the shared measurement geometry while keeping labels 
 });
 
 test("dev: Canvas measurements stay within the active iframe and omit self-rulers", async ({ page }) => {
-  const frame = page.frameLocator(".dt-canvas-card__iframe").first();
+  const frame = page.frameLocator(".canvas-card__iframe").first();
   await installMeasurementFixtures(frame);
 
   await frame.locator("#canvas-measurement-selected").click();
@@ -74,9 +74,9 @@ test("dev: Canvas measurements stay within the active iframe and omit self-ruler
   await page.keyboard.down("Alt");
 
   await expect.poll(() => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return {
-      guides: root?.querySelectorAll("[data-test='canvas-measurement-overlay'] .dt-alignment-guide").length ?? 0,
+      guides: root?.querySelectorAll("[data-test='canvas-measurement-overlay'] .alignment-guide").length ?? 0,
       rulers: root?.querySelectorAll("[data-test='canvas-measurement-overlay'] [data-test='measurement-ruler']").length ?? 0,
     };
   })).toEqual({ guides: 4, rulers: 0 });
@@ -86,8 +86,8 @@ test("dev: Canvas measurements stay within the active iframe and omit self-ruler
   await page.keyboard.up("Alt");
 
   await frame.locator('a[href="/conformance"]').click();
-  await expect(page.locator(".dt-canvas-card__iframe")).toHaveCount(2);
-  const secondFrame = page.frameLocator(".dt-canvas-card__iframe").nth(1);
+  await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
+  const secondFrame = page.frameLocator(".canvas-card__iframe").nth(1);
   await expect(secondFrame.locator("body")).toBeVisible({ timeout: 20_000 });
   const secondTarget = secondFrame.locator("[data-cid]").first();
   await secondTarget.hover();

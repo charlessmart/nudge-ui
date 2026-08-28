@@ -1,10 +1,10 @@
 import { isShadowRootInDocument } from "./domRealm.ts";
 
 function isInsideInspector(el: HTMLElement): boolean {
-  if (el.id === "design-tool-root") return true;
-  if (el.closest("#design-tool-root")) return true;
+  if (el.id === "nudge-ui-root") return true;
+  if (el.closest("#nudge-ui-root")) return true;
   const root = el.getRootNode();
-  return isShadowRootInDocument(root, el.ownerDocument) && root.host.id === "design-tool-root";
+  return isShadowRootInDocument(root, el.ownerDocument) && root.host.id === "nudge-ui-root";
 }
 
 export function computeHierarchy(el: HTMLElement): HTMLElement[] {
@@ -12,7 +12,7 @@ export function computeHierarchy(el: HTMLElement): HTMLElement[] {
   const chain: HTMLElement[] = [];
   let node: HTMLElement | null = el;
   while (node && node !== el.ownerDocument.body && node.tagName !== "BODY") {
-    if (node.id === "design-tool-root") break;
+    if (node.id === "nudge-ui-root") break;
     if (node.hasAttribute("data-cid")) chain.push(node);
     node = node.parentElement;
   }

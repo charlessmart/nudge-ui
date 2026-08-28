@@ -9,14 +9,14 @@ import {
   contentTypeForPath,
   createStandaloneProjectId,
   createStandaloneServer,
-  isReservedDesignToolRoute,
+  isReservedNudgeUiRoute,
   resolveStaticFile,
   type StandaloneServer,
 } from "./server.ts";
 import {
-  DESIGN_TOOL_CLIENT_PATH,
-  DESIGN_TOOL_MANIFEST_PATH,
-  DESIGN_TOOL_RELOAD_PATH,
+  NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_MANIFEST_PATH,
+  NUDGE_UI_RELOAD_PATH,
 } from "./manifest.ts";
 
 let runningServer: StandaloneServer | null = null;
@@ -45,7 +45,7 @@ describe("resolveStaticFile", () => {
 
   it("rejects decoded traversal, malformed escapes, NULs, and backslashes", async () => {
     const root = await createFixture();
-    const outside = await mkdtemp(join(tmpdir(), "design-tool-outside-"));
+    const outside = await mkdtemp(join(tmpdir(), "nudge-ui-outside-"));
     await writeFile(join(outside, "secret.txt"), "secret");
 
     expect(resolveStaticFile(root, "/%2e%2e/" + basename(outside) + "/secret.txt")).toBeNull();
@@ -67,7 +67,7 @@ describe("resolveStaticFile", () => {
 
   it("rejects symlink escapes even when the requested leaf is missing", async () => {
     const root = await createFixture();
-    const outside = await mkdtemp(join(tmpdir(), "design-tool-outside-"));
+    const outside = await mkdtemp(join(tmpdir(), "nudge-ui-outside-"));
     await writeFile(join(outside, "secret.txt"), "secret");
     await symlink(outside, join(root, "linked-outside"), "dir");
 
@@ -94,8 +94,8 @@ describe("createStandaloneServer", () => {
     await writeFile(join(root, "index.html"), originalHtml);
     await writeFile(join(root, "styles.css"), "button { color: red; }");
     await writeFile(join(root, "script.js"), "const markup = '<button>not HTML';");
-    await mkdir(join(root, "__design_tool__"));
-    await writeFile(join(root, "__design_tool__", "manifest"), "shadow");
+    await mkdir(join(root, "__nudge_ui__"));
+    await writeFile(join(root, "__nudge_ui__", "manifest"), "shadow");
     const clientPath = join(root, "test-client.mjs");
     await writeFile(clientPath, "export const testClient = true;");
 
@@ -109,8 +109,8 @@ describe("createStandaloneServer", () => {
     expect(htmlResponse.status).toBe(200);
     expect(htmlResponse.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(html).toContain("data-src=\"index.html:2:7\"");
-    expect(html).toContain("src=\"" + DESIGN_TOOL_CLIENT_PATH + "\"");
-    expect(html).toContain("data-design-tool-manifest=\"" + DESIGN_TOOL_MANIFEST_PATH + "\"");
+    expect(html).toContain("src=\"" + NUDGE_UI_CLIENT_PATH + "\"");
+    expect(html).toContain("data-nudge-ui-manifest=\"" + NUDGE_UI_MANIFEST_PATH + "\"");
     expect(await readFile(join(root, "index.html"), "utf8")).toBe(originalHtml);
 
     const cssResponse = await fetch(address.url + "styles.css");
@@ -127,7 +127,7 @@ describe("createStandaloneServer", () => {
       String(Buffer.byteLength("button { color: red; }")),
     );
 
-    const manifestResponse = await fetch(address.url + DESIGN_TOOL_MANIFEST_PATH.slice(1));
+    const manifestResponse = await fetch(address.url + NUDGE_UI_MANIFEST_PATH.slice(1));
     const manifest = await manifestResponse.json() as {
       runtime: {
         projectId: string;
@@ -157,10 +157,10 @@ describe("createStandaloneServer", () => {
     });
     expect(manifest.runtime.tokenGeneration).toMatch(/^static-html:/);
 
-    const reservedShadow = await fetch(address.url + "__design_tool__/manifest");
+    const reservedShadow = await fetch(address.url + "__nudge_ui__/manifest");
     expect(reservedShadow.status).toBe(200);
     expect(await reservedShadow.text()).not.toBe("shadow");
-    const reservedUnknown = await fetch(address.url + "__design_tool__/prototype.js");
+    const reservedUnknown = await fetch(address.url + "__nudge_ui__/prototype.js");
     expect(reservedUnknown.status).toBe(404);
     const missing = await fetch(address.url + "does-not-exist.txt");
     expect(missing.status).toBe(404);
@@ -309,7 +309,7 @@ describe("createStandaloneServer", () => {
       watchDebounceMs: 40,
     });
     const address = await runningServer.start();
-    const streamResponse = await fetch(address.url + DESIGN_TOOL_RELOAD_PATH.slice(1));
+    const streamResponse = await fetch(address.url + NUDGE_UI_RELOAD_PATH.slice(1));
     const reader = streamResponse.body!.getReader();
     await readSseEvent(reader, "ready");
 
@@ -317,7 +317,7 @@ describe("createStandaloneServer", () => {
     await writeFile(cssPath, ":root { --tone: green; }");
 
     const reloadEvent = await readSseEvent(reader, "reload");
-    const manifestResponse = await fetch(address.url + DESIGN_TOOL_MANIFEST_PATH.slice(1));
+    const manifestResponse = await fetch(address.url + NUDGE_UI_MANIFEST_PATH.slice(1));
     const manifest = await manifestResponse.json() as {
       revision: number;
       runtime: { tokens: Array<{ cssName?: string; value: string }> };
@@ -344,8 +344,8 @@ describe("standalone client build", () => {
     expect(bundle).not.toContain("import.meta.env");
     expect(bundle).not.toMatch(/^import\s/m);
     expect(bundle).toContain("react.development.js");
-    expect(bundle).toContain("configureDesignToolRuntime");
-    expect(bundle).toContain("bootstrapDesignTool");
+    expect(bundle).toContain("configureNudgeUiRuntime");
+    expect(bundle).toContain("bootstrapNudgeUi");
   });
 
   it("emits an executable Node CLI bundle", () => {
@@ -355,27 +355,27 @@ describe("standalone client build", () => {
 
     const result = spawnSync(
       process.execPath,
-      [join(packageRoot, "dist/design-tool.mjs"), "unknown"],
+      [join(packageRoot, "dist/nudge-ui.mjs"), "unknown"],
       { cwd: packageRoot, encoding: "utf8" },
     );
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("Usage: design-tool serve");
+    expect(result.stderr).toContain("Usage: nudge-ui serve");
     expect(result.stderr).not.toContain("Dynamic require");
   });
 });
 
 describe("reserved route helper", () => {
-  it("reserves the Design Tool namespace before file resolution", () => {
-    expect(isReservedDesignToolRoute("/__design_tool__")).toBe(true);
-    expect(isReservedDesignToolRoute("/__design_tool__/manifest")).toBe(true);
-    expect(isReservedDesignToolRoute("/__design_tool__/anything")).toBe(true);
-    expect(isReservedDesignToolRoute("/prototype/index.html")).toBe(false);
+  it("reserves the Nudge UI namespace before file resolution", () => {
+    expect(isReservedNudgeUiRoute("/__nudge_ui__")).toBe(true);
+    expect(isReservedNudgeUiRoute("/__nudge_ui__/manifest")).toBe(true);
+    expect(isReservedNudgeUiRoute("/__nudge_ui__/anything")).toBe(true);
+    expect(isReservedNudgeUiRoute("/prototype/index.html")).toBe(false);
   });
 });
 
 async function createFixture(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "design-tool-standalone-"));
+  const root = await mkdtemp(join(tmpdir(), "nudge-ui-standalone-"));
   await writeFile(join(root, "index.html"), "<!doctype html><body>fixture</body>");
   return root;
 }

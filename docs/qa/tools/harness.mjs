@@ -1,4 +1,4 @@
-// Shared browser-QA harness for design-tool sandbox testing.
+// Shared browser-QA harness for nudge-ui sandbox testing.
 // Usage: import { runPage, finish } from "./harness.mjs";
 import { chromium } from "/Users/charlessmart/_personal/design-tool/node_modules/.pnpm/playwright@1.61.1/node_modules/playwright/index.mjs";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -85,12 +85,12 @@ export async function recordIssue(page, sandbox, pageName, issue) {
 
 // ---- Panel discovery -------------------------------------------------------
 // The inspector mounts into an open shadow root on a host element. Find the
-// panel root (.dt-panel or [data-test]) inside any shadow root.
+// panel root (.panel or [data-test]) inside any shadow root.
 
 async function findPanelHandle(page) {
-  // The shadow host is the element whose shadowRoot contains .dt-panel.
+  // The shadow host is the element whose shadowRoot contains .panel.
   // Playwright css pierces open shadow roots automatically, so try direct first.
-  for (const sel of [".dt-panel", "[data-test='tokens-panel']"]) {
+  for (const sel of [".panel", "[data-test='tokens-panel']"]) {
     const loc = page.locator(sel).first();
     if (await loc.count()) return loc;
   }
@@ -119,13 +119,13 @@ export const PANEL_SCAN_SNIPPET = () => {
   const results = { panelFound: false, problems: [], panelRect: null, selectedInfo: null };
 
   for (const root of collectRoots(document)) {
-    const panel = root.querySelector(".dt-panel") ?? root.querySelector("[data-test='tokens-panel']");
+    const panel = root.querySelector(".panel") ?? root.querySelector("[data-test='tokens-panel']");
     if (!panel) continue;
     results.panelFound = true;
     const panelRect = panel.getBoundingClientRect();
     results.panelRect = { x: panelRect.x, y: panelRect.y, w: panelRect.width, h: panelRect.height };
     if (panelRect.width < 50 || panelRect.height < 50) {
-      results.problems.push({ kind: "panel-size", detail: `panel collapsed to ${Math.round(panelRect.width)}x${Math.round(panelRect.height)}`, selector: ".dt-panel" });
+      results.problems.push({ kind: "panel-size", detail: `panel collapsed to ${Math.round(panelRect.width)}x${Math.round(panelRect.height)}`, selector: ".panel" });
     }
 
     const els = panel.querySelectorAll("*");
@@ -164,13 +164,13 @@ export const PANEL_SCAN_SNIPPET = () => {
         });
       }
       // 4. Escapes the panel bounds — horizontal only. The panel root is a
-      // vertical scroll container (.dt-panel overflow:auto), so content below
+      // vertical scroll container (.panel overflow:auto), so content below
       // the fold is expected; sideways escape is the real defect.
       if (
         rect.right > panelRect.right + 3 || rect.left < panelRect.left - 3
       ) {
         // Only report leaf-ish content elements, ignore intentional overlays
-        const intentional = el.closest("[data-test='at-rule-tooltip'],[data-test='token-dropdown'],[data-test='copy-prompt-menu'],[role='dialog'],[role='listbox'],[data-radix-popper-content-wrapper],.dt-popover,.dt-menu,.dt-popover-listbox");
+        const intentional = el.closest("[data-test='at-rule-tooltip'],[data-test='token-dropdown'],[data-test='copy-prompt-menu'],[role='dialog'],[role='listbox'],[data-radix-popper-content-wrapper],.popover,.menu,.popover-listbox");
         if (!intentional && isLeafish && text) {
           results.problems.push({
             kind: "out-of-bounds",

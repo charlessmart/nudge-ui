@@ -58,7 +58,7 @@ describe("instrumentHtml", () => {
     expect(result.insertedAttributeCount).toBe(2);
   });
 
-  it("skips document structure, non-rendered tags, and the Design Tool mount", () => {
+  it("skips document structure, non-rendered tags, and the Nudge UI mount", () => {
     const source = `<!doctype html>
 <html data-cid="do-not-touch"><head><meta data-cid="head"></head>
 <body data-cid="body">
@@ -66,7 +66,7 @@ describe("instrumentHtml", () => {
   <style>.x { content: "<button>style</button>"; }</style>
   <template><button>template</button></template>
   <noscript><button>noscript</button></noscript>
-  <div id="design-tool-root"><button>mount child</button></div>
+  <div id="nudge-ui-root"><button>mount child</button></div>
   <button>eligible</button>
 </body></html>`;
 
@@ -175,7 +175,7 @@ describe("instrumentHtml", () => {
     expect(result.html).toContain('data-src="index.html:3:2"');
   });
 
-  it("reserves only the fixed Design Tool mount ID", () => {
+  it("reserves only the fixed Nudge UI mount ID", () => {
     const source = '<!doctype html><body><div id="prototype-mount"><button>instrument</button></div><button>keep</button></body>';
     const result = instrumentHtml(source, "index.html");
 

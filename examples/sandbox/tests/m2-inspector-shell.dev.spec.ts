@@ -4,30 +4,30 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   await page.goto("/playground");
 
   const hasMount = await page.evaluate(() => {
-    const el = document.getElementById("design-tool-root");
+    const el = document.getElementById("nudge-ui-root");
     return el !== null;
   });
   expect(hasMount).toBe(true);
 
   const hasShadow = await page.evaluate(() => {
-    return document.getElementById("design-tool-root")?.shadowRoot !== null;
+    return document.getElementById("nudge-ui-root")?.shadowRoot !== null;
   });
   expect(hasShadow).toBe(true);
 
   const hasShellText = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return sr?.textContent ?? "";
   });
   expect(hasShellText).not.toContain("Inspector shell ready");
   await expect(page.locator('[data-test="copy-prompt"]')).toBeDisabled();
-  await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/dt-button--primary/);
+  await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/button--primary/);
   await expect(page.locator('[data-test="mode-canvas"] svg')).toHaveClass(/tabler-icon-artboard/);
-  await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/dt-button--secondary|dt-button--quiet/);
-  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/dt-button--quiet/);
+  await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/button--secondary|button--quiet/);
+  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/button--quiet/);
   const headerState = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const header = sr?.querySelector('[data-test="inspect-tab"]');
-    const actions = header?.querySelector(".dt-panel__header-actions");
+    const actions = header?.querySelector(".panel__header-actions");
     return {
       background: header ? getComputedStyle(header).backgroundColor : null,
       actions: actions
@@ -35,15 +35,15 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
           .map((child) => child.getAttribute("data-test"))
           .filter((value): value is string => value !== null)
         : [],
-      hasDivider: header?.querySelector(".dt-panel__header-divider") !== null,
+      hasDivider: header?.querySelector(".panel__header-divider") !== null,
     };
   });
   expect(headerState.background).toBe("rgba(0, 0, 0, 0)");
   expect(headerState.actions).toEqual(["tokens-tab", "mode-canvas"]);
   expect(headerState.hasDivider).toBe(true);
   const copyRowInset = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const tabs = sr?.querySelector(".dt-panel__tabs");
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
+    const tabs = sr?.querySelector(".panel__tabs");
     const copyRow = sr?.querySelector('[data-test="copy-prompt-control"]');
     return tabs && copyRow ? {
       tabsPaddingLeft: getComputedStyle(tabs).paddingLeft,
@@ -62,8 +62,8 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
     page.evaluate(
       () =>
         document
-          .getElementById("design-tool-root")
-          ?.shadowRoot?.querySelector(".dt-panel")
+          .getElementById("nudge-ui-root")
+          ?.shadowRoot?.querySelector(".panel")
           ?.getAttribute("data-open") ?? null,
     );
 
@@ -72,7 +72,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
     const root = document.documentElement;
     const body = document.body;
     return {
-      layoutOpen: root.getAttribute("data-design-tool-panel"),
+      layoutOpen: root.getAttribute("data-nudge-ui-panel"),
       bodyMarginRight: getComputedStyle(body).marginRight,
     };
   });
@@ -82,16 +82,16 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   await page.keyboard.press("Alt+i");
   const afterToggle = await getOpen();
   expect(afterToggle).not.toBe(before);
-  await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute("data-design-tool-panel"))).toBe(false);
+  await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute("data-nudge-ui-panel"))).toBe(false);
 
   await page.keyboard.press("Alt+i");
   const afterSecond = await getOpen();
   expect(afterSecond).toBe(before);
-  await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-design-tool-panel"))).toBe("open");
+  await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-nudge-ui-panel"))).toBe("open");
 
   await page.locator('[data-test="tokens-tab"]').click();
-  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/dt-button--secondary/);
-  await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/dt-button--secondary|dt-button--quiet/);
+  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/button--secondary/);
+  await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/button--secondary|button--quiet/);
 });
 
 test("dev: inspector icon buttons respond to clicks while the element selector is active", async ({ page }) => {
@@ -118,16 +118,16 @@ test("dev: inspector can collapse and reopen from its icon controls on a mobile 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/playground");
 
-  const panel = page.locator(".dt-panel");
+  const panel = page.locator(".panel");
   await expect(panel).toHaveAttribute("data-open", "true");
   await page.locator('[data-test="collapse-inspector"]').click();
   await expect(panel).toHaveAttribute("data-open", "false");
   await expect(page.locator('[data-test="show-inspector"]')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute("data-design-tool-panel"))).toBe(false);
+  await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute("data-nudge-ui-panel"))).toBe(false);
 
   await page.locator('[data-test="show-inspector"]').click();
   await expect(panel).toHaveAttribute("data-open", "true");
-  await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-design-tool-panel"))).toBe("open");
+  await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-nudge-ui-panel"))).toBe("open");
 });
 
 test("dev: inspector header scrolls with the editor content", async ({ page }) => {
@@ -136,9 +136,9 @@ test("dev: inspector header scrolls with the editor content", async ({ page }) =
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 
   const scrollState = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const panel = sr?.querySelector(".dt-panel") as HTMLElement | null;
-    const body = sr?.querySelector(".dt-panel__body") as HTMLElement | null;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
+    const panel = sr?.querySelector(".panel") as HTMLElement | null;
+    const body = sr?.querySelector(".panel__body") as HTMLElement | null;
     const header = sr?.querySelector('[data-test="inspect-tab"]') as HTMLElement | null;
     if (!panel || !body || !header) return null;
 

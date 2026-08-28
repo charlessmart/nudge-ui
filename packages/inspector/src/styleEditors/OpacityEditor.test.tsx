@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { OpacityEditor } from "./OpacityEditor.tsx";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import type { TokenEntry } from "virtual:design-tokens";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import {
@@ -21,7 +21,7 @@ describe("OpacityEditor", () => {
   beforeEach(() => {
     resetPendingRules();
     document.body.innerHTML = "";
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
 
   afterEach(() => {
@@ -29,7 +29,7 @@ describe("OpacityEditor", () => {
     restoreComputedStyle();
     resetPendingRules();
     document.body.innerHTML = "";
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
 
   it("shows the computed opacity as a percentage and writes a normalized value", () => {

@@ -7,7 +7,7 @@ import {
 import type {
   ArtifactStage,
   StylesheetArtifact,
-} from "@design-tool/css/token-inventory";
+} from "@nudge-ui/css/token-inventory";
 import { detectTailwindV4 } from "../adapters/tailwindV4.ts";
 import type { CssImportGraph } from "./activeStylesheets.ts";
 import { stripCssQuery } from "./activeStylesheets.ts";

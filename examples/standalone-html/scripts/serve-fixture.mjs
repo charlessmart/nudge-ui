@@ -12,7 +12,7 @@ const port = portIndex >= 0 ? args[portIndex + 1] : undefined;
 if (!root || !port) {
   throw new Error("Usage: node scripts/serve-fixture.mjs --root <directory> --port <port>");
 }
-if (!basename(root).startsWith("design-tool-standalone-e2e-")) {
+if (!basename(root).startsWith("nudge-ui-standalone-e2e-")) {
   throw new Error("The standalone fixture server requires a disposable test root.");
 }
 
@@ -20,7 +20,7 @@ const prototypeRoot = fileURLToPath(new URL("../prototype", import.meta.url));
 rmSync(root, { recursive: true, force: true });
 cpSync(prototypeRoot, root, { recursive: true });
 
-const cliPath = fileURLToPath(new URL("../../../packages/standalone/dist/design-tool.mjs", import.meta.url));
+const cliPath = fileURLToPath(new URL("../../../packages/standalone/dist/nudge-ui.mjs", import.meta.url));
 const server = spawn(process.execPath, [
   cliPath,
   "serve",

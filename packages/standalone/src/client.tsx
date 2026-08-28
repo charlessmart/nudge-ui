@@ -1,10 +1,10 @@
 import {
-  bootstrapDesignTool,
-  configureDesignToolRuntime,
+  bootstrapNudgeUi,
+  configureNudgeUiRuntime,
   installStaticHtmlRuntimeIdentity,
   isCanvasRenderer,
-} from "@design-tool/inspector";
-import { DESIGN_TOOL_MOUNT_ID } from "./manifest.ts";
+} from "@nudge-ui/inspector";
+import { NUDGE_UI_MOUNT_ID } from "./manifest.ts";
 import {
   isStandaloneClientManifest,
   type StandaloneClientManifest,
@@ -23,23 +23,23 @@ export { isStandaloneClientManifest } from "./clientManifest.ts";
  */
 export async function bootstrapStandaloneClient(): Promise<void> {
   const script = document.querySelector<HTMLScriptElement>(
-    "script[data-design-tool-client]",
+    "script[data-nudge-ui-client]",
   );
-  const manifestUrl = script?.dataset.designToolManifest ?? "/__design_tool__/manifest";
+  const manifestUrl = script?.dataset.nudgeUiManifest ?? "/__nudge_ui__/manifest";
   const response = await fetch(manifestUrl, { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`Design Tool manifest request failed with HTTP ${response.status}.`);
+    throw new Error(`Nudge UI manifest request failed with HTTP ${response.status}.`);
   }
   const payload: unknown = await response.json();
   if (!isStandaloneClientManifest(payload)) {
-    throw new Error("Design Tool manifest did not contain a valid static-HTML runtime.");
+    throw new Error("Nudge UI manifest did not contain a valid static-HTML runtime.");
   }
 
-  configureDesignToolRuntime(reconcileStandaloneRuntime(payload.runtime, document));
-  const host = document.getElementById(DESIGN_TOOL_MOUNT_ID);
-  if (!host) throw new Error("Design Tool mount element is missing from the document.");
+  configureNudgeUiRuntime(reconcileStandaloneRuntime(payload.runtime, document));
+  const host = document.getElementById(NUDGE_UI_MOUNT_ID);
+  if (!host) throw new Error("Nudge UI mount element is missing from the document.");
   installStaticHtmlRuntimeIdentity(document);
-  bootstrapDesignTool(host);
+  bootstrapNudgeUi(host);
   connectStandaloneReload(payload);
 }
 
@@ -79,6 +79,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 if (typeof document !== "undefined") {
   void bootstrapStandaloneClient().catch((error: unknown) => {
-    console.error("Design Tool standalone client failed to start.", error);
+    console.error("Nudge UI standalone client failed to start.", error);
   });
 }

@@ -1,12 +1,12 @@
 import {
-  DESIGN_TOOL_CLIENT_PATH,
-  DESIGN_TOOL_MOUNT_ID,
-  DESIGN_TOOL_MANIFEST_PATH,
+  NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_MOUNT_ID,
+  NUDGE_UI_MANIFEST_PATH,
 } from "../manifest.ts";
 import { parse, type DefaultTreeAdapterTypes } from "parse5";
 
-const CLIENT_MARKER = "data-design-tool-client";
-const MOUNT_MARKER = "data-design-tool-mount";
+const CLIENT_MARKER = "data-nudge-ui-client";
+const MOUNT_MARKER = "data-nudge-ui-mount";
 
 /** Options for source-preserving standalone bootstrap injection. */
 export interface StandaloneBootstrapOptions {
@@ -40,20 +40,20 @@ export function injectStandaloneBootstrap(
   html: string,
   options: StandaloneBootstrapOptions = {},
 ): StandaloneBootstrapResult {
-  const clientPath = options.clientPath ?? DESIGN_TOOL_CLIENT_PATH;
-  const manifestPath = options.manifestPath ?? DESIGN_TOOL_MANIFEST_PATH;
+  const clientPath = options.clientPath ?? NUDGE_UI_CLIENT_PATH;
+  const manifestPath = options.manifestPath ?? NUDGE_UI_MANIFEST_PATH;
   const document = parse(html, { sourceCodeLocationInfo: true });
   const sourceFacts = inspectSource(document, clientPath);
   const nodes: string[] = [];
 
   if (!sourceFacts.hasMount) {
     nodes.push(
-      `<div id="${DESIGN_TOOL_MOUNT_ID}" ${MOUNT_MARKER}></div>`,
+      `<div id="${NUDGE_UI_MOUNT_ID}" ${MOUNT_MARKER}></div>`,
     );
   }
   if (!sourceFacts.hasClient) {
     nodes.push(
-      `<script type="module" src="${escapeAttributeValue(clientPath)}" ${CLIENT_MARKER} data-design-tool-manifest="${escapeAttributeValue(manifestPath)}"></script>`,
+      `<script type="module" src="${escapeAttributeValue(clientPath)}" ${CLIENT_MARKER} data-nudge-ui-manifest="${escapeAttributeValue(manifestPath)}"></script>`,
     );
   }
 
@@ -108,7 +108,7 @@ function inspectSource(
   // inert and must not suppress injection into the document.
   if (body) {
     visitElements(body, (element) => {
-      if (element !== body && attributeValue(element, "id") === DESIGN_TOOL_MOUNT_ID) {
+      if (element !== body && attributeValue(element, "id") === NUDGE_UI_MOUNT_ID) {
         facts.hasMount = true;
       }
     });

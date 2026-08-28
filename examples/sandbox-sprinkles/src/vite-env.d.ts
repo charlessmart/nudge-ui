@@ -2,9 +2,9 @@
 
 interface Window {
   __compatRerender?: () => void;
-  __designTokens?: import("@design-tool/css/model").TokenEntry[];
-  __designTokenCatalog?: import("@design-tool/css/model").TokenDefinition[];
-  __designTokenDiagnostics?: import("@design-tool/css/model").TokenCatalogDiagnostic[];
+  __designTokens?: import("@nudge-ui/css/model").TokenEntry[];
+  __designTokenCatalog?: import("@nudge-ui/css/model").TokenDefinition[];
+  __designTokenDiagnostics?: import("@nudge-ui/css/model").TokenCatalogDiagnostic[];
 }
 
 declare module "virtual:design-tokens" {
@@ -12,7 +12,7 @@ declare module "virtual:design-tokens" {
     TokenCatalogDiagnostic,
     TokenDefinition,
     TokenEntry,
-  } from "@design-tool/css/model";
+  } from "@nudge-ui/css/model";
 
   export const tokenCatalog: TokenDefinition[];
   export const tokens: TokenEntry[];

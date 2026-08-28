@@ -4,7 +4,7 @@ async function waitForRow(page: import("@playwright/test").Page): Promise<void> 
   await expect
     .poll(async () => {
       return await page.evaluate(() => {
-        const sr = document.getElementById("design-tool-root")?.shadowRoot;
+        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
         return !!sr?.querySelector('[data-test="style-editors"] [data-test="token-field"]');
       });
     }, { timeout: 5000 })
@@ -15,7 +15,7 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
   await expect
     .poll(async () => {
       return await page.evaluate(() => {
-        const sr = document.getElementById("design-tool-root")?.shadowRoot;
+        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
         return !!sr?.querySelector('[data-test="style-editors"]');
       });
     }, { timeout: 5000 })
@@ -26,13 +26,13 @@ async function selectBackground(page: import("@playwright/test").Page, value: st
   await page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]').click();
   await expect
     .poll(async () => page.evaluate((token) => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
         .some((item) => item.textContent?.includes(token));
     }, value), { timeout: 5000 })
     .toBe(true);
   await page.evaluate((token) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
       .find((item) => item.textContent?.includes(token))?.click();
   }, value);
@@ -42,7 +42,7 @@ async function setBorderRadius(page: import("@playwright/test").Page, value: str
   const delink = page.locator('[data-test="token-field"][data-property="border-radius"] [data-test="delink-btn"]');
   if (await delink.count()) await delink.click();
   await page.evaluate((v) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const raw = sr?.querySelector(
       '[data-test="token-field"][data-property="border-radius"] [data-test="raw-input"]',
     ) as HTMLInputElement | null;
@@ -57,7 +57,7 @@ async function setBorderRadius(page: import("@playwright/test").Page, value: str
 
 async function changeCount(page: import("@playwright/test").Page): Promise<number> {
   return await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return sr?.querySelectorAll('[data-test="change-row"]').length ?? 0;
   });
 }
@@ -73,7 +73,7 @@ async function openChangesLog(page: import("@playwright/test").Page): Promise<vo
 async function revertChange(page: import("@playwright/test").Page, property: string): Promise<void> {
   await openChangesLog(page);
   const handle = await page.evaluateHandle((p) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const rows = Array.from(sr?.querySelectorAll('[data-test="change-row"]') ?? []);
     const row = rows.find((r) => (r.getAttribute("data-property") ?? "") === p);
     return row?.querySelector('[data-test="change-revert"]') as HTMLElement | null;
@@ -83,7 +83,7 @@ async function revertChange(page: import("@playwright/test").Page, property: str
 
 async function copyDisabled(page: import("@playwright/test").Page): Promise<boolean> {
   return await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const btn = sr?.querySelector('[data-test="copy-prompt"]') as HTMLButtonElement | null;
     return btn ? btn.disabled : true;
   });
@@ -110,7 +110,7 @@ test.describe("clipboard permissions", () => {
     await expect.poll(async () => changeCount(page), { timeout: 5000 }).toBe(2);
 
     await page.evaluate(() => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       const btn = sr?.querySelector('[data-test="copy-prompt"]') as HTMLButtonElement | null;
       btn?.click();
     });
@@ -118,7 +118,7 @@ test.describe("clipboard permissions", () => {
     await expect
       .poll(async () => {
         return await page.evaluate(() => {
-          const sr = document.getElementById("design-tool-root")?.shadowRoot;
+          const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
           const btn = sr?.querySelector('[data-test="copy-prompt"]');
           return btn?.getAttribute("data-copied") === "true";
         });
@@ -145,7 +145,7 @@ test.describe("clipboard permissions", () => {
 
     const before = await page.evaluate(() => navigator.clipboard.readText().catch(() => "")).catch(() => "");
     await page.evaluate(() => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       const btn = sr?.querySelector('[data-test="copy-prompt"]') as HTMLButtonElement | null;
       btn?.click();
     });
@@ -170,7 +170,7 @@ test.describe("clipboard permissions", () => {
     await expect.poll(() => page.locator('[data-test="flex-container"]').textContent()).toBe("BCA");
 
     await page.evaluate(() => {
-      const root = document.getElementById("design-tool-root")?.shadowRoot;
+      const root = document.getElementById("nudge-ui-root")?.shadowRoot;
       (root?.querySelector('[data-test="copy-prompt"]') as HTMLButtonElement | null)?.click();
     });
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain("## Structural changes");

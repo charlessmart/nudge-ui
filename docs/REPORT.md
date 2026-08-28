@@ -32,7 +32,7 @@ Also noted (info, by design on this branch): **canvas mode is only enabled on th
 ### Battery (per page)
 
 1. **Load & baseline** — navigate, wait for inspector hydration, full-page screenshot.
-2. **Panel presence scan** — locate the inspector panel (mounted in an open shadow root on `#design-tool-root`), verify it renders.
+2. **Panel presence scan** — locate the inspector panel (mounted in an open shadow root on `#nudge-ui-root`), verify it renders.
 3. **Click-through** — tag up to 30 visible leaf elements (`button, a, h1–h4, p, li, td, th, label, input, select, textarea, img, span, div, section…`), click each, then scan the panel:
    - `overflow-x` — text wider than its box while clipped (`scrollWidth > clientWidth`, `overflow-x` not visible)
    - `overflow-y-clipped` — vertically clipped text in leaf elements

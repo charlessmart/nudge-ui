@@ -1,5 +1,5 @@
 {
-  "name": "@design-tool/nextjs",
+  "name": "@nudge-ui/nextjs",
   "version": "0.0.1",
   "type": "module",
   "main": "src/index.ts",
@@ -16,11 +16,11 @@
   },
   "dependencies": {
     "@babel/parser": "^7.25.0",
-    "@design-tool/css": "workspace:*",
-    "@design-tool/inspector": "workspace:*",
-    "@design-tool/plugin": "workspace:*",
+    "@nudge-ui/css": "workspace:*",
+    "@nudge-ui/inspector": "workspace:*",
+    "@nudge-ui/plugin": "workspace:*",
     "magic-string": "^0.30.11",
-    "@design-tool/standalone": "workspace:*"
+    "@nudge-ui/standalone": "workspace:*"
   },
   "peerDependencies": {
     "next": ">=15.3 <17",

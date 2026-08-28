@@ -55,7 +55,7 @@ describe("ChangesLog", () => {
     const details = container.querySelector("details")!;
     expect(details.hasAttribute("open")).toBe(false);
     expect(details.querySelector('[data-test="change-row"]')).not.toBeNull();
-    expect(details.querySelector('[data-test="change-row"]')?.querySelector(".dt-changes__value")).not.toBeNull();
+    expect(details.querySelector('[data-test="change-row"]')?.querySelector(".changes__value")).not.toBeNull();
 
     act(() => {
       (details.querySelector('[data-test="changes-toggle"]') as HTMLElement).click();
@@ -77,8 +77,8 @@ describe("ChangesLog", () => {
     const actions = container.querySelector('[data-test="session-actions"]')!;
     expect(actions.previousElementSibling).toBe(details);
     expect(actions.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
-    expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("dt-button--secondary");
-    expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("dt-button--compact");
+    expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("button--secondary");
+    expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("button--compact");
   });
 
   it("presents and reverts canonical structural changes directly", () => {

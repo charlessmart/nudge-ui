@@ -5,7 +5,7 @@ import { build } from "esbuild";
 import { buildStandaloneClient } from "./build-client.mjs";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
-const cliOutput = resolve(packageRoot, "dist/design-tool.mjs");
+const cliOutput = resolve(packageRoot, "dist/nudge-ui.mjs");
 mkdirSync(dirname(cliOutput), { recursive: true });
 
 await buildStandaloneClient();
@@ -19,7 +19,7 @@ await build({
   // Some CSS inventory dependencies are CommonJS. Provide Node's native
   // require inside the ESM bundle so their lazy built-in imports remain valid.
   banner: {
-    js: 'import { createRequire as __designToolCreateRequire } from "node:module"; const require = __designToolCreateRequire(import.meta.url);',
+    js: 'import { createRequire as __nudgeUiCreateRequire } from "node:module"; const require = __nudgeUiCreateRequire(import.meta.url);',
   },
   sourcemap: false,
   logLevel: "silent",

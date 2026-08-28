@@ -12,7 +12,7 @@ import {
   humanizeSelector,
   type TokenRuntime,
 } from "./catalog.ts";
-import { configureDesignToolRuntime } from "../runtimeConfig.ts";
+import { configureNudgeUiRuntime } from "../runtimeConfig.ts";
 
 /**
  * Configures the runtime the way the Astro host Adapter declares it
@@ -20,7 +20,7 @@ import { configureDesignToolRuntime } from "../runtimeConfig.ts";
  * declared at the host seam, not known to the shared catalog.
  */
 function configureAstroHost(): void {
-  configureDesignToolRuntime({
+  configureNudgeUiRuntime({
     projectId: "catalog-fixture",
     host: "astro",
     framework: "Astro",
@@ -40,7 +40,7 @@ function configureAstroHost(): void {
 
 /** Restores a host that declares no scoping grammar. */
 function configureDefaultHost(): void {
-  configureDesignToolRuntime({
+  configureNudgeUiRuntime({
     projectId: "catalog-fixture",
     host: "vite-react",
     framework: "React",

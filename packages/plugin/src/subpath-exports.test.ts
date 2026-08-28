@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { injectIdentity } from "@design-tool/plugin/identity";
-import { extractComponentContracts } from "@design-tool/plugin/component-contracts";
+import { injectIdentity } from "@nudge-ui/plugin/identity";
+import { extractComponentContracts } from "@nudge-ui/plugin/component-contracts";
 
 /**
  * The Next.js host Adapter consumes these build-time Modules through the
@@ -8,7 +8,7 @@ import { extractComponentContracts } from "@design-tool/plugin/component-contrac
  * bundler-agnostic functions — not that their transforms are exhaustive
  * (their own unit suites own that).
  */
-describe("@design-tool/plugin subpath exports", () => {
+describe("@nudge-ui/plugin subpath exports", () => {
   it("resolves ./identity to the identity-injection Module", () => {
     expect(typeof injectIdentity).toBe("function");
     const result = injectIdentity(

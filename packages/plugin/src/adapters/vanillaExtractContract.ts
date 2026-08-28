@@ -1,4 +1,4 @@
-import type { TokenContribution } from "@design-tool/css/token-inventory";
+import type { TokenContribution } from "@nudge-ui/css/token-inventory";
 import { isPackageStylesheet } from "../tokens/viteStylesheetArtifacts.ts";
 import type { TokenCatalogDiagnostic, TokenEntry } from "../virtual/design-tokens.ts";
 import { collectContractEntries } from "./vanillaExtractRuntime.ts";

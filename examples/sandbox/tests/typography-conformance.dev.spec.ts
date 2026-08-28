@@ -3,13 +3,13 @@ import { managedSheetText } from "./managedSheet.ts";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect.poll(async () => page.evaluate(() => Boolean(
-    document.getElementById("design-tool-root")?.shadowRoot?.querySelector('[data-test="style-editors"]'),
+    document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector('[data-test="style-editors"]'),
   ))).toBe(true);
 }
 
 async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
   await page.evaluate(({ p, v }) => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     const input = root?.querySelector(
       `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
     ) as HTMLInputElement | null;

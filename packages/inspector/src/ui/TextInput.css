@@ -1,8 +1,8 @@
-.dt-text-input {
+.text-input {
   width: 100%;
 }
 
-.dt-text-input::placeholder {
-  color: var(--dt-text-muted);
+.text-input::placeholder {
+  color: var(--text-muted);
   opacity: 1;
 }

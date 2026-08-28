@@ -1,5 +1,5 @@
 {
-  "name": "@design-tool/standalone",
+  "name": "@nudge-ui/standalone",
   "version": "0.0.1",
   "type": "module",
   "files": [
@@ -9,7 +9,7 @@
   ],
   "main": "src/index.ts",
   "bin": {
-    "design-tool": "./bin/design-tool.mjs"
+    "nudge-ui": "./bin/nudge-ui.mjs"
   },
   "exports": {
     ".": "./src/index.ts",
@@ -28,8 +28,8 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
-    "@design-tool/css": "workspace:*",
-    "@design-tool/inspector": "workspace:*",
+    "@nudge-ui/css": "workspace:*",
+    "@nudge-ui/inspector": "workspace:*",
     "parse5": "^7.3.0"
   },
   "devDependencies": {

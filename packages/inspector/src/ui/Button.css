@@ -1,84 +1,84 @@
-.dt-button {
+.button {
   appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--dt-space-4);
-  background: var(--dt-surface-control);
+  gap: var(--space-4);
+  background: var(--surface-control);
   border: 0;
-  color: var(--dt-text-primary);
+  color: var(--text-primary);
   cursor: pointer;
   font: inherit;
-  font-size: var(--dt-font-size-base);
-  font-weight: var(--dt-font-weight-base);
-  min-height: var(--dt-control-height-large);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-base);
+  min-height: var(--control-height-large);
   padding: 0 12px;
-  border-radius: var(--dt-radius-control);
+  border-radius: var(--radius-control);
   vertical-align: middle;
   transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
 
-.dt-button--compact {
-  min-height: var(--dt-control-height-small);
+.button--compact {
+  min-height: var(--control-height-small);
   padding: 0 10px;
-  font-size: var(--dt-font-size-base);
+  font-size: var(--font-size-base);
 }
 
-.dt-button--primary {
-  background: var(--dt-surface-raised);
-  color: var(--dt-text-primary);
-  box-shadow: var(--dt-shadow-control);
+.button--primary {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-control);
 }
 
-.dt-button--secondary {
-  background: var(--dt-surface-control);
+.button--secondary {
+  background: var(--surface-control);
 }
 
-.dt-button--quiet {
+.button--quiet {
   background: transparent;
-  color: var(--dt-text-primary);
+  color: var(--text-primary);
 }
 
-.dt-button--danger {
-  background: var(--dt-danger-surface);
-  color: var(--dt-danger-text);
+.button--danger {
+  background: var(--danger-surface);
+  color: var(--danger-text);
 }
 
-.dt-button--disabled {
-  color: var(--dt-text-muted-subtle);
+.button--disabled {
+  color: var(--text-muted-subtle);
   cursor: not-allowed;
 }
 
-.dt-button:hover:not(:disabled) {
-  background: var(--dt-surface-control-hover);
+.button:hover:not(:disabled) {
+  background: var(--surface-control-hover);
 }
 
-.dt-button--quiet:hover:not(:disabled) {
-  background: var(--dt-surface-well);
+.button--quiet:hover:not(:disabled) {
+  background: var(--surface-well);
 }
 
-.dt-button--primary:hover:not(:disabled) {
-  background: var(--dt-surface-raised-hover);
-  color: var(--dt-text-primary);
-  box-shadow: var(--dt-shadow-control);
+.button--primary:hover:not(:disabled) {
+  background: var(--surface-raised-hover);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-control);
 }
 
-.dt-button[data-active="true"] {
-  background: var(--dt-accent-surface);
-  color: var(--dt-accent-text);
+.button[data-active="true"] {
+  background: var(--accent-surface);
+  color: var(--accent-text);
 }
 
-.dt-button[data-active="true"]:hover:not(:disabled) {
-  background: var(--dt-accent-surface);
-  color: var(--dt-accent-text);
+.button[data-active="true"]:hover:not(:disabled) {
+  background: var(--accent-surface);
+  color: var(--accent-text);
 }
 
-.dt-button:focus-visible {
+.button:focus-visible {
   outline: 0;
-  box-shadow: inset 0 0 0 2px var(--dt-focus);
+  box-shadow: inset 0 0 0 2px var(--focus);
 }
 
-.dt-button:disabled {
-  color: var(--dt-text-muted-subtle);
+.button:disabled {
+  color: var(--text-muted-subtle);
   cursor: not-allowed;
 }

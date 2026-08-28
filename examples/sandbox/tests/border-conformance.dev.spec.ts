@@ -16,7 +16,7 @@ async function selectCase(page: import("@playwright/test").Page, id: string): Pr
 
 async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
   await page.evaluate(({ property: prop, value: next }) => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     const input = root?.querySelector(
       `[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`,
     ) as HTMLInputElement | null;
@@ -105,7 +105,7 @@ test("dev: all-sides-different expands individual side fields by default", async
   await page.goto("/border-conformance");
   await selectCase(page, "border-all-sides-different");
 
-  await expect(page.locator('.dt-border')).toHaveAttribute("data-expanded", "true");
+  await expect(page.locator('.border')).toHaveAttribute("data-expanded", "true");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("1px");
   await expect(page.locator('[data-test="token-field"][data-property="border-left-width"] [data-test="raw-input"]')).toHaveValue("4px");
   await expect(page.locator('[data-test="border-style-right"]')).toContainText("Dotted");

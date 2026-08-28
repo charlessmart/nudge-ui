@@ -26,14 +26,14 @@ function sourceBytes(): Record<string, string> {
 async function inspectorReady(page: Page): Promise<void> {
   await page.goto("/");
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
   await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
   // The bootstrap must have installed the runtime (bridge) before any
   // interaction, and the app's hydration must have attached fibers — both
   // race the mount on a cold dev server.
   await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __designTool?: unknown }).__designTool)))
+    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
   await page.waitForTimeout(1500);
 }
@@ -250,7 +250,7 @@ test("dev: source files stay byte-for-byte unchanged across a session", async ({
 test("dev: route-group segments are instrumented through the shared root", async ({ page }) => {
   await page.goto("/pricing");
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
   // Route-group pages carry identity like any other app segment. Route groups
   // are elided from URLs: the file lives at app/(shop)/pricing/page.tsx but

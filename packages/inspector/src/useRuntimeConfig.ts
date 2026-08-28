@@ -1,8 +1,8 @@
 import { useSyncExternalStore } from "react";
-import type { DesignToolRuntimeConfig } from "./runtimeConfig.ts";
+import type { NudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 import {
-  getDesignToolRuntimeConfig,
-  subscribeDesignToolRuntime,
+  getNudgeUiRuntimeConfig,
+  subscribeNudgeUiRuntime,
 } from "./runtimeConfig.ts";
 
 /**
@@ -13,6 +13,6 @@ import {
  * atomically replaces the configuration during HMR or a dev-transport
  * refresh re-renders the subscribed tree with the new snapshot.
  */
-export function useDesignToolRuntimeConfig(): DesignToolRuntimeConfig {
-  return useSyncExternalStore(subscribeDesignToolRuntime, getDesignToolRuntimeConfig);
+export function useNudgeUiRuntimeConfig(): NudgeUiRuntimeConfig {
+  return useSyncExternalStore(subscribeNudgeUiRuntime, getNudgeUiRuntimeConfig);
 }

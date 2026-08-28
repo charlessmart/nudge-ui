@@ -1,4 +1,4 @@
-.dt-layout-combo {
+.layout-combo {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -6,19 +6,19 @@
   min-width: 0;
 }
 
-.dt-layout-combo__custom {
+.layout-combo__custom {
   display: flex;
 }
 
-.dt-layout-combo > .dt-at-rule-indicator {
+.layout-combo > .at-rule-indicator {
   position: absolute;
   z-index: 1;
-  top: calc(var(--dt-control-height-large) / 2);
+  top: calc(var(--control-height-large) / 2);
   right: 8px;
   transform: translateY(-50%);
 }
 
-.dt-layout-combo:has(> .dt-at-rule-indicator) > .dt-select,
-.dt-layout-combo:has(> .dt-at-rule-indicator) > .dt-text-input {
+.layout-combo:has(> .at-rule-indicator) > .select,
+.layout-combo:has(> .at-rule-indicator) > .text-input {
   padding-right: 32px;
 }

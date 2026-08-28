@@ -1,11 +1,11 @@
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
+import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 
 export interface BoxShadowEditorProps {
   element: SelectedElement;
@@ -17,13 +17,13 @@ export interface BoxShadowEditorProps {
 export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
   const { element, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
-  const allEntries = entries ?? getDesignToolTokenEntries();
+  const allEntries = entries ?? getNudgeUiTokenEntries();
   const tokenRow = tokenRows.find((row) => row.property === "box-shadow") ?? null;
 
   return (
-    <div className="dt-editor" data-test="box-shadow-editor">
-      <div className="dt-editor__title">Box Shadow</div>
-      <div className="dt-property">
+    <div className="editor" data-test="box-shadow-editor">
+      <div className="editor__title">Box Shadow</div>
+      <div className="property">
         <FieldRow label="Box Shadow">
           <ControlSurface>
             <TokenField

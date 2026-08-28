@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const DEV_PORT = process.env.DT_DEV_PORT ?? "5175";
-const PROD_PORT = process.env.DT_PROD_PORT ?? "4175";
+const DEV_PORT = process.env.NUDGE_UI_DEV_PORT ?? "5175";
+const PROD_PORT = process.env.NUDGE_UI_PROD_PORT ?? "4175";
 const DEV_URL = `http://127.0.0.1:${DEV_PORT}`;
 const PROD_URL = `http://127.0.0.1:${PROD_PORT}`;
 
@@ -14,7 +14,7 @@ export default defineConfig({
     { name: "compat-firefox", use: { ...devices["Desktop Firefox"], baseURL: DEV_URL }, testMatch: /compatibility\.dev\.spec\.ts/ },
     { name: "compat-webkit", use: { ...devices["Desktop Safari"], baseURL: DEV_URL }, testMatch: /compatibility\.dev\.spec\.ts/ },
     { name: "dev", use: { ...devices["Desktop Chrome"], baseURL: DEV_URL }, testMatch: /(?:isolation|conformance|components)\.dev\.spec\.ts/ },
-    { name: "prod", use: { ...devices["Desktop Chrome"], baseURL: PROD_URL }, testMatch: /design-tool\.prod\.spec\.ts/ },
+    { name: "prod", use: { ...devices["Desktop Chrome"], baseURL: PROD_URL }, testMatch: /nudge-ui\.prod\.spec\.ts/ },
   ],
   webServer: [
     { command: `pnpm dev --port ${DEV_PORT} --strictPort`, url: DEV_URL, reuseExistingServer: !process.env.CI, timeout: 90_000 },

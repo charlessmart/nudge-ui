@@ -2,13 +2,13 @@ import { getElementComputedStyle } from "./domRealm.ts";
 import { notifyBrowserStylesheetChange } from "./inspection/browserCssInspectionRegistry.ts";
 import type { TokenContextWrapper } from "virtual:design-tokens";
 import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
-import { isDesignToolDev } from "./devFlag.ts";
+import { isNudgeUiDev } from "./devFlag.ts";
 
 export { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 
 declare global {
   interface Window {
-    __designToolGetManagedSheetText?: () => string;
+    __nudgeUiGetManagedSheetText?: () => string;
   }
 }
 
@@ -32,7 +32,7 @@ export interface PreviewResult {
   reason?: PreviewConflictReason;
 }
 
-const SHEET_ID = "design-tool-styles";
+const SHEET_ID = "nudge-ui-styles";
 
 let managedHeadGuardDocument: Document | null = null;
 let managedHeadGuard: MutationObserver | null = null;
@@ -60,7 +60,7 @@ export function ensureManagedSheet(): CSSStyleSheet {
   if (!el) {
     el = doc.createElement("style");
     el.id = SHEET_ID;
-    el.setAttribute("data-design-tool", "managed");
+    el.setAttribute("data-nudge-ui", "managed");
     doc.head.appendChild(el);
   }
   let sheet = el.sheet;
@@ -71,22 +71,22 @@ export function ensureManagedSheet(): CSSStyleSheet {
     el.remove();
     el = doc.createElement("style");
     el.id = SHEET_ID;
-    el.setAttribute("data-design-tool", "managed");
+    el.setAttribute("data-nudge-ui", "managed");
     doc.head.appendChild(el);
     sheet = el.sheet;
   }
   if (!sheet) {
-    throw new Error("design-tool managed stylesheet could not be initialised");
+    throw new Error("nudge-ui managed stylesheet could not be initialised");
   }
   if (doc.head.lastElementChild !== el) {
     doc.head.appendChild(el);
     rehydrateManagedSheet(doc, el);
   }
   installManagedHeadGuard(doc);
-  if (isDesignToolDev() && doc.defaultView) {
+  if (isNudgeUiDev() && doc.defaultView) {
     // Keep authored CSS available to dev diagnostics without writing
     // textContent on the live <style> element (which reparses CSSOM rules).
-    doc.defaultView.__designToolGetManagedSheetText = getManagedSheetText;
+    doc.defaultView.__nudgeUiGetManagedSheetText = getManagedSheetText;
   }
   return sheet;
 }
@@ -393,7 +393,7 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
   const computedValue = computed.getPropertyValue(property).trim();
   const doc = el.ownerDocument;
   const probe = doc.createElement(property.startsWith("--") ? "span" : el.tagName.toLowerCase());
-  probe.setAttribute("data-design-tool", "value-probe");
+  probe.setAttribute("data-nudge-ui", "value-probe");
   probe.style.setProperty(property, requestedValue);
   probe.style.setProperty("position", "fixed", "important");
   probe.style.setProperty("visibility", "hidden", "important");

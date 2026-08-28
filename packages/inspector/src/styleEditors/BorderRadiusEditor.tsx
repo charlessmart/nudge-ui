@@ -9,13 +9,13 @@ import {
 } from "@tabler/icons-react";
 import { ToggleButton } from "../ui/ToggleButton.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
 import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
+import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 
@@ -76,7 +76,7 @@ export interface BorderRadiusEditorProps {
 export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement {
   const { element, entries, tokenRows = [], onAfterEdit, embedded = false } = props;
   const el = element.domElement;
-  const allEntries = entries ?? getDesignToolTokenEntries();
+  const allEntries = entries ?? getNudgeUiTokenEntries();
   const dataLinked = cornersAreLinked(tokenRows);
 
   const [userUnlinked, setUserUnlinked] = useState(false);
@@ -109,7 +109,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
     side: SIDE_NAMES[index]!,
     icon: (() => {
       const Icon = BORDER_RADIUS_ICONS[index]!;
-      return <Icon className="dt-side-values__icon dt-side-values__side-icon" size={16} stroke={1.8} aria-hidden="true" />;
+      return <Icon className="side-values__icon side-values__side-icon" size={16} stroke={1.8} aria-hidden="true" />;
     })(),
     control: (
       <TokenField
@@ -152,7 +152,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
 
   const toggleButton = (
     <ToggleButton
-      className={embedded ? "dt-border-radius-editor__toggle" : undefined}
+      className={embedded ? "border-radius-editor__toggle" : undefined}
       variant="quiet"
       size="default"
       data-test={isLinked ? "border-radius-expand" : "border-radius-collapse"}
@@ -164,12 +164,12 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
         else handleCollapse();
       }}
     >
-      <IconBorderCorners size={"var(--dt-icon-size-small)"} stroke={1.8} aria-hidden="true" />
+      <IconBorderCorners size={"var(--icon-size-small)"} stroke={1.8} aria-hidden="true" />
     </ToggleButton>
   );
 
   const individuals = !isLinked ? (
-    <div className="dt-border-radius-editor__individuals">
+    <div className="border-radius-editor__individuals">
       <SideControls label="Border Radius Corners" sides={cornerSides} />
     </div>
   ) : null;
@@ -177,13 +177,13 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
   if (embedded) {
     return (
       <div
-        className="dt-border-radius-editor dt-border-radius-editor--embedded"
+        className="border-radius-editor border-radius-editor--embedded"
         data-test="border-radius-editor"
         data-expanded={!isLinked ? "true" : "false"}
       >
-        <div className="dt-border-radius-editor__main">
-          <div className="dt-appearance__field-header">
-            <div className="dt-appearance__field-label">Corner Radius</div>
+        <div className="border-radius-editor__main">
+          <div className="appearance__field-header">
+            <div className="appearance__field-label">Corner Radius</div>
           </div>
           {groupedControl}
         </div>
@@ -195,15 +195,15 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
 
   return (
     <div
-      className="dt-editor dt-border-radius-editor"
+      className="editor border-radius-editor"
       data-test="border-radius-editor"
       data-expanded={!isLinked ? "true" : "false"}
     >
-      <div className="dt-border-radius-editor__main">
-        <div className="dt-editor__title-row">
-          <div className="dt-editor__title">Border Radius</div>
+      <div className="border-radius-editor__main">
+        <div className="editor__title-row">
+          <div className="editor__title">Border Radius</div>
         </div>
-        <div className="dt-border-radius__grouped-row">
+        <div className="border-radius__grouped-row">
           {groupedControl}
           {toggleButton}
         </div>

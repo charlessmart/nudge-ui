@@ -1,5 +1,5 @@
 import { parse, type DefaultTreeAdapterTypes, type ParserError } from "parse5";
-import { DESIGN_TOOL_MOUNT_ID } from "../manifest.ts";
+import { NUDGE_UI_MOUNT_ID } from "../manifest.ts";
 
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 const EXCLUDED_TAG_NAMES = new Set([
@@ -165,7 +165,7 @@ function visitElement(
   if (element.namespaceURI !== HTML_NAMESPACE) return;
 
   const tagName = element.tagName.toLowerCase();
-  if (EXCLUDED_TAG_NAMES.has(tagName) || hasAttribute(element, "id", DESIGN_TOOL_MOUNT_ID)) {
+  if (EXCLUDED_TAG_NAMES.has(tagName) || hasAttribute(element, "id", NUDGE_UI_MOUNT_ID)) {
     return;
   }
 

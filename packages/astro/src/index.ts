@@ -5,5 +5,5 @@ export {
   type AstroIdentityOptions,
   type AstroIdentityResult,
 } from "./identity.ts";
-export { designToolAstro } from "./integration.ts";
-export type { DesignToolAstroOptions, DesignToolOptions } from "./integration.ts";
+export { nudgeUiAstro } from "./integration.ts";
+export type { NudgeUiAstroOptions, NudgeUiOptions } from "./integration.ts";

@@ -1,21 +1,21 @@
-import type { TokenDefinition, TokenEntry } from "@design-tool/css/model";
+import type { TokenDefinition, TokenEntry } from "@nudge-ui/css/model";
 import { getChangesList, getPendingRules, isPreviewableChange } from "./changesLog.ts";
 import { detectFramework } from "./prompt/detectFramework.ts";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { projectInspectorValues } from "./spacing/projection.ts";
 import type { InspectorProjection } from "./spacing/projection.ts";
-import type { ResolvedProperty } from "@design-tool/css/model";
-import { selectTokens } from "@design-tool/css/value-semantics";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
+import { selectTokens } from "@nudge-ui/css/value-semantics";
 import {
   createBrowserCssInspection,
   type DocumentTokenInspectionSnapshot,
   type InspectionSnapshot,
 } from "./inspection/browserCssInspection.ts";
 import { getBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
-import { getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 
-export const DESIGN_TOOL_INSPECTION_VERSION = 1 as const;
+export const NUDGE_UI_INSPECTION_VERSION = 1 as const;
 
 export interface InspectionCatalogEntry {
   name: string;
@@ -39,7 +39,7 @@ export interface InspectionControl {
 }
 
 export interface ElementInspection {
-  version: typeof DESIGN_TOOL_INSPECTION_VERSION;
+  version: typeof NUDGE_UI_INSPECTION_VERSION;
   identity: {
     cid: string | null;
     src: string;
@@ -77,7 +77,7 @@ function inspectBrowserFacts(
   entries?: readonly TokenEntry[],
 ) {
   const doc = element.ownerDocument ?? document;
-  if (definitions === getDesignToolRuntimeConfig().tokenCatalog && entries === undefined) {
+  if (definitions === getNudgeUiRuntimeConfig().tokenCatalog && entries === undefined) {
     const session = getBrowserCssInspection(doc);
     return {
       element: session.inspect(element, { cascade: "live" }),
@@ -127,7 +127,7 @@ export function inspectElement(
   element: HTMLElement,
   options: InspectElementOptions = {},
 ): ElementInspection {
-  const runtimeConfig = getDesignToolRuntimeConfig();
+  const runtimeConfig = getNudgeUiRuntimeConfig();
   const definitions = options.catalog ?? runtimeConfig.tokenCatalog;
   const frameworkHints = options.tokens
     ? detectFramework(options.tokens)
@@ -164,7 +164,7 @@ export function inspectElement(
     }));
 
   return {
-    version: DESIGN_TOOL_INSPECTION_VERSION,
+    version: NUDGE_UI_INSPECTION_VERSION,
     identity: {
       cid: selection?.cid ?? element.getAttribute("data-cid"),
       src: selection?.src ?? element.getAttribute("data-src") ?? "",
@@ -185,28 +185,28 @@ export function inspectElement(
   };
 }
 
-export interface DesignToolInspectionBridge {
-  version: typeof DESIGN_TOOL_INSPECTION_VERSION;
+export interface NudgeUiInspectionBridge {
+  version: typeof NUDGE_UI_INSPECTION_VERSION;
   inspect(selector: string): ElementInspection | null;
 }
 
 declare global {
   interface Window {
-    __designTool?: DesignToolInspectionBridge;
+    __nudgeUi?: NudgeUiInspectionBridge;
   }
 }
 
 /** Installs the dev-only browser seam used by compatibility applications. */
 export function installInspectionBridge(target: Window = window): () => void {
-  const bridge: DesignToolInspectionBridge = {
-    version: DESIGN_TOOL_INSPECTION_VERSION,
+  const bridge: NudgeUiInspectionBridge = {
+    version: NUDGE_UI_INSPECTION_VERSION,
     inspect(selector) {
       const element = target.document.querySelector(selector);
       return element instanceof HTMLElement ? inspectElement(element) : null;
     },
   };
-  target.__designTool = bridge;
+  target.__nudgeUi = bridge;
   return () => {
-    if (target.__designTool === bridge) delete target.__designTool;
+    if (target.__nudgeUi === bridge) delete target.__nudgeUi;
   };
 }

@@ -69,11 +69,11 @@ describe("shared inspector UI", () => {
       ));
     });
 
-    expect(host.querySelector('[data-test="surface"]')?.className).toContain("dt-control-surface");
+    expect(host.querySelector('[data-test="surface"]')?.className).toContain("control-surface");
     expect(host.querySelector('[data-test="standalone-input"]')?.className).not.toContain("embedded");
     expect(host.querySelector('[data-test="standalone-select"]')?.className).not.toContain("embedded");
-    expect(host.querySelector('[data-test="embedded-input"]')?.className).toContain("dt-text-input--embedded");
-    expect(host.querySelector('[data-test="embedded-select"]')?.className).toContain("dt-select--embedded");
+    expect(host.querySelector('[data-test="embedded-input"]')?.className).toContain("text-input--embedded");
+    expect(host.querySelector('[data-test="embedded-select"]')?.className).toContain("select--embedded");
   });
 
   it("formats CSS property labels as title case words", () => {
@@ -100,7 +100,7 @@ describe("shared inspector UI", () => {
     expect(select.tagName).toBe("BUTTON");
     expect(select.getAttribute("role")).toBe("combobox");
     expect(select.textContent).toContain("Two");
-    expect(select.className).toContain("dt-select");
+    expect(select.className).toContain("select");
 
     act(() => select.click());
     act(() => {
@@ -140,12 +140,12 @@ describe("shared inspector UI", () => {
       ));
     });
 
-    expect(host.querySelector('[data-test="text-primary"]')?.className).toContain("dt-button--primary");
-    expect(host.querySelector('[data-test="icon-primary"]')?.className).toContain("dt-icon-button--primary");
-    expect(host.querySelector('[data-test="icon-primary"]')?.className).toContain("dt-icon-button--compact");
-    expect(host.querySelector('[data-test="icon-secondary"]')?.className).toContain("dt-icon-button--secondary");
-    expect(host.querySelector('[data-test="icon-quiet"]')?.className).toContain("dt-icon-button--quiet");
-    expect(host.querySelector('[data-test="icon-disabled"]')?.className).toContain("dt-icon-button--disabled");
+    expect(host.querySelector('[data-test="text-primary"]')?.className).toContain("button--primary");
+    expect(host.querySelector('[data-test="icon-primary"]')?.className).toContain("icon-button--primary");
+    expect(host.querySelector('[data-test="icon-primary"]')?.className).toContain("icon-button--compact");
+    expect(host.querySelector('[data-test="icon-secondary"]')?.className).toContain("icon-button--secondary");
+    expect(host.querySelector('[data-test="icon-quiet"]')?.className).toContain("icon-button--quiet");
+    expect(host.querySelector('[data-test="icon-disabled"]')?.className).toContain("icon-button--disabled");
     expect((host.querySelector('[data-test="icon-disabled"]') as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -160,7 +160,7 @@ describe("shared inspector UI", () => {
 
     const button = host.querySelector('[data-test="disabled-button"]') as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    expect(button.className).toContain("dt-button--disabled");
+    expect(button.className).toContain("button--disabled");
   });
 
   it("renders an accessible breadcrumb and color swatch", () => {
@@ -232,7 +232,7 @@ describe("shared inspector UI", () => {
 
     expect(host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
     expect(host.querySelector('[data-side="top"] svg')).not.toBeNull();
-    expect(host.querySelector('[data-side="top"]')?.className).toContain("dt-control-surface");
+    expect(host.querySelector('[data-side="top"]')?.className).toContain("control-surface");
   });
 
   it("renders grouped side values and expands back to four sides", () => {
@@ -255,8 +255,8 @@ describe("shared inspector UI", () => {
     expect(field.getAttribute("data-expanded")).toBe("false");
     expect(field.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
     expect(field.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
-    expect(field.querySelector('[data-test="individual-sides"]')?.className).toContain("dt-toggle-button");
-    expect(field.querySelector('[data-test="individual-sides"]')?.className).toContain("dt-toggle-button--quiet");
+    expect(field.querySelector('[data-test="individual-sides"]')?.className).toContain("toggle-button");
+    expect(field.querySelector('[data-test="individual-sides"]')?.className).toContain("toggle-button--quiet");
     expect(field.querySelector('[data-test="individual-sides"]')?.getAttribute("aria-label")).toBe("Expand Padding Sides");
 
     act(() => (field.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).click());

@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { colorValueToHex, TokenField, TokenValueField } from "./TokenField.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { resetPendingRules, getChangeRecords } from "./editActions.ts";
 import {
   makeSelected,
@@ -47,7 +47,7 @@ describe("TokenField", () => {
   beforeEach(() => {
     resetPendingRules();
     document.body.innerHTML = "";
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     mockComputedStyle({ "font-size": "16px" });
   });
 
@@ -56,7 +56,7 @@ describe("TokenField", () => {
     restoreComputedStyle();
     resetPendingRules();
     document.body.innerHTML = "";
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
   });
 
   it("waits until blur before applying a raw value and records one committed edit", () => {
@@ -124,9 +124,9 @@ describe("TokenField", () => {
     expect(field.querySelector('[data-test="leading-adornment"]')).not.toBeNull();
     expect(field.querySelector('[data-test="trailing-adornment"]')).not.toBeNull();
     expect(field.getAttribute("aria-label")).toBe("Font size");
-    expect(field.className).not.toContain("dt-control-surface");
-    expect(handle.host.querySelector('[data-test="token-surface"]')?.className).toContain("dt-control-surface");
-    expect(field.querySelector('[data-test="raw-input"]')?.className).toContain("dt-text-input--embedded");
+    expect(field.className).not.toContain("control-surface");
+    expect(handle.host.querySelector('[data-test="token-surface"]')?.className).toContain("control-surface");
+    expect(field.querySelector('[data-test="raw-input"]')?.className).toContain("text-input--embedded");
   });
 
   it("does not create visual chrome when mounted without a parent surface", () => {
@@ -138,8 +138,8 @@ describe("TokenField", () => {
     }));
 
     const field = handle.host.querySelector('[data-test="token-field"]') as HTMLElement;
-    expect(field.className).not.toContain("dt-control-surface");
-    expect(field.querySelector('[data-test="raw-input"]')?.className).toContain("dt-text-input--embedded");
+    expect(field.className).not.toContain("control-surface");
+    expect(field.querySelector('[data-test="raw-input"]')?.className).toContain("text-input--embedded");
   });
 
   it.each([
@@ -454,14 +454,14 @@ describe("TokenField", () => {
       entries: [FONT_SIZE],
     }));
 
-    const chip = handle.host.querySelector(".dt-token-chip") as HTMLElement;
+    const chip = handle.host.querySelector(".token-chip") as HTMLElement;
     const picker = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
     const delink = handle.host.querySelector('[data-test="delink-btn"]') as HTMLButtonElement;
     expect(chip.contains(delink)).toBe(true);
     expect(picker.contains(delink)).toBe(false);
-    expect(delink.classList).toContain("dt-icon-button");
-    expect(delink.classList).toContain("dt-icon-button--quiet");
-    expect(delink.classList).toContain("dt-icon-button--compact");
+    expect(delink.classList).toContain("icon-button");
+    expect(delink.classList).toContain("icon-button--quiet");
+    expect(delink.classList).toContain("icon-button--compact");
   });
 
   it("promotes a matching raw-value suggestion into a token chip", () => {
@@ -507,7 +507,7 @@ describe("TokenField", () => {
       picker.dispatchEvent(new Event("change", { bubbles: true }));
     });
     expect(onCommitRaw).toHaveBeenCalledWith("#abcdef");
-    expect(handle.host.querySelector('[data-test="token-field"]')?.classList.contains("dt-token-field--color")).toBe(true);
+    expect(handle.host.querySelector('[data-test="token-field"]')?.classList.contains("token-field--color")).toBe(true);
     selected.domElement.remove();
   });
 
@@ -527,7 +527,7 @@ describe("TokenField", () => {
     }));
 
     expect(handle.host.querySelector('[data-test="token-color-swatch"]')?.getAttribute("style"))
-      .toContain("--dt-swatch-color: #dc2626");
+      .toContain("--swatch-color: #dc2626");
     expect((handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement).value).toBe("100%");
     selected.domElement.remove();
   });
@@ -686,7 +686,7 @@ describe("TokenField", () => {
     }
     expect(appended.length).toBeGreaterThan(0);
     for (const probe of appended) {
-      expect(probe.getAttribute("data-design-tool")).toBe("value-probe");
+      expect(probe.getAttribute("data-nudge-ui")).toBe("value-probe");
     }
   });
 
@@ -703,7 +703,7 @@ describe("TokenField", () => {
       onUnlink: vi.fn(),
     }));
 
-    expect(handle.host.querySelector(".dt-token-color-control")?.getAttribute("data-resolved")).toBe("true");
+    expect(handle.host.querySelector(".token-color-control")?.getAttribute("data-resolved")).toBe("true");
     expect(handle.host.querySelector('[data-test="token-color-swatch"]')?.getAttribute("style"))
       .toContain("oklch(63% .2 25)");
     selected.domElement.remove();

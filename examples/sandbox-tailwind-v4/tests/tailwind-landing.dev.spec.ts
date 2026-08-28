@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect
     .poll(async () => page.evaluate(() => {
-      const root = document.getElementById("design-tool-root")?.shadowRoot;
+      const root = document.getElementById("nudge-ui-root")?.shadowRoot;
       return Boolean(root?.querySelector('[data-test="style-editors"]'));
     }), { timeout: 5000 })
     .toBe(true);
@@ -11,7 +11,7 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
 
 async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
   await expect
-    .poll(async () => page.evaluate(() => Boolean(document.getElementById("design-tool-root")?.shadowRoot?.querySelector('[data-test="inspect-tab"]'))), { timeout: 5000 })
+    .poll(async () => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector('[data-test="inspect-tab"]'))), { timeout: 5000 })
     .toBe(true);
 }
 
@@ -52,7 +52,7 @@ test("dev: Tailwind local aliases remain identifiable in the inspector", async (
   });
 
   await expect.poll(async () => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return (root?.querySelector(
       '[data-test="token-field"][data-property="line-height"] input[aria-hidden="true"]',
     ) as HTMLInputElement | null)?.value ?? null;
@@ -67,7 +67,7 @@ test("dev: Tailwind inherited color resolves from an ancestor utility", async ({
   });
 
   await expect.poll(async () => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return root?.querySelector('[data-test="token-field"][data-property="color"] [data-test="token-chip"]')?.textContent?.trim() ?? null;
   })).toBe("--color-stone-100");
 });
@@ -92,7 +92,7 @@ test("dev: Tailwind v4 color opacity keeps base token, alpha, and painted previe
     element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
   });
   await expect.poll(async () => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return root?.querySelector('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]')?.textContent?.trim() ?? null;
   })).toBe("--color-red-500");
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
@@ -114,7 +114,7 @@ test("dev: Tailwind side border utilities parse into independent inspector field
     return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(",");
   })).toBe("2px,4px,8px,1px");
 
-  await expect(page.locator('.dt-border')).toHaveAttribute("data-expanded", "true");
+  await expect(page.locator('.border')).toHaveAttribute("data-expanded", "true");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("2px");
   await expect(page.locator('[data-test="token-field"][data-property="border-right-width"] [data-test="raw-input"]')).toHaveValue("4px");
   await expect(page.locator('[data-test="border-style-top"]')).toContainText("Dashed");

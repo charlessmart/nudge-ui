@@ -13,9 +13,9 @@
     "test:compat": "playwright test --project=compat-chromium --project=compat-firefox --project=compat-webkit"
   },
   "dependencies": {
-    "@design-tool/compatibility": "workspace:*",
-    "@design-tool/inspector": "workspace:*",
-    "@design-tool/plugin": "workspace:*",
+    "@nudge-ui/compatibility": "workspace:*",
+    "@nudge-ui/inspector": "workspace:*",
+    "@nudge-ui/plugin": "workspace:*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
   },

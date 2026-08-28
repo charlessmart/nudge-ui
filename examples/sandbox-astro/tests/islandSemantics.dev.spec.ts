@@ -12,26 +12,26 @@ import type { Page } from "@playwright/test";
  * managed stylesheet declaration.
  */
 
-/** Collects console/page errors attributable to Design Tool or hydration. */
+/** Collects console/page errors attributable to Nudge UI or hydration. */
 function trackSevereErrors(page: Page): () => string[] {
   const errors: string[] = [];
   page.on("console", (message) => {
-    if (message.type() === "error" && /design-tool|\$RefreshSig|hydrat/i.test(message.text())) {
+    if (message.type() === "error" && /nudge-ui|\$RefreshSig|hydrat/i.test(message.text())) {
       errors.push(message.text());
     }
   });
   page.on("pageerror", (error) => {
-    if (/design-tool|\$RefreshSig|hydrat/i.test(error.message)) errors.push(error.message);
+    if (/nudge-ui|\$RefreshSig|hydrat/i.test(error.message)) errors.push(error.message);
   });
   return () => errors;
 }
 
 async function waitForInspector(page: Page): Promise<void> {
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
   await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __designTool?: unknown }).__designTool)))
+    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
 }
 
@@ -116,7 +116,7 @@ test("dev: flipping typed props rerenders the real island component without mana
 
   // Enum override → the real component's output changes.
   await page.locator('[data-test="component-prop-variant"]').click();
-  await page.locator('.dt-select__item[data-value="ghost"]').click();
+  await page.locator('.select__item[data-value="ghost"]').click();
   await expect(badge).toHaveClass(/counter-label--ghost/);
   await expect(badge).toHaveAttribute("data-rendered-variant", "ghost");
 
@@ -134,7 +134,7 @@ test("dev: flipping typed props rerenders the real island component without mana
   // rerender).
   await expect.poll(async () => {
     return page.evaluate(() => {
-      const sheet = document.getElementById("design-tool-styles") as HTMLStyleElement | null;
+      const sheet = document.getElementById("nudge-ui-styles") as HTMLStyleElement | null;
       // The sheet may be created lazily by unrelated preview machinery; what
       // matters is that a semantic override contributes no rules to it.
       return sheet?.sheet ? sheet.sheet.cssRules.length : 0;
@@ -148,7 +148,7 @@ test("dev: the generated prompt carries the island component record without iden
   const severeErrors = await selectIslandBadge(page);
 
   await page.locator('[data-test="component-prop-variant"]').click();
-  await page.locator('.dt-select__item[data-value="ghost"]').click();
+  await page.locator('.select__item[data-value="ghost"]').click();
   await expect(page.locator(".counter-label").first()).toHaveClass(/counter-label--ghost/);
 
   const prompt = await copyPrompt(page);

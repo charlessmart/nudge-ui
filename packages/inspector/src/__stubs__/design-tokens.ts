@@ -6,10 +6,10 @@ import type {
   TokenDeclaration,
   TokenDefinition,
   TokenEntry,
-} from "@design-tool/css/model";
+} from "@nudge-ui/css/model";
 import {
-  configureDesignToolRuntime,
-  getDesignToolRuntimeConfig,
+  configureNudgeUiRuntime,
+  getNudgeUiRuntimeConfig,
 } from "../runtimeConfig.ts";
 
 export type {
@@ -20,13 +20,13 @@ export type {
   TokenDeclaration,
   TokenDefinition,
   TokenEntry,
-} from "@design-tool/css/model";
+} from "@nudge-ui/css/model";
 
 export const tokens: TokenEntry[] = [];
 export let tokenCatalog: TokenDefinition[] = [];
 export const tokenDiagnostics: TokenCatalogDiagnostic[] = [];
 export let tokenGeneration = "";
-export const designToolProjectId = getDesignToolRuntimeConfig().projectId;
+export const nudgeUiProjectId = getNudgeUiRuntimeConfig().projectId;
 
 /** Test-only live-binding update that mirrors Vite replacing the virtual module. */
 export function setDesignTokensStub(
@@ -35,8 +35,8 @@ export function setDesignTokensStub(
 ): void {
   tokenCatalog = catalog;
   tokenGeneration = generation;
-  const current = getDesignToolRuntimeConfig();
-  configureDesignToolRuntime({
+  const current = getNudgeUiRuntimeConfig();
+  configureNudgeUiRuntime({
     ...current,
     tokenCatalog: catalog,
     tokenGeneration: generation,

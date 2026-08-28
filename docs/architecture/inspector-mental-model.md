@@ -1,11 +1,11 @@
-# Design Tool: a mental model
+# Nudge UI: a mental model
 
-This is a short, non-technical map of where the Design Tool fits into a modern
+This is a short, non-technical map of where the Nudge UI fits into a modern
 front-end project.
 
 ## The one-sentence version
 
-Your app is built first, rendered second, and inspected third. The Design Tool
+Your app is built first, rendered second, and inspected third. The Nudge UI
 does not replace React, CSS, Tailwind, or Vite. It adds a dev-only bridge between
 the source code and the browser that is already rendering the app.
 
@@ -13,7 +13,7 @@ the source code and the browser that is already rendering the app.
 flowchart LR
   A["Your source\nReact / Vue / Svelte + CSS"] --> B["Build pipeline\nVite today"]
   B --> C["Browser\nDOM + CSS cascade + framework runtime"]
-  C --> D["Design Tool runtime\nselect, explain, preview"]
+  C --> D["Nudge UI runtime\nselect, explain, preview"]
   D --> E["Change log\nagent-ready prompt"]
   B -. "dev-only identity + token knowledge" .-> D
   D -. "managed CSS or prop override" .-> C
@@ -34,7 +34,7 @@ The inspector needs both. Neither one is enough on its own.
 flowchart TB
   L1["1. Source layer\nWhat the developer writes"] --> L2["2. Build layer\nWhat Vite transforms"]
   L2 --> L3["3. Browser layer\nWhat React renders and CSS computes"]
-  L3 --> L4["4. Inspector layer\nWhat Design Tool reads and previews"]
+  L3 --> L4["4. Inspector layer\nWhat Nudge UI reads and previews"]
 
   L1a["JSX / TSX\nCSS / CSS variables\nTailwind classes\ntheme contracts"] -.-> L1
   L2a["Identity attributes\nvirtual token module\ncomponent contracts\nHTML bootstrap"] -.-> L2
@@ -66,9 +66,9 @@ flowchart LR
   S --> C["Component contract scan"]
 
   T --> I["data-cid + data-src\n+ optional data-cprops\n+ React component boundary"]
-  P --> INV["token inventory\n@design-tool/css/token-inventory"]
+  P --> INV["token inventory\n@nudge-ui/css/token-inventory"]
   INV --> V["virtual:design-tokens"]
-  C --> M["virtual:design-tool-components"]
+  C --> M["virtual:nudge-ui-components"]
   H["HTML response"] --> B["dev-only inspector bootstrap"]
 ```
 
@@ -77,7 +77,7 @@ In plain language:
 - It gives rendered elements a stable name and source location. Those
   `data-*` attributes are the identity layer that survives React re-renders.
 - It discovers and feeds stylesheet artifacts to the token inventory Module
-  (`@design-tool/css/token-inventory`), which aggregates them into the token
+  (`@nudge-ui/css/token-inventory`), which aggregates them into the token
   catalogue published through `virtual:design-tokens`. This is a useful
   inventory, not yet proof that a selected element is using a token.
 - It discovers typed component props where it can, so a semantic edit can be
@@ -135,7 +135,7 @@ flowchart LR
 
 ### Parsing: “what token definitions exist?”
 
-`@design-tool/css/token-inventory` is the build-time aggregator. It parses
+`@nudge-ui/css/token-inventory` is the build-time aggregator. It parses
 global custom-property definitions from stylesheet artifacts, keeps source
 location and context such as a theme selector, `@media`, `@supports`, `@scope`,
 or `@layer` wrapper, reconciles authored and compiler-transformed observations
@@ -155,7 +155,7 @@ Think of this catalogue as the inspector’s **dictionary**.
 #### Why the inventory is a Module, not a Vite helper
 
 The token inventory passes the deletion test: deleting
-`@design-tool/css/token-inventory` would force the Vite Adapter to re-own
+`@nudge-ui/css/token-inventory` would force the Vite Adapter to re-own
 PostCSS parsing, authored/transformed reconciliation, declaration identity and
 ordering, project/package/generated provenance, contribution merging, structured
 diagnostics, and the generation fingerprint that `BrowserTokenKnowledge` uses to
@@ -226,7 +226,7 @@ flowchart LR
   Change --> CSS["CSS or token change"]
   Change --> Prop["Semantic component-prop change"]
 
-  CSS --> Sheet["Managed <style> sheet\n#design-tool-styles"]
+  CSS --> Sheet["Managed <style> sheet\n#nudge-ui-styles"]
   Prop --> Adapter["Framework runtime adapter\nReact today"]
   Sheet --> Browser["Browser repaints"]
   Adapter --> Browser
@@ -251,7 +251,7 @@ turning the inspector into a mass of framework-specific conditionals.
 
 ```mermaid
 flowchart TB
-  BT["Build-tool integration\nVite plugin today"] --> Core["Shared Design Tool core"]
+  BT["Build-tool integration\nVite plugin today"] --> Core["Shared Nudge UI core"]
   UI["UI-framework integration\nReact runtime today"] --> Core
   ST["Styling-system integration\nCSS variables + adapters"] --> Core
 
@@ -282,7 +282,7 @@ The expansion strategy is therefore three-dimensional:
 - **Tailwind, Sass, CSS Modules, or vanilla-extract** answers: “How do authors
   describe styles before the browser sees them?”
 - **The browser** answers: “Which CSS wins and what value is painted?”
-- **Design Tool** sits across the last two boundaries: it uses the build tool to
+- **Nudge UI** sits across the last two boundaries: it uses the build tool to
   attach source identity, then uses the browser to inspect and preview the
   result.
 

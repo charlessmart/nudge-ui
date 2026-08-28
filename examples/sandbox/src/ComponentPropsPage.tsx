@@ -23,7 +23,7 @@ export function ComponentPropsPage() {
       <p className="eyebrow">Internal design system fixture</p>
       <h1>Semantic component props</h1>
       <p>
-        Each component exposes a typed prop contract that the design-tool
+        Each component exposes a typed prop contract that the nudge-ui
         inspector surfaces as editable controls. Select any component to edit
         its authored invocation props rather than individual CSS declarations.
       </p>

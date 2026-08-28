@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, createElement } from "react";
 import { SpacingBox } from "./SpacingBox.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import {
   makeSelected,
   mount,
@@ -19,7 +19,7 @@ describe("SpacingBox", () => {
 
   beforeEach(() => {
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -27,7 +27,7 @@ describe("SpacingBox", () => {
     handle?.unmount();
     restoreComputedStyle();
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -67,8 +67,8 @@ describe("SpacingBox", () => {
     expect(padding.getAttribute("data-expanded")).toBe("false");
     expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
     expect(padding.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
-    expect(padding.querySelector('[data-test="pair-value-horizontal"]')?.className).toContain("dt-control-surface");
-    expect(padding.querySelector('[data-test="token-field"][data-property="padding-horizontal"]')?.className).not.toContain("dt-control-surface");
+    expect(padding.querySelector('[data-test="pair-value-horizontal"]')?.className).toContain("control-surface");
+    expect(padding.querySelector('[data-test="token-field"][data-property="padding-horizontal"]')?.className).not.toContain("control-surface");
     expect(rawInput("padding-horizontal").value).toBe("12px");
     expect(rawInput("padding-vertical").value).toBe("8px");
 
@@ -95,7 +95,7 @@ describe("SpacingBox", () => {
     expect(marginVerticalIcon.querySelector("rect")?.getAttribute("transform")).toBe("rotate(90 19 6)");
     expect(marginVerticalIcon.querySelector("line")?.getAttribute("x1")).toBe("19");
     expect(marginVerticalIcon.querySelector("line")?.getAttribute("y1")).toBe("2");
-    expect(marginVerticalIcon.classList.contains("dt-side-values__axis-icon")).toBe(true);
+    expect(marginVerticalIcon.classList.contains("side-values__axis-icon")).toBe(true);
 
     showIndividualSides("padding");
     const paddingSides = padding.querySelectorAll('[data-test^="side-value-"]');
@@ -110,7 +110,7 @@ describe("SpacingBox", () => {
     expect(individualIcons.get("right")?.querySelector("line")?.getAttribute("x1")).toBe("17");
     expect(individualIcons.get("bottom")?.querySelector("rect")?.getAttribute("transform")).toBe("rotate(90 21 3)");
     expect(individualIcons.get("top")?.querySelector("rect")?.getAttribute("transform")).toBe("rotate(-90 3 21)");
-    expect([...individualIcons.values()].every((icon) => icon.classList.contains("dt-side-values__side-icon"))).toBe(true);
+    expect([...individualIcons.values()].every((icon) => icon.classList.contains("side-values__side-icon"))).toBe(true);
 
     showIndividualSides("margin");
     const marginSides = margin.querySelectorAll('[data-test^="side-value-"]');

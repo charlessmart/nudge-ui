@@ -7,8 +7,8 @@ export default defineConfig({
       "virtual:design-tokens": fileURLToPath(
         new URL("./src/__stubs__/design-tokens.ts", import.meta.url),
       ),
-      "virtual:design-tool-components": fileURLToPath(
-        new URL("./src/__stubs__/design-tool-components.ts", import.meta.url),
+      "virtual:nudge-ui-components": fileURLToPath(
+        new URL("./src/__stubs__/nudge-ui-components.ts", import.meta.url),
       ),
     },
   },

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { createTokenInventory } from "@design-tool/css/token-inventory";
-import type { TokenDefinition, TokenEntry } from "@design-tool/css/model";
+import { createTokenInventory } from "@nudge-ui/css/token-inventory";
+import type { TokenDefinition, TokenEntry } from "@nudge-ui/css/model";
 import { applyRules, verifyPreview } from "../managedStylesheet.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
 import type { ElementChangeRecord } from "../changesLog.ts";
@@ -34,7 +34,7 @@ function serializeTransport(
     `export const tokenCatalog = ${JSON.stringify([...definitions])};`,
     `export const tokenDiagnostics = ${JSON.stringify([])};`,
     `export const tokenGeneration = ${JSON.stringify(generation)};`,
-    `export const designToolProjectId = "tracer";`,
+    `export const nudgeUiProjectId = "tracer";`,
   ].join("\n");
 }
 

@@ -4,13 +4,13 @@ import { IconMinus, IconPlus } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { getStateStyleValue } from "../stateValue.ts";
 import type { SelectedElement } from "../selectionStore.ts";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { setStyle } from "./styleActions.ts";
-import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
+import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 
 export interface ColorPickerProps {
   element: SelectedElement;
@@ -46,7 +46,7 @@ export function isEmptyColorValue(value: string): boolean {
 export function ColorPicker(props: ColorPickerProps): ReactElement {
   const { element, property = "color", entries, tokenRow, onAfterEdit } = props;
   const el = element.domElement;
-  const allEntries = entries ?? getDesignToolTokenEntries();
+  const allEntries = entries ?? getNudgeUiTokenEntries();
   const declaredValue = tokenRow?.declaredValue?.trim() ?? "";
   const paintedValue = getStateStyleValue(el, property);
   const resolvedValue = tokenRow?.resolvedValue ?? paintedValue;
@@ -81,33 +81,33 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
   }
 
   return (
-    <div className={`dt-editor`} data-test="color-picker" data-property={property}>
-      <div className="dt-editor__title-row">
-        <div className="dt-editor__title">{colorSectionTitle(property)}</div>
+    <div className={`editor`} data-test="color-picker" data-property={property}>
+      <div className="editor__title-row">
+        <div className="editor__title">{colorSectionTitle(property)}</div>
         {showTokenField ? (
           <IconButton
             variant="quiet"
             label={`Remove ${colorSectionTitle(property)}`}
             data-test="remove-color"
-            className="dt-color__remove"
+            className="color__remove"
             onClick={handleRemoveColor}
           >
-            <IconMinus size={"var(--dt-icon-size-small)"} stroke={1.8} aria-hidden="true" />
+            <IconMinus size={"var(--icon-size-small)"} stroke={1.8} aria-hidden="true" />
           </IconButton>
         ) : (
           <IconButton
             variant="quiet"
             label={`Add ${colorSectionTitle(property)}`}
             data-test="add-color"
-            className="dt-color__add"
+            className="color__add"
             onClick={() => setFieldAdded(true)}
           >
-            <IconPlus size={"var(--dt-icon-size-small)"} stroke={1.8} aria-hidden="true" />
+            <IconPlus size={"var(--icon-size-small)"} stroke={1.8} aria-hidden="true" />
           </IconButton>
         )}
       </div>
       {showTokenField && (
-        <div className="dt-color">
+        <div className="color">
           <ControlSurface>
             <TokenField
               property={property}

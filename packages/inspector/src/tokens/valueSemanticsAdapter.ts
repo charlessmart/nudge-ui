@@ -1,11 +1,11 @@
 import type { TokenEntry } from "virtual:design-tokens";
-import type { TokenOrigin, TokenTable } from "@design-tool/css/model";
+import type { TokenOrigin, TokenTable } from "@nudge-ui/css/model";
 import type {
   AliasAttribution,
   AliasInnerResult,
   Directionality,
   ValueSemanticsContext,
-} from "@design-tool/css/value-semantics";
+} from "@nudge-ui/css/value-semantics";
 
 const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
 

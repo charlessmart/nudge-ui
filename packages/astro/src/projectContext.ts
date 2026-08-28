@@ -1,6 +1,6 @@
 import type { Plugin } from "vite";
 
-const VIRTUAL_CONTEXT_ID = "virtual:design-tool-astro-context";
+const VIRTUAL_CONTEXT_ID = "virtual:nudge-ui-astro-context";
 const RESOLVED_CONTEXT_ID = `\0${VIRTUAL_CONTEXT_ID}`;
 
 /**
@@ -16,7 +16,7 @@ export function createProjectContextPlugin(): Plugin {
   let projectRoot: string | undefined;
 
   return {
-    name: "design-tool-astro-context",
+    name: "nudge-ui-astro-context",
     apply: "serve",
     configResolved(config) {
       projectRoot = config.root;

@@ -9,7 +9,7 @@ async function fieldState(page: import("@playwright/test").Page): Promise<{
   paddingRaw: string;
 }> {
   return await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const fieldValue = (property: string): string => {
       const field = sr?.querySelector(`[data-test="token-field"][data-property="${property}"]`);
       return field?.querySelector('[data-test="token-chip"]')?.textContent?.trim()
@@ -58,9 +58,9 @@ test("dev: spacing token suggestions exclude color and typography tokens", async
   await expect
     .poll(async () => {
       return await page.evaluate(() => {
-        const sr = document.getElementById("design-tool-root")?.shadowRoot;
+        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
         return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
-          .map((item) => item.querySelector('.dt-popover-listbox__label')?.textContent ?? "");
+          .map((item) => item.querySelector('.popover-listbox__label')?.textContent ?? "");
       });
     }, { timeout: 5000 })
     .toEqual(expect.arrayContaining(["--space-1", "--space-2", "--space-3"]));

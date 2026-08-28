@@ -28,13 +28,13 @@ export async function buildStandaloneClient() {
 }
 
 const inlineCssPlugin = {
-  name: "design-tool-inline-css",
+  name: "nudge-ui-inline-css",
   setup(pluginBuild) {
     pluginBuild.onResolve({ filter: /\?inline$/ }, (args) => ({
       path: resolve(args.resolveDir, args.path.slice(0, -"?inline".length)),
-      namespace: "design-tool-inline-css",
+      namespace: "nudge-ui-inline-css",
     }));
-    pluginBuild.onLoad({ filter: /.*/, namespace: "design-tool-inline-css" }, (args) => ({
+    pluginBuild.onLoad({ filter: /.*/, namespace: "nudge-ui-inline-css" }, (args) => ({
       contents: `export default ${JSON.stringify(readFileSync(args.path, "utf8"))};`,
       loader: "js",
     }));

@@ -17,7 +17,7 @@ describe("InsetSection", () => {
 
   beforeEach(() => {
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -25,7 +25,7 @@ describe("InsetSection", () => {
     handle?.unmount();
     restoreComputedStyle();
     resetPendingRules();
-    document.getElementById("design-tool-styles")?.remove();
+    document.getElementById("nudge-ui-styles")?.remove();
     document.body.innerHTML = "";
   });
 
@@ -60,7 +60,7 @@ describe("InsetSection", () => {
 
     expect(handle.host.querySelector('[data-test="token-field"][data-property="top"]')).toBeTruthy();
     const expandedTopIcon = handle.host.querySelector('[data-side="top"] svg') as SVGSVGElement;
-    expect(expandedTopIcon.classList.contains("dt-side-values__side-icon")).toBe(true);
+    expect(expandedTopIcon.classList.contains("side-values__side-icon")).toBe(true);
     expect(expandedTopIcon.querySelector("rect")?.getAttribute("x")).toBe("19");
   });
 

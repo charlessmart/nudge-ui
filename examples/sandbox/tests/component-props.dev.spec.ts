@@ -14,20 +14,20 @@ test("edits typed React component props through the real component invocation", 
   await button.click();
   const componentSection = page.locator('[data-test="component-props-section"]');
   await expect(componentSection).toHaveAttribute("data-component", "SemanticButton");
-  await expect(componentSection.locator('.dt-component-props__source')).toHaveCount(0);
+  await expect(componentSection.locator('.component-props__source')).toHaveCount(0);
   const componentSelects = componentSection.locator('button[role="combobox"]');
   await expect(componentSelects).toHaveCount(2);
   for (const property of ["variant", "size"]) {
-    await expect(page.locator(`[data-test="component-prop-${property}"]`)).not.toHaveClass(/dt-select--compact/);
+    await expect(page.locator(`[data-test="component-prop-${property}"]`)).not.toHaveClass(/select--compact/);
   }
 
   await page.locator('[data-test="component-prop-variant"]').click();
-  await page.locator('.dt-select__item[data-value="secondary"]').click();
+  await page.locator('.select__item[data-value="secondary"]').click();
   await expect(button).toHaveAttribute("data-rendered-variant", "secondary");
   await expect(button).toHaveClass(/semantic-button--secondary/);
 
   await page.locator('[data-test="component-prop-size"]').click();
-  await page.locator('.dt-select__item[data-value="large"]').click();
+  await page.locator('.select__item[data-value="large"]').click();
   await expect(button).toHaveAttribute("data-rendered-size", "large");
   await expect(button).toHaveClass(/semantic-button--large/);
 

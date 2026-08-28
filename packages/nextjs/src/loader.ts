@@ -2,7 +2,7 @@ import { parse } from "@babel/parser";
 import type { SourceMap } from "magic-string";
 import MagicString from "magic-string";
 import { posix } from "node:path";
-import { injectIdentity } from "@design-tool/plugin/identity";
+import { injectIdentity } from "@nudge-ui/plugin/identity";
 
 /**
  * Pure Next.js identity-loader Module (ADR-0010).
@@ -30,11 +30,11 @@ const JSX_SOURCE_EXT = /\.(tsx|jsx)$/;
 /** Directory segments never instrumented (build output and dependencies). */
 const EXCLUDED_SEGMENTS = /(^|\/)(node_modules|\.next)\//i;
 
-const MOUNT_LOCAL_NAME = "__DesignToolMountElement";
+const MOUNT_LOCAL_NAME = "__NudgeUiMountElement";
 
 const MOUNT_IMPORT =
-  `import { createElement as __DesignToolCreateElement } from "react";\n`
-  + `import { DesignToolMount as ${MOUNT_LOCAL_NAME} } from "@design-tool/nextjs/mount";\n`;
+  `import { createElement as __NudgeUiCreateElement } from "react";\n`
+  + `import { NudgeUiMount as ${MOUNT_LOCAL_NAME} } from "@nudge-ui/nextjs/mount";\n`;
 
 // The mount renders through an expression container invoking createElement
 // rather than through a JSX element: a bare `{Component}` would hand React
@@ -42,7 +42,7 @@ const MOUNT_IMPORT =
 // element `<Cmp />` would be visible to later identity passes. A
 // `createElement(...)` call produces no JSX nodes — nothing to attribute or
 // wrap — while still yielding a real element for React to render.
-const MOUNT_JSX = `\n    {__DesignToolCreateElement(${MOUNT_LOCAL_NAME})}\n  `;
+const MOUNT_JSX = `\n    {__NudgeUiCreateElement(${MOUNT_LOCAL_NAME})}\n  `;
 
 export interface NextModuleTransformOptions {
   /**
@@ -128,7 +128,7 @@ export function transformNextModuleSource(
 }
 
 const RUNTIME_IMPORT =
-  'import { instrumentReactComponent as __designToolInstrumentComponent } from "@design-tool/inspector/component-runtime";\n';
+  'import { instrumentReactComponent as __nudgeUiInstrumentComponent } from "@nudge-ui/inspector/component-runtime";\n';
 
 /**
  * Moves the shared Module's prepended runtime import past the directive

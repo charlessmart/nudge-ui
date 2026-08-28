@@ -10,7 +10,7 @@ type RowInfo = {
 
 async function tokenRows(page: import("@playwright/test").Page): Promise<RowInfo[]> {
   return await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const rows = sr?.querySelectorAll('[data-test="token-field"]') ?? [];
     const out: RowInfo[] = [];
     rows.forEach((row) => {
@@ -56,13 +56,13 @@ async function btnBackground(page: import("@playwright/test").Page): Promise<str
 async function selectSuggestion(page: import("@playwright/test").Page, value: string): Promise<void> {
   await expect
     .poll(async () => page.evaluate((token) => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
         .some((item) => item.textContent?.includes(token));
     }, value), { timeout: 5000 })
     .toBe(true);
   await page.evaluate((token) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
       .find((item) => item.textContent?.includes(token))?.click();
   }, value);
@@ -155,9 +155,9 @@ test("dev: compact token unlink button stays clear of the chip text", async ({ p
   await selectPromote(page, "padding-top", "--space-2");
 
   const geometry = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const field = sr?.querySelector('[data-test="token-field"][data-property="padding-top"]');
-    const wrap = field?.querySelector<HTMLElement>(".dt-token-field__chip-wrap");
+    const wrap = field?.querySelector<HTMLElement>(".token-field__chip-wrap");
     const delink = field?.querySelector<HTMLElement>('[data-test="delink-btn"]');
     if (!wrap || !delink) return null;
     const wrapRect = wrap.getBoundingClientRect();
@@ -199,7 +199,7 @@ test("dev: typing a spacing value keeps its matching token suggestion visible", 
 
   await expect
     .poll(async () => page.evaluate(() => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
         .map((item) => item.textContent?.trim());
     }), { timeout: 5000 })
@@ -291,7 +291,7 @@ test("dev: edits survive a React re-render of the host app", async ({ page }) =>
   await expect(page.locator('[data-test="click-counter"]')).toHaveText(/clicks: 0/);
 
   await page.evaluate(() => {
-    const fn = (window as unknown as { __designToolRerender?: () => void }).__designToolRerender;
+    const fn = (window as unknown as { __nudgeUiRerender?: () => void }).__nudgeUiRerender;
     fn?.();
     fn?.();
   });

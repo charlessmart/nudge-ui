@@ -6,9 +6,9 @@ import {
   applyValueEdit,
   normalizeOpacityPercent,
   selectTokens,
-} from "@design-tool/css/value-semantics";
-import type { AtRuleContext, ColorOpacity, ColorValueFacts, ResolvedProperty } from "@design-tool/css/model";
-import type { TokenSemanticSlot } from "@design-tool/css/value-semantics";
+} from "@nudge-ui/css/value-semantics";
+import type { AtRuleContext, ColorOpacity, ColorValueFacts, ResolvedProperty } from "@nudge-ui/css/model";
+import type { TokenSemanticSlot } from "@nudge-ui/css/value-semantics";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
@@ -77,7 +77,7 @@ const NON_COLOR_FACTS: ColorValueFacts = { hasEmbeddedAlpha: false, isExpression
 
 function colorFacts(value: string): ColorValueFacts {
   return selectTokens({
-    entries: [{ name: "--design-tool-preview", value, source: "runtime" }],
+    entries: [{ name: "--nudge-ui-preview", value, source: "runtime" }],
   }).candidates[0]?.color ?? NON_COLOR_FACTS;
 }
 
@@ -170,7 +170,7 @@ export function colorValueToHex(value: string): string | null {
   if (typeof document === "undefined") return null;
 
   const probe = document.createElement("span");
-  probe.setAttribute("data-design-tool", "value-probe");
+  probe.setAttribute("data-nudge-ui", "value-probe");
   probe.style.color = "";
   probe.style.color = trimmed;
   if (!probe.style.color) return null;
@@ -184,7 +184,7 @@ function browserRecognizesColor(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed || /var\(/i.test(trimmed) || typeof document === "undefined") return false;
   const probe = document.createElement("span");
-  probe.setAttribute("data-design-tool", "value-probe");
+  probe.setAttribute("data-nudge-ui", "value-probe");
   probe.style.color = "";
   probe.style.color = trimmed;
   return probe.style.color !== "";
@@ -203,13 +203,13 @@ function NativeColorSwatch({
   const hex = resolvedHex ?? "#000000";
   const hasRenderableColor = resolvedHex !== null || browserRecognizesColor(value);
   return (
-    <label className="dt-token-color-control" data-resolved={hasRenderableColor ? "true" : "false"}>
+    <label className="token-color-control" data-resolved={hasRenderableColor ? "true" : "false"}>
       {/* Use the concrete color for aliases; an authored var() may not inherit
           the selected element's local custom properties inside the inspector's
           shadow root. Preserve other valid CSS color syntaxes as-authored. */}
       <ColorSwatch color={resolvedHex ?? (value.trim() || "transparent")} data-test="token-color-swatch" />
       <input
-        className="dt-token-color-control__input"
+        className="token-color-control__input"
         data-test="token-color-input"
         type="color"
         value={hex}
@@ -426,7 +426,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
 
   const opacityControl = showOpacity ? (
     <input
-      className="dt-token-opacity-input"
+      className="token-opacity-input"
       data-test="color-opacity-input"
       type="text"
       inputMode="decimal"
@@ -475,13 +475,13 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     const embedColorSwatch = isColor && chipVariant !== "small";
     return (
       <span
-        className={`dt-token-field${isColor ? " dt-token-field--color" : ""}${embedColorSwatch ? " dt-token-field--color-chip" : ""}${className ? ` ${className}` : ""}`}
+        className={`token-field${isColor ? " token-field--color" : ""}${embedColorSwatch ? " token-field--color-chip" : ""}${className ? ` ${className}` : ""}`}
         data-test="token-field"
         data-property={property}
         aria-label={label}
         title={label}
       >
-        {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
+        {leading ? <span className="token-field__leading">{leading}</span> : null}
         {embedColorSwatch ? null : colorControlEl}
         <TokenChip size={chipVariant} data-group={groupByTokenName.get(activeToken.name) ?? tokenGroup(activeToken)}>
           <PopoverListbox
@@ -494,7 +494,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
                 <TokenChip.Label>{chipValue}</TokenChip.Label>
               </TokenChip.Picker>
             )}
-            triggerClassName="dt-token-chip__trigger"
+            triggerClassName="token-chip__trigger"
             triggerDataTest="token-chip"
             triggerAriaLabel={`Change ${property} token`}
             items={[...rawSuggestionItems, ...relevantTokens.map((entry) => tokenSuggestion(entry, groupByTokenName))]}
@@ -520,7 +520,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         </TokenChip>
         {opacityControl}
         <AtRuleIndicator atRules={fieldAtRules} />
-        {trailing ? <span className="dt-token-field__trailing">{trailing}</span> : null}
+        {trailing ? <span className="token-field__trailing">{trailing}</span> : null}
       </span>
     );
   }
@@ -528,13 +528,13 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const showPopover = isFocused && (filteredTokens.length > 0 || availableSuggestions.length > 0);
   return (
     <span
-      className={`dt-token-field dt-token-field--raw${isColor ? " dt-token-field--color" : ""}${className ? ` ${className}` : ""}`}
+      className={`token-field token-field--raw${isColor ? " token-field--color" : ""}${className ? ` ${className}` : ""}`}
       data-test="token-field"
       data-property={property}
       aria-label={label}
       title={label}
     >
-      {leading ? <span className="dt-token-field__leading">{leading}</span> : null}
+      {leading ? <span className="token-field__leading">{leading}</span> : null}
       {colorControlEl}
       <PopoverListbox
         query={rawValue}
@@ -563,12 +563,12 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       />
       {opacityControl}
       {attributionTokens.length > 0 ? (
-        <span className="dt-token-field__attribution" data-test="token-attribution" title="Referenced tokens">
+        <span className="token-field__attribution" data-test="token-attribution" title="Referenced tokens">
           {attributionTokens.join(" · ")}
         </span>
       ) : null}
       <AtRuleIndicator atRules={fieldAtRules} />
-      {trailing ? <span className="dt-token-field__trailing">{trailing}</span> : null}
+      {trailing ? <span className="token-field__trailing">{trailing}</span> : null}
     </span>
   );
 }

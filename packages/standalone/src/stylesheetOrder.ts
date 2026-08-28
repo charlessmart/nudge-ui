@@ -2,8 +2,8 @@ import type {
   TokenCatalogDiagnostic,
   TokenDeclaration,
   TokenDefinition,
-} from "@design-tool/css/model";
-import type { DesignToolRuntimeConfig } from "@design-tool/inspector";
+} from "@nudge-ui/css/model";
+import type { NudgeUiRuntimeConfig } from "@nudge-ui/inspector";
 
 /** Evidence collected from the browser's current stylesheet order. */
 export interface StandaloneStylesheetOrderEvidence {
@@ -105,9 +105,9 @@ export function reconcileStandaloneTokenCatalog(
 
 /** Applies the standalone host's browser stylesheet evidence before bootstrap. */
 export function reconcileStandaloneRuntime(
-  runtime: DesignToolRuntimeConfig,
+  runtime: NudgeUiRuntimeConfig,
   document: Document,
-): DesignToolRuntimeConfig {
+): NudgeUiRuntimeConfig {
   const { catalog: tokenCatalog, diagnostics } = reconcileStandaloneTokenCatalog(
     runtime.tokenCatalog,
     collectStandaloneStylesheetOrder(document),

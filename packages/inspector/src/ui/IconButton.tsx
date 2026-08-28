@@ -19,7 +19,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       {...props}
       type={props.type ?? "button"}
       aria-label={label}
-      className={`dt-icon-button dt-icon-button--${variant} dt-icon-button--${size}${className ? ` ${className}` : ""}`}
+      className={`icon-button icon-button--${variant} icon-button--${size}${className ? ` ${className}` : ""}`}
     />
   );
 });

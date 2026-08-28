@@ -16,8 +16,8 @@ const EXCLUDED_TAG_NAMES = new Set([
 /** Astro's hydration host; its subtree receives framework-side identity later. */
 const ASTRO_ISLAND_TAG_NAME = "astro-island";
 
-/** The reserved Design Tool inspector mount; neither it nor its subtree is instrumented. */
-const DESIGN_TOOL_MOUNT_ID = "design-tool-root";
+/** The reserved Nudge UI inspector mount; neither it nor its subtree is instrumented. */
+const NUDGE_UI_MOUNT_ID = "nudge-ui-root";
 
 const ASTRO_SOURCE_FILE_ATTRIBUTE = "data-astro-source-file";
 const ASTRO_SOURCE_LOC_ATTRIBUTE = "data-astro-source-loc";
@@ -90,7 +90,7 @@ interface InstrumentationContext {
 }
 
 /**
- * Adds Design Tool identity to eligible elements of one rendered dev HTML
+ * Adds Nudge UI identity to eligible elements of one rendered dev HTML
  * response without reserializing the document.
  *
  * Identity comes from Astro's own compiler annotations: elements annotated
@@ -205,7 +205,7 @@ function visitElement(
 
   const tagName = element.tagName.toLowerCase();
   if (EXCLUDED_TAG_NAMES.has(tagName)) return;
-  if (hasAttribute(element, "id", DESIGN_TOOL_MOUNT_ID)) return;
+  if (hasAttribute(element, "id", NUDGE_UI_MOUNT_ID)) return;
 
   if (hasAttribute(element, ASTRO_SOURCE_FILE_ATTRIBUTE)) {
     context.sawSourceAnnotation = true;

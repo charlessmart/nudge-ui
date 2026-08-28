@@ -6,15 +6,15 @@ const STATIC_SOURCE = "index.html:13:7";
 const RENDERED_TEXT_SOURCE = "index.html:14:7";
 
 function projectPath(file: string): string {
-  const root = process.env.DESIGN_TOOL_STANDALONE_E2E_ROOT;
+  const root = process.env.NUDGE_UI_STANDALONE_E2E_ROOT;
   if (!root) throw new Error("The standalone fixture root was not configured.");
   return join(root, file);
 }
 
 async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
-  await expect(page.locator("#design-tool-root")).toBeAttached();
+  await expect(page.locator("#nudge-ui-root")).toBeAttached();
   await expect.poll(async () => page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     return Boolean(shadow?.querySelector('[data-test="inspect-tab"]'));
   }), { timeout: 15_000 }).toBe(true);
 }
@@ -67,7 +67,7 @@ async function computedStyle(
 
 async function managedSheetText(page: import("@playwright/test").Page): Promise<string> {
   return page.evaluate(() => {
-    const sheet = (document.getElementById("design-tool-styles") as HTMLStyleElement | null)?.sheet;
+    const sheet = (document.getElementById("nudge-ui-styles") as HTMLStyleElement | null)?.sheet;
     return sheet ? Array.from(sheet.cssRules, (rule) => rule.cssText).join("\n") : "";
   });
 }
@@ -128,7 +128,7 @@ test("falls back to rendered text and exports an HTML-aware prompt", async ({ pa
   const copy = page.locator("#rendered-copy");
   await copy.dblclick();
   await expect(page.locator('[data-test="inline-text-binding"]')).toHaveText("Rendered text");
-  const editor = page.locator('[data-dt-inline-editor="true"]');
+  const editor = page.locator('[data-inline-editor="true"]');
   await editor.fill("Updated rendered copy");
   await editor.press("Enter");
   await expect(copy).toHaveText("Updated rendered copy");
@@ -148,8 +148,8 @@ test("assigns runtime identity and exports explicit unknown-source evidence", as
 
   const runtimeButton = page.locator("#runtime-action");
   await expect(runtimeButton).toBeVisible();
-  await expect(runtimeButton).toHaveAttribute("data-cid", /^design-tool-runtime-\d+$/);
-  await expect(runtimeButton).toHaveAttribute("data-src", /^design-tool:unknown:\d+$/);
+  await expect(runtimeButton).toHaveAttribute("data-cid", /^nudge-ui-runtime-\d+$/);
+  await expect(runtimeButton).toHaveAttribute("data-src", /^nudge-ui:unknown:\d+$/);
   const runtimeCid = await runtimeButton.getAttribute("data-cid");
   await runtimeButton.click();
   await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", runtimeCid ?? "");
@@ -168,7 +168,7 @@ test("assigns runtime identity and exports explicit unknown-source evidence", as
 
 test("reloads once and refreshes CSS token knowledge after an agent-style source edit", async ({ page }) => {
   const reloadConnection = page.waitForResponse((response) =>
-    new URL(response.url()).pathname === "/__design_tool__/reload");
+    new URL(response.url()).pathname === "/__nudge_ui__/reload");
   await page.goto("/");
   await reloadConnection;
   await waitForInspector(page);
@@ -191,16 +191,16 @@ test("reloads once and refreshes CSS token knowledge after an agent-style source
   await expect(page.locator('[data-token-name="--color-accent"]')).toBeVisible();
   await expect.poll(async () => page.evaluate(() => {
     const bridgeWindow = window as Window & {
-      __designTool?: {
+      __nudgeUi?: {
         inspect(selector: string): { availableTokens: Array<{ name: string; value: string }> } | null;
       };
     };
-    const token = bridgeWindow.__designTool?.inspect("#static-action")?.availableTokens
+    const token = bridgeWindow.__nudgeUi?.inspect("#static-action")?.availableTokens
       .find((entry) => entry.name === "--color-accent");
     return token?.value ?? "";
   })).toBe("#de446e");
   await expect.poll(async () => page.evaluate(async () => {
-    const response = await fetch("/__design_tool__/manifest");
+    const response = await fetch("/__nudge_ui__/manifest");
     const manifest = await response.json() as { revision?: unknown };
     return manifest.revision;
   })).toBe(1);

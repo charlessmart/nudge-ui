@@ -291,9 +291,9 @@ describe("injectIdentity — React component invocation instrumentation", () => 
     });
 
     expect(result?.code).toContain(
-      'import { instrumentReactComponent as __designToolInstrumentComponent } from "@design-tool/inspector/component-runtime";',
+      'import { instrumentReactComponent as __nudgeUiInstrumentComponent } from "@nudge-ui/inspector/component-runtime";',
     );
-    expect(result?.code).toContain("__designToolInstrumentComponent(<Button");
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Button");
     expect(result?.code).toContain('"callsiteId":"src/App.tsx:1:26"');
     expect(result?.code).toContain('"componentName":"Button"');
     expect(result?.code).toContain('"componentId":"src/App#Button"');
@@ -307,7 +307,7 @@ describe("injectIdentity — React component invocation instrumentation", () => 
       instrumentComponents: true,
     });
     expect(result?.code).toContain(
-      "<main data-cid=\"App\" data-src=\"src/App.tsx:1:26\">{__designToolInstrumentComponent(<Button",
+      "<main data-cid=\"App\" data-src=\"src/App.tsx:1:26\">{__nudgeUiInstrumentComponent(<Button",
     );
   });
 
@@ -356,8 +356,8 @@ describe("injectIdentity — React component invocation instrumentation", () => 
     const result = injectIdentity(code, "/src/App.tsx", undefined, {
       instrumentComponents: true,
     });
-    expect(result?.code).not.toContain("__designToolInstrumentComponent");
-    expect(result?.code).not.toContain("@design-tool/inspector/component-runtime");
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent");
+    expect(result?.code).not.toContain("@nudge-ui/inspector/component-runtime");
   });
 
   it("qualifies imported components by local module or package export", () => {

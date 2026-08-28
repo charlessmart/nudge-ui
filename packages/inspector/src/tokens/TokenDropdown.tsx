@@ -1,20 +1,20 @@
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { swapToken, promoteToToken } from "./editActions.ts";
 import { Select } from "../ui/Select.tsx";
 import {
   selectTokens,
   TOKEN_GROUP_LABELS,
   TOKEN_GROUP_ORDER,
-} from "@design-tool/css/value-semantics";
+} from "@nudge-ui/css/value-semantics";
 import type {
   CssValueGrammar,
   TokenCandidate,
   TokenGroup,
   TokenSemanticSlot,
-} from "@design-tool/css/value-semantics";
+} from "@nudge-ui/css/value-semantics";
 
 function groupTokens(entries: TokenCandidate[]): Map<TokenGroup, TokenCandidate[]> {
   const map = new Map<TokenGroup, TokenCandidate[]>();
@@ -85,7 +85,7 @@ export function TokenDropdown(props: TokenDropdownProps): ReactElement {
   });
 
   return (
-    <span className="dt-token-dropdown" data-test="token-dropdown">
+    <span className="token-dropdown" data-test="token-dropdown">
       {hasToken ? (
         <Select
           data-test="token-select"
@@ -94,7 +94,7 @@ export function TokenDropdown(props: TokenDropdownProps): ReactElement {
           onValueChange={handleSelect}
         />
       ) : (
-        <span className="dt-token-promote" data-test="token-promote">
+        <span className="token-promote" data-test="token-promote">
           <Select
             data-test="token-promote-select"
             value=""

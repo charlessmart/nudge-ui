@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Tooltip } from "@base-ui/react/tooltip";
-import type { AtRuleCandidate, AtRuleContext, ResolvedProperty } from "@design-tool/css/model";
+import type { AtRuleCandidate, AtRuleContext, ResolvedProperty } from "@nudge-ui/css/model";
 
 const EMPTY_AT_RULES: readonly AtRuleCandidate[] = [];
 const FieldAtRuleContext = createContext<ReadonlyMap<string, readonly AtRuleCandidate[]>>(new Map());
@@ -50,7 +50,7 @@ function labelFor(atRules: readonly (AtRuleContext | AtRuleCandidate)[]): string
 }
 
 function portalContainer(): HTMLElement | ShadowRoot | null {
-  return document.getElementById("design-tool-root")?.shadowRoot ?? document.body;
+  return document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body;
 }
 
 export interface AtRuleIndicatorProps {
@@ -70,19 +70,19 @@ export function AtRuleIndicator({ atRules = EMPTY_AT_RULES, className }: AtRuleI
         <Tooltip.Trigger
           type="button"
           delay={0}
-          className={`dt-at-rule-indicator${className ? ` ${className}` : ""}`}
+          className={`at-rule-indicator${className ? ` ${className}` : ""}`}
           data-test="at-rule-indicator"
           aria-label={activeCount > 0 ? `Active ${label.toLowerCase()}` : `${label}s`}
         >
-          <span aria-hidden="true">@</span>
+          <span className="at-rule-indicator__symbol" aria-hidden="true">@</span>
         </Tooltip.Trigger>
         <Tooltip.Portal container={portalContainer()}>
-          <Tooltip.Positioner className="dt-at-rule-tooltip-positioner" side="top" align="end" sideOffset={7}>
-            <Tooltip.Popup className="dt-at-rule-tooltip" data-test="at-rule-tooltip">
-              <div className="dt-at-rule-tooltip__rules">
+          <Tooltip.Positioner className="at-rule-tooltip-positioner" side="top" align="end" sideOffset={7}>
+            <Tooltip.Popup className="at-rule-tooltip" data-test="at-rule-tooltip">
+              <div className="at-rule-tooltip__rules">
                 {atRules.map((atRule, index) => (
                   <div
-                    className={`dt-at-rule-tooltip__rule${!("active" in atRule) || atRule.active ? " dt-at-rule-tooltip__rule--active" : ""}`}
+                    className={`at-rule-tooltip__rule${!("active" in atRule) || atRule.active ? " at-rule-tooltip__rule--active" : ""}`}
                     data-active={!("active" in atRule) || atRule.active ? "true" : "false"}
                     key={`${atRule.kind}-${atRule.params}-${index}`}
                   >

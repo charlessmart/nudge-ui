@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { createStandaloneServer, type StandaloneServer } from "./server.ts";
 
-/** Parsed arguments for `design-tool serve`. */
+/** Parsed arguments for `nudge-ui serve`. */
 export interface ServeCommandOptions {
   readonly rootDirectory: string;
   readonly host: "127.0.0.1" | "::1" | "localhost";
@@ -14,7 +14,7 @@ export function parseServeArguments(
   currentDirectory = process.cwd(),
 ): ServeCommandOptions {
   if (args[0] !== "serve") {
-    throw new Error("Usage: design-tool serve [directory] [--port <port>] [--host <loopback>]");
+    throw new Error("Usage: nudge-ui serve [directory] [--port <port>] [--host <loopback>]");
   }
 
   let directory = ".";
@@ -48,7 +48,7 @@ export function parseServeArguments(
 export async function runServeCommand(options: ServeCommandOptions): Promise<void> {
   const server = createStandaloneServer(options);
   const address = await server.start();
-  console.log(`Design Tool serving ${server.rootDirectory} at ${address.url}`);
+  console.log(`Nudge UI serving ${server.rootDirectory} at ${address.url}`);
   await waitForTermination(server);
 }
 
@@ -85,7 +85,7 @@ function parseHost(value: string | undefined): ServeCommandOptions["host"] {
   throw new Error(`Host must be loopback (127.0.0.1, ::1, or localhost); received ${value ?? ""}.`);
 }
 
-if (process.argv[1]?.endsWith("design-tool.mjs")) {
+if (process.argv[1]?.endsWith("nudge-ui.mjs")) {
   void main().catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;

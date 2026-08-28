@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createTokenInventory } from "@design-tool/css/token-inventory";
-import { designTool as createDesignToolPlugins } from "./index.ts";
+import { createTokenInventory } from "@nudge-ui/css/token-inventory";
+import { nudgeUi as createNudgeUiPlugins } from "./index.ts";
 
-const designTool = (...args: Parameters<typeof createDesignToolPlugins>) =>
-  createDesignToolPlugins(...args)[0]!;
+const nudgeUi = (...args: Parameters<typeof createNudgeUiPlugins>) =>
+  createNudgeUiPlugins(...args)[0]!;
 
 function activeModuleGraph(...ids: string[]) {
   return {
@@ -23,12 +23,12 @@ function extract(code: string, name: string): string {
   return new RegExp(`^export const ${name} = (.*);$`, "m").exec(code)?.[1] ?? "undefined";
 }
 
-describe("designTool plain-CSS token inventory transport", () => {
+describe("nudgeUi plain-CSS token inventory transport", () => {
   it("publishes the inventory snapshot and its generation through the virtual module without rebuilding identity", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-tracer-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-tracer-"));
     try {
       writeFileSync(join(root, "tracer.css"), PLAIN_CSS);
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         buildStart?: () => void;
         load?: (id: string) => string | null | Promise<string | null>;
@@ -75,7 +75,7 @@ describe("designTool plain-CSS token inventory transport", () => {
   });
 
   it("bumps the published generation when a plain-CSS artifact changes and drops removed rows", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-tracer-hmr-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-tracer-hmr-"));
     const cssPath = join(root, "tracer.css");
     try {
       writeFileSync(cssPath, PLAIN_CSS);
@@ -88,7 +88,7 @@ describe("designTool plain-CSS token inventory transport", () => {
           invalidateModule: () => undefined,
         },
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         configureServer?: (server: unknown) => void;
         buildStart?: () => void;
@@ -120,7 +120,7 @@ describe("designTool plain-CSS token inventory transport", () => {
   });
 
   it("replaces authored rows with transformed rows and removes both stages on deletion", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-tracer-stages-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-tracer-stages-"));
     const cssPath = join(root, "tracer.css");
     try {
       writeFileSync(cssPath, PLAIN_CSS);
@@ -134,7 +134,7 @@ describe("designTool plain-CSS token inventory transport", () => {
           invalidateModule: () => undefined,
         },
       };
-      const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
+      const [plugin, transformedObserver] = createNudgeUiPlugins() as unknown as [{
         configResolved(config: { root: string; command: "serve" | "build" }): void;
         configureServer(server: unknown): void;
         buildStart(): void;
@@ -167,7 +167,7 @@ describe("designTool plain-CSS token inventory transport", () => {
   });
 
   it("keeps the last valid token rows when an existing stylesheet cannot be read during HMR", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-tracer-unreadable-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-tracer-unreadable-"));
     const cssPath = join(root, "tracer.css");
     try {
       writeFileSync(cssPath, PLAIN_CSS);
@@ -181,7 +181,7 @@ describe("designTool plain-CSS token inventory transport", () => {
           invalidateModule: () => undefined,
         },
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved(config: { root: string; command: "serve" | "build" }): void;
         configureServer(server: unknown): void;
         buildStart(): void;
@@ -209,10 +209,10 @@ describe("designTool plain-CSS token inventory transport", () => {
   });
 
   it("publishes unresolved active-import diagnostics without dropping valid CSS", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-tracer-diagnostics-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-tracer-diagnostics-"));
     try {
       writeFileSync(join(root, "tracer.css"), '@import "./missing.css"; :root { --still-valid: 1rem; }');
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved(config: { root: string; command: "serve" | "build" }): void;
         configureServer(server: unknown): void;
         buildStart(): void;

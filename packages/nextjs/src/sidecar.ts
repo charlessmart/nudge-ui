@@ -4,27 +4,27 @@ import { realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
   buildManifest,
-  type DesignToolManifest,
-  type DesignToolTokenSnapshot,
+  type NudgeUiManifest,
+  type NudgeUiTokenSnapshot,
 } from "./manifest.ts";
-import { extractComponentContracts } from "@design-tool/plugin/component-contracts";
-import { createStandaloneFileWatcher } from "@design-tool/standalone/watcher";import { createStandaloneTokenSnapshot } from "@design-tool/standalone/token-manifest";
+import { extractComponentContracts } from "@nudge-ui/plugin/component-contracts";
+import { createStandaloneFileWatcher } from "@nudge-ui/standalone/watcher";import { createStandaloneTokenSnapshot } from "@nudge-ui/standalone/token-manifest";
 
 /**
  * Loopback-only manifest/reload sidecar (ADR-0010).
  *
  * One server per dev-server process, guarded against double-spawn because
  * Next re-evaluates `next.config` more than once. Same-origin access without
- * CORS comes from a `beforeFiles` rewrite proxying `/__design_tool__/*` to the
+ * CORS comes from a `beforeFiles` rewrite proxying `/__nudge_ui__/*` to the
  * sidecar port — both are wrapper-owned config, so the user touchpoint stays
  * at one line.
  *
  * Routes:
- * - GET /__design_tool__/manifest — the frozen runtime snapshot, including
+ * - GET /__nudge_ui__/manifest — the frozen runtime snapshot, including
  *   the Stage 4 token lifecycle when `tokens` is enabled: scanned project CSS
  *   feeds a deterministic generation, and each settled watcher batch bumps
  *   the generation and emits exactly one reload notification.
- * - GET /__design_tool__/reload  — SSE revision notifications after settled
+ * - GET /__nudge_ui__/reload  — SSE revision notifications after settled
  *   file changes.
  */
 
@@ -45,7 +45,7 @@ interface GlobalSidecarEntry {
   starting?: Promise<SidecarHandle>;
 }
 
-const GLOBAL_KEY = Symbol.for("@design-tool/nextjs/sidecar");
+const GLOBAL_KEY = Symbol.for("@nudge-ui/nextjs/sidecar");
 
 /**
  * One sidecar per process per configuration. The key keeps a token-enabled
@@ -68,7 +68,7 @@ function stateDirFor(root: string): string {
 }
 
 function portFilePath(root: string): string {
-  return join(stateDirFor(root), "design-tool-sidecar.json");
+  return join(stateDirFor(root), "nudge-ui-sidecar.json");
 }
 
 const CONTRACT_SOURCE_EXT = /\.(tsx|jsx)$/;
@@ -128,7 +128,7 @@ async function scanProjectContracts(
   }
   if (truncated) {
     console.warn(
-      `[design-tool] component contract scan stopped at ${SCAN_MAX_SOURCES} sources; `
+      `[nudge-ui] component contract scan stopped at ${SCAN_MAX_SOURCES} sources; `
         + "contracts beyond that bound are missing until their files compile.",
     );
   }
@@ -168,7 +168,7 @@ export function clearStaleSidecarState(root: string): void {
 }
 
 export interface SidecarOptions {
-  manifest?: DesignToolManifest;
+  manifest?: NudgeUiManifest;
   /**
    * Enables the Stage 4 token lifecycle: an initial project CSS scan feeds
    * the manifest's token fields, and a settled-batch watcher republishes on
@@ -202,7 +202,7 @@ export async function ensureSidecar(
 
     // Token knowledge lives in a mutable holder so settled batches can swap
     // the snapshot without rebuilding the rest of the manifest.
-    let tokens: DesignToolTokenSnapshot | null = null;
+    let tokens: NudgeUiTokenSnapshot | null = null;
 
     // Component contracts aggregate across loader postings, keyed by file so
     // recompiles replace rather than duplicate (Stage 5). A debounced flush
@@ -220,9 +220,9 @@ export async function ensureSidecar(
       }
     };
 
-    const manifest: DesignToolManifest = options.manifest ?? buildManifest({ root });
+    const manifest: NudgeUiManifest = options.manifest ?? buildManifest({ root });
 
-    const applySnapshot = (snapshot: DesignToolTokenSnapshot): void => {
+    const applySnapshot = (snapshot: NudgeUiTokenSnapshot): void => {
       tokens = snapshot;
       manifest.tokenCatalog = snapshot.tokenCatalog;
       manifest.tokens = snapshot.tokens;
@@ -251,7 +251,7 @@ export async function ensureSidecar(
       server.listen(0, "127.0.0.1", () => {
         const address = server.address();
         if (address && typeof address === "object") resolvePort(address.port);
-        else rejectPort(new Error("design-tool sidecar failed to report its port"));
+        else rejectPort(new Error("nudge-ui sidecar failed to report its port"));
       });
     });
 
@@ -369,7 +369,7 @@ export async function ensureSidecar(
 function respond(
   req: IncomingMessage,
   res: ServerResponse,
-  currentManifest: () => DesignToolManifest,
+  currentManifest: () => NudgeUiManifest,
   currentGeneration: () => number,
   streams: Set<ServerResponse>,
   receiveContracts: (file: string, contracts: unknown[]) => void,
@@ -378,7 +378,7 @@ function respond(
 
   // Loader postings aggregate component contracts (Stage 5). Loopback-only by
   // virtue of the bind address; payload size is capped defensively.
-  if (url === "/__design_tool__/contracts" && req.method === "POST") {
+  if (url === "/__nudge_ui__/contracts" && req.method === "POST") {
     let body = "";
     req.on("data", (chunk) => {
       body += chunk;
@@ -405,7 +405,7 @@ function respond(
     return;
   }
 
-  if (url === "/__design_tool__/manifest") {
+  if (url === "/__nudge_ui__/manifest") {
     // The served snapshot carries its revision so clients can reconcile
     // against SSE notifications instead of guessing.
     const body = `${JSON.stringify({ ...currentManifest(), revision: currentGeneration() })}\n`;
@@ -417,13 +417,13 @@ function respond(
     return;
   }
 
-  if (url === "/__design_tool__/reload") {
+  if (url === "/__nudge_ui__/reload") {
     res.writeHead(200, {
       "content-type": "text/event-stream",
       "cache-control": "no-store",
       connection: "keep-alive",
     });
-    res.write(": design-tool reload stream\n\n");
+    res.write(": nudge-ui reload stream\n\n");
     streams.add(res);
     res.on("close", () => streams.delete(res));
     // Announce the current generation so late subscribers can reconcile.

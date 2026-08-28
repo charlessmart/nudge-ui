@@ -46,9 +46,9 @@ test("prod: build artifacts contain no mount or bootstrap references", async () 
   const offenders = buildArtifacts().filter((file) => {
     const content = readFileSync(file, "utf8");
     return (
-      content.includes("DesignToolMount")
-      || content.includes("__DesignToolCreateElement")
-      || content.includes("design-tool-root")
+      content.includes("NudgeUiMount")
+      || content.includes("__NudgeUiCreateElement")
+      || content.includes("nudge-ui-root")
     );
   });
   expect(offenders).toEqual([]);
@@ -60,19 +60,19 @@ test("prod: rendered output is clean too (complement to artifact greps)", async 
   await page.goto("/");
   const html = await page.content();
   expect(html).not.toContain("data-cid");
-  expect(html).not.toContain("DesignToolMount");
-  expect(await page.evaluate(() => Boolean(document.getElementById("design-tool-root")))).toBe(
+  expect(html).not.toContain("NudgeUiMount");
+  expect(await page.evaluate(() => Boolean(document.getElementById("nudge-ui-root")))).toBe(
     false,
   );
 });
 
 test("prod: manifest transport is unreachable", async ({ request }) => {
-  const response = await request.get("/__design_tool__/manifest");
+  const response = await request.get("/__nudge_ui__/manifest");
   expect(response.status()).toBeGreaterThanOrEqual(400);
 });
 
 test("prod: no sidecar state file exists in the project", async () => {
   // The sidecar never starts outside development, so its port record is
   // never written into .next.
-  expect(existsSync(join(BUILD_DIR, "design-tool-sidecar.json"))).toBe(false);
+  expect(existsSync(join(BUILD_DIR, "nudge-ui-sidecar.json"))).toBe(false);
 });

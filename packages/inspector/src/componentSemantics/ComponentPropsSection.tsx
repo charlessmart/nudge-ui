@@ -46,12 +46,12 @@ export function ComponentPropsSection({ selected }: { selected: SelectedElement 
 
   return (
     <section
-      className="dt-editor dt-component-props"
+      className="editor component-props"
       data-test="component-props-section"
       data-component={target.meta.componentName}
     >
-      <div className="dt-editor__title-row">
-        <div className="dt-editor__title">{target.meta.componentName}</div>
+      <div className="editor__title-row">
+        <div className="editor__title">{target.meta.componentName}</div>
       </div>
       {visibleProps.map((prop) => {
         const current = pendingValue(target, prop, changes)!;

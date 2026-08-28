@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
-import { withDesignTool } from "@design-tool/nextjs";
+import { withNudgeUi } from "@nudge-ui/nextjs";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 };
 
-export default withDesignTool(nextConfig);
+export default withNudgeUi(nextConfig);

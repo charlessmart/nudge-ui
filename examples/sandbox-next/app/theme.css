@@ -1,9 +1,9 @@
-/* Plain custom properties — the token vocabulary Design Tool inventories
+/* Plain custom properties — the token vocabulary Nudge UI inventories
  * (Tailwind-ready: a future @theme block would layer on top of these). */
 :root {
-  --dt-accent: #4f46e5;
-  --dt-surface: #f8fafc;
-  --dt-ink: #0f172a;
-  --dt-radius: 12px;
-  --dt-space: 16px;
+  --accent: #4f46e5;
+  --surface: #f8fafc;
+  --ink: #0f172a;
+  --radius: 12px;
+  --space: 16px;
 }

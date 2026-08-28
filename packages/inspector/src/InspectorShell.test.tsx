@@ -7,7 +7,7 @@ import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { acquireLease, releaseLease } from "./canvas/workspaceLease.ts";
 import { exitCanvas } from "./canvas/canvasStore.ts";
 import { clearRestoreCount, setRestoreCount } from "./canvas/sessionStore.ts";
-import { configureDesignToolRuntime, getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -23,7 +23,7 @@ describe("InspectorShell", () => {
 
   beforeEach(() => {
     host = document.createElement("div");
-    host.id = "design-tool-root";
+    host.id = "nudge-ui-root";
     document.body.appendChild(host);
     acquireLease();
   });
@@ -76,9 +76,9 @@ describe("InspectorShell", () => {
     });
     const shadow = host.shadowRoot!;
     expect(shadow.textContent).not.toContain("Restored 7 changes");
-    expect(shadow.querySelector('[data-test="session-actions"]')?.previousElementSibling?.matches(".dt-changes")).toBe(true);
+    expect(shadow.querySelector('[data-test="session-actions"]')?.previousElementSibling?.matches(".changes")).toBe(true);
     expect(shadow.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
-    expect(shadow.querySelector(".dt-panel__session-actions")).toBeNull();
+    expect(shadow.querySelector(".panel__session-actions")).toBeNull();
   });
 
   it("switches to the Tokens tab without requiring a selection", () => {
@@ -92,8 +92,8 @@ describe("InspectorShell", () => {
     });
     expect(shadow.querySelector('[data-test="tokens-panel"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="tokens-tab"]')?.getAttribute("aria-selected")).toBe("true");
-    expect(shadow.querySelector('[data-test="tokens-tab"]')?.className).toContain("dt-button--secondary");
-    expect(shadow.querySelector('[data-test="inspect-tab"]')?.className).toBe("dt-panel__header-row");
+    expect(shadow.querySelector('[data-test="tokens-tab"]')?.className).toContain("button--secondary");
+    expect(shadow.querySelector('[data-test="inspect-tab"]')?.className).toBe("panel__header-row");
   });
 
   it("uses a single Canvas action and a split copy control in the header", () => {
@@ -120,9 +120,9 @@ describe("InspectorShell", () => {
   });
 
   it("omits Canvas entry points when the host disables the capability", () => {
-    const previousConfig = getDesignToolRuntimeConfig();
+    const previousConfig = getNudgeUiRuntimeConfig();
     try {
-      configureDesignToolRuntime({
+      configureNudgeUiRuntime({
         ...previousConfig,
         host: "static-html",
         framework: "HTML",
@@ -136,7 +136,7 @@ describe("InspectorShell", () => {
       expect(shadow.querySelector('[data-test="mode-canvas"]')).toBeNull();
         expect(shadow.querySelector('[data-test="canvas-workspace"]')).toBeNull();
     } finally {
-      configureDesignToolRuntime(previousConfig);
+      configureNudgeUiRuntime(previousConfig);
     }
   });
 
@@ -147,7 +147,7 @@ describe("InspectorShell", () => {
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
-    const panel = shadow.querySelector(".dt-panel")!;
+    const panel = shadow.querySelector(".panel")!;
     const before = panel.getAttribute("data-open");
 
     act(() => {
@@ -239,18 +239,18 @@ describe("InspectorShell", () => {
     act(() => {
       mountInspector(host);
     });
-    expect(document.documentElement.getAttribute("data-design-tool-panel")).toBe("open");
-    expect(document.getElementById("design-tool-panel-layout")).not.toBeNull();
+    expect(document.documentElement.getAttribute("data-nudge-ui-panel")).toBe("open");
+    expect(document.getElementById("nudge-ui-panel-layout")).not.toBeNull();
 
     act(() => {
       pressKey({ key: "i", code: "KeyI", altKey: true });
     });
-    expect(document.documentElement.hasAttribute("data-design-tool-panel")).toBe(false);
+    expect(document.documentElement.hasAttribute("data-nudge-ui-panel")).toBe(false);
 
     act(() => {
       unmountInspector();
     });
-    expect(document.getElementById("design-tool-panel-layout")).toBeNull();
+    expect(document.getElementById("nudge-ui-panel-layout")).toBeNull();
   });
 
   it("collapses from the header and restores through the floating icon button", () => {
@@ -258,19 +258,19 @@ describe("InspectorShell", () => {
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
-    const panel = shadow.querySelector(".dt-panel")!;
+    const panel = shadow.querySelector(".panel")!;
     const collapse = shadow.querySelector('[data-test="collapse-inspector"]') as HTMLButtonElement;
     expect(collapse.getAttribute("aria-label")).toBe("Collapse inspector");
 
     act(() => collapse.click());
     expect(panel.getAttribute("data-open")).toBe("false");
-    expect(document.documentElement.hasAttribute("data-design-tool-panel")).toBe(false);
+    expect(document.documentElement.hasAttribute("data-nudge-ui-panel")).toBe(false);
 
     const show = shadow.querySelector('[data-test="show-inspector"]') as HTMLButtonElement;
     expect(show.getAttribute("aria-label")).toBe("Show inspector");
     act(() => show.click());
     expect(panel.getAttribute("data-open")).toBe("true");
-    expect(document.documentElement.getAttribute("data-design-tool-panel")).toBe("open");
+    expect(document.documentElement.getAttribute("data-nudge-ui-panel")).toBe("open");
   });
 
   it("non-Alt+I keys do not toggle", () => {
@@ -278,7 +278,7 @@ describe("InspectorShell", () => {
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
-    const panel = shadow.querySelector(".dt-panel")!;
+    const panel = shadow.querySelector(".panel")!;
     const before = panel.getAttribute("data-open");
 
     act(() => {
@@ -294,7 +294,7 @@ describe("InspectorShell", () => {
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
-    const panel = shadow.querySelector(".dt-panel")!;
+    const panel = shadow.querySelector(".panel")!;
     const before = panel.getAttribute("data-open");
 
     act(() => {

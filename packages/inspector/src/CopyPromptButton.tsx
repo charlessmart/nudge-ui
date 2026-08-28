@@ -7,7 +7,7 @@ import { copyToClipboard } from "./prompt/copyToClipboard.ts";
 import { Button } from "./ui/Button.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
 import { getStructuralChanges, subscribeStructuralChanges } from "./structuralProjection.ts";
-import { getDesignToolRuntimeConfig } from "./runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 
 export function CopyPromptButton(): ReactElement {
   const changes = useChanges();
@@ -21,7 +21,7 @@ export function CopyPromptButton(): ReactElement {
 
   async function onClick(): Promise<void> {
     if (disabled) return;
-    const runtimeConfig = getDesignToolRuntimeConfig();
+    const runtimeConfig = getNudgeUiRuntimeConfig();
     const hints = {
       framework: runtimeConfig.framework,
       stylingSystem: runtimeConfig.stylingSystem,
@@ -33,22 +33,22 @@ export function CopyPromptButton(): ReactElement {
   }
 
   return (
-    <div className="dt-copy-prompt" data-test="copy-prompt-control">
+    <div className="copy-prompt" data-test="copy-prompt-control">
       <Button
         variant="primary"
-        className="dt-copy-prompt__main"
+        className="copy-prompt__main"
         data-test="copy-prompt"
         type="button"
         disabled={disabled}
         data-copied={copied ? "true" : "false"}
         onClick={onClick}
       >
-        <IconClipboardCheck size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+        <IconClipboardCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
         {copied ? "Copied!" : "Copy prompt"}
       </Button>
       <IconButton
         variant="primary"
-        className="dt-copy-prompt__menu"
+        className="copy-prompt__menu"
         label="Copy prompt options"
         title="Copy prompt options"
         data-test="copy-prompt-menu"
@@ -56,7 +56,7 @@ export function CopyPromptButton(): ReactElement {
         disabled={disabled}
         aria-haspopup="menu"
       >
-        <IconChevronDown size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+        <IconChevronDown size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
       </IconButton>
     </div>
   );

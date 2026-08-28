@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const DEV_PORT = process.env.DT_DEV_PORT ?? "4322";
+const DEV_PORT = process.env.NUDGE_UI_DEV_PORT ?? "4322";
 const DEV_URL = `http://localhost:${DEV_PORT}`;
 
 export default defineConfig({

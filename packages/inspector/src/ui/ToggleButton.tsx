@@ -19,7 +19,7 @@ export const ToggleButton = forwardRef<HTMLButtonElement, ToggleButtonProps>(fun
       ref={ref}
       {...props}
       aria-label={label}
-      className={`dt-toggle-button dt-toggle-button--${variant} dt-toggle-button--${size}${className ? ` ${className}` : ""}`}
+      className={`toggle-button toggle-button--${variant} toggle-button--${size}${className ? ` ${className}` : ""}`}
     />
   );
 });

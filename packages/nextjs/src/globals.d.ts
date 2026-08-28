@@ -1,6 +1,6 @@
 /**
  * Ambient declarations mirroring the inspector's own environment so tsc can
- * follow `@design-tool/inspector` sources from this package. The inspector's
+ * follow `@nudge-ui/inspector` sources from this package. The inspector's
  * declarations live in its source tree and only apply inside its own
  * program; this package compiles `mount.tsx` against those sources and needs
  * the same vocabulary.
@@ -30,11 +30,11 @@ declare module "virtual:design-tokens" {
     TokenDeclaration,
     TokenDefinition,
     TokenEntry,
-  } from "@design-tool/css/model";
+  } from "@nudge-ui/css/model";
   export const tokens: TokenEntry[];
   export const tokenCatalog: TokenDefinition[];
   export const tokenDiagnostics: TokenCatalogDiagnostic[];
   export const tokenGeneration: string;
-  export const designToolProjectId: string;
+  export const nudgeUiProjectId: string;
   export default tokens;
 }

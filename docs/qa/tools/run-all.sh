@@ -24,11 +24,11 @@ wait_for http://localhost:4322/ 60 || echo "WARN astro not ready"
 kill $PID 2>/dev/null; wait $PID 2>/dev/null
 
 echo "=== RAW HTML ==="
-rm -rf /tmp/design-tool-standalone-e2e-qa
-mkdir -p /tmp/design-tool-standalone-e2e-qa
-cp -R "$REPO/examples/standalone-html/prototype/" /tmp/design-tool-standalone-e2e-qa/
+rm -rf /tmp/nudge-ui-standalone-e2e-qa
+mkdir -p /tmp/nudge-ui-standalone-e2e-qa
+cp -R "$REPO/examples/standalone-html/prototype/" /tmp/nudge-ui-standalone-e2e-qa/
 cd "$REPO"
-node packages/standalone/dist/design-tool.mjs serve /tmp/design-tool-standalone-e2e-qa --host 127.0.0.1 --port 4180 > /tmp/standalone-serve.log 2>&1 &
+node packages/standalone/dist/nudge-ui.mjs serve /tmp/nudge-ui-standalone-e2e-qa --host 127.0.0.1 --port 4180 > /tmp/standalone-serve.log 2>&1 &
 PID=$!
 wait_for http://127.0.0.1:4180/ 30 || echo "WARN standalone not ready"
 (cd "$TOOLS" && node run-standalone.mjs) || RC=1

@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { componentContracts } from "virtual:design-tool-components";
+import { componentContracts } from "virtual:nudge-ui-components";
 import { registerComponentRuntimeAdapter } from "./adapterRegistry.ts";
 import { resolveTextBinding } from "./textBinding.ts";
 import type { ComponentRuntimeAdapter } from "./types.ts";
 
 function boundary(meta: Record<string, unknown>, props: Record<string, unknown>) {
   const type = Object.assign(() => null, {
-    [Symbol.for("design-tool.react-component-boundary")]: true,
+    [Symbol.for("nudge-ui.react-component-boundary")]: true,
   });
   return {
     type,

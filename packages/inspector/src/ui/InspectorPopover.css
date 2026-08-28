@@ -1,18 +1,18 @@
-.dt-inspector-popover__positioner {
+.inspector-popover__positioner {
   z-index: 30;
   pointer-events: auto;
 }
 
-.dt-inspector-popover__popup {
+.inspector-popover__popup {
   box-sizing: border-box;
   width: min(280px, calc(100vw - 24px));
   max-height: min(420px, calc(100dvh - 24px));
   overflow-x: hidden;
   overflow-y: auto;
   padding: 12px;
-  background: var(--dt-surface-panel);
-  border: 1px solid var(--dt-border-subtle);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  box-shadow: var(--dt-shadow-popup);
+  box-shadow: var(--shadow-popup);
   pointer-events: auto;
 }

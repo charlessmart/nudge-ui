@@ -4,7 +4,7 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
   await page.goto("/playground");
 
   const hasMount = await page.evaluate(() => {
-    return document.getElementById("design-tool-root") !== null;
+    return document.getElementById("nudge-ui-root") !== null;
   });
   expect(hasMount).toBe(true);
 
@@ -13,8 +13,8 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
   await page.waitForTimeout(200);
 
   const hoverOverlay = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const outline = sr?.querySelector(".dt-hover-outline") ?? null;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
+    const outline = sr?.querySelector(".hover-outline") ?? null;
     if (!outline) return null;
     const rect = outline.getBoundingClientRect();
     const style = (outline as HTMLElement).style;
@@ -31,7 +31,7 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
   expect(hoverOverlay!.height).toBeGreaterThan(0);
 
   const selectionBefore = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return sr?.querySelector('[data-test="selection"]') ?? null;
   });
   expect(selectionBefore).toBeNull();
@@ -39,21 +39,21 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
   await page.click("text=Save");
 
   const panelText = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return sr?.textContent ?? "";
   });
   expect(panelText).not.toContain("Button.tsx");
 
   const hasSelection = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    const labels = [...(sr?.querySelectorAll(".dt-field-row__label, .dt-side-values__label, .dt-editor__title") ?? [])]
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
+    const labels = [...(sr?.querySelectorAll(".field-row__label, .side-values__label, .editor__title") ?? [])]
       .map((node) => node.textContent?.trim() ?? "");
     return {
       hasSelection: sr?.querySelector('[data-test="selection"]') !== null,
-      hasBreadcrumb: sr?.querySelector(".dt-breadcrumb") !== null,
-      hasMetadataRows: sr?.querySelectorAll(".dt-selection__row").length ?? 0,
+      hasBreadcrumb: sr?.querySelector(".breadcrumb") !== null,
+      hasMetadataRows: sr?.querySelectorAll(".selection__row").length ?? 0,
       hasStateControls: sr?.querySelector('[data-test="style-state"]') !== null,
-      legacyGroupTitleCount: sr?.querySelectorAll(".dt-layout__group-title").length ?? 0,
+      legacyGroupTitleCount: sr?.querySelectorAll(".layout__group-title").length ?? 0,
       labels,
     };
   });
@@ -70,7 +70,7 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
   });
 
   const stillSelected = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const sel = sr?.querySelector('[data-test="selection"]');
     if (!sel) return null;
     return sel.textContent ?? "";
@@ -117,7 +117,7 @@ test("dev: selection shares one stylesheet snapshot across inspector fields", as
 
     try {
       const target = document.querySelector("#hero-title");
-      const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+      const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
       if (!target || !shadow) throw new Error("selection fixture is unavailable");
       target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, composed: true }));
       await new Promise<void>((resolve) => {
@@ -153,7 +153,7 @@ test("dev: ordinary clicks choose a button wrapper and Command-click chooses its
   expect(labelSrc).not.toBe(buttonSrc);
 
   await label.click();
-  const selectedSrc = () => page.evaluate(() => document.getElementById("design-tool-root")
+  const selectedSrc = () => page.evaluate(() => document.getElementById("nudge-ui-root")
     ?.shadowRoot?.querySelector('[data-test="selection"]')?.getAttribute("data-selected-src") ?? null);
   await expect.poll(selectedSrc).toBe(buttonSrc);
 
@@ -168,10 +168,10 @@ test("dev: hover overlay shows margin space while selection keeps only its outli
   await page.waitForTimeout(100);
 
   const marginGuides = await page.evaluate(() => {
-    const root = document.getElementById("design-tool-root");
+    const root = document.getElementById("nudge-ui-root");
     const shadow = root?.shadowRoot;
-    const outline = shadow?.querySelector(".dt-hover-outline")?.getBoundingClientRect();
-    const guides = [...(shadow?.querySelectorAll(".dt-hover-margin") ?? [])].map((node) => {
+    const outline = shadow?.querySelector(".hover-outline")?.getBoundingClientRect();
+    const guides = [...(shadow?.querySelectorAll(".hover-margin") ?? [])].map((node) => {
       const guide = node as HTMLElement;
       const rect = guide.getBoundingClientRect();
       const style = getComputedStyle(guide);
@@ -186,7 +186,7 @@ test("dev: hover overlay shows margin space while selection keeps only its outli
           : Math.abs(rect.left - (outline?.left ?? 0)),
       };
     });
-    const fills = [...(shadow?.querySelectorAll(".dt-hover-margin-fill") ?? [])].map((node) => {
+    const fills = [...(shadow?.querySelectorAll(".hover-margin-fill") ?? [])].map((node) => {
       const fill = node as HTMLElement;
       const rect = fill.getBoundingClientRect();
       return { side: fill.dataset.side, width: rect.width, height: rect.height };
@@ -208,11 +208,11 @@ test("dev: hover overlay shows margin space while selection keeps only its outli
 
   await page.locator("#hero-title").click();
   const selectedMarginOverlay = await page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
-    const outline = shadow?.querySelector(".dt-selected-outline") as HTMLElement | null;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
+    const outline = shadow?.querySelector(".selected-outline") as HTMLElement | null;
     return {
-      fills: shadow?.querySelectorAll(".dt-selected-margin-fill").length ?? 0,
-      guides: shadow?.querySelectorAll(".dt-selected-margin").length ?? 0,
+      fills: shadow?.querySelectorAll(".selected-margin-fill").length ?? 0,
+      guides: shadow?.querySelectorAll(".selected-margin").length ?? 0,
       outline: outline !== null,
       outlineColor: outline ? getComputedStyle(outline).outlineColor : null,
     };

@@ -1,5 +1,5 @@
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
-import type { EditCapability, ResolvedProperty, TokenOrigin } from "@design-tool/css/model";
+import type { EditCapability, ResolvedProperty, TokenOrigin } from "@nudge-ui/css/model";
 import type { TokenCatalogRow } from "../tokens/catalog.ts";
 import { applyRules, verifyPreview } from "../managedStylesheet.ts";
 import type { PreviewResult } from "../managedStylesheet.ts";
@@ -114,7 +114,7 @@ export function runConformanceFixture(
       inspection.dispose();
       style.remove();
       mount.remove();
-      if (doc.getElementById("design-tool-styles")) doc.getElementById("design-tool-styles")?.remove();
+      if (doc.getElementById("nudge-ui-styles")) doc.getElementById("nudge-ui-styles")?.remove();
     },
   };
 }

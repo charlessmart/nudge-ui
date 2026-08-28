@@ -6,7 +6,7 @@ import type {
   TokenDeclaration,
   TokenDefinition,
   TokenEntry,
-} from "@design-tool/css/model";
+} from "@nudge-ui/css/model";
 
 export type {
   TokenCatalogDiagnostic,
@@ -16,7 +16,7 @@ export type {
   TokenDeclaration,
   TokenDefinition,
   TokenEntry,
-} from "@design-tool/css/model";
+} from "@nudge-ui/css/model";
 
 export const tokenTable: Record<string, TokenEntry> = {};
 

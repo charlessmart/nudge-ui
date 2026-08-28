@@ -1,14 +1,14 @@
 import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
-import { designTool } from "../../packages/plugin/src/index.ts";
+import { nudgeUi } from "../../packages/plugin/src/index.ts";
 import type { TailwindV3Config } from "../../packages/plugin/src/index.ts";
 import { tailwindConfig } from "./tailwind.config.ts";
 
 export default defineConfig({
   plugins: [
     react(),
-    // SAFETY: designTool returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
-    designTool({
+    // SAFETY: nudgeUi returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
+    nudgeUi({
       projectId: "sandbox-tailwind-v3",
       tailwindV3: {
         // SAFETY: tailwindConfig is structurally a TailwindV3Config; only the imported type differs across workspace versions.

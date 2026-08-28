@@ -2,12 +2,12 @@ import { defineConfig, devices } from "@playwright/test";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-const port = process.env.DT_STANDALONE_PORT ?? "4177";
-const temporaryProjectRoot = join(tmpdir(), `design-tool-standalone-e2e-${port}`);
+const port = process.env.NUDGE_UI_STANDALONE_PORT ?? "4177";
+const temporaryProjectRoot = join(tmpdir(), `nudge-ui-standalone-e2e-${port}`);
 
 // The test worker uses this path for the agent-style source edit. It points to
 // the disposable copy, never to the checked-in consumer fixture.
-process.env.DESIGN_TOOL_STANDALONE_E2E_ROOT = temporaryProjectRoot;
+process.env.NUDGE_UI_STANDALONE_E2E_ROOT = temporaryProjectRoot;
 
 const baseURL = `http://127.0.0.1:${port}`;
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { IconBorderSides } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { Button } from "../ui/Button.tsx";
@@ -12,7 +12,7 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { setStyles } from "./styleActions.ts";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { anchorEditPlan, axisAnchor, axisSide, type Axis, type AxisAnchor, type AxisInsetValues } from "./positionAnchor.ts";
-import { getDesignToolTokenEntries } from "../runtimeConfig.ts";
+import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 
 const OFFSET_PRESETS = ["auto", "0", "50%", "100%"];
 const ANCHOR_OPTIONS: ReadonlyArray<Exclude<AxisAnchor, "none">> = ["start", "end", "stretch"];
@@ -33,7 +33,7 @@ export function PositionAnchorControls({
   revision = 0,
   onAfterEdit,
 }: PositionAnchorControlsProps): ReactElement {
-  const allEntries = entries ?? getDesignToolTokenEntries();
+  const allEntries = entries ?? getNudgeUiTokenEntries();
   const [expanded, setExpanded] = useState(false);
   const values = useInsetValues(el, revision);
   const horizontalAnchor = axisAnchor(values.horizontal);
@@ -67,12 +67,12 @@ export function PositionAnchorControls({
 
   return (
     <div
-      className="dt-layout__group"
+      className="layout__group"
       data-test="layout-position"
       data-anchor-horizontal={horizontalAnchor}
       data-anchor-vertical={verticalAnchor}
     >
-      <div className="dt-editor__title">Position</div>
+      <div className="editor__title">Position</div>
       <AxisAnchorRow
         axis="horizontal"
         current={shownHorizontal}
@@ -83,7 +83,7 @@ export function PositionAnchorControls({
         current={shownVertical}
         onSelect={(target) => selectAnchor("vertical", target)}
       />
-      <div className="dt-layout__position-fields">
+      <div className="layout__position-fields">
         {shownHorizontal === "stretch" ? (
           <>
           <FieldRow label="left" data-test="layout-position-x-left">
@@ -169,7 +169,7 @@ export function PositionAnchorControls({
           </FieldRow>
         )}
       </div>
-      <div className="dt-layout__individual-insets">
+      <div className="layout__individual-insets">
         <ToggleButton
           variant="quiet"
           size="default"
@@ -199,9 +199,9 @@ function AxisAnchorRow({ axis, current, onSelect }: AxisAnchorRowProps): ReactEl
     ? { start: "Left", end: "Right", stretch: "Stretch" }
     : { start: "Top", end: "Bottom", stretch: "Stretch" };
   return (
-    <div className="dt-layout__anchor-row">
-      <span className="dt-layout__anchor-label">{label}</span>
-      <div className="dt-layout__anchor-control" role="group" aria-label={label}>
+    <div className="layout__anchor-row">
+      <span className="layout__anchor-label">{label}</span>
+      <div className="layout__anchor-control" role="group" aria-label={label}>
         {ANCHOR_OPTIONS.map((option) => (
           <Button
             key={option}

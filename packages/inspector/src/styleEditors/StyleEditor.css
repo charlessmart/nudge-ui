@@ -1,86 +1,86 @@
 /* Shared chrome for style-editor sections. */
-.dt-layout,
-.dt-spacing,
-.dt-typography,
-.dt-border,
-.dt-property,
-.dt-color {
+.layout,
+.spacing,
+.typography,
+.border,
+.property,
+.color {
   display: flex;
   flex-direction: column;
-  gap: var(--dt-space-8);
-  background: var(--dt-surface-panel);
+  gap: var(--space-8);
+  background: var(--surface-panel);
 }
 
-.dt-appearance {
-  gap: var(--dt-space-12);
+.appearance {
+  gap: var(--space-12);
 }
 
-.dt-appearance__fields {
+.appearance__fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: var(--dt-space-12);
+  gap: var(--space-12);
 }
 
-.dt-appearance__field {
+.appearance__field {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--dt-space-8);
+  gap: var(--space-8);
 }
 
-.dt-appearance__field-header {
+.appearance__field-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--dt-space-8);
+  gap: var(--space-8);
 }
 
-.dt-appearance__field-label {
+.appearance__field-label {
   min-width: 0;
-  color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size-base);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
   line-height: 1.25;
 }
 
-.dt-border-radius-editor__main {
+.border-radius-editor__main {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--dt-space-8);
+  gap: var(--space-8);
 }
 
-.dt-border-radius-editor--embedded {
+.border-radius-editor--embedded {
   display: contents;
 }
 
-.dt-border-radius-editor--embedded > .dt-border-radius-editor__main {
+.border-radius-editor--embedded > .border-radius-editor__main {
   grid-column: 2;
 }
 
-.dt-border-radius-editor--embedded > .dt-border-radius-editor__toggle {
+.border-radius-editor--embedded > .border-radius-editor__toggle {
   grid-column: 3;
   align-self: end;
 }
 
-.dt-border-radius__grouped-row {
+.border-radius__grouped-row {
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
-  gap: var(--dt-space-8);
+  gap: var(--space-8);
 }
 
-.dt-border-radius__grouped-row > .dt-control-surface {
+.border-radius__grouped-row > .control-surface {
   min-width: 0;
 }
 
-.dt-border-radius-editor__individuals {
+.border-radius-editor__individuals {
   grid-column: 1 / span 2;
   min-width: 0;
 }
 
-.dt-opacity-editor__effective {
+.opacity-editor__effective {
   flex: 0 0 auto;
-  color: var(--dt-text-secondary);
-  font-size: var(--dt-font-size-base);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
 }

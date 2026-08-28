@@ -1,8 +1,8 @@
 import { defineConfig } from "astro/config";
 import react from "@astrojs/react";
-import { designToolAstro } from "@design-tool/astro";
+import { nudgeUiAstro } from "@nudge-ui/astro";
 
 // https://astro.build/config
 export default defineConfig({
-  integrations: [react(), designToolAstro()],
+  integrations: [react(), nudgeUiAstro()],
 });

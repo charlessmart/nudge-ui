@@ -1,5 +1,5 @@
 import { sourceSiteSelector } from "./sourceSite.ts";
-import { isDesignToolDev } from "./devFlag.ts";
+import { isNudgeUiDev } from "./devFlag.ts";
 import {
   isTextContentChangeValue,
   isTextProjectionTargetValue,
@@ -42,12 +42,12 @@ export interface TextContentProjectionDiagnostic extends TextProjectionReport {
 }
 
 /** Dedicated document-local marker; never part of canonical session identity. */
-export const TEXT_PROJECTION_ATTR = "data-dt-projection-text";
+export const TEXT_PROJECTION_ATTR = "data-projection-text";
 
 /** Inspector-owned hit target for a projected text node whose value is empty. */
-export const EMPTY_TEXT_PROJECTION_ATTR = "data-dt-empty-text";
+export const EMPTY_TEXT_PROJECTION_ATTR = "data-empty-text";
 /** Inspector-owned exact-node evidence paired with EMPTY_TEXT_PROJECTION_ATTR. */
-export const EMPTY_TEXT_PROJECTION_PATH_ATTR = "data-dt-empty-text-path";
+export const EMPTY_TEXT_PROJECTION_PATH_ATTR = "data-empty-text-path";
 
 const UNSAFE_TEXT_TAGS = new Set(["SCRIPT", "STYLE", "TEXTAREA", "OPTION"]);
 const UNSAFE_MIXED_DESCENDANT_TAGS = new Set([
@@ -91,7 +91,7 @@ function isEmptyTextAffordance(node: Node | null | undefined): node is HTMLEleme
 }
 
 function hasInlineTextEditor(element: HTMLElement): boolean {
-  return element.querySelector('[data-dt-inline-editor="true"]') !== null;
+  return element.querySelector('[data-inline-editor="true"]') !== null;
 }
 
 function readProjectionMarkers(element: HTMLElement): TextProjectionMarkerMap {
@@ -238,7 +238,7 @@ function hasSafeMixedDescendants(element: HTMLElement): boolean {
     if (UNSAFE_MIXED_DESCENDANT_TAGS.has(descendant.tagName)) return false;
     const editingHost = descendant.closest<HTMLElement>("[contenteditable]");
     if (editingHost
-      && editingHost.getAttribute("data-dt-inline-editor") !== "true"
+      && editingHost.getAttribute("data-inline-editor") !== "true"
       && editingHost.getAttribute("contenteditable") !== "false") return false;
   }
   return true;
@@ -252,7 +252,7 @@ function textHostIsSafe(
   if (UNSAFE_TEXT_TAGS.has(element.tagName)) return false;
   const editingHost = element.closest<HTMLElement>("[contenteditable]");
   if (editingHost
-    && editingHost.getAttribute("data-dt-inline-editor") !== "true"
+    && editingHost.getAttribute("data-inline-editor") !== "true"
     && editingHost.getAttribute("contenteditable") !== "false") return false;
   if (allowEmpty && element.childNodes.length === 0) return true;
   if (target?.textNodePath) {
@@ -268,7 +268,7 @@ function textHostIsSafe(
   // remains safe; otherwise the affordance would invalidate its own target.
   const applicationChildren = Array.from(element.children)
     .filter((child) => !isEmptyTextAffordance(child)
-      && child.getAttribute("data-dt-inline-editor") !== "true");
+      && child.getAttribute("data-inline-editor") !== "true");
   if (applicationChildren.length > 0) return false;
   const textNodes = Array.from(element.childNodes).filter((node) => node.nodeType === Node.TEXT_NODE);
   if (textNodes.length === 1) {
@@ -279,7 +279,7 @@ function textHostIsSafe(
   // canonical projection; otherwise its insertion would self-report as an
   // application reconciliation and remove the re-entry slot mid-session.
   const editingHosts = Array.from(element.children)
-    .filter((child) => child.getAttribute("data-dt-inline-editor") === "true");
+    .filter((child) => child.getAttribute("data-inline-editor") === "true");
   // The browser may split/replace the retained empty Text node while the
   // native editor receives its first input. The wrapper is still inspector
   // owned; its plain-text input guards are responsible for rejecting rich or
@@ -646,7 +646,7 @@ export function applyTextContentProjection(
   doc: Document,
   changes: ReadonlyArray<TextContentChangeRecord>,
 ): TextProjectionReport[] {
-  if (!isDesignToolDev()) return [];
+  if (!isNudgeUiDev()) return [];
   const state = getDocumentState(doc);
   canonicalChanges = new Map(changes.map((change) => [change.id, change]));
   const key = JSON.stringify(changes);

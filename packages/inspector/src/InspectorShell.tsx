@@ -8,7 +8,7 @@ import {
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
-import type { ResolvedProperty } from "@design-tool/css/model";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import type { TokenEntry } from "virtual:design-tokens";
 
 declare global {
@@ -48,7 +48,7 @@ import { redoStructuralChange, undoStructuralChange } from "./structuralProjecti
 import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
 import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "./inlineTextEditor.ts";
-import { useDesignToolRuntimeConfig } from "./useRuntimeConfig.ts";
+import { useNudgeUiRuntimeConfig } from "./useRuntimeConfig.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -76,7 +76,7 @@ export function setInspectorHost(host: HTMLElement | null): void {
 }
 
 function resolveHost(): HTMLElement {
-  return inspectorHost ?? document.getElementById("design-tool-root") ?? document.body;
+  return inspectorHost ?? document.getElementById("nudge-ui-root") ?? document.body;
 }
 
 function nodeMatchesSelector(node: Node, selector: string | null): boolean {
@@ -97,7 +97,7 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
   );
   return records.some((record) => {
     if (record.type === "attributes") {
-      return record.target === selected || record.attributeName !== "data-dt-projection-instance";
+      return record.target === selected || record.attributeName !== "data-projection-instance";
     }
     return [...record.addedNodes, ...record.removedNodes]
       .some((node) => nodeMatchesSelector(node, selector));
@@ -106,7 +106,7 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
 
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
-  const runtimeConfig = useDesignToolRuntimeConfig();
+  const runtimeConfig = useNudgeUiRuntimeConfig();
   const canvasEnabled = runtimeConfig.capabilities.canvas;
   const activeCanvasMode = useCanvasMode();
   const canvasMode = canvasEnabled ? activeCanvasMode : "inspect";
@@ -149,7 +149,7 @@ export function InspectorShell(): ReactElement {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["data-cid", "data-src", "data-dt-projection-instance"],
+      attributeFilter: ["data-cid", "data-src", "data-projection-instance"],
     });
     return () => observer.disconnect();
   }, [selected, scopeRevision]);
@@ -256,10 +256,10 @@ export function InspectorShell(): ReactElement {
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
       {canvasMode === "inspect" && <InspectorOverlay host={resolveHost()} />}
-      <div className="dt-panel" data-open={isOpen ? "true" : "false"}>
-        <div className="dt-panel__tabs" aria-label="Inspector controls">
+      <div className="panel" data-open={isOpen ? "true" : "false"}>
+        <div className="panel__tabs" aria-label="Inspector controls">
           <div
-            className="dt-panel__header-row"
+            className="panel__header-row"
             data-test="inspect-tab"
           >
             <IconButton
@@ -271,12 +271,12 @@ export function InspectorShell(): ReactElement {
                 setInspectorOpen(false);
               }}
             >
-              <IconLayoutSidebarRightCollapse size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+              <IconLayoutSidebarRightCollapse size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             </IconButton>
-            <div className="dt-panel__header-actions">
+            <div className="panel__header-actions">
               <IconButton
                 variant={activeTab === "tokens" ? "secondary" : "quiet"}
-                className={`dt-panel__icon-tab dt-button--${activeTab === "tokens" ? "secondary" : "quiet"}`}
+                className={`panel__icon-tab button--${activeTab === "tokens" ? "secondary" : "quiet"}`}
                 role="tab"
                 aria-selected={activeTab === "tokens"}
                 data-active={activeTab === "tokens" ? "true" : "false"}
@@ -285,49 +285,49 @@ export function InspectorShell(): ReactElement {
                 title="Tokens"
                 onClick={() => setActiveTab(activeTab === "tokens" ? "inspect" : "tokens")}
               >
-                <IconColorSwatch size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+                <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               </IconButton>
               {canvasEnabled ? (
                 <>
-                  <span className="dt-panel__header-divider" aria-hidden="true" />
+                  <span className="panel__header-divider" aria-hidden="true" />
                   <Button
                     variant="quiet"
-                    className="dt-panel__canvas-button"
+                    className="panel__canvas-button"
                     data-test="mode-canvas"
                     data-active={canvasMode === "canvas" ? "true" : "false"}
                     aria-pressed={canvasMode === "canvas"}
                     type="button"
                     onClick={handleCanvasModeButton}
                   >
-                    <IconArtboard size="var(--dt-icon-size-small)" stroke={1.8} aria-hidden="true" />
+                    <IconArtboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
                     {canvasMode === "canvas" ? "Exit canvas" : "View canvas"}
                   </Button>
                 </>
               ) : null}
             </div>
           </div>
-          <div className="dt-panel__copy-row">
+          <div className="panel__copy-row">
             <CopyPromptButton />
           </div>
         </div>
-        <div className="dt-panel__body">
+        <div className="panel__body">
           {inlineTextSession ? (
-            <section className="dt-inline-text-editor" data-test="inline-text-editor">
-              <div className="dt-editor__title-row">
-                <div className="dt-editor__title">Editing text</div>
-                <span className="dt-component-props__source">
+            <section className="inline-text-editor" data-test="inline-text-editor">
+              <div className="editor__title-row">
+                <div className="editor__title">Editing text</div>
+                <span className="component-props__source">
                   {inlineTextSession.binding.kind === "component-prop" ? "Component" : "Rendered text"}
                 </span>
               </div>
-              <div className="dt-inline-text-editor__binding" data-test="inline-text-binding">
+              <div className="inline-text-editor__binding" data-test="inline-text-binding">
                 {inlineTextSession.binding.kind === "component-prop"
                   ? `${inlineTextSession.binding.target.componentName}.${inlineTextSession.binding.property}`
                   : "Rendered text"}
               </div>
               {inlineTextSession.bindingChoices.length > 1 ? (
-                <div className="dt-inline-text-editor__chooser" data-test="inline-binding-chooser">
-                  <div className="dt-inline-text-editor__chooser-label">Choose binding</div>
-                  <div className="dt-inline-text-editor__chooser-options" role="group" aria-label="Text binding">
+                <div className="inline-text-editor__chooser" data-test="inline-binding-chooser">
+                  <div className="inline-text-editor__chooser-label">Choose binding</div>
+                  <div className="inline-text-editor__chooser-options" role="group" aria-label="Text binding">
                     {inlineTextSession.bindingChoices.map((choice, index) => (
                       <Button
                         key={`${choice.binding.target.callsiteId}:${choice.binding.property}`}
@@ -346,9 +346,9 @@ export function InspectorShell(): ReactElement {
                 </div>
               ) : null}
               {inlineTextSession.scopeChoices.length > 0 ? (
-                <div className="dt-inline-text-editor__chooser" data-test="inline-scope-chooser">
-                  <div className="dt-inline-text-editor__chooser-label">Apply to</div>
-                  <div className="dt-inline-text-editor__chooser-options" role="group" aria-label="Text edit scope">
+                <div className="inline-text-editor__chooser" data-test="inline-scope-chooser">
+                  <div className="inline-text-editor__chooser-label">Apply to</div>
+                  <div className="inline-text-editor__chooser-options" role="group" aria-label="Text edit scope">
                     {inlineTextSession.scopeChoices.map((scope) => (
                       <Button
                         key={scope}
@@ -365,7 +365,7 @@ export function InspectorShell(): ReactElement {
                   </div>
                 </div>
               ) : null}
-              <div className="dt-inline-text-editor__actions">
+              <div className="inline-text-editor__actions">
                 <Button
                   size="compact"
                   variant="secondary"
@@ -390,21 +390,21 @@ export function InspectorShell(): ReactElement {
           ) : selected ? (
             <>
               <div
-                className="dt-selection"
+                className="selection"
                 data-test="selection"
                 data-selected-cid={selected.cid}
                 data-selected-src={selected.src}
               >
                 {showInteractionState ? (
-                  <div className="dt-style-state" data-test="style-state">
-                    <span className="dt-selection__label">State</span>
-                    <div className="dt-style-state__options" role="group" aria-label="Style State">
+                  <div className="style-state" data-test="style-state">
+                    <span className="selection__label">State</span>
+                    <div className="style-state__options" role="group" aria-label="Style State">
                       {availableInteractionStates.map((state) => (
                         <Button
                           key={state}
                           size="compact"
                           variant={styleState === state ? "primary" : "quiet"}
-                          className="dt-style-state__option"
+                          className="style-state__option"
                           data-test={`style-state-${state}`}
                           data-active={styleState === state ? "true" : "false"}
                           aria-pressed={styleState === state}
@@ -429,7 +429,7 @@ export function InspectorShell(): ReactElement {
                       <span>Editing only this rendered item.</span>
                       <Button
                         size="compact"
-                        className="dt-scope__action"
+                        className="scope__action"
                         data-test="relink-element"
                         onClick={() => {
                           const overrideId = relinkElement(selected.domElement);
@@ -441,7 +441,7 @@ export function InspectorShell(): ReactElement {
                       </Button>
                     </>
                   ) : (
-                    <div className="dt-scope__linked">
+                    <div className="scope__linked">
                       <span>Affects {sourceSiteMatchCount} {sourceSiteMatchCount === 1 ? "element" : "elements"}.</span>
                       {sourceSiteMatchCount > 1 ? (
                         <Button
@@ -464,7 +464,7 @@ export function InspectorShell(): ReactElement {
               <ComponentPropsSection selected={selected} />
 
               <AtRuleContextProvider rows={tokenRows}>
-                <div className="dt-style-editors" data-test="style-editors">
+                <div className="style-editors" data-test="style-editors">
                   <LayoutSection key={`layout-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
                   <SpacingBox key={`spacing-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
                   <AppearanceSection key={`appearance-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
@@ -491,7 +491,7 @@ export function InspectorShell(): ReactElement {
               </AtRuleContextProvider>
             </>
           ) : (
-            <div className="dt-empty-state" data-test="empty-state">
+            <div className="empty-state" data-test="empty-state">
               Select an element to edit
             </div>
           )}
@@ -507,7 +507,7 @@ export function InspectorShell(): ReactElement {
       {!isOpen ? (
         <IconButton
           label="Show inspector"
-          className="dt-panel__restore"
+          className="panel__restore"
           data-test="show-inspector"
           onClick={() => setInspectorOpen(true)}
         >

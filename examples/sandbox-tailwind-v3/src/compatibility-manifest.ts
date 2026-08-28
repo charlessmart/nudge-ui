@@ -1,4 +1,4 @@
-import { CSS_LIBRARY_CORPUS, type CompatibilityManifest } from "@design-tool/compatibility";
+import { CSS_LIBRARY_CORPUS, type CompatibilityManifest } from "@nudge-ui/compatibility";
 
 export const compatibilityManifest: CompatibilityManifest = {
   name: "real Tailwind v3",

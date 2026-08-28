@@ -4,7 +4,7 @@ test("dev: landing page renders the Penpot 'Landing V6 — Mono' design", async 
   await page.goto("/");
 
   // Nav
-  await expect(page.locator(".landing-brand")).toHaveText(/Design Tool/);
+  await expect(page.locator(".landing-brand")).toHaveText(/Nudge UI/);
   await expect(page.locator(".landing-nav-links a")).toHaveText("GitHub");
 
   // Hero + install command
@@ -24,14 +24,14 @@ test("dev: landing page renders the Penpot 'Landing V6 — Mono' design", async 
   await expect(features.first()).toContainText("Tweak designs directly in your codebase");
 
   // Footer
-  await expect(page.locator(".landing-footer-content span").first()).toHaveText("Design Tool — dev-only by design");
+  await expect(page.locator(".landing-footer-content span").first()).toHaveText("Nudge UI — dev-only by design");
 });
 
 test("dev: landing install command renders the design copy", async ({ page }) => {
   await page.goto("/");
 
   const install = page.locator(".landing-install");
-  await expect(install).toContainText("Let's install @design-tool/plugin in this project");
+  await expect(install).toContainText("Let's install @nudge-ui/plugin in this project");
   await expect(install).toContainText("Copy");
 
   // The window mockup's inspector controls are static replicas.

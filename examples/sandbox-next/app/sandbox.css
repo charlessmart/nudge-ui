@@ -1,26 +1,26 @@
 .page {
   max-width: 640px;
   margin: 0 auto;
-  padding: var(--dt-space);
+  padding: var(--space);
 }
 
 .hero-card {
-  border: 1px solid color-mix(in srgb, var(--dt-ink) 15%, transparent);
-  border-radius: var(--dt-radius);
-  padding: var(--dt-space);
+  border: 1px solid color-mix(in srgb, var(--ink) 15%, transparent);
+  border-radius: var(--radius);
+  padding: var(--space);
   background: white;
 }
 
 .hero-card h2 {
   margin-top: 0;
-  color: var(--dt-accent);
+  color: var(--accent);
 }
 
 .actions {
   display: flex;
-  gap: var(--dt-space);
+  gap: var(--space);
   align-items: center;
-  margin-top: var(--dt-space);
+  margin-top: var(--space);
 }
 
 .badge {
@@ -30,15 +30,15 @@
 }
 
 .badge-accent {
-  background: var(--dt-accent);
+  background: var(--accent);
   color: white;
 }
 
 .badge-quiet {
   background: #e2e8f0;
-  color: var(--dt-ink);
+  color: var(--ink);
 }
 
 .nav-link {
-  color: var(--dt-accent);
+  color: var(--accent);
 }

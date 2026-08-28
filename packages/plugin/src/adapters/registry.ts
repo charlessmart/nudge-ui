@@ -1,4 +1,4 @@
-import type { InventoryDiagnostic, TokenContribution } from "@design-tool/css/token-inventory";
+import type { InventoryDiagnostic, TokenContribution } from "@nudge-ui/css/token-inventory";
 import type { TokenEntry } from "../virtual/design-tokens.ts";
 import type { TokenAdapter, TokenMapping } from "./types.ts";
 

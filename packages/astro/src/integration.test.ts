@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AstroIntegration } from "astro";
-import { designToolAstro } from "./integration.ts";
+import { nudgeUiAstro } from "./integration.ts";
 
 type ConfigSetupParameters = Parameters<
   NonNullable<AstroIntegration["hooks"]["astro:config:setup"]>
@@ -29,9 +29,9 @@ function runConfigSetup(
   return { updateConfig, injectScript, addMiddleware };
 }
 
-describe("designToolAstro", () => {
+describe("nudgeUiAstro", () => {
   it("registers the shared vite plugin, context plugin, bootstrap, and middleware in dev", () => {
-    const integration = designToolAstro({ projectId: "site" });
+    const integration = nudgeUiAstro({ projectId: "site" });
     const { addMiddleware, injectScript, updateConfig } =
       runConfigSetup(integration, "dev");
 
@@ -52,13 +52,13 @@ describe("designToolAstro", () => {
     expect(content.indexOf("window.$RefreshReg$ = () => {};"))
       .toBeLessThan(content.indexOf('import("/@react-refresh")'));
     expect(content.indexOf("window.$RefreshReg$ = () => {};"))
-      .toBeLessThan(content.indexOf('import("@design-tool/astro/bootstrap")'));
+      .toBeLessThan(content.indexOf('import("@nudge-ui/astro/bootstrap")'));
     expect(content).toContain("window.$RefreshSig$ = () => (type) => type;");
     expect(content).toContain("window.__vite_plugin_react_preamble_installed__ = true;");
     expect(content).toContain('import("/@react-refresh")');
     // The bootstrap loads dynamically so the synchronous baseline cannot be
     // hoisted away (ESM semantics), and does not wait on the refresh chain.
-    expect(content).toContain('import("@design-tool/astro/bootstrap")');
+    expect(content).toContain('import("@nudge-ui/astro/bootstrap")');
 
     expect(addMiddleware).toHaveBeenCalledTimes(1);
     const registration = addMiddleware.mock.calls[0]?.[0] as {
@@ -71,7 +71,7 @@ describe("designToolAstro", () => {
   });
 
   it("registers nothing for build commands (ADR-0002)", () => {
-    const integration = designToolAstro();
+    const integration = nudgeUiAstro();
     const { addMiddleware, injectScript, updateConfig } =
       runConfigSetup(integration, "build");
 
@@ -81,7 +81,7 @@ describe("designToolAstro", () => {
   });
 
   it("registers nothing when disabled, even in dev", () => {
-    const integration = designToolAstro({ enabled: false });
+    const integration = nudgeUiAstro({ enabled: false });
     const { addMiddleware, injectScript, updateConfig } =
       runConfigSetup(integration, "dev");
 

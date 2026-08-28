@@ -13,7 +13,7 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
     <input
       {...props}
       ref={ref}
-      className={`dt-text-input${compact ? " dt-text-input--compact" : ""}${appearance === "embedded" ? " dt-text-input--embedded" : ""}${className ? ` ${className}` : ""}`}
+      className={`text-input${compact ? " text-input--compact" : ""}${appearance === "embedded" ? " text-input--embedded" : ""}${className ? ` ${className}` : ""}`}
     />
   );
 });

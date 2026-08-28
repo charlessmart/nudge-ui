@@ -7,7 +7,7 @@
  * still be authoritative); otherwise the bundler define decides; with neither,
  * development is assumed absent — the gate fails closed rather than guessing.
  */
-export function resolveDesignToolDev(
+export function resolveNudgeUiDev(
   bundlerDefinedDev: boolean | undefined,
   hostFlag: boolean | undefined,
 ): boolean {
@@ -31,21 +31,21 @@ let hostDevFlag: boolean | undefined;
  * The flag is process-global state by design: every inspector Module shares
  * one dev gate, and a host configures it once per document, not per Module.
  */
-export function setDesignToolHostDevFlag(value: boolean | undefined): void {
+export function setNudgeUiHostDevFlag(value: boolean | undefined): void {
   hostDevFlag = value;
 }
 
 /**
  * Dev-phase gate shared by every inspector Module (ADR-0002).
  */
-export function isDesignToolDev(): boolean {
+export function isNudgeUiDev(): boolean {
   try {
     // Under Vite (and the standalone esbuild build) this member expression is
     // statically replaced, so the read cannot throw there. In a bundle whose
     // compiler defines nothing — Next.js/SWC — `import.meta.env` is undefined
     // and the bare property read throws a TypeError.
-    return resolveDesignToolDev(import.meta.env.DEV === true, hostDevFlag);
+    return resolveNudgeUiDev(import.meta.env.DEV === true, hostDevFlag);
   } catch {
-    return resolveDesignToolDev(undefined, hostDevFlag);
+    return resolveNudgeUiDev(undefined, hostDevFlag);
   }
 }

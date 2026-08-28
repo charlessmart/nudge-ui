@@ -28,7 +28,7 @@ export function InspectorPopover({
   "data-test": dataTest,
 }: InspectorPopoverProps): ReactElement {
   const portalContainer = typeof document !== "undefined"
-    ? document.getElementById("design-tool-root")?.shadowRoot ?? document.body
+    ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
     : null;
 
   return (
@@ -36,13 +36,13 @@ export function InspectorPopover({
       <BasePopover.Trigger render={triggerElement} data-test={dataTest} />
       <BasePopover.Portal container={portalContainer}>
         <BasePopover.Positioner
-          className="dt-inspector-popover__positioner"
+          className="inspector-popover__positioner"
           side={side}
           align={align}
           sideOffset={sideOffset}
         >
           <BasePopover.Popup
-            className="dt-inspector-popover__popup"
+            className="inspector-popover__popup"
             data-test={dataTest ? `${dataTest}-popover` : undefined}
           >
             {children}

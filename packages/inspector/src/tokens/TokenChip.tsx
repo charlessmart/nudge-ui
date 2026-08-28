@@ -16,7 +16,7 @@ function TokenChipRoot({ size = "default", className, children, ...props }: Toke
   return (
     <span
       {...props}
-      className={`dt-token-chip dt-token-chip--${size}${className ? ` ${className}` : ""}`}
+      className={`token-chip token-chip--${size}${className ? ` ${className}` : ""}`}
     >
       {children}
     </span>
@@ -25,7 +25,7 @@ function TokenChipRoot({ size = "default", className, children, ...props }: Toke
 
 function TokenChipPicker({ className, children, ...props }: TokenChipSlotProps): ReactElement {
   return (
-    <span {...props} className={`dt-token-chip__picker${className ? ` ${className}` : ""}`}>
+    <span {...props} className={`token-chip__picker${className ? ` ${className}` : ""}`}>
       {children}
     </span>
   );
@@ -33,7 +33,7 @@ function TokenChipPicker({ className, children, ...props }: TokenChipSlotProps):
 
 function TokenChipLabel({ className, children, ...props }: TokenChipSlotProps): ReactElement {
   return (
-    <span {...props} className={`dt-token-chip__label${className ? ` ${className}` : ""}`}>
+    <span {...props} className={`token-chip__label${className ? ` ${className}` : ""}`}>
       {children}
     </span>
   );
@@ -41,7 +41,7 @@ function TokenChipLabel({ className, children, ...props }: TokenChipSlotProps): 
 
 function TokenChipAction({ className, children, ...props }: TokenChipSlotProps): ReactElement {
   return (
-    <span {...props} className={`dt-token-chip__action${className ? ` ${className}` : ""}`}>
+    <span {...props} className={`token-chip__action${className ? ` ${className}` : ""}`}>
       {children}
     </span>
   );

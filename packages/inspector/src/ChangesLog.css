@@ -1,120 +1,120 @@
-.dt-changes {
+.changes {
   margin-top: 0;
   border-top: 0;
   padding-top: 24px;
 }
 
-.dt-changes__title {
+.changes__title {
   display: flex;
   align-items: center;
   gap: 7px;
   width: 100%;
   padding: 10px 0;
-  color: var(--dt-text-primary);
-  font-size: var(--dt-font-size-base);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   font-weight: 700;
   cursor: pointer;
   list-style: none;
 }
 
-.dt-changes__title::-webkit-details-marker {
+.changes__title::-webkit-details-marker {
   display: none;
 }
 
-.dt-changes__title-label {
+.changes__title-label {
   flex: 1;
 }
 
-.dt-changes__count {
+.changes__count {
   min-width: 20px;
   padding: 2px 6px;
-  border-radius: var(--dt-radius-pill);
-  background: var(--dt-surface-control);
-  color: var(--dt-text-muted);
+  border-radius: var(--radius-pill);
+  background: var(--surface-control);
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 650;
   line-height: 1.2;
   text-align: center;
 }
 
-.dt-changes__toggle-icon {
-  color: var(--dt-text-muted);
+.changes__toggle-icon {
+  color: var(--text-muted);
   transition: transform 120ms ease;
 }
 
-.dt-changes[open] .dt-changes__toggle-icon {
+.changes[open] .changes__toggle-icon {
   transform: rotate(180deg);
 }
 
-.dt-changes__content {
+.changes__content {
   padding-bottom: 4px;
 }
 
-.dt-changes__session-action {
+.changes__session-action {
   display: flex;
   justify-content: flex-end;
   padding: 8px 0 20px;
 }
 
-.dt-changes__session-action .dt-button {
+.changes__session-action .button {
   width: 100%;
 }
 
-.dt-changes__group {
+.changes__group {
   margin-bottom: 12px;
   padding: 12px;
-  background: var(--dt-surface-control);
+  background: var(--surface-control);
   border: 0;
   border-radius: 12px;
 }
 
-.dt-changes__group-title {
+.changes__group-title {
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin-bottom: 8px;
-  color: var(--dt-text-primary);
-  font-size: var(--dt-font-size-base);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
   font-weight: 650;
 }
 
-.dt-changes__group-file {
-  color: var(--dt-text-muted);
+.changes__group-file {
+  color: var(--text-muted);
   font-weight: 400;
   word-break: break-all;
 }
 
-.dt-changes__row {
+.changes__row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 5px;
   padding: 4px 0;
-  font-size: var(--dt-font-size-base);
+  font-size: var(--font-size-base);
 }
 
-.dt-changes__row + .dt-changes__row {
+.changes__row + .changes__row {
   margin-top: 8px;
   padding-top: 12px;
-  border-top: 1px solid var(--dt-border-subtle);
+  border-top: 1px solid var(--border-subtle);
 }
 
-.dt-changes__prop,
-.dt-changes__before,
-.dt-changes__after {
+.changes__prop,
+.changes__before,
+.changes__after {
   word-break: break-all;
 }
 
-.dt-changes__prop {
-  color: var(--dt-text-primary);
+.changes__prop {
+  color: var(--text-primary);
 }
 
-.dt-changes__before,
-.dt-changes__arrow {
-  color: var(--dt-text-muted);
+.changes__before,
+.changes__arrow {
+  color: var(--text-muted);
 }
 
-.dt-changes__value {
+.changes__value {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -122,31 +122,31 @@
   line-height: 1.4;
 }
 
-.dt-changes__after {
-  color: var(--dt-accent-text);
+.changes__after {
+  color: var(--accent-text);
 }
 
-.dt-changes__conflict {
-  color: var(--dt-warning-text);
-  font-size: var(--dt-font-size-base);
+.changes__conflict {
+  color: var(--warning-text);
+  font-size: var(--font-size-base);
 }
 
-.dt-changes__source-site,
-.dt-changes__scope,
-.dt-changes__diagnostic {
-  color: var(--dt-text-muted);
-  font-size: var(--dt-font-size-base);
+.changes__source-site,
+.changes__scope,
+.changes__diagnostic {
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
 }
 
-.dt-changes__diagnostic[data-status="overridden"] {
-  color: var(--dt-warning-text);
+.changes__diagnostic[data-status="overridden"] {
+  color: var(--warning-text);
 }
 
-.dt-changes__revert {
+.changes__revert {
   margin-top: 2px;
 }
 
-.dt-panel__copy[data-copied="true"] {
+.panel__copy[data-copied="true"] {
   background: #2eaf67;
   color: #ffffff;
 }

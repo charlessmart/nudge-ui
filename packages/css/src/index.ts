@@ -1,5 +1,5 @@
 /**
- * `@design-tool/css` — shared, browser-safe CSS/token knowledge.
+ * `@nudge-ui/css` — shared, browser-safe CSS/token knowledge.
  *
  * Root entry re-exports the browser-safe subpaths only. The Node/build-time
  * token-inventory subpath arrives in Stage 2 and must NOT be reachable from

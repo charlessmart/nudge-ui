@@ -29,7 +29,7 @@ export interface FrameworkHints {
 }
 
 const EMPTY_SENTINEL =
-  "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Design Tool inspector first.";
+  "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Nudge UI inspector first.";
 
 interface ElementGroup {
   key: string;

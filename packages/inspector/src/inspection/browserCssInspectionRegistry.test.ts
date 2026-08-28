@@ -7,8 +7,8 @@ import {
 } from "./browserCssInspectionRegistry.ts";
 import { setDesignTokensStub } from "../__stubs__/design-tokens.ts";
 import {
-  configureDesignToolRuntime,
-  getDesignToolRuntimeConfig,
+  configureNudgeUiRuntime,
+  getNudgeUiRuntimeConfig,
 } from "../runtimeConfig.ts";
 
 afterEach(() => {
@@ -78,15 +78,15 @@ describe("browser CSS inspection registry", () => {
   });
 
   it("refreshes a live document session when the host replaces token generation", () => {
-    const current = getDesignToolRuntimeConfig();
-    configureDesignToolRuntime({
+    const current = getNudgeUiRuntimeConfig();
+    configureNudgeUiRuntime({
       ...current,
       tokenCatalog: [],
       tokenGeneration: "g-live-1",
     });
     const first = getBrowserCssInspection(document);
 
-    configureDesignToolRuntime({
+    configureNudgeUiRuntime({
       ...current,
       tokenCatalog: [],
       tokenGeneration: "g-live-2",

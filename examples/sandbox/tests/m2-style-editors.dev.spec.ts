@@ -9,7 +9,7 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
   await expect
     .poll(async () => {
       return await page.evaluate(() => {
-        const sr = document.getElementById("design-tool-root")?.shadowRoot;
+        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
         return !!sr?.querySelector('[data-test="style-editors"]');
       });
     }, { timeout: 5000 })
@@ -18,7 +18,7 @@ async function waitForEditors(page: import("@playwright/test").Page): Promise<vo
 
 async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
   await expect
-    .poll(async () => page.evaluate(() => Boolean(document.getElementById("design-tool-root")?.shadowRoot?.querySelector('[data-test="inspect-tab"]'))), { timeout: 5000 })
+    .poll(async () => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector('[data-test="inspect-tab"]'))), { timeout: 5000 })
     .toBe(true);
 }
 
@@ -32,7 +32,7 @@ async function expandSpacing(page: import("@playwright/test").Page): Promise<voi
 
 async function setInput(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
   await page.evaluate(({ p, v }) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const raw = sr?.querySelector(
       `[data-test="token-field"][data-property="${p}"] [data-test="raw-input"]`,
     ) as HTMLInputElement | null;
@@ -85,14 +85,14 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   const expectedRgb = hexToRgbString(expectedColor);
 
   const hasColorChip = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return Boolean(sr?.querySelector('[data-test="token-field"][data-property="color"] [data-test="token-chip"]'));
   });
   if (hasColorChip) {
     await page.locator('[data-test="token-field"][data-property="color"] [data-test="token-chip"]').click();
   } else {
     await page.evaluate((value) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const raw = sr?.querySelector(
       '[data-test="token-field"][data-property="color"] [data-test="raw-input"]',
     ) as HTMLInputElement | null;
@@ -105,13 +105,13 @@ test("dev: style editors write through the managed stylesheet and update the .bt
   }
   await expect
     .poll(async () => page.evaluate((token) => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       return Array.from(sr?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
         .some((item) => item.textContent?.includes(token));
     }, "--color-text-secondary"), { timeout: 5000 })
     .toBe(true);
   await page.evaluate((token) => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
       .find((item) => item.textContent?.includes(token))?.click();
   }, "--color-text-secondary");
@@ -143,17 +143,17 @@ test("dev: control surfaces own field chrome while token fields provide embedded
   if (await addPadding.count()) await addPadding.click();
   const spacingSurface = page.locator('[data-test="spacing-padding"] [data-test="pair-value-horizontal"]');
   const spacingValue = spacingSurface.locator('[data-test="token-field"][data-property="padding-horizontal"]');
-  await expect(spacingSurface).toHaveClass(/dt-control-surface/);
-  await expect(spacingValue).not.toHaveClass(/dt-control-surface/);
-  await expect(spacingValue.locator('[data-test="raw-input"]')).toHaveClass(/dt-text-input--embedded/);
+  await expect(spacingSurface).toHaveClass(/control-surface/);
+  await expect(spacingValue).not.toHaveClass(/control-surface/);
+  await expect(spacingValue.locator('[data-test="raw-input"]')).toHaveClass(/text-input--embedded/);
   await expect(spacingSurface).toHaveCSS("padding-left", "8px");
   await expect(spacingValue.locator('[data-test="raw-input"]')).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
   const fontSize = page.locator('[data-test="token-field"][data-property="font-size"]');
   const fontSizeSurface = fontSize.locator("..");
-  await expect(fontSize).not.toHaveClass(/dt-control-surface/);
-  await expect(fontSizeSurface).toHaveClass(/dt-control-surface/);
-  await expect(fontSize.locator('[data-test="raw-input"]')).toHaveClass(/dt-text-input--embedded/);
+  await expect(fontSize).not.toHaveClass(/control-surface/);
+  await expect(fontSizeSurface).toHaveClass(/control-surface/);
+  await expect(fontSize.locator('[data-test="raw-input"]')).toHaveClass(/text-input--embedded/);
   await expect(fontSizeSurface).toHaveCSS("padding-left", "8px");
   expect(await spacingSurface.evaluate((element) => getComputedStyle(element).backgroundColor))
     .toBe(await fontSizeSurface.evaluate((element) => getComputedStyle(element).backgroundColor));
@@ -186,7 +186,7 @@ test("dev: color suggestions exclude unrelated tokens from the editor picker", a
   }
 
   await expect.poll(async () => page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return Array.from(root?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
       .map((item) => item.textContent?.trim() ?? "");
   })).not.toContain("--color-danger");
@@ -198,12 +198,12 @@ test("dev: linked border values expand into icon-labelled individual side fields
   await page.click("text=Save");
   await waitForEditors(page);
 
-  const borderSection = page.locator('.dt-border');
+  const borderSection = page.locator('.border');
   await expect(borderSection).toHaveAttribute("data-expanded", "false");
   await expect(borderSection.locator('[data-test="token-field"][data-property="border-width"]')).toHaveCount(1);
-  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-toggle-button/);
-  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/dt-toggle-button--quiet/);
-  await expect(borderSection.locator('.dt-border__linked-row')).toHaveCount(1);
+  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/toggle-button/);
+  await expect(borderSection.locator('[data-test="border-expand"]')).toHaveClass(/toggle-button--quiet/);
+  await expect(borderSection.locator('.border__linked-row')).toHaveCount(1);
 
   await borderSection.locator('[data-test="border-expand"]').click();
   await expect(borderSection).toHaveAttribute("data-expanded", "true");
@@ -226,7 +226,7 @@ test("dev: authored CSS border fixtures parse width, style, and color per side",
   });
   await waitForEditors(page);
 
-  await expect(page.locator('.dt-border')).toHaveAttribute("data-expanded", "true");
+  await expect(page.locator('.border')).toHaveAttribute("data-expanded", "true");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("2px");
   await expect(page.locator('[data-test="token-field"][data-property="border-bottom-width"] [data-test="raw-input"]')).toHaveValue("4px");
   await expect(page.locator('[data-test="border-style-top"]')).toHaveAttribute("data-current-style", "dashed");
@@ -265,7 +265,7 @@ test("dev: main demo color fixtures expose partial opacity after CSSOM normaliza
     .toHaveValue("20%");
 
   const opacitySeparator = await page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     const input = shadow?.querySelector(
       '[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]',
     ) as HTMLInputElement | null;
@@ -297,7 +297,7 @@ test("dev: individual side focus ring belongs to the whole side field", async ({
   const input = page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]');
   await input.focus();
   const readFocusStyles = () => page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     const raw = shadow?.querySelector('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]') as HTMLElement | null;
     const side = raw?.closest('[data-test^="side-value-"]') as HTMLElement | null;
     return {
@@ -328,7 +328,7 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
   await margin.locator('[data-test="add-value"]').click();
 
   const iconStyles = await page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     const readIcon = (group: "padding" | "margin", axis: "horizontal" | "vertical") => {
       const svg = shadow?.querySelector(`[data-test="spacing-${group}"] [data-test="pair-value-${axis}"] svg`) as SVGSVGElement | null;
       const rect = svg?.querySelector("rect");
@@ -367,7 +367,7 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
   await expect(spacing.locator('[data-test^="side-value-"]')).toHaveCount(4);
 
   const individualIconStyles = await page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     const readIcon = (side: "left" | "right" | "bottom" | "top") => {
       const svg = shadow?.querySelector(`[data-test="spacing-padding"] [data-side="${side}"] svg`) as SVGSVGElement | null;
       const rect = svg?.querySelector("rect");
@@ -403,7 +403,7 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
   await margin.locator('[data-test="individual-sides"]').click();
   await expect(margin).toHaveAttribute("data-expanded", "true");
   const marginIconStyles = await page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     const readIcon = (side: "left" | "right" | "top" | "bottom") => {
       const svg = shadow?.querySelector(`[data-test="spacing-margin"] [data-side="${side}"] svg`) as SVGSVGElement | null;
       const rect = svg?.querySelector("rect");
@@ -433,7 +433,7 @@ test("dev: linking divergent border widths applies one value and survives resele
   });
   await waitForEditors(page);
 
-  const borderSection = page.locator('.dt-border');
+  const borderSection = page.locator('.border');
   await expect(borderSection).toHaveAttribute("data-expanded", "true");
   await borderSection.locator('[data-test="border-collapse"]').click();
   await expect(borderSection).toHaveAttribute("data-expanded", "false");
@@ -446,7 +446,7 @@ test("dev: linking divergent border widths applies one value and survives resele
     element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
   });
   await waitForEditors(page);
-  await expect(page.locator('.dt-border')).toHaveAttribute("data-expanded", "false");
+  await expect(page.locator('.border')).toHaveAttribute("data-expanded", "false");
 });
 
 test("dev: style editors keep layout and spacing ahead of typography and color", async ({ page }) => {
@@ -455,8 +455,8 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   await waitForEditors(page);
 
   const editorOrder = await page.evaluate(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
-    return Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="style-editors"] > .dt-editor') ?? [])
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
+    return Array.from(sr?.querySelectorAll<HTMLElement>('[data-test="style-editors"] > .editor') ?? [])
       .map((editor) => editor.getAttribute("data-test"));
   });
 
@@ -475,20 +475,20 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   await expect(page.locator('[data-test="appearance-section"] [data-test="border-radius-editor"]')).toHaveCount(1);
   await expect(page.locator('[data-test="spacing-box"] [data-test="border-radius-editor"]')).toHaveCount(0);
 
-  await expect(page.locator('[data-test="border-editor"] .dt-editor__title')).toHaveText("Border");
-  await expect(page.locator('[data-test="appearance-section"] .dt-editor__title')).toHaveText("Appearance");
-  await expect(page.locator('[data-test="opacity-editor"] .dt-appearance__field-label')).toHaveText("Opacity");
+  await expect(page.locator('[data-test="border-editor"] .editor__title')).toHaveText("Border");
+  await expect(page.locator('[data-test="appearance-section"] .editor__title')).toHaveText("Appearance");
+  await expect(page.locator('[data-test="opacity-editor"] .appearance__field-label')).toHaveText("Opacity");
   await expect(page.locator('[data-test="opacity-input"]')).toHaveValue("100%");
   await expect(page.locator('[data-test="opacity-control"] svg')).toHaveClass(/tabler-icon-background/);
-  await expect(page.locator('[data-test="border-radius-editor"] .dt-appearance__field-label')).toHaveText("Corner Radius");
-  await expect(page.locator('[data-test="box-shadow-editor"] .dt-editor__title')).toHaveText("Box Shadow");
+  await expect(page.locator('[data-test="border-radius-editor"] .appearance__field-label')).toHaveText("Corner Radius");
+  await expect(page.locator('[data-test="box-shadow-editor"] .editor__title')).toHaveText("Box Shadow");
 
   const appearanceGrid = await page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     const opacityControl = shadow?.querySelector('[data-test="opacity-control"]');
     const opacityField = shadow?.querySelector('[data-test="opacity-editor"]');
-    const radiusField = shadow?.querySelector('[data-test="border-radius-editor"] .dt-border-radius-editor__main');
-    const radiusControl = shadow?.querySelector('[data-test="border-radius-editor"] .dt-border-radius-editor__main > .dt-control-surface');
+    const radiusField = shadow?.querySelector('[data-test="border-radius-editor"] .border-radius-editor__main');
+    const radiusControl = shadow?.querySelector('[data-test="border-radius-editor"] .border-radius-editor__main > .control-surface');
     const toggle = shadow?.querySelector('[data-test="border-radius-expand"]');
     const opacityBounds = opacityField?.getBoundingClientRect();
     const radiusBounds = radiusField?.getBoundingClientRect();
@@ -509,16 +509,16 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   await expect(page.locator('[data-test="border-radius-editor"] [data-test="border-radius-collapse"]')).toHaveCount(1);
   await expect(page.locator('[data-test="border-radius-editor"] [data-test^="side-value-"]')).toHaveCount(4);
   const expandedRadiusGridColumn = await page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
-    const individuals = shadow?.querySelector('[data-test="border-radius-editor"] .dt-border-radius-editor__individuals');
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
+    const individuals = shadow?.querySelector('[data-test="border-radius-editor"] .border-radius-editor__individuals');
     return individuals ? getComputedStyle(individuals).gridColumn : "";
   });
   expect(expandedRadiusGridColumn).toBe("1 / span 2");
   const expandedRadiusPositions = await page.evaluate(() => {
-    const shadow = document.getElementById("design-tool-root")?.shadowRoot;
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
     const opacity = shadow?.querySelector('[data-test="opacity-editor"]')?.getBoundingClientRect();
-    const radius = shadow?.querySelector('[data-test="border-radius-editor"] .dt-border-radius-editor__main')?.getBoundingClientRect();
-    const individuals = shadow?.querySelector('[data-test="border-radius-editor"] .dt-border-radius-editor__individuals')?.getBoundingClientRect();
+    const radius = shadow?.querySelector('[data-test="border-radius-editor"] .border-radius-editor__main')?.getBoundingClientRect();
+    const individuals = shadow?.querySelector('[data-test="border-radius-editor"] .border-radius-editor__individuals')?.getBoundingClientRect();
     return {
       sameTop: opacity && radius ? Math.abs(opacity.top - radius.top) <= 1 : false,
       individualsBelow: radius && individuals ? individuals.top > radius.bottom : false,
@@ -527,25 +527,25 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   expect(expandedRadiusPositions).toEqual({ sameTop: true, individualsBelow: true });
 
   const colorEditors = page.locator('[data-test="color-picker"]');
-  await expect(colorEditors.nth(0).locator(".dt-editor__title")).toHaveText("Color");
-  await expect(colorEditors.nth(1).locator(".dt-editor__title")).toHaveText("Background Color");
+  await expect(colorEditors.nth(0).locator(".editor__title")).toHaveText("Color");
+  await expect(colorEditors.nth(1).locator(".editor__title")).toHaveText("Background Color");
   await expect(colorEditors.locator('[data-test="color-swatch"]')).toHaveCount(0);
   await expect(colorEditors.locator('[data-test="color-computed"]')).toHaveCount(0);
   await expect(colorEditors.nth(0)).not.toContainText("Value");
-  await expect(colorEditors.nth(0).locator('[data-test="token-field"]')).toHaveClass(/dt-token-field--color/);
+  await expect(colorEditors.nth(0).locator('[data-test="token-field"]')).toHaveClass(/token-field--color/);
 
   await page.locator(".hero h1").click();
   await waitForEditors(page);
   const emptyBackground = page.locator('[data-test="color-picker"][data-property="background-color"]');
   await expect(emptyBackground.locator('[data-test="token-field"]')).toHaveCount(0);
-  await expect(emptyBackground.locator('.dt-editor__title-row [data-test="add-color"]')).toHaveClass(/dt-icon-button--quiet/);
+  await expect(emptyBackground.locator('.editor__title-row [data-test="add-color"]')).toHaveClass(/icon-button--quiet/);
   await emptyBackground.locator('[data-test="add-color"]').click();
   await expect(emptyBackground.locator('[data-test="token-field"]')).toBeVisible();
   await expect(emptyBackground.locator('[data-test="raw-input"]')).toHaveValue("");
 
   const emptyBorder = page.locator('[data-test="border-editor"]');
-  await expect(emptyBorder.locator('.dt-editor__title-row [data-test="add-border"]')).toHaveClass(/dt-icon-button--quiet/);
-  await expect(emptyBorder.locator('.dt-border')).toHaveCount(0);
+  await expect(emptyBorder.locator('.editor__title-row [data-test="add-border"]')).toHaveClass(/icon-button--quiet/);
+  await expect(emptyBorder.locator('.border')).toHaveCount(0);
 });
 
 test("dev: removing a background color hides the transparent empty state", async ({ page }) => {

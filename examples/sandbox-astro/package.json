@@ -16,8 +16,8 @@
   },
   "dependencies": {
     "@astrojs/react": "^4.4.2",
-    "@design-tool/astro": "workspace:*",
-    "@design-tool/inspector": "workspace:*",
+    "@nudge-ui/astro": "workspace:*",
+    "@nudge-ui/inspector": "workspace:*",
     "astro": "^5.18.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

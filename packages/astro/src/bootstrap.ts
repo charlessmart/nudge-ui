@@ -1,14 +1,14 @@
-import { bootstrapDesignTool, configureDesignToolRuntime, detectFramework } from "@design-tool/inspector";
+import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework } from "@nudge-ui/inspector";
 import {
-  designToolProjectId,
+  nudgeUiProjectId,
   tokenCatalog,
   tokenDiagnostics,
   tokenGeneration,
   tokens,
 } from "virtual:design-tokens";
-import { componentContracts } from "virtual:design-tool-components";
+import { componentContracts } from "virtual:nudge-ui-components";
 
-const DESIGN_TOOL_MOUNT_ID = "design-tool-root";
+const NUDGE_UI_MOUNT_ID = "nudge-ui-root";
 
 /**
  * Astro's structural scoping grammar, declared at the host seam (ADR-0011).
@@ -52,8 +52,8 @@ const ASTRO_SOURCE_COORDINATES = {
  * attributes added server-side.
  */
 function configure(): void {
-  configureDesignToolRuntime({
-    projectId: designToolProjectId,
+  configureNudgeUiRuntime({
+    projectId: nudgeUiProjectId,
     host: "astro",
     framework: "Astro",
     stylingSystem: detectFramework(tokens).stylingSystem,
@@ -72,13 +72,13 @@ function configure(): void {
 }
 
 function createMountElement(): HTMLElement {
-  const existing = document.getElementById(DESIGN_TOOL_MOUNT_ID);
+  const existing = document.getElementById(NUDGE_UI_MOUNT_ID);
   if (existing !== null && existing.isConnected) return existing;
   const mount = existing ?? document.createElement("div");
-  mount.id = DESIGN_TOOL_MOUNT_ID;
+  mount.id = NUDGE_UI_MOUNT_ID;
   document.body.append(mount);
   return mount;
 }
 
 configure();
-bootstrapDesignTool(createMountElement());
+bootstrapNudgeUi(createMountElement());

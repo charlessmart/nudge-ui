@@ -3,7 +3,7 @@
  * diagnostics, and immutable snapshots.
  *
  * This Node/build-time seam is intentionally absent from the browser-safe
- * `@design-tool/css` export graph.
+ * `@nudge-ui/css` export graph.
  */
 import type {
   TokenCatalogDiagnosticCode,

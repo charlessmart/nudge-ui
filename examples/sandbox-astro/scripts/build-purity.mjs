@@ -1,7 +1,7 @@
 // Production-purity gate for the Astro fixture (ADR-0002 / ADR-0011).
 //
-// Runs a real `astro build` and fails if ANY emitted file carries Design Tool
-// artifacts: identity attributes, the inspector mount, or any @design-tool
+// Runs a real `astro build` and fails if ANY emitted file carries Nudge UI
+// artifacts: identity attributes, the inspector mount, or any @nudge-ui
 // runtime reference. Exit code is the API.
 import { execSync } from "node:child_process";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -11,9 +11,9 @@ const FORBIDDEN = [
   // Covers both the response-level layer (`data-cid="astro:…"`) and the
   // island JSX transform's injections; the fixture never writes these itself.
   "data-cid",
-  "design-tool-root",
-  "@design-tool/",
-  "__designTool",
+  "nudge-ui-root",
+  "@nudge-ui/",
+  "__nudgeUi",
 ];
 
 function walk(dir, files = []) {
@@ -55,4 +55,4 @@ if (violations > 0) {
   console.error(`\nBuild purity FAILED: ${violations} violation(s).`);
   process.exit(1);
 }
-console.log("\nBuild purity OK: no Design Tool artifacts in astro build output.");
+console.log("\nBuild purity OK: no Nudge UI artifacts in astro build output.");

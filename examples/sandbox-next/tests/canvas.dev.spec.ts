@@ -15,13 +15,13 @@ import type { Page } from "@playwright/test";
 async function inspectorReady(page: Page): Promise<void> {
   await page.goto("/");
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
   await expect(page.locator('[data-test="inspect-tab"]')).toBeAttached();
   // The inspection bridge installs before the panel renders, so once this
   // lands the mode toggle exists and locator clicks auto-wait for it.
   await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __designTool?: unknown }).__designTool)))
+    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
 }
 
@@ -29,11 +29,11 @@ async function inspectorReady(page: Page): Promise<void> {
 async function cardsReady(page: Page): Promise<void> {
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await page.waitForFunction(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const iframes = [...(sr?.querySelectorAll<HTMLIFrameElement>("iframe[data-test^='canvas-card-iframe-']") ?? [])];
     return iframes.length > 0 && iframes.every((f) => {
       try {
-        return Boolean((f.contentWindow as (Window & { __designTool?: unknown }) | null)?.__designTool);
+        return Boolean((f.contentWindow as (Window & { __nudgeUi?: unknown }) | null)?.__nudgeUi);
       } catch {
         return false;
       }
@@ -113,7 +113,7 @@ test("dev: links inside a card discover new route cards", async ({ page }) => {
   });
 
   await page.waitForFunction(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const paths = [...(sr?.querySelectorAll("[data-card-id]") ?? [])].map((c) => {
       const f = c.querySelector("iframe");
       try {
@@ -137,7 +137,7 @@ test("dev: navigation intent focuses an existing card for a known route", async 
   await firstFrame.locator('a[href="/second"]').click();
 
   await page.waitForFunction(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const paths = [...(sr?.querySelectorAll("[data-card-id]") ?? [])].map((c) => {
       const f = c.querySelector("iframe");
       try {
@@ -161,7 +161,7 @@ test("dev: navigation intent focuses an existing card for a known route", async 
 
   await expect
     .poll(() => page.evaluate(() => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       return sr?.querySelectorAll("[data-card-id]").length ?? 0;
     }), { timeout: 15_000 })
     .toBe(2);
@@ -196,19 +196,19 @@ test("dev: canvas layout is durable across a controller reload", async ({ page }
   const cardFrame = page.frames().find((f) => f !== page.mainFrame())!;
   await cardFrame.locator('a[href="/second"]').click();
   await page.waitForFunction(() => {
-    const sr = document.getElementById("design-tool-root")?.shadowRoot;
+    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     return (sr?.querySelectorAll("[data-card-id]") ?? []).length >= 2;
   }, undefined, { timeout: 45_000 });
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("design-tool-root"))))
+    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
     .toBe(true);
   // The persisted session restores canvas mode without touching the toggle.
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible({ timeout: 30_000 });
   await expect
     .poll(() => page.evaluate(() => {
-      const sr = document.getElementById("design-tool-root")?.shadowRoot;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
       return sr?.querySelectorAll("[data-card-id]").length ?? 0;
     }))
     .toBe(2);

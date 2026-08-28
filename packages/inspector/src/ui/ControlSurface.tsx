@@ -22,9 +22,9 @@ export function ControlSurface({
   ...props
 }: ControlSurfaceProps): ReactElement {
   const classes = [
-    "dt-control-surface",
-    appearance === "embedded" ? "dt-control-surface--embedded" : "",
-    density === "compact" ? "dt-control-surface--compact" : "",
+    "control-surface",
+    appearance === "embedded" ? "control-surface--embedded" : "",
+    density === "compact" ? "control-surface--compact" : "",
     className ?? "",
   ].filter(Boolean).join(" ");
 

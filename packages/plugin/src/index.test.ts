@@ -3,9 +3,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { createTokenInventory } from "@design-tool/css/token-inventory";
+import { createTokenInventory } from "@nudge-ui/css/token-inventory";
 import {
-  designTool as createDesignToolPlugins,
+  nudgeUi as createNudgeUiPlugins,
   extractViteModuleCss,
   isHostApplicationSource,
   transformIndexHtmlHtml,
@@ -13,8 +13,8 @@ import {
 import { createTailwindV4NamingContribution } from "./adapters/tailwindV4.ts";
 import { materializeVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
 
-const designTool = (...args: Parameters<typeof createDesignToolPlugins>) =>
-  createDesignToolPlugins(...args)[0]!;
+const nudgeUi = (...args: Parameters<typeof createNudgeUiPlugins>) =>
+  createNudgeUiPlugins(...args)[0]!;
 
 interface ThemeContractFixture {
   vars: Record<string, unknown>;
@@ -42,7 +42,7 @@ function codeContainsName(code: string | null | undefined, name: string): boolea
 }
 
 describe("isHostApplicationSource", () => {
-  const root = join(tmpdir(), "design-tool-app");
+  const root = join(tmpdir(), "nudge-ui-app");
   it("includes source files inside the resolved Vite root", () => {
     expect(isHostApplicationSource(
       join(root, "src/ui/Button.tsx"),
@@ -62,7 +62,7 @@ describe("isHostApplicationSource", () => {
       join(root, "node_modules", "design-system", "Button.tsx"),
       root,
     )).toBe(false);
-    expect(isHostApplicationSource("\0virtual:design-tool-inspector", root))
+    expect(isHostApplicationSource("\0virtual:nudge-ui-inspector", root))
       .toBe(false);
   });
 });
@@ -71,12 +71,12 @@ describe("transformIndexHtmlHtml", () => {
   it("injects the mount div + script before </body> in serve mode", () => {
     const out = transformIndexHtmlHtml(SAMPLE_HTML, "serve");
     expect(out).not.toBeNull();
-    expect(out!).toContain('<div id="design-tool-root"></div>');
+    expect(out!).toContain('<div id="nudge-ui-root"></div>');
     expect(out!).toContain(
-      '<script type="module" src="/@id/__x00__virtual:design-tool-inspector"></script>',
+      '<script type="module" src="/@id/__x00__virtual:nudge-ui-inspector"></script>',
     );
-    expect(out!.indexOf("<body>")).toBeLessThan(out!.indexOf('id="design-tool-root"'));
-    expect(out!.indexOf('id="design-tool-root"')).toBeLessThan(out!.lastIndexOf("</body>"));
+    expect(out!.indexOf("<body>")).toBeLessThan(out!.indexOf('id="nudge-ui-root"'));
+    expect(out!.indexOf('id="nudge-ui-root"')).toBeLessThan(out!.lastIndexOf("</body>"));
   });
 
   it("returns null in build mode (ADR-0002)", () => {
@@ -89,14 +89,14 @@ describe("transformIndexHtmlHtml", () => {
     const noBody = `<div>no body</div>`;
     const out = transformIndexHtmlHtml(noBody, "serve");
     expect(out).not.toBeNull();
-    expect(out!).toContain('<div id="design-tool-root"></div>');
-    expect(out!.endsWith("<div id=\"design-tool-root\"></div>\n<script type=\"module\" src=\"/@id/__x00__virtual:design-tool-inspector\"></script>\n")).toBe(true);
+    expect(out!).toContain('<div id="nudge-ui-root"></div>');
+    expect(out!.endsWith("<div id=\"nudge-ui-root\"></div>\n<script type=\"module\" src=\"/@id/__x00__virtual:nudge-ui-inspector\"></script>\n")).toBe(true);
   });
 });
 
-describe("designTool plugin virtual inspector module", () => {
+describe("nudgeUi plugin virtual inspector module", () => {
   it("orders identity transforms before pre plugins and CSS observation after them", () => {
-    const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
+    const [plugin, transformedObserver] = createNudgeUiPlugins() as unknown as [{
       enforce?: string;
       transform?: { order?: string };
     }, { enforce?: string; transform?: unknown }];
@@ -107,54 +107,54 @@ describe("designTool plugin virtual inspector module", () => {
   });
 
   it("resolveId maps both bare and resolved forms of the inspector virtual id", () => {
-    const plugin = designTool() as unknown as {
+    const plugin = nudgeUi() as unknown as {
       resolveId?: (id: string) => string | null;
       load?: (id: string) => string | null | Promise<string | null>;
     };
-    expect(plugin.resolveId!("virtual:design-tool-inspector")).toBe(
-      "\0virtual:design-tool-inspector",
+    expect(plugin.resolveId!("virtual:nudge-ui-inspector")).toBe(
+      "\0virtual:nudge-ui-inspector",
     );
-    expect(plugin.resolveId!("\0virtual:design-tool-inspector")).toBe(
-      "\0virtual:design-tool-inspector",
+    expect(plugin.resolveId!("\0virtual:nudge-ui-inspector")).toBe(
+      "\0virtual:nudge-ui-inspector",
     );
   });
 
-  it("load emits a bootstrap that calls bootstrapDesignTool (default command is serve)", async () => {
-    const plugin = designTool() as unknown as {
+  it("load emits a bootstrap that calls bootstrapNudgeUi (default command is serve)", async () => {
+    const plugin = nudgeUi() as unknown as {
       load?: (id: string) => string | null | Promise<string | null>;
     };
-    const code = await plugin.load!("\0virtual:design-tool-inspector");
+    const code = await plugin.load!("\0virtual:nudge-ui-inspector");
     expect(code).not.toBeNull();
-    expect(code!).toContain('from "@design-tool/inspector"');
-    expect(code!).toContain("bootstrapDesignTool");
-    expect(code!).toContain('getElementById("design-tool-root")');
+    expect(code!).toContain('from "@nudge-ui/inspector"');
+    expect(code!).toContain("bootstrapNudgeUi");
+    expect(code!).toContain('getElementById("nudge-ui-root")');
   });
 
   it("configures the inspector from live Vite virtual modules before mounting", async () => {
-    const plugin = designTool() as unknown as {
+    const plugin = nudgeUi() as unknown as {
       load?: (id: string) => string | null | Promise<string | null>;
     };
-    const code = await plugin.load!("\0virtual:design-tool-inspector");
-    expect(code).toContain("configureDesignToolRuntime({");
+    const code = await plugin.load!("\0virtual:nudge-ui-inspector");
+    expect(code).toContain("configureNudgeUiRuntime({");
     expect(code).toContain('from "virtual:design-tokens"');
-    expect(code).toContain('from "virtual:design-tool-components"');
+    expect(code).toContain('from "virtual:nudge-ui-components"');
     expect(code).toContain('host: "vite-react"');
     expect(code).toContain('framework: "React"');
     expect(code).toContain("capabilities: { canvas: true, componentSemantics: true }");
     expect(code).toContain("stylingSystem: detectFramework(tokens).stylingSystem");
-    expect(code).toContain("projectId: designToolProjectId");
+    expect(code).toContain("projectId: nudgeUiProjectId");
     expect(code).toContain("tokenCatalog,");
     expect(code).toContain("tokens,");
     expect(code).toContain("tokenDiagnostics,");
     expect(code).toContain("tokenGeneration,");
     expect(code).toContain("componentContracts,");
-    expect(code!.indexOf("configureDesignToolRuntime({")).toBeLessThan(
-      code!.indexOf("bootstrapDesignTool(__dt_root)"),
+    expect(code!.indexOf("configureNudgeUiRuntime({")).toBeLessThan(
+      code!.indexOf("bootstrapNudgeUi(__dt_root)"),
     );
   });
 });
 
-describe("designTool Astro component-style unwrapping (ADR-0011)", () => {
+describe("nudgeUi Astro component-style unwrapping (ADR-0011)", () => {
   it("extracts the stylesheet embedded in Vite CSS-module JS wrappers", () => {
     const wrapper = [
       'import { updateStyle as __vite__updateStyle } from "/@vite/client"',
@@ -173,7 +173,7 @@ describe("designTool Astro component-style unwrapping (ADR-0011)", () => {
   });
 
   it("feeds Astro component-style modules into the token catalog as scoped theme tables", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-astro-css-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-astro-css-"));
     try {
       const declarations = Array.from({ length: 8 }, (_, index) => `--card-v${index}: ${index}px;`).join("");
       const wrapper = [
@@ -191,7 +191,7 @@ describe("designTool Astro component-style unwrapping (ADR-0011)", () => {
         JSON.stringify(css),
       );
 
-      const [plugin, observer] = createDesignToolPlugins() as unknown as [
+      const [plugin, observer] = createNudgeUiPlugins() as unknown as [
         {
           configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
           load?: (id: string) => string | null | Promise<string | null>;
@@ -225,7 +225,7 @@ describe("designTool Astro component-style unwrapping (ADR-0011)", () => {
   });
 });
 
-describe("designTool react alias configuration", () => {  // A root with React installed is required for the resolver to find entries;
+describe("nudgeUi react alias configuration", () => {  // A root with React installed is required for the resolver to find entries;
   // the sandbox fixture is a stable in-repo candidate.
   const sandboxRoot = join(
     fileURLToPath(new URL(".", import.meta.url)),
@@ -238,35 +238,35 @@ describe("designTool react alias configuration", () => {  // A root with React i
   ) => { resolve: { alias: unknown[] } } | undefined;
 
   it("aliases React to one instance by default in dev", () => {
-    const plugin = designTool() as unknown as { config?: ConfigHook };
+    const plugin = nudgeUi() as unknown as { config?: ConfigHook };
     const result = plugin.config?.({ root: sandboxRoot }, serveEnv);
     expect(result?.resolve.alias.length ?? 0).toBeGreaterThan(0);
   });
 
   it("returns no alias configuration when skipReactAliases is set (Astro SSR)", () => {
-    const plugin = designTool({ skipReactAliases: true }) as unknown as {
+    const plugin = nudgeUi({ skipReactAliases: true }) as unknown as {
       config?: ConfigHook;
     };
     expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toBeUndefined();
   });
 
   it("returns no alias configuration during production builds", () => {
-    const plugin = designTool() as unknown as { config?: ConfigHook };
+    const plugin = nudgeUi() as unknown as { config?: ConfigHook };
     expect(
       plugin.config?.({ root: sandboxRoot }, { command: "build" }),
     ).toBeUndefined();
   });
 });
 
-describe("designTool component contract catalog", () => {
+describe("nudgeUi component contract catalog", () => {
   it("scans local TypeScript component contracts into a dev virtual module", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-components-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-components-"));
     try {
       writeFileSync(
         join(root, "Button.tsx"),
         `export function Button(props: { variant: "primary" | "secondary"; disabled?: boolean }) { return <button /> }`,
       );
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         buildStart?: () => void;
         resolveId?: (id: string) => string | null;
@@ -274,10 +274,10 @@ describe("designTool component contract catalog", () => {
       };
       plugin.configResolved!({ root, command: "serve" });
       plugin.buildStart!();
-      expect(plugin.resolveId!("virtual:design-tool-components")).toBe(
-        "\0virtual:design-tool-components",
+      expect(plugin.resolveId!("virtual:nudge-ui-components")).toBe(
+        "\0virtual:nudge-ui-components",
       );
-      const code = await plugin.load!("\0virtual:design-tool-components");
+      const code = await plugin.load!("\0virtual:nudge-ui-components");
       expect(code).toContain('"componentId":"Button#Button"');
       expect(code).toContain('"options":["primary","secondary"]');
       expect(code).toContain('"control":"boolean"');
@@ -287,18 +287,18 @@ describe("designTool component contract catalog", () => {
   });
 
   it("returns an empty component catalog for production builds", async () => {
-    const plugin = designTool() as unknown as {
+    const plugin = nudgeUi() as unknown as {
       configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
       load?: (id: string) => string | null | Promise<string | null>;
     };
     plugin.configResolved!({ root: "/project", command: "build" });
-    expect(await plugin.load!("\0virtual:design-tool-components")).toContain(
+    expect(await plugin.load!("\0virtual:nudge-ui-components")).toContain(
       "componentContracts = []",
     );
   });
 
   it("merges package-published component metadata into the dev catalog", async () => {
-    const plugin = designTool({
+    const plugin = nudgeUi({
       componentMetadata: [{
         componentId: "@work/design-system#Button",
         name: "Button",
@@ -314,13 +314,13 @@ describe("designTool component contract catalog", () => {
     }) as unknown as {
       load?: (id: string) => string | null | Promise<string | null>;
     };
-    expect(await plugin.load!("\0virtual:design-tool-components"))
+    expect(await plugin.load!("\0virtual:nudge-ui-components"))
       .toContain('"componentId":"@work/design-system#Button"');
   });
 });
 
-describe("designTool token catalog compiler", () => {
-  it("emits the empty token module in production builds (ADR-0002)", async () => {    const plugin = designTool() as unknown as {
+describe("nudgeUi token catalog compiler", () => {
+  it("emits the empty token module in production builds (ADR-0002)", async () => {    const plugin = nudgeUi() as unknown as {
       configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
       load?: (id: string) => string | null | Promise<string | null>;
     };
@@ -330,11 +330,11 @@ describe("designTool token catalog compiler", () => {
     expect(code).toContain("tokens = []");
     expect(code).toContain("tokenDiagnostics = []");
     expect(code).toContain("tokenGeneration = \"\"");
-    expect(code).toContain("designToolProjectId = \"\"");
+    expect(code).toContain("nudgeUiProjectId = \"\"");
   });
 
   it("discovers only Vite-resolved package CSS imports with package provenance", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-package-css-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-package-css-"));
     const root = join(parent, "app");
     const packageRoot = join(parent, "node_modules", "@fixture");
     const appCss = join(root, "app.css");
@@ -359,7 +359,7 @@ describe("designTool token catalog compiler", () => {
         transformRequest: async () => null,
         moduleGraph: activeModuleGraph(appCss),
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         configureServer?: (server: unknown) => void;
         buildStart?: () => void;
@@ -391,7 +391,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("does not activate package CSS imported only by an unreferenced stylesheet", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-dead-package-css-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-dead-package-css-"));
     const root = join(parent, "app");
     const packageRoot = join(parent, "node_modules", "@fixture");
     const activeCss = join(root, "active.css");
@@ -413,7 +413,7 @@ describe("designTool token catalog compiler", () => {
         transformRequest: async () => null,
         moduleGraph: activeModuleGraph(activeCss),
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved(config: { root: string; command: "serve" }): void;
         configureServer(server: unknown): void;
         buildStart(): void;
@@ -432,13 +432,13 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("does not claim independent active roots have authoritative cascade order", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-root-order-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-root-order-"));
     const firstCss = join(root, "first.css");
     const secondCss = join(root, "second.css");
     try {
       writeFileSync(firstCss, ":root { --first: 1px; }");
       writeFileSync(secondCss, ":root { --second: 2px; }");
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved(config: { root: string; command: "serve" }): void;
         configureServer(server: unknown): void;
         buildStart(): void;
@@ -466,7 +466,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("retains graph ordering when the CSS transform observes the stylesheet again", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-transform-order-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-transform-order-"));
     const appCss = join(root, "app.css");
     try {
       writeFileSync(appCss, ":root { --brand: #123456; }");
@@ -490,7 +490,7 @@ describe("designTool token catalog compiler", () => {
         },
         moduleGraph: activeModuleGraph(appCss),
       };
-      const plugins = createDesignToolPlugins() as unknown as [MainPlugin, typeof transformedObserver];
+      const plugins = createNudgeUiPlugins() as unknown as [MainPlugin, typeof transformedObserver];
       [mainPlugin, transformedObserver] = plugins;
       mainPlugin.configResolved({ root, command: "serve" });
       mainPlugin.configureServer(server);
@@ -511,7 +511,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("transforms discovered host CSS before a cold virtual token-module load", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-cold-transform-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-cold-transform-"));
     const appCss = join(root, "app.css");
     try {
       writeFileSync(appCss, "@theme { --color-brand: #123456; }");
@@ -530,7 +530,7 @@ describe("designTool token catalog compiler", () => {
           invalidateModule: (module: unknown) => { invalidated.push(module); },
         },
       };
-      const [plugin, observer] = createDesignToolPlugins() as unknown as [{
+      const [plugin, observer] = createNudgeUiPlugins() as unknown as [{
         configResolved(config: { root: string; command: "serve" }): void;
         configureServer(server: unknown): void;
         buildStart(): void;
@@ -550,7 +550,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("removes package CSS when component HMR drops its stylesheet import", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-component-css-hmr-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-component-css-hmr-"));
     const root = join(parent, "app");
     const packageRoot = join(parent, "node_modules", "@fixture");
     const component = join(root, "App.tsx");
@@ -564,7 +564,7 @@ describe("designTool token catalog compiler", () => {
       writeFileSync(packageCss, ":root { --package-active: 4px; }");
 
       const tokenVirtual = { id: "\0virtual:design-tokens" };
-      const componentVirtual = { id: "\0virtual:design-tool-components" };
+      const componentVirtual = { id: "\0virtual:nudge-ui-components" };
       const componentModule = { id: component };
       const invalidated = new Set<unknown>();
       const moduleGraph = {
@@ -588,7 +588,7 @@ describe("designTool token catalog compiler", () => {
         },
         moduleGraph,
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved(config: { root: string; command: "serve" }): void;
         configureServer(server: unknown): void;
         buildStart(): void;
@@ -621,7 +621,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("ignores conventional build output when compiling the dev token catalog", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-build-output-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-build-output-"));
     const root = join(parent, "app");
     const sourceCss = join(root, "app.css");
     const outputCss = join(root, "build", "client", "app.css");
@@ -630,7 +630,7 @@ describe("designTool token catalog compiler", () => {
       writeFileSync(sourceCss, ":root { --color-content-primary: #20211f; }");
       writeFileSync(outputCss, ":root { --color-content-primary: #ffffff; }");
 
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build"; build?: { outDir?: string } }) => void;
         configureServer?: (server: unknown) => void;
         buildStart?: () => void;
@@ -656,7 +656,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("falls back to Node package exports when a CSS import bypasses Vite resolution", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-package-css-exports-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-package-css-exports-"));
     const root = join(parent, "app");
     const packageRoot = join(parent, "node_modules", "@fixture", "design-system");
     const appCss = join(root, "app.css");
@@ -681,7 +681,7 @@ describe("designTool token catalog compiler", () => {
         transformRequest: async () => null,
         moduleGraph: activeModuleGraph(appCss),
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         configureServer?: (server: unknown) => void;
         buildStart?: () => void;
@@ -704,7 +704,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("refreshes and removes reachable package CSS entries on HMR", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-package-css-hmr-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-package-css-hmr-"));
     const root = join(parent, "app");
     const packageRoot = join(parent, "node_modules", "@fixture");
     const appCss = join(root, "app.css");
@@ -733,7 +733,7 @@ describe("designTool token catalog compiler", () => {
           invalidateModule: () => undefined,
         },
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         configureServer?: (server: unknown) => void;
         buildStart?: () => void;
@@ -773,7 +773,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("enriches active package CSS with a resolved published contract and refreshes it on HMR", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-vanilla-contract-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-vanilla-contract-"));
     const root = join(parent, "app");
     const packageRoot = join(parent, "node_modules", "@fixture");
     const appCss = join(root, "app.css");
@@ -804,7 +804,7 @@ describe("designTool token catalog compiler", () => {
           invalidateModule: () => undefined,
         },
       };
-      const plugin = designTool({
+      const plugin = nudgeUi({
         vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
       }) as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
@@ -846,7 +846,7 @@ describe("designTool token catalog compiler", () => {
     ["missing export", "/fixture/contract.ts", {}, "vanilla-extract-contract-missing-export"],
     ["unsupported shape", "/fixture/contract.ts", { vars: "not-an-object" }, "vanilla-extract-contract-unsupported-shape"],
   ])("fails soft with a %s published-contract diagnostic", async (_label, resolvedId, namespace, code) => {
-    const plugin = designTool({
+    const plugin = nudgeUi({
       vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
     }) as unknown as {
       configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
@@ -865,10 +865,10 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("keeps CSS-derived tokens available when an optional contract export is invalid", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-invalid-contract-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-invalid-contract-"));
     try {
       writeFileSync(join(root, "app.css"), ':root { --still-available: #123456; }');
-      const plugin = designTool({
+      const plugin = nudgeUi({
         vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
       }) as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
@@ -892,10 +892,10 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("keeps authored Tailwind v4 theme tokens editable project tokens", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-catalog-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-catalog-"));
     try {
       writeFileSync(join(root, "app.css"), '@import "tailwindcss"; @theme { --color-brand: #123456; }');
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         buildStart?: () => void;
         load?: (id: string) => string | null | Promise<string | null>;
@@ -920,7 +920,7 @@ describe("designTool token catalog compiler", () => {
 
   it("reconciles authored and transformed observations independent of feed order", async () => {
     const build = async (transformFirst: boolean) => {
-      const parent = mkdtempSync(join(tmpdir(), "design-tool-reconcile-order-"));
+      const parent = mkdtempSync(join(tmpdir(), "nudge-ui-reconcile-order-"));
       const root = join(parent, "app");
       const appCss = join(root, "app.css");
       try {
@@ -928,7 +928,7 @@ describe("designTool token catalog compiler", () => {
         const authored = '@theme { --color-brand: #123456; }';
         const transformed = ':root, :host { --color-brand: #123456; --tw-brand-opacity: 1; }';
         writeFileSync(appCss, authored);
-        const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
+        const [plugin, transformedObserver] = createNudgeUiPlugins() as unknown as [{
           configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
           buildStart?: () => void;
           load?: (id: string) => string | null | Promise<string | null>;
@@ -973,7 +973,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("retains the authored snapshot with a recoverable diagnostic when the post-transform request fails", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-transform-failure-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-transform-failure-"));
     const root = join(parent, "app");
     const appCss = join(root, "app.css");
     try {
@@ -984,7 +984,7 @@ describe("designTool token catalog compiler", () => {
         transformRequest: async () => { throw new Error("transform unavailable"); },
         moduleGraph: activeModuleGraph(appCss),
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         configureServer?: (server: unknown) => void;
         buildStart?: () => void;
@@ -1012,7 +1012,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("records a failed-transform diagnostic on HMR and clears it on recovery", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-transform-hmr-recovery-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-transform-hmr-recovery-"));
     const root = join(parent, "app");
     const appCss = join(root, "app.css");
     try {
@@ -1032,7 +1032,7 @@ describe("designTool token catalog compiler", () => {
           invalidateModule: () => undefined,
         },
       };
-      const [plugin, transformedObserver] = createDesignToolPlugins() as unknown as [{
+      const [plugin, transformedObserver] = createNudgeUiPlugins() as unknown as [{
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         configureServer?: (server: unknown) => void;
         buildStart?: () => void;
@@ -1075,7 +1075,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("treats an unreadable HMR file as a removal, not a failed transform", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-transform-removal-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-transform-removal-"));
     const root = join(parent, "app");
     const appCss = join(root, "app.css");
     try {
@@ -1090,7 +1090,7 @@ describe("designTool token catalog compiler", () => {
           invalidateModule: () => undefined,
         },
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         configureServer?: (server: unknown) => void;
         buildStart?: () => void;
@@ -1121,7 +1121,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("publishes the inventory snapshot verbatim, with styling contributions merged inside it", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-snapshot-verbatim-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-snapshot-verbatim-"));
     const root = join(parent, "app");
     const appCss = join(root, "app.css");
     const packageRoot = join(parent, "node_modules", "@fixture");
@@ -1147,7 +1147,7 @@ describe("designTool token catalog compiler", () => {
         transformRequest: async () => null,
         moduleGraph: activeModuleGraph(appCss),
       };
-      const plugin = designTool({
+      const plugin = nudgeUi({
         vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
       }) as unknown as {
         configResolved?: (config: { root: string; command: "serve" }) => void;
@@ -1210,7 +1210,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("bumps the published generation exactly once per observable HMR change and treats an identical follow-up as a no-op", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-hmr-once-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-hmr-once-"));
     const root = join(parent, "app");
     const appCss = join(root, "app.css");
     try {
@@ -1226,7 +1226,7 @@ describe("designTool token catalog compiler", () => {
           invalidateModule: (m: { id: string }) => { invalidations.push(m.id); },
         },
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;
         configureServer?: (server: unknown) => void;
         buildStart?: () => void;
@@ -1286,7 +1286,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("publishes real watcher add and unlink events exactly once", async () => {
-    const root = mkdtempSync(join(tmpdir(), "design-tool-watch-hmr-"));
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-watch-hmr-"));
     const addedCss = join(root, "added.css");
     try {
       const callbacks: Partial<Record<"add" | "unlink", (file: string) => Promise<void>>> = {};
@@ -1310,7 +1310,7 @@ describe("designTool token catalog compiler", () => {
           onFileDelete: () => undefined,
         },
       };
-      const plugin = designTool() as unknown as {
+      const plugin = nudgeUi() as unknown as {
         configResolved(config: { root: string; command: "serve" }): void;
         configureServer(server: unknown): void;
         buildStart(): void;
@@ -1351,7 +1351,7 @@ describe("designTool token catalog compiler", () => {
   });
 
   it("bumps the published generation exactly once for a theme-contract HMR change and ignores an identical refresh", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "design-tool-contract-hmr-once-"));
+    const parent = mkdtempSync(join(tmpdir(), "nudge-ui-contract-hmr-once-"));
     const root = join(parent, "app");
     const contractId = join(root, "contract.ts");
     try {
@@ -1381,7 +1381,7 @@ describe("designTool token catalog compiler", () => {
           },
         },
       };
-      const plugin = designTool({
+      const plugin = nudgeUi({
         vanillaExtract: { themeContractModule: "@fixture/contract", themeContractExport: "vars" },
       }) as unknown as {
         configResolved?: (config: { root: string; command: "serve" | "build" }) => void;

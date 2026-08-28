@@ -9,31 +9,31 @@ type Fixture = {
 
 const fixtures: Fixture[] = [
   {
-    target: "design-tool-content-primary",
+    target: "nudge-ui-content-primary",
     property: "color",
     currentToken: "--color-content-primary",
     peerToken: "--color-content-secondary",
   },
   {
-    target: "design-tool-spacing",
+    target: "nudge-ui-spacing",
     property: "padding-top",
     currentToken: "--spacing-3x",
     peerToken: "--spacing-4x",
   },
   {
-    target: "design-tool-radius",
+    target: "nudge-ui-radius",
     property: "border-radius",
     currentToken: "--roundness-4x",
     peerToken: "--roundness-5x",
   },
   {
-    target: "design-tool-typography",
+    target: "nudge-ui-typography",
     property: "font-size",
     currentToken: "--font-size-title-3",
     peerToken: "--font-size-title-4",
   },
   {
-    target: "design-tool-sprinkles",
+    target: "nudge-ui-sprinkles",
     property: "background-color",
     currentToken: "--color-surface-elevated-1x",
     peerToken: "--color-surface-secondary",
@@ -54,17 +54,17 @@ async function waitForField(
 }
 
 async function waitForFixture(page: import("@playwright/test").Page): Promise<void> {
-  const primary = page.getByTestId("design-tool-content-primary");
+  const primary = page.getByTestId("nudge-ui-content-primary");
   await expect(primary).toBeVisible();
   await expect(primary).toHaveAttribute("data-cid", "Text");
   await expect
-    .poll(() => page.evaluate(() => document.getElementById("design-tool-root")?.shadowRoot !== null))
+    .poll(() => page.evaluate(() => document.getElementById("nudge-ui-root")?.shadowRoot !== null))
     .toBe(true);
 }
 
 async function suggestions(page: import("@playwright/test").Page): Promise<string[]> {
   return await page.evaluate(() => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return Array.from(root?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
       .map((item) => item.textContent?.trim() ?? "");
   });
@@ -87,7 +87,7 @@ async function selectPeer(
     expect.arrayContaining([expect.stringContaining(peerToken)]),
   );
   await page.evaluate((token) => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     Array.from(root?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
       .find((item) => item.textContent?.includes(token))
       ?.click();
@@ -106,12 +106,12 @@ async function computed(
 
 async function managedSheet(page: import("@playwright/test").Page): Promise<string> {
   return await page.evaluate(() => {
-    return document.getElementById("design-tool-styles")?.textContent ?? "";
+    return document.getElementById("nudge-ui-styles")?.textContent ?? "";
   });
 }
 
 test("Newvato fixture exposes the published design-system token catalog", async ({ page }) => {
-  await page.goto("/__design-tool/e2e");
+  await page.goto("/__nudge-ui/e2e");
   await waitForFixture(page);
 
   await expect.poll(async () => {
@@ -129,7 +129,7 @@ test("Newvato fixture exposes the published design-system token catalog", async 
 
 for (const fixture of fixtures) {
   test(`Newvato ${fixture.target} resolves and swaps compatible ${fixture.property} tokens`, async ({ page }) => {
-    await page.goto("/__design-tool/e2e");
+    await page.goto("/__nudge-ui/e2e");
     await waitForFixture(page);
 
     const target = page.getByTestId(fixture.target);

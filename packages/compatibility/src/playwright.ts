@@ -25,8 +25,8 @@ export interface CompatibilityManagedPreview {
 async function inspectionFor(page: Page, selector: string): Promise<CompatibilityInspection | null> {
   return page.evaluate((target) => {
     const bridge = (window as Window & {
-      __designTool?: { inspect(value: string): CompatibilityInspection | null };
-    }).__designTool;
+      __nudgeUi?: { inspect(value: string): CompatibilityInspection | null };
+    }).__nudgeUi;
     return bridge?.inspect(target) ?? null;
   }, selector);
 }
@@ -53,12 +53,12 @@ async function selectToken(page: Page, property: string, token: string): Promise
   await expect(field).toBeAttached();
   await field.locator('[data-test="token-chip"]').click();
   await expect.poll(async () => page.evaluate((name) => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return Array.from(root?.querySelectorAll('[data-test="suggestion-item"]') ?? [])
       .some((item) => item.textContent?.includes(name));
   }, token)).toBe(true);
   await page.evaluate((name) => {
-    const root = document.getElementById("design-tool-root")?.shadowRoot;
+    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     const item = Array.from(root?.querySelectorAll<HTMLElement>('[data-test="suggestion-item"]') ?? [])
       .find((candidate) => candidate.textContent?.includes(name));
     if (!item) throw new Error(`Missing token suggestion ${name}`);
@@ -82,8 +82,8 @@ async function assertScenario(page: Page, scenario: CompatibilityScenario): Prom
   await page.goto(scenario.path ?? "/");
   await expect(page.locator(scenario.selector)).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as Window & {
-    __designTool?: { version: number };
-  }).__designTool?.version ?? null)).toBe(1);
+    __nudgeUi?: { version: number };
+  }).__nudgeUi?.version ?? null)).toBe(1);
   await callAction(page, scenario.beforeInspect);
   await expect(page.locator(scenario.selector)).toBeVisible();
 
@@ -246,10 +246,10 @@ export async function assertProductionContract(page: Page): Promise<void> {
       Array.from(element.attributes)
         .filter((attribute) => attribute.name.startsWith("data-"))
         .map((attribute) => `${attribute.name}=${attribute.value}`)),
-    inspectorRoot: document.querySelectorAll("#design-tool-root").length,
+    inspectorRoot: document.querySelectorAll("#nudge-ui-root").length,
     inspectorShell: document.querySelectorAll("[data-test^='inspector'], [data-test='canvas-host']").length,
-    managedStylesheet: document.querySelectorAll("#design-tool-styles").length,
-    runtimeState: ["__designTool", "__designTokens", "__designTokenCatalog", "__designTokenDiagnostics"]
+    managedStylesheet: document.querySelectorAll("#nudge-ui-styles").length,
+    runtimeState: ["__nudgeUi", "__designTokens", "__designTokenCatalog", "__designTokenDiagnostics"]
       .some((key) => key in window),
     html: document.documentElement.outerHTML,
     scripts: Array.from(document.scripts).map((script) => script.src),
@@ -259,9 +259,9 @@ export async function assertProductionContract(page: Page): Promise<void> {
   expect(facts.inspectorRoot, "production Inspector root").toBe(0);
   expect(facts.inspectorShell, "production Inspector/Canvas shell").toBe(0);
   expect(facts.managedStylesheet, "production managed stylesheet").toBe(0);
-  expect(facts.runtimeState, "production Design Tool runtime state").toBe(false);
-  expect(facts.html).not.toContain("virtual:design-tool-inspector");
+  expect(facts.runtimeState, "production Nudge UI runtime state").toBe(false);
+  expect(facts.html).not.toContain("virtual:nudge-ui-inspector");
   expect(facts.html).not.toContain("virtual:design-tokens");
-  expect(facts.html).not.toContain("__designTool");
-  expect(facts.scripts.some((src) => src.includes("/@id/") || src.includes("design-tool-inspector"))).toBe(false);
+  expect(facts.html).not.toContain("__nudgeUi");
+  expect(facts.scripts.some((src) => src.includes("/@id/") || src.includes("nudge-ui-inspector"))).toBe(false);
 }

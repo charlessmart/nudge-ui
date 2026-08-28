@@ -1,4 +1,4 @@
-import type { TokenDefinition, TokenEntry } from "@design-tool/css/model";
+import type { TokenDefinition, TokenEntry } from "@nudge-ui/css/model";
 import { INTERACTION_STATES } from "../styleState.ts";
 import type { InteractionState } from "../styleState.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
@@ -24,15 +24,15 @@ import type {
   TokenReference,
   TokenTable,
   ValueModifier,
-} from "@design-tool/css/model";
+} from "@nudge-ui/css/model";
 import {
   interpretValue,
   normalizeOpacityPercent,
   type Directionality,
   type InterpretedValueField,
-} from "@design-tool/css/value-semantics";
+} from "@nudge-ui/css/value-semantics";
 import { createInspectorValueContext, inspectorTokenOrigin } from "./valueSemanticsAdapter.ts";
-import { getDesignToolRuntimeConfig } from "../runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
 const MAX_PROPERTIES = 100;
 const VAR_REF = /var\(\s*(--[\w-]+)/g;
@@ -76,7 +76,7 @@ let tableCache: TokenTable | null = null;
 let tableSource: readonly TokenEntry[] | null = null;
 
 export function getTokenTable(): TokenTable {
-  const { tokens } = getDesignToolRuntimeConfig();
+  const { tokens } = getNudgeUiRuntimeConfig();
   if (tableCache !== null && tableSource === tokens) return tableCache;
   tableCache = buildTokenTable(tokens);
   tableSource = tokens;
@@ -127,7 +127,7 @@ function registerWithAncestors(el: HTMLElement): void {
  */
 export function getAvailableTokenEntriesForElement(
   el: HTMLElement,
-  definitions: readonly TokenDefinition[] = getDesignToolRuntimeConfig().tokenCatalog,
+  definitions: readonly TokenDefinition[] = getNudgeUiRuntimeConfig().tokenCatalog,
 ): TokenEntry[] {
   const revisions = getDocumentRevisions(el.ownerDocument ?? document);
   const cached = tokenEntriesCache.get(el);
@@ -180,7 +180,7 @@ function hydrateTokenCatalogFromCssom(
   const known = new Set(definitions.filter(needsHydration).map((definition) => definition.cssName));
   const declarations = new Map<string, TokenDefinition["declarations"]>();
   for (const rule of collectCssomRules(doc).rules) {
-    if (rule.source === "#design-tool-styles") continue;
+    if (rule.source === "#nudge-ui-styles") continue;
     for (const declaration of rule.declarations) {
       if (!known.has(declaration.property)) continue;
       const wrappers = [
@@ -247,7 +247,7 @@ function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
  */
 export function getAvailableTokenCatalog(
   root: HTMLElement = document.documentElement,
-  definitions: readonly TokenDefinition[] = getDesignToolRuntimeConfig().tokenCatalog,
+  definitions: readonly TokenDefinition[] = getNudgeUiRuntimeConfig().tokenCatalog,
 ): TokenDefinition[] {
   const computed = getElementComputedStyle(root);
   const loadedSources = loadedStylesheetSources(root.ownerDocument ?? document);
@@ -264,7 +264,7 @@ export function getAvailableTokenCatalog(
 function normalizeInElementContext(el: HTMLElement, property: string, value: string): string {
   const doc = el.ownerDocument;
   const probe = doc.createElement(el.tagName.toLowerCase());
-  probe.setAttribute("data-design-tool", "attribution-probe");
+  probe.setAttribute("data-nudge-ui", "attribution-probe");
   probe.style.setProperty(property, value, "important");
   probe.style.setProperty("position", "fixed", "important");
   probe.style.setProperty("visibility", "hidden", "important");
@@ -290,7 +290,7 @@ function resolveTokenValue(
   tokenTable: TokenTable,
   localAliases: ReadonlyMap<string, string> = EMPTY_LOCAL_ALIASES,
 ): InterpretedValueField {
-  return interpretValue("--design-tool-token", value, createInspectorValueContext(tokenTable, localAliases))[0]!;
+  return interpretValue("--nudge-ui-token", value, createInspectorValueContext(tokenTable, localAliases))[0]!;
 }
 
 function directionalityFromComputed(el: HTMLElement, computed: CSSStyleDeclaration): Directionality {
@@ -409,10 +409,10 @@ function matchesContainerQuery(el: HTMLElement, params: string): boolean {
   if (!doc.head || !params) return false;
 
   const id = ++containerProbeSequence;
-  const marker = `data-dt-container-probe-${id}`;
-  const property = `--dt-container-probe-${id}`;
+  const marker = `data-container-probe-${id}`;
+  const property = `--container-probe-${id}`;
   const style = doc.createElement("style");
-  style.setAttribute("data-design-tool", "container-probe");
+  style.setAttribute("data-nudge-ui", "container-probe");
   style.textContent = `@container ${params} { [${marker}] { ${property}: 1; } }`;
 
   el.setAttribute(marker, "");
@@ -471,7 +471,7 @@ function collectLocalAliases(
       const sourceOrder = rule.sourceOrder ?? index;
       const specificity = specificityForBranch(rule, branch);
       for (const declaration of rule.declarations) {
-        if (!declaration.property.startsWith("--") || declaration.property.startsWith("--dt-")) continue;
+        if (!declaration.property.startsWith("--")) continue;
         const candidate: LocalAliasCandidate = {
           value: declaration.value.trim(),
           important: declaration.important,
@@ -491,7 +491,7 @@ function collectLocalAliases(
     // explicit cascade winners for their element, so include them at inline
     // specificity without changing the managed-style rule contract.
     for (const property of Array.from(element.style)) {
-      if (!property.startsWith("--") || property.startsWith("--dt-")) continue;
+      if (!property.startsWith("--")) continue;
       const candidate: LocalAliasCandidate = {
         value: element.style.getPropertyValue(property).trim(),
         important: element.style.getPropertyPriority(property) === "important",
@@ -674,7 +674,7 @@ function sourceSiteContextKey(el: HTMLElement): string {
   let current: HTMLElement | null = el;
   while (current) {
     const attributes = Array.from(current.attributes)
-      .filter((attribute) => attribute.name !== "data-dt-renderer-id")
+      .filter((attribute) => attribute.name !== "data-renderer-id")
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((attribute) => `${attribute.name}=${attribute.value}`)
       .join("\u0002");
@@ -693,7 +693,7 @@ function sourceSiteContextKey(el: HTMLElement): string {
 function sourceSiteKey(el: HTMLElement, transform: CascadeTransform): string {
   const cid = el.getAttribute("data-cid") ?? "";
   const src = el.getAttribute("data-src") ?? "";
-  const instance = el.getAttribute("data-dt-projection-instance") ?? "";
+  const instance = el.getAttribute("data-projection-instance") ?? "";
   const className = typeof el.className === "string" ? el.className : "";
   return `${cid}\u0000${src}\u0000${instance}\u0000${className}\u0000${transform}`;
 }
@@ -712,7 +712,7 @@ function matchRuleForElement(el: HTMLElement, entry: { rule: MatchedRule; select
 /**
  * Matches every transformed rule against one element. For elements carrying a
  * source-site identity (`data-cid`) the selector-match result is cached per
- * `(document, data-cid, data-src, data-dt-projection-instance, transform, element and
+ * `(document, data-cid, data-src, data-projection-instance, transform, element and
  * stylesheet revision, context)` so repeated selections and equivalent sibling instances of the
  * same source site reuse the matched rule set. Elements without a stable
  * identity, or selectors that depend on unsupported relationships, are matched
@@ -853,7 +853,7 @@ function resolveLineage(el: HTMLElement, rules: MatchedRule[], transform: Cascad
         if (!ruleApplies(match.rule)) continue;
         const sourceOrder = match.rule.sourceOrder ?? 0;
         for (const declaration of match.rule.declarations) {
-          if (!declaration.property.startsWith("--") || declaration.property.startsWith("--dt-")) continue;
+          if (!declaration.property.startsWith("--")) continue;
           const candidate: LocalAliasCandidate = {
             value: declaration.value.trim(),
             important: declaration.important,
@@ -869,7 +869,7 @@ function resolveLineage(el: HTMLElement, rules: MatchedRule[], transform: Cascad
         }
       }
       for (const property of Array.from(lineageElement.style)) {
-        if (!property.startsWith("--") || property.startsWith("--dt-")) continue;
+        if (!property.startsWith("--")) continue;
         const candidate: LocalAliasCandidate = {
           value: lineageElement.style.getPropertyValue(property).trim(),
           important: lineageElement.style.getPropertyPriority(property) === "important",

@@ -10,12 +10,12 @@ import { realpathSync } from "node:fs";
  * token field exists now and defaults to empty rather than being omitted.
  */
 
-export interface DesignToolManifestInput {
+export interface NudgeUiManifestInput {
   /** Absolute project root the dev server is running against. */
   root: string;
 }
 
-export interface DesignToolManifest {
+export interface NudgeUiManifest {
   /** Monotonic knowledge revision; bumps on every settled token/contract update. */
   revision: number;
   projectId: string;
@@ -36,7 +36,7 @@ export interface DesignToolManifest {
  * Token knowledge produced by the Stage 4 lifecycle. Shape-compatible with
  * the standalone adapter's snapshot so the shared scanner feeds both hosts.
  */
-export interface DesignToolTokenSnapshot {
+export interface NudgeUiTokenSnapshot {
   tokenCatalog: readonly unknown[];
   tokens: readonly unknown[];
   tokenDiagnostics: readonly unknown[];
@@ -58,7 +58,7 @@ export function nextjsProjectId(root: string): string {
   return `nextjs:${digest}`;
 }
 
-export function buildManifest(input: DesignToolManifestInput): DesignToolManifest {
+export function buildManifest(input: NudgeUiManifestInput): NudgeUiManifest {
   return {
     revision: 0,
     projectId: nextjsProjectId(input.root),
