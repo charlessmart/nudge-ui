@@ -158,8 +158,8 @@ describe("CanvasCard renderer handshake", () => {
       title: null,
       x: 20,
       y: 30,
-      width: 1440,
-      height: 900,
+      width: 1440.4,
+      height: 899.6,
     };
     hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
     root = createRoot(host);

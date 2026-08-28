@@ -283,7 +283,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
               transformOrigin: "left bottom",
             }}
           >
-            {card.width} × {card.height} px
+            {Math.round(card.width)} × {Math.round(card.height)} px
           </span>
         </div>
         <div
