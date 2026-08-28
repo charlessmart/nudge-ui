@@ -46,27 +46,99 @@ describe("InspectorShell", () => {
 
 
 
-  it("does not render the DOM tree in the inspector", () => {
-    const layers = Array.from({ length: 7 }, (_, index) => {
-      const node = document.createElement(index === 0 ? "button" : "div");
-      node.setAttribute("data-cid", `Layer${index}`);
-      node.setAttribute("data-src", `fixtures/layer${index}.tsx:1:1`);
-      return node;
-    });
-    for (let index = 1; index < layers.length; index++) layers[index]!.appendChild(layers[index - 1]!);
-    document.body.appendChild(layers[6]!);
+  it("shows two tracked parents and two tracked descendants for the selected element", () => {
+    const previousConfig = getNudgeUiRuntimeConfig();
+    const grandparent = document.createElement("div");
+    grandparent.dataset.cid = "Grandparent";
+    grandparent.dataset.src = "fixtures/grandparent.tsx:1:1";
+    const parent = document.createElement("div");
+    parent.dataset.cid = "Parent";
+    parent.dataset.src = "fixtures/parent.tsx:1:1";
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    selected.dataset.src = "fixtures/selected.tsx:1:1";
+    const child = document.createElement("span");
+    child.dataset.cid = "Child";
+    child.dataset.src = "fixtures/child.tsx:1:1";
+    const grandchild = document.createElement("span");
+    grandchild.dataset.cid = "Grandchild";
+    grandchild.dataset.src = "fixtures/grandchild.tsx:1:1";
+    child.appendChild(grandchild);
+    selected.appendChild(child);
+    parent.appendChild(selected);
+    grandparent.appendChild(parent);
+    document.body.appendChild(grandparent);
 
-    act(() => {
-      setSelectedElement(resolveSelectionFromElement(layers[0]!));
-      mountInspector(host);
-    });
+    try {
+      configureNudgeUiRuntime({
+        ...previousConfig,
+        capabilities: { ...previousConfig.capabilities, domNavigation: false },
+      });
+      host.dataset.nudgeUiDebug = "true";
+      act(() => {
+        setSelectedElement(resolveSelectionFromElement(selected));
+        mountInspector(host);
+      });
 
-    const shadow = host.shadowRoot!;
-    expect(shadow.querySelector('[data-test="dom-tree"]')).toBeNull();
-    expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Layer0");
+      const shadow = host.shadowRoot!;
+      expect(getNudgeUiRuntimeConfig().capabilities.domNavigation).toBe(true);
+      expect(shadow.querySelector('[data-test="dom-navigation"]')).not.toBeNull();
+      expect([...shadow.querySelectorAll<HTMLButtonElement>('[data-test="dom-parent-step"]')].map((step) => step.dataset.cid)).toEqual([
+        "Parent",
+        "Grandparent",
+      ]);
+      expect([...shadow.querySelectorAll<HTMLButtonElement>('[data-test="dom-child-step"]')].map((step) => step.dataset.cid)).toEqual([
+        "Child",
+        "Grandchild",
+      ]);
+      expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Selected");
 
-    setSelectedElement(null);
-    layers[6]!.remove();
+      act(() => {
+        shadow.querySelector<HTMLButtonElement>('[data-test="dom-parent-step"][data-depth="2"]')!.click();
+      });
+      expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Grandparent");
+
+      act(() => {
+        setSelectedElement(resolveSelectionFromElement(selected));
+      });
+      act(() => {
+        shadow.querySelector<HTMLButtonElement>('[data-test="dom-child-step"][data-cid="Grandchild"]')!.click();
+      });
+      expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Grandchild");
+    } finally {
+      setSelectedElement(null);
+      grandparent.remove();
+      delete host.dataset.nudgeUiDebug;
+      configureNudgeUiRuntime(previousConfig);
+    }
+  });
+
+  it("hides DOM navigation unless the debug capability is enabled", () => {
+    const previousConfig = getNudgeUiRuntimeConfig();
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    selected.dataset.src = "fixtures/selected.tsx:1:1";
+    const child = document.createElement("span");
+    child.dataset.cid = "Child";
+    child.dataset.src = "fixtures/child.tsx:1:1";
+    selected.appendChild(child);
+    document.body.appendChild(selected);
+
+    try {
+      configureNudgeUiRuntime({
+        ...previousConfig,
+        capabilities: { ...previousConfig.capabilities, domNavigation: false },
+      });
+      act(() => {
+        setSelectedElement(resolveSelectionFromElement(selected));
+        mountInspector(host);
+      });
+      expect(host.shadowRoot?.querySelector('[data-test="dom-navigation"]')).toBeNull();
+    } finally {
+      setSelectedElement(null);
+      selected.remove();
+      configureNudgeUiRuntime(previousConfig);
+    }
   });
 
   it("keeps session clearing below the changes accordion without restore-count copy", () => {

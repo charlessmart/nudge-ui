@@ -4,6 +4,7 @@ import { IconArtboard, IconColorSwatch, IconLayoutSidebarRightCollapse, IconLayo
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
+  useHierarchy,
   setSelectedElement,
 } from "./selectionStore.ts";
 import type { SelectedElement } from "./selectionStore.ts";
@@ -49,6 +50,7 @@ import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
 import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "./inlineTextEditor.ts";
 import { useNudgeUiRuntimeConfig } from "./useRuntimeConfig.ts";
+import { DomNavigation } from "./DomNavigation.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -108,9 +110,11 @@ export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const canvasEnabled = runtimeConfig.capabilities.canvas;
+  const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
   const activeCanvasMode = useCanvasMode();
   const canvasMode = canvasEnabled ? activeCanvasMode : "inspect";
   const selected = useSelectedElement();
+  const hierarchy = useHierarchy();
   const inlineTextSession = useInlineTextSession();
   const [scopeRevision, refreshScope] = useState(0);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
@@ -389,6 +393,7 @@ export function InspectorShell(): ReactElement {
             <TokensPanel rows={cssInspection.documentTokens?.tokens ?? []} />
           ) : selected ? (
             <>
+              {domNavigationEnabled ? <DomNavigation selected={selected} hierarchy={hierarchy} /> : null}
               <div
                 className="selection"
                 data-test="selection"

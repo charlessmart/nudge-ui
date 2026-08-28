@@ -32,6 +32,13 @@ export default defineConfig({
 });
 ```
 
+Pass `debug: true` to enable experimental Inspector features such as DOM
+parent and child navigation:
+
+```ts
+plugins: [react(), ...nudgeUi({ debug: true })]
+```
+
 ### Next.js
 
 ```sh

@@ -32,7 +32,7 @@ import { AppShell } from "./AppShell.tsx";
 import { clearStructuralChanges, resetStructuralDeleteProjection } from "./structuralProjection.ts";
 import { installInspectionBridge } from "./inspection.ts";
 import { cancelInlineTextEdit } from "./inlineTextEditor.ts";
-import { getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
 import { isNudgeUiDev } from "./devFlag.ts";
 
@@ -151,6 +151,15 @@ function mountLockedNotice(host: HTMLElement): void {
 
 export function mountInspector(host: HTMLElement): void {
   if (!hasWriteLease()) return;
+  if (host.dataset.nudgeUiDebug === "true") {
+    const runtimeConfig = getNudgeUiRuntimeConfig();
+    if (runtimeConfig.capabilities.domNavigation !== true) {
+      configureNudgeUiRuntime({
+        ...runtimeConfig,
+        capabilities: { ...runtimeConfig.capabilities, domNavigation: true },
+      });
+    }
+  }
   if (lockedRoot) {
     lockedRoot.unmount();
     lockedRoot = null;

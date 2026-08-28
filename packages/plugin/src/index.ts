@@ -44,6 +44,8 @@ import type { ComponentContract } from "./components/types.ts";
 
 export interface NudgeUiOptions {
   enabled?: boolean;
+  /** Enables experimental DOM parent/child navigation in the Inspector. */
+  debug?: boolean;
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
   /**
@@ -76,6 +78,7 @@ const CSS_EXT = /\.css(?:$|[?#])/;
 const COMPONENT_EXT = /\.(?:tsx|jsx)(?:$|[?#])/;
 
 const MOUNT_DIV = `<div id="nudge-ui-root"></div>`;
+const DEBUG_MOUNT_DIV = `<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>`;
 const INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:nudge-ui-inspector"></script>`;
 
 /**
@@ -184,9 +187,10 @@ function resolveReactAliases(projectRoot: string): Alias[] {
 export function transformIndexHtmlHtml(
   html: string,
   command: "serve" | "build",
+  debug = false,
 ): string | null {
   if (command === "build") return null;
-  const inject = `\n${MOUNT_DIV}\n${INSPECTOR_SCRIPT}\n`;
+  const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${INSPECTOR_SCRIPT}\n`;
   if (html.includes("</body>")) {
     return html.replace("</body>", `${inject}</body>`);
   }
@@ -756,7 +760,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     },
     transformIndexHtml(html) {
       if (!enabled) return;
-      const out = transformIndexHtmlHtml(html, command);
+      const out = transformIndexHtmlHtml(html, command, options.debug === true);
       return out === null ? undefined : out;
     },
     async handleHotUpdate(ctx) {

@@ -79,6 +79,19 @@ describe("transformIndexHtmlHtml", () => {
     expect(out!.indexOf('id="nudge-ui-root"')).toBeLessThan(out!.lastIndexOf("</body>"));
   });
 
+  it("marks the mount for debug-only Inspector features when requested", () => {
+    const out = transformIndexHtmlHtml(SAMPLE_HTML, "serve", true);
+    expect(out).toContain('<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>');
+  });
+
+  it("passes the debug option through to the injected mount", () => {
+    const [plugin] = createNudgeUiPlugins({ debug: true }) as unknown as [{
+      transformIndexHtml?: (html: string) => string | undefined;
+    }];
+    const out = plugin.transformIndexHtml?.(SAMPLE_HTML);
+    expect(out).toContain('<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>');
+  });
+
   it("returns null in build mode (ADR-0002)", () => {
     expect(transformIndexHtmlHtml(SAMPLE_HTML, "build")).toBeNull();
   });

@@ -28,6 +28,7 @@ import tokenDropdownStyles from "../tokens/TokenDropdown.css?inline";
 import tokensPanelStyles from "../tokens/TokensPanel.css?inline";
 import changesLogStyles from "../ChangesLog.css?inline";
 import inspectorOverlayStyles from "../InspectorOverlay.css?inline";
+import domNavigationStyles from "../DomNavigation.css?inline";
 
 export const UI_STYLES = [
   foundationStyles,
@@ -60,4 +61,5 @@ export const UI_STYLES = [
   tokensPanelStyles,
   changesLogStyles,
   inspectorOverlayStyles,
+  domNavigationStyles,
 ].join("\n");

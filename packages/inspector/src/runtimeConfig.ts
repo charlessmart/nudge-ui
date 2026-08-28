@@ -36,6 +36,8 @@ export interface NudgeUiRuntimeCapabilities {
   readonly canvas: boolean;
   /** Whether framework component inspection and prop overrides are available. */
   readonly componentSemantics: boolean;
+  /** Whether the experimental DOM navigation section is available. */
+  readonly domNavigation?: boolean;
   /**
    * Source-coordinate precision policy for prompts; every source site is
    * exact when the host omits it.
@@ -106,7 +108,7 @@ const DEFAULT_RUNTIME_CONFIG = cloneAndFreeze<NudgeUiRuntimeConfig>({
   host: "vite-react",
   framework: "React",
   stylingSystem: "CSS custom properties",
-  capabilities: { canvas: true, componentSemantics: true },
+  capabilities: { canvas: true, componentSemantics: true, domNavigation: false },
   tokenCatalog: [],
   tokens: [],
   tokenDiagnostics: [],
@@ -225,7 +227,7 @@ function normalizeSourceCoordinatePolicy(
 }
 
 function normalizeCapabilities(input: unknown): NudgeUiRuntimeCapabilities {
-  if (input === undefined) return { canvas: false, componentSemantics: false };
+  if (input === undefined) return { canvas: false, componentSemantics: false, domNavigation: false };
   if (!isPlainRecord(input)) {
     throw new TypeError(
       'Nudge UI runtime configuration field "capabilities" must be an object.',
@@ -234,6 +236,7 @@ function normalizeCapabilities(input: unknown): NudgeUiRuntimeCapabilities {
   return {
     canvas: optionalBoolean(input, "canvas"),
     componentSemantics: optionalBoolean(input, "componentSemantics"),
+    domNavigation: optionalBoolean(input, "domNavigation"),
     sourceCoordinates: normalizeSourceCoordinatePolicy(input),
     scopingSelectorPattern: optionalNonEmptyString(input, "scopingSelectorPattern"),
   };

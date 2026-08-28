@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { computeHierarchy } from "./hierarchy.ts";
+import { computeDescendants, computeHierarchy } from "./hierarchy.ts";
 
 describe("computeHierarchy", () => {
   let host: HTMLDivElement;
@@ -90,5 +90,29 @@ describe("computeHierarchy", () => {
     frameDocument.body.appendChild(parent);
 
     expect(computeHierarchy(child)).toEqual([child, parent]);
+  });
+
+  it("returns the nearest tracked descendants breadth-first", () => {
+    const root = document.createElement("main");
+    root.dataset.cid = "Root";
+    const first = document.createElement("section");
+    first.dataset.cid = "First";
+    const firstChild = document.createElement("button");
+    firstChild.dataset.cid = "FirstChild";
+    const second = document.createElement("section");
+    second.dataset.cid = "Second";
+    root.append(first, second);
+    first.appendChild(firstChild);
+    document.body.appendChild(root);
+
+    expect(computeDescendants(root)).toEqual([
+      { element: first, depth: 1 },
+      { element: second, depth: 1 },
+    ]);
+    expect(computeDescendants(root, 2, 3)).toEqual([
+      { element: first, depth: 1 },
+      { element: second, depth: 1 },
+      { element: firstChild, depth: 2 },
+    ]);
   });
 });

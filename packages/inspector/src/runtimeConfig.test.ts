@@ -159,7 +159,7 @@ describe("Nudge UI runtime configuration", () => {
     });
 
     const snapshot = getNudgeUiRuntimeConfig();
-    expect(snapshot.capabilities).toEqual({ canvas: false, componentSemantics: false });
+    expect(snapshot.capabilities).toEqual({ canvas: false, componentSemantics: false, domNavigation: false });
     expect(Object.isFrozen(snapshot.capabilities)).toBe(true);
     expect(() => {
       (snapshot.capabilities as { canvas: boolean }).canvas = true;
@@ -241,6 +241,7 @@ describe("runtime configuration validation and defaults", () => {
 
     expect(getSourceCoordinatePolicy()).toBeNull();
     expect(getScopingSelectorPattern()).toBeNull();
+    expect(getNudgeUiRuntimeConfig().capabilities.domNavigation).toBe(false);
   });
 
   it("degrades an invalid scoping pattern to no stripping instead of throwing", () => {
@@ -305,7 +306,7 @@ describe("runtime configuration validation and defaults", () => {
       host: "static-html",
       framework: "HTML",
       stylingSystem: "",
-      capabilities: { canvas: false, componentSemantics: false },
+      capabilities: { canvas: false, componentSemantics: false, domNavigation: false },
       tokenCatalog: [],
       tokens: [],
       tokenDiagnostics: [],
