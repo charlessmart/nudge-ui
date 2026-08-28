@@ -280,7 +280,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
             data-test={`canvas-card-dimensions-${card.id}`}
             style={{
               transform: `scale(${toolbarScale})`,
-              transformOrigin: "left center",
+              transformOrigin: "left bottom",
             }}
           >
             {card.width} × {card.height} px
@@ -290,7 +290,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
           className="canvas-card__actions"
           style={{
             transform: `scale(${toolbarScale})`,
-            transformOrigin: "right center",
+            transformOrigin: "right bottom",
           }}
         >
           <Button

@@ -240,4 +240,29 @@ describe("CanvasCard renderer handshake", () => {
     expect(resizeHandle.style.transform).toBe("scale(2)");
     expect(resizeHandle.style.transformOrigin).toBe("right bottom");
   });
+
+  it("anchors scaled toolbar content to the canvas top edge", () => {
+    const card: CanvasCardData = {
+      id: "card-toolbar-anchor",
+      url: window.location.href,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
+    renderCard(card);
+
+    const dimensions = host.querySelector(
+      `[data-test="canvas-card-dimensions-${card.id}"]`,
+    );
+    const actions = host.querySelector(".canvas-card__actions");
+    if (!(dimensions instanceof HTMLElement) || !(actions instanceof HTMLElement)) {
+      throw new Error("toolbar content did not mount");
+    }
+
+    expect(dimensions.style.transformOrigin).toBe("left bottom");
+    expect(actions.style.transformOrigin).toBe("right bottom");
+  });
 });
