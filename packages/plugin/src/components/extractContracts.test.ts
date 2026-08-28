@@ -45,6 +45,29 @@ describe("extractComponentContracts", () => {
     ]);
   });
 
+  it("extracts local props from forwardRef and memo wrappers", () => {
+    const code = `
+      interface ButtonProps {
+        variant?: "primary" | "secondary";
+        disabled?: boolean;
+      }
+      export const Button = React.memo(React.forwardRef<HTMLButtonElement, ButtonProps>(
+        ({ variant, disabled }, ref) => <button ref={ref} disabled={disabled}>{variant}</button>,
+      ));
+    `;
+
+    expect(extractComponentContracts(code, "src/ui/Button.tsx")[0]).toEqual({
+      componentId: "src/ui/Button#Button",
+      name: "Button",
+      file: "src/ui/Button.tsx",
+      provenance: "typescript",
+      props: [
+        { name: "variant", control: "select", options: ["primary", "secondary"], optional: true },
+        { name: "disabled", control: "boolean", options: [false, true], optional: true },
+      ],
+    });
+  });
+
   it("ignores unconstrained and complex props", () => {
     const code = `
       type CardProps = { title: string; count: number; data: object; mode: "only" };

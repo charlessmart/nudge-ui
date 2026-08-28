@@ -36,9 +36,13 @@ import type { ThemeContract, VanillaExtractAdapterOptions } from "./adapters/van
 import { createPublishedVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
 import { createTokenAdapterRegistry } from "./adapters/registry.ts";
 import { extractComponentContracts } from "./components/extractContracts.ts";
+import {
+  collectPackageComponentModules,
+  extractPackageComponentContractCatalog,
+} from "./components/extractPackageContracts.ts";
 import type { ComponentContract } from "./components/types.ts";
 
-export interface DesignToolOptions {
+export interface NudgeUiOptions {
   enabled?: boolean;
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
@@ -53,9 +57,9 @@ export interface DesignToolOptions {
   tailwindV3?: { config: TailwindV3Config; source?: string };
   vanillaExtract?: VanillaExtractAdapterOptions;
   /**
-   * Optional contracts published by an npm design-system package. Local TSX
-   * contracts are discovered automatically; package manifests fill the gap
-   * when package source is intentionally not transformed.
+   * Optional package contract overrides. Local TSX and package declaration
+   * contracts are discovered automatically; explicit metadata fills gaps for
+   * packages whose public type graph cannot describe an editable prop.
    */
   componentMetadata?: ComponentContract[];
 }
@@ -64,15 +68,15 @@ export type { ComponentContract, ComponentPropContract, ComponentPropValue } fro
 
 const VIRTUAL_TOKENS_ID = "virtual:design-tokens";
 const RESOLVED_TOKENS_ID = "\0" + VIRTUAL_TOKENS_ID;
-const VIRTUAL_INSPECTOR_ID = "virtual:design-tool-inspector";
+const VIRTUAL_INSPECTOR_ID = "virtual:nudge-ui-inspector";
 const RESOLVED_INSPECTOR_ID = "\0" + VIRTUAL_INSPECTOR_ID;
-const VIRTUAL_COMPONENTS_ID = "virtual:design-tool-components";
+const VIRTUAL_COMPONENTS_ID = "virtual:nudge-ui-components";
 const RESOLVED_COMPONENTS_ID = "\0" + VIRTUAL_COMPONENTS_ID;
 const CSS_EXT = /\.css(?:$|[?#])/;
 const COMPONENT_EXT = /\.(?:tsx|jsx)(?:$|[?#])/;
 
-const MOUNT_DIV = `<div id="design-tool-root"></div>`;
-const INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:design-tool-inspector"></script>`;
+const MOUNT_DIV = `<div id="nudge-ui-root"></div>`;
+const INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:nudge-ui-inspector"></script>`;
 
 /**
  * Extracts the stylesheet string Vite embeds in dev CSS-module JS wrappers
@@ -200,7 +204,7 @@ function invalidateHmrModules(
   }
 }
 
-export function designTool(options: DesignToolOptions = {}): Plugin[] {
+export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
   const enabled = options.enabled ?? true;
   let root: string | undefined;
   let buildOutputDirectory: string | undefined;
@@ -230,12 +234,16 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
   /** Generation of the last snapshot actually serialized into the virtual module. */
   let lastPublishedGeneration: string | null = null;
   const componentContracts = new Map<string, ComponentContract[]>();
+  const manualComponentIds = new Set(options.componentMetadata?.map((contract) =>
+    contract.componentId) ?? []);
   if (options.componentMetadata?.length) {
     componentContracts.set("package-manifests", options.componentMetadata.map((contract) => ({
       ...contract,
       provenance: "package-manifest",
     })));
   }
+  const packageComponentModulesByFile = new Map<string, string[]>();
+  let packageComponentFingerprint = "";
   const adapterRegistry = createTokenAdapterRegistry([
     ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config, options.tailwindV3.source)] : []),
     ...(options.vanillaExtract ? [createSprinklesAdapter(options.vanillaExtract)] : []),
@@ -337,11 +345,48 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
       failed: true,
     }));
   }
-  function cacheComponentsForFile(id: string, code: string): void {
+  function refreshPackageComponentContracts(): void {
+    const hostByModule = new Map<string, string>();
+    for (const [hostFile, modules] of [...packageComponentModulesByFile].sort(([left], [right]) =>
+      left.localeCompare(right))) {
+      for (const moduleSpecifier of modules) {
+        if (!hostByModule.has(moduleSpecifier)) {
+          hostByModule.set(moduleSpecifier, hostFile);
+        }
+      }
+    }
+    const fingerprint = [...hostByModule]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([moduleSpecifier, hostFile]) => `${moduleSpecifier}\0${hostFile}`)
+      .join("\n");
+    if (fingerprint === packageComponentFingerprint) return;
+
+    for (const key of [...componentContracts.keys()]) {
+      if (key.startsWith("package-types:")) componentContracts.delete(key);
+    }
+    const packageCatalog = root
+      ? extractPackageComponentContractCatalog({
+          hostFile: join(root, "__nudge_ui_package_contracts__.tsx"),
+          moduleSpecifiers: [...hostByModule.keys()],
+        })
+      : [];
+    for (const moduleSpecifier of hostByModule.keys()) {
+      componentContracts.set(
+        `package-types:${moduleSpecifier}`,
+        packageCatalog.filter((contract) =>
+          contract.file === moduleSpecifier && !manualComponentIds.has(contract.componentId)),
+      );
+    }
+    packageComponentFingerprint = fingerprint;
+  }
+
+  function cacheComponentsForFile(id: string, code: string, refreshPackages = true): void {
     if (!COMPONENT_EXT.test(id) || !isHostApplicationSource(id, root)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     const rel = relativePath(fileId, root);
     componentContracts.set(fileId, extractComponentContracts(code, rel));
+    packageComponentModulesByFile.set(fileId, collectPackageComponentModules(code, fileId));
+    if (refreshPackages) refreshPackageComponentContracts();
   }
 
   async function refreshPublishedThemeContract(): Promise<void> {
@@ -581,7 +626,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
   }
 
   const plugin: Plugin = {
-    name: "design-tool",
+    name: "nudge-ui",
     enforce: "pre",
     config(userConfig, env) {
       if (!enabled || env.command !== "serve") return;
@@ -626,11 +671,12 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
       }
       for (const componentPath of scanComponentFiles(root)) {
         try {
-          cacheComponentsForFile(componentPath, readFileSync(componentPath, "utf8"));
+          cacheComponentsForFile(componentPath, readFileSync(componentPath, "utf8"), false);
         } catch {
           // skip unreadable component sources
         }
       }
+      refreshPackageComponentContracts();
     },
     resolveId(id) {
       if (id === VIRTUAL_TOKENS_ID || id === RESOLVED_TOKENS_ID) return RESOLVED_TOKENS_ID;
@@ -642,7 +688,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
       if (id === RESOLVED_TOKENS_ID) {
         // ADR-0002: production builds receive an empty token table.
         if (command === "build") {
-          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const tokenDiagnostics = [];\nexport const tokenGeneration = "";\nexport const designToolProjectId = "";\nexport default tokens;\n`;
+          return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const tokenDiagnostics = [];\nexport const tokenGeneration = "";\nexport const nudgeUiProjectId = "";\nexport default tokens;\n`;
         }
         await ensurePostTransformCss();
         await ensurePublishedThemeContract();
@@ -662,14 +708,14 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
           ...(diagnostic.exportName !== undefined ? { exportName: diagnostic.exportName } : {}),
         }));
         const projectId = JSON.stringify(options.projectId ?? (root ? basename(root) : ""));
-        return `export const tokenCatalog = ${JSON.stringify(snapshot.definitions)};\nexport const tokens = ${JSON.stringify(snapshot.tokens)};\nexport const tokenDiagnostics = ${JSON.stringify(diagnostics)};\nexport const tokenGeneration = ${JSON.stringify(snapshot.generation)};\nexport const designToolProjectId = ${projectId};\nexport default tokens;\n`;
+        return `export const tokenCatalog = ${JSON.stringify(snapshot.definitions)};\nexport const tokens = ${JSON.stringify(snapshot.tokens)};\nexport const tokenDiagnostics = ${JSON.stringify(diagnostics)};\nexport const tokenGeneration = ${JSON.stringify(snapshot.generation)};\nexport const nudgeUiProjectId = ${projectId};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {
         // ADR-0002: no inspector bootstrap in production builds.
         if (command === "build") {
           return `export {};\n`;
         }
-        return `import { bootstrapDesignTool, configureDesignToolRuntime, detectFramework } from "@design-tool/inspector";\nimport { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, designToolProjectId } from "virtual:design-tokens";\nimport { componentContracts } from "virtual:design-tool-components";\nconfigureDesignToolRuntime({\n  projectId: designToolProjectId,\n  host: "vite-react",\n  framework: "React",\n  stylingSystem: detectFramework(tokens).stylingSystem,\n  capabilities: { canvas: true, componentSemantics: true },\n  tokenCatalog,\n  tokens,\n  tokenDiagnostics,\n  tokenGeneration,\n  componentContracts,\n});\nconst __dt_root = document.getElementById("design-tool-root");\nif (__dt_root) bootstrapDesignTool(__dt_root);\n`;
+        return `import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework } from "@nudge-ui/inspector";\nimport { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";\nimport { componentContracts } from "virtual:nudge-ui-components";\nconfigureNudgeUiRuntime({\n  projectId: nudgeUiProjectId,\n  host: "vite-react",\n  framework: "React",\n  stylingSystem: detectFramework(tokens).stylingSystem,\n  capabilities: { canvas: true, componentSemantics: true },\n  tokenCatalog,\n  tokens,\n  tokenDiagnostics,\n  tokenGeneration,\n  componentContracts,\n});\nconst __dt_root = document.getElementById("nudge-ui-root");\nif (__dt_root) bootstrapNudgeUi(__dt_root);\n`;
       }
       if (id === RESOLVED_COMPONENTS_ID) {
         if (command === "build") return "export const componentContracts = [];\nexport default componentContracts;\n";
@@ -730,6 +776,8 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
           cacheComponentsForFile(ctx.file, await ctx.read());
         } catch {
           componentContracts.set(ctx.file, []);
+          packageComponentModulesByFile.delete(ctx.file);
+          refreshPackageComponentContracts();
         }
         // Re-transform the changed module so Vite updates its importer edges
         // before package-CSS reachability is rebuilt. A component can add or
@@ -820,7 +868,7 @@ export function designTool(options: DesignToolOptions = {}): Plugin[] {
   // user configuration order and before Vite's CSS-post JavaScript wrapper.
   // The main plugin above remains pre-ordered for TSX source locations.
   const transformedCssObserver: Plugin = {
-    name: "design-tool:transformed-css",
+    name: "nudge-ui:transformed-css",
     apply: "serve",
     transform(code, id) {
       if (!enabled || command !== "serve" || !CSS_EXT.test(id)) return null;

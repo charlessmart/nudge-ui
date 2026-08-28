@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { act, createElement, StrictMode, type ReactElement } from "react";
+import {
+  act,
+  cloneElement,
+  createElement,
+  createRef,
+  forwardRef,
+  StrictMode,
+  type ReactElement,
+} from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {
   getReactCallsiteMultiplicity,
@@ -61,6 +69,67 @@ describe("React component runtime adapter", () => {
     host.remove();
   });
 
+  it("passes clone-injected refs and props through an instrumented trigger", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    const originalRef = createRef<HTMLButtonElement>();
+    const positioningRef = createRef<HTMLButtonElement>();
+    let clickCount = 0;
+    const Button = forwardRef<HTMLButtonElement, Record<string, unknown>>(
+      function Button(props, ref) {
+        return createElement("button", { ...props, ref }, "Open");
+      },
+    );
+    const meta = {
+      callsiteId: "src/App.tsx:20:7",
+      componentId: "src/ui/Button#Button",
+      componentName: "Button",
+      file: "src/App.tsx",
+      line: 20,
+      column: 7,
+      authoredProps: {},
+    };
+    const trigger = instrumentReactComponent(
+      createElement(Button, { ref: originalRef }) as ReactElement<Record<string, unknown>>,
+      meta,
+    ) as ReactElement<Record<string, unknown>>;
+    const clonedTrigger = cloneElement(trigger, {
+      ref: positioningRef,
+      "aria-expanded": true,
+      "data-floating-reference": "true",
+      onClick: () => { clickCount += 1; },
+    });
+
+    act(() => root?.render(clonedTrigger));
+
+    const button = host.querySelector("button");
+    expect(button).not.toBeNull();
+    expect(originalRef.current).toBe(button);
+    expect(positioningRef.current).toBe(button);
+    expect(button?.getAttribute("aria-expanded")).toBe("true");
+    expect(button?.getAttribute("data-floating-reference")).toBe("true");
+    act(() => button?.click());
+    expect(clickCount).toBe(1);
+    expect(inspectReactComponentTargets(button as HTMLButtonElement)[0]?.meta).toEqual(meta);
+
+    act(() => replaceReactComponentOverrides([{
+      framework: "react",
+      callsiteId: meta.callsiteId,
+      prop: "aria-expanded",
+      value: false,
+    }]));
+    expect(button?.getAttribute("aria-expanded")).toBe("false");
+    expect(originalRef.current).toBe(button);
+    expect(positioningRef.current).toBe(button);
+
+    act(() => root?.unmount());
+    root = null;
+    expect(originalRef.current).toBeNull();
+    expect(positioningRef.current).toBeNull();
+    host.remove();
+  });
+
   it("reads instrumented invocation ancestry from a host fiber", () => {
     const element = document.createElement("button");
     const meta = {
@@ -73,7 +142,7 @@ describe("React component runtime adapter", () => {
       authoredProps: { variant: "literal" as const },
     };
     const boundaryType = Object.assign(() => null, {
-      [Symbol.for("design-tool.react-component-boundary")]: true,
+      [Symbol.for("nudge-ui.react-component-boundary")]: true,
     });
     (element as unknown as Record<string, unknown>)["__reactFiber$test"] = {
       type: "button",
@@ -105,7 +174,7 @@ describe("React component runtime adapter", () => {
       authoredProps: { disabled: "literal" as const },
     };
     const boundaryType = Object.assign(() => null, {
-      [Symbol.for("design-tool.react-component-boundary")]: true,
+      [Symbol.for("nudge-ui.react-component-boundary")]: true,
     });
     (element as unknown as Record<string, unknown>)["__reactFiber$test"] = {
       return: {

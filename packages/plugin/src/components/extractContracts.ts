@@ -22,6 +22,11 @@ function nodeName(node: Node | null | undefined): string | null {
     const right = nodeName(node.right as Node);
     return left && right ? `${left}.${right}` : null;
   }
+  if (node.type === "MemberExpression" || node.type === "OptionalMemberExpression") {
+    const object = nodeName(node.object as Node);
+    const property = nodeName(node.property as Node);
+    return object && property ? `${object}.${property}` : null;
+  }
   return null;
 }
 
@@ -163,6 +168,33 @@ function propsTypeFromVariableId(id: Node): Node | null {
   return params?.params?.[0] ?? null;
 }
 
+interface ComponentInitializer {
+  functionNode: Node;
+  propsType: Node | null;
+}
+
+function componentInitializer(node: Node): ComponentInitializer | null {
+  if (node.type === "ArrowFunctionExpression" || node.type === "FunctionExpression") {
+    return { functionNode: node, propsType: null };
+  }
+  if (node.type !== "CallExpression") return null;
+  const wrapperName = nodeName(node.callee as Node)?.split(".").at(-1);
+  if (wrapperName !== "memo" && wrapperName !== "forwardRef") return null;
+  const argument = ((node.arguments as Node[] | undefined) ?? [])[0];
+  if (!argument) return null;
+  const inner = componentInitializer(argument);
+  if (!inner) return null;
+  if (wrapperName !== "forwardRef") return inner;
+  const typeParameters = (
+    (node.typeParameters as { params?: Node[] } | undefined)
+    ?? (node.typeArguments as { params?: Node[] } | undefined)
+  )?.params ?? [];
+  return {
+    functionNode: inner.functionNode,
+    propsType: inner.propsType ?? typeParameters[1] ?? null,
+  };
+}
+
 function componentContract(
   name: string,
   propsType: Node | null,
@@ -228,10 +260,12 @@ export function extractComponentContracts(code: string, file: string): Component
       const id = declaration.id as Node | undefined;
       const init = declaration.init as Node | undefined;
       const name = id ? nodeName(id) : null;
-      if (!id || !init || !name
-        || (init.type !== "ArrowFunctionExpression" && init.type !== "FunctionExpression")) continue;
-      const param = ((init.params as Node[] | undefined) ?? [])[0];
-      const propsType = propsTypeFromParam(param) ?? propsTypeFromVariableId(id);
+      const initializer = init ? componentInitializer(init) : null;
+      if (!id || !initializer || !name) continue;
+      const param = ((initializer.functionNode.params as Node[] | undefined) ?? [])[0];
+      const propsType = propsTypeFromParam(param)
+        ?? initializer.propsType
+        ?? propsTypeFromVariableId(id);
       const contract = componentContract(name, propsType, declarations, file);
       if (contract) contracts.push(contract);
     }

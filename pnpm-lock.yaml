@@ -39,16 +39,16 @@ importers:
 
   examples/sandbox:
     dependencies:
-      '@design-tool/css':
+      '@nudge-ui/css':
         specifier: workspace:*
         version: link:../../packages/css
-      '@design-tool/inspector':
+      '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@design-tool/package-css-fixture':
+      '@nudge-ui/package-css-fixture':
         specifier: workspace:*
         version: link:../../packages/package-css-fixture
-      '@design-tool/plugin':
+      '@nudge-ui/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
       react:
@@ -58,7 +58,7 @@ importers:
         specifier: ^18.3.0
         version: 18.3.1(react@18.3.1)
     devDependencies:
-      '@design-tool/compatibility':
+      '@nudge-ui/compatibility':
         specifier: workspace:*
         version: link:../../packages/compatibility
       '@playwright/test':
@@ -85,10 +85,10 @@ importers:
       '@astrojs/react':
         specifier: ^4.4.2
         version: 4.4.2(@types/node@22.20.1)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(jiti@2.7.0)(lightningcss@1.32.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(yaml@2.9.0)
-      '@design-tool/astro':
+      '@nudge-ui/astro':
         specifier: workspace:*
         version: link:../../packages/astro
-      '@design-tool/inspector':
+      '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
       astro:
@@ -122,16 +122,16 @@ importers:
 
   examples/sandbox-next:
     dependencies:
-      '@design-tool/css':
+      '@nudge-ui/css':
         specifier: workspace:*
         version: link:../../packages/css
-      '@design-tool/inspector':
+      '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@design-tool/nextjs':
+      '@nudge-ui/nextjs':
         specifier: workspace:*
         version: link:../../packages/nextjs
-      '@design-tool/plugin':
+      '@nudge-ui/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
       next:
@@ -162,10 +162,10 @@ importers:
 
   examples/sandbox-sprinkles:
     dependencies:
-      '@design-tool/inspector':
+      '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@design-tool/plugin':
+      '@nudge-ui/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
       '@vanilla-extract/css':
@@ -181,7 +181,7 @@ importers:
         specifier: ^18.3.0
         version: 18.3.1(react@18.3.1)
     devDependencies:
-      '@design-tool/compatibility':
+      '@nudge-ui/compatibility':
         specifier: workspace:*
         version: link:../../packages/compatibility
       '@playwright/test':
@@ -211,13 +211,13 @@ importers:
 
   examples/sandbox-tailwind-v3:
     dependencies:
-      '@design-tool/compatibility':
+      '@nudge-ui/compatibility':
         specifier: workspace:*
         version: link:../../packages/compatibility
-      '@design-tool/inspector':
+      '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@design-tool/plugin':
+      '@nudge-ui/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
       react:
@@ -260,18 +260,18 @@ importers:
       '@base-ui/react':
         specifier: ^1.6.0
         version: 1.6.0(@date-fns/tz@1.5.0)(@types/react@18.3.31)(date-fns@4.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@design-tool/compatibility':
-        specifier: workspace:*
-        version: link:../../packages/compatibility
-      '@design-tool/inspector':
-        specifier: workspace:*
-        version: link:../../packages/inspector
-      '@design-tool/plugin':
-        specifier: workspace:*
-        version: link:../../packages/plugin
       '@fontsource-variable/geist':
         specifier: ^5.3.0
         version: 5.3.0
+      '@nudge-ui/compatibility':
+        specifier: workspace:*
+        version: link:../../packages/compatibility
+      '@nudge-ui/inspector':
+        specifier: workspace:*
+        version: link:../../packages/inspector
+      '@nudge-ui/plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugin
       '@shadcn/react':
         specifier: ^0.3.0
         version: 0.3.0(@types/react@18.3.31)(react@18.3.1)
@@ -372,10 +372,10 @@ importers:
 
   packages/astro:
     dependencies:
-      '@design-tool/inspector':
+      '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../inspector
-      '@design-tool/plugin':
+      '@nudge-ui/plugin':
         specifier: workspace:*
         version: link:../plugin
       parse5:
@@ -431,7 +431,7 @@ importers:
       '@base-ui/react':
         specifier: ^1.6.0
         version: 1.6.0(@date-fns/tz@1.5.0)(@types/react@18.3.31)(date-fns@4.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@design-tool/css':
+      '@nudge-ui/css':
         specifier: workspace:*
         version: link:../css
       '@tabler/icons-react':
@@ -465,16 +465,16 @@ importers:
       '@babel/parser':
         specifier: ^7.25.0
         version: 7.29.7
-      '@design-tool/css':
+      '@nudge-ui/css':
         specifier: workspace:*
         version: link:../css
-      '@design-tool/inspector':
+      '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../inspector
-      '@design-tool/plugin':
+      '@nudge-ui/plugin':
         specifier: workspace:*
         version: link:../plugin
-      '@design-tool/standalone':
+      '@nudge-ui/standalone':
         specifier: workspace:*
         version: link:../standalone
       magic-string:
@@ -516,10 +516,10 @@ importers:
       '@babel/parser':
         specifier: ^7.25.0
         version: 7.29.7
-      '@design-tool/css':
+      '@nudge-ui/css':
         specifier: workspace:*
         version: link:../css
-      '@design-tool/inspector':
+      '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../inspector
       magic-string:
@@ -528,13 +528,13 @@ importers:
       postcss:
         specifier: ^8.4.47
         version: 8.5.16
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
         version: 22.20.1
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
       vite:
         specifier: '>=5.0.0'
         version: 5.4.21(@types/node@22.20.1)(lightningcss@1.32.0)
@@ -544,10 +544,10 @@ importers:
 
   packages/standalone:
     dependencies:
-      '@design-tool/css':
+      '@nudge-ui/css':
         specifier: workspace:*
         version: link:../css
-      '@design-tool/inspector':
+      '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../inspector
       parse5:
