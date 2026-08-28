@@ -160,7 +160,7 @@ export interface AgentBridgeTransport {
   readonly dispatch: (
     request: AgentPromptDispatch,
     signal?: AbortSignal,
-  ) => Promise<PromptDispatchResponse | void>;
+  ) => Promise<PromptDispatchResponse | null>;
   readonly disconnect?: (
     request: AgentDisconnectRequest,
     signal?: AbortSignal,

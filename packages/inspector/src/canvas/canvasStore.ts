@@ -98,6 +98,25 @@ function computeNewCardPosition(existingCards: CanvasCard[], gap: number) {
   return { x: rightmostEdge, y: rowY };
 }
 
+function boundsOf(cards: readonly CanvasCard[]): {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+} {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const card of cards) {
+    minX = Math.min(minX, card.x);
+    minY = Math.min(minY, card.y);
+    maxX = Math.max(maxX, card.x + card.width);
+    maxY = Math.max(maxY, card.y + card.height);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
 export function setCanvasMode(newMode: CanvasMode): void {
   if (mode === newMode) return;
   mode = newMode;
@@ -151,20 +170,8 @@ export function exitCanvasToCard(card: CanvasCard): void {
   }
 }
 
-export function addCanvasCard(url: string, title?: string): CanvasCard {
-  return addCanvasCardWithOptions(url, title);
-}
-
-export interface AddCanvasCardOptions {
-  comparisonGroupId?: string;
-}
-
 /** Adds one card while retaining the existing placement policy. */
-export function addCanvasCardWithOptions(
-  url: string,
-  title?: string,
-  options: AddCanvasCardOptions = {},
-): CanvasCard {
+export function addCanvasCard(url: string, title?: string): CanvasCard {
   const size = lastUsedCardSize ?? defaultViewportSize();
   const pos = computeNewCardPosition(cards, CARD_GAP);
   const card: CanvasCard = {
@@ -175,7 +182,6 @@ export function addCanvasCardWithOptions(
     y: pos.y,
     width: size.width,
     height: size.height,
-    ...(options.comparisonGroupId ? { comparisonGroupId: options.comparisonGroupId } : {}),
   };
   cards = [...cards, card];
   lastUsedCardSize = { width: size.width, height: size.height };
@@ -258,6 +264,24 @@ export function clearCanvasComparisonGroups(): void {
   notify();
 }
 
+/**
+ * Finds the route paired with `cardId` inside the agent group `groupId` and
+ * replaces that group with `patchGroup`, which receives the paired route
+ * index.
+ */
+function updateComparisonGroupRoutes(
+  groupId: string,
+  cardId: string,
+  patchGroup: (group: CanvasComparisonGroup, routeIndex: number) => CanvasComparisonGroup,
+): void {
+  comparisonGroups = comparisonGroups.map((group) => {
+    if (group.id !== groupId) return group;
+    const routeIndex = group.cardIds.indexOf(cardId);
+    if (routeIndex < 0) return group;
+    return patchGroup(group, routeIndex);
+  });
+}
+
 export function removeCanvasCard(id: string): void {
   const removed = cards.find((card) => card.id === id);
   cards = cards.filter((c) => c.id !== id);
@@ -268,18 +292,12 @@ export function removeCanvasCard(id: string): void {
     focusedCardId = null;
   }
   if (removed?.comparisonGroupId) {
-    comparisonGroups = comparisonGroups
-      .map((group) => {
-        if (group.id !== removed.comparisonGroupId) return group;
-        const routeIndex = group.cardIds.indexOf(id);
-        if (routeIndex < 0) return group;
-        return {
-          ...group,
-          cardIds: group.cardIds.filter((_cardId, index) => index !== routeIndex),
-          routes: group.routes.filter((_route, index) => index !== routeIndex),
-        };
-      })
-      .filter((group) => group.cardIds.length > 0);
+    updateComparisonGroupRoutes(removed.comparisonGroupId, id, (group, routeIndex) => ({
+      ...group,
+      cardIds: group.cardIds.filter((_cardId, index) => index !== routeIndex),
+      routes: group.routes.filter((_route, index) => index !== routeIndex),
+    }));
+    comparisonGroups = comparisonGroups.filter((group) => group.cardIds.length > 0);
   }
   if (cards.length === 0 && mode === "canvas") {
     mode = "inspect";
@@ -291,15 +309,10 @@ export function updateCardTitle(id: string, title: string): void {
   const card = cards.find((candidate) => candidate.id === id);
   cards = cards.map((c) => (c.id === id ? { ...c, title } : c));
   if (card?.comparisonGroupId) {
-    comparisonGroups = comparisonGroups.map((group) => {
-      if (group.id !== card.comparisonGroupId) return group;
-      const routeIndex = group.cardIds.indexOf(id);
-      if (routeIndex < 0) return group;
-      return {
-        ...group,
-        routes: group.routes.map((route, index) => index === routeIndex ? { ...route, title } : route),
-      };
-    });
+    updateComparisonGroupRoutes(card.comparisonGroupId, id, (group, routeIndex) => ({
+      ...group,
+      routes: group.routes.map((route, index) => index === routeIndex ? { ...route, title } : route),
+    }));
   }
   notify();
 }
@@ -308,15 +321,10 @@ export function updateCardUrl(id: string, url: string): void {
   const card = cards.find((candidate) => candidate.id === id);
   cards = cards.map((c) => (c.id === id ? { ...c, url } : c));
   if (card?.comparisonGroupId) {
-    comparisonGroups = comparisonGroups.map((group) => {
-      if (group.id !== card.comparisonGroupId) return group;
-      const routeIndex = group.cardIds.indexOf(id);
-      if (routeIndex < 0) return group;
-      return {
-        ...group,
-        routes: group.routes.map((route, index) => index === routeIndex ? { ...route, url } : route),
-      };
-    });
+    updateComparisonGroupRoutes(card.comparisonGroupId, id, (group, routeIndex) => ({
+      ...group,
+      routes: group.routes.map((route, index) => index === routeIndex ? { ...route, url } : route),
+    }));
   }
   notify();
 }
@@ -382,17 +390,7 @@ export function fitCanvasCards(
   const selectedCards = cards.filter((card) => selectedIds.has(card.id));
   if (selectedCards.length === 0) return false;
 
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  for (const card of selectedCards) {
-    if (card.x < minX) minX = card.x;
-    if (card.y < minY) minY = card.y;
-    if (card.x + card.width > maxX) maxX = card.x + card.width;
-    if (card.y + card.height > maxY) maxY = card.y + card.height;
-  }
+  const { minX, minY, maxX, maxY } = boundsOf(selectedCards);
 
   const contentW = maxX - minX;
   const contentH = maxY - minY;
@@ -433,16 +431,7 @@ export function focusCanvasCards(
   const selectedCards = cards.filter((card) => selectedIds.has(card.id));
   if (selectedCards.length === 0) return false;
 
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const card of selectedCards) {
-    minX = Math.min(minX, card.x);
-    minY = Math.min(minY, card.y);
-    maxX = Math.max(maxX, card.x + card.width);
-    maxY = Math.max(maxY, card.y + card.height);
-  }
+  const { minX, minY, maxX, maxY } = boundsOf(selectedCards);
 
   const viewW = viewport?.width ?? window.innerWidth;
   const viewH = viewport?.height ?? window.innerHeight;

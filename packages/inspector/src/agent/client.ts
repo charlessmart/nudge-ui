@@ -46,7 +46,6 @@ export interface AgentClientSnapshot {
   readonly listenerActive: boolean;
   readonly paired: boolean;
   readonly request: AgentRequestSnapshot | null;
-  readonly listenerLabel?: string;
   readonly error?: string;
 }
 
@@ -180,7 +179,6 @@ export class AgentClient {
   private canvasCommandHandler: AgentClientOptions["canvasCommandHandler"];
   private readonly listeners = new Set<() => void>();
   private snapshot: AgentClientSnapshot;
-  private listenerLabel: string | undefined;
   private sessionToken: string | null = null;
   private activeRequest: ActiveRequest | null = null;
   private discoveryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -652,7 +650,6 @@ export class AgentClient {
         ...(request.summary === undefined ? {} : { summary: request.summary }),
         ...(request.error === undefined ? {} : { error: request.error }),
       } : null,
-      ...(this.listenerLabel === undefined ? {} : { listenerLabel: this.listenerLabel }),
       ...(this.lastError === undefined ? {} : { error: this.lastError }),
     };
   }
