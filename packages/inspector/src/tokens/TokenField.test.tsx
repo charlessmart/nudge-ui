@@ -325,6 +325,7 @@ describe("TokenField", () => {
     const chip = handle.host.querySelector('[data-test="token-chip"]') as HTMLButtonElement;
     expect(chip).not.toBeNull();
     expect(chip.textContent).toContain("--font-size-base");
+    expect((handle.host.querySelector(".token-chip__label") as HTMLElement).title).toBe(FONT_SIZE.name);
     expect(handle.host.querySelector('[data-test="token-select"]')).toBeNull();
   });
 

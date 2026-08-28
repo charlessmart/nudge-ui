@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactElement } from "react";
+import { TokenLabel } from "./TokenLabel.tsx";
 
 export type TokenChipSize = "default" | "small";
 
@@ -33,9 +34,9 @@ function TokenChipPicker({ className, children, ...props }: TokenChipSlotProps):
 
 function TokenChipLabel({ className, children, ...props }: TokenChipSlotProps): ReactElement {
   return (
-    <span {...props} className={`token-chip__label${className ? ` ${className}` : ""}`}>
+    <TokenLabel {...props} className={`token-chip__label${className ? ` ${className}` : ""}`}>
       {children}
-    </span>
+    </TokenLabel>
   );
 }
 

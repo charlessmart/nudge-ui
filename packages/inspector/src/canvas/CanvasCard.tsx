@@ -15,6 +15,7 @@ import { clearCanvasStructuralProjectionReports } from "../structuralProjection.
 import { clearCanvasRenderedInstanceProjectionReports } from "../renderedInstance.ts";
 import { clearCanvasTextProjectionReports } from "../textProjection.ts";
 import { getCanvasToolbarScale } from "./toolbarScale.ts";
+import { getCanvasResizeHandleScale } from "./resizeHandleScale.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -36,6 +37,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
   const isSelected = selectedCardId === card.id;
   const isFocused = focusedCardId === card.id;
   const toolbarScale = getCanvasToolbarScale(camera.zoom);
+  const resizeHandleScale = getCanvasResizeHandleScale(camera.zoom);
 
   useEffect(() => {
     const iframe = iframeRef.current;
@@ -268,12 +270,29 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
       <div
         className="canvas-card__toolbar"
         onPointerDown={handleToolbarPointerDown}
-        style={{
-          transform: `scale(${toolbarScale})`,
-          transformOrigin: "right bottom",
-        }}
       >
-        <div className="canvas-card__actions">
+        <div
+          className="canvas-card__drag-surface"
+          data-test={`canvas-card-drag-${card.id}`}
+        >
+          <span
+            className="canvas-card__dimensions"
+            data-test={`canvas-card-dimensions-${card.id}`}
+            style={{
+              transform: `scale(${toolbarScale})`,
+              transformOrigin: "left center",
+            }}
+          >
+            {card.width} × {card.height} px
+          </span>
+        </div>
+        <div
+          className="canvas-card__actions"
+          style={{
+            transform: `scale(${toolbarScale})`,
+            transformOrigin: "right center",
+          }}
+        >
           <Button
             variant="secondary"
             size="default"
@@ -330,6 +349,10 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
       <div
         className="canvas-card__resize-handle"
         data-test={`canvas-card-resize-${card.id}`}
+        style={{
+          transform: `scale(${resizeHandleScale})`,
+          transformOrigin: "right bottom",
+        }}
         onPointerDown={handleResizeStart}
         onKeyDown={handleResizeKeyDown}
         role="button"

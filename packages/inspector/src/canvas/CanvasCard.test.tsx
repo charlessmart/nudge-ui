@@ -2,9 +2,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { createElement } from "react";
+import { createElement, type ReactElement } from "react";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { PROTOCOL_VERSION } from "./frameProtocol.ts";
+import { getCanvasCards, hydrateCanvasStore, resizeCard, type CanvasCard as CanvasCardData, useCanvasCards } from "./canvasStore.ts";
 import { configureNudgeUiRuntime } from "../runtimeConfig.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -51,8 +52,21 @@ describe("CanvasCard renderer handshake", () => {
       });
       root = null;
     }
+    hydrateCanvasStore("inspect", [], { x: 0, y: 0, zoom: 1 });
     host.remove();
   });
+
+  function renderCard(card: CanvasCardData): void {
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCard, { card }));
+    });
+  }
+
+  function StoreBackedCard(): ReactElement | null {
+    const card = useCanvasCards()[0];
+    return card ? createElement(CanvasCard, { card }) : null;
+  }
 
   function mountCard(): HTMLElement {
     const iframe = document.createElement("iframe");
@@ -135,5 +149,95 @@ describe("CanvasCard renderer handshake", () => {
     });
 
     expect(posted).toHaveLength(0);
+  });
+
+  it("shows live card dimensions in the toolbar", () => {
+    const card: CanvasCardData = {
+      id: "card-dimensions",
+      url: window.location.href,
+      title: null,
+      x: 20,
+      y: 30,
+      width: 1440,
+      height: 900,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(StoreBackedCard));
+    });
+
+    const dimensions = () => host.querySelector(
+      `[data-test="canvas-card-dimensions-${card.id}"]`,
+    )?.textContent;
+
+    expect(dimensions()).toBe("1440 × 900 px");
+
+    act(() => resizeCard(card.id, 1024, 768));
+
+    expect(dimensions()).toBe("1024 × 768 px");
+  });
+
+  it("moves the card when dragging from the dimension surface", () => {
+    const card: CanvasCardData = {
+      id: "card-drag-surface",
+      url: window.location.href,
+      title: null,
+      x: 40,
+      y: 60,
+      width: 800,
+      height: 600,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    renderCard(card);
+
+    const dragSurface = host.querySelector(
+      `[data-test="canvas-card-drag-${card.id}"]`,
+    );
+    if (!(dragSurface instanceof HTMLElement)) throw new Error("drag surface did not mount");
+    Object.defineProperty(dragSurface, "setPointerCapture", { value: () => {} });
+
+    const pointerEvent = (type: string, clientX: number, clientY: number): Event => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        clientY: { value: clientY },
+        pointerId: { value: 1 },
+      });
+      return event;
+    };
+
+    act(() => {
+      dragSurface.dispatchEvent(pointerEvent("pointerdown", 100, 200));
+      window.dispatchEvent(pointerEvent("pointermove", 160, 260));
+    });
+
+    expect(getCanvasCards()[0]).toMatchObject({ x: 100, y: 120 });
+
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointerup", 160, 260));
+    });
+  });
+
+  it("keeps the resize handle screen-sized while the board is zoomed", () => {
+    const card: CanvasCardData = {
+      id: "card-resize-scale",
+      url: window.location.href,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
+    renderCard(card);
+
+    const resizeHandle = host.querySelector(
+      `[data-test="canvas-card-resize-${card.id}"]`,
+    );
+    if (!(resizeHandle instanceof HTMLElement)) throw new Error("resize handle did not mount");
+
+    expect(resizeHandle.style.transform).toBe("scale(2)");
+    expect(resizeHandle.style.transformOrigin).toBe("right bottom");
   });
 });

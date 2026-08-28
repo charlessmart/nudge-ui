@@ -16,6 +16,7 @@ import {
 } from "./catalog.ts";
 import type { TokenCatalogRow } from "./catalog.ts";
 import { setGlobalTokenValue } from "./tokenEdits.ts";
+import { TokenLabel } from "./TokenLabel.tsx";
 
 function rowChange(
   row: TokenCatalogRow,
@@ -100,6 +101,7 @@ function TokenCatalogItem({
   ) ?? row;
   const allowed = compatibleTokenNames(effectiveRow, effectiveRows);
   const variants = row.definition.declarations.filter((declaration) => declaration !== row.activeDeclaration);
+  const tokenName = row.definition.name || row.definition.cssName;
 
   return (
     <article
@@ -109,7 +111,9 @@ function TokenCatalogItem({
       data-active={row.activeDeclaration ? "true" : "false"}
     >
       <div className="token-row__inline">
-        <code className="token-row__name">{row.definition.name || row.definition.cssName}</code>
+        <TokenLabel as="code" className="token-row__name" title={tokenName}>
+          {tokenName}
+        </TokenLabel>
         {row.activeDeclaration ? (
           <ControlSurface>
             <TokenValueField

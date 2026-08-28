@@ -35,4 +35,23 @@ describe("TokenChip", () => {
     expect(picker.textContent).toContain("--color-primary");
     expect(action.parentElement).toBe(chip);
   });
+
+  it("keeps the complete token name in the label tooltip", () => {
+    const tokenName = "--color-border-subtle";
+    handle = mount(createElement(
+      TokenChip,
+      null,
+      createElement(
+        TokenChip.Picker,
+        null,
+        createElement(TokenChip.Label, null, tokenName),
+      ),
+    ));
+
+    const label = handle.host.querySelector(".token-chip__label") as HTMLElement;
+
+    expect(label.getAttribute("title")).toBe(tokenName);
+    expect(label.textContent).toBe(tokenName);
+    expect(label.querySelector(".token-label__content")?.textContent).toBe(tokenName);
+  });
 });

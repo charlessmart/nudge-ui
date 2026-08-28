@@ -491,7 +491,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
             trigger={(
               <TokenChip.Picker>
                 {embedColorSwatch ? colorControlEl : null}
-                <TokenChip.Label>{chipValue}</TokenChip.Label>
+                <TokenChip.Label title={activeToken.name}>{chipValue}</TokenChip.Label>
               </TokenChip.Picker>
             )}
             triggerClassName="token-chip__trigger"
