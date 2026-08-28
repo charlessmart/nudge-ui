@@ -73,7 +73,7 @@
   text-align: left;
 }
 
-/* Keep the animated content inside the existing label box. */
+/* Keep the content inside the existing label box. */
 .token-label {
   display: block;
   min-width: 0;
@@ -87,43 +87,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: inherit;
-}
-
-.token-label[data-truncated="true"]:hover .token-label__content,
-.token-label[data-truncated="true"]:focus .token-label__content,
-.token-label[data-truncated="true"]:focus-within .token-label__content,
-.token-chip__trigger:focus .token-chip__label[data-truncated="true"] .token-label__content {
-  width: max-content;
-  max-width: none;
-  overflow: visible;
-  text-overflow: clip;
-  pointer-events: none;
-  animation: token-label-marquee 4.8s ease-in-out 120ms 1 both;
-}
-
-@keyframes token-label-marquee {
-  0%,
-  18% {
-    transform: translateX(0);
-  }
-
-  48%,
-  72% {
-    transform: translateX(calc(-1 * var(--token-label-overflow)));
-  }
-
-  100% {
-    transform: translateX(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .token-label[data-truncated="true"]:hover .token-label__content,
-  .token-label[data-truncated="true"]:focus .token-label__content,
-  .token-label[data-truncated="true"]:focus-within .token-label__content,
-  .token-chip__trigger:focus .token-chip__label[data-truncated="true"] .token-label__content {
-    animation: none;
-  }
 }
 
 .token-chip__picker svg {
