@@ -57,6 +57,7 @@ export function OpacityEditor({ element, entries, tokenRows = [], onAfterEdit }:
           trailing={activeToken ? <span className="opacity-editor__effective" data-test="opacity-effective">{value}</span> : undefined}
           label="Opacity"
           onAfterEdit={onAfterEdit}
+          chipVariant="small"
         />
       </ControlSurface>
     </div>

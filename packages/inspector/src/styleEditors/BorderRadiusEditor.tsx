@@ -119,6 +119,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
         entries={allEntries}
         editMetadata={metadataFor(findTokenRow(tokenRows, corner))}
         onAfterEdit={onAfterEdit}
+        chipVariant="small"
       />
     ),
   }));
@@ -146,6 +147,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
           ? ""
           : completeCssValue(value.trim(), valuePolicyFor("border-radius"))}
         onAfterEdit={onAfterEdit}
+        chipVariant="small"
       />
     </ControlSurface>
   );

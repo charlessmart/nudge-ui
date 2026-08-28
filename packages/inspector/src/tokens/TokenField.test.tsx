@@ -329,6 +329,36 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-select"]')).toBeNull();
   });
 
+  it("renders a compact numeric token value while keeping the token name in the tooltip", () => {
+    const { selected } = makeSelected();
+    const radiusToken: TokenEntry = {
+      name: "--radius-card",
+      value: "12px",
+      source: "styles.css:3",
+    };
+    handle = mount(createElement(TokenField, {
+      property: "border-radius",
+      tokenRow: {
+        property: "border-radius",
+        tokenName: radiusToken.name,
+        declaredValue: `var(${radiusToken.name})`,
+        resolvedValue: radiusToken.value,
+        capability: "atomic",
+        confidence: "exact",
+        evidence: { reason: "test fixture" },
+      },
+      domElement: selected.domElement,
+      entries: [radiusToken],
+      chipVariant: "small",
+    }));
+
+    const chip = handle.host.querySelector('.token-chip') as HTMLElement;
+    const label = chip.querySelector(".token-chip__label") as HTMLElement;
+    expect(chip.classList).toContain("token-chip--small");
+    expect(label.textContent).toBe("12");
+    expect(label.title).toBe(radiusToken.name);
+  });
+
   it("renders a separable color token and alpha as a chip plus opacity", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {

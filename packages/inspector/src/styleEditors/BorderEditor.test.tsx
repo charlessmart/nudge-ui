@@ -85,6 +85,36 @@ describe("BorderEditor", () => {
     expect(sheetText()).toContain("border-width: 2px;");
   });
 
+  it("renders a linked border width token as a compact numeric chip", () => {
+    const { selected } = makeSelected();
+    const borderWidthToken: TokenEntry = {
+      name: "--border-width-thin",
+      value: "1px",
+      source: "styles.css:3",
+    };
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BorderEditor, {
+      element: selected,
+      entries: [borderWidthToken],
+      tokenRows: [{
+        property: "border-width",
+        tokenName: borderWidthToken.name,
+        declaredValue: `var(${borderWidthToken.name})`,
+        resolvedValue: borderWidthToken.value,
+        capability: "atomic",
+        confidence: "exact",
+        evidence: { reason: "test fixture" },
+      }],
+    }));
+
+    const chip = handle.host.querySelector(
+      '[data-test="token-field"][data-property="border-width"] .token-chip',
+    ) as HTMLElement;
+    expect(chip.classList).toContain("token-chip--small");
+    expect(chip.querySelector(".token-chip__label")?.textContent).toBe("1");
+    expect(chip.querySelector(".token-chip__label")?.getAttribute("title")).toBe(borderWidthToken.name);
+  });
+
   it("uses the decomposed border component in a structured field", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
@@ -513,6 +543,51 @@ describe("BorderEditor", () => {
     const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
     setInputValue(raw, "12px");
     expect(sheetText()).toContain("border-radius: 12px;");
+  });
+
+  it("renders grouped and individual radius tokens as compact numeric chips", () => {
+    const { selected } = makeSelected();
+    const radiusToken: TokenEntry = {
+      name: "--radius-card",
+      value: "12px",
+      source: "styles.css:4",
+    };
+    const radiusRows = [
+      "border-top-left-radius",
+      "border-top-right-radius",
+      "border-bottom-right-radius",
+      "border-bottom-left-radius",
+    ].map((property): ResolvedProperty => ({
+      property,
+      tokenName: radiusToken.name,
+      declaredValue: `var(${radiusToken.name})`,
+      resolvedValue: radiusToken.value,
+      capability: "atomic",
+      confidence: "exact",
+      evidence: { reason: "test fixture" },
+    }));
+    mockComputedStyle(defaultComputed());
+    handle = mount(createElement(BorderRadiusEditor, {
+      element: selected,
+      entries: [radiusToken],
+      tokenRows: radiusRows,
+    }));
+
+    const groupedChip = handle.host.querySelector(
+      '[data-test="token-field"][data-property="border-radius"] .token-chip',
+    ) as HTMLElement;
+    expect(groupedChip.classList).toContain("token-chip--small");
+    expect(groupedChip.querySelector(".token-chip__label")?.textContent).toBe("12");
+
+    act(() => {
+      (handle.host.querySelector('[data-test="border-radius-expand"]') as HTMLButtonElement).click();
+    });
+
+    const cornerChip = handle.host.querySelector(
+      '[data-test="token-field"][data-property="border-top-left-radius"] .token-chip',
+    ) as HTMLElement;
+    expect(cornerChip.classList).toContain("token-chip--small");
+    expect(cornerChip.querySelector(".token-chip__label")?.textContent).toBe("12");
   });
 
   it("starts linked and reveals per-corner fields on expand", () => {

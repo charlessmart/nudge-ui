@@ -314,6 +314,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           domElement={el}
           entries={allEntries}
           onAfterEdit={onAfterEdit}
+          chipVariant="small"
         />
       </ControlSurface>
     ),
@@ -391,6 +392,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                         domElement={el}
                         entries={allEntries}
                         onAfterEdit={onAfterEdit}
+                        chipVariant="small"
                       />
                     </ControlSurface>
                   </div>

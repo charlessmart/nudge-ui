@@ -66,7 +66,10 @@ describe("OpacityEditor", () => {
     mockComputedStyle({ opacity: "0.35" });
     handle = mount(createElement(OpacityEditor, { element: selected, entries: [token], tokenRows: [row] }));
 
-    expect(handle.host.querySelector('[data-test="token-chip"]')).toBeTruthy();
+    const chip = handle.host.querySelector('.token-chip') as HTMLElement;
+    expect(chip.classList).toContain("token-chip--small");
+    expect(chip.querySelector(".token-chip__label")?.textContent).toBe("0.35");
+    expect(chip.querySelector(".token-chip__label")?.getAttribute("title")).toBe(token.name);
     expect(handle.host.querySelector('[data-test="opacity-effective"]')?.textContent).toBe("35%");
   });
 });
