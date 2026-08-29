@@ -28,7 +28,7 @@ export const MCP_SERVER_VERSION = "0.0.1";
 /** Instructions are sent through MCP initialization for every host. */
 export const MCP_SERVER_INSTRUCTIONS = [
   "Nudge UI is a local browser companion for one project workspace.",
-  "Call nudge_listen (or nudge_connect) and keep the call open while waiting for a browser request.",
+  "Call nudge_listen (or nudge_connect) immediately at task start and keep the call open while waiting for a browser request; the bridge may be running before a listener exists.",
   "After a prompt is delivered, edit the project source using the host's normal approval flow.",
   "Report completed, failed, or interrupted status with nudge_report_status before listening again.",
   "Canvas tools operate only on same-origin routes from the paired project.",
@@ -100,7 +100,7 @@ function installTools(mcpServer: McpServer, bridge: BrowserBridge): void {
     }
   };
 
-  const listenDescription = "Wait for one browser prompt. Keep this standard MCP call open, then call nudge_report_status and listen again after the request ends.";
+  const listenDescription = "Call this immediately at task start. Wait for one browser prompt. Keep this standard MCP call open, then call nudge_report_status and listen again after the request ends.";
   const emptyInput = {} as const;
   mcpServer.registerTool("nudge_listen", {
     title: "Listen for Nudge requests",

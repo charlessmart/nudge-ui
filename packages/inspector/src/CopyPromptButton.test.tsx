@@ -49,8 +49,9 @@ class ButtonTransport implements AgentBridgeTransport {
   eventHandlers: AgentEventHandlers | null = null;
   dispatches: AgentPromptDispatch[] = [];
   rejectDispatch = false;
+  discoveredStatus = listeningStatus();
 
-  async discover(): Promise<AgentStatusSnapshot> { return listeningStatus(); }
+  async discover(): Promise<AgentStatusSnapshot> { return this.discoveredStatus; }
 
   async pair(): Promise<PairingResponse> {
     return {
@@ -109,6 +110,19 @@ describe("CopyPromptButton agent handoff", () => {
     configureNudgeUiRuntime(previousConfig);
     container.remove();
     vi.restoreAllMocks();
+  });
+
+  it("explains when the companion is reachable but no agent listener is active", async () => {
+    const transport = new ButtonTransport();
+    transport.discoveredStatus = listeningStatus({ connection: "offline", listenerActive: false });
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+
+    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
+    const hint = container.querySelector<HTMLElement>('[data-test="agent-listener-hint"]');
+    expect(button.textContent).toContain("Copy prompt");
+    expect(hint?.textContent).toContain("nudge_listen");
   });
 
   it("changes Connect into Send and disables the control while one prompt is working", async () => {

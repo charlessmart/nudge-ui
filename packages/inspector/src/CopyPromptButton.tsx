@@ -58,6 +58,12 @@ export function CopyPromptButton(): ReactElement {
   const working = agent.state === "working";
   const canConnect = agent.state === "available";
   const canSend = agent.state === "connected" || agent.state === "completed";
+  const waitingForListener = agent.state === "disconnected"
+    && agent.companionReachable
+    && !agent.listenerActive;
+  const listenerHint = waitingForListener
+    ? "MCP companion detected, but no agent listener is active. Ask your coding agent to call nudge_listen."
+    : undefined;
   const disabled = connecting || working || (!canConnect && !hasChanges);
 
   const label = copied
@@ -105,34 +111,41 @@ export function CopyPromptButton(): ReactElement {
   }
 
   return (
-    <div className="copy-prompt" data-test="copy-prompt-control">
-      <Button
-        variant="primary"
-        className="copy-prompt__main"
-        data-test="copy-prompt"
-        type="button"
-        disabled={disabled}
-        data-copied={copied ? "true" : "false"}
-        data-agent-state={agent.state}
-        aria-busy={working || connecting ? "true" : undefined}
-        title={agent.error}
-        onClick={onClick}
-      >
-        {icon}
-        {label}
-      </Button>
-      <IconButton
-        variant="primary"
-        className="copy-prompt__menu"
-        label="Copy prompt options"
-        title="Copy prompt options"
-        data-test="copy-prompt-menu"
-        type="button"
-        disabled={!hasChanges || working || connecting}
-        aria-haspopup="menu"
-      >
-        <IconChevronDown size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-      </IconButton>
+    <div className="copy-prompt__stack" data-test="copy-prompt-control">
+      <div className="copy-prompt">
+        <Button
+          variant="primary"
+          className="copy-prompt__main"
+          data-test="copy-prompt"
+          type="button"
+          disabled={disabled}
+          data-copied={copied ? "true" : "false"}
+          data-agent-state={agent.state}
+          aria-busy={working || connecting ? "true" : undefined}
+          title={agent.error ?? listenerHint}
+          onClick={onClick}
+        >
+          {icon}
+          {label}
+        </Button>
+        <IconButton
+          variant="primary"
+          className="copy-prompt__menu"
+          label="Copy prompt options"
+          title="Copy prompt options"
+          data-test="copy-prompt-menu"
+          type="button"
+          disabled={!hasChanges || working || connecting}
+          aria-haspopup="menu"
+        >
+          <IconChevronDown size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+        </IconButton>
+      </div>
+      {listenerHint ? (
+        <p className="copy-prompt__hint" data-test="agent-listener-hint" role="status">
+          {listenerHint}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -16,6 +16,17 @@ existing user-owned `nudge_ui` entry untouched, and treats every file error as
 non-fatal. The entry uses a long tool timeout because `nudge_listen` is an
 intentional long-lived call.
 
+Registration does not start the listener. After installation or a configuration
+change, restart or reload the MCP server, or start a fresh agent task. Then ask
+the agent to call `nudge_listen` immediately and keep it active. The inspector
+can only offer **Connect agent** after that call is active; **Copy prompt** is
+the expected fallback while no listener is running.
+
+For Codex desktop, confirm that `nudge_ui` appears in the current task after
+the MCP restart. For Codex CLI, `codex mcp list` verifies the project entry.
+Restart a long-running OpenCode service after adding or changing its MCP
+configuration so it refreshes its tool catalog.
+
 ## Run manually
 
 ```sh
@@ -26,6 +37,7 @@ Omit `--origin` to trust and lock the first browser origin. The bridge chooses
 a deterministic loopback port from the project ID so the inspector can find
 it without a port file. Use `--port 0` for an ephemeral test port.
 
-The agent should call `nudge_listen`, apply the delivered prompt through its
-normal source-editing workflow, call `nudge_report_status`, and listen again.
-Canvas tools are limited to same-origin routes and agent-owned groups.
+The agent should call `nudge_listen` immediately, apply the delivered prompt
+through its normal source-editing workflow, call `nudge_report_status`, and
+listen again. Canvas tools are limited to same-origin routes and agent-owned
+groups.

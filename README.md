@@ -98,11 +98,26 @@ Installation makes a best-effort, project-local Codex registration in
 not fail installation when the project configuration is unavailable. Other
 MCP hosts can start the `nudge-mcp` stdio command with the same project ID.
 
-Ask the coding agent to call `nudge_listen` and leave that call active. The
-inspector changes its primary action from **Copy prompt** to **Connect agent**.
-After explicit pairing, the action becomes **Send prompt** and dispatches the
-current immutable change revision directly to the waiting agent. Only one
-request can be active at a time; Copy remains available as the fallback.
+Registration and listening are separate steps. Installation only tells the
+agent host how to start the companion; it does not invoke the long-lived MCP
+tool. After installing or changing the project entry, restart or reload the
+host's MCP server, or start a fresh agent task, so the host refreshes its tool
+catalog.
+
+Then ask the coding agent to call `nudge_listen` immediately and leave that
+call active. The inspector changes its primary action from **Copy prompt** to
+**Connect agent**. After explicit pairing, the action becomes **Send prompt**
+and dispatches the current immutable change revision directly to the waiting
+agent. Only one request can be active at a time; Copy remains available as the
+fallback.
+
+If the inspector continues to show **Copy prompt** while the local companion
+is running, the agent host has probably not started `nudge_listen`. The
+companion can be reachable before a listener exists. In Codex desktop, verify
+that `nudge_ui` is available to the current task after restarting the MCP
+server. In Codex CLI, run `codex mcp list` from the project root. Long-running
+services such as OpenCode should be restarted or reloaded after MCP config
+changes.
 
 The agent can also present real, same-origin application routes as a labeled
 Canvas comparison group, focus the group, fit the board, read Canvas state, or

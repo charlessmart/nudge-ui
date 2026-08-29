@@ -93,6 +93,11 @@
   width: 100%;
 }
 
+.copy-prompt__stack {
+  width: 100%;
+  min-width: 0;
+}
+
 .copy-prompt {
   display: flex;
   align-items: stretch;
@@ -113,6 +118,17 @@
   height: var(--control-height-large);
   border-left: 0;
   border-radius: 0 var(--radius-control) var(--radius-control) 0;
+}
+
+.copy-prompt__hint {
+  margin: var(--space-8) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  line-height: 1.4;
+}
+
+.copy-prompt__hint code {
+  font-family: var(--font-mono);
 }
 
 .panel__body {

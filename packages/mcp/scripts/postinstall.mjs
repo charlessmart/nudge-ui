@@ -32,11 +32,16 @@ const registrar = createProjectLocalCodexRegistrar({ environment });
 const root = resolve(environment.INIT_CWD);
 // Only `project` is consumed by the registration block; the bridge and
 // instruction fields exist for the shared registrar port and are unused here.
-await registrar.register({
+const result = await registrar.register({
   project: { projectId: basename(root) || "project", workspaceRoot: root },
   bridge: { host: "127.0.0.1", port: 0, url: "" },
   instructions: "",
 });
+if (result.registered) {
+  console.error(`[nudge-ui] Codex MCP registered for ${root}. Restart or reload the MCP server, then ask your agent to call nudge_listen and keep it active.`);
+} else if (result.reason) {
+  console.error(`[nudge-ui] Codex MCP registration skipped: ${result.reason}`);
+}
 // `{ registered: false }` (CI guard, existing unmanaged table, or a file
 // error surfaced as a reason) is still a successful install.
 process.exit(0);

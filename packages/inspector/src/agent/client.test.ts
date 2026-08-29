@@ -38,9 +38,10 @@ class FakeTransport implements AgentBridgeTransport {
   acknowledgements: AgentCanvasAcknowledgementRequest[] = [];
   acknowledgementReceived = deferred<void>();
   restoredStatus: AgentStatusSnapshot | null = null;
+  discoveredStatus: AgentStatusSnapshot = status();
 
   async discover(): Promise<AgentStatusSnapshot> {
-    return status();
+    return this.discoveredStatus;
   }
 
   async pair(): Promise<PairingResponse> {
@@ -90,6 +91,27 @@ describe("AgentClient", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
     localStorage.clear();
+  });
+
+  it("distinguishes a reachable companion from an inactive listener", async () => {
+    const transport = new FakeTransport();
+    transport.discoveredStatus = status({ connection: "offline", listenerActive: false });
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      discoveryIntervalMs: 0,
+    });
+
+    client.start();
+    await flush();
+
+    expect(client.getSnapshot()).toMatchObject({
+      state: "disconnected",
+      connection: "offline",
+      companionReachable: true,
+      listenerActive: false,
+    });
   });
 
   it("discovers, pairs, dispatches one prompt, and returns to connected after re-arm", async () => {

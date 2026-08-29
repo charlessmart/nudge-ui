@@ -44,6 +44,8 @@ export interface AgentClientSnapshot {
   /** Companion state, using the shared protocol vocabulary. */
   readonly connection: AgentStatusSnapshot["connection"];
   readonly listenerActive: boolean;
+  /** Whether the last valid discovery response came from the local companion. */
+  readonly companionReachable: boolean;
   readonly paired: boolean;
   readonly request: AgentRequestSnapshot | null;
   readonly error?: string;
@@ -53,6 +55,7 @@ const DISABLED_SNAPSHOT: AgentClientSnapshot = Object.freeze({
   state: "disabled",
   connection: "offline",
   listenerActive: false,
+  companionReachable: false,
   paired: false,
   request: null,
 });
@@ -188,6 +191,7 @@ export class AgentClient {
   private started = false;
   private connection: AgentStatusSnapshot["connection"] = "offline";
   private listenerActive = false;
+  private companionReachable = false;
   private paired = false;
   private lastError: string | undefined;
 
@@ -240,6 +244,7 @@ export class AgentClient {
     // and interruption path.
     this.connection = "offline";
     this.listenerActive = false;
+    this.companionReachable = false;
     this.paired = false;
     this.publish();
   }
@@ -294,6 +299,7 @@ export class AgentClient {
     this.discoveryAbort?.abort();
     this.connection = "offline";
     this.listenerActive = false;
+    this.companionReachable = false;
     this.paired = false;
     this.lastError = undefined;
     this.publish();
@@ -456,13 +462,18 @@ export class AgentClient {
       if (!this.started || abortController.signal.aborted) return;
       if (status) {
         if (status.protocolVersion !== AGENT_PROTOCOL_VERSION || status.projectId !== this.projectId) {
+          this.companionReachable = false;
           this.lastError = "The agent bridge project or protocol does not match this page.";
-        } else if (this.connection !== "paired" && this.connection !== "working") {
-          this.applyStatus(status);
+        } else {
+          this.companionReachable = true;
+          if (this.connection !== "paired" && this.connection !== "working") {
+            this.applyStatus(status);
+          }
         }
       } else if (this.connection !== "paired" && this.connection !== "working") {
         this.connection = "offline";
         this.listenerActive = false;
+        this.companionReachable = false;
         this.paired = false;
         this.lastError = undefined;
         this.publish();
@@ -471,6 +482,7 @@ export class AgentClient {
       if (!abortController.signal.aborted && this.started && this.connection !== "paired" && this.connection !== "working") {
         this.connection = "offline";
         this.listenerActive = false;
+        this.companionReachable = false;
         this.paired = false;
         // Discovery failures are expected while the companion is not running;
         // retain a quiet disconnected state rather than flashing an error.
@@ -557,6 +569,7 @@ export class AgentClient {
   }
 
   private applyStatus(status: AgentStatusSnapshot): void {
+    this.companionReachable = true;
     this.listenerActive = status.listenerActive;
     this.paired = status.paired;
     this.connection = statusForConnection(status);
@@ -629,6 +642,7 @@ export class AgentClient {
     // otherwise. Explicit browser disconnect remains the interruption path.
     this.connection = "offline";
     this.listenerActive = false;
+    this.companionReachable = false;
     this.paired = false;
     this.lastError = reason;
     this.publish();
@@ -642,6 +656,7 @@ export class AgentClient {
       state,
       connection: this.connection,
       listenerActive: this.listenerActive,
+      companionReachable: this.companionReachable,
       paired: this.paired,
       request: request ? {
         requestId: request.requestId,
