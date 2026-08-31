@@ -128,13 +128,17 @@ async function persistBaseline(): Promise<void> {
   console.log(`perf | baseline written to test-results/perf-baseline.json`);
 }
 
-let fixtureStorageResetInstalled = false;
+// The init script must be installed on each test's page: Playwright gives
+// every test a fresh page, and a module-level flag would leave later tests
+// without the storage reset (a previous test's autosave then rehydrates an
+// edited session and breaks the fixture's expected values).
+const fixtureStorageResetPages = new WeakSet<Page>();
 
 async function loadFixture(page: Page): Promise<void> {
   // Clear storage in an init script on the *next* document so a previous
   // page's beforeunload autosave cannot repopulate localStorage after we
   // intended a clean fixture load.
-  if (!fixtureStorageResetInstalled) {
+  if (!fixtureStorageResetPages.has(page)) {
     await page.addInitScript(() => {
       try {
         localStorage.clear();
@@ -143,7 +147,7 @@ async function loadFixture(page: Page): Promise<void> {
         // ignore
       }
     });
-    fixtureStorageResetInstalled = true;
+    fixtureStorageResetPages.add(page);
   }
   await page.goto(FIXTURE_URL);
   await page.waitForSelector('[data-perf-id="perf-0"]');
@@ -284,6 +288,15 @@ async function commitMs(page: Page, perfId: number, property: string, hostProper
   return result;
 }
 
+async function revealSpacingGroup(page: Page, group: "padding" | "margin"): Promise<void> {
+  // Zero-valued groups are collapsed behind an add button; revealing the
+  // grouped fields (e.g. margin-vertical) requires only the add click —
+  // expanding individual sides replaces the grouped rows.
+  const section = page.locator(`[data-test="spacing-${group}"]`);
+  const add = section.locator('[data-test="add-value"]');
+  if (await add.count()) await add.click();
+}
+
 async function expandSpacingSides(page: Page, group: "padding" | "margin"): Promise<void> {
   const section = page.locator(`[data-test="spacing-${group}"]`);
   const add = section.locator('[data-test="add-value"]');
@@ -360,6 +373,13 @@ test("perf: session growth stays sublinear (commit #20 <= 2x commit #1)", async 
     expect(reveal, `growth run ${run + 1} selection did not complete`).toBeGreaterThan(0);
     const durations: number[] = [];
     for (let step = 0; step < COMMIT_STEPS.length; step += 1) {
+      if (step === 8) {
+        // The panel collapses zero-margin groups behind an add button, so the
+        // margin group must be revealed before the first grouped margin
+        // commit. Individual sides come later (step 14) because toggling them
+        // replaces the grouped rows.
+        await revealSpacingGroup(page, "margin");
+      }
       if (step === 14) {
         await expandSpacingSides(page, "padding");
         await expandSpacingSides(page, "margin");

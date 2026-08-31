@@ -107,7 +107,35 @@ export function installRendererElementSelector(): void {
   installInteractionStyles();
 
   const cidIndex = createCidIndex(document);
-  const hoverUpdate = createFrameThrottle((msg: ElementHoverMessage) => {
+  const hoverUpdate = createFrameThrottle((pending: { element: HTMLElement; clear: boolean }) => {
+    const { element, clear } = pending;
+    const identity = getRendererIdentity();
+    if (!identity) return;
+
+    const cid = element.getAttribute("data-cid")!;
+    const selector = buildSelector(element);
+    const src = element.getAttribute("data-src") ?? "";
+    const rect = clear ? null : element.getBoundingClientRect();
+
+    const msg: ElementHoverMessage = {
+      type: "element-hover",
+      protocolVersion: PROTOCOL_VERSION,
+      cid,
+      selector,
+      src,
+      elementId: cidIndex.elementId(element),
+      rect: rect
+        ? {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+        }
+        : null,
+      margins: rect ? readMargins(element) : null,
+      ...identity,
+    };
+
     sendToParent(msg);
   });
 
@@ -139,31 +167,7 @@ export function installRendererElementSelector(): void {
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
       if (!el) return;
 
-      const rect = el.getBoundingClientRect();
-      const cid = el.getAttribute("data-cid")!;
-      const selector = buildSelector(el);
-      const src = el.getAttribute("data-src") ?? "";
-      const identity = getRendererIdentity();
-      if (!identity) return;
-
-      const msg: ElementHoverMessage = {
-        type: "element-hover",
-        protocolVersion: PROTOCOL_VERSION,
-        cid,
-        selector,
-        src,
-        elementId: cidIndex.elementId(el),
-        rect: {
-          left: rect.left,
-          top: rect.top,
-          width: rect.width,
-          height: rect.height,
-        },
-        margins: readMargins(el),
-        ...identity,
-      };
-
-      hoverUpdate.schedule(msg);
+      hoverUpdate.schedule({ element: el, clear: false });
     },
     true,
   );
@@ -295,25 +299,7 @@ export function installRendererElementSelector(): void {
 
       if (resolveSelectionTarget(related, selectionTargetMode(event))) return;
 
-      const cid = el.getAttribute("data-cid")!;
-      const selector = buildSelector(el);
-      const src = el.getAttribute("data-src") ?? "";
-      const identity = getRendererIdentity();
-      if (!identity) return;
-
-      const msg: ElementHoverMessage = {
-        type: "element-hover",
-        protocolVersion: PROTOCOL_VERSION,
-        cid,
-        selector,
-        src,
-        elementId: cidIndex.elementId(el),
-        rect: null,
-        margins: null,
-        ...identity,
-      };
-
-      hoverUpdate.schedule(msg);
+      hoverUpdate.schedule({ element: el, clear: true });
     },
     true,
   );

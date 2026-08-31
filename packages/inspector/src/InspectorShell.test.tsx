@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { mountInspector, unmountInspector } from "./index.ts";
 import { setSelectedElement } from "./selectionStore.ts";
+import * as selectionResolver from "./resolveSelection.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { acquireLease, releaseLease } from "./canvas/workspaceLease.ts";
 import { exitCanvas } from "./canvas/canvasStore.ts";
 import { clearRestoreCount, setRestoreCount } from "./canvas/sessionStore.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
+import { setInputValue } from "./styleEditors/_testUtils.ts";
 
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -127,6 +129,35 @@ describe("InspectorShell", () => {
 
       expect(host.shadowRoot?.querySelector('[data-test="edit-scope"]')).toBeNull();
     } finally {
+      setSelectedElement(null);
+      selected.remove();
+    }
+  });
+
+  it("does not re-resolve component metadata after a CSS edit", () => {
+    const selected = document.createElement("button");
+    selected.dataset.cid = "Selected";
+    selected.dataset.src = "fixtures/selected.tsx:1:1";
+    document.body.appendChild(selected);
+    const resolveSpy = vi.spyOn(selectionResolver, "resolveSelectionFromElement");
+
+    try {
+      act(() => {
+        setSelectedElement(selectionResolver.resolveSelectionFromElement(selected));
+        mountInspector(host);
+      });
+      resolveSpy.mockClear();
+
+      const input = host.shadowRoot?.querySelector<HTMLInputElement>(
+        '[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]',
+      );
+      expect(input).not.toBeNull();
+
+      setInputValue(input!, "18px");
+
+      expect(resolveSpy).not.toHaveBeenCalled();
+    } finally {
+      resolveSpy.mockRestore();
       setSelectedElement(null);
       selected.remove();
     }

@@ -34,6 +34,16 @@ import {
 import { createInspectorValueContext, inspectorTokenOrigin } from "./valueSemanticsAdapter.ts";
 import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
+/**
+ * Builds (or reuses) the document's CSSOM rule snapshot ahead of a resolution
+ * sweep. Idempotent: the walk runs once per stylesheet revision and is a cache
+ * hit afterwards, so a scheduler can warm it in its own frame to keep the
+ * subsequent resolution sweep's blocking time small.
+ */
+export function prewarmCssomRuleSnapshot(doc: Document): void {
+  collectCssomRules(doc);
+}
+
 const MAX_PROPERTIES = 100;
 const VAR_REF = /var\(\s*(--[\w-]+)/g;
 const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
@@ -652,6 +662,13 @@ let sourceSiteMatchCaches = new WeakMap<Document, Map<string, SourceSiteMatchCac
 let sourceSiteMatchCacheEntries = 0;
 const relationshipMatchCaches = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
 const concreteElementMatchCaches = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
+// The "all matched" set (inactive rules included) is matched fresh against
+// every lineage element on every resolution otherwise, duplicating the
+// cached sweep's cost. State-independent selectors use the same revision-keyed
+// memo shape as the active sweep. Element-sensitive selectors stay fresh: a
+// checked state, sibling relationship, or similar browser state can change
+// without a DOM mutation that this registry observes.
+const allMatchesMemo = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
 
 /** Test hook: clears the per-source-site matched-rule cache. */
 export function resetSourceSiteMatchCache(): void {
@@ -812,12 +829,48 @@ function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transfor
  * Matches selectors without applying conditional wrappers. Resolution still
  * uses the active-only set for cascade decisions; this set preserves inactive
  * media-query alternatives for property attribution in the inspector.
+ * Memoized per (element, transform, revisions) like the cached sweep for
+ * state-independent selectors. Element-sensitive selectors stay fresh because
+ * their state can change without a revision bump (for example, `:checked`),
+ * and the "live" transform always keeps its raw selector set fresh.
  */
 function getAllElementMatches(el: HTMLElement, rules: MatchedRule[], transform: CascadeTransform): ElementMatch[] {
-  return rulesForTransform(rules, transform).flatMap((entry) => {
+  if (transform === "live") {
+    return rulesForTransform(rules, transform).flatMap((entry) => {
+      const match = matchRuleForElement(el, entry);
+      return match ? [match] : [];
+    });
+  }
+  const { cacheable, elementSensitive } = sourceSiteMatchBuckets(rules, transform);
+  const collect = (entries: Array<{ rule: MatchedRule; selectorText: string }>): ElementMatch[] => entries.flatMap((entry) => {
     const match = matchRuleForElement(el, entry);
     return match ? [match] : [];
   });
+  const doc = el.ownerDocument ?? document;
+  const revisions = getDocumentRevisions(doc);
+  let cachedMatches: ElementMatch[] = [];
+  if (cacheable.length > 0) {
+    let byTransform = allMatchesMemo.get(el);
+    if (!byTransform) {
+      byTransform = new Map();
+      allMatchesMemo.set(el, byTransform);
+    }
+    const cached = byTransform.get(transform);
+    if (cached
+      && cached.elementRevision === revisions.element
+      && cached.stylesheetRevision === revisions.stylesheet) {
+      cachedMatches = cached.matched;
+    } else {
+      cachedMatches = collect(cacheable);
+      byTransform.set(transform, {
+        elementRevision: revisions.element,
+        stylesheetRevision: revisions.stylesheet,
+        matched: cachedMatches,
+      });
+    }
+  }
+  const sensitiveMatches = elementSensitive.length > 0 ? collect(elementSensitive) : [];
+  return sensitiveMatches.length === 0 ? cachedMatches : [...cachedMatches, ...sensitiveMatches];
 }
 
 /**
@@ -1034,13 +1087,75 @@ export function resolveRuleFixture(
   return rowsFromMatches(el, matched, localAliases, tokenTable, allMatched);
 }
 
+// Selector branch splits are pure functions of the selector text and repeat
+// for every element and resolution sweep. Memoize them so repeated matching
+// passes skip re-scanning the same selector strings. Bounded like the other
+// match caches; the snapshot's selector set is finite per stylesheet revision.
+const SELECTOR_SPLIT_CACHE_MAX = 8192;
+const selectorSplitMemo = new Map<string, string[]>();
+
+// The matched branch for one (element, selector) pair is a pure function of
+// the element's selector-relevant state and the CSSOM snapshot — except for
+// selectors whose match depends on transient state the revisions cannot see
+// (`:hover`, `:checked`, sibling combinators, …). Those keep the freshness
+// contract of the element-sensitive bucket and are matched uncached.
+// Resolution sweeps re-match the same state-independent selector strings
+// against the same lineage elements across cascades (authored base, stable,
+// interaction states) and across the active/all rule sets, so memoizing the
+// branch turns repeat sweeps into cache hits. Invalidation follows the
+// document revisions, the same strategy as the per-element match caches.
+const ELEMENT_BRANCH_CACHE_MAX = 16384;
+const elementBranchMemo = new WeakMap<Element, Map<string, {
+  elementRevision: number;
+  stylesheetRevision: number;
+  branch: string | null;
+}>>();
+
+function isBranchMemoizable(selectorText: string): boolean {
+  return !TRANSIENT_SELECTOR.test(selectorText) && !isElementSensitiveSelector(selectorText);
+}
+
 function matchingSelectorBranch(el: Element, selectorText: string): string | null {
-  for (const branch of splitTopLevel(selectorText, ",")) {
+  const doc = el.ownerDocument ?? document;
+  const revisions = getDocumentRevisions(doc);
+  let bySelector = elementBranchMemo.get(el);
+  const memoizable = isBranchMemoizable(selectorText);
+  if (memoizable) {
+    if (!bySelector) {
+      bySelector = new Map();
+      elementBranchMemo.set(el, bySelector);
+    }
+    const cached = bySelector.get(selectorText);
+    if (cached
+      && cached.elementRevision === revisions.element
+      && cached.stylesheetRevision === revisions.stylesheet) {
+      return cached.branch;
+    }
+  }
+  let branches = selectorSplitMemo.get(selectorText);
+  if (!branches) {
+    branches = splitTopLevel(selectorText, ",");
+    if (selectorSplitMemo.size >= SELECTOR_SPLIT_CACHE_MAX) selectorSplitMemo.clear();
+    selectorSplitMemo.set(selectorText, branches);
+  }
+  let branch: string | null = null;
+  for (const candidate of branches) {
     try {
-      if (el.matches(branch.trim())) return branch.trim();
+      if (el.matches(candidate.trim())) {
+        branch = candidate.trim();
+        break;
+      }
     } catch { /* invalid/unsupported selector */ }
   }
-  return null;
+  if (memoizable) {
+    if (bySelector!.size >= ELEMENT_BRANCH_CACHE_MAX) bySelector!.clear();
+    bySelector!.set(selectorText, {
+      elementRevision: revisions.element,
+      stylesheetRevision: revisions.stylesheet,
+      branch,
+    });
+  }
+  return branch;
 }
 
 function compareCandidate(a: ResolvedProperty, b: ResolvedProperty): number {
@@ -1346,11 +1461,40 @@ export function getResolvedPropertiesForState(
   return rows;
 }
 
+/**
+ * Interaction states whose pseudo-class substring appears in at least one
+ * snapshot selector, memoized per CSSOM snapshot. The availability check for a
+ * state is `matched.some((m) => m.rule.selectorText.includes(":state"))`, so a
+ * state whose substring appears nowhere can never become available for any
+ * element; skipping its per-state match sweep is exactly equivalent and
+ * removes the dominant cost of re-scanning interaction states after every
+ * stylesheet revision.
+ */
+const statesWithPseudoInSnapshot = new WeakMap<MatchedRule[], Set<InteractionState>>();
+
+function statesWithPseudoInSelectors(rules: MatchedRule[]): Set<InteractionState> {
+  let present = statesWithPseudoInSnapshot.get(rules);
+  if (!present) {
+    present = new Set();
+    for (const rule of rules) {
+      for (const state of INTERACTION_STATES) {
+        if (!present.has(state) && rule.selectorText.includes(`:${state}`)) {
+          present.add(state);
+        }
+      }
+    }
+    statesWithPseudoInSnapshot.set(rules, present);
+  }
+  return present;
+}
+
 export function getAvailableInteractionStates(el: HTMLElement): InteractionState[] {
   const doc = el.ownerDocument ?? document;
   const { rules } = collectCssomRules(doc);
+  const present = statesWithPseudoInSelectors(rules);
   const available: InteractionState[] = ["base"];
   for (const state of INTERACTION_STATES) {
+    if (!present.has(state)) continue;
     const matched = getCachedElementMatches(el, rules, state);
     const relevant = matched.some((m) => m.rule.selectorText.includes(`:${state}`));
     if (relevant) available.push(state);

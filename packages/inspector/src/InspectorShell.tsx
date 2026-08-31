@@ -226,12 +226,6 @@ export function InspectorShell(): ReactElement {
   const sourceSiteMatchCount = selected && editScope === "source-site"
     ? countSourceSiteMatches(selected.domElement, scopeRevision)
     : 0;
-  function refreshSelected(): void {
-    if (!selected) return;
-    const reResolved = resolveSelectionFromElement(selected.domElement);
-    if (reResolved) setSelectedElement(reResolved);
-  }
-
   function refreshScopeState(): void {
     refreshScope((revision) => revision + 1);
   }
@@ -468,17 +462,19 @@ export function InspectorShell(): ReactElement {
 
               <AtRuleContextProvider rows={tokenRows}>
                 <div className="style-editors" data-test="style-editors">
-                  <LayoutSection key={`layout-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                  <SpacingBox key={`spacing-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                  <AppearanceSection key={`appearance-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                  <Typography key={`type-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                  {/* CSS edits publish through changesLog and browser inspection;
+                      component metadata does not change. LayoutSection keeps its
+                      own revision for controls that depend on computed layout. */}
+                  <LayoutSection key={`layout-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
+                  <SpacingBox key={`spacing-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
+                  <AppearanceSection key={`appearance-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
+                  <Typography key={`type-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
                   <ColorPicker
                     key={`color-${styleState}`}
                     element={selected}
                     property="color"
                     entries={tokenEntries}
                     tokenRow={findTokenRow(tokenRows, "color")}
-                    onAfterEdit={refreshSelected}
                   />
                   <ColorPicker
                     key={`background-${styleState}`}
@@ -486,10 +482,9 @@ export function InspectorShell(): ReactElement {
                     property="background-color"
                     entries={tokenEntries}
                     tokenRow={backgroundTokenRow}
-                    onAfterEdit={refreshSelected}
                   />
-                  <BorderEditor key={`border-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
-                  <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} onAfterEdit={refreshSelected} />
+                  <BorderEditor key={`border-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
+                  <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
                 </div>
               </AtRuleContextProvider>
             </>

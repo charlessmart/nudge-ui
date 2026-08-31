@@ -82,6 +82,24 @@ function overrideFor(callsiteId: string): Readonly<Record<string, unknown>> {
   return overridesByCallsite.get(callsiteId) ?? EMPTY_OVERRIDE;
 }
 
+function sameOverrideProjection(
+  next: Map<string, Readonly<Record<string, unknown>>>,
+): boolean {
+  if (next.size !== overridesByCallsite.size) return false;
+  for (const [callsiteId, nextProps] of next) {
+    const currentProps = overridesByCallsite.get(callsiteId);
+    if (!currentProps) return false;
+    const nextKeys = Object.keys(nextProps);
+    const currentKeys = Object.keys(currentProps);
+    if (nextKeys.length !== currentKeys.length) return false;
+    if (nextKeys.some((property) => !Object.hasOwn(currentProps, property)
+      || !Object.is(currentProps[property], nextProps[property]))) {
+      return false;
+    }
+  }
+  return true;
+}
+
 type RefCallbackWithCleanup<T> = (instance: T | null) => void | (() => void);
 
 function getReactElementRef(element: ReactElement): Ref<unknown> | null {
@@ -213,6 +231,7 @@ export function replaceReactComponentOverrides(overrides: ComponentOverride[]): 
     props[override.prop] = override.value;
     next.set(override.callsiteId, props);
   }
+  if (sameOverrideProjection(next)) return;
   overridesByCallsite = next;
   listeners.forEach((listener) => listener());
 }

@@ -11,6 +11,7 @@ import {
   getResolvedPropertiesForState,
   getResolvedPropertiesStable,
   invalidateStyleResolutionCache,
+  prewarmCssomRuleSnapshot,
 } from "../tokens/resolution.ts";
 import { buildTokenCatalogRows, type TokenCatalogRow } from "../tokens/catalog.ts";
 import {
@@ -108,6 +109,9 @@ export interface BrowserCssInspection {
   subscribe(listener: (revision: InspectionRevision) => void): () => void;
   /** Integration hook for managed CSSOM writes. */
   notifyStylesheetChange(): void;
+  /** Optional: warms the CSSOM rule snapshot so the next inspect does not pay
+   * the stylesheet walk inside its own budget. Cheap when already warm. */
+  prewarmRules?(): void;
   dispose(): void;
 }
 
@@ -371,7 +375,13 @@ export function createBrowserCssInspection(
 
       try {
         const { availableTokens, table } = tokenTableFor(element);
-        const availableStates = getAvailableInteractionStates(element);
+        // Only the authored cascade reports which interaction states have
+        // authored rules (the panel's state selector reads it there). Stable
+        // and live consumers project properties only, so skip the O(rules)
+        // per-state matching sweep for them.
+        const availableStates: readonly InteractionState[] = cascade === "stable"
+          ? ["base"]
+          : getAvailableInteractionStates(element);
         if (cascade === "authored" && state !== "base" && !availableStates.includes(state)) {
           diagnostics.push({
             code: "state-unavailable",
@@ -446,6 +456,10 @@ export function createBrowserCssInspection(
 
     notifyStylesheetChange() {
       if (!disposed) invalidateStyleResolutionCache(config.document);
+    },
+
+    prewarmRules() {
+      if (!disposed) prewarmCssomRuleSnapshot(config.document);
     },
 
     dispose() {

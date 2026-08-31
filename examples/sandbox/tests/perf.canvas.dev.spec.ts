@@ -130,7 +130,11 @@ async function probeThenMeasure(
   await leaf.evaluate((el, { type }) => {
     const parentW = window.parent as Window & { __canvasProbe?: number };
     parentW.__canvasProbe = 0;
-    el.addEventListener(type, () => {
+    // The renderer's document-level capture handler stops click propagation
+    // (blocked application clicks never reach the leaf), so the probe must
+    // listen on the document itself: stopPropagation does not prevent other
+    // listeners on the same node.
+    el.ownerDocument.addEventListener(type, () => {
       if (!parentW.__canvasProbe) parentW.__canvasProbe = parentW.performance.now();
     }, { capture: true, once: true });
   }, { type: eventName });

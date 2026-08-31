@@ -428,6 +428,46 @@ describe("source-site matched-rule cache", () => {
       .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
   });
 
+  it("refreshes element-sensitive selectors in inactive media candidates", async () => {
+    const matchMediaDescriptor = Object.getOwnPropertyDescriptor(window, "matchMedia");
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({ matches: false }),
+    });
+    try {
+      const style = document.createElement("style");
+      style.textContent = `
+        input.row { color: var(--color-a); }
+        @media (min-width: 1px) {
+          input.row:checked { color: var(--color-b); }
+        }
+      `;
+      document.head.appendChild(style);
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.className = "row";
+      input.setAttribute("data-cid", "Row");
+      input.setAttribute("data-src", "Row.tsx:4:2");
+      document.body.appendChild(input);
+      await flush();
+
+      const before = getResolvedPropertiesForState(input, table, "base");
+      expect(before.find((row) => row.property === "color")?.atRuleCandidates).toBeUndefined();
+
+      input.checked = true;
+      const after = getResolvedPropertiesForState(input, makeTable([
+        { name: "--color-a", value: "#112233", source: "s:1" },
+        { name: "--color-b", value: "#445566", source: "s:2" },
+      ]), "base");
+      expect(after.find((row) => row.property === "color")?.atRuleCandidates).toEqual([
+        { kind: "media", params: "(min-width: 1px)", active: false },
+      ]);
+    } finally {
+      if (matchMediaDescriptor) Object.defineProperty(window, "matchMedia", matchMediaDescriptor);
+      else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    }
+  });
+
   it("keeps source-site match caches isolated between iframe documents", async () => {
     const style = document.createElement("style");
     style.textContent = ".row { background: var(--color-a); }";

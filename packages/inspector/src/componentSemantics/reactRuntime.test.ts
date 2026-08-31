@@ -10,6 +10,10 @@ import {
   type ReactElement,
 } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { getManagedSheetText } from "../managedStylesheet.ts";
+import { applyChangeProjections } from "../changes/projection.ts";
+import { makeComponentChange } from "../changes/_testUtils.ts";
+import type { ElementChangeRecord } from "../changes/types.ts";
 import {
   getReactCallsiteMultiplicity,
   instrumentReactComponent,
@@ -31,6 +35,7 @@ describe("React component runtime adapter", () => {
   afterEach(() => {
     if (root) act(() => root?.unmount());
     root = null;
+    document.getElementById("nudge-ui-styles")?.remove();
     resetReactComponentRuntime();
   });
 
@@ -194,5 +199,126 @@ describe("React component runtime adapter", () => {
     }]);
 
     expect(inspectReactComponentTargets(element)[0]?.props.disabled).toBe(true);
+  });
+
+  it("does not rerender a semantic boundary when a CSS edit preserves its overrides", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    let renderCount = 0;
+    const Button = (props: { variant?: string }): ReactElement => {
+      renderCount += 1;
+      return createElement("button", {
+        "data-cid": "Button",
+        "data-variant": props.variant,
+      });
+    };
+    const meta = {
+      callsiteId: "src/App.tsx:30:7",
+      componentId: "src/ui/Button#Button",
+      componentName: "Button",
+      file: "src/App.tsx",
+      line: 30,
+      column: 7,
+      authoredProps: { variant: "literal" as const },
+    };
+    const semanticChange = makeComponentChange({
+      target: { callsiteId: meta.callsiteId },
+      after: "secondary",
+    });
+    const cssChange: ElementChangeRecord = {
+      cid: "Button",
+      file: "src/App.tsx",
+      line: 30,
+      selector: '[data-cid="Button"]',
+      property: "color",
+      oldToken: null,
+      newToken: null,
+      rawValue: "red",
+      source: { file: "src/App.tsx", line: 30, component: "Button" },
+    };
+
+    act(() => root?.render(instrumentReactComponent(
+      createElement(Button, { variant: "primary" }),
+      meta,
+    )));
+    const beforeProjection = renderCount;
+
+    act(() => applyChangeProjections([semanticChange]));
+    const afterSemanticProjection = renderCount;
+    expect(afterSemanticProjection).toBeGreaterThan(beforeProjection);
+    expect(host.querySelector("button")?.getAttribute("data-variant")).toBe("secondary");
+
+    act(() => applyChangeProjections([semanticChange, cssChange]));
+
+    expect(renderCount).toBe(afterSemanticProjection);
+    expect(host.querySelector("button")?.getAttribute("data-variant")).toBe("secondary");
+    expect(getManagedSheetText()).toContain("color: red;");
+  });
+
+  it("rerenders semantic boundaries when overrides are added, changed, or removed", () => {
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    let renderCount = 0;
+    const Button = (props: { variant?: string; disabled?: boolean }): ReactElement => {
+      renderCount += 1;
+      return createElement("button", props);
+    };
+    const meta = {
+      callsiteId: "src/App.tsx:31:7",
+      componentId: "src/ui/Button#Button",
+      componentName: "Button",
+      file: "src/App.tsx",
+      line: 31,
+      column: 7,
+      authoredProps: { variant: "literal" as const },
+    };
+    const variantOverride = {
+      framework: "react" as const,
+      callsiteId: meta.callsiteId,
+      prop: "variant",
+      value: "secondary" as const,
+    };
+    const disabledOverride = {
+      framework: "react" as const,
+      callsiteId: meta.callsiteId,
+      prop: "disabled",
+      value: true,
+    };
+
+    act(() => root?.render(instrumentReactComponent(
+      createElement(Button, { variant: "primary" }),
+      meta,
+    )));
+    const initialRenderCount = renderCount;
+    const button = (): HTMLButtonElement => host.querySelector("button") as HTMLButtonElement;
+
+    act(() => replaceReactComponentOverrides([variantOverride]));
+    expect(renderCount).toBeGreaterThan(initialRenderCount);
+    expect(button().getAttribute("variant")).toBe("secondary");
+
+    const afterAddition = renderCount;
+    act(() => replaceReactComponentOverrides([variantOverride, disabledOverride]));
+    expect(renderCount).toBeGreaterThan(afterAddition);
+    expect(button().disabled).toBe(true);
+
+    const afterSecondAddition = renderCount;
+    act(() => replaceReactComponentOverrides([{
+      ...variantOverride,
+      value: "primary" as const,
+    }, disabledOverride]));
+    expect(renderCount).toBeGreaterThan(afterSecondAddition);
+    expect(button().getAttribute("variant")).toBe("primary");
+
+    const afterChange = renderCount;
+    act(() => replaceReactComponentOverrides([variantOverride]));
+    expect(renderCount).toBeGreaterThan(afterChange);
+    expect(button().disabled).toBe(false);
+
+    const afterRemoval = renderCount;
+    act(() => replaceReactComponentOverrides([]));
+    expect(renderCount).toBeGreaterThan(afterRemoval);
+    expect(button().getAttribute("variant")).toBe("primary");
   });
 });

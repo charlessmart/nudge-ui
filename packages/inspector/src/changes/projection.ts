@@ -1,5 +1,5 @@
 import { applyRules, verifyPreview } from "../managedStylesheet.ts";
-import type { StyleRule } from "../managedStylesheet.ts";
+import type { PreviewResult, StyleRule } from "../managedStylesheet.ts";
 import { getSelectedElement } from "../selectionStore.ts";
 import { replaceComponentOverrideProjection } from "../componentSemantics/index.ts";
 import { componentChangeToOverride } from "../componentSemantics/changeModel.ts";
@@ -100,14 +100,28 @@ export function verifyManagedStyleProjection(
   } catch {
     targets = [];
   }
-  const results = targets.length === 0
-    ? [verifyPreview(null, change.property, requestedValue)]
-    : targets.map((target) =>
-        verifyPreview(target, change.property, requestedValue));
+  // Probe targets lazily in DOM order and stop at the first conflicting
+  // preview: the reported result is exactly "first conflict ?? first target",
+  // so probing the remaining instances cannot change the outcome. A
+  // source-site selector matched by many rendered instances (one callsite,
+  // hundreds of nodes) otherwise pays a probe + important-rule scan per match.
+  let firstApplied: PreviewResult | null = null;
+  let previewResult: PreviewResult | null = null;
+  for (const target of targets) {
+    const result = verifyPreview(target, change.property, requestedValue);
+    if (result.status === "conflict") {
+      previewResult = result;
+      break;
+    }
+    if (!firstApplied) firstApplied = result;
+  }
+  if (previewResult === null) {
+    previewResult = firstApplied
+      ?? verifyPreview(null, change.property, requestedValue);
+  }
   return {
     ...change,
-    previewResult:
-      results.find((result) => result.status === "conflict") ?? results[0],
+    previewResult,
   };
 }
 
