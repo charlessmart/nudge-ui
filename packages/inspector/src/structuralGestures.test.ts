@@ -48,6 +48,25 @@ describe("structuralGestures", () => {
     expect(root.firstElementChild).toBe(second);
   });
 
+  it("moves an item into an empty tracked container through the shared drop path", () => {
+    const { root, first } = fixture();
+    const destination = document.createElement("aside");
+    destination.dataset.cid = "EmptyDestination";
+    destination.dataset.src = "src/App.tsx:10:1";
+    document.body.append(destination);
+
+    const drop = getDropLocationForElement(first, destination, true, true);
+    expect(drop).toMatchObject({ parent: destination, before: null });
+    const change = moveElement(first, drop!);
+
+    expect(change).toMatchObject({
+      source: { parent: { sourceSite: { cid: "List" } } },
+      destination: { parent: { sourceSite: { cid: "EmptyDestination" } }, before: null },
+    });
+    expect(root.querySelector('[data-test="first"]')).toBeNull();
+    expect(destination.firstElementChild).toBe(first);
+  });
+
   it("accepts a drop after an element when whitespace follows it", () => {
     const { root, first, second } = fixture();
     const drop = getDropLocationForElement(first, second, false, false);
@@ -63,7 +82,7 @@ describe("structuralGestures", () => {
     Object.defineProperty(second, "getBoundingClientRect", { value: () => ({ left: 0, top: 100, width: 200, height: 100 }) as DOMRect });
     Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => second });
     try {
-      expect(getDropLocationAtPoint(document, first, 40, 105)).toMatchObject({ parent: root, before: second });
+      expect(getDropLocationAtPoint(document, first, 40, 105)).toBeNull();
       expect(getDropLocationAtPoint(document, first, 40, 195)).toMatchObject({ parent: root, before: null });
     } finally {
       if (original) Object.defineProperty(document, "elementFromPoint", original);
@@ -80,11 +99,20 @@ describe("structuralGestures", () => {
     const original = Object.getOwnPropertyDescriptor(document, "elementFromPoint");
     Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => second });
     try {
-      expect(getDropLocationAtPoint(document, first, 204, 60)).toMatchObject({ parent: root, before: second, orientation: "vertical", left: 200, width: 4 });
+      expect(getDropLocationAtPoint(document, first, 260, 60)).toMatchObject({ parent: root, before: null, orientation: "vertical", left: 280, width: 4 });
     } finally {
       if (original) Object.defineProperty(document, "elementFromPoint", original);
       else delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint;
     }
+  });
+
+  it("fails closed for wrapped flex-row containers", () => {
+    const { first, root, second } = fixture();
+    root.style.display = "flex";
+    root.style.flexDirection = "row";
+    root.style.flexWrap = "wrap";
+
+    expect(getDropLocationForElement(second, first, true, false)).toBeNull();
   });
 
   it("nudges only valid sibling directions into canonical moves", () => {

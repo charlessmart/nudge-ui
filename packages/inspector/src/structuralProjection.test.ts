@@ -169,7 +169,7 @@ describe("structural delete projection", () => {
     expect(Array.from(parent.children).map((el) => el.textContent)).toEqual(["0.2", "0.3", "0.1"]);
   });
 
-  it("rejects a cross-container or self-anchor intent without recording it", () => {
+  it("captures a cross-container move and rejects an invalid self-anchor", () => {
     const firstParent = document.createElement("section");
     firstParent.dataset.cid = "List";
     firstParent.dataset.src = "src/App.tsx:5:1";
@@ -181,10 +181,77 @@ describe("structural delete projection", () => {
     const second = add("0.2");
     firstParent.append(first, second);
 
-    expect(createStructuralMove(second, { parent: secondParent, before: null }, "move-cross")).toBeNull();
+    const change = createStructuralMove(second, { parent: secondParent, before: null }, "move-cross");
+    expect(change).toMatchObject({
+      kind: "move",
+      source: { parent: { sourceSite: { cid: "List", src: "src/App.tsx:5:1" } } },
+      destination: { parent: { sourceSite: { cid: "OtherList", src: "src/App.tsx:6:1" } }, before: null },
+      presentation: { sourceParentTag: "section", destinationParentTag: "section", fromIndex: 1, toIndex: 0 },
+    });
     expect(createStructuralMove(second, { parent: firstParent, before: second }, "move-self")).toBeNull();
-    expect(getStructuralChanges()).toEqual([]);
-    expect(Array.from(firstParent.children).map((el) => el.textContent)).toEqual(["0.1", "0.2"]);
+    expect(getStructuralChanges()).toEqual([change]);
+    expect(applyStructuralProjection(document, getStructuralChanges()))
+      .toEqual([{ changeId: "move-cross", status: "applied" }]);
+    expect(Array.from(firstParent.children).map((el) => el.textContent)).toEqual(["0.1"]);
+    expect(Array.from(secondParent.children).map((el) => el.textContent)).toEqual(["0.2"]);
+  });
+
+  it("replays a cross-container A-to-B-to-C sequence and restores it in reverse order", () => {
+    const source = document.createElement("section");
+    source.dataset.cid = "Source";
+    source.dataset.src = "src/App.tsx:20:1";
+    const middle = document.createElement("aside");
+    middle.dataset.cid = "Middle";
+    middle.dataset.src = "src/App.tsx:21:1";
+    const destination = document.createElement("footer");
+    destination.dataset.cid = "Destination";
+    destination.dataset.src = "src/App.tsx:22:1";
+    document.body.append(source, middle, destination);
+
+    const target = document.createElement("button");
+    target.dataset.cid = "MoveTarget";
+    target.dataset.src = "src/App.tsx:23:1";
+    target.textContent = "Target";
+    source.append(target);
+
+    createStructuralMove(target, { parent: middle, before: null }, "move-a-b");
+    applyStructuralProjection(document, getStructuralChanges());
+    expect(target.parentElement).toBe(middle);
+
+    createStructuralMove(target, { parent: destination, before: null }, "move-b-c");
+    expect(target.parentElement).toBe(destination);
+
+    expect(undoStructuralChange()).toBe(true);
+    expect(target.parentElement).toBe(middle);
+    expect(redoStructuralChange()).toBe(true);
+    expect(target.parentElement).toBe(destination);
+    expect(getStructuralProjectionReports(document)).toEqual([
+      { changeId: "move-a-b", status: "applied" },
+      { changeId: "move-b-c", status: "applied" },
+    ]);
+  });
+
+  it("fails closed when a target is no longer under its captured source parent", () => {
+    const source = document.createElement("section");
+    source.dataset.cid = "Source";
+    source.dataset.src = "src/App.tsx:30:1";
+    const destination = document.createElement("aside");
+    destination.dataset.cid = "Destination";
+    destination.dataset.src = "src/App.tsx:31:1";
+    const target = document.createElement("button");
+    target.dataset.cid = "MoveTarget";
+    target.dataset.src = "src/App.tsx:32:1";
+    source.append(target);
+    document.body.append(source, destination);
+
+    const change = createStructuralMove(target, { parent: destination, before: null }, "move-conflict")!;
+    destination.append(target);
+
+    expect(applyStructuralProjection(document, [change])).toEqual([
+      { changeId: "move-conflict", status: "missing", reason: "source-parent" },
+    ]);
+    expect(target.parentElement).toBe(destination);
+    expect(source.children).toHaveLength(0);
   });
 
   it("reports an ambiguous parent without changing the source sibling order", () => {

@@ -3,8 +3,8 @@ import { getElementWindow } from "./domRealm.ts";
 /**
  * Watches the small set of browser events that can change a selected element's
  * viewport rect without changing its selection identity. Structural gestures
- * only reorder siblings, so observing the immediate parent is sufficient and
- * avoids a document-wide mutation observer.
+ * can move a selected element between containers, so the child-list observer
+ * follows the element's current parent after each mutation.
  */
 export function observeSelectedGeometry(element: HTMLElement, onChange: () => void): () => void {
   const view = getElementWindow(element);
@@ -26,11 +26,18 @@ export function observeSelectedGeometry(element: HTMLElement, onChange: () => vo
     : null;
   resizeObserver?.observe(element);
 
-  const parent = element.parentElement;
-  const mutationObserver = parent && MutationObserverCtor
-    ? new MutationObserverCtor(schedule)
-    : null;
-  if (parent) mutationObserver?.observe(parent, { childList: true });
+  let observedParent: HTMLElement | null = null;
+  const mutationObserver = MutationObserverCtor ? new MutationObserverCtor(() => {
+    const currentParent = element.parentElement;
+    if (currentParent !== observedParent) {
+      observedParent = currentParent;
+      mutationObserver?.disconnect();
+      if (observedParent) mutationObserver?.observe(observedParent, { childList: true });
+    }
+    schedule();
+  }) : null;
+  observedParent = element.parentElement;
+  if (observedParent) mutationObserver?.observe(observedParent, { childList: true });
 
   view.addEventListener("resize", schedule);
   view.addEventListener("scroll", schedule, true);

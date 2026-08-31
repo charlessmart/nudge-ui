@@ -40,4 +40,37 @@ describe("observeSelectedGeometry", () => {
 
     stop();
   });
+
+  it("follows a selected element when its parent changes", async () => {
+    const firstParent = document.createElement("div");
+    const secondParent = document.createElement("div");
+    const selected = document.createElement("div");
+    firstParent.append(selected);
+    document.body.append(firstParent, secondParent);
+
+    const scheduled: FrameRequestCallback[] = [];
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      scheduled.push(callback);
+      return scheduled.length;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = (() => undefined) as typeof window.cancelAnimationFrame;
+
+    let notifications = 0;
+    const stop = observeSelectedGeometry(selected, () => {
+      notifications += 1;
+    });
+
+    secondParent.append(selected);
+    await Promise.resolve();
+    expect(scheduled).toHaveLength(1);
+    scheduled.shift()?.(0);
+
+    secondParent.append(document.createElement("span"));
+    await Promise.resolve();
+    expect(scheduled).toHaveLength(1);
+    scheduled.shift()?.(0);
+    expect(notifications).toBe(2);
+
+    stop();
+  });
 });

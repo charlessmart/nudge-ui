@@ -68,6 +68,96 @@ export interface StructuralProjectionReport {
   reason?: StructuralProjectionReason;
 }
 
+const VOID_PARENT_TAGS = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr",
+]);
+const PHRASING_PARENT_TAGS = new Set([
+  "a", "abbr", "b", "button", "cite", "code", "em", "label", "mark", "p", "small", "span", "strong", "time",
+]);
+const PHRASING_CHILD_TAGS = new Set([
+  "a", "abbr", "b", "br", "button", "cite", "code", "em", "img", "input", "label", "mark", "small", "span", "strong", "time",
+]);
+const STRUCTURALLY_CONSTRAINED_PARENT_TAGS = new Set([
+  "colgroup", "optgroup", "option", "select", "table", "tbody", "td", "tfoot", "th", "thead", "tr",
+]);
+
+function isPhrasingElement(element: HTMLElement): boolean {
+  return PHRASING_CHILD_TAGS.has(element.tagName.toLowerCase());
+}
+
+function isUnsupportedWrappedFlexRow(element: HTMLElement): boolean {
+  const style = element.ownerDocument.defaultView?.getComputedStyle(element);
+  return (style?.display === "flex" || style?.display === "inline-flex")
+    && (style.flexDirection || "row").startsWith("row")
+    && Boolean(style.flexWrap && style.flexWrap !== "nowrap");
+}
+
+/** Conservative HTML containment policy shared by gesture and projection code. */
+export function canContainElement(parent: HTMLElement, child: HTMLElement): boolean {
+  const parentTag = parent.tagName.toLowerCase();
+  if (VOID_PARENT_TAGS.has(parentTag)
+    || STRUCTURALLY_CONSTRAINED_PARENT_TAGS.has(parentTag)
+    || parent === child
+    || child.contains(parent)) return false;
+  return !PHRASING_PARENT_TAGS.has(parentTag) || isPhrasingElement(child);
+}
+
+export type StructuralMoveLegality =
+  | { valid: true; sourceParent: HTMLElement; destinationParent: HTMLElement; before: HTMLElement | null }
+  | { valid: false; reason: StructuralProjectionReason };
+
+/**
+ * Applies the one conservative move policy used by guide calculation, commit,
+ * and resolved document projection. The returned elements are document-local
+ * and must never be stored in canonical structural intent.
+ */
+export function getStructuralMoveLegality(
+  element: HTMLElement,
+  destination: { parent: HTMLElement; before: Node | null },
+): StructuralMoveLegality {
+  if (!element.isConnected) return { valid: false, reason: "target" };
+  const sourceParent = element.parentElement;
+  if (!sourceParent || !sourceParent.isConnected) return { valid: false, reason: "source-parent" };
+  if (destination.parent.ownerDocument !== element.ownerDocument || !destination.parent.isConnected) {
+    return { valid: false, reason: "destination-parent" };
+  }
+
+  let before: HTMLElement | null = null;
+  if (destination.before !== null) {
+    if (destination.before.nodeType !== 1
+      || destination.before.ownerDocument !== element.ownerDocument
+      || !destination.before.isConnected) {
+      return { valid: false, reason: "anchor" };
+    }
+    // SAFETY: nodeType === 1 was checked above, so this is an HTMLElement in the destination document.
+    before = destination.before as HTMLElement;
+    if (before.parentElement !== destination.parent) return { valid: false, reason: "anchor" };
+  }
+
+  if (destination.parent === element || element.contains(destination.parent)) {
+    return { valid: false, reason: "illegal-destination" };
+  }
+  const display = destination.parent.ownerDocument.defaultView?.getComputedStyle(destination.parent).display;
+  if (display === "inline" || display === "contents"
+    || isUnsupportedWrappedFlexRow(destination.parent)
+    || !canContainElement(destination.parent, element)) {
+    return { valid: false, reason: "illegal-destination" };
+  }
+  if (before === element) return { valid: false, reason: "anchor" };
+
+  if (sourceParent === destination.parent
+    && (before === element.nextElementSibling || (before === null && element.nextElementSibling === null))) {
+    return { valid: false, reason: "illegal-destination" };
+  }
+
+  return {
+    valid: true,
+    sourceParent,
+    destinationParent: destination.parent,
+    before,
+  };
+}
+
 export interface StructuralChangeDiagnostic extends StructuralProjectionReport {
   document: "Inspect" | `Canvas ${string}`;
 }
@@ -87,6 +177,7 @@ interface AppliedMove {
   target: RenderedInstanceRef;
   fromParent: HTMLElement;
   fromBefore: Node | null;
+  expectedParent: HTMLElement;
   expectedBefore: HTMLElement | null;
   reason?: StructuralProjectionReason;
 }
@@ -180,23 +271,21 @@ export function createStructuralMove(
   destination: { parent: HTMLElement; before: Node | null },
   id = structuralId(),
 ): StructuralMove | null {
-  if (!element.isConnected || element.parentElement !== destination.parent) return null;
-  const sourceParentElement = element.parentElement;
-  if (!sourceParentElement) return null;
-  if (destination.before && destination.before.nodeType !== 1) return null;
-  // SAFETY: destination.before.nodeType === 1 was checked above, so it is an HTMLElement.
-  const beforeElement = destination.before as HTMLElement | null;
-  if (beforeElement && (beforeElement.parentElement !== destination.parent || beforeElement === element)) return null;
+  const legality = getStructuralMoveLegality(element, destination);
+  if (!legality.valid) return null;
+  const { sourceParent: sourceParentElement, destinationParent, before: beforeElement } = legality;
 
   const target = captureRenderedInstance(element);
   const sourceParent = captureRenderedInstance(sourceParentElement);
-  const parent = captureRenderedInstance(destination.parent);
+  const parent = captureRenderedInstance(destinationParent);
   const before = beforeElement ? captureRenderedInstance(beforeElement) : null;
   if (!target || !sourceParent || !parent || (beforeElement && !before)) return null;
-  const children = Array.from(destination.parent.children);
-  const fromIndex = children.indexOf(element);
-  const beforeIndex = beforeElement ? children.indexOf(beforeElement) : children.length;
+  const sourceChildren = Array.from(sourceParentElement.children);
+  const destinationChildren = Array.from(destinationParent.children);
+  const fromIndex = sourceChildren.indexOf(element);
+  const beforeIndex = beforeElement ? destinationChildren.indexOf(beforeElement) : destinationChildren.length;
   if (fromIndex < 0 || beforeIndex < 0) return null;
+  const sameParent = sourceParentElement === destinationParent;
   const change: StructuralMove = {
     id,
     kind: "move",
@@ -205,11 +294,11 @@ export function createStructuralMove(
     destination: { parent, before },
     presentation: {
       sourceParentTag: sourceParentElement.tagName.toLowerCase(),
-      destinationParentTag: destination.parent.tagName.toLowerCase(),
+      destinationParentTag: destinationParent.tagName.toLowerCase(),
       fromIndex,
       toIndex: beforeElement
-        ? beforeIndex - (fromIndex < beforeIndex ? 1 : 0)
-        : children.length - 1,
+        ? beforeIndex - (sameParent && fromIndex < beforeIndex ? 1 : 0)
+        : destinationChildren.length - (sameParent ? 1 : 0),
     },
   };
   const beforeSnapshot = cloneSnapshot(changes);
@@ -434,6 +523,10 @@ function rebuildForSnapshot(
   state: DocumentProjectionState,
   snapshot: readonly StructuralChange[],
 ): void {
+  // React may have changed a projected node before its mutation callback ran.
+  // Validate synchronously so a rebuild never restores a framework-owned node.
+  validateAppliedPreview(doc, state);
+
   const activeIds = new Set(snapshot.map((change) => change.id));
   const retainedOverrides = new Map<string, AppliedStructuralChange>();
   for (const [id, local] of state.applied) {
@@ -462,6 +555,7 @@ function rebuildForSnapshot(
   // operations have replayed, rather than the transient first insertion.
   for (const local of state.applied.values()) {
     if (local.kind === "move" && local.status === "applied") {
+      local.expectedParent = local.element.parentElement ?? local.expectedParent;
       // SAFETY: a move nextElementSibling is an HTMLElement when the move is still applied.
       local.expectedBefore = local.element.nextElementSibling as HTMLElement | null;
     }
@@ -512,16 +606,17 @@ function applyChangeToDocument(doc: Document, state: DocumentProjectionState, ch
     storeUnresolved(state, change.id, "missing", "source-parent");
     return;
   }
-  if (sourceParent.element !== parent.element || target.element === parent.element || target.element.contains(parent.element)
-    || (before && before.element.parentElement !== parent.element)
-    || (before && before.element === target.element)) {
-    storeUnresolved(state, change.id, "missing", "illegal-destination");
+  const legality = getStructuralMoveLegality(target.element, {
+    parent: parent.element,
+    before: before?.element ?? null,
+  });
+  if (!legality.valid) {
+    storeUnresolved(state, change.id, "missing", legality.reason);
     return;
   }
-  const fromParent = target.element.parentElement;
-  if (!fromParent) return;
+  const fromParent = legality.sourceParent;
   const fromBefore = target.element.nextSibling;
-  parent.element.insertBefore(target.element, before?.element ?? null);
+  legality.destinationParent.insertBefore(target.element, legality.before);
   state.applied.set(change.id, {
     kind: "move",
     status: "applied",
@@ -529,7 +624,8 @@ function applyChangeToDocument(doc: Document, state: DocumentProjectionState, ch
     target: change.target,
     fromParent,
     fromBefore,
-    // SAFETY: target.element was inserted before a parent element, so its nextElementSibling is an HTMLElement when present.
+    expectedParent: legality.destinationParent,
+    // SAFETY: target.element was inserted into an HTMLElement, so its nextElementSibling is an HTMLElement when present.
     expectedBefore: target.element.nextElementSibling as HTMLElement | null,
   });
   state.appliedOrder.push(change.id);
@@ -540,10 +636,7 @@ function validationStatus(local: AppliedStructuralChange): StructuralProjectionS
   if (local.status === "overridden") return "overridden";
   if (local.kind === "delete") return local.placeholder.isConnected ? "applied" : "overridden";
   return local.element.isConnected
-    // Moves restore to the same parent they were recorded from (the record
-    // guard rejects cross-parent moves), so validity is "element still sits
-    // where we left it under that parent".
-    && local.element.parentElement === local.fromParent
+    && local.element.parentElement === local.expectedParent
     && local.element.nextElementSibling === local.expectedBefore
     && matchesRenderedInstanceEvidence(local.element, local.target)
     ? "applied"

@@ -1,8 +1,10 @@
 import type { SelectedElement } from "./selectionStore.ts";
 import {
   applyStructuralProjection,
+  canContainElement as canContainStructuralElement,
   createStructuralDelete,
   createStructuralMove,
+  getStructuralMoveLegality,
   getStructuralChanges,
   type StructuralDelete,
   type StructuralMove,
@@ -25,25 +27,13 @@ export interface DropLocation {
   height: number;
 }
 
-const VOID_TAGS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
-const PHRASING_PARENTS = new Set(["a", "abbr", "b", "button", "cite", "code", "em", "label", "mark", "p", "small", "span", "strong", "time"]);
-const PHRASING_CHILDREN = new Set(["a", "abbr", "b", "br", "button", "cite", "code", "em", "img", "input", "label", "mark", "small", "span", "strong", "time"]);
-
-function isPhrasingElement(element: HTMLElement): boolean {
-  return PHRASING_CHILDREN.has(element.tagName.toLowerCase());
-}
-
-/** Conservative HTML guard. It deliberately rejects a block element in text-only parents. */
+/** Conservative HTML guard shared with canonical capture and document replay. */
 export function canContainElement(parent: HTMLElement, child: HTMLElement): boolean {
-  const parentTag = parent.tagName.toLowerCase();
-  if (VOID_TAGS.has(parentTag) || parent === child || child.contains(parent)) return false;
-  return !PHRASING_PARENTS.has(parentTag) || isPhrasingElement(child);
+  return canContainStructuralElement(parent, child);
 }
 
 function isContainerCandidate(element: HTMLElement, dragged: HTMLElement): boolean {
-  if (!canContainElement(element, dragged)) return false;
-  const display = element.ownerDocument.defaultView?.getComputedStyle(element).display ?? "block";
-  return display !== "inline" && display !== "contents";
+  return getStructuralMoveLegality(dragged, { parent: element, before: null }).valid;
 }
 
 function isFlexRow(parent: HTMLElement): boolean {
@@ -124,6 +114,7 @@ function flexRowGapAtPoint(parent: HTMLElement, dragged: HTMLElement, x: number,
   const gapEnd = right.rect.left;
   if (gapEnd - gapStart < 4) return null;
   const before = isFlexRowReverse(parent) ? left.element : right.element;
+  if (!getStructuralMoveLegality(dragged, { parent, before }).valid) return null;
   return { parent, before, ...lineFor(parent, before, (gapStart + gapEnd) / 2) };
 }
 
@@ -148,14 +139,19 @@ export function getDropLocationForElement(
   if (target === dragged || dragged.contains(target)) return null;
   if (preferContainer && isContainerCandidate(target, dragged)) {
     const directChild = Array.from(target.children).find((child) => child.contains(dragged));
-    if (!directChild) return { parent: target, before: null, ...lineFor(target, null) };
+    if (!directChild) {
+      const legality = getStructuralMoveLegality(dragged, { parent: target, before: null });
+      if (legality.valid) return { parent: target, before: null, ...lineFor(target, null) };
+    }
   }
   let candidate: HTMLElement | null = target;
   while (candidate) {
     const parent: HTMLElement | null = candidate.parentElement;
     if (parent && canContainElement(parent, dragged) && candidate !== dragged && !dragged.contains(candidate)) {
       const before = beforeTarget ? candidate : candidate.nextElementSibling;
-      return { parent, before, ...lineFor(parent, before) };
+      const legality = getStructuralMoveLegality(dragged, { parent, before });
+      if (legality.valid) return { parent, before, ...lineFor(parent, before) };
+      return null;
     }
     candidate = parent;
   }
@@ -183,11 +179,7 @@ export function getDropLocationAtPoint(doc: Document, dragged: HTMLElement, x: n
 
 /** Capture the move as canonical intent, then project only the controller host. */
 export function moveElement(node: HTMLElement, destination: DropLocation): StructuralMove | null {
-  const parent = node.parentElement;
-  if (!parent || destination.parent !== parent || destination.parent === node || node.contains(destination.parent)) return null;
-  if (destination.before && destination.before.nodeType !== 1) return null;
-  // SAFETY: destination.before.nodeType === 1 was checked above, so it is an HTMLElement.
-  if (destination.before && (destination.before as HTMLElement).parentElement !== destination.parent) return null;
+  if (!getStructuralMoveLegality(node, destination).valid) return null;
   const change = createStructuralMove(node, destination);
   if (!change) return null;
   // `document` belongs to the controller runtime. A Canvas source element is
