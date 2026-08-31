@@ -14,6 +14,7 @@ import {
   subscribeStructuralChanges,
   subscribeStructuralDiagnostics,
   type StructuralChange,
+  type StructuralChangeDiagnostic,
 } from "./structuralProjection.ts";
 import {
   getRenderedInstanceChangeDiagnostics,
@@ -59,6 +60,38 @@ function groupChanges(changes: ChangeRecord[]): Group[] {
 
 function sourceFile(change: StructuralChange): string {
   return change.target.sourceSite.src.split(":").slice(0, -2).join(":") || change.target.sourceSite.src;
+}
+
+function structuralParentLabel(change: Extract<StructuralChange, { kind: "move" }>, side: "source" | "destination"): string {
+  const parent = side === "source" ? change.source.parent : change.destination.parent;
+  const tag = side === "source" ? change.presentation.sourceParentTag : change.presentation.destinationParentTag;
+  return `${parent.sourceSite.cid} (${tag})`;
+}
+
+function structuralParentIdentityKey(ref: Extract<StructuralChange, { kind: "move" }>["source"]["parent"]): string {
+  const { sourceSite, locator } = ref;
+  return JSON.stringify([
+    sourceSite.cid,
+    sourceSite.src,
+    locator.occurrence,
+    locator.props,
+    locator.ariaLabel ?? null,
+  ]);
+}
+
+function structuralReasonLabel(reason: NonNullable<StructuralChangeDiagnostic["reason"]>): string {
+  switch (reason) {
+    case "target": return "target address";
+    case "source-parent": return "source parent address";
+    case "destination-parent": return "destination parent address";
+    case "anchor": return "destination anchor";
+    case "illegal-destination": return "illegal destination";
+    case "react-override": return "React override";
+  }
+}
+
+function structuralDiagnosticText(diagnostic: StructuralChangeDiagnostic): string {
+  return `${diagnostic.document}: ${diagnostic.status}${diagnostic.reason ? ` (${structuralReasonLabel(diagnostic.reason)})` : ""}`;
 }
 
 export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
@@ -183,13 +216,17 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                     <span className="changes__value">
                       <span className="changes__before">
                         {change.kind === "move"
-                          ? `${change.presentation.sourceParentTag} position ${change.presentation.fromIndex + 1}`
+                          ? structuralParentIdentityKey(change.source.parent) === structuralParentIdentityKey(change.destination.parent)
+                            ? `${change.presentation.sourceParentTag} position ${change.presentation.fromIndex + 1}`
+                            : `${structuralParentLabel(change, "source")} position ${change.presentation.fromIndex + 1}`
                           : "Visible"}
                       </span>
                       <span className="changes__arrow">→</span>
                       <span className="changes__after">
                         {change.kind === "move"
-                          ? `${change.presentation.destinationParentTag} position ${change.presentation.toIndex + 1}`
+                          ? structuralParentIdentityKey(change.source.parent) === structuralParentIdentityKey(change.destination.parent)
+                            ? `${change.presentation.destinationParentTag} position ${change.presentation.toIndex + 1}`
+                            : `${structuralParentLabel(change, "destination")} position ${change.presentation.toIndex + 1}`
                           : "Removed"}
                       </span>
                     </span>
@@ -200,9 +237,10 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                         data-test="structural-diagnostic"
                         data-document={diagnostic.document}
                         data-status={diagnostic.status}
-                        key={`${diagnostic.document}:${diagnostic.status}`}
+                        data-reason={diagnostic.reason}
+                        key={`${diagnostic.document}:${diagnostic.status}:${diagnostic.reason ?? ""}`}
                       >
-                        {diagnostic.document}: {diagnostic.status}
+                        {structuralDiagnosticText(diagnostic)}
                       </span>
                     ))}
                     <Button

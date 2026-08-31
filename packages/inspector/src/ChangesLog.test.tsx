@@ -9,6 +9,7 @@ import {
   clearStructuralChanges,
   createStructuralDelete,
   createStructuralMove,
+  recordCanvasStructuralProjectionReports,
   resetStructuralDeleteProjection,
 } from "./structuralProjection.ts";
 
@@ -128,5 +129,56 @@ describe("ChangesLog", () => {
     const row = container.querySelector('[data-test="dom-change-row"]')!;
     expect(row.textContent).toContain("ul position 2");
     expect(row.textContent).toContain("ul position 1");
+  });
+
+  it("presents both durable containers for a cross-container move", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    const source = document.createElement("section");
+    source.dataset.cid = "List";
+    source.dataset.src = "src/List.tsx:1:1";
+    const destination = document.createElement("aside");
+    destination.dataset.cid = "SavedItems";
+    destination.dataset.src = "src/Saved.tsx:9:3";
+    const target = document.createElement("li");
+    target.dataset.cid = "Item";
+    target.dataset.src = "src/List.tsx:2:1";
+    target.textContent = "Docs";
+    source.append(target);
+    document.body.append(source, destination);
+    createStructuralMove(target, { parent: destination, before: null }, "move-cross");
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<ChangesLog />);
+    });
+
+    const row = container.querySelector('[data-test="dom-change-row"]')!;
+    expect(row.textContent).toContain("List (section) position 1");
+    expect(row.textContent).toContain("SavedItems (aside) position 1");
+  });
+
+  it("labels the address that caused a structural projection diagnostic", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    const target = document.createElement("div");
+    target.dataset.cid = "Item";
+    target.dataset.src = "src/List.tsx:8:1";
+    document.body.appendChild(target);
+    createStructuralDelete(target, "delete-item");
+    recordCanvasStructuralProjectionReports("card-1", 1, [{
+      changeId: "delete-item",
+      status: "missing",
+      reason: "target",
+    }]);
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<ChangesLog />);
+    });
+
+    const diagnostic = container.querySelector('[data-test="structural-diagnostic"]')!;
+    expect(diagnostic.getAttribute("data-reason")).toBe("target");
+    expect(diagnostic.textContent).toContain("Canvas card-1: missing (target address)");
   });
 });

@@ -192,6 +192,18 @@ function sourceSiteLabel(ref: RenderedInstanceRef): string {
   return `${ref.sourceSite.cid} (${ref.sourceSite.src})`;
 }
 
+/** Compare durable rendered-instance identity without child-text evidence. */
+function structuralParentIdentityKey(ref: RenderedInstanceRef): string {
+  const { sourceSite, locator } = ref;
+  return JSON.stringify([
+    sourceSite.cid,
+    sourceSite.src,
+    locator.occurrence,
+    locator.props,
+    locator.ariaLabel ?? null,
+  ]);
+}
+
 function runtimeEvidenceLines(group: ElementGroup): string[] {
   const evidence = group.runtimeEvidence;
   if (!evidence) return [];
@@ -277,10 +289,16 @@ function structuralChangeLine(change: StructuralChange): string {
     return `- Remove ${target} from the source.`;
   }
   const before = change.destination.before;
-  const parent = sourceSiteLabel(change.destination.parent);
+  const sourceParent = sourceSiteLabel(change.source.parent);
+  const destinationParent = sourceSiteLabel(change.destination.parent);
+  if (structuralParentIdentityKey(change.source.parent) !== structuralParentIdentityKey(change.destination.parent)) {
+    return before
+      ? `- Move ${target} from ${sourceParent} into ${destinationParent}, before ${renderedInstanceDescription(before)}.`
+      : `- Move ${target} from ${sourceParent} into ${destinationParent}, at the end.`;
+  }
   return before
-    ? `- Move ${target} before ${renderedInstanceDescription(before)} in ${parent}.`
-    : `- Move ${target} to the end of ${parent}.`;
+    ? `- Move ${target} before ${renderedInstanceDescription(before)} in ${destinationParent}.`
+    : `- Move ${target} to the end of ${destinationParent}.`;
 }
 
 function renderedInstanceKey(ref: RenderedInstanceRef): string {
@@ -297,7 +315,6 @@ function renderedInstanceKey(ref: RenderedInstanceRef): string {
 /** Export final intent, not the gesture history required to replay the preview. */
 function canonicalizeStructuralChanges(changes: readonly StructuralChange[]): StructuralChange[] {
   const historyByTarget = new Map<string, { changes: StructuralChange[]; lastIndex: number }>();
-  const movedTargetsByParent = new Map<string, Set<string>>();
 
   changes.forEach((change, index) => {
     const targetKey = renderedInstanceKey(change.target);
@@ -306,12 +323,6 @@ function canonicalizeStructuralChanges(changes: readonly StructuralChange[]): St
     history.lastIndex = index;
     historyByTarget.set(targetKey, history);
 
-    if (change.kind === "move") {
-      const parentKey = renderedInstanceKey(change.destination.parent);
-      const targets = movedTargetsByParent.get(parentKey) ?? new Set<string>();
-      targets.add(targetKey);
-      movedTargetsByParent.set(parentKey, targets);
-    }
   });
 
   const canonical: StructuralChange[] = [];
@@ -325,12 +336,32 @@ function canonicalizeStructuralChanges(changes: readonly StructuralChange[]): St
     }
     const moves = history.changes.filter((change): change is Extract<StructuralChange, { kind: "move" }> =>
       change.kind === "move");
-    const parentKeys = new Set(moves.map((move) => renderedInstanceKey(move.destination.parent)));
-    const parentKey = parentKeys.size === 1 ? [...parentKeys][0]! : null;
-    const returnedToStart = parentKey !== null
-      && movedTargetsByParent.get(parentKey)?.size === 1
-      && moves[0]?.presentation.fromIndex === latest.presentation.toIndex;
-    if (!returnedToStart) canonical.push(latest);
+    const first = moves[0];
+    const onlyTargetMoves = changes.every((candidate) => candidate.kind === "move"
+      && renderedInstanceKey(candidate.target) === targetKey);
+    const returnedToStart = moves.length > 1
+      && onlyTargetMoves
+      && first
+      && structuralParentIdentityKey(first.source.parent) === structuralParentIdentityKey(latest.destination.parent)
+      && first.presentation.fromIndex === latest.presentation.toIndex;
+    if (returnedToStart) continue;
+
+    // The final destination is the useful handoff. Keep the first source
+    // context when the gesture crossed intermediate containers so the prompt
+    // describes the authored move rather than the drag history.
+    if (first && first !== latest && latest.kind === "move") {
+      canonical.push({
+        ...latest,
+        source: first.source,
+        presentation: {
+          ...latest.presentation,
+          sourceParentTag: first.presentation.sourceParentTag,
+          fromIndex: first.presentation.fromIndex,
+        },
+      });
+    } else {
+      canonical.push(latest);
+    }
   }
   return canonical;
 }

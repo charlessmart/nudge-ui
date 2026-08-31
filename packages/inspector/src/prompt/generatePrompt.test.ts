@@ -204,6 +204,38 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("elementId");
   });
 
+  it("describes a cross-container move with source and destination sites", () => {
+    const structural: StructuralChange[] = [{
+      id: "move-cross",
+      kind: "move",
+      target: {
+        sourceSite: { cid: "NavItem", src: "src/Nav.tsx:8:3" },
+        locator: { kind: "evidence", occurrence: 0, props: null, text: "Docs" },
+      },
+      source: {
+        parent: {
+          sourceSite: { cid: "Navigation", src: "src/Nav.tsx:4:1" },
+          locator: { kind: "evidence", occurrence: 0, props: null, text: "Home Docs" },
+        },
+      },
+      destination: {
+        parent: {
+          sourceSite: { cid: "FooterLinks", src: "src/Footer.tsx:9:3" },
+          locator: { kind: "evidence", occurrence: 0, props: null, text: "Blog" },
+        },
+        before: {
+          sourceSite: { cid: "FooterItem", src: "src/Footer.tsx:10:5" },
+          locator: { kind: "evidence", occurrence: 0, props: null, text: "Blog" },
+        },
+      },
+      presentation: { sourceParentTag: "nav", destinationParentTag: "aside", fromIndex: 1, toIndex: 1 },
+    }];
+
+    expect(generatePrompt([], undefined, structural)).toContain(
+      "- Move text `Docs` (src/Nav.tsx:8:3) from Navigation (src/Nav.tsx:4:1) into FooterLinks (src/Footer.tsx:9:3), before text `Blog` (src/Footer.tsx:10:5).",
+    );
+  });
+
   it("exports only the final destination for each moved element", () => {
     const target = {
       sourceSite: { cid: "App", src: "src/App.tsx:157:14" },
@@ -313,6 +345,52 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("## Structural changes");
     expect(out).not.toContain("src/App.tsx:153:16");
     expect(out).toContain("- `font-weight`: `600` → `700`");
+    expect(generatePrompt([], undefined, structural)).toBe(
+      "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Nudge UI inspector first.",
+    );
+  });
+
+  it("omits a cross-container sequence only when it returns to the initial parent position", () => {
+    const target = {
+      sourceSite: { cid: "Item", src: "src/App.tsx:20:5" },
+      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Docs" },
+    };
+    const source = {
+      sourceSite: { cid: "Navigation", src: "src/Nav.tsx:4:1" },
+      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Home Docs" },
+    };
+    const middle = {
+      sourceSite: { cid: "FooterLinks", src: "src/Footer.tsx:9:3" },
+      locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Blog" },
+    };
+    const structural: StructuralChange[] = [
+      {
+        id: "move-out",
+        kind: "move",
+        target,
+        source: { parent: source },
+        destination: { parent: middle, before: null },
+        presentation: { sourceParentTag: "nav", destinationParentTag: "aside", fromIndex: 1, toIndex: 0 },
+      },
+      {
+        id: "move-home",
+        kind: "move",
+        target,
+        source: { parent: middle },
+        destination: {
+          parent: {
+            ...source,
+            locator: { ...source.locator, text: "Home" },
+          },
+          before: {
+            sourceSite: { cid: "NavItem", src: "src/Nav.tsx:8:3" },
+            locator: { kind: "evidence", occurrence: 0, props: null, text: "Docs" },
+          },
+        },
+        presentation: { sourceParentTag: "aside", destinationParentTag: "nav", fromIndex: 0, toIndex: 1 },
+      },
+    ];
+
     expect(generatePrompt([], undefined, structural)).toBe(
       "<!-- No changes to export -->\n\nThe changes log is empty. Make a change in the Nudge UI inspector first.",
     );
