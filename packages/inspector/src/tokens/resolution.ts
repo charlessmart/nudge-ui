@@ -775,25 +775,29 @@ function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transfor
   const doc = el.ownerDocument ?? document;
   const revisions = getDocumentRevisions(doc);
   if (!cid || cacheable.length === 0) {
-    const entries = cacheable.length === 0 ? elementSensitive : [...cacheable, ...elementSensitive];
-    let cache = concreteElementMatchCaches.get(el);
-    if (!cache) {
-      cache = new Map();
-      concreteElementMatchCaches.set(el, cache);
+    let cachedMatches: ElementMatch[] = [];
+    if (cacheable.length > 0) {
+      let cache = concreteElementMatchCaches.get(el);
+      if (!cache) {
+        cache = new Map();
+        concreteElementMatchCaches.set(el, cache);
+      }
+      const cached = cache.get(transform);
+      if (cached
+        && cached.elementRevision === revisions.element
+        && cached.stylesheetRevision === revisions.stylesheet) {
+        cachedMatches = cached.matched;
+      } else {
+        cachedMatches = collect(cacheable);
+        cache.set(transform, {
+          elementRevision: revisions.element,
+          stylesheetRevision: revisions.stylesheet,
+          matched: cachedMatches,
+        });
+      }
     }
-    const cached = cache.get(transform);
-    if (cached
-      && cached.elementRevision === revisions.element
-      && cached.stylesheetRevision === revisions.stylesheet) {
-      return cached.matched;
-    }
-    const matched = collect(entries);
-    cache.set(transform, {
-      elementRevision: revisions.element,
-      stylesheetRevision: revisions.stylesheet,
-      matched,
-    });
-    return matched;
+    const sensitiveMatches = elementSensitive.length > 0 ? collect(elementSensitive) : [];
+    return sensitiveMatches.length === 0 ? cachedMatches : [...cachedMatches, ...sensitiveMatches];
   }
   const key = `${sourceSiteKey(el, transform)}\u0000${sourceSiteContextKey(el)}`;
   let cache = sourceSiteMatchCaches.get(doc);

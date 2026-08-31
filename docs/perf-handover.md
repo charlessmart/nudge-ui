@@ -26,7 +26,7 @@ From `examples/sandbox` (dev server auto-starts; workers: 1):
 npx playwright test --project=perf          # full suite, 11 tests, ~46s
 npx playwright test --project=perf -g "session growth"   # commit outliers
 npx playwright test --project=perf -g "cold selection|warm repeat"  # reveal
-pnpm --filter @nudge-ui/inspector test:unit  # 1183 tests
+pnpm --filter @nudge-ui/inspector test:unit  # 1184 tests
 pnpm --filter @nudge-ui/inspector typecheck
 ```
 
@@ -56,8 +56,8 @@ reveal 30ms, commit 50ms, growth ratio ≤2x, canvas hover/click 100ms.
 **Perf harness fixes** (test-only; all were broken/stale before):
 
 - `examples/sandbox/tests/perf.canvas.dev.spec.ts` — click probe moved from leaf
-  to iframe `document` (renderer's `blockApplicationClick` stopPropagation means
-  a leaf listener can never fire; commit 2e27ef0 introduced this).
+  to iframe `window` capture (renderer's `blockApplicationClick` stopPropagation
+  means a leaf listener can never fire; commit 2e27ef0 introduced this).
 - `examples/sandbox/tests/perf.large.dev.spec.ts` — (a) margin group revealed via
   `add-value` at step 8 (individual-sides toggle *replaces* grouped rows, so
   `margin-vertical` never existed at step 9); (b) storage-reset init script
@@ -89,7 +89,7 @@ matches. I added:
   a state change such as `input.checked = true` invalidates the rows without
   discarding cache hits when the dynamic match outcome is unchanged.
 
-Typecheck, 1,183 unit tests, and the full performance suite pass with these
+Typecheck, 1,184 inspector unit tests, and the full performance suite pass with these
 guards.
 
 ## Measured results so far (medians, large fixture: 600 nodes, ~8k rules)
@@ -117,7 +117,7 @@ CI=1 NUDGE_UI_DEV_PORT=5399 NUDGE_UI_PROD_PORT=4399 \
 ```
 
 Final isolated run: 11/11 performance tests passed. Inspector unit tests
-(1,182), inspector typecheck, sandbox typecheck, and focused inspect/canvas
+(1,184), inspector typecheck, sandbox typecheck, and focused inspect/canvas
 hover, edit, and drag regressions also passed.
 
 ## Round 3 retained changes
@@ -140,19 +140,19 @@ Final measurements on the 600-node / ~8k-rule fixture:
 
 | metric | final result |
 |---|---|
-| same-document hover reveal / switch | 7.5ms / 8.0ms median |
-| canvas hover | 7.6ms median |
-| canvas selection click | 24.0ms median; 23.7ms warm median |
-| inspect drag guide | 75.6ms p50, 90.1ms p95 |
-| canvas drag guide | 83.1ms p50, 90.0ms p95 |
-| cold / warm selection reveal | 32.3ms / 26.0ms median |
-| edit commit to rendered UI | 4.2ms median |
-| session growth ratio | 0.91x |
+| same-document hover reveal / switch | 7.7ms / 7.8ms median |
+| canvas hover | 8.1ms median |
+| canvas selection click | 43.0ms median; 34.5ms warm median |
+| inspect drag guide | 83.5ms p50, 96.8ms p95 |
+| canvas drag guide | 83.2ms p50, 96.8ms p95 |
+| cold / warm selection reveal | 35.6ms / 26.2ms median |
+| edit commit to rendered UI | 4.5ms median |
+| session growth ratio | 0.85x |
 
 The canvas-click benchmark now alternates distinct source identities, verifies
 the selected identity, starts at iframe window capture before renderer handlers,
-and reports the first cold sample separately. The final cold sample was 179.5ms;
-the five-run overall median was 24.0ms and the warm median was 23.7ms. Cold-start
+and reports the first cold sample separately. The final cold sample was 178.9ms;
+the five-run overall median was 43.0ms and the warm median was 34.5ms. Cold-start
 selection remains a visible diagnostic rather than being hidden by a persistent
 outline.
 

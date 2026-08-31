@@ -451,6 +451,25 @@ describe("source-site matched-rule cache", () => {
       .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
   });
 
+  it("refreshes dynamic pseudo-class matches for untracked elements", async () => {
+    const style = document.createElement("style");
+    style.textContent = "input.row { color: var(--color-a); } input.row:checked { color: var(--color-b); }";
+    document.head.appendChild(style);
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.className = "row";
+    document.body.appendChild(input);
+    await flush();
+
+    expect(getResolvedPropertiesForState(input, table, "base")
+      .find((row) => row.property === "color")?.tokenName).toBe("--color-a");
+
+    input.checked = true;
+
+    expect(getResolvedPropertiesForState(input, table, "base")
+      .find((row) => row.property === "color")?.tokenName).toBe("--color-b");
+  });
+
   it("refreshes element-sensitive selectors in inactive media candidates", async () => {
     const matchMediaDescriptor = Object.getOwnPropertyDescriptor(window, "matchMedia");
     Object.defineProperty(window, "matchMedia", {
