@@ -428,6 +428,29 @@ describe("source-site matched-rule cache", () => {
       .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
   });
 
+  it("refreshes dynamic pseudo-class matches without a revision change", async () => {
+    const style = document.createElement("style");
+    style.textContent = "input.row { background: var(--color-a); } input.row:checked { background: var(--color-b); }";
+    document.head.appendChild(style);
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.className = "row";
+    input.setAttribute("data-cid", "Row");
+    input.setAttribute("data-src", "Row.tsx:4:2");
+    document.body.appendChild(input);
+    await flush();
+
+    expect(getResolvedPropertiesForState(input, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+
+    input.checked = true;
+
+    expect(getResolvedPropertiesForState(input, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+    expect(getResolvedPropertiesStable(input, table)
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+  });
+
   it("refreshes element-sensitive selectors in inactive media candidates", async () => {
     const matchMediaDescriptor = Object.getOwnPropertyDescriptor(window, "matchMedia");
     Object.defineProperty(window, "matchMedia", {

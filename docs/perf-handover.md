@@ -8,7 +8,7 @@ Status: **Rounds 2–3 complete and validated**
 Three rounds of perf optimization on the Nudge UI inspector. Round 3 resumed
 hover and drag validation, added an explicit drag-to-feedback benchmark, and
 removed conservative sources of redundant work from CSS edits and canvas hover
-bursts. All work is uncommitted in the working tree on `main`.
+bursts. The work is organized as one reviewed performance change.
 
 Constraints given by the user (do not violate):
 
@@ -23,10 +23,10 @@ Constraints given by the user (do not violate):
 From `examples/sandbox` (dev server auto-starts; workers: 1):
 
 ```bash
-npx playwright test --project=perf          # full suite, 9 tests, ~35s
+npx playwright test --project=perf          # full suite, 11 tests, ~46s
 npx playwright test --project=perf -g "session growth"   # commit outliers
 npx playwright test --project=perf -g "cold selection|warm repeat"  # reveal
-pnpm --filter @nudge-ui/inspector test:unit  # 1176 tests
+pnpm --filter @nudge-ui/inspector test:unit  # 1183 tests
 pnpm --filter @nudge-ui/inspector typecheck
 ```
 
@@ -64,9 +64,8 @@ reveal 30ms, commit 50ms, growth ratio ≤2x, canvas hover/click 100ms.
   tracked per-page in a `WeakSet` (Playwright gives each test a fresh page; the
   old module-level flag meant later tests rehydrated a previous test's autosaved
   edits and the reveal check never matched).
-- `examples/sandbox/tests/perf.hover.dev.spec.ts` (new, untracked) — same-document
-  hover reveal/switch metrics. Regression coverage only; user cancelled the
-  hover optimization round. Hover measures ~7–8ms (one frame), already fine.
+- `examples/sandbox/tests/perf.hover.dev.spec.ts` — same-document hover
+  reveal/switch metrics. Hover measures ~7–8ms (one frame), already fine.
 
 **Unrelated user work in the tree** — leave untouched:
 `docs/agent-bridge-debug-report.md`, `packages/inspector/src/ChangesLog.tsx` +
@@ -83,10 +82,15 @@ matches. I added:
 
 - `matchingSelectorBranch`: skip memoization when
   `TRANSIENT_SELECTOR.test(selectorText) || isElementSensitiveSelector(selectorText)`.
-- `getAllElementMatches`: no memoization for `transform === "live"`.
+- `getAllElementMatches`: no memoization for `transform === "live"`; other
+  transforms cache only state-independent selectors.
+- Active element-sensitive matches are recomputed on every resolution.
+- Final resolved-row caches include the current element-sensitive match key, so
+  a state change such as `input.checked = true` invalidates the rows without
+  discarding cache hits when the dynamic match outcome is unchanged.
 
-Typecheck + 1176 unit tests pass **with these guards**. Perf suite re-validation
-with guards is what's missing (see below).
+Typecheck, 1,183 unit tests, and the full performance suite pass with these
+guards.
 
 ## Measured results so far (medians, large fixture: 600 nodes, ~8k rules)
 
@@ -136,18 +140,21 @@ Final measurements on the 600-node / ~8k-rule fixture:
 
 | metric | final result |
 |---|---|
-| same-document hover reveal / switch | 6.2ms / 7.6ms median |
-| canvas hover | 7.0ms median |
-| inspect drag guide | 66.7ms p50, 80.8ms p95 |
-| canvas drag guide | 66.8ms p50, 86.5ms p95 |
-| cold / warm selection reveal | 19.6ms / 13.2ms median |
-| edit commit to rendered UI | 3.6ms median |
-| session growth ratio | 1.09x |
+| same-document hover reveal / switch | 7.5ms / 8.0ms median |
+| canvas hover | 7.6ms median |
+| canvas selection click | 24.0ms median; 23.7ms warm median |
+| inspect drag guide | 75.6ms p50, 90.1ms p95 |
+| canvas drag guide | 83.1ms p50, 90.0ms p95 |
+| cold / warm selection reveal | 32.3ms / 26.0ms median |
+| edit commit to rendered UI | 4.2ms median |
+| session growth ratio | 0.91x |
 
-One known harness signal remains: the first canvas-click sample is consistently
-around 170–210ms while subsequent samples are about 5–6ms. The three-run median
-passes, but a future cold-click benchmark should expose this separately instead
-of treating it as warm-path latency.
+The canvas-click benchmark now alternates distinct source identities, verifies
+the selected identity, starts at iframe window capture before renderer handlers,
+and reports the first cold sample separately. The final cold sample was 179.5ms;
+the five-run overall median was 24.0ms and the warm median was 23.7ms. Cold-start
+selection remains a visible diagnostic rather than being hidden by a persistent
+outline.
 
 ## Known pre-existing failures (NOT ours; verified on clean HEAD via stash)
 
@@ -182,8 +189,11 @@ Everything else in the dev e2e project: 186 passed, 0 failed (as of r2).
 - Round 2 (subagent): reveal latency → branch memo + leading-edge resolve +
   idle prewarm. Subagent reported 9/9 ×2 + full e2e + unit + typecheck.
 - I reviewed r2's diff, found the live-transform memoization hazard, added
-  guards, re-verified unit + typecheck — then the perf suite started hanging
-  (suspected environmental; see above). **That's where you pick up.**
+  guards, and resolved the apparent hang by running on isolated ports.
+- Round 3 added hover/drag coverage, removed redundant CSS-edit work, coalesced
+  renderer hover geometry, and completed a two-axis review. Review findings for
+  dynamic-selector freshness and canvas-click measurement were fixed and
+  revalidated.
 
 Remaining optional work after validation: another round could target the
 in-click-handler authored sweep (mousedown-based measurement first), or the

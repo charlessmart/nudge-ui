@@ -660,7 +660,6 @@ interface SourceSiteMatchCacheEntry {
 
 let sourceSiteMatchCaches = new WeakMap<Document, Map<string, SourceSiteMatchCacheEntry>>();
 let sourceSiteMatchCacheEntries = 0;
-const relationshipMatchCaches = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
 const concreteElementMatchCaches = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
 // The "all matched" set (inactive rules included) is matched fresh against
 // every lineage element on every resolution otherwise, duplicating the
@@ -724,6 +723,32 @@ function matchRuleForElement(el: HTMLElement, entry: { rule: MatchedRule; select
     branch,
     specificity: specificityForBranch({ ...entry.rule, selectorText: entry.selectorText }, branch),
   };
+}
+
+/**
+ * Captures the current match outcome for selectors whose truth can change
+ * without a document revision. This keeps the expensive resolved-row cache
+ * usable while invalidating it when states such as `checked` actually change.
+ */
+function elementSensitiveMatchKey(
+  el: HTMLElement,
+  rules: MatchedRule[],
+  transform: CascadeTransform,
+): string {
+  const entries = sourceSiteMatchBuckets(rules, transform).elementSensitive;
+  if (entries.length === 0) return "";
+  const matches: string[] = [];
+  let current: HTMLElement | null = el;
+  let depth = 0;
+  while (current) {
+    for (const entry of entries) {
+      const branch = matchingSelectorBranch(current, entry.selectorText);
+      if (branch) matches.push(`${depth}:${entry.rule.sourceOrder ?? 0}:${branch}`);
+    }
+    current = current.parentElement;
+    depth++;
+  }
+  return matches.join("\u0001");
 }
 
 /**
@@ -797,31 +822,10 @@ function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transfor
       matched: cachedMatches,
     });
   }
-  // Element-sensitive selectors are cached per concrete element rather than
-  // by source-site identity. Their result can differ between siblings or
-  // interactive elements, while the document revision invalidates the entry
-  // after a relevant DOM or stylesheet change.
-  let elementMatches: ElementMatch[] = [];
-  if (elementSensitive.length > 0) {
-    let cache = relationshipMatchCaches.get(el);
-    if (!cache) {
-      cache = new Map();
-      relationshipMatchCaches.set(el, cache);
-    }
-    const cachedRelationship = cache.get(transform);
-    if (cachedRelationship
-      && cachedRelationship.elementRevision === revisions.element
-      && cachedRelationship.stylesheetRevision === revisions.stylesheet) {
-      elementMatches = cachedRelationship.matched;
-    } else {
-      elementMatches = collect(elementSensitive);
-      cache.set(transform, {
-        elementRevision: revisions.element,
-        stylesheetRevision: revisions.stylesheet,
-        matched: elementMatches,
-      });
-    }
-  }
+  // Match element-sensitive selectors on every resolution. Browser state such
+  // as `checked`, `target`, or a sibling relationship can change without a DOM
+  // or stylesheet revision, so a revision-keyed entry can return stale rows.
+  const elementMatches = elementSensitive.length > 0 ? collect(elementSensitive) : [];
   return elementMatches.length === 0 ? cachedMatches : [...cachedMatches, ...elementMatches];
 }
 
@@ -1241,6 +1245,7 @@ interface ResolvedPropertiesSnapshot {
   elementRevision: number;
   stylesheetRevision: number;
   tokenTable: TokenTable;
+  dynamicMatchKey: string;
   rows: ResolvedProperty[];
 }
 
@@ -1416,6 +1421,8 @@ export function getResolvedPropertiesForState(
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
   const revisions = getDocumentRevisions(doc);
+  const { rules, inaccessible } = collectCssomRules(doc);
+  const dynamicMatchKey = elementSensitiveMatchKey(el, rules, state);
   let snapshots = stateResolutionSnapshots.get(el);
   if (!snapshots) {
     snapshots = new Map();
@@ -1425,11 +1432,11 @@ export function getResolvedPropertiesForState(
   if (cached
     && cached.elementRevision === revisions.element
     && cached.stylesheetRevision === revisions.stylesheet
-    && cached.tokenTable === tokenTable) {
+    && cached.tokenTable === tokenTable
+    && cached.dynamicMatchKey === dynamicMatchKey) {
     return cached.rows;
   }
 
-  const { rules, inaccessible } = collectCssomRules(doc);
   const lineage = resolveLineage(el, rules, state);
   const entry = lineage.byElement.get(el)!;
   const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable, entry.allMatched);
@@ -1456,6 +1463,7 @@ export function getResolvedPropertiesForState(
     elementRevision: revisions.element,
     stylesheetRevision: revisions.stylesheet,
     tokenTable,
+    dynamicMatchKey,
     rows,
   });
   return rows;
@@ -1506,6 +1514,7 @@ const stableTokenCache = new WeakMap<HTMLElement, {
   elementRevision: number;
   stylesheetRevision: number;
   tokenTable: TokenTable;
+  dynamicMatchKey: string;
   rows: ResolvedProperty[];
 }>();
 
@@ -1520,14 +1529,16 @@ export function getResolvedPropertiesStable(
 ): ResolvedProperty[] {
   const doc = el.ownerDocument ?? document;
   const revisions = getDocumentRevisions(doc);
+  const { rules, inaccessible } = collectCssomRules(doc);
+  const dynamicMatchKey = elementSensitiveMatchKey(el, rules, "stable");
   const cached = stableTokenCache.get(el);
   if (cached
     && cached.elementRevision === revisions.element
     && cached.stylesheetRevision === revisions.stylesheet
-    && cached.tokenTable === tokenTable) {
+    && cached.tokenTable === tokenTable
+    && cached.dynamicMatchKey === dynamicMatchKey) {
     return cached.rows;
   }
-  const { rules, inaccessible } = collectCssomRules(doc);
   const lineage = resolveLineage(el, rules, "stable");
   const entry = lineage.byElement.get(el)!;
   const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable, entry.allMatched);
@@ -1540,6 +1551,7 @@ export function getResolvedPropertiesStable(
     elementRevision: revisions.element,
     stylesheetRevision: revisions.stylesheet,
     tokenTable,
+    dynamicMatchKey,
     rows,
   });
   return rows;

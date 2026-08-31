@@ -6,13 +6,13 @@ import { LEAF_IDS } from "../src/perf-fixture/perfFixture.ts";
 const RECORD_MODE = process.env.PERF_RECORD_BASELINE === "1";
 const FIXTURE_URL = "/?perf=large";
 const POLL_TIMEOUT_MS = 30_000;
-const RUNS = 3;
+const RUNS = 5;
 
 const BUDGET_HOVER_MS = 100;
 const BUDGET_CLICK_MS = 100;
 
 const HOVER_LEAF = LEAF_IDS[0]!;
-const CLICK_LEAF = LEAF_IDS[1]!;
+const CLICK_LEAVES = [LEAF_IDS[1]!, LEAF_IDS[2]!] as const;
 
 interface MetricResult {
   median: number;
@@ -23,6 +23,8 @@ interface MetricResult {
 interface CanvasMetrics {
   hover?: MetricResult;
   click?: MetricResult;
+  clickColdMs?: number;
+  clickWarm?: MetricResult;
   hoverMessageCount?: number;
 }
 
@@ -51,6 +53,10 @@ function logSummary(): void {
   console.log("perf | === canvas breakdown ===");
   if (METRICS.hover) logRow("canvas hover", METRICS.hover);
   if (METRICS.click) logRow("canvas click", METRICS.click);
+  if (METRICS.clickColdMs !== undefined) {
+    console.log(`perf | canvas click cold | ${METRICS.clickColdMs.toFixed(1)}ms | diagnostic (overall median budget ${BUDGET_CLICK_MS}ms)`);
+  }
+  if (METRICS.clickWarm) logRow("canvas click warm", METRICS.clickWarm);
   if (METRICS.hoverMessageCount !== undefined) {
     console.log(`perf | hover messages | 50 events -> ${METRICS.hoverMessageCount} postMessages (budget <= 2)`);
   }
@@ -73,6 +79,8 @@ async function persistBaseline(): Promise<void> {
         },
         hover: METRICS.hover,
         click: METRICS.click,
+        clickColdMs: METRICS.clickColdMs,
+        clickWarm: METRICS.clickWarm,
         hoverMessageCount: METRICS.hoverMessageCount,
       },
       null,
@@ -127,14 +135,15 @@ async function probeThenMeasure(
   pollTimeoutMs: number,
 ): Promise<number> {
   const leaf = frame.locator(`[data-perf-id="perf-${perfId}"]`);
+  const targetBox = await leaf.boundingBox();
+  const targetCid = await leaf.getAttribute("data-cid");
+  if (!targetBox || !targetCid) return -1;
   await leaf.evaluate((el, { type }) => {
     const parentW = window.parent as Window & { __canvasProbe?: number };
     parentW.__canvasProbe = 0;
-    // The renderer's document-level capture handler stops click propagation
-    // (blocked application clicks never reach the leaf), so the probe must
-    // listen on the document itself: stopPropagation does not prevent other
-    // listeners on the same node.
-    el.ownerDocument.addEventListener(type, () => {
+    // Window capture runs before the renderer's document capture handlers, so
+    // the probe includes synchronous selection and message-construction work.
+    el.ownerDocument.defaultView?.addEventListener(type, () => {
       if (!parentW.__canvasProbe) parentW.__canvasProbe = parentW.performance.now();
     }, { capture: true, once: true });
   }, { type: eventName });
@@ -143,13 +152,22 @@ async function probeThenMeasure(
   } else {
     await leaf.click();
   }
-  const elapsed = await page.evaluate(({ testId, timeoutMs }) => new Promise<number>((resolve) => {
+  const elapsed = await page.evaluate(({ testId, timeoutMs, target, cid }) => new Promise<number>((resolve) => {
     const started = performance.now();
     const check = (): void => {
       const root = document.getElementById("nudge-ui-root")?.shadowRoot;
       const outline = root?.querySelector(`[data-test="${testId}"]`);
       const probe = (window as unknown as { __canvasProbe?: number }).__canvasProbe ?? 0;
-      if (outline && probe > 0) {
+      const rect = outline?.getBoundingClientRect();
+      const selection = root?.querySelector('[data-test="selection"]');
+      const matchesTarget = testId === "canvas-selected-outline"
+        ? Boolean(rect && selection?.getAttribute("data-selected-cid") === cid)
+        : Boolean(rect
+          && Math.abs(rect.left - target.x) <= 2
+          && Math.abs(rect.top - target.y) <= 2
+          && Math.abs(rect.width - target.width) <= 2
+          && Math.abs(rect.height - target.height) <= 2);
+      if (matchesTarget && probe > 0) {
         resolve(performance.now() - probe);
         return;
       }
@@ -160,7 +178,7 @@ async function probeThenMeasure(
       requestAnimationFrame(check);
     };
     requestAnimationFrame(check);
-  }), { testId: overlayTestId, timeoutMs: pollTimeoutMs });
+  }), { testId: overlayTestId, timeoutMs: pollTimeoutMs, target: targetBox, cid: targetCid });
   // Park the pointer outside the iframe so the next run's hover re-enters the
   // leaf and fires a fresh mouseover (a pointer already resting on the element
   // would not fire one).
@@ -186,16 +204,33 @@ test("perf: canvas hover latency in a large card stays under 100ms", async ({ pa
 test("perf: canvas click latency in a large card stays under 100ms", async ({ page }) => {
   test.setTimeout(120_000);
   const frame = await loadCanvas(page);
+  // The generated large fixture renders every node from one React callsite.
+  // Give the two measured leaves distinct source identities so alternating
+  // clicks model real component-to-component selection instead of a no-op
+  // re-click of the same source-site identity.
+  for (const [index, perfId] of CLICK_LEAVES.entries()) {
+    await frame.locator(`[data-perf-id="perf-${perfId}"]`).evaluate((element, identityIndex) => {
+      element.setAttribute("data-cid", `PerfClick${identityIndex}`);
+      element.setAttribute("data-src", `PerfClick${identityIndex}.tsx:1:1`);
+    }, index);
+  }
   const runs: number[] = [];
   for (let i = 0; i < RUNS; i += 1) {
-    const ms = await probeThenMeasure(page, frame, CLICK_LEAF, "click", "canvas-selected-outline", POLL_TIMEOUT_MS);
+    const perfId = CLICK_LEAVES[i % CLICK_LEAVES.length]!;
+    const ms = await probeThenMeasure(page, frame, perfId, "click", "canvas-selected-outline", POLL_TIMEOUT_MS);
     expect(ms, `canvas click run ${i + 1} did not complete within ${POLL_TIMEOUT_MS}ms`).toBeGreaterThan(0);
     runs.push(ms);
   }
   const result = { median: median(runs), runs, budget: BUDGET_CLICK_MS };
+  const warm = { median: median(runs.slice(1)), runs: runs.slice(1), budget: BUDGET_CLICK_MS };
   METRICS.click = result;
+  METRICS.clickColdMs = runs[0]!;
+  METRICS.clickWarm = warm;
   logRow("canvas click", result);
+  console.log(`perf | canvas click cold | ${runs[0]!.toFixed(1)}ms | diagnostic (overall median budget ${BUDGET_CLICK_MS}ms)`);
+  logRow("canvas click warm", warm);
   checkBudget("canvas click", result);
+  checkBudget("canvas click warm", warm);
 });
 
 test("perf: hover messages are frame-throttled, not one-per-event", async ({ page }) => {
