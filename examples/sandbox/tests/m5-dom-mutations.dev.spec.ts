@@ -6,30 +6,58 @@ async function dragBefore(
   destination: import("@playwright/test").Locator,
   dropLine: import("@playwright/test").Locator,
   dropTarget?: import("@playwright/test").Locator,
+  afterTarget = false,
 ): Promise<void> {
   await source.scrollIntoViewIfNeeded();
   await destination.scrollIntoViewIfNeeded();
   const sourceBox = await source.boundingBox();
   const destinationBox = await destination.boundingBox();
   if (!sourceBox || !destinationBox) throw new Error("Expected visible drag targets");
-  const isFlexRow = await destination.evaluate((element) => {
+  const layout = await destination.evaluate((element) => {
     const parent = element.parentElement;
-    if (!parent) return false;
+    if (!parent) return { isFlexRow: false, isRowReverse: false };
     const style = getComputedStyle(parent);
-    return (style.display === "flex" || style.display === "inline-flex") && style.flexDirection.startsWith("row");
+    const isFlexRow = (style.display === "flex" || style.display === "inline-flex")
+      && style.flexDirection.startsWith("row");
+    return { isFlexRow, isRowReverse: isFlexRow && style.flexDirection === "row-reverse" };
   });
   await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
   await page.mouse.down();
   await page.mouse.move(
-    isFlexRow ? destinationBox.x + 4 : destinationBox.x + destinationBox.width / 2,
-    isFlexRow ? destinationBox.y + destinationBox.height / 2 : destinationBox.y + 4,
+    layout.isFlexRow
+      ? (afterTarget === layout.isRowReverse ? destinationBox.x + 4 : destinationBox.x + destinationBox.width - 4)
+      : destinationBox.x + destinationBox.width / 2,
+    layout.isFlexRow
+      ? destinationBox.y + destinationBox.height / 2
+      : (afterTarget ? destinationBox.y + destinationBox.height - 4 : destinationBox.y + 4),
     { steps: 3 },
   );
   await expect(dropLine).toBeVisible();
   const dropLineBox = await dropLine.boundingBox();
   if (!dropLineBox) throw new Error("Expected visible drop indicator");
-  if (isFlexRow) expect(dropLineBox.height).toBeGreaterThan(dropLineBox.width);
+  if (layout.isFlexRow) expect(dropLineBox.height).toBeGreaterThan(dropLineBox.width);
   if (dropTarget) await expect(dropTarget).toBeVisible();
+  await page.mouse.up();
+}
+
+async function dragIntoContainer(
+  page: import("@playwright/test").Page,
+  source: import("@playwright/test").Locator,
+  destination: import("@playwright/test").Locator,
+  dropLine: import("@playwright/test").Locator,
+): Promise<void> {
+  await source.scrollIntoViewIfNeeded();
+  await destination.scrollIntoViewIfNeeded();
+  const [sourceBox, destinationBox] = await Promise.all([source.boundingBox(), destination.boundingBox()]);
+  if (!sourceBox || !destinationBox) throw new Error("Expected visible drag targets");
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    destinationBox.x + destinationBox.width / 2,
+    destinationBox.y + destinationBox.height / 2,
+    { steps: 3 },
+  );
+  await expect(dropLine).toBeVisible();
   await page.mouse.up();
 }
 
@@ -90,6 +118,153 @@ test("dev: Inspect drags a tracked element with an insertion guide and records t
   await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
   await page.locator('[data-test="changes-toggle"]').click();
   await expect(page.locator('[data-test="dom-change-row"][data-action="move"]')).toBeVisible();
+});
+
+test("dev: Inspect moves an element across containers, preserves destination inheritance, and reloads it", async ({ page }) => {
+  await page.goto("/playground");
+  const source = page.locator('[data-test="structural-move-target"]');
+  const anchor = page.locator('[data-test="structural-anchor"]');
+  const destination = page.locator('[data-test="structural-destination"]');
+
+  await expect(source).toHaveCSS("color", "rgb(67, 56, 202)");
+  await dragBefore(page, source, anchor, page.locator('[data-test="dom-drop-line"]'));
+  await expect(source).toHaveCSS("color", "rgb(180, 83, 9)");
+  await expect(destination).toContainText("Move this card");
+
+  await page.locator('[data-test="changes-toggle"]').click();
+  await expect(page.locator('[data-test="dom-change-row"][data-action="move"]')).toContainText("position");
+  await page.reload();
+  await expect(page.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+  await expect(page.locator('[data-test="structural-move-target"]')).toHaveCSS("color", "rgb(180, 83, 9)");
+
+  await page.locator('[data-test="mode-canvas"]').click();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  const frame = page.frameLocator(".canvas-card__iframe").first();
+  await expect(frame.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+  await expect(frame.locator('[data-test="structural-move-target"]')).toHaveCSS("color", "rgb(180, 83, 9)");
+  await page.locator('[data-test^="canvas-card-reload-"]').click();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  await expect(frame.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+});
+
+test("dev: a Canvas-originated cross-container move projects back to Inspect", async ({ page }) => {
+  await page.goto("/playground");
+  await page.locator('[data-test="mode-canvas"]').click();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  const frame = page.frameLocator(".canvas-card__iframe").first();
+  const source = frame.locator('[data-test="structural-move-target"]');
+  const anchor = frame.locator('[data-test="structural-anchor"]');
+  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
+
+  await expect(frame.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
+  await expect(page.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+  await expect(page.locator('[data-test="structural-move-target"]')).toHaveCSS("color", "rgb(180, 83, 9)");
+});
+
+test("dev: a cross-container move can append into an empty grid", async ({ page }) => {
+  await page.goto("/playground");
+  const source = page.locator('[data-test="structural-move-target"]');
+  const destination = page.locator('[data-test="structural-empty-grid"]');
+
+  await dragIntoContainer(page, source, destination, page.locator('[data-test="dom-drop-line"]'));
+  await expect(destination.locator('[data-test="structural-move-target"]')).toHaveCount(1);
+  await expect(source).toHaveCSS("color", "rgb(22, 101, 52)");
+
+  await page.locator('[data-test="mode-canvas"]').click();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  const frame = page.frameLocator(".canvas-card__iframe").first();
+  await expect(frame.locator('[data-test="structural-empty-grid"] [data-test="structural-move-target"]')).toHaveCount(1);
+});
+
+test("dev: a cross-container move can place an item after an anchor in a row-reverse destination", async ({ page }) => {
+  await page.goto("/playground");
+  const source = page.locator('[data-test="structural-move-target"]');
+  const anchor = page.locator('[data-test="structural-anchor"]');
+  const destination = page.locator('[data-test="structural-destination"]');
+  await destination.evaluate((element) => {
+    (element as HTMLElement).style.flexDirection = "row-reverse";
+  });
+
+  await dragBefore(page, source, anchor, page.locator('[data-test="dom-drop-line"]'), undefined, true);
+  const cards = destination.locator(".structural-move-card");
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0)).toHaveClass(/structural-move-card--anchor/);
+  await expect(cards.nth(1)).toHaveClass(/structural-move-card--target/);
+});
+
+test("dev: cross-container moves support undo, redo, revert, and clear", async ({ page }) => {
+  await page.goto("/playground");
+  const source = page.locator('[data-test="structural-move-target"]');
+  const anchor = page.locator('[data-test="structural-anchor"]');
+  const sourceContainer = page.locator('[data-test="structural-source"]');
+  const destination = page.locator('[data-test="structural-destination"]');
+
+  await dragBefore(page, source, anchor, page.locator('[data-test="dom-drop-line"]'));
+  await expect(destination).toContainText("Move this card");
+  await page.keyboard.press("Control+z");
+  await expect(sourceContainer).toContainText("Move this card");
+  await page.keyboard.press("Control+Shift+z");
+  await expect(destination).toContainText("Move this card");
+
+  await page.locator('[data-test="changes-toggle"]').click();
+  await page.locator('[data-test="dom-change-revert"]').click();
+  await expect(sourceContainer).toContainText("Move this card");
+  await expect(destination).not.toContainText("Move this card");
+
+  await dragBefore(page, source, anchor, page.locator('[data-test="dom-drop-line"]'));
+  await page.reload();
+  await expect(page.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+  await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
+  await page.locator('[data-test="clear-session"]').click();
+  await expect(page.locator('[data-test="structural-source"]')).toContainText("Move this card");
+  await expect(page.locator('[data-test="structural-destination"]')).not.toContainText("Move this card");
+});
+
+test("dev: a cross-container snapshot reaches every ready Canvas card", async ({ page }) => {
+  await page.goto("/playground");
+  await page.locator('[data-test="mode-canvas"]').click();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+  await page.locator('[data-test^="canvas-card-duplicate-"]').click();
+  await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+
+  const first = page.frameLocator(".canvas-card__iframe").nth(0);
+  const second = page.frameLocator(".canvas-card__iframe").nth(1);
+  await dragBefore(
+    page,
+    first.locator('[data-test="structural-move-target"]'),
+    first.locator('[data-test="structural-anchor"]'),
+    page.locator('[data-test="canvas-dom-drop-line"]'),
+  );
+
+  await expect(first.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+  await expect(second.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+});
+
+test("dev: an application snap-back reports a cross-container preview override without reapplying it", async ({ page }) => {
+  await page.goto("/playground");
+  const source = page.locator('[data-test="structural-move-target"]');
+  const anchor = page.locator('[data-test="structural-anchor"]');
+  await dragBefore(page, source, anchor, page.locator('[data-test="dom-drop-line"]'));
+  await expect(page.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+
+  await page.evaluate(() => {
+    // Simulate the authored React tree winning reconciliation. The real
+    // framework owns this parent relationship; the inspector must report the
+    // conflict and leave the application-owned placement alone.
+    window.__nudgeUiRerender?.();
+    const source = document.querySelector('[data-test="structural-source"]');
+    const target = document.querySelector('[data-test="structural-move-target"]');
+    if (!source || !target) throw new Error("Expected structural move fixture");
+    source.insertBefore(target, source.firstElementChild);
+  });
+  await expect(page.locator('[data-test="structural-destination"]')).not.toContainText("Move this card");
+  await expect(page.locator('[data-test="structural-source"]')).toContainText("Move this card");
+  await page.locator('[data-test="changes-toggle"]').click();
+  await expect(page.locator('[data-test="structural-diagnostic"][data-document="Inspect"][data-status="overridden"][data-reason="react-override"]')).toBeVisible();
+  await page.waitForTimeout(100);
+  await expect(page.locator('[data-test="structural-source"]')).toContainText("Move this card");
 });
 
 test("dev: Inspect centres a flex-row insertion guide in a space-between gap", async ({ page }) => {

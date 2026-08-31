@@ -964,6 +964,128 @@ h2 {
   text-align: center;
 }
 
+.structural-move-lab {
+  padding: 34px 30px 30px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+.structural-move-lab__heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 40px;
+  margin-bottom: 32px;
+}
+
+.structural-move-lab__heading h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: clamp(28px, 4vw, 48px);
+  letter-spacing: -0.07em;
+  line-height: 0.95;
+}
+
+.structural-move-lab__heading > p {
+  max-width: 260px;
+  margin: 0 0 3px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.structural-move-lab__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.structural-move-container {
+  min-height: 164px;
+  padding: 14px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 10px;
+}
+
+.structural-move-container__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  color: var(--color-text-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.structural-move-container__label code {
+  color: var(--color-text-tertiary);
+  font-family: monospace;
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.structural-move-container--source {
+  background: #faf7ff;
+  color: #4338ca;
+}
+
+.structural-move-container--destination {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff8ed;
+  color: #b45309;
+}
+
+.structural-move-container--destination .structural-move-container__label {
+  flex: 0 0 auto;
+}
+
+.structural-move-container--empty {
+  display: grid;
+  min-height: 164px;
+  place-items: center;
+  background: #f2fbf5;
+  color: #166534;
+}
+
+.structural-move-container--empty::before {
+  content: "Empty grid";
+  padding: 9px 12px;
+  border: 1px dashed currentColor;
+  border-radius: 7px;
+  font-family: monospace;
+  font-size: 10px;
+}
+
+.structural-move-card {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  color: inherit;
+  font-size: 12px;
+}
+
+.structural-move-card--target {
+  background: #e9e5ff;
+}
+
+.structural-move-card--sibling {
+  margin-top: 10px;
+  border-color: rgba(67, 56, 202, 0.24);
+  color: #7169b8;
+  font-size: 11px;
+}
+
+.structural-move-card--anchor {
+  flex: 0 0 auto;
+  background: #ffedcc;
+}
+
 .type-section {
   display: grid;
   grid-template-columns: 0.75fr 1.25fr;

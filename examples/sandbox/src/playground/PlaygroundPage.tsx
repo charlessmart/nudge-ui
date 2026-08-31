@@ -271,6 +271,28 @@ function App() {
           </div>
         </section>
 
+        <section className="structural-move-lab" aria-labelledby="structural-move-lab-title">
+          <div className="structural-move-lab__heading">
+            <div>
+              <p className="eyebrow">Structural preview lab</p>
+              <h2 id="structural-move-lab-title">Move the real element,<br /><span className="accent-word">keep the intent.</span></h2>
+            </div>
+            <p>These containers deliberately use different layout and inherited-color contexts. The empty grid accepts an item in its interior.</p>
+          </div>
+          <div className="structural-move-lab__grid">
+            <div className="structural-move-container structural-move-container--source" {...(import.meta.env.DEV ? { "data-test": "structural-source" } : {})}>
+              <div className="structural-move-container__label"><span>Source</span><code>block</code></div>
+              <div className="structural-move-card structural-move-card--target" {...(import.meta.env.DEV ? { "data-test": "structural-move-target" } : {})}>Move this card</div>
+              <div className="structural-move-card structural-move-card--sibling">Leave this card</div>
+            </div>
+            <div className="structural-move-container structural-move-container--destination" {...(import.meta.env.DEV ? { "data-test": "structural-destination" } : {})}>
+              <div className="structural-move-container__label"><span>Destination</span><code>flex-column</code></div>
+              <div className="structural-move-card structural-move-card--anchor" {...(import.meta.env.DEV ? { "data-test": "structural-anchor" } : {})}>Keep this anchor</div>
+            </div>
+            <div className="structural-move-container structural-move-container--empty" aria-label="Empty grid destination" {...(import.meta.env.DEV ? { "data-test": "structural-empty-grid" } : {})} />
+          </div>
+        </section>
+
         <section className="type-section" aria-labelledby="type-title">
           <div className="type-intro">
             <p className="eyebrow">Tokens in context</p>
