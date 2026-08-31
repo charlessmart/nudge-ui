@@ -62,9 +62,9 @@ describe("structural delete projection", () => {
     target.textContent = "updated";
 
     expect(applyStructuralDeleteProjection(document, [change]))
-      .toEqual([{ changeId: "delete-1", status: "missing" }]);
+      .toEqual([{ changeId: "delete-1", status: "missing", reason: "target" }]);
     expect(target.isConnected).toBe(true);
-    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "delete-1", status: "missing" }]);
+    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "delete-1", status: "missing", reason: "target" }]);
   });
 
   it("leaves ambiguous repeated targets visible", () => {
@@ -73,7 +73,7 @@ describe("structural delete projection", () => {
     const change = createStructuralDelete(first, "delete-1")!;
 
     expect(applyStructuralDeleteProjection(document, [change]))
-      .toEqual([{ changeId: "delete-1", status: "ambiguous" }]);
+      .toEqual([{ changeId: "delete-1", status: "ambiguous", reason: "target" }]);
     expect(document.querySelectorAll('[data-cid="RepeatedItem"]')).toHaveLength(2);
   });
 
@@ -97,7 +97,8 @@ describe("structural delete projection", () => {
         parent: { sourceSite: { cid: "List", src: "src/App.tsx:5:1" } },
         before: { locator: { kind: "evidence", occurrence: 0, text: "0.1" } },
       },
-      presentation: { parentTag: "section", fromIndex: 1, toIndex: 0 },
+      source: { parent: { sourceSite: { cid: "List", src: "src/App.tsx:5:1" } } },
+      presentation: { sourceParentTag: "section", destinationParentTag: "section", fromIndex: 1, toIndex: 0 },
     });
     expect(applyStructuralProjection(document, getStructuralChanges()))
       .toEqual([{ changeId: "move-1", status: "applied" }]);
@@ -130,7 +131,7 @@ describe("structural delete projection", () => {
     first.textContent = "changed";
 
     expect(applyStructuralProjection(document, [change]))
-      .toEqual([{ changeId: "move-1", status: "missing" }]);
+      .toEqual([{ changeId: "move-1", status: "missing", reason: "source-parent" }]);
     expect(Array.from(parent.children).map((el) => el.textContent)).toEqual(["changed", "0.2"]);
   });
 
@@ -146,7 +147,7 @@ describe("structural delete projection", () => {
     second.textContent = "changed";
 
     expect(applyStructuralProjection(document, [change]))
-      .toEqual([{ changeId: "move-1", status: "missing" }]);
+      .toEqual([{ changeId: "move-1", status: "missing", reason: "target" }]);
     expect(Array.from(parent.children).map((el) => el.textContent)).toEqual(["0.1", "changed"]);
   });
 
@@ -200,7 +201,7 @@ describe("structural delete projection", () => {
     document.body.append(duplicateParent);
 
     expect(applyStructuralProjection(document, [change]))
-      .toEqual([{ changeId: "move-1", status: "ambiguous" }]);
+      .toEqual([{ changeId: "move-1", status: "ambiguous", reason: "source-parent" }]);
     expect(Array.from(parent.children).map((el) => el.textContent)).toEqual(["0.1", "0.2"]);
   });
 
@@ -304,19 +305,19 @@ describe("structural delete projection", () => {
       document: "Canvas card-1", changeId: "delete-1", status: "applied",
     });
 
-    recordCanvasStructuralProjectionReports("card-1", 1, [{ changeId: "delete-1", status: "overridden" }]);
+    recordCanvasStructuralProjectionReports("card-1", 1, [{ changeId: "delete-1", status: "overridden", reason: "react-override" }]);
     expect(getStructuralChangeDiagnostics("delete-1")).toContainEqual({
       document: "Canvas card-1", changeId: "delete-1", status: "applied",
     });
 
-    recordCanvasStructuralProjectionReports("card-1", 3, [{ changeId: "other", status: "missing" }]);
+    recordCanvasStructuralProjectionReports("card-1", 3, [{ changeId: "other", status: "missing", reason: "target" }]);
     expect(getStructuralChangeDiagnostics("delete-1")).toContainEqual({
       document: "Canvas card-1", changeId: "delete-1", status: "applied",
     });
 
-    recordCanvasStructuralProjectionReports("card-1", 3, [{ changeId: "delete-1", status: "overridden" }]);
+    recordCanvasStructuralProjectionReports("card-1", 3, [{ changeId: "delete-1", status: "overridden", reason: "react-override" }]);
     expect(getStructuralChangeDiagnostics("delete-1")).toContainEqual({
-      document: "Canvas card-1", changeId: "delete-1", status: "overridden",
+      document: "Canvas card-1", changeId: "delete-1", status: "overridden", reason: "react-override",
     });
   });
 
@@ -329,10 +330,10 @@ describe("structural delete projection", () => {
     placeholder.replaceWith(add("React replacement"));
     await Promise.resolve();
 
-    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "delete-1", status: "overridden" }]);
+    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "delete-1", status: "overridden", reason: "react-override" }]);
     applyStructuralProjection(document, [change]);
     expect(document.body.textContent).toContain("React replacement");
-    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "delete-1", status: "overridden" }]);
+    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "delete-1", status: "overridden", reason: "react-override" }]);
   });
 
   it("reports a move as overridden when React changes its evidence in place", async () => {
@@ -350,7 +351,7 @@ describe("structural delete projection", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "move-1", status: "overridden" }]);
+    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "move-1", status: "overridden", reason: "react-override" }]);
   });
 
   it("reports a move as overridden when React changes its tracked props in place", async () => {
@@ -368,6 +369,6 @@ describe("structural delete projection", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "move-1", status: "overridden" }]);
+    expect(getStructuralProjectionReports(document)).toEqual([{ changeId: "move-1", status: "overridden", reason: "react-override" }]);
   });
 });

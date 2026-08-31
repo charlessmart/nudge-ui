@@ -29,18 +29,23 @@ export interface StructuralDelete {
   target: RenderedInstanceRef;
 }
 
-/** A serializable, controller-owned same-parent sibling insertion intent. */
+/** A serializable, controller-owned DOM insertion intent. */
 export interface StructuralMove {
   id: string;
   kind: "move";
   target: RenderedInstanceRef;
+  source: {
+    /** Durable source-parent precondition captured before the move. */
+    parent: RenderedInstanceRef;
+  };
   destination: {
     parent: RenderedInstanceRef;
     before: RenderedInstanceRef | null;
   };
   /** Presentation-only context; durable resolution uses the references above. */
   presentation: {
-    parentTag: string;
+    sourceParentTag: string;
+    destinationParentTag: string;
     fromIndex: number;
     toIndex: number;
   };
@@ -48,10 +53,19 @@ export interface StructuralMove {
 
 export type StructuralChange = StructuralDelete | StructuralMove;
 export type StructuralProjectionStatus = "applied" | "missing" | "ambiguous" | "overridden";
+export type StructuralProjectionReason =
+  | "target"
+  | "source-parent"
+  | "destination-parent"
+  | "anchor"
+  | "illegal-destination"
+  | "react-override";
 
 export interface StructuralProjectionReport {
   changeId: string;
   status: StructuralProjectionStatus;
+  /** Bounded diagnostic data; it never changes canonical structural intent. */
+  reason?: StructuralProjectionReason;
 }
 
 export interface StructuralChangeDiagnostic extends StructuralProjectionReport {
@@ -63,6 +77,7 @@ interface AppliedDelete {
   status: StructuralProjectionStatus;
   element: HTMLElement;
   placeholder: Comment;
+  reason?: StructuralProjectionReason;
 }
 
 interface AppliedMove {
@@ -73,11 +88,13 @@ interface AppliedMove {
   fromParent: HTMLElement;
   fromBefore: Node | null;
   expectedBefore: HTMLElement | null;
+  reason?: StructuralProjectionReason;
 }
 
 interface UnresolvedStructuralChange {
   kind: "unresolved";
   status: "missing" | "ambiguous";
+  reason: StructuralProjectionReason;
 }
 
 type AppliedStructuralChange = AppliedDelete | AppliedMove | UnresolvedStructuralChange;
@@ -164,15 +181,18 @@ export function createStructuralMove(
   id = structuralId(),
 ): StructuralMove | null {
   if (!element.isConnected || element.parentElement !== destination.parent) return null;
+  const sourceParentElement = element.parentElement;
+  if (!sourceParentElement) return null;
   if (destination.before && destination.before.nodeType !== 1) return null;
   // SAFETY: destination.before.nodeType === 1 was checked above, so it is an HTMLElement.
   const beforeElement = destination.before as HTMLElement | null;
   if (beforeElement && (beforeElement.parentElement !== destination.parent || beforeElement === element)) return null;
 
   const target = captureRenderedInstance(element);
+  const sourceParent = captureRenderedInstance(sourceParentElement);
   const parent = captureRenderedInstance(destination.parent);
   const before = beforeElement ? captureRenderedInstance(beforeElement) : null;
-  if (!target || !parent || (beforeElement && !before)) return null;
+  if (!target || !sourceParent || !parent || (beforeElement && !before)) return null;
   const children = Array.from(destination.parent.children);
   const fromIndex = children.indexOf(element);
   const beforeIndex = beforeElement ? children.indexOf(beforeElement) : children.length;
@@ -181,9 +201,11 @@ export function createStructuralMove(
     id,
     kind: "move",
     target,
+    source: { parent: sourceParent },
     destination: { parent, before },
     presentation: {
-      parentTag: destination.parent.tagName.toLowerCase(),
+      sourceParentTag: sourceParentElement.tagName.toLowerCase(),
+      destinationParentTag: destination.parent.tagName.toLowerCase(),
       fromIndex,
       toIndex: beforeElement
         ? beforeIndex - (fromIndex < beforeIndex ? 1 : 0)
@@ -371,7 +393,9 @@ function scheduleValidation(doc: Document, state: DocumentProjectionState): void
 
 function sameReports(a: readonly StructuralProjectionReport[], b: readonly StructuralProjectionReport[]): boolean {
   return a.length === b.length && a.every((report, index) =>
-    report.changeId === b[index]?.changeId && report.status === b[index]?.status);
+    report.changeId === b[index]?.changeId
+      && report.status === b[index]?.status
+      && report.reason === b[index]?.reason);
 }
 
 function storeReports(doc: Document, reports: StructuralProjectionReport[]): void {
@@ -381,10 +405,15 @@ function storeReports(doc: Document, reports: StructuralProjectionReport[]): voi
 }
 
 function reportsForSnapshot(state: DocumentProjectionState, snapshot: readonly StructuralChange[]): StructuralProjectionReport[] {
-  return snapshot.map((change) => ({
-    changeId: change.id,
-    status: state.applied.get(change.id)?.status ?? "missing",
-  }));
+  return snapshot.map((change) => {
+    const local = state.applied.get(change.id);
+    const status = local?.status ?? "missing";
+    return {
+      changeId: change.id,
+      status,
+      ...(local && "reason" in local && local.reason ? { reason: local.reason } : {}),
+    };
+  });
 }
 
 function restoreApplied(local: AppliedStructuralChange): void {
@@ -444,14 +473,15 @@ function storeUnresolved(
   state: DocumentProjectionState,
   changeId: string,
   status: "missing" | "ambiguous",
+  reason: StructuralProjectionReason,
 ): void {
-  state.applied.set(changeId, { kind: "unresolved", status });
+  state.applied.set(changeId, { kind: "unresolved", status, reason });
 }
 
 function applyChangeToDocument(doc: Document, state: DocumentProjectionState, change: StructuralChange): void {
   const target = resolveRenderedInstance(doc, change.target);
   if (target.status !== "resolved") {
-    storeUnresolved(state, change.id, target.status);
+    storeUnresolved(state, change.id, target.status, "target");
     return;
   }
 
@@ -463,20 +493,29 @@ function applyChangeToDocument(doc: Document, state: DocumentProjectionState, ch
     return;
   }
 
+  const sourceParent = resolveRenderedInstance(doc, change.source.parent);
+  if (sourceParent.status !== "resolved") {
+    storeUnresolved(state, change.id, sourceParent.status, "source-parent");
+    return;
+  }
   const parent = resolveRenderedInstance(doc, change.destination.parent);
   if (parent.status !== "resolved") {
-    storeUnresolved(state, change.id, parent.status);
+    storeUnresolved(state, change.id, parent.status, "destination-parent");
     return;
   }
   const before = change.destination.before ? resolveRenderedInstance(doc, change.destination.before) : null;
   if (before && before.status !== "resolved") {
-    storeUnresolved(state, change.id, before.status);
+    storeUnresolved(state, change.id, before.status, "anchor");
     return;
   }
-  if (target.element.parentElement !== parent.element || target.element === parent.element || target.element.contains(parent.element)
+  if (target.element.parentElement !== sourceParent.element) {
+    storeUnresolved(state, change.id, "missing", "source-parent");
+    return;
+  }
+  if (sourceParent.element !== parent.element || target.element === parent.element || target.element.contains(parent.element)
     || (before && before.element.parentElement !== parent.element)
     || (before && before.element === target.element)) {
-    storeUnresolved(state, change.id, "missing");
+    storeUnresolved(state, change.id, "missing", "illegal-destination");
     return;
   }
   const fromParent = target.element.parentElement;
@@ -525,6 +564,7 @@ function validateAppliedPreview(doc: Document, state: DocumentProjectionState): 
     const status = validationStatus(local);
     if (status !== local.status) {
       local.status = status;
+      if (status === "overridden") local.reason = "react-override";
       changed = true;
     }
   }

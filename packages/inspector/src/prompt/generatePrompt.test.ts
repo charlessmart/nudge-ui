@@ -172,6 +172,12 @@ describe("generatePrompt", () => {
           sourceSite: { cid: "NavItem", src: "src/Nav.tsx:8:3" },
           locator: { kind: "evidence", occurrence: 2, props: null, text: "Docs" },
         },
+        source: {
+          parent: {
+            sourceSite: { cid: "Navigation", src: "src/Nav.tsx:4:1" },
+            locator: { kind: "evidence", occurrence: 0, props: null, text: "Home Docs Blog" },
+          },
+        },
         destination: {
           parent: {
             sourceSite: { cid: "Navigation", src: "src/Nav.tsx:4:1" },
@@ -182,7 +188,7 @@ describe("generatePrompt", () => {
             locator: { kind: "evidence", occurrence: 1, props: null, text: "Blog" },
           },
         },
-        presentation: { parentTag: "nav", fromIndex: 3, toIndex: 2 },
+        presentation: { sourceParentTag: "nav", destinationParentTag: "nav", fromIndex: 3, toIndex: 2 },
       },
     ];
 
@@ -212,6 +218,7 @@ describe("generatePrompt", () => {
         id: "move-1",
         kind: "move",
         target,
+        source: { parent },
         destination: {
           parent,
           before: {
@@ -219,12 +226,13 @@ describe("generatePrompt", () => {
             locator: { kind: "evidence", occurrence: 0, props: "className:divider", text: null },
           },
         },
-        presentation: { parentTag: "div", fromIndex: 2, toIndex: 1 },
+        presentation: { sourceParentTag: "div", destinationParentTag: "div", fromIndex: 2, toIndex: 1 },
       },
       {
         id: "move-2",
         kind: "move",
         target,
+        source: { parent },
         destination: {
           parent,
           before: {
@@ -232,12 +240,13 @@ describe("generatePrompt", () => {
             locator: { kind: "evidence", occurrence: 0, props: "className:divider", text: null },
           },
         },
-        presentation: { parentTag: "div", fromIndex: 1, toIndex: 3 },
+        presentation: { sourceParentTag: "div", destinationParentTag: "div", fromIndex: 1, toIndex: 3 },
       },
       {
         id: "move-3",
         kind: "move",
         target,
+        source: { parent },
         destination: {
           parent,
           before: {
@@ -245,7 +254,7 @@ describe("generatePrompt", () => {
             locator: { kind: "evidence", occurrence: 0, props: "className:column", text: "Column one" },
           },
         },
-        presentation: { parentTag: "div", fromIndex: 3, toIndex: 0 },
+        presentation: { sourceParentTag: "div", destinationParentTag: "div", fromIndex: 3, toIndex: 0 },
       },
     ];
 
@@ -272,13 +281,15 @@ describe("generatePrompt", () => {
         id: "move-heading-to-end",
         kind: "move",
         target,
+        source: { parent },
         destination: { parent, before: null },
-        presentation: { parentTag: "article", fromIndex: 1, toIndex: 2 },
+        presentation: { sourceParentTag: "article", destinationParentTag: "article", fromIndex: 1, toIndex: 2 },
       },
       {
         id: "move-heading-home",
         kind: "move",
         target,
+        source: { parent },
         destination: {
           parent,
           before: {
@@ -286,7 +297,7 @@ describe("generatePrompt", () => {
             locator: { kind: "evidence", occurrence: 0, props: null, text: "Body" },
           },
         },
-        presentation: { parentTag: "article", fromIndex: 2, toIndex: 1 },
+        presentation: { sourceParentTag: "article", destinationParentTag: "article", fromIndex: 2, toIndex: 1 },
       },
     ];
 

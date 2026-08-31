@@ -53,7 +53,7 @@ describe("structural projection report schema", () => {
     type: "structural-projection-report",
     protocolVersion: PROTOCOL_VERSION,
     revision: 4,
-    reports: [{ changeId: "delete-1", status: "overridden" }],
+    reports: [{ changeId: "delete-1", status: "overridden", reason: "react-override" }],
     ...identity,
   };
 

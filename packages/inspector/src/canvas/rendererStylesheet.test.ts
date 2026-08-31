@@ -338,7 +338,7 @@ describe("handleReplaceStyles", () => {
     expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: "structural-projection-report",
       revision: 7,
-      reports: [{ changeId: "delete-2", status: "overridden" }],
+      reports: [{ changeId: "delete-2", status: "overridden", reason: "react-override" }],
     }), window.location.origin);
     expect(document.body.textContent).toContain("Application replacement");
     postMessage.mockRestore();
@@ -360,6 +360,12 @@ describe("handleReplaceStyles", () => {
           sourceSite: { cid: "Item", src: "src/App.tsx:5:3" },
           locator: { kind: "evidence", occurrence: 1, props: null, text: "Two" },
         },
+        source: {
+          parent: {
+            sourceSite: { cid: "List", src: "src/App.tsx:4:1" },
+            locator: { kind: "evidence", occurrence: 0, props: null, text: "One Two Three" },
+          },
+        },
         destination: {
           parent: {
             sourceSite: { cid: "List", src: "src/App.tsx:4:1" },
@@ -370,7 +376,7 @@ describe("handleReplaceStyles", () => {
             locator: { kind: "evidence", occurrence: 0, props: null, text: "One" },
           },
         },
-        presentation: { parentTag: "section", fromIndex: 1, toIndex: 0 },
+        presentation: { sourceParentTag: "section", destinationParentTag: "section", fromIndex: 1, toIndex: 0 },
       }],
     }), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID);
 

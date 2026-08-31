@@ -407,6 +407,7 @@ describe("sessionStore hydration", () => {
     };
     legacy.schemaVersion = 5;
     delete legacy.structuralChanges[0]!.presentation;
+    delete legacy.structuralChanges[0]!.source;
     localStorage.setItem(`nudge-ui:${nudgeUiProjectId}:v5`, JSON.stringify(legacy));
     localStorage.removeItem(storageKey(nudgeUiProjectId));
 
@@ -416,7 +417,8 @@ describe("sessionStore hydration", () => {
     expect(result).toMatchObject({ restored: true, changeCount: 1 });
     expect(getStructuralChanges()).toMatchObject([{
       id: "move-1",
-      presentation: { parentTag: "section", fromIndex: 1, toIndex: 0 },
+      source: { parent: { sourceSite: { cid: "List", src: "src/List.tsx:4:1" } } },
+      presentation: { sourceParentTag: "section", destinationParentTag: "section", fromIndex: 1, toIndex: 0 },
     }]);
     expect(Array.from(parent.children).map((element) => element.textContent)).toEqual(["Second", "First"]);
     expect(localStorage.getItem(`nudge-ui:${nudgeUiProjectId}:v5`)).toBeNull();

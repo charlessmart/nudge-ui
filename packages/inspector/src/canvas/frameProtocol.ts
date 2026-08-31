@@ -1,12 +1,15 @@
 import { isDocumentProjectionReport } from "../renderedInstance.ts";
 import { isTextProjectionReport } from "../textProjection.ts";
+import { isStructuralProjectionReport } from "../structuralProjectionBoundary.ts";
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 
-// v12 adds the projection-applied acknowledgement: the controller can avoid
+// v13 adds source-parent-aware structural moves and bounded structural failure
+// reasons to the full projection snapshot. v12 added the projection-applied
+// acknowledgement: the controller can avoid
 // rereading a Canvas iframe until the renderer has applied its revision. v11
 // added the renderer-hello handshake solicitation for runtimes whose boot
 // completes after the controller's load-time parent-ready.
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 export interface FrameMessage {
   type: string;
@@ -383,15 +386,6 @@ function ownValue(value: ProtocolObject, key: ProtocolObjectKey): unknown {
 
 function hasOnlyKeys(value: ProtocolObject, keys: readonly string[]): boolean {
   return Object.keys(value).every((key) => keys.includes(key));
-}
-
-function isStructuralProjectionReport(value: unknown): value is import("../structuralProjection.ts").StructuralProjectionReport {
-  if (!value || typeof value !== "object") return false;
-  const report = value as Record<string, unknown>;
-  return hasOnlyKeys(report, ["changeId", "status"])
-    && typeof report.changeId === "string"
-    && (report.status === "applied" || report.status === "missing"
-      || report.status === "ambiguous" || report.status === "overridden");
 }
 
 export function sendToParent(msg: FrameProtocolMessage): void {

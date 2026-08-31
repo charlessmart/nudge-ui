@@ -50,12 +50,14 @@ import { projectToAllReadyCards } from "./projection.ts";
 import type { TextProjectionTarget } from "../textChangeBoundary.ts";
 import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
 
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 // v3 is the released durable-session schema. v4 was a prerelease schema, v5
 // added structural snapshots, v6 added presentation metadata to moves, and v7
 // adds durable rendered-text projection records; v8 adds explicit text scope
-// and bounded semantic evidence; v9 adds durable agent-created Canvas groups.
-const LEGACY_SCHEMA_VERSIONS = [3, 4, 5, 6, 7, 8] as const;
+// and bounded semantic evidence; v9 adds durable agent-created Canvas groups;
+// v10 makes the structural move source-parent precondition explicit and adds
+// bounded structural projection diagnostics.
+const LEGACY_SCHEMA_VERSIONS = [3, 4, 5, 6, 7, 8, 9] as const;
 const STORAGE_PREFIX = "nudge-ui";
 
 function projectId(): string {
@@ -160,6 +162,11 @@ interface LegacyStructuralMove {
     parent: RenderedInstanceRef;
     before: RenderedInstanceRef | null;
   };
+  presentation?: {
+    parentTag: string;
+    fromIndex: number;
+    toIndex: number;
+  };
 }
 
 type LegacyStructuralChange = LegacyStructuralDelete | LegacyStructuralMove;
@@ -174,12 +181,25 @@ function isLegacyStructuralChange(value: unknown): value is LegacyStructuralChan
   }
   if (change.kind !== "move" || !change.destination || typeof change.destination !== "object") return false;
   const destination = change.destination as Record<string, unknown>;
-  return hasOnlyKeys(change, ["id", "kind", "target", "destination"])
+  const presentation = change.presentation;
+  return hasOnlyKeys(change, ["id", "kind", "target", "destination", "presentation"])
     && typeof change.id === "string"
     && isStrictRenderedInstanceRef(change.target)
     && hasOnlyKeys(destination, ["parent", "before"])
     && isStrictRenderedInstanceRef(destination.parent)
-    && (destination.before === null || isStrictRenderedInstanceRef(destination.before));
+    && (destination.before === null || isStrictRenderedInstanceRef(destination.before))
+    && (presentation === undefined || isLegacyStructuralPresentation(presentation));
+}
+
+function isLegacyStructuralPresentation(value: unknown): value is NonNullable<LegacyStructuralMove["presentation"]> {
+  if (!value || typeof value !== "object") return false;
+  const presentation = value as Record<string, unknown>;
+  return hasOnlyKeys(presentation, ["parentTag", "fromIndex", "toIndex"])
+    && typeof presentation.parentTag === "string"
+    && typeof presentation.fromIndex === "number"
+    && Number.isSafeInteger(presentation.fromIndex) && presentation.fromIndex >= 0
+    && typeof presentation.toIndex === "number"
+    && Number.isSafeInteger(presentation.toIndex) && presentation.toIndex >= 0;
 }
 
 /**
@@ -187,7 +207,7 @@ function isLegacyStructuralChange(value: unknown): value is LegacyStructuralChan
  * intent in a detached DOM so its original parent and sibling indexes remain
  * available to v6 without touching the live page before hydration.
  */
-function migrateV5StructuralChanges(value: unknown): StructuralChange[] | null {
+function migrateLegacyStructuralChanges(value: unknown): StructuralChange[] | null {
   if (value === undefined) return [];
   if (!Array.isArray(value)) return null;
   const scratch = document.implementation.createHTMLDocument("nudge-ui-session-migration");
@@ -222,12 +242,19 @@ function migrateLegacyMove(doc: Document, change: LegacyStructuralChange): Struc
   const fromIndex = children.indexOf(target.element);
   const beforeIndex = before ? children.indexOf(before.element) : children.length;
   if (fromIndex < 0 || beforeIndex < 0) return null;
+  const presentation = change.presentation;
   return {
-    ...change,
+    id: change.id,
+    kind: "move",
+    target: change.target,
+    source: { parent: change.destination.parent },
+    destination: { parent: change.destination.parent, before: change.destination.before },
     presentation: {
-      parentTag: parent.element.tagName.toLowerCase(),
-      fromIndex,
-      toIndex: before ? beforeIndex - (fromIndex < beforeIndex ? 1 : 0) : children.length - 1,
+      sourceParentTag: presentation?.parentTag ?? parent.element.tagName.toLowerCase(),
+      destinationParentTag: presentation?.parentTag ?? parent.element.tagName.toLowerCase(),
+      fromIndex: presentation?.fromIndex ?? fromIndex,
+      toIndex: presentation?.toIndex
+        ?? (before ? beforeIndex - (fromIndex < beforeIndex ? 1 : 0) : children.length - 1),
     },
   };
 }
@@ -239,10 +266,11 @@ function applyStructuralChangeToScratch(doc: Document, change: StructuralChange)
     target.element.replaceWith(doc.createComment("nudge-ui-session-migration"));
     return true;
   }
+  const sourceParent = resolveRenderedInstance(doc, change.source.parent);
   const parent = resolveRenderedInstance(doc, change.destination.parent);
   const before = change.destination.before ? resolveRenderedInstance(doc, change.destination.before) : null;
-  if (parent.status !== "resolved" || (before && before.status !== "resolved")) return false;
-  if (target.element.parentElement !== parent.element || target.element === parent.element
+  if (sourceParent.status !== "resolved" || parent.status !== "resolved" || (before && before.status !== "resolved")) return false;
+  if (target.element.parentElement !== sourceParent.element || target.element === parent.element
     || target.element.contains(parent.element)
     || (before && (before.element.parentElement !== parent.element || before.element === target.element))) {
     return false;
@@ -993,13 +1021,12 @@ export function hydrateSession(): HydrationResult {
   }
 
   // v7 added text records on top of the v6 structural schema. Keep the
-  // structural snapshot while migrating v7 instead of silently dropping it.
+  // structural snapshot while migrating every pre-v10 structural schema
+  // instead of silently dropping it. The migration also validates the ordered
+  // records in a detached scratch document before hydration.
   const structuralChanges = schemaVersion === SCHEMA_VERSION
-    || schemaVersion === 8
-    || schemaVersion === 7
-    || schemaVersion === 6
     ? s.structuralChanges
-    : schemaVersion === 5 ? migrateV5StructuralChanges(s.structuralChanges) : [];
+    : schemaVersion >= 5 ? migrateLegacyStructuralChanges(s.structuralChanges) : [];
   if (!Array.isArray(structuralChanges) || !structuralChanges.every(isStructuralChange)) {
     safeDiscard(schemaVersion);
     return { restored: false, changeCount: 0 };

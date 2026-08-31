@@ -183,13 +183,13 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
                     <span className="changes__value">
                       <span className="changes__before">
                         {change.kind === "move"
-                          ? `${change.presentation.parentTag} position ${change.presentation.fromIndex + 1}`
+                          ? `${change.presentation.sourceParentTag} position ${change.presentation.fromIndex + 1}`
                           : "Visible"}
                       </span>
                       <span className="changes__arrow">→</span>
                       <span className="changes__after">
                         {change.kind === "move"
-                          ? `${change.presentation.parentTag} position ${change.presentation.toIndex + 1}`
+                          ? `${change.presentation.destinationParentTag} position ${change.presentation.toIndex + 1}`
                           : "Removed"}
                       </span>
                     </span>
