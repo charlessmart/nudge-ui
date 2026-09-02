@@ -32,9 +32,9 @@ import { AppShell } from "./AppShell.tsx";
 import { clearStructuralChanges, resetStructuralDeleteProjection } from "./structuralProjection.ts";
 import { installInspectionBridge } from "./inspection.ts";
 import { cancelInlineTextEdit } from "./inlineTextEditor.ts";
-import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
-import { isNudgeUiDev } from "./devFlag.ts";
+import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./devFlag.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -53,9 +53,24 @@ function onKeydown(e: KeyboardEvent): void {
 }
 
 export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
-  if (!isNudgeUiDev()) return;
+  const runtimeConfig = getNudgeUiRuntimeConfig();
+  const explicitDemo = isDemoRuntime();
+  if (!isNudgeUiDev() && !explicitDemo) return;
 
-  if (!getNudgeUiRuntimeConfig().capabilities.canvas) {
+  if (explicitDemo) {
+    // ADR-0014: only the configured demo runtime opens the shared dev gate
+    // for its own document. The bundle mode name alone must never flip it,
+    // so every build without both opt-ins stays governed by ADR-0002.
+    setNudgeUiHostDevFlag(true);
+    // Public demo builds intentionally expose only the static inspector. The
+    // Canvas workspace, write lease, persistence, and agent bridge stay out
+    // of the embedded frame.
+    setCanvasMode("inspect");
+    mountInspector(inspectorHost);
+    return;
+  }
+
+  if (!runtimeConfig.capabilities.canvas) {
     // A project can be reopened with a runtime that does not expose Canvas.
     // Clear any stale in-memory mode before mounting the static inspector.
     setCanvasMode("inspect");
@@ -150,7 +165,8 @@ function mountLockedNotice(host: HTMLElement): void {
 }
 
 export function mountInspector(host: HTMLElement): void {
-  if (!hasWriteLease()) return;
+  const demo = isDemoRuntime();
+  if (!demo && !hasWriteLease()) return;
   if (host.dataset.nudgeUiDebug === "true") {
     const runtimeConfig = getNudgeUiRuntimeConfig();
     if (runtimeConfig.capabilities.domNavigation !== true) {
@@ -169,7 +185,7 @@ export function mountInspector(host: HTMLElement): void {
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
     setInspectorHost(host);
-    reactRoot.render(createElement(AppShell));
+    reactRoot.render(createElement(demo ? InspectorShell : AppShell));
   }
   setInspectorOpen(true);
   if (!listenerAttached) {

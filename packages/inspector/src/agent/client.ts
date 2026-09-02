@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { isNudgeUiDev } from "../devFlag.ts";
+import { isDemoRuntime } from "../runtimeConfig.ts";
 import { HttpAgentBridgeTransport } from "./httpTransport.ts";
 import {
   AGENT_PROTOCOL_VERSION,
@@ -201,7 +202,9 @@ export class AgentClient {
     this.transport = options.transport ?? new HttpAgentBridgeTransport(options.endpoint);
     this.discoveryIntervalMs = options.discoveryIntervalMs ?? DEFAULT_DISCOVERY_INTERVAL_MS;
     this.canvasCommandHandler = options.canvasCommandHandler;
-    this.enabled = isNudgeUiDev();
+    // The public demo renders the real inspector but intentionally keeps the
+    // local MCP/agent bridge inert.
+    this.enabled = isNudgeUiDev() && !isDemoRuntime();
     this.snapshot = this.enabled ? this.makeSnapshot() : DISABLED_SNAPSHOT;
   }
 

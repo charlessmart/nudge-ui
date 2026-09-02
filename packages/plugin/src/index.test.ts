@@ -80,7 +80,7 @@ describe("transformIndexHtmlHtml", () => {
   });
 
   it("marks the mount for debug-only Inspector features when requested", () => {
-    const out = transformIndexHtmlHtml(SAMPLE_HTML, "serve", true);
+    const out = transformIndexHtmlHtml(SAMPLE_HTML, "serve", { debug: true });
     expect(out).toContain('<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>');
   });
 
@@ -164,6 +164,19 @@ describe("nudgeUi plugin virtual inspector module", () => {
     expect(code!.indexOf("configureNudgeUiRuntime({")).toBeLessThan(
       code!.indexOf("bootstrapNudgeUi(__dt_root)"),
     );
+  });
+
+  it("emits the inspector only for the explicit demo build mode", async () => {
+    const plugin = nudgeUi({ demo: true }) as unknown as {
+      configResolved?: (config: { root: string; command: "serve" | "build"; mode?: string }) => void;
+      load?: (id: string) => string | null | Promise<string | null>;
+    };
+    plugin.configResolved?.({ root: "/project", command: "build", mode: "nudge-demo" });
+    const code = await plugin.load!("\0virtual:nudge-ui-inspector");
+    expect(code).toContain('get("nudgeDemo") === "1"');
+    expect(code).toContain("demo: true");
+    expect(code).toContain("capabilities: { canvas: __nudge_ui_demo_frame ? false : true, componentSemantics: true }");
+    expect(transformIndexHtmlHtml(SAMPLE_HTML, "build", { demoBuild: true })).not.toBeNull();
   });
 });
 

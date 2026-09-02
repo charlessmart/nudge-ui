@@ -189,6 +189,15 @@ describe("runtime configuration validation and defaults", () => {
     expect(Object.isFrozen(snapshot)).toBe(true);
   });
 
+  it("preserves the explicit demo flag without enabling it by default", () => {
+    previousConfig = getNudgeUiRuntimeConfig();
+    configureNudgeUiRuntime({ ...makeConfig("generation-demo"), demo: true });
+    expect(getNudgeUiRuntimeConfig().demo).toBe(true);
+
+    configureNudgeUiRuntime(makeConfig("generation-normal"));
+    expect(getNudgeUiRuntimeConfig().demo).toBeUndefined();
+  });
+
   it("accepts the astro host and preserves it on the snapshot", () => {
     previousConfig = getNudgeUiRuntimeConfig();
     const input: NudgeUiRuntimeConfig = {

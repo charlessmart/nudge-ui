@@ -46,6 +46,12 @@ export interface NudgeUiOptions {
   enabled?: boolean;
   /** Enables experimental DOM parent/child navigation in the Inspector. */
   debug?: boolean;
+  /**
+   * Enables the landing app's dual runtime. Development serves the normal
+   * inspector on the parent page; `nudge-demo` builds mount the demo runtime
+   * only for `?nudgeDemo=1`.
+   */
+  demo?: boolean;
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
   /**
@@ -184,12 +190,19 @@ function resolveReactAliases(projectRoot: string): Alias[] {
   return aliases;
 }
 
+export interface TransformIndexHtmlOptions {
+  /** Inject the debug mount div instead of the standard one. */
+  debug?: boolean;
+  /** Keep the injection in a `build` command (explicit demo builds only). */
+  demoBuild?: boolean;
+}
+
 export function transformIndexHtmlHtml(
   html: string,
   command: "serve" | "build",
-  debug = false,
+  { debug = false, demoBuild = false }: TransformIndexHtmlOptions = {},
 ): string | null {
-  if (command === "build") return null;
+  if (command === "build" && !demoBuild) return null;
   const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${INSPECTOR_SCRIPT}\n`;
   if (html.includes("</body>")) {
     return html.replace("</body>", `${inject}</body>`);
@@ -213,6 +226,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
   let root: string | undefined;
   let buildOutputDirectory: string | undefined;
   let command: "serve" | "build" = "serve";
+  let demoBuild = false;
   let devServer: ViteDevServer | undefined;
   let postTransformPromise: Promise<void> | null = null;
   const inventory = createTokenInventory();
@@ -643,6 +657,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     configResolved(config: ResolvedConfig) {
       root = config.root;
       command = config.command;
+      demoBuild = options.demo === true && config.mode === "nudge-demo";
       buildOutputDirectory = config.build?.outDir
         ? resolve(config.root, config.build.outDir)
         : undefined;
@@ -658,7 +673,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
       // is first loaded. The browser imports App -> virtual:design-tokens
       // before styles.css is necessarily transformed, so transform-only
       // collection would yield an empty first load.
-      if (!enabled || command !== "serve" || !root) return;
+      if (!enabled || (command !== "serve" && !demoBuild) || !root) return;
       for (const cssPath of scanCssFiles(root, [], root, buildOutputDirectory)) {
         try {
           const code = readFileSync(cssPath, "utf8");
@@ -691,7 +706,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     async load(id) {
       if (id === RESOLVED_TOKENS_ID) {
         // ADR-0002: production builds receive an empty token table.
-        if (command === "build") {
+        if (command === "build" && !demoBuild) {
           return `export const tokenCatalog = [];\nexport const tokens = [];\nexport const tokenDiagnostics = [];\nexport const tokenGeneration = "";\nexport const nudgeUiProjectId = "";\nexport default tokens;\n`;
         }
         await ensurePostTransformCss();
@@ -715,14 +730,39 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
         return `export const tokenCatalog = ${JSON.stringify(snapshot.definitions)};\nexport const tokens = ${JSON.stringify(snapshot.tokens)};\nexport const tokenDiagnostics = ${JSON.stringify(diagnostics)};\nexport const tokenGeneration = ${JSON.stringify(snapshot.generation)};\nexport const nudgeUiProjectId = ${projectId};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {
-        // ADR-0002: no inspector bootstrap in production builds.
-        if (command === "build") {
+        // ADR-0002: normal production builds receive no inspector bootstrap.
+        if (command === "build" && !demoBuild) {
           return `export {};\n`;
+        }
+        if (options.demo === true) {
+          return [
+            'import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework } from "@nudge-ui/inspector";',
+            'import { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";',
+            'import { componentContracts } from "virtual:nudge-ui-components";',
+            'const __nudge_ui_demo_frame = new URLSearchParams(window.location.search).get("nudgeDemo") === "1";',
+            'if (__nudge_ui_demo_frame || (import.meta.env.DEV && window.location.pathname !== "/demo")) {',
+            '  configureNudgeUiRuntime({',
+            '    projectId: nudgeUiProjectId,',
+            '    host: "vite-react",',
+            '    framework: "React",',
+            '    stylingSystem: detectFramework(tokens).stylingSystem,',
+            '    ...(__nudge_ui_demo_frame ? { demo: true } : {}),',
+            '    capabilities: { canvas: __nudge_ui_demo_frame ? false : true, componentSemantics: true },',
+            '    tokenCatalog,',
+            '    tokens,',
+            '    tokenDiagnostics,',
+            '    tokenGeneration,',
+            '    componentContracts,',
+            '  });',
+            '  const __dt_root = document.getElementById("nudge-ui-root");',
+            '  if (__dt_root) bootstrapNudgeUi(__dt_root);',
+            '}',
+          ].join("\n");
         }
         return `import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework } from "@nudge-ui/inspector";\nimport { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";\nimport { componentContracts } from "virtual:nudge-ui-components";\nconfigureNudgeUiRuntime({\n  projectId: nudgeUiProjectId,\n  host: "vite-react",\n  framework: "React",\n  stylingSystem: detectFramework(tokens).stylingSystem,\n  capabilities: { canvas: true, componentSemantics: true },\n  tokenCatalog,\n  tokens,\n  tokenDiagnostics,\n  tokenGeneration,\n  componentContracts,\n});\nconst __dt_root = document.getElementById("nudge-ui-root");\nif (__dt_root) bootstrapNudgeUi(__dt_root);\n`;
       }
       if (id === RESOLVED_COMPONENTS_ID) {
-        if (command === "build") return "export const componentContracts = [];\nexport default componentContracts;\n";
+        if (command === "build" && !demoBuild) return "export const componentContracts = [];\nexport default componentContracts;\n";
         const catalog = [...componentContracts.values()].flat();
         return `export const componentContracts = ${JSON.stringify(catalog)};\nexport default componentContracts;\n`;
       }
@@ -736,7 +776,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
       order: "pre",
       handler(code, id) {
         if (!enabled) return null;
-        if (command === "build") return null; // dev-only per ADR-0002
+        if (command === "build" && !demoBuild) return null; // dev-only per ADR-0002; explicit demo builds are opt-in
         if (CSS_EXT.test(id)) {
           const fileId = stripCssQuery(id);
           if (isHostApplicationSource(fileId, root)) {
@@ -759,8 +799,12 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
       },
     },
     transformIndexHtml(html) {
-      if (!enabled) return;
-      const out = transformIndexHtmlHtml(html, command, options.debug === true);
+      // The standalone landing app uses the normal HTML injection during
+      // development. Its static demo build imports the virtual module from
+      // the app entry instead, because Vite cannot preserve the development
+      // HTML virtual-module URL in a static build.
+      if (!enabled || demoBuild) return;
+      const out = transformIndexHtmlHtml(html, command, { debug: options.debug === true, demoBuild });
       return out === null ? undefined : out;
     },
     async handleHotUpdate(ctx) {

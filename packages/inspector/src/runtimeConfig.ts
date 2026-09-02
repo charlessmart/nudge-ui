@@ -71,6 +71,8 @@ export interface NudgeUiRuntimeConfig {
   readonly tokenDiagnostics: readonly TokenCatalogDiagnostic[];
   readonly tokenGeneration: string;
   readonly componentContracts: readonly ComponentContract[];
+  /** Whether this runtime is the explicit public landing-page demo. */
+  readonly demo?: boolean;
 }
 
 function cloneAndFreeze<T>(value: T, seen = new WeakMap<object, unknown>()): T {
@@ -242,6 +244,17 @@ function normalizeCapabilities(input: unknown): NudgeUiRuntimeCapabilities {
   };
 }
 
+function optionalDemoFlag(input: Record<string, unknown>): true | undefined {
+  const value = input.demo;
+  if (value === undefined || value === false) return undefined;
+  if (value !== true) {
+    throw new TypeError(
+      `Nudge UI runtime configuration field "demo" must be a boolean; received ${JSON.stringify(value)}.`,
+    );
+  }
+  return true;
+}
+
 /**
  * Validates a host-supplied configuration and fills safe defaults.
  *
@@ -258,6 +271,7 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
   if (!isPlainRecord(input)) {
     throw new TypeError("Nudge UI runtime configuration must be an object.");
   }
+  const demo = optionalDemoFlag(input);
   return {
     projectId: requireString(input, "projectId"),
     host: requireEnum(input, "host", RUNTIME_HOSTS) as NudgeUiRuntimeHost,
@@ -275,6 +289,7 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
       input,
       "componentContracts",
     ) as NudgeUiRuntimeConfig["componentContracts"],
+    ...(demo === true ? { demo: true } : {}),
   };
 }
 
@@ -305,6 +320,17 @@ export function configureNudgeUiRuntime(config: NudgeUiRuntimeConfig): void {
 /** Returns the immutable runtime snapshot used by shared inspector Modules. */
 export function getNudgeUiRuntimeConfig(): NudgeUiRuntimeConfig {
   return activeRuntimeConfig;
+}
+
+/**
+ * Whether this document runs the explicit public landing demo (ADR-0014).
+ * The plugin emits `demo: true` solely for the demo artifact's frame, and the
+ * generated module sets it only when the URL carries `?nudgeDemo=1`, so this
+ * is the precise runtime boundary of the demo — narrower than any build-mode
+ * name.
+ */
+export function isDemoRuntime(): boolean {
+  return getNudgeUiRuntimeConfig().demo === true;
 }
 
 /**
