@@ -17,3 +17,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0011: Astro host Adapter with response-level identity](./0011-astro-host-adapter.md)
 - [ADR-0012: Canvas on every same-origin host Adapter](./0012-canvas-on-every-same-origin-host.md)
 - [ADR-0013: Agent bridge over MCP and a local controller transport](./0013-agent-bridge-mcp-and-local-controller.md)
+- [ADR-0014: Explicit public landing demo artifact](./0014-explicit-public-landing-demo.md)

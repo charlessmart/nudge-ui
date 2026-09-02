@@ -15,6 +15,8 @@
     "test:newvato": "node examples/sandbox/scripts/run-newvato-consumer.mjs",
     "perf": "pnpm --filter sandbox perf",
     "perf:baseline": "pnpm --filter sandbox perf:baseline",
+    "dev:landing": "pnpm --filter nudge-ui-landing dev",
+    "build:landing": "pnpm --filter nudge-ui-landing build",
     "test:compat": "pnpm --filter sandbox-tailwind-v4 test:compat && pnpm --filter sandbox-tailwind-v3 test:compat && pnpm --filter sandbox-sprinkles test:compat",
     "build": "pnpm -r build",
     "dev:sandbox": "pnpm --filter sandbox dev",

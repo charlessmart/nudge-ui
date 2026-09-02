@@ -43,7 +43,9 @@ export function isNudgeUiDev(): boolean {
     // Under Vite (and the standalone esbuild build) this member expression is
     // statically replaced, so the read cannot throw there. In a bundle whose
     // compiler defines nothing — Next.js/SWC — `import.meta.env` is undefined
-    // and the bare property read throws a TypeError.
+    // and the bare property read throws a TypeError. A build-mode name (such
+    // as the landing demo's `nudge-demo`) must never widen this gate; the
+    // demo runtime opens it for its own document instead (ADR-0014).
     return resolveNudgeUiDev(import.meta.env.DEV === true, hostDevFlag);
   } catch {
     return resolveNudgeUiDev(undefined, hostDevFlag);
