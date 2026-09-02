@@ -8,6 +8,7 @@ import buttonStyles from "./Button.css?inline";
 import segmentedControlStyles from "./SegmentedControl.css?inline";
 import iconButtonStyles from "./IconButton.css?inline";
 import toggleButtonStyles from "./ToggleButton.css?inline";
+import stepperStyles from "./Stepper.css?inline";
 import statusCalloutStyles from "./StatusCallout.css?inline";
 import badgeStyles from "./Badge.css?inline";
 import colorSwatchStyles from "./ColorSwatch.css?inline";
@@ -39,6 +40,7 @@ export const UI_STYLES = [
   selectStyles,
   buttonStyles,
   toggleButtonStyles,
+  stepperStyles,
   segmentedControlStyles,
   iconButtonStyles,
   statusCalloutStyles,

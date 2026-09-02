@@ -5,6 +5,7 @@ import { GridPicker } from "./GridPicker.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { GridValueField } from "./GridValueField.tsx";
+import { GridChildSection } from "./GridChildSection.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { InspectorPopover } from "../ui/InspectorPopover.tsx";
@@ -21,7 +22,6 @@ const GRID_CONTENT_ALIGNMENT_OPTIONS = [
   "space-evenly",
 ];
 const GRID_ITEM_ALIGNMENT_OPTIONS = ["normal", "stretch", "start", "end", "center", "self-start", "self-end"];
-const GRID_SELF_ALIGNMENT_OPTIONS = ["auto", "normal", "stretch", "start", "end", "center", "self-start", "self-end"];
 const GAP_PRESETS = ["0", "0.25rem", "0.5rem", "0.75rem", "1rem", "1.5rem", "2rem", "3rem"];
 
 export interface GridSectionProps {
@@ -165,25 +165,7 @@ export function GridSection({
         </div>
       </div> : null}
 
-      {showChild ? <div className="layout__group layout__grid-child" data-test="layout-grid-child">
-        <div className="editor__title">Grid Child</div>
-        <GridValueField property="grid-column" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
-        <GridValueField property="grid-row" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
-        <LayoutDropdown
-          property="justify-self"
-          options={GRID_SELF_ALIGNMENT_OPTIONS}
-          domElement={el}
-          revision={revision}
-          onAfterEdit={onAfterEdit}
-        />
-        <LayoutDropdown
-          property="align-self"
-          options={GRID_SELF_ALIGNMENT_OPTIONS}
-          domElement={el}
-          revision={revision}
-          onAfterEdit={onAfterEdit}
-        />
-      </div> : null}
+      {showChild ? <GridChildSection domElement={el} revision={revision} onAfterEdit={onAfterEdit} /> : null}
     </>
   );
 }
