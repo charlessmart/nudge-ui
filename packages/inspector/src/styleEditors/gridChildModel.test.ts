@@ -78,7 +78,7 @@ describe("gridChildModel", () => {
       expect(readGridAxisPlacement(el, "column")).toEqual({ start: "2", span: 2, toLast: false });
     });
 
-    it("marks a negative end line as to-last without a span", () => {
+    it("marks only the last line (-1) as to-last", () => {
       const { el } = makeSelected();
       mockComputedStyle({
         "grid-column-start": "1",
@@ -86,6 +86,16 @@ describe("gridChildModel", () => {
       });
 
       expect(readGridAxisPlacement(el, "column")).toEqual({ start: "1", span: null, toLast: true });
+    });
+
+    it("treats earlier negative end lines as neither span nor to-last", () => {
+      const { el } = makeSelected();
+      mockComputedStyle({
+        "grid-column-start": "1",
+        "grid-column-end": "-2",
+      });
+
+      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "1", span: null, toLast: false });
     });
 
     it("keeps named line tokens as-authored", () => {
@@ -178,9 +188,17 @@ describe("gridChildModel", () => {
   });
 
   describe("readGridChildAlignment", () => {
-    it("normalizes normal to auto", () => {
+    it("maps normal to stretch: on grid items normal has stretch behavior", () => {
       const { el } = makeSelected();
-      mockComputedStyle({ "justify-self": "normal", "align-self": "auto" });
+      mockComputedStyle({ "justify-self": "normal", "align-self": "normal" });
+
+      expect(readGridChildAlignment(el, "h")).toBe("stretch");
+      expect(readGridChildAlignment(el, "v")).toBe("stretch");
+    });
+
+    it("keeps auto distinct so Parent default only means auto", () => {
+      const { el } = makeSelected();
+      mockComputedStyle({ "justify-self": "auto", "align-self": "auto" });
 
       expect(readGridChildAlignment(el, "h")).toBe("auto");
       expect(readGridChildAlignment(el, "v")).toBe("auto");
@@ -188,10 +206,10 @@ describe("gridChildModel", () => {
 
     it("returns explicit alignment tokens verbatim", () => {
       const { el } = makeSelected();
-      mockComputedStyle({ "justify-self": "center", "align-self": "stretch" });
+      mockComputedStyle({ "justify-self": "center", "align-self": "self-start" });
 
       expect(readGridChildAlignment(el, "h")).toBe("center");
-      expect(readGridChildAlignment(el, "v")).toBe("stretch");
+      expect(readGridChildAlignment(el, "v")).toBe("self-start");
     });
   });
 
@@ -318,19 +336,21 @@ describe("gridChildModel", () => {
   });
 
   describe("startLineOptions", () => {
-    it("builds Auto plus line numbers up to the track count", () => {
+    it("builds Auto plus line numbers 1..tracks+1 (N tracks have N+1 lines)", () => {
       expect(startLineOptions(3)).toEqual([
         { value: "auto", label: "Auto" },
         { value: "1", label: "1" },
         { value: "2", label: "2" },
         { value: "3", label: "3" },
+        { value: "4", label: "4" },
       ]);
     });
 
     it("falls back to the default track bound", () => {
       const options = startLineOptions(null);
-      expect(options).toHaveLength(13);
+      expect(options).toHaveLength(14);
       expect(options[0]).toEqual({ value: "auto", label: "Auto" });
+      expect(options.at(-1)).toEqual({ value: "13", label: "13" });
     });
   });
 });

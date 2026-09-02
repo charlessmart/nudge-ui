@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { GridValueField } from "./GridValueField.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import {
@@ -61,5 +61,29 @@ describe("GridValueField", () => {
 
     expect(sheetText()).toContain("grid-column: sidebar / content-end;");
     expect(sheetText()).not.toContain("content-endpx");
+  });
+
+  it("cancels the draft and commits nothing on Escape", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "grid-column": "2 / span 2" });
+    handle = mount(createElement(GridValueField, {
+      property: "grid-column",
+      domElement: selected.domElement,
+    }));
+
+    const input = handle.host.querySelector('[data-test="layout-grid-input-grid-column"]') as HTMLInputElement;
+    input.focus();
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "9 / 9");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    });
+    act(() => input.blur());
+
+    expect(sheetText()).not.toContain("grid-column:");
+    expect(input.value).toBe("2 / span 2");
   });
 });

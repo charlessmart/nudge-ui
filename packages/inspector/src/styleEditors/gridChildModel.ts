@@ -70,9 +70,12 @@ export function readGridAxisPlacement(el: HTMLElement, axis: GridAxis): GridAxis
     span = spanToken;
   } else if (isLineNumber(endToken)) {
     const endLine = Number(endToken);
-    if (endLine < 0) {
+    // Only -1 names the last track line; -2 and beyond are earlier lines
+    // whose resolution depends on the track count, so they are neither a
+    // simple span nor "to last".
+    if (endLine === -1) {
       toLast = true;
-    } else if (isLineNumber(startToken)) {
+    } else if (endLine >= 1 && isLineNumber(startToken)) {
       const derived = endLine - Number(startToken);
       if (derived >= 1) span = derived;
     }
@@ -113,15 +116,17 @@ export function commitGridAxisPlacement(
 }
 
 /**
- * Reads one self-alignment axis as a raw CSS token. `normal` (the resolved
- * default for grid items) is normalized to `auto` so the UI can label both
- * as "Parent default".
+ * Reads one self-alignment axis as a raw CSS token with `normal` mapped to
+ * `stretch`: on grid items `normal` has stretch behavior (except replaced
+ * elements), so labeling it "Parent default" would misdescribe the rendering
+ * and re-committing `auto` for it could change the layout. `auto` alone means
+ * the item defers to the container's `justify-items` / `align-items`.
  */
 export function readGridChildAlignment(el: HTMLElement, axis: "h" | "v"): string {
   const property = axis === "h" ? "justify-self" : "align-self";
   const value = getLayoutValue(el, property);
   const token = normalizeToken(value.authored ?? value.computed);
-  return token === "normal" ? "auto" : token;
+  return token === "normal" ? "stretch" : token;
 }
 
 /** Friendly alignment labels; `auto` resolves to the container's items alignment. */
@@ -133,10 +138,16 @@ export const GRID_CHILD_ALIGNMENT_OPTIONS: Array<{ value: GridChildAlignment; la
   { value: "end", label: "End" },
 ];
 
+/**
+ * Commits one self-alignment axis. The alignment vocabulary is an open CSS
+ * set — the friendly pickers cover the common keywords while authored values
+ * such as `self-start` or `normal` round-trip verbatim — so this accepts any
+ * self-alignment token the UI puts in its options.
+ */
 export function commitGridChildAlignment(
   el: HTMLElement,
   axis: "h" | "v",
-  alignment: GridChildAlignment,
+  alignment: string,
 ): ChangeRecord[] {
   const property = axis === "h" ? "justify-self" : "align-self";
   const record = setStyle(el, property, alignment);
@@ -195,11 +206,14 @@ export function parentTrackCount(el: HTMLElement, axis: GridAxis): number | null
   return Math.min(count, GRID_CHILD_MAX_TRACKS);
 }
 
-/** Start-line options for one axis: Auto plus definite line numbers 1..N. */
+/**
+ * Start-line options for one axis: Auto plus explicit line numbers. A grid
+ * with N tracks has N+1 lines, so the final start line is count + 1.
+ */
 export function startLineOptions(trackCount: number | null): Array<{ value: string; label: string }> {
-  const count = trackCount ?? GRID_CHILD_MAX_TRACKS;
+  const lineCount = (trackCount ?? GRID_CHILD_MAX_TRACKS) + 1;
   const options = [{ value: "auto", label: "Auto" }];
-  for (let line = 1; line <= Math.max(1, count); line++) {
+  for (let line = 1; line <= Math.max(2, lineCount); line++) {
     options.push({ value: String(line), label: String(line) });
   }
   return options;

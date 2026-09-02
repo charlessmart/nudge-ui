@@ -9,6 +9,7 @@ import { Select } from "../ui/Select.tsx";
 import { Stepper } from "../ui/Stepper.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { GridValueField } from "./GridValueField.tsx";
+import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import {
   GRID_CHILD_ALIGNMENT_OPTIONS,
   GRID_CHILD_MAX_TRACKS,
@@ -22,10 +23,12 @@ import {
   startLineOptions,
   type GridAxis,
   type GridAxisPlacement,
-  type GridChildAlignment,
   type GridChildQuickAction,
   type GridChildQuickActionState,
 } from "./gridChildModel.ts";
+
+/** Full CSS self-alignment keyword set for the advanced raw editors. */
+const GRID_CHILD_SELF_ALIGNMENT_OPTIONS = ["auto", "normal", "stretch", "start", "end", "center", "self-start", "self-end"];
 
 export interface GridChildSectionProps {
   domElement: HTMLElement;
@@ -138,10 +141,7 @@ export function GridChildSection({
   }
 
   function handleAlignment(axis: "h" | "v", value: string): void {
-    // SAFETY: `value` comes from alignmentOptions(), which only emits the
-    // known GridChildAlignment keywords plus the element's current authored
-    // token — every possible option is a valid CSS self-alignment value.
-    if (commitGridChildAlignment(el, axis, value as GridChildAlignment).length > 0) handleAfterEdit();
+    if (commitGridChildAlignment(el, axis, value).length > 0) handleAfterEdit();
   }
 
   function handleQuickAction(action: GridChildQuickAction): void {
@@ -172,9 +172,27 @@ export function GridChildSection({
           onOpenChange={setAdvancedOpen}
         >
           <div className="layout__grid-child-advanced" data-test="layout-grid-child-advanced">
-            <div className="layout__grid-advanced-title">Advanced placement CSS</div>
+            <div className="layout__grid-advanced-title">Advanced grid CSS</div>
             <GridValueField property="grid-column" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
             <GridValueField property="grid-row" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
+            <div className="layout__grid-alignment" data-test="layout-grid-child-advanced-alignment">
+              <LayoutDropdown
+                property="justify-self"
+                options={GRID_CHILD_SELF_ALIGNMENT_OPTIONS}
+                domElement={el}
+                stacked
+                revision={revision}
+                onAfterEdit={onAfterEdit}
+              />
+              <LayoutDropdown
+                property="align-self"
+                options={GRID_CHILD_SELF_ALIGNMENT_OPTIONS}
+                domElement={el}
+                stacked
+                revision={revision}
+                onAfterEdit={onAfterEdit}
+              />
+            </div>
           </div>
         </InspectorPopover>
       </div>

@@ -76,8 +76,9 @@ describe("GridChildSection", () => {
 
     const actions = handle!.host.querySelectorAll('[data-test^="layout-grid-child-action-"]');
     expect(actions).toHaveLength(4);
+    // `normal` has stretch behavior on grid items, so the picker shows Fill.
     expect(handle!.host.querySelector('[data-test="layout-grid-child-select-justify-self"] .select__value')?.textContent)
-      .toBe("Parent default");
+      .toBe("Fill");
   });
 
   it("marks quick actions active when their state matches", () => {
@@ -91,6 +92,16 @@ describe("GridChildSection", () => {
     expect(handle!.host.querySelector('[data-test="layout-grid-child-action-full-width"]')?.getAttribute("data-active")).toBe("true");
     expect(handle!.host.querySelector('[data-test="layout-grid-child-action-fill"]')?.getAttribute("data-active")).toBe("true");
     expect(handle!.host.querySelector('[data-test="layout-grid-child-action-center"]')?.getAttribute("data-active")).toBeNull();
+  });
+
+  it("keeps Parent default reserved for auto", () => {
+    mountSection({
+      "justify-self": "auto",
+      "align-self": "auto",
+    });
+
+    expect(handle!.host.querySelector('[data-test="layout-grid-child-select-justify-self"] .select__value')?.textContent)
+      .toBe("Parent default");
   });
 
   it("commits a start line as a managed longhand", () => {
@@ -150,7 +161,7 @@ describe("GridChildSection", () => {
     expect(sheetText()).toContain("align-self: center;");
   });
 
-  it("keeps raw shorthand editing in the advanced popover", () => {
+  it("keeps raw shorthand and alignment editing in the advanced popover", () => {
     mountSection({});
 
     const trigger = handle!.host.querySelector('[data-test="layout-grid-child-settings"]') as HTMLButtonElement;
@@ -162,5 +173,7 @@ describe("GridChildSection", () => {
     expect(advanced).toBeTruthy();
     expect(advanced?.querySelector('[data-test="layout-grid-input-grid-column"]')).toBeTruthy();
     expect(advanced?.querySelector('[data-test="layout-grid-input-grid-row"]')).toBeTruthy();
+    expect(advanced?.querySelector('[data-test="layout-select-justify-self"]')).toBeTruthy();
+    expect(advanced?.querySelector('[data-test="layout-select-align-self"]')).toBeTruthy();
   });
 });

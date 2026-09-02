@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { IconMinus, IconPlus } from "@tabler/icons-react";
 import { ControlSurface } from "./ControlSurface.tsx";
@@ -35,24 +35,33 @@ export function Stepper({
   "data-test": dataTest,
 }: StepperProps): ReactElement {
   const [draft, setDraft] = useState(value === null ? "" : String(value));
+  // Blur commits read the ref, not state: Escape resets the draft and then
+  // blurs within the same event, before React re-renders, so state alone
+  // would let blur commit the pre-escape draft.
+  const draftRef = useRef(draft);
 
   useEffect(() => {
-    setDraft(value === null ? "" : String(value));
+    updateDraft(value === null ? "" : String(value));
   }, [value]);
 
+  function updateDraft(next: string): void {
+    draftRef.current = next;
+    setDraft(next);
+  }
+
   function commitDraft(): void {
-    const parsed = Number.parseInt(draft, 10);
+    const parsed = Number.parseInt(draftRef.current, 10);
     if (Number.isNaN(parsed)) {
-      setDraft(value === null ? "" : String(value));
+      resetDraft();
       return;
     }
     const next = clamp(parsed, min, max);
-    setDraft(String(next));
+    updateDraft(String(next));
     if (next !== value) onChange(next);
   }
 
-  function cancelDraft(): void {
-    setDraft(value === null ? "" : String(value));
+  function resetDraft(): void {
+    updateDraft(value === null ? "" : String(value));
   }
 
   function step(delta: number): void {
@@ -83,7 +92,7 @@ export function Stepper({
         inputMode="numeric"
         placeholder="–"
         data-test={dataTest ? `${dataTest}-value` : undefined}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => updateDraft(event.target.value)}
         onBlur={commitDraft}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
@@ -91,7 +100,7 @@ export function Stepper({
             event.currentTarget.blur();
           } else if (event.key === "Escape") {
             event.preventDefault();
-            cancelDraft();
+            resetDraft();
             event.currentTarget.blur();
           }
         }}
