@@ -166,7 +166,7 @@ Starts a project-scoped standard MCP stdio server and loopback browser bridge.
 
 Options:
   --project-id <id>             Stable project pairing identity
-  --origin <origin>             Exact app origin; omit to lock the first browser origin
+  --origin <origin>             Exact app origin required for browser pairing
   --workspace-root <path>       Project root supplied to the agent
   --host <loopback>             127.0.0.1, ::1, or localhost
   --port <port>                 Bridge port; default is deterministic per project, 0 is ephemeral

@@ -15,12 +15,6 @@ import {
   type BrowserBridgeOptions,
   type BridgeAddress,
 } from "./bridge.ts";
-import {
-  createNoopRegistrar,
-  type AgentRegistrar,
-  type AgentRegistrarContext,
-  type RegistrationResult,
-} from "./registrar.ts";
 
 export const MCP_SERVER_NAME = "nudge-ui";
 export const MCP_SERVER_VERSION = "0.0.1";
@@ -28,6 +22,7 @@ export const MCP_SERVER_VERSION = "0.0.1";
 /** Instructions are sent through MCP initialization for every host. */
 export const MCP_SERVER_INSTRUCTIONS = [
   "Nudge UI is a local browser companion for one project workspace.",
+  "Browser pairing requires the app origin to be configured explicitly with --origin or NUDGE_UI_ORIGIN; an unconfigured bridge accepts no HTTP pairing.",
   "Call nudge_listen (or nudge_connect) immediately at task start and keep the call open while waiting for a browser request; the bridge may be running before a listener exists.",
   "After a prompt is delivered, edit the project source using the host's normal approval flow.",
   "Report completed, failed, or interrupted status with nudge_report_status before listening again.",
@@ -37,14 +32,12 @@ export const MCP_SERVER_INSTRUCTIONS = [
 
 export interface AgentCompanionOptions extends BrowserBridgeOptions {
   readonly workspaceRoot?: string;
-  readonly registrar?: AgentRegistrar;
   readonly serverName?: string;
   readonly serverVersion?: string;
 }
 
 export interface AgentCompanionStartResult {
   readonly address: BridgeAddress;
-  readonly registration: RegistrationResult;
 }
 
 export interface AgentCompanion {
@@ -243,7 +236,6 @@ export function createAgentCompanion(options: AgentCompanionOptions): AgentCompa
     { instructions: MCP_SERVER_INSTRUCTIONS },
   );
   installTools(mcpServer, bridge);
-  const registrar = options.registrar ?? createNoopRegistrar();
   const project: AgentProjectIdentity = {
     projectId: options.projectId,
     ...(bridge.origin === null ? {} : { origin: bridge.origin }),
@@ -252,32 +244,15 @@ export function createAgentCompanion(options: AgentCompanionOptions): AgentCompa
   let startPromise: Promise<AgentCompanionStartResult> | null = null;
   let closePromise: Promise<void> | null = null;
   let transport: Transport | null = null;
-  let registrationContext: AgentRegistrarContext | null = null;
-  let registration: RegistrationResult | null = null;
 
   const start = (providedTransport?: Transport): Promise<AgentCompanionStartResult> => {
     if (closePromise) return Promise.reject(new Error("The Nudge companion is closing."));
     if (startPromise) return startPromise;
     startPromise = (async () => {
       const address = await bridge.start();
-      registrationContext = {
-        project,
-        bridge: address,
-        instructions: MCP_SERVER_INSTRUCTIONS,
-      };
-      try {
-        registration = await registrar.register(registrationContext);
-      } catch (error) {
-        // Registration is a best-effort seam. A host registrar must not make
-        // the standards-based MCP server unavailable when its config is busy.
-        registration = {
-          registered: false,
-          reason: error instanceof Error ? error.message : "registration failed",
-        };
-      }
       transport = providedTransport ?? new StdioServerTransport();
       await mcpServer.connect(transport);
-      return { address, registration };
+      return { address };
     })();
     return startPromise;
   };

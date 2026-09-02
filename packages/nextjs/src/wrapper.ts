@@ -8,10 +8,11 @@ import { buildManifest } from "./manifest.ts";
 /**
  * `withNudgeUi(nextConfig)` — the single user touchpoint (ADR-0010).
  *
- * Development-phase gated per ADR-0002: when the config is evaluated outside
- * `next dev` (`NODE_ENV !== "development"`), the original configuration
- * object is returned untouched and nothing is registered, spawned, or
- * injected. Production builds cannot observe Nudge UI.
+ * Development-phase gated per ADR-0002: the returned config factory
+ * instruments only `next dev` (`PHASE_DEVELOPMENT_SERVER` with
+ * `NODE_ENV=development`). Every other phase returns the original
+ * configuration untouched and nothing is registered, spawned, or injected.
+ * Production builds cannot observe Nudge UI.
  *
  * The wrapper is written against a structural subset of Next's config types
  * so this package stays typecheckable without `next` installed; consumers
@@ -130,6 +131,18 @@ function collectUserRewriteSources(rewrites: RewritesShape): string[] {
 export const DEVELOPMENT_SERVER_PHASE = "phase-development-server";
 
 /**
+ * Returns whether this config evaluation belongs to Next's development
+ * server. The phase argument is supplied by Next when it invokes a config
+ * factory, so object exports are converted to factories before any
+ * instrumentation can run. Keeping the phase check here means an object
+ * export cannot accidentally instrument `next build` when a caller has
+ * forced `NODE_ENV=development`.
+ */
+function isDevelopmentEvaluation(phase: string): boolean {
+  return process.env.NODE_ENV === "development" && phase === DEVELOPMENT_SERVER_PHASE;
+}
+
+/**
  * Wraps a Next.js configuration with Nudge UI instrumentation.
  *
  * Two input forms are supported:
@@ -138,38 +151,30 @@ export const DEVELOPMENT_SERVER_PHASE = "phase-development-server";
  *   wrapper resolves and instruments ONLY for PHASE_DEVELOPMENT_SERVER, so
  *   `NODE_ENV=development next build` cannot register instrumentation
  *   (ADR-0002) regardless of environment tricks.
- * - **Object form:** gated on NODE_ENV=development as before. Prefer the
- *   function form — the object form cannot see Next's build phase.
+ * - **Object form:** converted to a phase-aware config factory. This keeps
+ *   the convenient `withNudgeUi(nextConfig)` invocation while ensuring Next
+ *   supplies the phase before any instrumentation can be registered.
  *
  * @param config The application's existing configuration or a config factory.
  * @returns A configuration (or factory) to export in its place.
  */
-/** Object form: instruments immediately when running in development. */
-export function withNudgeUi<T extends object>(config: T): T;
 /** Function form: gates instrumentation on PHASE_DEVELOPMENT_SERVER. */
 export function withNudgeUi<T extends object>(
   factory: (phase: string) => T,
 ): (phase: string) => T;
+/** Object form: returns a phase-aware Next.js config factory. */
+export function withNudgeUi<T extends object>(config: T): (phase: string) => T;
 export function withNudgeUi<T extends object>(
   config: T | ((phase: string) => T) = {} as T,
-): T | ((phase: string) => T) {
-  if (typeof config === "function") {
-    const factory = config as (phase: string) => T;
-    return (phase: string): T => {
-      const resolved = factory(phase);
-      if (phase !== DEVELOPMENT_SERVER_PHASE) {
-        return resolved;
-      }
-      return instrumentConfig(resolved);
-    };
-  }
-
-  // Object form: no phase information exists at evaluation time, so gate on
-  // the development environment alone.
-  if (process.env.NODE_ENV !== "development") {
-    return config;
-  }
-  return instrumentConfig(config);
+): (phase: string) => T {
+  const factory = typeof config === "function"
+    ? config as (phase: string) => T
+    : () => config;
+  return (phase: string): T => {
+    const resolved = factory(phase);
+    if (!isDevelopmentEvaluation(phase)) return resolved;
+    return instrumentConfig(resolved);
+  };
 }
 
 function instrumentConfig<T extends object>(config: T): T {

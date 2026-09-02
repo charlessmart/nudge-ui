@@ -83,7 +83,8 @@ pnpm exec nudge-ui serve ./prototype
 ```
 
 The standalone host serves the directory on loopback, instruments HTML in
-memory, watches source files, and reloads the browser after changes.
+memory, watches source files, and reloads the browser after changes. It does
+not serve dot-prefixed files or directories, including `.env` files.
 
 ## Connect a coding agent
 
@@ -93,16 +94,20 @@ Install the optional local companion in the application project:
 pnpm add -D @nudge-ui/mcp
 ```
 
-Installation makes a best-effort, project-local Codex registration in
-`.codex/config.toml`. It never changes the global Codex configuration and does
-not fail installation when the project configuration is unavailable. Other
-MCP hosts can start the `nudge-mcp` stdio command with the same project ID.
+Installation does not modify project or global tool configuration. Configure
+the MCP host explicitly to run `nudge-mcp` with the project's stable ID,
+workspace root, and exact development origin. For example, the command for a
+Vite project might be:
 
-Registration and listening are separate steps. Installation only tells the
-agent host how to start the companion; it does not invoke the long-lived MCP
-tool. After installing or changing the project entry, restart or reload the
-host's MCP server, or start a fresh agent task, so the host refreshes its tool
-catalog.
+```sh
+pnpm exec nudge-mcp \
+  --project-id my-app \
+  --origin http://localhost:5173 \
+  --workspace-root /path/to/my-app
+```
+
+After adding or changing the MCP host entry, restart or reload the host's MCP
+server, or start a fresh agent task, so the host refreshes its tool catalog.
 
 Then ask the coding agent to call `nudge_listen` immediately and leave that
 call active. The inspector changes its primary action from **Copy prompt** to
@@ -128,6 +133,10 @@ closed, a re-armed agent can reopen only the last paired, reachable page.
 The companion binds only to loopback, keeps pairings and prompts in memory,
 and does not edit source itself. File changes and approvals continue through
 the connected coding agent's normal workflow.
+
+Nudge UI also keeps development-only inspector state in origin-scoped browser
+storage. See [Browser storage](docs/browser-storage.md) for the key
+formats, project scoping, sensitive values, and clearing instructions.
 
 ## Implementation
 
@@ -181,8 +190,13 @@ Run the main checks from the repository root:
 
 ```sh
 pnpm install
+pnpm package:verify
 pnpm test:unit
 pnpm test:e2e
 pnpm typecheck
 pnpm lint
 ```
+
+## License
+
+Nudge UI is available under the [MIT License](LICENSE).

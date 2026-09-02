@@ -8,7 +8,7 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
 import { AspectRatioField } from "./AspectRatioField.tsx";
-import { PositionAnchorControls } from "./PositionAnchorControls.tsx";
+import { PositionInsets } from "./PositionInsets.tsx";
 import { GridSection } from "./GridSection.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "./styleActions.ts";
@@ -220,7 +220,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
         ) : null}
 
         {position === "absolute" || position === "fixed" ? (
-          <PositionAnchorControls
+          <PositionInsets
             domElement={el}
             entries={allEntries}
             tokenRows={tokenRows}

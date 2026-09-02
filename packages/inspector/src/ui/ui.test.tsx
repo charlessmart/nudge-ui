@@ -331,6 +331,9 @@ describe("shared inspector UI", () => {
     });
 
     expect(host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
+    expect(Array.from(host.querySelectorAll<HTMLElement>('[data-test^="side-value-"]'))
+      .map((side) => side.getAttribute("data-side")))
+      .toEqual(["left", "top", "right", "bottom"]);
     expect(host.querySelector('[data-side="top"] svg')).not.toBeNull();
     expect(host.querySelector('[data-side="top"]')?.className).toContain("control-surface");
   });
@@ -341,8 +344,8 @@ describe("shared inspector UI", () => {
         label: "padding",
         "data-test": "grouped-side-values",
         pairedControls: [
-          { axis: "horizontal", control: createElement("span", { "data-test": "horizontal-control" }, "12px") },
           { axis: "vertical", control: createElement("span", { "data-test": "vertical-control" }, "8px") },
+          { axis: "horizontal", control: createElement("span", { "data-test": "horizontal-control" }, "12px") },
         ],
         sides: SIDE_NAMES.map((side) => ({
           side,
@@ -354,6 +357,9 @@ describe("shared inspector UI", () => {
     const field = host.querySelector('[data-test="grouped-side-values"]') as HTMLElement;
     expect(field.getAttribute("data-expanded")).toBe("false");
     expect(field.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
+    expect(Array.from(field.querySelectorAll<HTMLElement>('[data-test^="pair-value-"]'))
+      .map((pair) => pair.getAttribute("data-axis")))
+      .toEqual(["horizontal", "vertical"]);
     expect(field.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
     expect(field.querySelector('[data-test="individual-sides"]')?.className).toContain("toggle-button");
     expect(field.querySelector('[data-test="individual-sides"]')?.className).toContain("toggle-button--quiet");

@@ -606,6 +606,10 @@ describe("BorderEditor", () => {
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-right-radius"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-bottom-right-radius"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-bottom-left-radius"]')).not.toBeNull();
+    const cornerGrid = handle.host.querySelector('[data-test="border-radius-editor"] [data-layout="corners"]');
+    expect(Array.from(cornerGrid?.querySelectorAll<HTMLElement>('[data-test^="side-value-"]') ?? [])
+      .map((control) => control.getAttribute("data-side")))
+      .toEqual(["top", "right", "bottom", "left"]);
     expect(handle.host.querySelector('[data-side="top"] svg')?.classList.contains("tabler-icon-radius-top-left")).toBe(true);
     expect(handle.host.querySelector('[data-side="right"] svg')?.classList.contains("tabler-icon-radius-top-right")).toBe(true);
     expect(handle.host.querySelector('[data-side="bottom"] svg')?.classList.contains("tabler-icon-radius-bottom-right")).toBe(true);

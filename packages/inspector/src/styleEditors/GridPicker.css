@@ -8,7 +8,7 @@
   width: 100%;
   padding: 4px;
   appearance: none;
-  border: 1px solid var(--border-strong);
+  border: none;
   border-radius: 9px;
   background: var(--surface-control);
   color: var(--text-primary);
@@ -65,9 +65,8 @@
   visibility: hidden;
   width: 360px;
   padding: 10px;
-  border: 1px solid var(--border-strong);
   border-radius: 10px;
-  background: var(--surface-raised);
+  background: var(--surface-raised-2x);
   box-shadow: var(--shadow-popup);
 }
 

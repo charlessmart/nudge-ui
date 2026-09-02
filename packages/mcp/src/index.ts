@@ -8,15 +8,6 @@ export {
   type CanvasCommandInput,
 } from "./bridge.ts";
 export {
-  createNoopRegistrar,
-  createProjectLocalCodexRegistrar,
-  type AgentRegistrar,
-  type AgentRegistrarContext,
-  type ProjectLocalCodexRegistrarOptions,
-  type RegistrarFileSystem,
-  type RegistrationResult,
-} from "./registrar.ts";
-export {
   openPairedPage,
   parseCliArguments,
   runCli,

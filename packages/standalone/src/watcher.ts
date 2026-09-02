@@ -10,14 +10,7 @@ import { watch, type FSWatcher, type Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-
-const EXCLUDED_DIRECTORY_NAMES = new Set([
-  ".git",
-  ".next",
-  "build",
-  "dist",
-  "node_modules",
-]);
+import { isExcludedDirectoryName, isSensitiveProjectPath } from "./pathPolicy.ts";
 
 export type StandaloneFileChangeKind = "add" | "change" | "remove";
 
@@ -136,7 +129,7 @@ export function createStandaloneFileWatcher(
     entries.sort((a, b) => comparePosixStrings(a.name, b.name));
     for (const entry of entries) {
       if (closed) return;
-      if (!entry.isDirectory() || EXCLUDED_DIRECTORY_NAMES.has(entry.name)) continue;
+      if (!entry.isDirectory() || isExcludedDirectoryName(entry.name)) continue;
       const child = join(directory, entry.name);
       if (!isProjectPath(rootDirectory, child)) continue;
       watchDirectory(child);
@@ -206,13 +199,19 @@ function isProjectPath(rootDirectory: string, path: string): boolean {
 function canonicalProjectPath(rootDirectory: string, path: string): string | null {
   try {
     const canonical = realpathSync(path);
-    return isWithin(rootDirectory, canonical) ? canonical : null;
+    return isWithin(rootDirectory, canonical)
+      && !isSensitiveProjectPath(relative(rootDirectory, canonical).split(sep).join("/"))
+      ? canonical
+      : null;
   } catch {
     const parent = dirname(path);
     if (parent === path) return null;
     try {
       const canonicalParent = realpathSync(parent);
-      return isWithin(rootDirectory, canonicalParent) ? canonicalParent : null;
+      return isWithin(rootDirectory, canonicalParent)
+        && !isSensitiveProjectPath(relative(rootDirectory, canonicalParent).split(sep).join("/"))
+        ? canonicalParent
+        : null;
     } catch {
       return null;
     }
@@ -221,7 +220,7 @@ function canonicalProjectPath(rootDirectory: string, path: string): string | nul
 
 function isExcludedDirectory(rootDirectory: string, path: string): boolean {
   return relative(rootDirectory, resolve(path)).split(sep).some((segment) =>
-    EXCLUDED_DIRECTORY_NAMES.has(segment));
+    isExcludedDirectoryName(segment));
 }
 
 function isWithin(rootDirectory: string, candidate: string): boolean {

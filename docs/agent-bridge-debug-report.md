@@ -2,12 +2,13 @@
 
 Date: 2026-08-30
 
-Branch: `mcp`
+Branch: `main` (including the merged `mcp` work)
 
 ## Summary
 
-The Nudge MCP implementation is working. The original fallback state was not
-caused by a bad port, origin, project ID, MCP handshake, or browser transport.
+The Nudge MCP implementation and Codex desktop integration are working. The
+original fallback state was not caused by a bad port, origin, project ID, MCP
+handshake, or browser transport.
 
 The missing step was a long-lived `nudge_listen` tool call in the agent host.
 Starting the MCP process only starts the loopback bridge. The browser changes
@@ -15,11 +16,11 @@ from **Copy prompt** to **Connect agent** only after an agent is actively
 executing `nudge_listen` (or its alias, `nudge_connect`). This is the behavior
 defined by ADR-0013.
 
-The current Codex desktop task did not expose the `nudge_ui.*` tools to this
-conversation, even though the project configuration was enabled and the MCP
-child process was initially running. Consequently, this task could not issue
-the required listener call through the desktop model. Codex CLI and OpenCode 2
-both exposed the same tools and completed the round trip successfully.
+The current Codex desktop task initially did not expose the `nudge_ui.*` tools
+to this conversation, even though the project configuration was enabled and
+the MCP child process was running. Once the desktop MCP catalog refreshed, the
+tools became callable and this task completed the round trip natively. Codex
+CLI and OpenCode 2 had already provided the same protocol-level confirmation.
 
 ## What was verified
 
@@ -29,8 +30,8 @@ both exposed the same tools and completed the round trip successfully.
 | Default bridge discovery | Pass | Browser health request to `127.0.0.1:30292` returned HTTP 200 for project `sandbox`. |
 | MCP handshake | Pass | `tools/list` returned all nine Nudge tools and the server instructions. |
 | Browser pairing | Pass | The inspector changed to **Connect agent**, then to **Send prompt** after pairing. |
-| Prompt dispatch | Pass | OpenCode 2 and Codex CLI received the generated prompt, source location, and change revision. |
-| Status reporting | Pass | OpenCode reported `working`, then `completed`; the browser received both states. |
+| Prompt dispatch | Pass | Codex desktop, OpenCode 2, and Codex CLI received the generated prompt, source location, and change revision. |
+| Status reporting | Pass | Codex desktop reported `completed`; earlier OpenCode coverage also verified `working` → `completed` in the browser. |
 | Canvas presentation | Pass | OpenCode created an agent-owned three-route Canvas group, and the browser rendered three route cards. |
 | Unit and type tests | Pass | Inspector: 1,176 tests; agent protocol: 6 tests; MCP: 17 tests; focused typechecks passed. |
 | Browser E2E | Pass | `agent-bridge.dev.spec.ts`: 2 tests passed. |
@@ -66,34 +67,32 @@ However, the configured process is not itself a listener. The host must call
 state this requirement, but it is easy to miss because the bridge can be
 running while the UI still looks disconnected.
 
-The desktop app added a second host-specific problem: the current model tool
-surface contained no `nudge_ui` namespace. The app server had recognized the
-project configuration, but this active task could not call the configured
-tools. A full desktop-app restart or a new task may refresh that catalog; this
-session did not have a usable desktop UI automation bridge to perform that
-restart and confirm it.
+The desktop app initially had the same host-specific problem: the current
+model tool surface contained no `nudge_ui` namespace. After the desktop MCP
+catalog refreshed, the native `nudge_ui` tools became callable in this task.
+The app server now launches the configured Nudge child process directly, and a
+long-lived desktop `nudge_listen` call receives browser prompts successfully.
 
 ## End-to-end test performed
 
 1. Started the sandbox and opened the homepage in the browser.
 2. Confirmed the initial state was the expected **Copy prompt** fallback.
-3. Started OpenCode 2 with a project-local Nudge MCP entry on a temporary
-   bridge port.
-4. Asked OpenCode to call `nudge_listen` and leave it active.
-5. Confirmed the browser changed to **Connect agent** and paired it.
-6. Selected the homepage heading and changed its managed runtime `font-size`
-   from `32.08px` to `41px`.
-7. Sent the prompt. OpenCode received:
+3. Started the native Codex desktop MCP companion from the project
+   `.codex/config.toml` and kept `nudge_listen` active.
+4. Claimed the user's existing sandbox tab so the test used the same browser
+   page and pairing rather than a duplicate canvas tab.
+5. Opened **Page view**, selected the homepage heading, and changed its
+   managed runtime `font-size` from `64px` to `68px`.
+6. Sent the prompt. The inspector changed to **Agent working…**, and the
+   desktop `nudge_listen` call received:
 
    ```text
-   App (src/App.tsx:106:12) · base
-   font-size: 32.08px → 41px
+   App (src/playground/PlaygroundPage.tsx:169:14) · base
+   font-size: 64px → 68px
    ```
 
-8. OpenCode called `nudge_report_status` with `working`, presented these
-   same-origin routes in Canvas, then reported `completed`.
-9. Repeated the default-port prompt check with `codex exec`; Codex CLI also
-   received the browser request through the same `.codex/config.toml`.
+7. Reported the request as `completed` and immediately re-armed
+   `nudge_listen`. The browser returned to an enabled **Send prompt** state.
 
 The edit was intentionally not written to `src/App.tsx`; it was a live managed
 stylesheet edit used to verify the handoff. The temporary OpenCode config and
@@ -104,14 +103,22 @@ source file was changed by the browser test edit.
 
 ### Codex desktop
 
-The active desktop task showed the fallback because the `nudge_ui` tools were
-not present in its tool catalog. The configured process being visible in the
-process list was not sufficient to make the tools callable.
+The active desktop task initially showed the fallback because the `nudge_ui`
+tools were not present in its tool catalog. The configured process being
+visible in the process list was not sufficient to make the tools callable.
+After the catalog refreshed, the task exposed all Nudge tools and the native
+MCP child appeared under the Codex app server. The current task now has an
+active listener and has completed a browser-to-Codex prompt round trip.
 
 For a reliable desktop workflow, verify both conditions:
 
 1. The server appears as enabled in the MCP settings.
 2. The current task can see and call `nudge_listen`.
+
+Changing `.codex/config.toml` or installing a new MCP server may require a
+Codex desktop restart or a fresh task before the tool catalog updates. A Vite
+dev-server restart is not required for a normal browser refresh or for the
+already-running bridge to receive a prompt.
 
 The Codex MCP documentation describes project-local configuration and the
 desktop MCP restart flow: [Codex MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
@@ -236,10 +243,8 @@ including a retry action and the last health response.
 - No application source file was changed by the test edit; the intentional
   documentation, installation-message, MCP-instruction, and inspector hint
   updates are present in the working tree.
-- The Nudge browser bridge, MCP server, Codex CLI host, and OpenCode 2 host have
-  all been verified end to end.
-- A Codex CLI `nudge_listen` session is currently left active on the default
-  bridge port, and the browser is paired and ready to send another prompt.
-- The unresolved part is limited to the current Codex desktop task not exposing
-  the configured Nudge tools; a fresh desktop task or explicit MCP restart is
-  the next host-level check.
+- The Nudge browser bridge, MCP server, and native Codex desktop host have been
+  verified end to end.
+- The browser is paired to the Codex desktop companion, and a Codex desktop
+  `nudge_listen` session is currently left active on the default bridge port.
+- No Nudge MCP implementation change was required for this successful path.

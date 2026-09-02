@@ -56,7 +56,7 @@ const SYSTEM_CLOCK: BridgeClock = {
 export interface BrowserBridgeOptions {
   /** Stable project identity used to scope every browser message. */
   readonly projectId: string;
-  /** Canonical app origin that browser routes must use. Omit for first-pair TOFU. */
+  /** Canonical app origin that browser routes must use. */
   readonly origin?: string;
   /** Explicit browser origins accepted by the loopback HTTP server. */
   readonly allowedOrigins?: readonly string[];
@@ -88,7 +88,7 @@ export interface BrowserBridge {
   readonly httpServer: Server;
   readonly projectId: string;
   readonly origin: string | null;
-  /** The configured origin, or in TOFU mode the first paired browser origin. */
+  /** The configured origin, or the explicitly approved browser origin. */
   readonly effectiveOrigin: string | null;
   readonly lifecycle: BridgeLifecycle;
   readonly address: BridgeAddress | null;
@@ -312,7 +312,6 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     throw new TypeError("allowedOrigins must contain canonical HTTP(S) origins");
   }
   const canonicalAllowedOrigins = allowedOrigins as string[];
-  const tofuEnabled = configuredOrigin === null && canonicalAllowedOrigins.length === 0;
   const clock = options.clock ?? SYSTEM_CLOCK;
   const tokenFactory = options.tokenFactory ?? randomToken;
   const idFactory = options.idFactory ?? randomId;
@@ -361,10 +360,11 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
 
   const originIsAllowed = (candidate: string | null): candidate is string => {
     if (!candidate) return false;
-    // Once paired, the first browser's exact origin remains the only origin
-    // accepted even when no configured allow-list was supplied (TOFU mode).
+    // Once paired, the explicitly approved browser's exact origin remains the
+    // only origin accepted. Before pairing, only an origin configured by the
+    // host (directly or through the allow-list) is eligible. An empty list is
+    // deliberately closed rather than a trust-on-first-use wildcard.
     if (pairedOrigin === candidate) return true;
-    if (tofuEnabled && sessionToken === null) return true;
     return isAllowedOrigin(candidate, canonicalAllowedOrigins);
   };
 
@@ -432,7 +432,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     parseProjectId(typeof body.projectId === "string" ? body.projectId : null, options.projectId);
     const requestedOrigin = canonicalOrigin(body.origin);
     if (!requestedOrigin || requestedOrigin !== incomingOrigin || (configuredOrigin !== null && requestedOrigin !== configuredOrigin)) {
-      throw new BridgeRequestError(403, "origin_mismatch", "Pairing requires the exact configured project origin.");
+      throw new BridgeRequestError(403, "origin_mismatch", "Pairing requires an explicitly configured project origin.");
     }
     let requestedPageUrl: string | undefined;
     if (body.pageUrl !== undefined) {
@@ -761,13 +761,31 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
   const pairBrowser = (projectId: string, requestOriginValue: string, pageUrl?: string): PairingResponse => {
     if (projectId !== options.projectId) throw new Error("Project identity does not match this bridge");
     const requestCanonicalOrigin = canonicalOrigin(requestOriginValue);
-    if (!requestCanonicalOrigin || (configuredOrigin !== null && requestCanonicalOrigin !== configuredOrigin)) throw new Error("Browser origin does not match this bridge");
+    if (!requestCanonicalOrigin) throw new Error("Browser origin does not match this bridge");
+    // This method is the explicit host-side approval path. A bridge without
+    // an HTTP allow-list can still be paired by trusted host code, while all
+    // browser-originated requests remain closed until that approval exists.
+    if (configuredOrigin !== null && requestCanonicalOrigin !== configuredOrigin) {
+      throw new Error("Browser origin does not match this bridge");
+    }
+    if (canonicalAllowedOrigins.length > 0 && !originIsAllowed(requestCanonicalOrigin)) {
+      throw new Error("Browser origin is not in the configured allow-list");
+    }
+    let requestedPageUrl: string | undefined;
+    if (pageUrl !== undefined) {
+      if (!isSameOriginRoute({ url: pageUrl }, requestCanonicalOrigin)) {
+        throw new Error("Browser page URL does not match this bridge");
+      }
+      requestedPageUrl = new URL(pageUrl, requestCanonicalOrigin).href;
+    }
     if (sessionToken) throw new Error("A browser is already paired with this project");
-    sessionToken = tokenFactory();
+    const nextSessionToken = tokenFactory();
+    if (!nextSessionToken || nextSessionToken.length > AGENT_PROTOCOL_LIMITS.sessionToken) {
+      throw new Error("tokenFactory returned an invalid session token");
+    }
+    sessionToken = nextSessionToken;
     pairedOrigin = requestCanonicalOrigin;
-    if (pageUrl !== undefined && !isSameOriginRoute({ url: pageUrl }, requestCanonicalOrigin)) throw new Error("Browser page URL does not match this bridge");
-    lastPageUrl = pageUrl === undefined ? null : new URL(pageUrl, requestCanonicalOrigin).href;
-    if (!sessionToken || sessionToken.length > AGENT_PROTOCOL_LIMITS.sessionToken) throw new Error("tokenFactory returned an invalid session token");
+    lastPageUrl = requestedPageUrl ?? null;
     const result: PairingResponse = {
       protocolVersion: AGENT_PROTOCOL_VERSION,
       projectId: options.projectId,

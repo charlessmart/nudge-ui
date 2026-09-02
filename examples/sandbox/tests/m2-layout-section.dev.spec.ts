@@ -454,38 +454,24 @@ test("dev: layout size controls edit dimensions and aspect ratio", async ({ page
   await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("aspect-ratio: 16 / 9");
 });
 
-test("dev: absolute position controls route X and Y to their anchors", async ({ page }) => {
+test("dev: absolute position exposes and edits all four inset values", async ({ page }) => {
   await page.goto("/playground");
   await page.click('[data-test="right-anchored-box"]');
   await waitForEditors(page);
 
   await expect(page.locator('[data-test="layout-position"]')).toBeVisible();
-  await expect(page.locator('[data-test="layout-anchor-horizontal-end"]')).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator('[data-test="layout-anchor-vertical-end"]')).toHaveAttribute("aria-pressed", "true");
 
-  await setLayoutInput(page, "layout-position-x", "32");
-  await setLayoutInput(page, "layout-position-y", "18");
+  for (const side of ["top", "right", "bottom", "left"]) {
+    await expect(page.locator(`[data-test="side-value-${side}"]`)).toBeVisible();
+  }
+
+  await expect(page.locator('[data-test^="layout-anchor-"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="layout-position-individual-toggle"]')).toHaveCount(0);
+
+  await setInput(page, "right", "32");
+  await setInput(page, "bottom", "18");
   await expect.poll(async () => computedPropOn(page, "right-anchored-box", "right"), { timeout: 5000 }).toBe("32px");
   await expect.poll(async () => computedPropOn(page, "right-anchored-box", "bottom"), { timeout: 5000 }).toBe("18px");
-
-  await page.locator('[data-test="layout-anchor-horizontal-start"]').click();
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("left: 32px");
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("right: auto");
-
-  await page.keyboard.press("Control+z");
-  await expect.poll(async () => sheetText(page), { timeout: 5000 }).not.toContain("left: 32px");
-  await expect.poll(async () => computedPropOn(page, "right-anchored-box", "right"), { timeout: 5000 }).toBe("32px");
-});
-
-test("dev: stretched absolute positioning exposes both axis insets", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click('[data-test="stretched-box"]');
-  await waitForEditors(page);
-
-  await expect(page.locator('[data-test="layout-anchor-horizontal-stretch"]')).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator('[data-test="layout-position-x"]')).toHaveCount(0);
-  await expect(page.locator('[data-test="layout-position-x-left"]')).toBeVisible();
-  await expect(page.locator('[data-test="layout-position-x-right"]')).toBeVisible();
 });
 
 test("dev: Grid controls preserve authored track expressions and edit managed rules", async ({ page }) => {

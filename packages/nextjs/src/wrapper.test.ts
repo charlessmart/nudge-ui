@@ -2,7 +2,11 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { withNudgeUi, type NudgeUiNextConfig } from "./wrapper.ts";
+import {
+  DEVELOPMENT_SERVER_PHASE,
+  withNudgeUi,
+  type NudgeUiNextConfig,
+} from "./wrapper.ts";
 import { buildManifest, nextjsProjectId } from "./manifest.ts";
 
 function makeProject(): string {
@@ -14,12 +18,43 @@ function makeProject(): string {
   return root;
 }
 
+function resolveForDevelopment<T extends object>(config: T): T {
+  return withNudgeUi(config)(DEVELOPMENT_SERVER_PHASE);
+}
+
 describe("withNudgeUi — phase gating (ADR-0002)", () => {
   it("returns the original config untouched outside development", () => {
     vi.stubEnv("NODE_ENV", "production");
     const config = { reactStrictMode: true } as NudgeUiNextConfig;
 
-    const result = withNudgeUi(config);
+    const wrapped = withNudgeUi(config);
+    expect(typeof wrapped).toBe("function");
+    const result = wrapped("phase-production-server");
+
+    expect(result).toBe(config);
+    expect((result as NudgeUiNextConfig).turbopack).toBeUndefined();
+    vi.unstubAllEnvs();
+  });
+
+  it("keeps the object form inert during a production build", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const config = { reactStrictMode: true } as NudgeUiNextConfig;
+
+    const wrapped = withNudgeUi(config);
+    expect(typeof wrapped).toBe("function");
+    const result = wrapped("phase-production-build");
+
+    expect(result).toBe(config);
+    expect(result.turbopack).toBeUndefined();
+    vi.unstubAllEnvs();
+  });
+
+  it("keeps the object form inert during a production server phase", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const config = { reactStrictMode: true } as NudgeUiNextConfig;
+
+    const wrapped = withNudgeUi(config);
+    const result = wrapped("phase-production-server");
 
     expect(result).toBe(config);
     expect(result.turbopack).toBeUndefined();
@@ -48,6 +83,21 @@ describe("withNudgeUi — phase gating (ADR-0002)", () => {
     expect(devResult.turbopack).toBeDefined();
     vi.unstubAllEnvs();
   });
+
+  it("keeps the function form inert when NODE_ENV is production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const factory = vi.fn(() => ({ reactStrictMode: true }) as NudgeUiNextConfig);
+    const wrapped = withNudgeUi(factory);
+
+    const result = (wrapped as (phase: string) => NudgeUiNextConfig)(
+      DEVELOPMENT_SERVER_PHASE,
+    );
+
+    expect(result).toEqual({ reactStrictMode: true });
+    expect(result.turbopack).toBeUndefined();
+    expect(factory).toHaveBeenCalledWith(DEVELOPMENT_SERVER_PHASE);
+    vi.unstubAllEnvs();
+  });
 });
 
 describe("withNudgeUi — development output shape", () => {
@@ -69,7 +119,7 @@ describe("withNudgeUi — development output shape", () => {
     const root = makeProject();
     projectRoots.push(root);
     vi.spyOn(process, "cwd").mockReturnValue(root);
-    return withNudgeUi({} as NudgeUiNextConfig);
+    return resolveForDevelopment({} as NudgeUiNextConfig);
   }
 
   it("registers the identity loader as a Turbopack rule confined to first-party sources", () => {
@@ -107,7 +157,7 @@ describe("withNudgeUi — development output shape", () => {
     projectRoots.push(root);
     vi.spyOn(process, "cwd").mockReturnValue(root);
 
-    const config = withNudgeUi({
+    const config = resolveForDevelopment({
       turbopack: { rules: { "**/*.svg": { loaders: ["svg-loader"] } } },
     } as NudgeUiNextConfig);
 
@@ -117,7 +167,7 @@ describe("withNudgeUi — development output shape", () => {
 
     // A USER rule for the SAME key composes into a collection instead of
     // being overwritten.
-    const shared = withNudgeUi({
+    const shared = resolveForDevelopment({
       turbopack: { rules: { "*.tsx": { loaders: ["user-loader"] } } },
     } as NudgeUiNextConfig) as {
       turbopack?: { rules?: Record<string, Array<Record<string, unknown>>> };
@@ -129,7 +179,7 @@ describe("withNudgeUi — development output shape", () => {
 
   it("composes the webpack hook and only instruments in dev contexts", () => {
     const userHook = vi.fn((base: Record<string, unknown>) => base);
-    const composed = withNudgeUi({ webpack: userHook } as NudgeUiNextConfig);
+    const composed = resolveForDevelopment({ webpack: userHook } as NudgeUiNextConfig);
 
     expect(typeof composed.webpack).toBe("function");
     expect(composed.webpack).not.toBe(userHook);
@@ -200,7 +250,7 @@ describe("withNudgeUi — development output shape", () => {
     vi.spyOn(process, "cwd").mockReturnValue(root);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const config = withNudgeUi({
+    const config = resolveForDevelopment({
       rewrites: async () => ({
         beforeFiles: [{ source: "/__nudge_ui__/evil", destination: "/elsewhere" }],
         afterFiles: [{ source: "/blog/:slug", destination: "/posts/:slug" }],
@@ -230,7 +280,7 @@ describe("withNudgeUi — development output shape", () => {
     vi.spyOn(process, "cwd").mockReturnValue(root);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const config = withNudgeUi({} as NudgeUiNextConfig);
+    const config = resolveForDevelopment({} as NudgeUiNextConfig);
 
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("outside the tested range"));
     // Failing closed: unsupported versions get NO instrumentation.

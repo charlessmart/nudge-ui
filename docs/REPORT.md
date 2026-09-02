@@ -2,7 +2,7 @@
 
 **Branch:** `feat/astro-host-adapter` · **Date:** 2025-08-24 · **Runner:** Playwright 1.61.1 (headless Chromium), harness in `docs/qa/tools/`
 
-> Provenance note: this report was first produced against the same branch with all evidence stored in an untracked `report/` directory, which was subsequently wiped (almost certainly a `git clean` of untracked files). The report text below is the original; the full battery was then re-run from `docs/qa/tools/run-all.sh` to regenerate every screenshot and JSON log into `docs/qa/`. The re-run reproduced all findings identically (same truncation set on the same routes, same canvas behaviours), which is itself a stability signal.
+> Provenance note: this report was first produced against the same branch with all evidence stored in an untracked `report/` directory, which was subsequently wiped (almost certainly a `git clean` of untracked files). The report text below is the original; the full battery was then re-run from `docs/qa/tools/run-all.sh` to regenerate the local screenshots and JSON logs into `docs/qa/`. Screenshots are generated artifacts and are intentionally not tracked. The re-run reproduced all findings identically (same truncation set on the same routes, same canvas behaviours), which is itself a stability signal.
 
 ## Executive summary
 
@@ -88,7 +88,7 @@ Both token-label surfaces clip with ellipsis and expose no tooltip, wrap, or exp
 - Impact: in a 320 px panel, any token name past ~16 monospace characters loses its distinguishing tail. `--color-accent-subtle` vs `--color-accent-alt` vs `--color-accent` are unreadable as distinct tokens.
 - Suggested directions: `title` tooltip as a floor; wrap to two lines or shrink font before truncating; widen the name column in the tokens grid (`grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr)`).
 
-Evidence: `docs/qa/screenshots/raw-html/index-tokens-tab.png`, `docs/qa/screenshots/react/index__truncated-ellipsis__code.dt-token-row__name__*.png` and matching `overflow-x` shots; 30 occurrences logged in `docs/qa/issues-raw-html.json` / `docs/qa/issues-react.json`.
+Evidence is preserved in `docs/qa/issues-raw-html.json` and `docs/qa/issues-react.json`; the screenshots named during the run were local generated artifacts and are intentionally not tracked.
 
 ### F2 · Canvas card drag affordance is two 4 px slivers — react sandbox
 
@@ -175,4 +175,4 @@ Canvas (react is the only canvas-enabled host): board renders per route; cards p
 docs/qa/tools/run-all.sh            # full battery: astro → raw-html → next → react
 ```
 
-Raw data: `docs/qa/issues-{astro,raw-html,next,react}.json` · Screenshots: `docs/qa/screenshots/<sandbox>/*.png` — baselines, tokens tabs, canvas states, and one screenshot per recorded issue.
+Raw data: `docs/qa/issues-{astro,raw-html,next,react}.json` · Local screenshots (not tracked): `docs/qa/screenshots/<sandbox>/*.png` — baselines, tokens tabs, canvas states, and one screenshot per recorded issue. Re-run `docs/qa/tools/run-all.sh` to regenerate them.

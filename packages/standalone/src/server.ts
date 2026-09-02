@@ -30,6 +30,7 @@ import {
   type StandaloneFileChange,
   type StandaloneFileWatcher,
 } from "./watcher.ts";
+import { isSensitiveProjectPath } from "./pathPolicy.ts";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const HTML_EXTENSIONS = new Set([".html", ".htm"]);
@@ -261,7 +262,9 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
  * URL decoding occurs before path normalization, which makes encoded dot
  * segments subject to the same confinement check as ordinary traversal. The
  * canonical existing ancestor check also rejects a symlink that escapes the
- * root when the requested leaf does not yet exist.
+ * root when the requested leaf does not yet exist. Hidden path segments are
+ * refused, including encoded and multiply encoded forms, and a visible
+ * symlink cannot be used to reach a hidden target.
  *
  * @param rootDirectory The configured project root.
  * @param requestPath A request target or URL pathname.
@@ -283,6 +286,9 @@ function resolveDecodedStaticFile(
   decodedPath: string,
 ): StaticFileResolution | null {
   const projectPath = decodedPath.replace(/^\/+/, "") || "index.html";
+  if (isSensitiveProjectPath(projectPath) || hasNestedUnsafePathEncoding(decodedPath)) {
+    return null;
+  }
   const candidate = resolve(root, projectPath);
   if (!isWithin(root, candidate)) return null;
 
@@ -305,6 +311,7 @@ function resolveDecodedStaticFile(
   }
 
   const relativePath = relative(root, filePath).split("\\").join("/");
+  if (isSensitiveProjectPath(relativePath)) return null;
   return { absolutePath: filePath, projectPath: relativePath };
 }
 
@@ -360,6 +367,35 @@ function decodeRequestPath(requestPath: string): string | null {
   }
   if (pathname.split("/").some((segment) => segment === "..")) return null;
   return pathname;
+}
+
+/**
+ * Detects suspicious paths that become hidden or traversal paths after a
+ * second URL decode. The server resolves request URLs exactly once so literal
+ * percent-containing filenames continue to work, but nested encodings must
+ * not provide an alternate spelling for a sensitive path.
+ */
+function hasNestedUnsafePathEncoding(pathname: string): boolean {
+  let candidate = pathname;
+  for (let depth = 0; depth < 5; depth += 1) {
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(candidate);
+    } catch {
+      return false;
+    }
+    if (decoded === candidate) return false;
+    if (
+      decoded.includes("\0")
+      || decoded.includes("\\")
+      || decoded.split("/").some((segment) => segment === "..")
+      || isSensitiveProjectPath(decoded.replace(/^\/+/, ""))
+    ) {
+      return true;
+    }
+    candidate = decoded;
+  }
+  return false;
 }
 
 function canonicalExistingAncestor(candidate: string): string | null {

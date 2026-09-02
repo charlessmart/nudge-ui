@@ -341,7 +341,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             className="border__remove"
             onClick={handleRemoveBorder}
           >
-            <IconMinus size={16} stroke={1.8} aria-hidden="true" />
+            <IconMinus size={16} aria-hidden="true" />
           </IconButton>
         ) : (
           <IconButton
@@ -351,7 +351,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
             className="border__add"
             onClick={handleAddBorder}
           >
-            <IconPlus size={16} stroke={1.8} aria-hidden="true" />
+            <IconPlus size={16} aria-hidden="true" />
           </IconButton>
         )}
       </div>
@@ -415,7 +415,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                   if (pressed) handleExpand();
                 }}
               >
-                <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
+                <IconBorderSides size={16} aria-hidden="true" />
               </ToggleButton>
             </div>
           ) : (
@@ -433,7 +433,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                     if (!pressed) handleCollapse();
                   }}
                 >
-                  <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
+                  <IconBorderSides size={16} aria-hidden="true" />
                 </ToggleButton>
               </div>
               {showWidthAndColor ? (
@@ -471,7 +471,7 @@ const BORDER_SIDE_ICONS = {
 
 function BorderSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): ReactElement {
   const Icon = BORDER_SIDE_ICONS[side];
-  return <Icon className="side-values__icon side-values__side-icon" size={16} stroke={1.8} aria-hidden="true" />;
+  return <Icon className="side-values__icon side-values__side-icon" size={16} aria-hidden="true" />;
 }
 
 interface BorderStyleSettingsMenuProps {
@@ -513,7 +513,7 @@ function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, dataTest 
           data-test={dataTest}
           data-current-style={value}
         >
-          <IconBorderStyle2 size={16} stroke={1.8} aria-hidden="true" />
+          <IconBorderStyle2 size={16} aria-hidden="true" />
         </IconButton>
       )}
       triggerDataTest={dataTest}

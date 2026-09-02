@@ -525,6 +525,68 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
     };
   });
   expect(expandedRadiusPositions).toEqual({ sameTop: true, individualsBelow: true });
+  const cornerGridPlacement = await page.evaluate(() => {
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
+    const grid = shadow?.querySelector('[data-test="border-radius-editor"] [data-layout="corners"]');
+    return ["top", "right", "bottom", "left"].map((side) => {
+      const control = grid?.querySelector<HTMLElement>(`[data-side="${side}"]`);
+      const styles = control ? getComputedStyle(control) : null;
+      return {
+        side,
+        row: styles?.gridRowStart ?? "",
+        column: styles?.gridColumnStart ?? "",
+      };
+    });
+  });
+  expect(cornerGridPlacement).toEqual([
+    { side: "top", row: "top-left", column: "top-left" },
+    { side: "right", row: "top-right", column: "top-right" },
+    { side: "bottom", row: "bottom-right", column: "bottom-right" },
+    { side: "left", row: "bottom-left", column: "bottom-left" },
+  ]);
+
+  await page.locator('[data-test="border-expand"]').click();
+  await expect(page.locator('[data-test="border-collapse"]')).toHaveCount(1);
+  const iconStrokeWidths = await page.evaluate(() => {
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
+    const radiusIcon = shadow?.querySelector<SVGSVGElement>('[data-layout="corners"] [data-side="top"] svg');
+    const borderIcon = shadow?.querySelector<SVGSVGElement>('[data-test="border-side-rows"] .border__side-row > svg');
+    const spacingIcon = shadow?.querySelector<SVGSVGElement>('[data-test="spacing-padding"] [data-test="pair-value-horizontal"] svg');
+    const stroke = (selector: string) => {
+      const icon = shadow?.querySelector<SVGSVGElement>(selector);
+      return icon ? getComputedStyle(icon).strokeWidth : "";
+    };
+    return {
+      token: getComputedStyle(document.getElementById("nudge-ui-root")!).getPropertyValue("--icon-stroke-width").trim(),
+      radius: radiusIcon ? getComputedStyle(radiusIcon).strokeWidth : "",
+      radiusToggle: stroke('[data-test="border-radius-collapse"] svg'),
+      border: borderIcon ? getComputedStyle(borderIcon).strokeWidth : "",
+      borderToggle: stroke('[data-test="border-collapse"] svg'),
+      borderStyle: stroke('[data-test="border-side-rows"] [data-test="border-style-top"] svg'),
+      borderRemove: stroke('[data-test="border-editor"] [data-test="remove-border"] svg'),
+      spacing: spacingIcon?.querySelector("rect")
+        ? getComputedStyle(spacingIcon.querySelector("rect")!).strokeWidth
+        : "",
+      spacingToggle: stroke('[data-test="spacing-padding"] [data-test="individual-sides"] svg'),
+    };
+  });
+  expect(iconStrokeWidths).toEqual({
+    token: "1.5px",
+    radius: "1.5px",
+    radiusToggle: "1.5px",
+    border: "1.5px",
+    borderToggle: "1.5px",
+    borderStyle: "1.5px",
+    borderRemove: "1.5px",
+    spacing: "1.5px",
+    spacingToggle: "1.5px",
+  });
+  const allIconButtonStrokeWidths = await page.evaluate(() => {
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
+    return Array.from(shadow?.querySelectorAll<SVGSVGElement>(".icon-button svg, .toggle-button svg") ?? [])
+      .map((icon) => getComputedStyle(icon).strokeWidth);
+  });
+  expect(new Set(allIconButtonStrokeWidths)).toEqual(new Set(["1.5px"]));
 
   const colorEditors = page.locator('[data-test="color-picker"]');
   await expect(colorEditors.nth(0).locator(".editor__title")).toHaveText("Color");

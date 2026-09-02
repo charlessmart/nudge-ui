@@ -5,15 +5,16 @@ import { defaultBridgePort } from "@nudge-ui/agent-protocol";
 import { openPairedPage, parseCliArguments, type PageLaunchDependencies } from "./cli.ts";
 
 describe("nudge-mcp CLI", () => {
-  it("derives a stable project identity and discovery port without requiring an origin", () => {
+  it("derives a stable project identity and discovery port with an explicit origin", () => {
     const options = parseCliArguments([], {
       INIT_CWD: "/workspace/product-site",
+      NUDGE_UI_ORIGIN: "http://localhost:5173",
     });
 
     expect(options).toMatchObject({
       projectId: "product-site",
       workspaceRoot: "/workspace/product-site",
-      origin: undefined,
+      origin: "http://localhost:5173",
       port: defaultBridgePort("product-site"),
     });
   });

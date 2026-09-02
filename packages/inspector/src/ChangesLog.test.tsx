@@ -79,7 +79,6 @@ describe("ChangesLog", () => {
     expect(actions.previousElementSibling).toBe(details);
     expect(actions.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
     expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("button--secondary");
-    expect(actions.querySelector('[data-test="clear-session"]')?.className).toContain("button--compact");
   });
 
   it("presents and reverts canonical structural changes directly", () => {

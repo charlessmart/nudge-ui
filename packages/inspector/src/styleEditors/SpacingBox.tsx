@@ -161,7 +161,7 @@ export function SpacingField({
           title="Add Inset Values"
           onClick={() => setFieldsAdded(true)}
         >
-          <IconPlus size={16} stroke={1.8} aria-hidden="true" />
+          <IconPlus size={16} aria-hidden="true" />
         </IconButton>
       ) : undefined}
       sides={sideSlots}
@@ -187,8 +187,8 @@ function PaddingSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): 
   if (side === "left") {
     return (
       <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
-        <line x1="6.75" y1="7" x2="6.75" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+        <line x1="6.75" y1="7" x2="6.75" y2="17" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
       </svg>
     );
   }
@@ -196,8 +196,8 @@ function PaddingSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): 
   if (side === "right") {
     return (
       <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
-        <line x1="17" y1="7" x2="17" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+        <line x1="17" y1="7" x2="17" y2="17" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
       </svg>
     );
   }
@@ -205,16 +205,16 @@ function PaddingSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): 
   if (side === "bottom") {
     return (
       <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="21" y="3" width="18" height="18" rx="2" transform="rotate(90 21 3)" stroke="currentColor" strokeWidth="2" />
-        <line x1="17" y1="17" x2="7" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="21" y="3" width="18" height="18" rx="2" transform="rotate(90 21 3)" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+        <line x1="17" y1="17" x2="7" y2="17" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
       </svg>
     );
   }
 
   return (
     <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="21" width="18" height="18" rx="2" transform="rotate(-90 3 21)" stroke="currentColor" strokeWidth="2" />
-      <line x1="7" y1="7" x2="17" y2="7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <rect x="3" y="21" width="18" height="18" rx="2" transform="rotate(-90 3 21)" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+      <line x1="7" y1="7" x2="17" y2="7" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
     </svg>
   );
 }
@@ -229,9 +229,9 @@ function SpacingAxisIndicator({
   if (property === "padding" && axis === "horizontal") {
     return (
       <svg className="side-values__icon side-values__axis-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
-        <line x1="6.75" y1="7" x2="6.75" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        <line x1="17" y1="7" x2="17" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+        <line x1="6.75" y1="7" x2="6.75" y2="17" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
+        <line x1="17" y1="7" x2="17" y2="17" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
       </svg>
     );
   }
@@ -239,9 +239,9 @@ function SpacingAxisIndicator({
   if (property === "padding" && axis === "vertical") {
     return (
       <svg className="side-values__icon side-values__axis-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="21" y="3" width="18" height="18" rx="2" transform="rotate(90 21 3)" stroke="currentColor" strokeWidth="2" />
-        <line x1="17" y1="6.75" x2="7" y2="6.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        <line x1="17" y1="17" x2="7" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="21" y="3" width="18" height="18" rx="2" transform="rotate(90 21 3)" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+        <line x1="17" y1="6.75" x2="7" y2="6.75" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
+        <line x1="17" y1="17" x2="7" y2="17" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
       </svg>
     );
   }
@@ -249,18 +249,18 @@ function SpacingAxisIndicator({
   if (property !== "padding" && axis === "horizontal") {
     return (
       <svg className="side-values__icon side-values__axis-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="6" y="5" width="12" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
-        <line x1="2" y1="5" x2="2" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        <line x1="22" y1="5" x2="22" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="6" y="5" width="12" height="14" rx="2" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+        <line x1="2" y1="5" x2="2" y2="19" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
+        <line x1="22" y1="5" x2="22" y2="19" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
       </svg>
     );
   }
 
   return (
     <svg className="side-values__icon side-values__axis-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="19" y="6" width="12" height="14" rx="2" transform="rotate(90 19 6)" stroke="currentColor" strokeWidth="2" />
-      <line x1="19" y1="2" x2="5" y2="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="19" y1="22" x2="5" y2="22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <rect x="19" y="6" width="12" height="14" rx="2" transform="rotate(90 19 6)" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+      <line x1="19" y1="2" x2="5" y2="2" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
+      <line x1="19" y1="22" x2="5" y2="22" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
     </svg>
   );
 }

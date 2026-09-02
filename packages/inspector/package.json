@@ -1,34 +1,65 @@
 {
   "name": "@nudge-ui/inspector",
   "version": "0.0.1",
+  "description": "Browser runtime inspector for live UI selection, CSS previews, and agent prompts.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CharlesSmartEnv/design-tool.git",
+    "directory": "packages/inspector"
+  },
+  "bugs": {
+    "url": "https://github.com/CharlesSmartEnv/design-tool/issues"
+  },
+  "homepage": "https://github.com/CharlesSmartEnv/design-tool#readme",
   "type": "module",
-  "main": "src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./component-runtime": "./src/componentSemantics/reactRuntime.tsx"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./component-runtime": {
+      "types": "./dist/componentSemantics/reactRuntime.d.ts",
+      "import": "./dist/componentSemantics/reactRuntime.js",
+      "default": "./dist/componentSemantics/reactRuntime.js"
+    }
   },
   "scripts": {
+    "build": "node ../../scripts/build-package.mjs",
+    "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest"
   },
   "devDependencies": {
-    "@types/react": ">=18.0.0",
-    "@types/react-dom": ">=18.0.0",
-    "jsdom": "^25.0.0",
-    "react": ">=18.0.0",
-    "react-dom": ">=18.0.0",
-    "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
+    "@base-ui/react": "^1.7.0",
     "@nudge-ui/agent-protocol": "workspace:*",
     "@nudge-ui/css": "workspace:*",
-    "@tabler/icons-react": "^3.45.0"
+    "@tabler/icons-react": "^3.46.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

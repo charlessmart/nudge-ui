@@ -1,26 +1,54 @@
 {
   "name": "@nudge-ui/nextjs",
   "version": "0.0.1",
+  "description": "Next.js development integration for the Nudge UI inspector.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CharlesSmartEnv/design-tool.git",
+    "directory": "packages/nextjs"
+  },
+  "bugs": {
+    "url": "https://github.com/CharlesSmartEnv/design-tool/issues"
+  },
+  "homepage": "https://github.com/CharlesSmartEnv/design-tool#readme",
   "type": "module",
-  "main": "src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./loader": "./src/loader.ts",
-    "./mount": "./src/mount.tsx"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./loader": {
+      "types": "./dist/loader.d.ts",
+      "import": "./dist/loader.js",
+      "default": "./dist/loader.js"
+    },
+    "./mount": {
+      "types": "./dist/mount.d.ts",
+      "import": "./dist/mount.js",
+      "default": "./dist/mount.js"
+    }
   },
   "scripts": {
+    "build": "node ../../scripts/build-package.mjs && node scripts/build-loaders.mjs",
+    "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run",
-    "test:unit:watch": "vitest",
-    "build": "node scripts/build-loaders.mjs"
+    "test:unit:watch": "vitest"
   },
   "dependencies": {
-    "@babel/parser": "^7.25.0",
+    "@babel/parser": "^7.29.8",
     "@nudge-ui/css": "workspace:*",
     "@nudge-ui/inspector": "workspace:*",
     "@nudge-ui/plugin": "workspace:*",
-    "magic-string": "^0.30.11",
-    "@nudge-ui/standalone": "workspace:*"
+    "@nudge-ui/standalone": "workspace:*",
+    "magic-string": "^0.30.21"
   },
   "peerDependencies": {
     "next": ">=15.3 <17",
@@ -28,11 +56,17 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "^18.3.0",
-    "typescript": "^5.6.0",
-    "vitest": "^2.1.0",
-    "esbuild": "^0.21.5"
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -49,7 +49,7 @@ export type AgentProtocolVersion = typeof AGENT_PROTOCOL_VERSION;
 /** A project identity is the pairing boundary for one companion process. */
 export interface AgentProjectIdentity {
   readonly projectId: string;
-  /** Omitted until an explicit first browser pairing locks the origin. */
+  /** Omitted when a trusted host establishes the browser origin out of band. */
   readonly origin?: string;
   readonly workspaceRoot?: string;
 }

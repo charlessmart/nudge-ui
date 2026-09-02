@@ -128,8 +128,6 @@ describe("sidecar transport", () => {
   });
 });
 
-/* eslint-disable no-await-in-loop -- sequential settling reads clearer in lifecycle tests */
-
 async function settle(ms = 900): Promise<void> {
   await new Promise((r) => setTimeout(r, ms));
 }

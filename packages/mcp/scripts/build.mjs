@@ -16,15 +16,9 @@ const sharedOptions = {
   logLevel: "silent",
 };
 
-// cli.mjs is the published server entry; registrar.mjs backs the postinstall
-// script so the Codex registration logic has a single implementation.
+// cli.mjs is the published server entry.
 await build({
   entryPoints: [resolve(packageRoot, "src/cli.ts")],
   outfile: output,
-  ...sharedOptions,
-});
-await build({
-  entryPoints: [resolve(packageRoot, "src/registrar.ts")],
-  outfile: resolve(packageRoot, "dist/registrar.mjs"),
   ...sharedOptions,
 });

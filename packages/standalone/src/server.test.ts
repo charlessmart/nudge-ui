@@ -75,6 +75,34 @@ describe("resolveStaticFile", () => {
     expect(resolveStaticFile(root, "/linked-outside/new-file.txt")).toBeNull();
   });
 
+  it("refuses hidden and sensitive paths, including encoded and symlinked forms", async () => {
+    const root = await createFixture();
+    await writeFile(join(root, ".env"), "SECRET=value");
+    await writeFile(join(root, ".env.local"), "LOCAL_SECRET=value");
+    await writeFile(join(root, ".DS_Store"), "metadata");
+    await mkdir(join(root, ".git"));
+    await writeFile(join(root, ".git", "config"), "[remote]\n");
+    await mkdir(join(root, ".codex"));
+    await writeFile(join(root, ".codex", "config.toml"), "secret = true\n");
+    await symlink(join(root, ".codex"), join(root, "codex-link"), "dir");
+
+    for (const requestPath of [
+      "/.env",
+      "/.env.local",
+      "/.DS_Store",
+      "/.git/config",
+      "/.codex/config.toml",
+      "/%2eenv",
+      "/%2Egit/config",
+      "/%2ecodex/config.toml",
+      "/%252eenv",
+      "/%252Egit/config",
+      "/codex-link/config.toml",
+    ]) {
+      expect(resolveStaticFile(root, requestPath), requestPath).toBeNull();
+    }
+  });
+
   it("allows symlinks that resolve within the project root", async () => {
     const root = await createFixture();
     await mkdir(join(root, "assets"));
@@ -164,6 +192,32 @@ describe("createStandaloneServer", () => {
     expect(reservedUnknown.status).toBe(404);
     const missing = await fetch(address.url + "does-not-exist.txt");
     expect(missing.status).toBe(404);
+  });
+
+  it("returns not found for hidden project files", async () => {
+    const root = await createFixture();
+    await writeFile(join(root, ".env"), "SECRET=value");
+    await mkdir(join(root, ".git"));
+    await writeFile(join(root, ".git", "config"), "[remote]\n");
+    await mkdir(join(root, ".codex"));
+    await writeFile(join(root, ".codex", "config.toml"), "secret = true\n");
+    const clientPath = join(root, "test-client.mjs");
+    await writeFile(clientPath, "export {};\n");
+
+    runningServer = createStandaloneServer({ rootDirectory: root, port: 0, clientPath });
+    const address = await runningServer.start();
+
+    for (const requestPath of [
+      ".env",
+      ".git/config",
+      ".codex/config.toml",
+      "%2eenv",
+      "%2Egit/config",
+      "%252eenv",
+    ]) {
+      const response = await fetch(address.url + requestPath);
+      expect(response.status, requestPath).toBe(404);
+    }
   });
 
   it("serves non-UTF-8 HTML byte-for-byte without instrumentation", async () => {

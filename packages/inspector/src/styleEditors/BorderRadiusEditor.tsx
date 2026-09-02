@@ -33,6 +33,8 @@ const BORDER_RADIUS_ICONS = [
   IconRadiusBottomLeft,
 ] as const;
 
+const BORDER_RADIUS_LABELS = ["Top Left", "Top Right", "Bottom Right", "Bottom Left"] as const;
+
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
 }
@@ -107,9 +109,10 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
 
   const cornerSides = BORDER_RADIUS_CORNERS.map((corner, index) => ({
     side: SIDE_NAMES[index]!,
+    sideLabel: BORDER_RADIUS_LABELS[index]!,
     icon: (() => {
       const Icon = BORDER_RADIUS_ICONS[index]!;
-      return <Icon className="side-values__icon side-values__side-icon" size={16} stroke={1.8} aria-hidden="true" />;
+      return <Icon className="side-values__icon side-values__side-icon" size={16} aria-hidden="true" />;
     })(),
     control: (
       <TokenField
@@ -166,13 +169,13 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
         else handleCollapse();
       }}
     >
-      <IconBorderCorners size={"var(--icon-size-small)"} stroke={1.8} aria-hidden="true" />
+      <IconBorderCorners size={"var(--icon-size-small)"} aria-hidden="true" />
     </ToggleButton>
   );
 
   const individuals = !isLinked ? (
     <div className="border-radius-editor__individuals">
-      <SideControls label="Border Radius Corners" sides={cornerSides} />
+      <SideControls label="Border Radius Corners" layout="corners" sides={cornerSides} />
     </div>
   ) : null;
 

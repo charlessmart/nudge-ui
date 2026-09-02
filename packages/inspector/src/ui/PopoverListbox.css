@@ -18,8 +18,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   pointer-events: auto;
-  background: var(--surface-raised);
-  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised-2x);
   border-radius: 12px;
   box-shadow: var(--shadow-popup);
 }

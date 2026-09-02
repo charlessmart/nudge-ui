@@ -35,6 +35,25 @@ describe("GridPicker", () => {
     expect(countGridTracks("repeat(auto-fit, minmax(12rem, 1fr))")).toBeNull();
   });
 
+  it("closes the cell picker when clicking outside it", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "grid-template-columns": "repeat(4, minmax(0, 1fr))",
+      "grid-template-rows": "repeat(3, minmax(0, 1fr))",
+    });
+    handle = mount(createElement(GridPicker, { domElement: selected.domElement }));
+
+    const trigger = handle.host.querySelector('[data-test="layout-grid-picker-trigger"]') as HTMLButtonElement;
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+
+    act(() => trigger.click());
+    expect(handle.host.querySelector('[data-test="layout-grid-picker-popover"]')).toBeTruthy();
+
+    act(() => outside.dispatchEvent(new Event("pointerdown", { bubbles: true })));
+    expect(handle.host.querySelector('[data-test="layout-grid-picker-popover"]')).toBeFalsy();
+  });
+
   it("opens a cell picker and writes the selected rows and columns", () => {
     const { selected } = makeSelected();
     mockComputedStyle({

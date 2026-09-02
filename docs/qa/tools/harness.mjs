@@ -1,9 +1,16 @@
 // Shared browser-QA harness for nudge-ui sandbox testing.
 // Usage: import { runPage, finish } from "./harness.mjs";
-import { chromium } from "/Users/charlessmart/_personal/design-tool/node_modules/.pnpm/playwright@1.61.1/node_modules/playwright/index.mjs";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+// Resolve Playwright from a workspace consumer package instead of a generated
+// pnpm store path. This keeps the QA harness portable across checkouts.
+const requireFromSandbox = createRequire(
+  new URL("../../../examples/sandbox/package.json", import.meta.url),
+);
+const { chromium } = requireFromSandbox("@playwright/test");
 
 const REPORT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SHOTS_DIR = join(REPORT_DIR, "screenshots");

@@ -11,6 +11,10 @@ build/
 # Vite
 .vite/
 
+# Local Codex and browser-QA output
+/.codex/config.toml
+/docs/qa/screenshots/
+
 # Next.js
 .next/
 .next-prod/

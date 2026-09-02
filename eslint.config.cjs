@@ -8,6 +8,7 @@ module.exports = [
       "**/node_modules/**",
       "**/test-results/**",
       "**/.next/**",
+      "**/.next-prod/**",
       "**/.turbo/**",
     ],
   },

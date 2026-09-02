@@ -8,15 +8,11 @@ import {
   sep,
 } from "node:path";
 import type { Alias, ModuleNode, Plugin, ResolvedConfig, ViteDevServer } from "vite";
-// Vite 5 externalizes bare dependencies while bundling its TypeScript config,
-// which would leave Node to execute this workspace package's uncompiled `.ts`
-// export. Reach the same public source entry directly until the package has a
-// compiled distribution; the browser-safe CSS graph remains separate.
 import {
   createTokenInventory,
   type ArtifactStage,
   type InventoryDiagnostic,
-} from "../../css/src/token-inventory/index.ts";
+} from "@nudge-ui/css/token-inventory";
 import { injectIdentity } from "./transform/injectDataCid.ts";
 import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
 import {

@@ -34,16 +34,38 @@ function bridgeUrl(bridge: ReturnType<typeof createLoopbackBridge>, path: string
 }
 
 describe("loopback browser bridge", () => {
-  it("locks an explicit first browser origin in TOFU mode and rejects another origin", async () => {
+  it("rejects a hostile first connection before pairing a configured browser origin", async () => {
     const bridge = createLoopbackBridge({
       projectId: "sandbox",
+      origin: "http://localhost:5173",
       port: 0,
-      tokenFactory: () => "session-tofu",
-      idFactory: () => "request-tofu",
+      tokenFactory: () => "session-configured",
+      idFactory: () => "request-configured",
     });
     await bridge.start();
     try {
       const listener = bridge.waitForPrompt();
+
+      const hostileHealth = await fetch(`${bridgeUrl(bridge, "/health")}?projectId=sandbox`, {
+        headers: { Origin: "http://evil.test" },
+      });
+      expect(hostileHealth.status).toBe(403);
+      expect((await json(hostileHealth)).error.code).toBe("origin_not_allowed");
+
+      const hostilePair = await fetch(bridgeUrl(bridge, "/pair"), {
+        method: "POST",
+        headers: { Origin: "http://evil.test", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: "sandbox",
+          origin: "http://evil.test",
+          pageUrl: "http://evil.test/steal",
+        }),
+      });
+      expect(hostilePair.status).toBe(403);
+      expect((await json(hostilePair)).error.code).toBe("origin_not_allowed");
+      expect(bridge.sessionToken).toBeNull();
+      expect(() => bridge.pairBrowser("sandbox", "http://evil.test")).toThrow("does not match");
+
       const healthBeforePair = await fetch(`${bridgeUrl(bridge, "/health")}?projectId=sandbox`, {
         headers: { Origin: "http://localhost:5173" },
       });
@@ -61,10 +83,10 @@ describe("loopback browser bridge", () => {
       });
       expect(paired.status).toBe(200);
       const pairing = await json(paired);
-      expect(pairing.sessionToken).toBe("session-tofu");
+      expect(pairing.sessionToken).toBe("session-configured");
       expect(pairing.pageUrl).toBe("http://localhost:5173/second#hero");
 
-      const status = await fetch(`${bridgeUrl(bridge, "/status")}?projectId=sandbox&sessionToken=session-tofu`, {
+      const status = await fetch(`${bridgeUrl(bridge, "/status")}?projectId=sandbox&sessionToken=session-configured`, {
         headers: { Origin: "http://localhost:5173" },
       });
       expect(status.status).toBe(200);
@@ -75,20 +97,20 @@ describe("loopback browser bridge", () => {
         headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId: "sandbox",
-          sessionToken: "session-tofu",
+          sessionToken: "session-configured",
           prompt: "Update the heading",
           changeRevision: 7,
         }),
       });
       expect(dispatched.status).toBe(202);
       await expect(listener).resolves.toMatchObject({
-        requestId: "request-tofu",
+        requestId: "request-configured",
         prompt: "Update the heading",
         changeRevision: 7,
       });
       expect(bridge.getStatus().request?.status).toBe("working");
 
-      bridge.updateRequestStatus({ requestId: "request-tofu", status: "completed", summary: "Done" });
+      bridge.updateRequestStatus({ requestId: "request-configured", status: "completed", summary: "Done" });
       expect(bridge.getStatus()).toMatchObject({
         connection: "paired",
         request: { status: "completed", summary: "Done" },
@@ -98,12 +120,12 @@ describe("loopback browser bridge", () => {
       const nextDispatched = await fetch(bridgeUrl(bridge, "/prompt"), {
         method: "POST",
         headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: "sandbox", sessionToken: "session-tofu", prompt: "Second request" }),
+        body: JSON.stringify({ projectId: "sandbox", sessionToken: "session-configured", prompt: "Second request" }),
       });
       expect(nextDispatched.status).toBe(202);
       await expect(nextListener).resolves.toMatchObject({ prompt: "Second request" });
 
-      const wrongOrigin = await fetch(`${bridgeUrl(bridge, "/status")}?projectId=sandbox&sessionToken=session-tofu`, {
+      const wrongOrigin = await fetch(`${bridgeUrl(bridge, "/status")}?projectId=sandbox&sessionToken=session-configured`, {
         headers: { Origin: "http://127.0.0.1:5173" },
       });
       expect(wrongOrigin.status).toBe(403);
@@ -112,27 +134,28 @@ describe("loopback browser bridge", () => {
     }
   });
 
-  it("uses the TOFU paired origin as the effective origin for Canvas routes", async () => {
+  it("uses the configured origin as the effective origin for Canvas routes", async () => {
     const clock = new FakeClock();
     const bridge = createLoopbackBridge({
-      projectId: "tofu-canvas",
+      projectId: "configured-canvas",
+      origin: "http://localhost:5173",
       port: 0,
       commandTimeoutMs: 10,
       clock,
-      tokenFactory: () => "tofu-canvas-session",
-      idFactory: () => "tofu-canvas-command",
+      tokenFactory: () => "configured-canvas-session",
+      idFactory: () => "configured-canvas-command",
     });
     await bridge.start();
     try {
-      expect(bridge.effectiveOrigin).toBeNull();
+      expect(bridge.effectiveOrigin).toBe("http://localhost:5173");
 
       const paired = await fetch(bridgeUrl(bridge, "/pair"), {
         method: "POST",
         headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: "tofu-canvas", origin: "http://localhost:5173" }),
+        body: JSON.stringify({ projectId: "configured-canvas", origin: "http://localhost:5173" }),
       });
       expect(paired.status).toBe(200);
-      expect(bridge.origin).toBeNull();
+      expect(bridge.origin).toBe("http://localhost:5173");
       expect(bridge.effectiveOrigin).toBe("http://localhost:5173");
 
       const resultPromise = bridge.dispatchCanvasCommand({
@@ -145,10 +168,72 @@ describe("loopback browser bridge", () => {
       // Without an SSE browser attached the command resolves as a timeout,
       // proving the dispatch got past the origin gate.
       await expect(resultPromise).resolves.toMatchObject({
-        commandId: "tofu-canvas-command",
+        commandId: "configured-canvas-command",
         ok: false,
         error: { code: "ack_timeout" },
       });
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  it("keeps an unconfigured HTTP pairing closed until trusted host code approves it", async () => {
+    const bridge = createLoopbackBridge({
+      projectId: "manual-pairing",
+      port: 0,
+      tokenFactory: () => "manual-session",
+    });
+    await bridge.start();
+    try {
+      const health = await fetch(`${bridgeUrl(bridge, "/health")}?projectId=manual-pairing`, {
+        headers: { Origin: "http://localhost:5173" },
+      });
+      expect(health.status).toBe(403);
+
+      const pair = await fetch(bridgeUrl(bridge, "/pair"), {
+        method: "POST",
+        headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "manual-pairing", origin: "http://localhost:5173" }),
+      });
+      expect(pair.status).toBe(403);
+      expect(bridge.sessionToken).toBeNull();
+
+      // Host-side approval remains available for callers that can establish
+      // the origin out of band; it does not make HTTP first-pairing permissive.
+      expect(bridge.pairBrowser("manual-pairing", "http://localhost:5173").sessionToken).toBe("manual-session");
+      const status = await fetch(`${bridgeUrl(bridge, "/status")}?projectId=manual-pairing&sessionToken=manual-session`, {
+        headers: { Origin: "http://localhost:5173" },
+      });
+      expect(status.status).toBe(200);
+      expect((await json(status)).paired).toBe(true);
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  it("allows HTTP pairing only for an explicitly configured origin allow-list", async () => {
+    const bridge = createLoopbackBridge({
+      projectId: "allow-list-pairing",
+      allowedOrigins: ["http://localhost:5173"],
+      port: 0,
+      tokenFactory: () => "allow-list-session",
+    });
+    await bridge.start();
+    try {
+      const hostile = await fetch(bridgeUrl(bridge, "/pair"), {
+        method: "POST",
+        headers: { Origin: "http://evil.test", "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "allow-list-pairing", origin: "http://evil.test" }),
+      });
+      expect(hostile.status).toBe(403);
+
+      const legitimate = await fetch(bridgeUrl(bridge, "/pair"), {
+        method: "POST",
+        headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: "allow-list-pairing", origin: "http://localhost:5173" }),
+      });
+      expect(legitimate.status).toBe(200);
+      expect((await json(legitimate)).sessionToken).toBe("allow-list-session");
     } finally {
       await bridge.close();
     }

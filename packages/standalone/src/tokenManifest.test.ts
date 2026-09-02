@@ -19,6 +19,9 @@ describe("standalone CSS token discovery", () => {
     await writeFile(join(root, "dist", "generated.css"), ":root { --generated: 3px; }");
     await mkdir(join(root, "node_modules"));
     await writeFile(join(root, "node_modules", "package.css"), ":root { --package: 4px; }");
+    await writeFile(join(root, ".env.css"), ":root { --env: 6px; }");
+    await mkdir(join(root, ".codex"));
+    await writeFile(join(root, ".codex", "secrets.css"), ":root { --secret-config: 7px; }");
     await writeFile(join(outside, "secret.css"), ":root { --secret: 5px; }");
     await symlink(join(outside, "secret.css"), join(root, "outside.css"));
 

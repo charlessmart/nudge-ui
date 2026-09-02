@@ -8,14 +8,18 @@ import { ControlSurface } from "./ControlSurface.tsx";
 
 export const SIDE_NAMES = ["top", "right", "bottom", "left"] as const;
 export type SideName = (typeof SIDE_NAMES)[number];
+export type SideValueAxis = "horizontal" | "vertical";
+export type SideControlsLayout = "sides" | "corners";
+
+const SIDE_DISPLAY_ORDER: readonly SideName[] = ["left", "top", "right", "bottom"];
+const SIDE_AXIS_DISPLAY_ORDER: readonly SideValueAxis[] = ["horizontal", "vertical"];
 
 export interface SideValueSlot {
   side: SideName;
   control: ReactNode;
   icon?: ReactNode;
+  sideLabel?: string;
 }
-
-export type SideValueAxis = "horizontal" | "vertical";
 
 export interface SideValuePairSlot {
   axis: SideValueAxis;
@@ -63,6 +67,9 @@ export function SideValuesField({
   const isResetting = previousResetKey.current !== resetKey;
   const isExpanded = forceExpanded || (isResetting ? defaultExpanded : uncontrolledExpanded);
   const hasPairedControls = Boolean(pairedControls && pairedControls.length > 0);
+  const orderedPairedControls = SIDE_AXIS_DISPLAY_ORDER
+    .map((axis) => pairedControls?.find((pair) => pair.axis === axis))
+    .filter((pair): pair is SideValuePairSlot => pair !== undefined);
   const labelText = typeof label === "string" ? formatInspectorLabel(label) : String(label);
   const displayLabel = showLabel ? (typeof label === "string" ? labelText : label) : null;
 
@@ -100,7 +107,7 @@ export function SideValuesField({
               title={`Add ${labelText}`}
               onClick={onAdd}
             >
-              <IconPlus size={16} stroke={1.8} aria-hidden="true" />
+              <IconPlus size={16} aria-hidden="true" />
             </IconButton>
           )}
         </div>
@@ -116,7 +123,7 @@ export function SideValuesField({
               <SideControls label={label} sides={sides} />
             ) : (
               <div className="side-values__pairs" role="group" aria-label={`${labelText} Grouped Sides`}>
-                {pairedControls!.map(({ axis, control, icon }) => (
+                {orderedPairedControls.map(({ axis, control, icon }) => (
                   <ControlSurface
                     className="side-values__side"
                     data-test={`pair-value-${axis}`}
@@ -145,7 +152,7 @@ export function SideValuesField({
               pressed={isExpanded}
               onPressedChange={toggleExpanded}
             >
-              <IconBorderSides size={16} stroke={1.8} aria-hidden="true" />
+              <IconBorderSides size={16} aria-hidden="true" />
             </ToggleButton>
           </div>
         </>
@@ -166,18 +173,27 @@ export function SideValuesField({
 export function SideControls({
   label,
   sides,
+  layout = "sides",
 }: {
   label: ReactNode;
   sides: readonly SideValueSlot[];
+  layout?: SideControlsLayout;
 }): ReactElement {
+  const displayOrder = layout === "corners" ? SIDE_NAMES : SIDE_DISPLAY_ORDER;
+  const orderedSides = displayOrder
+    .map((side) => sides.find((slot) => slot.side === side))
+    .filter((slot): slot is SideValueSlot => slot !== undefined);
+  const labelText = typeof label === "string" ? formatInspectorLabel(label) : String(label);
+  const itemGroupLabel = layout === "corners" ? "Individual Corners" : "Individual Sides";
+
   return (
-    <div className="side-values__grid" role="group" aria-label={`${typeof label === "string" ? formatInspectorLabel(label) : String(label)} Individual Sides`}>
-      {sides.map(({ side, control, icon }) => (
+    <div className="side-values__grid" data-layout={layout} role="group" aria-label={`${labelText} ${itemGroupLabel}`}>
+      {orderedSides.map(({ side, control, icon, sideLabel }) => (
         <ControlSurface
           className="side-values__side"
           data-test={`side-value-${side}`}
           data-side={side}
-          aria-label={`${typeof label === "string" ? formatInspectorLabel(label) : String(label)} ${formatInspectorLabel(side)}`}
+          aria-label={`${labelText} ${sideLabel ?? formatInspectorLabel(side)}`}
           key={side}
         >
           {icon ?? <SideIndicator side={side} />}
@@ -221,8 +237,8 @@ export function MarginSideIndicator({ side }: { side: SideName }): ReactElement 
   if (side === "left") {
     return (
       <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="7" y="5" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
-        <line x1="3" y1="5" x2="3" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="7" y="5" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+        <line x1="3" y1="5" x2="3" y2="19" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
       </svg>
     );
   }
@@ -230,8 +246,8 @@ export function MarginSideIndicator({ side }: { side: SideName }): ReactElement 
   if (side === "right") {
     return (
       <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="3" y="5" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
-        <line x1="21" y1="5" x2="21" y2="19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="3" y="5" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+        <line x1="21" y1="5" x2="21" y2="19" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
       </svg>
     );
   }
@@ -239,16 +255,16 @@ export function MarginSideIndicator({ side }: { side: SideName }): ReactElement 
   if (side === "top") {
     return (
       <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="19" y="7" width="14" height="14" rx="2" transform="rotate(90 19 7)" stroke="currentColor" strokeWidth="2" />
-        <line x1="19" y1="3" x2="5" y2="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <rect x="19" y="7" width="14" height="14" rx="2" transform="rotate(90 19 7)" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+        <line x1="19" y1="3" x2="5" y2="3" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
       </svg>
     );
   }
 
   return (
     <svg className="side-values__icon side-values__side-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="19" y="3" width="14" height="14" rx="2" transform="rotate(90 19 3)" stroke="currentColor" strokeWidth="2" />
-      <line x1="19" y1="21" x2="5" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <rect x="19" y="3" width="14" height="14" rx="2" transform="rotate(90 19 3)" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" />
+      <line x1="19" y1="21" x2="5" y2="21" stroke="currentColor" strokeWidth="var(--icon-stroke-width)" strokeLinecap="round" />
     </svg>
   );
 }

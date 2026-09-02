@@ -850,8 +850,7 @@ h2 {
 
 .sizing-box,
 .relative-offset-box,
-.right-anchored-box,
-.stretched-box {
+.right-anchored-box {
   display: grid;
   place-items: center;
   padding: 7px 10px;
@@ -895,17 +894,6 @@ h2 {
   z-index: 2;
 }
 
-.stretched-box {
-  position: absolute;
-  top: 11px;
-  right: 12px;
-  bottom: auto;
-  left: 136px;
-  height: 28px;
-  border: 1px solid rgba(217, 200, 255, 0.45);
-  color: rgba(255, 255, 255, 0.68);
-  z-index: 2;
-}
 
 .grid-authored-container {
   display: grid;

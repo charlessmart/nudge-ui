@@ -3,6 +3,16 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "description": "Development-only visual UI inspector for editing rendered interfaces in the browser.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CharlesSmartEnv/design-tool.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CharlesSmartEnv/design-tool/issues"
+  },
+  "homepage": "https://github.com/CharlesSmartEnv/design-tool#readme",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "lint": "eslint packages examples --ext .ts,.tsx",
@@ -19,27 +29,23 @@
     "build:landing": "pnpm --filter nudge-ui-landing build",
     "test:compat": "pnpm --filter sandbox-tailwind-v4 test:compat && pnpm --filter sandbox-tailwind-v3 test:compat && pnpm --filter sandbox-sprinkles test:compat",
     "build": "pnpm -r build",
+    "build:packages": "pnpm --filter './packages/*' build",
+    "package:verify": "pnpm run build:packages && node scripts/verify-packages.mjs",
     "dev:sandbox": "pnpm --filter sandbox dev",
     "dev:sandbox:remote": "pnpm --filter sandbox dev:remote"
   },
   "devDependencies": {
     "@oxlint/plugins": "1.78.0",
-    "@types/node": "^22.10.0",
-    "@typescript-eslint/parser": "^8.63.0",
-    "eslint": "^9.0.0",
-    "globals": "^17.7.0",
+    "@types/node": "^22.20.1",
+    "@typescript-eslint/parser": "^8.69.0",
+    "eslint": "^9.39.5",
+    "globals": "^17.12.0",
     "oxlint": "1.78.0",
-    "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
   },
   "engines": {
-    "node": ">=20",
+    "node": ">=22.12.0",
     "pnpm": ">=10"
-  },
-  "pnpm": {
-    "overrides": {
-      "@types/react@>=19": "18.3.31",
-      "@types/react-dom@>=19": "18.3.7"
-    }
   }
 }

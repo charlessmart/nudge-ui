@@ -55,13 +55,14 @@ describe("standard MCP companion", () => {
     }
   });
 
-  it("presents routes against the paired TOFU origin when no origin is configured", async () => {
+  it("presents routes against the configured origin", async () => {
     const companion = createAgentCompanion({
-      projectId: "tofu-mcp-project",
+      projectId: "configured-mcp-project",
+      origin: "http://localhost:5173",
       port: 0,
       commandTimeoutMs: 10,
-      tokenFactory: () => "tofu-mcp-session",
-      idFactory: () => "tofu-mcp-command",
+      tokenFactory: () => "configured-mcp-session",
+      idFactory: () => "configured-mcp-command",
     });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "nudge-test-client", version: "1.0.0" });
@@ -69,7 +70,7 @@ describe("standard MCP companion", () => {
     await client.connect(clientTransport);
     await starting;
     try {
-      companion.bridge.pairBrowser("tofu-mcp-project", "http://localhost:5173");
+      companion.bridge.pairBrowser("configured-mcp-project", "http://localhost:5173");
       const result = await client.callTool({
         name: "nudge_present_routes",
         arguments: {
@@ -80,7 +81,7 @@ describe("standard MCP companion", () => {
       });
       const text = (result.content as { type: string; text: string }[] | undefined)?.[0]?.text ?? "";
       // Without a browser attached the command times out, proving the tool got
-      // past the paired-origin gate instead of failing on the null origin.
+      // past the configured-origin gate.
       expect(text).toContain("ack_timeout");
       expect(text).not.toContain("Canvas routes require");
     } finally {

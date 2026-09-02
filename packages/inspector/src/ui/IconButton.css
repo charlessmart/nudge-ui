@@ -18,6 +18,10 @@
   transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
 
+.icon-button svg {
+  stroke-width: var(--icon-stroke-width);
+}
+
 .icon-button--primary {
   background: var(--surface-raised);
   color: var(--text-primary);

@@ -1,27 +1,65 @@
 {
   "name": "@nudge-ui/standalone",
   "version": "0.0.1",
+  "description": "Standalone static HTML host and inspector client for Nudge UI.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CharlesSmartEnv/design-tool.git",
+    "directory": "packages/standalone"
+  },
+  "bugs": {
+    "url": "https://github.com/CharlesSmartEnv/design-tool/issues"
+  },
+  "homepage": "https://github.com/CharlesSmartEnv/design-tool#readme",
   "type": "module",
   "files": [
-    "bin",
-    "dist",
-    "src"
+    "dist"
   ],
-  "main": "src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
-    "nudge-ui": "./bin/nudge-ui.mjs"
+    "nudge-ui": "./dist/nudge-ui.mjs"
   },
   "exports": {
-    ".": "./src/index.ts",
-    "./html/identity": "./src/html/identity.ts",
-    "./html/bootstrap": "./src/html/bootstrap.ts",
-    "./manifest": "./src/manifest.ts",
-    "./token-manifest": "./src/tokenManifest.ts",
-    "./watcher": "./src/watcher.ts",
-    "./server": "./src/server.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./html/identity": {
+      "types": "./dist/html/identity.d.ts",
+      "import": "./dist/html/identity.js",
+      "default": "./dist/html/identity.js"
+    },
+    "./html/bootstrap": {
+      "types": "./dist/html/bootstrap.d.ts",
+      "import": "./dist/html/bootstrap.js",
+      "default": "./dist/html/bootstrap.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "import": "./dist/manifest.js",
+      "default": "./dist/manifest.js"
+    },
+    "./token-manifest": {
+      "types": "./dist/tokenManifest.d.ts",
+      "import": "./dist/tokenManifest.js",
+      "default": "./dist/tokenManifest.js"
+    },
+    "./watcher": {
+      "types": "./dist/watcher.d.ts",
+      "import": "./dist/watcher.js",
+      "default": "./dist/watcher.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    }
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "build": "node ../../scripts/build-package.mjs && node scripts/build.mjs",
     "build:client": "node scripts/build-client.mjs",
     "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -33,11 +71,17 @@
     "parse5": "^7.3.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
+    "@types/node": "^22.20.1",
     "esbuild": "^0.21.5",
-    "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

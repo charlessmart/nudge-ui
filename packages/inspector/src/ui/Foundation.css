@@ -1,10 +1,11 @@
 :host {
   all: initial;
-  --surface-panel: #f0f2f4;
+  --surface-panel: #F5F5F4;
   --surface-control: var(--surface-well);
   --surface-control-hover: var(--surface-well-2x);
-  --surface-raised: #f9fafa;
-  --surface-raised-hover: #f5f6f7;
+  --surface-raised: #FAFAFA;
+  --surface-raised-2x: #fff ;
+  --surface-raised-hover: #F5F5F4;
   --surface-well: hsla(0, 0%, 0%, 0.05);
   --surface-well-2x: hsla(0, 0%, 0%, 0.10);
 
@@ -51,8 +52,7 @@
   --radius-pill: 999px;
 
   --radius-control: var(--radius-8);
-
-  --shadow-popup: 0 10px 28px rgba(0, 0, 0, 0.14);
+  --shadow-popup: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 10px 16px rgba(0, 0, 0, 0.10);
   --shadow-control: inset 0 2px 0 #ffffff, 0 0 1px rgba(0, 0, 0, 0.2), 0 0 3px rgba(0, 0, 0, 0.05);
   --z-index: 2147483647;
 
@@ -69,7 +69,7 @@
 
   --icon-size-small: 16px;
   --icon-size-large: 20px;
-
+  --icon-stroke-width: 1.5px;
 
   position: fixed;
   inset: 0;

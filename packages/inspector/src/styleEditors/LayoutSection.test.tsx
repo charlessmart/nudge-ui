@@ -460,18 +460,17 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-flex-child"]')).toBeFalsy();
   });
 
-  it("shows anchor controls when position is absolute", () => {
+  it("shows all inset controls when position is absolute", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ display: "block", position: "absolute" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-position"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-anchor-horizontal-start"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-position-x"]')).toBeTruthy();
-    act(() => {
-      (handle.host.querySelector('[data-test="layout-position-individual-toggle"]') as HTMLButtonElement).click();
-    });
-    expect(handle.host.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
+    for (const side of ["top", "right", "bottom", "left"]) {
+      expect(handle.host.querySelector(`[data-test="side-value-${side}"]`)).toBeTruthy();
+    }
+    expect(handle.host.querySelector('[data-test="layout-anchor-horizontal-start"]')).toBeNull();
+    expect(handle.host.querySelector('[data-test="layout-position-individual-toggle"]')).toBeNull();
     const topIcon = handle.host.querySelector('[data-side="top"] svg') as SVGSVGElement;
     expect(topIcon.classList.contains("side-values__side-icon")).toBe(true);
     expect(topIcon.querySelector("rect")?.getAttribute("x")).toBe("19");
@@ -524,7 +523,7 @@ describe("LayoutSection", () => {
     mockComputedStyle({ display: "flex", position: "absolute", "top": "0px" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
-    const input = handle.host.querySelector('[data-test="layout-position-y"] [data-test="raw-input"]') as HTMLInputElement;
+    const input = handle.host.querySelector('[data-test="side-value-top"] [data-test="raw-input"]') as HTMLInputElement;
     expect(input).toBeTruthy();
     setInputValue(input, "50%");
 
@@ -558,23 +557,5 @@ describe("LayoutSection", () => {
     expect((handle.host.querySelector('[data-test="layout-size-max-width"] [data-test="raw-input"]') as HTMLInputElement).value).toBe("none");
   });
 
-  it("routes an absolute anchor switch through one managed projection", () => {
-    const { selected, el } = makeSelected();
-    el.style.left = "24px";
-    mockComputedStyle({
-      display: "block",
-      position: "absolute",
-      right: "auto",
-      top: "12px",
-      bottom: "auto",
-    });
-    handle = mount(createElement(LayoutSection, { element: selected }));
 
-    act(() => {
-      (handle.host.querySelector('[data-test="layout-anchor-horizontal-end"]') as HTMLButtonElement).click();
-    });
-
-    expect(sheetText()).toContain("left: auto;");
-    expect(sheetText()).toContain("right: 24px;");
-  });
 });

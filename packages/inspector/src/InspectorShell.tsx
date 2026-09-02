@@ -226,6 +226,7 @@ export function InspectorShell(): ReactElement {
   const sourceSiteMatchCount = selected && editScope === "source-site"
     ? countSourceSiteMatches(selected.domElement, scopeRevision)
     : 0;
+  const hasEditScopeCallout = editScope === "rendered-instance" || sourceSiteMatchCount > 1;
   function refreshScopeState(): void {
     refreshScope((revision) => revision + 1);
   }
@@ -387,7 +388,7 @@ export function InspectorShell(): ReactElement {
             <>
               {domNavigationEnabled ? <DomNavigation selected={selected} hierarchy={hierarchy} /> : null}
               <div
-                className="selection"
+                className={`selection${hasEditScopeCallout ? "" : " selection--without-scope-callout"}`}
                 data-test="selection"
                 data-selected-cid={selected.cid}
                 data-selected-src={selected.src}
@@ -416,7 +417,7 @@ export function InspectorShell(): ReactElement {
                     </div>
                   </div>
                 ) : null}
-                {editScope === "rendered-instance" || sourceSiteMatchCount > 1 ? (
+                {hasEditScopeCallout ? (
                   <StatusCallout
                     tone={editScope === "rendered-instance" ? "neutral" : "accent"}
                     data-test="edit-scope"

@@ -22,20 +22,13 @@ import {
   type InventoryDiagnostic,
   type StylesheetArtifact,
 } from "@nudge-ui/css/token-inventory";
+import { isExcludedDirectoryName, isSensitiveProjectPath } from "./pathPolicy.ts";
 import type {
   TokenCatalogDiagnostic,
   TokenDeclaration,
   TokenDefinition,
   TokenEntry,
 } from "@nudge-ui/css/model";
-
-const EXCLUDED_DIRECTORY_NAMES = new Set([
-  ".git",
-  ".next",
-  "build",
-  "dist",
-  "node_modules",
-]);
 
 /** The serializable token knowledge published by the standalone manifest. */
 export interface StandaloneTokenSnapshot {
@@ -158,6 +151,12 @@ async function walkDirectory(
 ): Promise<void> {
   const canonicalDirectoryPath = await canonicalWithinRoot(rootDirectory, directory);
   if (!canonicalDirectoryPath || visitedDirectories.has(canonicalDirectoryPath)) return;
+  const projectDirectoryPath = relative(rootDirectory, directory).split(sep).join("/");
+  const canonicalProjectDirectoryPath = relative(rootDirectory, canonicalDirectoryPath)
+    .split(sep)
+    .join("/");
+  if (isSensitiveProjectPath(projectDirectoryPath)
+    || isSensitiveProjectPath(canonicalProjectDirectoryPath)) return;
   visitedDirectories.add(canonicalDirectoryPath);
 
   let entries: Dirent[];
@@ -169,7 +168,7 @@ async function walkDirectory(
   entries.sort((a, b) => comparePosixStrings(a.name, b.name));
 
   for (const entry of entries) {
-    if (entry.isDirectory() && EXCLUDED_DIRECTORY_NAMES.has(entry.name)) continue;
+    if (entry.isDirectory() && isExcludedDirectoryName(entry.name)) continue;
     const absolutePath = join(directory, entry.name);
     const canonicalPath = await canonicalWithinRoot(rootDirectory, absolutePath);
     if (!canonicalPath) continue;
@@ -182,7 +181,7 @@ async function walkDirectory(
     }
 
     if (stats.isDirectory()) {
-      if (EXCLUDED_DIRECTORY_NAMES.has(entry.name)) continue;
+      if (isExcludedDirectoryName(entry.name)) continue;
       await walkDirectory(
         rootDirectory,
         absolutePath,
@@ -198,6 +197,10 @@ async function walkDirectory(
     visitedFiles.add(canonicalPath);
 
     const projectPath = relative(rootDirectory, absolutePath).split(sep).join("/");
+    const canonicalProjectPath = relative(rootDirectory, canonicalPath).split(sep).join("/");
+    if (isSensitiveProjectPath(projectPath) || isSensitiveProjectPath(canonicalProjectPath)) {
+      continue;
+    }
     try {
       const content = await readFile(absolutePath);
       artifacts.push({ absolutePath, projectPath, content });

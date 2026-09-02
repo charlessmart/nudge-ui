@@ -45,7 +45,13 @@ const BOOTSTRAP_ENTRY_CONTENT =
   "})" +
   ".catch(() => {});" +
   `import(${JSON.stringify(BOOTSTRAP_MODULE_SPECIFIER)});`;
-const MIDDLEWARE_ENTRYPOINT = new URL("./middleware.ts", import.meta.url);
+// Astro loads this URL directly from the installed package. Keep the source
+// suffix for the workspace test/dev path and select the compiled sibling in a
+// published package, where `middleware.ts` is intentionally not shipped.
+const MIDDLEWARE_ENTRYPOINT = new URL(
+  import.meta.url.endsWith(".ts") ? "./middleware.ts" : "./middleware.js",
+  import.meta.url,
+);
 
 /**
  * Nudge UI host Adapter for Astro dev servers (ADR-0011).

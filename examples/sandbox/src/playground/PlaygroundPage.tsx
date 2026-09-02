@@ -260,7 +260,6 @@ function App() {
                 <div className="sizing-box" {...(import.meta.env.DEV ? { "data-test": "sizing-box" } : {})}>4:3 sizing box</div>
                 <div className="relative-offset-box" {...(import.meta.env.DEV ? { "data-test": "relative-offset-box" } : {})}>relative offset</div>
                 <div className="right-anchored-box" {...(import.meta.env.DEV ? { "data-test": "right-anchored-box" } : {})}>right / bottom</div>
-                <div className="stretched-box" {...(import.meta.env.DEV ? { "data-test": "stretched-box" } : {})}>stretched</div>
                 <div className="grid-authored-container" {...(import.meta.env.DEV ? { "data-test": "grid-authored-container" } : {})}>
                   <div className="grid-child-span" {...(import.meta.env.DEV ? { "data-test": "grid-child-span" } : {})}>span 3</div>
                   <div className="grid-child-auto">auto</div>

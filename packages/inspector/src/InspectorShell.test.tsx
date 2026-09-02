@@ -128,6 +128,8 @@ describe("InspectorShell", () => {
       });
 
       expect(host.shadowRoot?.querySelector('[data-test="edit-scope"]')).toBeNull();
+      expect(host.shadowRoot?.querySelector('[data-test="selection"]')?.className)
+        .toContain("selection--without-scope-callout");
     } finally {
       setSelectedElement(null);
       selected.remove();
@@ -181,6 +183,8 @@ describe("InspectorShell", () => {
       const scope = host.shadowRoot?.querySelector('[data-test="edit-scope"]');
       expect(scope).not.toBeNull();
       expect(scope?.textContent).toContain("Affects 2 elements.");
+      expect(host.shadowRoot?.querySelector('[data-test="selection"]')?.className)
+        .not.toContain("selection--without-scope-callout");
     } finally {
       setSelectedElement(null);
       selected.remove();

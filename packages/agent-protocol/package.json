@@ -1,18 +1,45 @@
 {
   "name": "@nudge-ui/agent-protocol",
   "version": "0.0.1",
+  "description": "Host-neutral browser-agent bridge and Canvas protocol contracts for Nudge UI.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CharlesSmartEnv/design-tool.git",
+    "directory": "packages/agent-protocol"
+  },
+  "bugs": {
+    "url": "https://github.com/CharlesSmartEnv/design-tool/issues"
+  },
+  "homepage": "https://github.com/CharlesSmartEnv/design-tool#readme",
   "type": "module",
-  "main": "src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
+    "build": "node ../../scripts/build-package.mjs",
+    "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

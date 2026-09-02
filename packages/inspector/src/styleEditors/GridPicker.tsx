@@ -109,12 +109,28 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
   const [hovered, setHovered] = useState<GridDimensions | null>(null);
   const [open, setOpen] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState<PopoverPosition | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setDimensions(readDimensions(el));
     setHovered(null);
   }, [el, revision]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function closeOnOutsidePointer(event: PointerEvent): void {
+      const target = event.target;
+      if (target instanceof Node && !pickerRef.current?.contains(target)) {
+        setOpen(false);
+        setHovered(null);
+      }
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [open]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -160,6 +176,7 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
 
   return (
     <div
+      ref={pickerRef}
       className="grid-picker"
       data-test="layout-grid-picker"
       onKeyDown={(event) => {

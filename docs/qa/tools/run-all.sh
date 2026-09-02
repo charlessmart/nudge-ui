@@ -1,9 +1,9 @@
 #!/bin/bash
 # Full battery: astro, raw-html, next, react — sequential, self-contained.
 set -u
-export PATH="$HOME/.asdf/shims:/opt/homebrew/bin:/Users/charlessmart/.asdf/installs/nodejs/24.11.0/bin:$PATH"
-REPO=/Users/charlessmart/_personal/design-tool
-TOOLS=$REPO/docs/qa/tools
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+TOOLS="$SCRIPT_DIR"
 RC=0
 
 wait_for() { # url timeout_s
