@@ -68,7 +68,7 @@ export function GridSection({
                 onOpenChange={setAdvancedOpen}
               >
                 <div className="layout__grid-advanced" data-test="layout-grid-advanced">
-                  <div className="layout__grid-advanced-title">Advanced grid CSS</div>
+                  <div className="editor__title">Advanced grid CSS</div>
                   <div className="layout__grid-fields">
                     <GridValueField property="grid-template-columns" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
                     <GridValueField property="grid-template-rows" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />

@@ -1,16 +1,5 @@
 import type { ReactNode } from "react";
 
-/**
- * Landing page — implementation of the Penpot board "Landing V6 — Mono"
- * (file "Nudge UI", page "Page 1"). Monochrome zinc palette mapped onto the
- * sandbox's existing tokens; Test Söhne / JetBrains Mono with system fallbacks.
- *
- * The page is a faithful static mockup (like the design board). Host-element
- * clicks are owned by the inspector's selection layer in dev, so no part of
- * this page carries interactive behaviour. The previous demo corpus that used
- * to live here now renders at /playground (dev-only) for the test suite.
- */
-
 const installCommand = "@nudge-ui/plugin in this project";
 
 function CopyIcon(): ReactNode {

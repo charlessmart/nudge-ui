@@ -205,12 +205,6 @@
   min-width: 0;
 }
 
-.layout__grid-advanced-title {
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 650;
-  user-select: none;
-}
 
 .layout__grid-value {
   min-width: 0;

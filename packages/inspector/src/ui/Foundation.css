@@ -19,10 +19,10 @@
   --text-muted-subtle: #a1a1a1;
 
   --accent: #00b0ff;
-  --accent-strong: #167ce4;
-  --accent-text: #167ce4;
+  --accent-strong: #0096ff;
+  --accent-text: #0096ff;
   --accent-surface: rgba(0, 176, 255, 0.15);
-  --focus: #00b0ff;
+  --focus: #0096ff;
   --warning: #d97706;
   --warning-text: #9a5b00;
   --warning-surface: #fff6e5;
@@ -53,7 +53,7 @@
 
   --radius-control: var(--radius-8);
   --shadow-popup: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 10px 16px rgba(0, 0, 0, 0.10);
-  --shadow-control: inset 0 2px 0 #ffffff, 0 0 1px rgba(0, 0, 0, 0.2), 0 0 3px rgba(0, 0, 0, 0.05);
+  --shadow-control: inset 0 -2px 0 rgba(0, 0, 0, 0.03), 0 0 0 1px rgba(0, 0, 0, 0.07);
   --z-index: 2147483647;
 
   --font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

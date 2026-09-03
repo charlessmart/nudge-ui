@@ -628,8 +628,12 @@ test("dev: spacing fields split a three-value margin shorthand by side", async (
   await page.goto("/playground");
   await page.click(".hero h1");
   await waitForEditors(page);
-  await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "true");
-  await expect(page.locator('[data-test="spacing-margin"] [data-test="individual-sides"]')).toBeDisabled();
+  const margin = page.locator('[data-test="spacing-margin"]');
+  await expect(margin).toHaveAttribute("data-expanded", "false");
+  await expect(margin.locator('[data-property="margin-horizontal"] [data-test="raw-input"]')).toHaveValue("0px");
+  await expect(margin.locator('[data-property="margin-vertical"] [data-test="raw-input"]')).toHaveValue("26px, 22px");
+  await expect(margin.locator('[data-test="individual-sides"]')).toBeEnabled();
+  await margin.locator('[data-test="individual-sides"]').click();
 
   await expect(page.locator('[data-test="token-field"][data-property="margin-top"] [data-test="raw-input"]')).toHaveValue("26px");
   await expect(page.locator('[data-test="token-field"][data-property="margin-right"] [data-test="raw-input"]')).toHaveValue("0px");
@@ -641,7 +645,10 @@ test("dev: spacing expansion resets when selecting a symmetric element", async (
   await page.goto("/playground");
   await page.locator(".hero h1").click();
   await waitForEditors(page);
-  await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-expanded", "true");
+  const margin = page.locator('[data-test="spacing-margin"]');
+  await expect(margin).toHaveAttribute("data-expanded", "false");
+  await margin.locator('[data-test="individual-sides"]').click();
+  await expect(margin).toHaveAttribute("data-expanded", "true");
 
   await page.locator('[data-test="flex-child-a"]').click();
   await expect(page.locator('[data-test="spacing-padding"]')).toHaveAttribute("data-empty", "true");

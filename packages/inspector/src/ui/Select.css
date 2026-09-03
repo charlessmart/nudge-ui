@@ -52,8 +52,7 @@
   pointer-events: auto;
   background: var(--surface-raised);
   color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
+  border-radius: var(--radius-12);
   box-shadow: var(--shadow-popup);
   transform-origin: var(--transform-origin);
 }
@@ -69,8 +68,8 @@
   flex: 0 0 auto;
   width: calc(100% - 16px);
   min-height: 32px;
-  margin: 8px;
-  padding: 6px 9px;
+  margin: var(--spacing-8);
+  padding: var(--spacing-8);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   background: var(--surface-control);
@@ -101,7 +100,7 @@
 
 .select__list {
   min-width: 0;
-  padding: 6px;
+  padding: var(--space-4);
   outline: 0;
 }
 

@@ -64,7 +64,7 @@ describe("InsetSection", () => {
     expect(expandedTopIcon.querySelector("rect")?.getAttribute("x")).toBe("19");
   });
 
-  it("opens individual inset values when the physical sides differ", () => {
+  it("shows mixed physical insets in collapsible axis fields", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       position: "relative",
@@ -75,9 +75,15 @@ describe("InsetSection", () => {
     });
     handle = mount(createElement(InsetSection, { element: selected }));
 
-    expect(handle.host.querySelector('[data-test="layout-inset"][data-expanded="true"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-inset"][data-expanded="false"]')).toBeTruthy();
+    expect((handle.host.querySelector('[data-property="inset-horizontal"] [data-test="raw-input"]') as HTMLInputElement).value)
+      .toBe("8px, 16px");
+    expect((handle.host.querySelector('[data-property="inset-vertical"] [data-test="raw-input"]') as HTMLInputElement).value)
+      .toBe("12px, 4px");
+    const toggle = handle.host.querySelector('[data-test="individual-sides"]') as HTMLButtonElement;
+    expect(toggle.disabled).toBe(false);
+    act(() => toggle.click());
     expect(handle.host.querySelector('[data-test="token-field"][data-property="top"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="pair-value-horizontal"]')).toBeNull();
     expect(sheetText()).not.toContain("top: auto;");
   });
 });

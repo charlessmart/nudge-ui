@@ -23,7 +23,7 @@
 }
 
 .icon-button--primary {
-  background: var(--surface-raised);
+  background: var(--surface-raised-2x);
   color: var(--text-primary);
   box-shadow: var(--shadow-control);
 }

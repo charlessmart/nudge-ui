@@ -260,13 +260,13 @@ export function InspectorShell(): ReactElement {
         <div className="panel__tabs" aria-label="Inspector controls">
           <div
             className="panel__header-row"
-            style={{ marginLeft: "-8px" }}
             data-test="inspect-tab"
           >
             <IconButton
               variant="quiet"
               label="Collapse inspector"
               data-test="collapse-inspector"
+              style={{ marginLeft: "-8px" }}
               onClick={() => {
                 cancelInlineTextEdit();
                 setInspectorOpen(false);
@@ -387,12 +387,13 @@ export function InspectorShell(): ReactElement {
           ) : selected ? (
             <>
               {domNavigationEnabled ? <DomNavigation selected={selected} hierarchy={hierarchy} /> : null}
-              <div
-                className={`selection${hasEditScopeCallout ? "" : " selection--without-scope-callout"}`}
-                data-test="selection"
-                data-selected-cid={selected.cid}
-                data-selected-src={selected.src}
-              >
+              {showInteractionState || hasEditScopeCallout ? (
+                <div
+                  className={`selection${hasEditScopeCallout ? "" : " selection--without-scope-callout"}`}
+                  data-test="selection"
+                  data-selected-cid={selected.cid}
+                  data-selected-src={selected.src}
+                >
                 {showInteractionState ? (
                   <div className="style-state" data-test="style-state">
                     <span className="selection__label">State</span>
@@ -457,7 +458,8 @@ export function InspectorShell(): ReactElement {
                     )}
                   </StatusCallout>
                 ) : null}
-              </div>
+                </div>
+              ) : null}
 
               <ComponentPropsSection selected={selected} />
 

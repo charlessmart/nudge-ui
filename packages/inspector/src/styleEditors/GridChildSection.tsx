@@ -172,7 +172,7 @@ export function GridChildSection({
           onOpenChange={setAdvancedOpen}
         >
           <div className="layout__grid-child-advanced" data-test="layout-grid-child-advanced">
-            <div className="layout__grid-advanced-title">Advanced grid CSS</div>
+            <div className="editor__title">Advanced grid CSS</div>
             <GridValueField property="grid-column" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
             <GridValueField property="grid-row" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
             <div className="layout__grid-alignment" data-test="layout-grid-child-advanced-alignment">

@@ -32,7 +32,6 @@ export interface SideValuesFieldProps {
   sides: readonly SideValueSlot[];
   pairedControls?: readonly SideValuePairSlot[];
   defaultExpanded?: boolean;
-  forceExpanded?: boolean;
   showLabel?: boolean;
   empty?: boolean;
   onAdd?: () => void;
@@ -53,7 +52,6 @@ export function SideValuesField({
   sides,
   pairedControls,
   defaultExpanded = false,
-  forceExpanded = false,
   showLabel = true,
   empty = false,
   onAdd,
@@ -65,7 +63,7 @@ export function SideValuesField({
   const [uncontrolledExpanded, setUncontrolledExpanded] = useState(defaultExpanded);
   const previousResetKey = useRef(resetKey);
   const isResetting = previousResetKey.current !== resetKey;
-  const isExpanded = forceExpanded || (isResetting ? defaultExpanded : uncontrolledExpanded);
+  const isExpanded = isResetting ? defaultExpanded : uncontrolledExpanded;
   const hasPairedControls = Boolean(pairedControls && pairedControls.length > 0);
   const orderedPairedControls = SIDE_AXIS_DISPLAY_ORDER
     .map((axis) => pairedControls?.find((pair) => pair.axis === axis))
@@ -81,7 +79,6 @@ export function SideValuesField({
   }, [resetKey]);
 
   function toggleExpanded(): void {
-    if (forceExpanded) return;
     setUncontrolledExpanded(!isExpanded);
   }
 
@@ -142,13 +139,8 @@ export function SideValuesField({
               variant="quiet"
               size="default"
               data-test="individual-sides"
-              label={forceExpanded
-                ? `${labelText} Sides Are Expanded Because Values Differ`
-                : isExpanded ? `Collapse ${labelText} Sides` : `Expand ${labelText} Sides`}
-              title={forceExpanded
-                ? "Individual Sides Stay Open While Values Differ"
-                : isExpanded ? "Collapse To Grouped Sides" : "Expand To Individual Sides"}
-              disabled={forceExpanded}
+              label={isExpanded ? `Collapse ${labelText} Sides` : `Expand ${labelText} Sides`}
+              title={isExpanded ? "Collapse To Grouped Sides" : "Expand To Individual Sides"}
               pressed={isExpanded}
               onPressedChange={toggleExpanded}
             >

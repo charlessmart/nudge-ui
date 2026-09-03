@@ -62,11 +62,11 @@
 }
 
 .hover-outline {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--focus);
 }
 
 .selected-outline {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--focus);
 }
 
 .hover-margin-fill {

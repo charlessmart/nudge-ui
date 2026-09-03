@@ -28,9 +28,10 @@ test("dev: logical spacing projects onto physical inspector side controls", asyn
   await page.goto("/conformance");
   await page.locator(".conformance-copy").click();
   const expandButton = page.locator('[data-test="spacing-padding"] [data-test="individual-sides"]');
-  await expect(expandButton).toHaveClass(/icon-button/);
-  await expect(expandButton).toHaveClass(/icon-button--quiet/);
-  await expect(expandButton).toHaveClass(/icon-button--default/);
+  await expect(expandButton).toHaveClass(/toggle-button/);
+  await expect(expandButton).toHaveClass(/toggle-button--quiet/);
+  await expect(expandButton).toHaveClass(/toggle-button--default/);
+  await expect(expandButton).toBeEnabled();
   await expect.poll(async () => expandButton.boundingBox()).toEqual({ x: expect.any(Number), y: expect.any(Number), width: 32, height: 32 });
 
   await expect.poll(async () => page.evaluate(() => {
@@ -46,14 +47,14 @@ test("dev: logical spacing projects onto physical inspector side controls", asyn
     return {
       paddingHorizontal: field("padding-horizontal"),
       paddingVertical: field("padding-vertical"),
-      marginTop: field("margin-top"),
-      marginBottom: field("margin-bottom"),
+      marginHorizontal: field("margin-horizontal"),
+      marginVertical: field("margin-vertical"),
     };
   })).toEqual({
     paddingHorizontal: { token: "1", value: "--conformance-space" },
     paddingVertical: { token: null, value: "0px" },
-    marginTop: { token: null, value: "1rem" },
-    marginBottom: { token: null, value: "0px" },
+    marginHorizontal: { token: null, value: "0px" },
+    marginVertical: { token: null, value: "1rem, 0px" },
   });
 
   await expandButton.click();

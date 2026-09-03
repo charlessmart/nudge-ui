@@ -58,8 +58,8 @@ describe("spacing projection", () => {
     ]);
 
     expect(result.spacing.padding.axes.horizontal.state).toBe("mixed");
-    expect(result.spacing.padding.axes.horizontal.fields[0].tokenName).toBe("--space-4");
-    expect(result.spacing.padding.axes.horizontal.fields[0].sourceProperty).toBe("padding-inline");
+    expect(result.spacing.padding.axes.horizontal.fields[1].tokenName).toBe("--space-4");
+    expect(result.spacing.padding.axes.horizontal.fields[1].sourceProperty).toBe("padding-inline");
   });
 
   it("keeps all four sides linked when authored, token, and value facts match", () => {

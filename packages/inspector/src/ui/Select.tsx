@@ -222,12 +222,12 @@ function SelectItem({ option }: { option: SelectOption }): ReactElement {
       disabled={option.disabled}
       data-value={option.value}
     >
-      <BaseSelect.ItemIndicator className="select__item-indicator">
-        <IconCheck size={15} stroke={2.4} aria-hidden="true" />
-      </BaseSelect.ItemIndicator>
       <BaseSelect.ItemText className="select__item-text">
         {option.label}
       </BaseSelect.ItemText>
+      <BaseSelect.ItemIndicator className="select__item-indicator">
+        <IconCheck size={15} stroke={2.4} aria-hidden="true" />
+      </BaseSelect.ItemIndicator>
     </BaseSelect.Item>
   );
 }
@@ -240,10 +240,10 @@ function SearchableSelectItem({ option }: { option: SelectOption }): ReactElemen
       disabled={option.disabled}
       data-value={option.value}
     >
+      <span className="select__item-text">{option.label}</span>
       <BaseCombobox.ItemIndicator className="select__item-indicator">
         <IconCheck size={15} stroke={2.4} aria-hidden="true" />
       </BaseCombobox.ItemIndicator>
-      <span className="select__item-text">{option.label}</span>
     </BaseCombobox.Item>
   );
 }

@@ -103,6 +103,9 @@ describe("shared inspector UI", () => {
     expect(select.className).toContain("select");
 
     act(() => select.click());
+    const selectedItem = document.body.querySelector('[data-value="two"]') as HTMLElement;
+    expect(selectedItem.firstElementChild?.className).toContain("select__item-text");
+    expect(selectedItem.lastElementChild?.className).toContain("select__item-indicator");
     act(() => {
       const option = document.body.querySelector('[data-value="one"]') as HTMLElement;
       option.dispatchEvent(new Event("pointerdown", { bubbles: true }));
@@ -148,6 +151,9 @@ describe("shared inspector UI", () => {
     expect(input.getAttribute("aria-label")).toBe("Filter values");
     expect(Array.from(document.body.querySelectorAll<HTMLElement>(".select__item")).map((item) => item.dataset.value))
       .toEqual(["red", "blue", "large"]);
+    const selectedItem = document.body.querySelector('[data-value="red"]') as HTMLElement;
+    expect(selectedItem.firstElementChild?.className).toContain("select__item-text");
+    expect(selectedItem.lastElementChild?.className).toContain("select__item-indicator");
 
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
@@ -375,12 +381,12 @@ describe("shared inspector UI", () => {
     expect(field.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
   });
 
-  it("keeps grouped side values open when expansion is forced", () => {
+  it("allows a default-expanded side field to collapse", () => {
     act(() => {
       root.render(createElement(SideValuesField, {
         label: "padding",
         "data-test": "forced-grouped-side-values",
-        forceExpanded: true,
+        defaultExpanded: true,
         pairedControls: [
           { axis: "horizontal", control: createElement("span", null, "0px") },
           { axis: "vertical", control: createElement("span", null, "16px / 0px") },
@@ -396,18 +402,18 @@ describe("shared inspector UI", () => {
     const toggle = field.querySelector('[data-test="individual-sides"]') as HTMLButtonElement;
     expect(field.getAttribute("data-expanded")).toBe("true");
     expect(field.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(4);
-    expect(toggle.disabled).toBe(true);
+    expect(toggle.disabled).toBe(false);
     act(() => toggle.click());
-    expect(field.getAttribute("data-expanded")).toBe("true");
+    expect(field.getAttribute("data-expanded")).toBe("false");
+    expect(field.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
   });
 
   it("resets grouped mode immediately when the reset key changes", () => {
-    const renderField = (resetKey: string, forceExpanded: boolean) => root.render(createElement(SideValuesField, {
+    const renderField = (resetKey: string, defaultExpanded: boolean) => root.render(createElement(SideValuesField, {
       label: "padding",
       "data-test": "resettable-grouped-side-values",
       resetKey,
-      defaultExpanded: forceExpanded,
-      forceExpanded,
+      defaultExpanded,
       pairedControls: [
         { axis: "horizontal", control: createElement("span", null, "0px") },
         { axis: "vertical", control: createElement("span", null, "16px / 0px") },

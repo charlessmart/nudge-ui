@@ -17,7 +17,12 @@ import {
 import { promoteToToken, setStyle, swapToken } from "../tokens/editActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
-import { projectInspectorValues, type InspectorAxisProjection, type InspectorSpacingProjection } from "../spacing/projection.ts";
+import {
+  projectInspectorValues,
+  type InspectorAxisProjection,
+  type InspectorFieldProjection,
+  type InspectorSpacingProjection,
+} from "../spacing/projection.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
@@ -79,6 +84,8 @@ export interface SpacingFieldProps {
   tokenRows: ResolvedProperty[];
   onAfterEdit?: () => void;
   showLabel?: boolean;
+  showEmptyState?: boolean;
+  suggestions?: ReadonlyArray<string>;
 }
 
 export function SpacingField({
@@ -89,10 +96,12 @@ export function SpacingField({
   tokenRows,
   onAfterEdit,
   showLabel = true,
+  showEmptyState = true,
+  suggestions,
 }: SpacingFieldProps): ReactElement {
   const [fieldsAdded, setFieldsAdded] = useState(false);
   const pairDefinitions = [
-    { axis: "horizontal", sideProperties: [sideProperty(property, "left"), sideProperty(property, "right")] as const },
+    { axis: "horizontal", sideProperties: [sideProperty(property, "right"), sideProperty(property, "left")] as const },
     { axis: "vertical", sideProperties: [sideProperty(property, "top"), sideProperty(property, "bottom")] as const },
   ] as const;
   const sideSlots: SideValueSlot[] = SIDE_NAMES.map((side) => ({
@@ -104,15 +113,13 @@ export function SpacingField({
         tokenRow={findTokenRow(tokenRows, sideProperty(property, side))}
         domElement={el}
         entries={entries}
+        suggestions={suggestions}
         editMetadata={metadataFor(findTokenRow(tokenRows, sideProperty(property, side)))}
         onAfterEdit={onAfterEdit}
         chipVariant="small"
       />
     ),
   }));
-  const forceExpanded = pairDefinitions.some(({ axis }) => (
-    spacingProjection.axes[axis].fields[0].value !== spacingProjection.axes[axis].fields[1].value
-  ));
   const spacingIsEmpty = SIDE_NAMES.every((side) => property === "inset"
     ? isEmptyInsetValue(spacingProjection.fields[side].value)
     : isZeroSpacingValue(spacingProjection.fields[side].value));
@@ -134,6 +141,7 @@ export function SpacingField({
         domElement={el}
         axisProjection={spacingProjection.axes[axis]}
         entries={entries}
+        suggestions={suggestions}
         onAfterEdit={onAfterEdit}
         chipVariant="small"
       />
@@ -147,10 +155,8 @@ export function SpacingField({
       data-property={property}
       resetKey={el}
       pairedControls={pairSlots}
-      defaultExpanded={forceExpanded}
-      forceExpanded={forceExpanded}
       showLabel={showLabel}
-      empty={spacingIsEmpty && !fieldsAdded}
+      empty={showEmptyState && spacingIsEmpty && !fieldsAdded}
       onAdd={() => setFieldsAdded(true)}
       emptyAction={property === "inset" ? (
         <IconButton
@@ -271,6 +277,7 @@ interface PairedTokenFieldProps {
   domElement: HTMLElement;
   axisProjection: InspectorAxisProjection;
   entries: TokenEntry[];
+  suggestions?: ReadonlyArray<string>;
   onAfterEdit?: () => void;
   chipVariant?: "default" | "small";
 }
@@ -281,22 +288,39 @@ function PairedTokenField({
   domElement: el,
   axisProjection,
   entries,
+  suggestions,
   onAfterEdit,
   chipVariant,
 }: PairedTokenFieldProps): ReactElement {
   const row = pairTokenRow(displayProperty, axisProjection);
+  const valuesMatch = axisProjection.state === "shared";
   const expression = Boolean(row && (row.capability === "raw" || row.capability === "composite"
     || row.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const calcAuthored = row?.authored ?? row?.declaredValue ?? "";
-  const activeTokenName = expression || /\bcalc\s*\(/i.test(calcAuthored) ? null : row.tokenName;
-  const committedValue = expression ? row.authored || row.declaredValue || row.resolvedValue : row.resolvedValue;
+  const activeTokenName = !valuesMatch || expression || /\bcalc\s*\(/i.test(calcAuthored) ? null : row.tokenName;
+  // Some browsers expose the used pixel size for horizontal auto margins.
+  // Keep the authored keyword visible because replacing it with that transient
+  // size would misrepresent the declaration and change the edit semantics.
+  const committedValue = valuesMatch
+    ? calcAuthored.trim().toLowerCase() === "auto"
+      ? calcAuthored.trim()
+      : expression ? row.authored || row.declaredValue || row.resolvedValue : row.resolvedValue
+    : axisProjection.fields.map(fieldDisplayValue).join(", ");
+  const resolvedValue = valuesMatch
+    ? row.resolvedValue
+    : axisProjection.fields.map((field) => field.value).join(", ");
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null
     : null;
-  const editMetadata = metadataFor(row);
 
-  function commitOnBothSides(value: string): void {
-    const records = sideProperties.map((property) => setStyle(el, property, value, editMetadata));
+  function commitAxisValue(value: string): void {
+    const pair = splitAxisValue(value);
+    const records = sideProperties.map((property, index) => setStyle(
+      el,
+      property,
+      pair?.[index] ?? value,
+      metadataFor(axisProjection.fields[index]?.row),
+    ));
     if (records.some(Boolean)) onAfterEdit?.();
   }
 
@@ -304,23 +328,62 @@ function PairedTokenField({
     <TokenValueField
       property={displayProperty}
       committedValue={committedValue}
-      resolvedValue={row.resolvedValue}
+      resolvedValue={resolvedValue}
       activeTokenName={activeTokenName}
       atRules={row.atRuleCandidates ?? row.atRules}
       entries={entries}
+      suggestions={suggestions}
       chipVariant={chipVariant}
-      formatRawValue={(value) => completeCssValue(value.trim(), valuePolicyFor(displayProperty))}
-      onCommitRaw={commitOnBothSides}
+      formatRawValue={(value) => formatAxisValue(value, displayProperty)}
+      onCommitRaw={commitAxisValue}
       onSelectToken={(chosen) => {
-        const edit = activeTokenName
-          ? (property: string) => swapToken(el, property, chosen, currentToken, editMetadata)
-          : (property: string) => promoteToToken(el, property, chosen, editMetadata);
-        const records = sideProperties.map(edit);
+        const records = sideProperties.map((property, index) => {
+          const editMetadata = metadataFor(axisProjection.fields[index]?.row);
+          return activeTokenName
+            ? swapToken(el, property, chosen, currentToken, editMetadata)
+            : promoteToToken(el, property, chosen, editMetadata);
+        });
         if (records.some(Boolean)) onAfterEdit?.();
       }}
-      onUnlink={commitOnBothSides}
+      onUnlink={commitAxisValue}
     />
   );
+}
+
+function fieldDisplayValue(field: InspectorFieldProjection): string {
+  return field.authoredValue.trim() || field.value;
+}
+
+function splitAxisValue(value: string): readonly [string, string] | null {
+  let depth = 0;
+  let quote: "\"" | "'" | null = null;
+  let separator = -1;
+  for (let index = 0; index < value.length; index++) {
+    const character = value[index];
+    if (quote) {
+      if (character === quote && value[index - 1] !== "\\") quote = null;
+      continue;
+    }
+    if (character === "\"" || character === "'") quote = character;
+    else if (character === "(" || character === "[") depth++;
+    else if (character === ")" || character === "]") depth = Math.max(0, depth - 1);
+    else if (character === "," && depth === 0) {
+      if (separator >= 0) return null;
+      separator = index;
+    }
+  }
+  if (separator < 0) return null;
+  const first = value.slice(0, separator).trim();
+  const second = value.slice(separator + 1).trim();
+  return first && second ? [first, second] : null;
+}
+
+function formatAxisValue(value: string, property: string): string {
+  const pair = splitAxisValue(value);
+  const policy = valuePolicyFor(property);
+  return pair
+    ? pair.map((part) => completeCssValue(part, policy)).join(", ")
+    : completeCssValue(value.trim(), policy);
 }
 
 function metadataFor(row: ResolvedProperty | null | undefined) {

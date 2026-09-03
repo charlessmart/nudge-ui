@@ -234,7 +234,11 @@ describe("SpacingBox", () => {
       "margin-left": "16px",
     });
     handle = mount(createElement(SpacingBox, { element: selected }));
-    expect(handle.host.querySelector('[data-test="spacing-margin"][data-expanded="true"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="spacing-margin"][data-expanded="false"]')).toBeTruthy();
+    expect(rawInput("margin-horizontal").value).toBe("16px");
+    expect(rawInput("margin-vertical").value).toBe("8px, 24px");
+
+    showIndividualSides("margin");
     expect(rawInput("margin-top").value).toBe("8px");
     expect(rawInput("margin-right").value).toBe("16px");
     expect(rawInput("margin-bottom").value).toBe("24px");
@@ -290,7 +294,7 @@ describe("SpacingBox", () => {
     expect(sheetText()).toContain("padding-right: 24px;");
   });
 
-  it("forces four-side mode when pair values are asymmetric", () => {
+  it("shows asymmetric pairs as comma-separated values", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "padding-top": "8px",
@@ -305,13 +309,46 @@ describe("SpacingBox", () => {
     handle = mount(createElement(SpacingBox, { element: selected }));
 
     const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
-    expect(padding.getAttribute("data-expanded")).toBe("true");
+    expect(padding.getAttribute("data-expanded")).toBe("false");
+    expect(rawInput("padding-horizontal").value).toBe("16px");
+    expect(rawInput("padding-vertical").value).toBe("8px, 24px");
+    expect((padding.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).disabled).toBe(false);
+
+    showIndividualSides("padding");
     expect(rawInput("padding-top").value).toBe("8px");
     expect(rawInput("padding-bottom").value).toBe("24px");
-    expect((padding.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("forces four-side mode when only one physical spacing side is set", () => {
+  it("maps mixed axis values back to their physical sides", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "0px",
+      "padding-right": "0px",
+      "padding-bottom": "0px",
+      "padding-left": "0px",
+      "margin-top": "16px",
+      "margin-right": "12px",
+      "margin-bottom": "16px",
+      "margin-left": "16px",
+    });
+    handle = mount(createElement(SpacingBox, { element: selected }));
+
+    expect(rawInput("margin-horizontal").value).toBe("12px, 16px");
+    expect(rawInput("margin-vertical").value).toBe("16px");
+
+    showIndividualSides("margin");
+    expect(["left", "top", "right", "bottom"].map((side) => rawInput(`margin-${side}`).value))
+      .toEqual(["16px", "16px", "12px", "16px"]);
+
+    act(() => {
+      (handle.host.querySelector('[data-test="spacing-margin"] [data-test="individual-sides"]') as HTMLButtonElement).click();
+    });
+    setInputValue(rawInput("margin-horizontal"), "20, 24");
+    expect(sheetText()).toContain("margin-right: 20px;");
+    expect(sheetText()).toContain("margin-left: 24px;");
+  });
+
+  it("collapses a single physical spacing side into its axis pair", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
       "padding-top": "16px",
@@ -326,14 +363,20 @@ describe("SpacingBox", () => {
     handle = mount(createElement(SpacingBox, { element: selected }));
 
     const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
-    expect(padding.getAttribute("data-expanded")).toBe("true");
-    expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(0);
+    expect(padding.getAttribute("data-expanded")).toBe("false");
+    expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
+    expect(rawInput("padding-horizontal").value).toBe("0px");
+    expect(rawInput("padding-vertical").value).toBe("16px, 0px");
+
+    showIndividualSides("padding");
     expect(rawInput("padding-top").value).toBe("16px");
     expect(rawInput("padding-bottom").value).toBe("0px");
-    expect((padding.querySelector('[data-test="individual-sides"]') as HTMLButtonElement).disabled).toBe(true);
 
     const margin = handle.host.querySelector('[data-test="spacing-margin"]') as HTMLElement;
-    expect(margin.getAttribute("data-expanded")).toBe("true");
+    expect(margin.getAttribute("data-expanded")).toBe("false");
+    expect(rawInput("margin-vertical").value).toBe("0px, 12px");
+
+    showIndividualSides("margin");
     expect(rawInput("margin-bottom").value).toBe("12px");
   });
 
@@ -440,5 +483,36 @@ describe("SpacingBox", () => {
     }));
 
     expect(rawInput("padding-horizontal").value).toBe("clamp(8px, 2vw, 24px)");
+  });
+
+  it("shows authored auto in a grouped horizontal margin field", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "padding-top": "0px",
+      "padding-right": "0px",
+      "padding-bottom": "0px",
+      "padding-left": "0px",
+      "margin-top": "0px",
+      "margin-right": "120px",
+      "margin-bottom": "0px",
+      "margin-left": "120px",
+    });
+    const autoMarginRow = (property: string): ResolvedProperty => ({
+      property,
+      tokenName: null,
+      declaredValue: "auto",
+      authored: "auto",
+      resolvedValue: "120px",
+      computed: "120px",
+      capability: "box-sides",
+      confidence: "unknown",
+      evidence: { reason: "browser resolved an authored auto margin to its used size" },
+    });
+    handle = mount(createElement(SpacingBox, {
+      element: selected,
+      tokenRows: [autoMarginRow("margin-left"), autoMarginRow("margin-right")],
+    }));
+
+    expect(rawInput("margin-horizontal").value).toBe("auto");
   });
 });

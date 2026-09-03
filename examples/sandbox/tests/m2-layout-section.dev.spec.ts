@@ -472,19 +472,23 @@ test("dev: layout size controls edit dimensions and aspect ratio", async ({ page
   await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("aspect-ratio: 16 / 9");
 });
 
-test("dev: absolute position exposes and edits all four inset values", async ({ page }) => {
+test("dev: absolute position exposes grouped and individual inset values", async ({ page }) => {
   await page.goto("/playground");
   await page.click('[data-test="right-anchored-box"]');
   await waitForEditors(page);
 
   await expect(page.locator('[data-test="layout-position"]')).toBeVisible();
+  const position = page.locator('[data-test="layout-position"]');
+  await expect(position.locator('[data-test="layout-inset"]')).toHaveAttribute("data-expanded", "false");
+  await expect(position.locator('[data-test="pair-value-horizontal"]')).toBeVisible();
+  await expect(position.locator('[data-test="individual-sides"]')).toBeEnabled();
+  await position.locator('[data-test="individual-sides"]').click();
 
   for (const side of ["top", "right", "bottom", "left"]) {
-    await expect(page.locator(`[data-test="side-value-${side}"]`)).toBeVisible();
+    await expect(position.locator(`[data-test="side-value-${side}"]`)).toBeVisible();
   }
 
   await expect(page.locator('[data-test^="layout-anchor-"]')).toHaveCount(0);
-  await expect(page.locator('[data-test="layout-position-individual-toggle"]')).toHaveCount(0);
 
   await setInput(page, "right", "32");
   await setInput(page, "bottom", "18");

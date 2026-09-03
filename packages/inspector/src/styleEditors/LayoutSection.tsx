@@ -461,7 +461,7 @@ function FlexDirectionControl({ domElement, revision = 0, onAfterEdit }: FlexCon
           testId: "layout-direction-row",
           icon: (
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-              <path d="M2 8h11M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
+              <path d="M2 8h11M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="var(--icon-stroke-width)" />
             </svg>
           ),
         },
@@ -471,7 +471,7 @@ function FlexDirectionControl({ domElement, revision = 0, onAfterEdit }: FlexCon
           testId: "layout-direction-column",
           icon: (
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-              <path d="M8 2v11M4 9l4 4 4-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
+              <path d="M8 2v11M4 9l4 4 4-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="var(--icon-stroke-width)" />
             </svg>
           ),
         },

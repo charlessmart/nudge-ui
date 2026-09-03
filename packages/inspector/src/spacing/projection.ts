@@ -35,7 +35,10 @@ export interface InspectorProjection {
 
 const SIDES: readonly ProjectionSide[] = ["top", "right", "bottom", "left"];
 const AXIS_SIDES = {
-  horizontal: ["left", "right"] as const,
+  // Preserve CSS physical-side order within each axis. This makes a mixed
+  // horizontal value read as right, left and a mixed vertical value as top,
+  // bottom when the compact editor renders both values.
+  horizontal: ["right", "left"] as const,
   vertical: ["top", "bottom"] as const,
 } satisfies Record<ProjectionAxis, readonly [ProjectionSide, ProjectionSide]>;
 

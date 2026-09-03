@@ -57,7 +57,11 @@ describe("LayoutSection", () => {
       .toBe("Flex");
     expect(handle.host.querySelector('[data-test="layout-flex-container"] > .layout__group-title')).toBeNull();
     expect(handle.host.querySelector('[data-test="layout-direction-row"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-direction-row"] path')?.getAttribute("stroke-width"))
+      .toBe("var(--icon-stroke-width)");
     expect(handle.host.querySelector('[data-test="layout-direction-column"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-direction-column"] path')?.getAttribute("stroke-width"))
+      .toBe("var(--icon-stroke-width)");
     expect(handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]')?.className)
       .toContain("icon-button--secondary");
@@ -473,17 +477,28 @@ describe("LayoutSection", () => {
     expect(handle.host.querySelector('[data-test="layout-flex-child"]')).toBeFalsy();
   });
 
-  it("shows all inset controls when position is absolute", () => {
+  it("shows collapsible inset controls when position is absolute", () => {
     const { selected } = makeSelected();
-    mockComputedStyle({ display: "block", position: "absolute" });
+    mockComputedStyle({
+      display: "block",
+      position: "absolute",
+      top: "8px",
+      right: "12px",
+      bottom: "16px",
+      left: "20px",
+    });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
     expect(handle.host.querySelector('[data-test="layout-position"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-position"] [data-expanded="false"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="pair-value-horizontal"]')).toBeTruthy();
+    const toggle = handle.host.querySelector('[data-test="individual-sides"]') as HTMLButtonElement;
+    expect(toggle.disabled).toBe(false);
+    act(() => toggle.click());
     for (const side of ["top", "right", "bottom", "left"]) {
       expect(handle.host.querySelector(`[data-test="side-value-${side}"]`)).toBeTruthy();
     }
     expect(handle.host.querySelector('[data-test="layout-anchor-horizontal-start"]')).toBeNull();
-    expect(handle.host.querySelector('[data-test="layout-position-individual-toggle"]')).toBeNull();
     const topIcon = handle.host.querySelector('[data-side="top"] svg') as SVGSVGElement;
     expect(topIcon.classList.contains("side-values__side-icon")).toBe(true);
     expect(topIcon.querySelector("rect")?.getAttribute("x")).toBe("19");
