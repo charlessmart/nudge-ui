@@ -35,6 +35,11 @@ import { cancelInlineTextEdit } from "./inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
 import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./devFlag.ts";
+import {
+  clearClipboardHandoff,
+  startClipboardHandoffController,
+  subscribeClipboardHandoff,
+} from "./prompt/clipboardHandoff.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -44,6 +49,7 @@ let beforeUnloadAttached = false;
 let persistenceSubscribed = false;
 let unsubscribeOwnership: (() => void) | null = null;
 let removeInspectionBridge: (() => void) | null = null;
+let stopClipboardHandoffController: (() => void) | null = null;
 
 function onKeydown(e: KeyboardEvent): void {
   if (isInspectorToggleShortcut(e)) {
@@ -120,6 +126,8 @@ function startController(inspectorHost: HTMLElement): void {
   }
 
   mountInspector(inspectorHost);
+  stopClipboardHandoffController?.();
+  stopClipboardHandoffController = startClipboardHandoffController(document);
 
   enableAutoSave();
   if (!beforeUnloadAttached) {
@@ -132,12 +140,15 @@ function startController(inspectorHost: HTMLElement): void {
   if (!persistenceSubscribed) {
     subscribeChanges(() => scheduleAutoSave());
     subscribeStructuralChanges(() => scheduleAutoSave());
+    subscribeClipboardHandoff(() => scheduleAutoSave());
     subscribeCanvas(() => scheduleCanvasSave());
     persistenceSubscribed = true;
   }
 }
 
 function mountLockedNotice(host: HTMLElement): void {
+  stopClipboardHandoffController?.();
+  stopClipboardHandoffController = null;
   if (reactRoot) {
     reactRoot.unmount();
     reactRoot = null;
@@ -195,6 +206,8 @@ export function mountInspector(host: HTMLElement): void {
 }
 
 export function unmountInspector(): void {
+  stopClipboardHandoffController?.();
+  stopClipboardHandoffController = null;
   unsubscribeOwnership?.();
   unsubscribeOwnership = null;
   if (lockedRoot) {
@@ -213,6 +226,7 @@ export function unmountInspector(): void {
   }
   clearChanges();
   clearStructuralChanges();
+  clearClipboardHandoff();
   resetStructuralDeleteProjection();
   removeManagedSheet();
   clearInspectorLayout();

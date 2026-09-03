@@ -19,6 +19,12 @@ import {
   recordAgentDispatch,
   verifyAndReconcileAgentDispatch,
 } from "./agent/verification.ts";
+import {
+  getClipboardHandoffRevision,
+  getLastClipboardReconciledCount,
+  recordClipboardHandoff,
+  subscribeClipboardHandoff,
+} from "./prompt/clipboardHandoff.ts";
 
 export function CopyPromptButton(): ReactElement {
   const changes = useChanges();
@@ -27,6 +33,12 @@ export function CopyPromptButton(): ReactElement {
     getStructuralChanges,
     getStructuralChanges,
   );
+  useSyncExternalStore(
+    subscribeClipboardHandoff,
+    getClipboardHandoffRevision,
+    getClipboardHandoffRevision,
+  );
+  const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
   const runtimeConfig = getNudgeUiRuntimeConfig();
   const agentClient = useMemo(
@@ -106,6 +118,7 @@ export function CopyPromptButton(): ReactElement {
       discardAgentDispatch(revision);
     }
     await copyToClipboard(text);
+    recordClipboardHandoff(changes, structuralChanges);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   }
@@ -144,6 +157,11 @@ export function CopyPromptButton(): ReactElement {
       {listenerHint ? (
         <p className="copy-prompt__hint" data-test="agent-listener-hint" role="status">
           {listenerHint}
+        </p>
+      ) : null}
+      {reconciledCount > 0 ? (
+        <p className="copy-prompt__hint" data-test="clipboard-reconciled-hint" role="status">
+          Removed {reconciledCount} implemented {reconciledCount === 1 ? "change" : "changes"} from the next prompt.
         </p>
       ) : null}
     </div>

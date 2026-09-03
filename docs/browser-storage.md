@@ -10,7 +10,7 @@ The runtime writes these key families:
 
 | Key pattern | Contents | Lifetime |
 | --- | --- | --- |
-| `nudge-ui:<project-id>:v10` | The durable inspector session: mode, current URL, Canvas cards and camera, comparison groups, CSS/token/component/text changes, and structural changes. | Persists across reloads and browser restarts until the user clears it. Older `v3`–`v9` entries may be read once and upgraded. |
+| `nudge-ui:<project-id>:v11` | The durable inspector session: mode, current URL, Canvas cards and camera, comparison groups, CSS/token/component/text changes, structural changes, and the latest copied-prompt checkpoint. | Persists across reloads and browser restarts until the user clears it. Older `v3`–`v10` entries may be read once and upgraded. |
 | `nudge-ui:<project-id>:lease` | A short-lived workspace lease: project ID, random tab owner ID, and acquisition/heartbeat timestamps. | Shared by same-origin tabs; expires after the heartbeat stops. It contains no edit content. |
 | `nudge-ui-agent-session:<encoded-project-id>` | The local companion pairing record: project ID, page origin, and the pairing session token. | Persists so a reload can restore pairing; removed by disconnect, a failed/stale restore, or manual clearing. |
 
@@ -36,7 +36,9 @@ Nudge serializes the data needed to restore a preview, including:
 - bounded rendered evidence such as visible text, serialized props, accessible
   labels, and component names;
 - same-origin URLs and titles for Canvas cards and comparison routes; and
-- structural edit references, Canvas layout, and the current inspection mode.
+- structural edit references, Canvas layout, and the current inspection mode;
+- stable fingerprints for changes in the latest successfully copied prompt,
+  used to remove only records that later match source-rendered output.
 
 This data is intended for local development, but it may still be sensitive.
 For example, an edited or rendered value can contain user-entered copy, a URL

@@ -49,15 +49,23 @@ import {
 import { projectToAllReadyCards } from "./projection.ts";
 import type { TextProjectionTarget } from "../textChangeBoundary.ts";
 import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import {
+  clearClipboardHandoff,
+  getClipboardHandoffSnapshot,
+  hydrateClipboardHandoff,
+  isClipboardHandoffSnapshot,
+  type ClipboardHandoffSnapshot,
+} from "../prompt/clipboardHandoff.ts";
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 // v3 is the released durable-session schema. v4 was a prerelease schema, v5
 // added structural snapshots, v6 added presentation metadata to moves, and v7
 // adds durable rendered-text projection records; v8 adds explicit text scope
 // and bounded semantic evidence; v9 adds durable agent-created Canvas groups;
 // v10 makes the structural move source-parent precondition explicit and adds
-// bounded structural projection diagnostics.
-const LEGACY_SCHEMA_VERSIONS = [3, 4, 5, 6, 7, 8, 9] as const;
+// bounded structural projection diagnostics; v11 adds copied-prompt handoff
+// fingerprints for automatic source reconciliation.
+const LEGACY_SCHEMA_VERSIONS = [3, 4, 5, 6, 7, 8, 9, 10] as const;
 const STORAGE_PREFIX = "nudge-ui";
 
 function projectId(): string {
@@ -543,6 +551,7 @@ export interface DurableSession {
   camera: { x: number; y: number; zoom: number };
   changes: SerializableChange[];
   structuralChanges: StructuralChange[];
+  clipboardHandoff: ClipboardHandoffSnapshot | null;
 }
 
 function serializeTokenRef(token: TokenEntry | null): SerializableTokenRef | null {
@@ -797,6 +806,7 @@ function buildSession(): DurableSession {
     camera: { x: camera.x, y: camera.y, zoom: camera.zoom },
     changes: serializableChanges,
     structuralChanges: getStructuralChanges().map((change) => ({ ...change })),
+    clipboardHandoff: getClipboardHandoffSnapshot(),
   };
 }
 
@@ -1021,13 +1031,19 @@ export function hydrateSession(): HydrationResult {
   }
 
   // v7 added text records on top of the v6 structural schema. Keep the
-  // structural snapshot while migrating every pre-v10 structural schema
+  // structural snapshot while migrating every pre-v11 structural schema
   // instead of silently dropping it. The migration also validates the ordered
   // records in a detached scratch document before hydration.
   const structuralChanges = schemaVersion === SCHEMA_VERSION
     ? s.structuralChanges
     : schemaVersion >= 5 ? migrateLegacyStructuralChanges(s.structuralChanges) : [];
   if (!Array.isArray(structuralChanges) || !structuralChanges.every(isStructuralChange)) {
+    safeDiscard(schemaVersion);
+    return { restored: false, changeCount: 0 };
+  }
+
+  const clipboardHandoff = schemaVersion === SCHEMA_VERSION ? s.clipboardHandoff : null;
+  if (!isClipboardHandoffSnapshot(clipboardHandoff)) {
     safeDiscard(schemaVersion);
     return { restored: false, changeCount: 0 };
   }
@@ -1048,6 +1064,7 @@ export function hydrateSession(): HydrationResult {
   // Instance evidence captured after a move must resolve against the restored
   // structural order, not the application's pre-move baseline.
   loadChanges(deserializedChanges);
+  hydrateClipboardHandoff(clipboardHandoff);
   // A different URL means the user intentionally navigated while Inspect was
   // active. Keep the durable edits, but adopt the new route instead of
   // sending the user back to the previous page. On refresh, the URLs already
@@ -1082,6 +1099,7 @@ export function clearSession(): void {
 
   clearChangesLog();
   clearStructuralChanges();
+  clearClipboardHandoff();
   resetStructuralDeleteProjection();
   removeManagedSheet();
   setSelectedElement(null);

@@ -39,6 +39,11 @@ import {
   resetStructuralDeleteProjection,
 } from "../structuralProjection.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import {
+  clearClipboardHandoff,
+  getClipboardHandoffSnapshot,
+  recordClipboardHandoff,
+} from "../prompt/clipboardHandoff.ts";
 
 function localUrl(path: string): string {
   return new URL(path, window.location.href).href;
@@ -109,6 +114,7 @@ function makeTextChange(overrides: Partial<TextContentChangeRecord> = {}): TextC
 
 function resetAllState(): void {
   clearChanges();
+  clearClipboardHandoff();
   resetStructuralDeleteProjection();
   document.body.replaceChildren();
   if (getCanvasMode() === "canvas") exitCanvas();
@@ -124,6 +130,8 @@ function resetAllState(): void {
     localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v6`);
     localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v7`);
     localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v8`);
+    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v9`);
+    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v10`);
   } catch {
     // ignore
   }
@@ -146,6 +154,21 @@ describe("sessionStore persistence", () => {
     expect(parsed.projectId).toBe(nudgeUiProjectId);
     expect(parsed.changes).toHaveLength(1);
     expect(parsed.changes[0].selector).toBe('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
+  });
+
+  it("persists the latest copied-prompt checkpoint with the durable session", () => {
+    appendChange(makeElementChange());
+    recordClipboardHandoff(getChangesList());
+    persistSession();
+
+    clearClipboardHandoff();
+    clearChanges();
+    expect(hydrateSession()).toMatchObject({ restored: true, changeCount: 1 });
+
+    expect(getClipboardHandoffSnapshot()).toMatchObject({
+      changes: [{ key: expect.any(String), fingerprint: expect.any(String) }],
+      structuralChanges: [],
+    });
   });
 
   it("namespaces persistence with the configured standalone project identity", () => {
@@ -425,7 +448,7 @@ describe("sessionStore hydration", () => {
     expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toContain(`"schemaVersion":${SCHEMA_VERSION}`);
   });
 
-  it.each([7, 8])("keeps structural changes while migrating a v%i session", (legacyVersion) => {
+  it.each([7, 8, 9, 10])("keeps structural changes while migrating a v%i session", (legacyVersion) => {
     const target = document.createElement("button");
     target.dataset.cid = "Item";
     target.dataset.src = "src/List.tsx:8:1";

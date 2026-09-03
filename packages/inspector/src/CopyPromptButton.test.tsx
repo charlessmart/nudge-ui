@@ -15,6 +15,10 @@ import type {
 import { clearChanges, loadChanges, type ElementChangeRecord } from "./changesLog.ts";
 import { setNudgeUiHostDevFlag } from "./devFlag.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
+import {
+  clearClipboardHandoff,
+  getClipboardHandoffSnapshot,
+} from "./prompt/clipboardHandoff.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -95,6 +99,7 @@ describe("CopyPromptButton agent handoff", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
     localStorage.clear();
+    clearClipboardHandoff();
     previousConfig = getNudgeUiRuntimeConfig();
     configureNudgeUiRuntime({ ...previousConfig, projectId: "handoff-project" });
     container = document.createElement("div");
@@ -107,6 +112,7 @@ describe("CopyPromptButton agent handoff", () => {
     configureAgentBridgeTransport(undefined);
     resetAgentClients();
     clearChanges();
+    clearClipboardHandoff();
     configureNudgeUiRuntime(previousConfig);
     container.remove();
     vi.restoreAllMocks();
@@ -164,5 +170,9 @@ describe("CopyPromptButton agent handoff", () => {
 
     expect(writeText).toHaveBeenCalledOnce();
     expect(button.textContent).toContain("Copied");
+    expect(getClipboardHandoffSnapshot()).toMatchObject({
+      changes: [{ key: expect.any(String), fingerprint: expect.any(String) }],
+      structuralChanges: [],
+    });
   });
 });

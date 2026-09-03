@@ -24,15 +24,44 @@ import {
   resolveTextProjectionTextNode,
 } from "../textProjection.ts";
 
-interface DispatchSnapshot {
+export interface HandoffSnapshot {
   readonly changes: readonly ChangeRecord[];
   readonly structuralChanges: readonly StructuralChange[];
 }
 
-const dispatches = new Map<number, DispatchSnapshot>();
+const dispatches = new Map<number, HandoffSnapshot>();
 
-function serialized(change: ChangeRecord | StructuralChange): string {
-  return JSON.stringify(change);
+function stableJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableJsonValue);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, stableJsonValue(entry)]),
+  );
+}
+
+function stableSerialized(value: unknown): string {
+  return JSON.stringify(stableJsonValue(value));
+}
+
+/** Stable, preview-metadata-free identity for one prompt handoff record. */
+export function handoffChangeFingerprint(change: ChangeRecord): string {
+  if (!isTokenChange(change) && !isComponentChange(change) && !isTextContentChange(change)) {
+    const { previewResult: _previewResult, ...intent } = change;
+    return stableSerialized(intent);
+  }
+  if (isTokenChange(change)) {
+    const { previewResult: _previewResult, ...intent } = change;
+    return stableSerialized(intent);
+  }
+  return stableSerialized(change);
+}
+
+/** Stable identity for one structural record included in a prompt handoff. */
+export function handoffStructuralFingerprint(change: StructuralChange): string {
+  return stableSerialized(change);
 }
 
 function requestedStyleValue(change: PreviewableChangeRecord): string {
@@ -158,25 +187,25 @@ function afterBrowserPaint(): Promise<void> {
  * observable after removing Nudge's own preview. Newer edits and ambiguous
  * records are preserved.
  */
-export async function verifyAndReconcileAgentDispatch(revision: number): Promise<number> {
-  const snapshot = dispatches.get(revision);
-  if (!snapshot) return 0;
-  dispatches.delete(revision);
-
-  const sentByKey = new Map(snapshot.changes.map((change) => [changeKey(change), serialized(change)]));
+export async function verifyAndReconcileHandoff(snapshot: HandoffSnapshot): Promise<number> {
+  const sentByKey = new Map(
+    snapshot.changes.map((change) => [changeKey(change), handoffChangeFingerprint(change)]),
+  );
   const current = getChangesList();
-  const eligible = current.filter((change) => sentByKey.get(changeKey(change)) === serialized(change));
+  const eligible = current.filter(
+    (change) => sentByKey.get(changeKey(change)) === handoffChangeFingerprint(change),
+  );
   const eligibleKeys = new Set(eligible.map(changeKey));
   const remaining = current.filter((change) => !eligibleKeys.has(changeKey(change)));
 
   // The same "still unchanged" rule for structural intent: only canonical
   // records byte-identical to the dispatched snapshot may be reconciled.
   const sentStructural = new Map(
-    snapshot.structuralChanges.map((change) => [change.id, serialized(change)]),
+    snapshot.structuralChanges.map((change) => [change.id, handoffStructuralFingerprint(change)]),
   );
   const currentStructural = getStructuralChanges();
   const eligibleStructural = currentStructural.filter(
-    (change) => sentStructural.get(change.id) === serialized(change),
+    (change) => sentStructural.get(change.id) === handoffStructuralFingerprint(change),
   );
   const eligibleStructuralIds = new Set(eligibleStructural.map((change) => change.id));
   const remainingStructural = currentStructural.filter((change) => !eligibleStructuralIds.has(change.id));
@@ -190,8 +219,25 @@ export async function verifyAndReconcileAgentDispatch(revision: number): Promise
     await afterBrowserPaint();
     const verified = verifiedChangeKeys(eligible);
     const verifiedStructural = verifiedStructuralChangeIds(eligibleStructural, document);
-    const removedChanges = reconcileVerifiedChanges(verified);
-    const removedStructural = reconcileVerifiedStructuralChanges(verifiedStructural);
+    // A user can make another inspector edit while the two-frame verification
+    // window is open. Recheck byte identity immediately before reconciliation
+    // so a newer value at the same key can never be removed.
+    const currentByKey = new Map(
+      getChangesList().map((change) => [changeKey(change), handoffChangeFingerprint(change)]),
+    );
+    const stillVerified = new Set(
+      [...verified].filter((key) => currentByKey.get(key) === sentByKey.get(key)),
+    );
+    const currentStructuralById = new Map(
+      getStructuralChanges().map((change) => [change.id, handoffStructuralFingerprint(change)]),
+    );
+    const stillVerifiedStructural = new Set(
+      [...verifiedStructural].filter(
+        (id) => currentStructuralById.get(id) === sentStructural.get(id),
+      ),
+    );
+    const removedChanges = reconcileVerifiedChanges(stillVerified);
+    const removedStructural = reconcileVerifiedStructuralChanges(stillVerifiedStructural);
     return removedChanges + removedStructural;
   } finally {
     // Reconciliation reapplies the canonical set. If it was unable to write
@@ -199,6 +245,14 @@ export async function verifyAndReconcileAgentDispatch(revision: number): Promise
     applyChangeProjections(getChangesList());
     applyStructuralProjection(document, getStructuralChanges());
   }
+}
+
+/** Reconciles the captured records for one completed connected-agent request. */
+export async function verifyAndReconcileAgentDispatch(revision: number): Promise<number> {
+  const snapshot = dispatches.get(revision);
+  if (!snapshot) return 0;
+  dispatches.delete(revision);
+  return verifyAndReconcileHandoff(snapshot);
 }
 
 /** Test/session reset for in-memory dispatch snapshots. */
