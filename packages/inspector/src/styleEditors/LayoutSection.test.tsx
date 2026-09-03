@@ -350,7 +350,16 @@ describe("LayoutSection", () => {
     const parent = document.createElement("div");
     parent.appendChild(el);
     document.body.appendChild(parent);
-    mockComputedStyle({ display: "block", position: "static", "grid-column": "2 / span 3" });
+    mockComputedStyle({
+      display: "block",
+      position: "static",
+      "grid-column-start": "2",
+      "grid-column-end": "span 2",
+      "grid-row-start": "auto",
+      "grid-row-end": "auto",
+      "justify-self": "normal",
+      "align-self": "normal",
+    });
 
     const original = window.getComputedStyle;
     (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((target: Element) => {
@@ -367,9 +376,13 @@ describe("LayoutSection", () => {
 
     expect(handle.host.querySelector('[data-test="layout-grid-container"]')).toBeFalsy();
     expect(handle.host.querySelector('[data-test="layout-grid-child"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-grid-input-grid-column"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-grid-input-grid-row"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-select-justify-self"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-child-column-start"]')?.textContent).toContain("2");
+    expect((handle.host.querySelector('[data-test="layout-grid-child-column-span-value"]') as HTMLInputElement)?.value).toBe("2");
+    expect(handle.host.querySelector('[data-test="layout-grid-child-row-start"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-child-row-span"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-child-select-justify-self"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-grid-child-select-align-self"]')).toBeTruthy();
+    expect(handle.host.querySelectorAll('[data-test^="layout-grid-child-action-"]')).toHaveLength(4);
     expect(handle.host.querySelector('[data-test="layout-grid-child"]')?.textContent).not.toContain("Computed preview");
   });
 

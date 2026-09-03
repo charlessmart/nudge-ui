@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
@@ -41,26 +41,35 @@ export function GridValueField({
   };
   const [value, setValue] = useState(readValue);
   const [draft, setDraft] = useState(value);
+  // Commit reads the ref, not state: Escape reverts the draft and then blurs
+  // within the same event, before React re-renders, so a state-only read
+  // would commit the pre-escape draft.
+  const draftRef = useRef(value);
 
   useEffect(() => {
     const next = readValue();
     setValue(next);
-    setDraft(next);
+    updateDraft(next);
   }, [el, property, revision]);
 
+  function updateDraft(next: string): void {
+    draftRef.current = next;
+    setDraft(next);
+  }
+
   function commit(): void {
-    const next = draft.trim();
+    const next = draftRef.current.trim();
     if (!next) {
-      setDraft(value);
+      updateDraft(value);
       return;
     }
     setValue(next);
-    setDraft(next);
+    updateDraft(next);
     if (setStyle(el, property, next)) onAfterEdit?.();
   }
 
   function cancel(): void {
-    setDraft(value);
+    updateDraft(value);
   }
 
   return (
@@ -74,7 +83,7 @@ export function GridValueField({
         value={draft}
         data-test={`layout-grid-input-${property}`}
         aria-label={property}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => updateDraft(event.target.value)}
         onBlur={() => {
           commit();
         }}

@@ -74,10 +74,28 @@ async function revertChange(page: import("@playwright/test").Page, property: str
   await row.locator('[data-test="change-revert"]').click();
 }
 
+/**
+ * Selects a playground fixture via a synthetic click on the fixture element
+ * itself (a positioned click can land on a tracked child instead). A click
+ * issued while the playground tree or the inspector selection handler is
+ * still mounting is silently dropped, so click and verify the selection
+ * until it registers rather than firing once and racing bootstrap.
+ */
+async function selectFixture(page: import("@playwright/test").Page, testId: string): Promise<void> {
+  await expect
+    .poll(async () => {
+      await page.evaluate((id) => {
+        (document.querySelector(`[data-test="${id}"]`) as HTMLElement | null)?.click();
+      }, testId);
+      return shadowQueryExists(page, "layout-section");
+    }, { timeout: 15000 })
+    .toBe(true);
+}
+
 test("dev: layout section shows flex container controls and edits write to managed stylesheet", async ({ page }) => {
   await page.goto("/playground");
 
-  await page.evaluate(() => (document.querySelector('[data-test="flex-container"]') as HTMLElement | null)?.click());
+  await selectFixture(page, "flex-container");
   await waitForEditors(page);
   await expect.poll(async () => shadowQueryExists(page, "layout-flex-container"), { timeout: 5000 }).toBe(true);
 
@@ -501,7 +519,8 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
   await expect.poll(async () => sheetText(page), { timeout: 5000 })
     .toMatch(/grid-template-rows: repeat\(2, minmax\(0(?:px)?, 1fr\)\)/);
 
-  await page.locator('[data-test="layout-grid-advanced"] summary').click();
+  await page.locator('[data-test="layout-grid-settings"]').click();
+  await expect(page.locator('[data-test="layout-grid-settings-popover"] [data-test="layout-grid-advanced"]')).toBeVisible();
   const columns = page.locator('[data-test="layout-grid-input-grid-template-columns"]');
   await expect(columns).toHaveValue(/repeat\(3, minmax\(0(?:px)?, 1fr\)\)/);
   await expect(page.locator('[data-test="layout-grid-input-grid-template-rows"]'))
@@ -511,18 +530,40 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
   await columns.blur();
   await expect.poll(async () => sheetText(page), { timeout: 5000 })
     .toMatch(/grid-template-columns: repeat\(4, minmax\(0(?:px)?, 1fr\)\)/);
+  await page.keyboard.press("Escape");
 
   await page.click('[data-test="grid-child-span"]');
   await waitForEditors(page);
   await expect(page.locator('[data-test="layout-grid-child"]')).toBeVisible();
-  const childColumn = page.locator('[data-test="layout-grid-input-grid-column"]');
-  await expect(childColumn).toHaveValue("2 / span 2");
-  await childColumn.fill("1 / span 3");
-  await childColumn.blur();
+
+  const startSelect = page.locator('[data-test="layout-grid-child-column-start"]');
+  await expect(startSelect).toContainText("2");
+  await expect(page.locator('[data-test="layout-grid-child-column-span-value"]')).toHaveValue("2");
+
+  await startSelect.click();
+  await page.locator('.select__item:visible[data-value="1"]').click();
   await expect.poll(async () => sheetText(page), { timeout: 5000 })
-    .toContain("grid-column: 1 / span 3");
+    .toContain("grid-column-start: 1;");
+
+  await page.locator('[data-test="layout-grid-child-column-span-increment"]').click();
+  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("grid-column-end: span 3;");
   await expect.poll(async () => computedPropOn(page, "grid-child-span", "grid-column"), { timeout: 5000 })
     .toContain("1 / span 3");
+
+  await page.locator('[data-test="layout-grid-child-action-full-width"]').click();
+  await expect(page.locator('[data-test="layout-grid-child-action-full-width"]')).toHaveAttribute("data-active", "true");
+  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("grid-column: 1 / -1;");
+  await expect.poll(async () => computedPropOn(page, "grid-child-span", "grid-column"), { timeout: 5000 })
+    .toContain("1 / -1");
+
+  await page.locator('[data-test="layout-grid-child-select-justify-self"]').click();
+  await page.locator('.select__item:visible[data-value="center"]').click();
+  await expect.poll(async () => sheetText(page), { timeout: 5000 })
+    .toContain("justify-self: center;");
+  await expect.poll(async () => computedPropOn(page, "grid-child-span", "justify-self"), { timeout: 5000 })
+    .toContain("center");
 });
 
 test("dev: Grid is selectable from the Layout display dropdown", async ({ page }) => {
