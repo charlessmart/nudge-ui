@@ -21,15 +21,6 @@ export interface GridAxisPlacement {
    * end side is auto, a negative line, or not derivable.
    */
   span: number | null;
-  /** True when the end side is a negative line (e.g. -1), i.e. "to the last line". */
-  toLast: boolean;
-}
-
-export interface GridChildQuickActionState {
-  fullWidth: boolean;
-  fullHeight: boolean;
-  centered: boolean;
-  filled: boolean;
 }
 
 const LINE_NUMBER = /^-?\d+$/;
@@ -64,24 +55,18 @@ export function readGridAxisPlacement(el: HTMLElement, axis: GridAxis): GridAxis
   const endToken = normalizeToken(end.authored ?? end.computed);
 
   let span: number | null = null;
-  let toLast = false;
   const spanToken = parseSpanToken(endToken);
   if (spanToken !== null) {
     span = spanToken;
   } else if (isLineNumber(endToken)) {
     const endLine = Number(endToken);
-    // Only -1 names the last track line; -2 and beyond are earlier lines
-    // whose resolution depends on the track count, so they are neither a
-    // simple span nor "to last".
-    if (endLine === -1) {
-      toLast = true;
-    } else if (endLine >= 1 && isLineNumber(startToken)) {
+    if (endLine >= 1 && isLineNumber(startToken)) {
       const derived = endLine - Number(startToken);
       if (derived >= 1) span = derived;
     }
   }
 
-  return { start: startToken, span, toLast };
+  return { start: startToken, span };
 }
 
 /**
@@ -152,44 +137,6 @@ export function commitGridChildAlignment(
   const property = axis === "h" ? "justify-self" : "align-self";
   const record = setStyle(el, property, alignment);
   return record ? [record] : [];
-}
-
-export type GridChildQuickAction = "full-width" | "full-height" | "center" | "fill";
-
-/** One-click placement/alignment presets committed as managed declarations. */
-export function commitGridChildQuickAction(
-  el: HTMLElement,
-  action: GridChildQuickAction,
-): ChangeRecord[] {
-  switch (action) {
-    case "full-width":
-      return setStyles(el, [{ property: "grid-column", value: "1 / -1" }]);
-    case "full-height":
-      return setStyles(el, [{ property: "grid-row", value: "1 / -1" }]);
-    case "center":
-      return setStyles(el, [
-        { property: "justify-self", value: "center" },
-        { property: "align-self", value: "center" },
-      ]);
-    case "fill":
-      return setStyles(el, [
-        { property: "justify-self", value: "stretch" },
-        { property: "align-self", value: "stretch" },
-      ]);
-  }
-}
-
-export function readGridChildQuickActionState(el: HTMLElement): GridChildQuickActionState {
-  const column = readGridAxisPlacement(el, "column");
-  const row = readGridAxisPlacement(el, "row");
-  const horizontal = readGridChildAlignment(el, "h");
-  const vertical = readGridChildAlignment(el, "v");
-  return {
-    fullWidth: column.toLast && column.start === "1",
-    fullHeight: row.toLast && row.start === "1",
-    centered: horizontal === "center" && vertical === "center",
-    filled: horizontal === "stretch" && vertical === "stretch",
-  };
 }
 
 /**

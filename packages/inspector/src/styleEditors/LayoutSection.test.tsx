@@ -380,13 +380,13 @@ describe("LayoutSection", () => {
 
     expect(handle.host.querySelector('[data-test="layout-grid-container"]')).toBeFalsy();
     expect(handle.host.querySelector('[data-test="layout-grid-child"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-grid-child-column-start"]')?.textContent).toContain("2");
-    expect((handle.host.querySelector('[data-test="layout-grid-child-column-span-value"]') as HTMLInputElement)?.value).toBe("2");
+    expect((handle.host.querySelector('[data-test="layout-grid-child-column-start"]') as HTMLInputElement)?.value).toBe("2");
     expect(handle.host.querySelector('[data-test="layout-grid-child-row-start"]')).toBeTruthy();
-    expect(handle.host.querySelector('[data-test="layout-grid-child-row-span"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-grid-child-select-justify-self"]')).toBeTruthy();
     expect(handle.host.querySelector('[data-test="layout-grid-child-select-align-self"]')).toBeTruthy();
-    expect(handle.host.querySelectorAll('[data-test^="layout-grid-child-action-"]')).toHaveLength(4);
+    expect(handle.host.querySelector('[data-test="layout-grid-child-fields"]')?.children).toHaveLength(4);
+    expect(handle.host.querySelector('[data-test="layout-grid-child-settings"]')).toBeFalsy();
+    expect(handle.host.querySelectorAll('[data-test^="layout-grid-child-action-"]')).toHaveLength(0);
     expect(handle.host.querySelector('[data-test="layout-grid-child"]')?.textContent).not.toContain("Computed preview");
   });
 

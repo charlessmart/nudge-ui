@@ -149,47 +149,38 @@
   gap: var(--space-8);
 }
 
-.layout__grid-child-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-}
-
-.layout__grid-child-axis {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.layout__grid-child-axis .select {
-  flex: 1;
-  min-width: 0;
-}
-
-.layout__grid-child-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.layout__grid-child-actions .button {
-  flex: 1;
-  min-width: 0;
-}
-
-.layout__grid-child-alignment {
+.layout__grid-child-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "column row"
+    "vertical horizontal";
   gap: 6px;
 }
 
-.layout__grid-child-advanced {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.layout__grid-child-fields .field-row,
+.layout__grid-child-fields .control-surface,
+.layout__grid-child-fields .segmented-control {
   min-width: 0;
+}
+
+.layout__grid-child-placement--column { grid-area: column; }
+.layout__grid-child-placement--row { grid-area: row; }
+.layout__grid-child-alignment--h { grid-area: horizontal; }
+.layout__grid-child-alignment--v { grid-area: vertical; }
+
+.layout__grid-child-placement .control-surface,
+.layout__grid-child-alignment-control {
+  width: 100%;
+}
+
+.layout__grid-child-placement-icon {
+  flex: 0 0 var(--icon-size-small);
+  color: var(--text-secondary);
+}
+
+.layout__grid-child-align-icon--horizontal {
+  transform: rotate(90deg);
 }
 
 .layout__grid-alignment {

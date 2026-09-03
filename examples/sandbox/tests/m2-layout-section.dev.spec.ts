@@ -540,30 +540,18 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
   await waitForEditors(page);
   await expect(page.locator('[data-test="layout-grid-child"]')).toBeVisible();
 
-  const startSelect = page.locator('[data-test="layout-grid-child-column-start"]');
-  await expect(startSelect).toContainText("2");
-  await expect(page.locator('[data-test="layout-grid-child-column-span-value"]')).toHaveValue("2");
+  const startInput = page.locator('[data-test="layout-grid-child-column-start"]');
+  await expect(startInput).toHaveValue("2");
+  await expect(page.locator('[data-test="layout-grid-child-fields"] > .field-row')).toHaveCount(4);
+  await expect(page.locator('[data-test="layout-grid-child-settings"]')).toHaveCount(0);
+  await expect(page.locator('[data-test^="layout-grid-child-action-"]')).toHaveCount(0);
 
-  await startSelect.click();
-  await page.locator('.select__item:visible[data-value="1"]').click();
+  await startInput.fill("1");
+  await startInput.blur();
   await expect.poll(async () => sheetText(page), { timeout: 5000 })
     .toContain("grid-column-start: 1;");
 
-  await page.locator('[data-test="layout-grid-child-column-span-increment"]').click();
-  await expect.poll(async () => sheetText(page), { timeout: 5000 })
-    .toContain("grid-column-end: span 3;");
-  await expect.poll(async () => computedPropOn(page, "grid-child-span", "grid-column"), { timeout: 5000 })
-    .toContain("1 / span 3");
-
-  await page.locator('[data-test="layout-grid-child-action-full-width"]').click();
-  await expect(page.locator('[data-test="layout-grid-child-action-full-width"]')).toHaveAttribute("data-active", "true");
-  await expect.poll(async () => sheetText(page), { timeout: 5000 })
-    .toContain("grid-column: 1 / -1;");
-  await expect.poll(async () => computedPropOn(page, "grid-child-span", "grid-column"), { timeout: 5000 })
-    .toContain("1 / -1");
-
-  await page.locator('[data-test="layout-grid-child-select-justify-self"]').click();
-  await page.locator('.select__item:visible[data-value="center"]').click();
+  await page.locator('[data-test="layout-grid-child-align-h-center"]').click();
   await expect.poll(async () => sheetText(page), { timeout: 5000 })
     .toContain("justify-self: center;");
   await expect.poll(async () => computedPropOn(page, "grid-child-span", "justify-self"), { timeout: 5000 })

@@ -3,12 +3,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   commitGridAxisPlacement,
   commitGridChildAlignment,
-  commitGridChildQuickAction,
   parentTrackCount,
   parseSpanToken,
   readGridAxisPlacement,
   readGridChildAlignment,
-  readGridChildQuickActionState,
   startLineOptions,
 } from "./gridChildModel.ts";
 import { resetPendingRules } from "../tokens/editActions.ts";
@@ -55,7 +53,7 @@ describe("gridChildModel", () => {
         "grid-column-end": "auto",
       });
 
-      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "auto", span: null, toLast: false });
+      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "auto", span: null });
     });
 
     it("derives the span from a span end token", () => {
@@ -65,7 +63,7 @@ describe("gridChildModel", () => {
         "grid-column-end": "span 2",
       });
 
-      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "2", span: 2, toLast: false });
+      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "2", span: 2 });
     });
 
     it("derives the span from definite start and end lines", () => {
@@ -75,27 +73,27 @@ describe("gridChildModel", () => {
         "grid-column-end": "4",
       });
 
-      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "2", span: 2, toLast: false });
+      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "2", span: 2 });
     });
 
-    it("marks only the last line (-1) as to-last", () => {
+    it("does not derive a span from a negative end line", () => {
       const { el } = makeSelected();
       mockComputedStyle({
         "grid-column-start": "1",
         "grid-column-end": "-1",
       });
 
-      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "1", span: null, toLast: true });
+      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "1", span: null });
     });
 
-    it("treats earlier negative end lines as neither span nor to-last", () => {
+    it("does not derive a span from an earlier negative end line", () => {
       const { el } = makeSelected();
       mockComputedStyle({
         "grid-column-start": "1",
         "grid-column-end": "-2",
       });
 
-      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "1", span: null, toLast: false });
+      expect(readGridAxisPlacement(el, "column")).toEqual({ start: "1", span: null });
     });
 
     it("keeps named line tokens as-authored", () => {
@@ -105,14 +103,14 @@ describe("gridChildModel", () => {
         "grid-row-end": "span 2",
       });
 
-      expect(readGridAxisPlacement(el, "row")).toEqual({ start: "sidebar", span: 2, toLast: false });
+      expect(readGridAxisPlacement(el, "row")).toEqual({ start: "sidebar", span: 2 });
     });
 
     it("treats an empty computed readout as auto", () => {
       const { el } = makeSelected();
       mockComputedStyle({});
 
-      expect(readGridAxisPlacement(el, "row")).toEqual({ start: "auto", span: null, toLast: false });
+      expect(readGridAxisPlacement(el, "row")).toEqual({ start: "auto", span: null });
     });
   });
 
@@ -230,77 +228,6 @@ describe("gridChildModel", () => {
       commitGridChildAlignment(el, "v", "auto");
 
       expect(sheetText()).toContain("align-self: auto;");
-    });
-  });
-
-  describe("commitGridChildQuickAction", () => {
-    it("full width commits the column shorthand spanning all tracks", () => {
-      const { el } = makeSelected();
-      mockComputedStyle({});
-
-      commitGridChildQuickAction(el, "full-width");
-
-      expect(sheetText()).toContain("grid-column: 1 / -1;");
-    });
-
-    it("full height commits the row shorthand spanning all tracks", () => {
-      const { el } = makeSelected();
-      mockComputedStyle({});
-
-      commitGridChildQuickAction(el, "full-height");
-
-      expect(sheetText()).toContain("grid-row: 1 / -1;");
-    });
-
-    it("center commits both self-alignments", () => {
-      const { el } = makeSelected();
-      mockComputedStyle({});
-
-      commitGridChildQuickAction(el, "center");
-
-      expect(sheetText()).toContain("justify-self: center;");
-      expect(sheetText()).toContain("align-self: center;");
-    });
-
-    it("fill commits stretch on both axes", () => {
-      const { el } = makeSelected();
-      mockComputedStyle({});
-
-      commitGridChildQuickAction(el, "fill");
-
-      expect(sheetText()).toContain("justify-self: stretch;");
-      expect(sheetText()).toContain("align-self: stretch;");
-    });
-  });
-
-  describe("readGridChildQuickActionState", () => {
-    it("detects full width, centered, and filled states", () => {
-      const { el } = makeSelected();
-      mockComputedStyle({
-        "grid-column-start": "1",
-        "grid-column-end": "-1",
-        "grid-row-start": "auto",
-        "grid-row-end": "auto",
-        "justify-self": "center",
-        "align-self": "center",
-      });
-
-      expect(readGridChildQuickActionState(el)).toEqual({
-        fullWidth: true,
-        fullHeight: false,
-        centered: true,
-        filled: false,
-      });
-    });
-
-    it("does not treat flow-placed items as full width", () => {
-      const { el } = makeSelected();
-      mockComputedStyle({
-        "grid-column-start": "auto",
-        "grid-column-end": "-1",
-      });
-
-      expect(readGridChildQuickActionState(el).fullWidth).toBe(false);
     });
   });
 
