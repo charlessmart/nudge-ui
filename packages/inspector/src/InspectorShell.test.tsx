@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { mountInspector, unmountInspector } from "./index.ts";
-import { setSelectedElement } from "./selectionStore.ts";
+import { getSelectedElement, setSelectedElement } from "./selectionStore.ts";
 import * as selectionResolver from "./resolveSelection.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { acquireLease, releaseLease } from "./canvas/workspaceLease.ts";
@@ -384,6 +384,33 @@ describe("InspectorShell", () => {
       setSelectedElement(null);
       selected.remove();
     });
+  });
+
+  it("clears the selected element on Escape", () => {
+    const selected = document.createElement("div");
+    selected.setAttribute("data-cid", "Selected");
+    selected.setAttribute("data-src", "src/Selected.tsx:1:1");
+    document.body.append(selected);
+
+    try {
+      act(() => {
+        setSelectedElement(resolveSelectionFromElement(selected));
+        mountInspector(host);
+      });
+      expect(getSelectedElement()?.domElement).toBe(selected);
+
+      let event: KeyboardEvent;
+      act(() => {
+        event = pressKey({ key: "Escape" });
+      });
+
+      expect(getSelectedElement()).toBeNull();
+      expect(host.shadowRoot?.querySelector('[data-test="empty-state"]')).not.toBeNull();
+      expect(event!.defaultPrevented).toBe(true);
+    } finally {
+      setSelectedElement(null);
+      selected.remove();
+    }
   });
 
   it("reserves the panel width while open and releases it when hidden", () => {

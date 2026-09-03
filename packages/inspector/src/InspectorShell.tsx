@@ -186,6 +186,11 @@ export function InspectorShell(): ReactElement {
       }
 
       if (!selected || editable) return;
+      if (event.key === "Escape" || event.key === "Esc") {
+        event.preventDefault();
+        setSelectedElement(null);
+        return;
+      }
       // macOS labels the physical Backspace key as Delete, while browsers
       // report it as "Backspace". Support both without stealing text edits.
       if (event.key === "Delete" || event.key === "Backspace") {
