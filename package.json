@@ -7,18 +7,18 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CharlesSmartEnv/design-tool.git"
+    "url": "git+https://github.com/charlessmart/nudge-ui.git"
   },
   "bugs": {
-    "url": "https://github.com/CharlesSmartEnv/design-tool/issues"
+    "url": "https://github.com/charlessmart/nudge-ui/issues"
   },
-  "homepage": "https://github.com/CharlesSmartEnv/design-tool#readme",
+  "homepage": "https://github.com/charlessmart/nudge-ui#readme",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "lint": "eslint packages examples --ext .ts,.tsx",
     "lint:oxlint": "oxlint packages examples",
     "typecheck": "pnpm -r typecheck",
-    "test:anti-slop": "vitest run tools/oxlint/anti-slop",
+    "test:anti-slop": "vitest run tools/anti-slop",
     "test:unit": "pnpm -r test:unit",
     "test:e2e": "pnpm --filter sandbox test:e2e && pnpm --filter sandbox-tailwind-v4 test:e2e && pnpm --filter sandbox-tailwind-v3 test:e2e && pnpm --filter sandbox-sprinkles test:e2e && pnpm --filter standalone-html test:e2e && pnpm --filter sandbox-next test:e2e && pnpm --filter sandbox-astro test:purity && pnpm --filter sandbox-astro test:e2e",
     "test:e2e:standalone": "pnpm --filter standalone-html test:e2e",

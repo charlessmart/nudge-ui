@@ -73,7 +73,7 @@ output, and source maps.
 - `docs/qa/tools/` — the cross-host browser-QA battery. It writes JSON issue
   reports to `docs/qa/` and generates local screenshots under the ignored
   `docs/qa/screenshots/` directory.
-- `tools/oxlint/anti-slop/` — the custom Oxlint plugin and its tests.
+- `tools/anti-slop/` — the custom Oxlint plugin and its tests.
 
 ## Commands and verification
 

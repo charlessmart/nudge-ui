@@ -5,13 +5,13 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CharlesSmartEnv/design-tool.git",
+    "url": "git+https://github.com/charlessmart/nudge-ui.git",
     "directory": "packages/nextjs"
   },
   "bugs": {
-    "url": "https://github.com/CharlesSmartEnv/design-tool/issues"
+    "url": "https://github.com/charlessmart/nudge-ui/issues"
   },
-  "homepage": "https://github.com/CharlesSmartEnv/design-tool#readme",
+  "homepage": "https://github.com/charlessmart/nudge-ui#readme",
   "type": "module",
   "files": [
     "dist"

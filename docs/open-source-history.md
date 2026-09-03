@@ -13,8 +13,8 @@ mirror outside the checkout, and run the helper against that mirror:
 
 ```sh
 brew install git-filter-repo
-git clone --mirror <repository-url> /private/tmp/design-tool-history
-scripts/sanitize-history.sh /private/tmp/design-tool-history
+git clone --mirror <repository-url> /private/tmp/nudge-ui-history
+scripts/sanitize-history.sh /private/tmp/nudge-ui-history
 ```
 
 The helper refuses the checkout, shared Git directories, dirty worktrees, and
@@ -29,7 +29,7 @@ recloned (or deliberately reset after coordination). A mirror push is
 destructive, for example:
 
 ```sh
-git -C /private/tmp/design-tool-history push --force --mirror <remote>
+git -C /private/tmp/nudge-ui-history push --force --mirror <remote>
 ```
 
 If the remote rejects the update because branch or tag protection is enabled,
