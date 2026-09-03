@@ -2,6 +2,7 @@ import type { TokenDefinition, TokenEntry } from "@nudge-ui/css/model";
 import { getChangesList, getPendingRules, isPreviewableChange } from "./changesLog.ts";
 import { detectFramework } from "./prompt/detectFramework.ts";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
+import { loadCustomInstructions } from "./prompt/promptSettings.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { projectInspectorValues } from "./spacing/projection.ts";
 import type { InspectorProjection } from "./spacing/projection.ts";
@@ -140,6 +141,7 @@ export function inspectElement(
   const properties: ResolvedProperty[] = [...browserFacts.element.properties];
   const selection = resolveSelectionFromElement(element);
   const changes = getChangesList();
+  const customInstructions = loadCustomInstructions(runtimeConfig.projectId);
   const managedPreview = {
     rules: getPendingRules(),
     results: changes.flatMap((change) =>
@@ -180,7 +182,7 @@ export function inspectElement(
     changes,
     managedPreview,
     prompt: changes.length > 0
-      ? generatePrompt(changes, frameworkHints)
+      ? generatePrompt(changes, frameworkHints, [], customInstructions)
       : null,
   };
 }

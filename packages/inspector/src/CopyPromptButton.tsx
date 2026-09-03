@@ -1,11 +1,21 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { IconChevronDown, IconClipboardCheck, IconPlugConnected, IconSend } from "@tabler/icons-react";
+import {
+  IconChevronDown,
+  IconClipboardCheck,
+  IconExternalLink,
+  IconPlugConnected,
+  IconSend,
+  IconSettings,
+} from "@tabler/icons-react";
 import { useChanges } from "./changesLog.ts";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { copyToClipboard } from "./prompt/copyToClipboard.ts";
+import { loadCustomInstructions, saveCustomInstructions } from "./prompt/promptSettings.ts";
+import { PromptSettingsDialog } from "./prompt/PromptSettingsDialog.tsx";
 import { Button } from "./ui/Button.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
+import { InspectorPopover } from "./ui/InspectorPopover.tsx";
 import { getStructuralChanges, subscribeStructuralChanges } from "./structuralProjection.ts";
 import { getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 import {
@@ -26,6 +36,8 @@ import {
   subscribeClipboardHandoff,
 } from "./prompt/clipboardHandoff.ts";
 
+const MCP_SETUP_URL = "https://github.com/charlessmart/nudge-ui#connect-a-coding-agent";
+
 export function CopyPromptButton(): ReactElement {
   const changes = useChanges();
   const structuralChanges = useSyncExternalStore(
@@ -40,13 +52,22 @@ export function CopyPromptButton(): ReactElement {
   );
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [promptSettingsOpen, setPromptSettingsOpen] = useState(false);
   const runtimeConfig = getNudgeUiRuntimeConfig();
+  const [customInstructions, setCustomInstructions] = useState(() =>
+    loadCustomInstructions(runtimeConfig.projectId),
+  );
   const agentClient = useMemo(
     () => getAgentClient(runtimeConfig.projectId, { origin: window.location.origin }),
     [runtimeConfig.projectId],
   );
   const agent = useAgentClient(runtimeConfig.projectId, agentClient);
   const hasChanges = changes.length + structuralChanges.length > 0;
+
+  useEffect(() => {
+    setCustomInstructions(loadCustomInstructions(runtimeConfig.projectId));
+  }, [runtimeConfig.projectId]);
 
   useEffect(() => {
     const canvas = createAgentPresentationAdapter({
@@ -106,7 +127,7 @@ export function CopyPromptButton(): ReactElement {
       framework: runtimeConfig.framework,
       stylingSystem: runtimeConfig.stylingSystem,
     };
-    const text = generatePrompt(changes, hints, structuralChanges);
+    const text = generatePrompt(changes, hints, structuralChanges, customInstructions);
     if (canSend) {
       const revision = createPromptRevision(changes, structuralChanges);
       recordAgentDispatch(revision, changes, structuralChanges);
@@ -121,6 +142,16 @@ export function CopyPromptButton(): ReactElement {
     recordClipboardHandoff(changes, structuralChanges);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
+  }
+
+  function handleCustomInstructionsChange(value: string): void {
+    setCustomInstructions(value);
+    saveCustomInstructions(runtimeConfig.projectId, value);
+  }
+
+  function openPromptSettings(): void {
+    setMenuOpen(false);
+    setPromptSettingsOpen(true);
   }
 
   return (
@@ -141,18 +172,52 @@ export function CopyPromptButton(): ReactElement {
           {icon}
           {label}
         </Button>
-        <IconButton
-          variant="primary"
-          className="copy-prompt__menu"
-          label="Copy prompt options"
-          title="Copy prompt options"
+        <InspectorPopover
           data-test="copy-prompt-menu"
-          type="button"
-          disabled={!hasChanges || working || connecting}
-          aria-haspopup="menu"
+          align="end"
+          triggerElement={(
+            <IconButton
+              variant="primary"
+              className="copy-prompt__menu"
+              label="Copy prompt options"
+              title="Copy prompt options"
+              data-test="copy-prompt-menu"
+              type="button"
+              disabled={working || connecting}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              <IconChevronDown size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+            </IconButton>
+          )}
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
         >
-          <IconChevronDown size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-        </IconButton>
+          <div className="copy-prompt__options" role="menu" aria-label="Prompt options" data-test="copy-prompt-menu-content">
+            <button
+              className="copy-prompt__option"
+              data-test="prompt-settings-option"
+              role="menuitem"
+              type="button"
+              onClick={openPromptSettings}
+            >
+              <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+              <span>Custom instructions</span>
+            </button>
+            <a
+              className="copy-prompt__option"
+              data-test="mcp-setup-option"
+              href={MCP_SETUP_URL}
+              role="menuitem"
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setMenuOpen(false)}
+            >
+              <IconExternalLink size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+              <span>Set up MCP</span>
+            </a>
+          </div>
+        </InspectorPopover>
       </div>
       {listenerHint ? (
         <p className="copy-prompt__hint" data-test="agent-listener-hint" role="status">
@@ -164,6 +229,12 @@ export function CopyPromptButton(): ReactElement {
           Removed {reconciledCount} implemented {reconciledCount === 1 ? "change" : "changes"} from the next prompt.
         </p>
       ) : null}
+      <PromptSettingsDialog
+        open={promptSettingsOpen}
+        value={customInstructions}
+        onChange={handleCustomInstructionsChange}
+        onOpenChange={setPromptSettingsOpen}
+      />
     </div>
   );
 }

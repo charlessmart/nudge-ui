@@ -175,4 +175,26 @@ describe("CopyPromptButton agent handoff", () => {
       structuralChanges: [],
     });
   });
+
+  it("opens prompt options from the chevron without requiring pending changes", async () => {
+    const transport = new ButtonTransport();
+    transport.discoveredStatus = listeningStatus({ connection: "offline", listenerActive: false });
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+
+    const menuButton = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt-menu"]')!;
+    expect(menuButton.disabled).toBe(false);
+    expect(menuButton.hasAttribute("data-active")).toBe(false);
+    act(() => { menuButton.click(); });
+
+    const menu = document.querySelector<HTMLElement>('[data-test="copy-prompt-menu-content"]');
+    expect(menu?.getAttribute("role")).toBe("menu");
+    expect(menu?.textContent).toContain("Custom instructions");
+    expect(menu?.textContent).toContain("Set up MCP");
+    expect(document.querySelector<HTMLAnchorElement>('[data-test="mcp-setup-option"]')?.href)
+      .toBe("https://github.com/charlessmart/nudge-ui#connect-a-coding-agent");
+
+    act(() => { menuButton.click(); });
+  });
 });

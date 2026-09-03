@@ -22,6 +22,7 @@ import {
   normalizeRuntimeText,
 } from "../staticHtmlRuntimeIdentity.ts";
 import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runtimeConfig.ts";
+import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
 
 export interface FrameworkHints {
   framework?: string;
@@ -47,17 +48,23 @@ interface PromptSection {
   lines: string[];
 }
 
-function renderPrompt(sections: PromptSection[]): string {
+function renderPrompt(
+  sections: PromptSection[],
+  customInstructions: string,
+): string {
   const lines = [
     "# Requested design changes",
-    "",
-    "Implementation guidance: Preserve existing tokens, logical properties, and CSS intent while applying these rendered changes.",
   ];
 
   for (const section of sections) {
     const content = [...section.lines];
     while (content.at(-1) === "") content.pop();
     lines.push("", `## ${section.heading}`, "", ...content);
+  }
+
+  const instructions = customInstructions.trim();
+  if (instructions) {
+    lines.push("", "## Custom instructions", "", instructions);
   }
 
   return lines.join("\n");
@@ -370,6 +377,7 @@ export function generatePrompt(
   changes: ChangeRecord[],
   frameworkHints?: FrameworkHints,
   structuralChanges: readonly StructuralChange[] = [],
+  customInstructions: string = DEFAULT_CUSTOM_INSTRUCTIONS,
 ): string {
   const deduplicated = canonicalizeChanges(changes);
   const structuralIntent = canonicalizeStructuralChanges(structuralChanges);
@@ -456,5 +464,5 @@ export function generatePrompt(
     });
   }
 
-  return renderPrompt(sections);
+  return renderPrompt(sections, customInstructions);
 }

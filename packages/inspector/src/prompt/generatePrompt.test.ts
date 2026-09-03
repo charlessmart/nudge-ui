@@ -6,6 +6,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { StructuralChange } from "../structuralProjection.ts";
 import { configureNudgeUiRuntime } from "../runtimeConfig.ts";
+import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
 
 const SURFACE_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:1" };
 const SURFACE_SUNKEN: TokenEntry = { name: "--color-surface-sunken", value: "#f5f5f5", source: "styles.css:2" };
@@ -71,6 +72,22 @@ function configureDefaultHost(): void {
 afterEach(configureDefaultHost);
 
 describe("generatePrompt", () => {
+  it("appends the default custom instructions after the requested changes", () => {
+    const out = generatePrompt([makeComponentChange()]);
+
+    expect(out).toContain(`## Custom instructions\n\n${DEFAULT_CUSTOM_INSTRUCTIONS}`);
+    expect(out.indexOf("## Custom instructions")).toBeGreaterThan(out.indexOf("## Component prop changes"));
+  });
+
+  it("appends supplied custom instructions and allows them to be cleared", () => {
+    const custom = "Use the project's existing component patterns.\nKeep the implementation concise.";
+    const out = generatePrompt([makeComponentChange()], undefined, [], custom);
+
+    expect(out).toContain(`## Custom instructions\n\n${custom}`);
+    expect(out).not.toContain(DEFAULT_CUSTOM_INSTRUCTIONS);
+    expect(generatePrompt([makeComponentChange()], undefined, [], "")).not.toContain("## Custom instructions");
+  });
+
   it("renders semantic component prop intent at the invocation callsite", () => {
     const change = makeComponentChange();
     const out = generatePrompt([change]);

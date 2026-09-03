@@ -161,6 +161,35 @@ test.describe("clipboard permissions", () => {
     await expect.poll(async () => copyDisabled(page), { timeout: 5000 }).toBe(true);
   });
 
+  test("dev: prompt settings customize the copied prompt", async ({ page }) => {
+    await page.goto("/playground");
+
+    const menuButton = page.locator('[data-test="copy-prompt-menu"]');
+    await expect(menuButton).toBeEnabled();
+    await menuButton.click();
+    await page.locator('[data-test="prompt-settings-option"]').click();
+
+    const dialog = page.locator('[data-test="prompt-settings-dialog"]');
+    await expect(dialog).toBeVisible();
+    const instructions = page.locator('[data-test="prompt-custom-instructions"]');
+    await expect(instructions).toHaveValue(/Preserve existing tokens, logical properties/);
+    await instructions.fill("Use the project's existing component patterns.");
+    await page.locator('[data-test="prompt-settings-done"]').click();
+    await expect(dialog).toHaveCount(0);
+
+    await page.click("text=Save");
+    await waitForRow(page);
+    await waitForEditors(page);
+    await selectBackground(page, "--color-surface-sunken");
+    await expect.poll(async () => copyDisabled(page), { timeout: 5000 }).toBe(false);
+
+    await page.locator('[data-test="copy-prompt"]').click();
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()), { timeout: 5000 })
+      .toContain("Use the project's existing component patterns.");
+    const prompt = await page.evaluate(() => navigator.clipboard.readText());
+    expect(prompt).not.toContain("Preserve existing tokens, logical properties");
+  });
+
   test("dev: copy prompt exports only the final destination after repeated moves", async ({ page }) => {
     await page.goto("/playground");
     const item = page.locator('[data-test="flex-child-a"]');

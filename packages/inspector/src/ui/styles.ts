@@ -30,6 +30,7 @@ import tokensPanelStyles from "../tokens/TokensPanel.css?inline";
 import changesLogStyles from "../ChangesLog.css?inline";
 import inspectorOverlayStyles from "../InspectorOverlay.css?inline";
 import domNavigationStyles from "../DomNavigation.css?inline";
+import promptSettingsStyles from "../prompt/PromptSettingsDialog.css?inline";
 
 export const UI_STYLES = [
   foundationStyles,
@@ -64,4 +65,5 @@ export const UI_STYLES = [
   changesLogStyles,
   inspectorOverlayStyles,
   domNavigationStyles,
+  promptSettingsStyles,
 ].join("\n");
