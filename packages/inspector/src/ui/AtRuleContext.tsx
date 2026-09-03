@@ -74,7 +74,7 @@ export function AtRuleIndicator({ atRules = EMPTY_AT_RULES, className }: AtRuleI
           data-test="at-rule-indicator"
           aria-label={activeCount > 0 ? `Active ${label.toLowerCase()}` : `${label}s`}
         >
-          <span className="at-rule-indicator__symbol" aria-hidden="true">@</span>
+          <span className="at-rule-indicator__symbol" aria-hidden="true" />
         </Tooltip.Trigger>
         <Tooltip.Portal container={portalContainer()}>
           <Tooltip.Positioner className="at-rule-tooltip-positioner" side="top" align="end" sideOffset={7}>

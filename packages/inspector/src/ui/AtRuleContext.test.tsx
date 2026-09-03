@@ -42,7 +42,8 @@ describe("AtRuleIndicator", () => {
     );
 
     const indicator = handle.host.querySelector('[data-test="at-rule-indicator"]');
-    expect(indicator?.textContent).toBe("@");
+    expect(indicator?.textContent).toBe("");
+    expect(indicator?.querySelector(".at-rule-indicator__symbol")).not.toBeNull();
     expect(indicator?.getAttribute("aria-label")).toBe("Active media query");
   });
 
