@@ -17,6 +17,7 @@ import inspectorPopoverStyles from "./InspectorPopover.css?inline";
 import breadcrumbStyles from "./Breadcrumb.css?inline";
 import sideValuesFieldStyles from "./SideValuesField.css?inline";
 import inspectorShellStyles from "../InspectorShell.css?inline";
+import emptyStateStyles from "../EmptyState.css?inline";
 import styleEditorStyles from "../styleEditors/StyleEditor.css?inline";
 import borderEditorStyles from "../styleEditors/BorderEditor.css?inline";
 import typographyStyles from "../styleEditors/Typography.css?inline";
@@ -52,6 +53,7 @@ export const UI_STYLES = [
   breadcrumbStyles,
   sideValuesFieldStyles,
   inspectorShellStyles,
+  emptyStateStyles,
   styleEditorStyles,
   borderEditorStyles,
   typographyStyles,

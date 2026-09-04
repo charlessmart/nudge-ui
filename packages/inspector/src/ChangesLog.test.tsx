@@ -36,8 +36,7 @@ describe("ChangesLog", () => {
       root.render(<ChangesLog />);
     });
 
-    expect(container.querySelector("details")?.hasAttribute("open")).toBe(false);
-    expect(container.querySelector('[data-test="changes-toggle"]')).not.toBeNull();
+    expect(container.querySelector('[data-test="changes-log"]')).toBeNull();
 
     act(() => {
       appendChange({
@@ -70,6 +69,17 @@ describe("ChangesLog", () => {
     const onClearSession = () => undefined;
 
     act(() => {
+      appendChange({
+        cid: "Button",
+        file: "src/Button.tsx",
+        line: 1,
+        selector: '[data-cid="Button"]',
+        property: "color",
+        oldToken: null,
+        newToken: null,
+        rawValue: "red",
+        source: { file: "src/Button.tsx", line: 1, component: "Button" },
+      });
       root = createRoot(container);
       root.render(<ChangesLog onClearSession={onClearSession} />);
     });

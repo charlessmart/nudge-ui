@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { IconArtboard, IconColorSwatch, IconLayoutSidebarRight } from "@tabler/icons-react";
+import { IconArrowUpRight, IconColorSwatch, IconLayoutSidebarRight } from "@tabler/icons-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -42,7 +42,7 @@ import type { InteractionState } from "./styleState.ts";
 import { isEditableEvent } from "./shortcuts.ts";
 import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "./ui/labels.ts";
-import { enterCanvas, exitCanvas, exitCanvasToCard, getCanvasCards, getSelectedCardId, useCanvasMode } from "./canvas/canvasStore.ts";
+import { enterCanvas, useCanvasMode } from "./canvas/canvasStore.ts";
 import { getRestoreCount, clearRestoreCount, clearSession } from "./canvas/sessionStore.ts";
 import { getElementWindow } from "./domRealm.ts";
 import { deleteElement, nudgeElement } from "./structuralGestures.ts";
@@ -52,6 +52,7 @@ import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSectio
 import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "./inlineTextEditor.ts";
 import { useNudgeUiRuntimeConfig } from "./useRuntimeConfig.ts";
 import { DomNavigation } from "./DomNavigation.tsx";
+import { EmptyState } from "./EmptyState.tsx";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -237,24 +238,11 @@ export function InspectorShell(): ReactElement {
   }
 
   function handleCanvasModeButton(): void {
-    if (canvasMode !== "canvas") {
-      // Inline text editing is controller-owned. Canvas renderer documents
-      // receive projections only, so dispose the active controller session
-      // before mounting cards rather than probing a stale iframe document.
-      disposeInlineTextEdit("frame-disposed");
-      enterCanvas();
-      return;
-    }
-
-    const selectedCardId = getSelectedCardId();
-    const selectedCard = selectedCardId
-      ? getCanvasCards().find((card) => card.id === selectedCardId)
-      : undefined;
-    if (selectedCard) {
-      exitCanvasToCard(selectedCard);
-    } else {
-      exitCanvas();
-    }
+    // Inline text editing is controller-owned. Canvas renderer documents
+    // receive projections only, so dispose the active controller session
+    // before mounting cards rather than probing a stale iframe document.
+    disposeInlineTextEdit("frame-disposed");
+    enterCanvas();
   }
 
   return (
@@ -292,20 +280,18 @@ export function InspectorShell(): ReactElement {
               >
                 <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               </ToggleButton>
-              {canvasEnabled ? (
+              {canvasEnabled && canvasMode !== "canvas" ? (
                 <>
                   <span className="panel__header-divider" aria-hidden="true" />
                   <Button
                     variant="quiet"
                     className="panel__canvas-button"
                     data-test="mode-canvas"
-                    data-active={canvasMode === "canvas" ? "true" : "false"}
-                    aria-pressed={canvasMode === "canvas"}
                     type="button"
                     onClick={handleCanvasModeButton}
                   >
-                    <IconArtboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-                    {canvasMode === "canvas" ? "Exit canvas" : "View canvas"}
+                    View canvas
+                    <IconArrowUpRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
                   </Button>
                 </>
               ) : null}
@@ -497,9 +483,7 @@ export function InspectorShell(): ReactElement {
               </AtRuleContextProvider>
             </>
           ) : (
-            <div className="empty-state" data-test="empty-state">
-              Select an element to edit
-            </div>
+            <EmptyState />
           )}
           <ChangesLog
             onClearSession={restoreCount > 0 ? () => {
@@ -517,7 +501,7 @@ export function InspectorShell(): ReactElement {
           data-test="show-inspector"
           onClick={() => setInspectorOpen(true)}
         >
-          <IconLayoutSidebarRight size={18} stroke={1.8} aria-hidden="true" />
+          <IconLayoutSidebarRight size={16} stroke={"var(--icon-stroke-width)"} aria-hidden="true" />
         </IconButton>
       ) : null}
     </>

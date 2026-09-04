@@ -1,0 +1,19 @@
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-40) var(--space-0) var(--space-24);
+  min-height: 70dvh;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-state__icon { display: grid; place-items: center; width: var(--space-48); height: var(--space-48); margin-bottom: var(--space-16); border-radius: var(--radius-8); background: var(--surface-raised-2x); color: var(--text-secondary); }
+.empty-state__title { margin: 0; color: var(--text-primary); font-size: var(--font-size-base); font-weight: var(--font-weight-label); }
+.empty-state__shortcuts { width: 100%; margin-top: var(--space-32); padding-top: var(--space-20); text-align: left; }
+.empty-state__shortcut-list { display: grid; gap: var(--space-4); margin: var(--space-0); padding: var(--space-0); list-style: none; }
+.empty-state__shortcut { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--control-height-small); color: var(--text-secondary); }
+.empty-state__shortcut-keys { display: inline-flex; align-items: center; gap: var(--space-4); color: var(--text-muted); }
+.empty-state__shortcut-keys kbd { display: inline-flex; align-items: center; justify-content: center; min-width: var(--control-height-small); height: var(--control-height-small); padding: var(--space-0) var(--space-8); border-radius: var(--radius-4); background: var(--surface-raised-2x); color: var(--text-primary); font-family: var(--font-family); font-size: var(--font-size-small); box-shadow: var(--shadow-control); }
+.empty-state__shortcut-keys > span { color: var(--text-muted-subtle); font-size: var(--font-size-small); }

@@ -94,7 +94,7 @@ function structuralDiagnosticText(diagnostic: StructuralChangeDiagnostic): strin
   return `${diagnostic.document}: ${diagnostic.status}${diagnostic.reason ? ` (${structuralReasonLabel(diagnostic.reason)})` : ""}`;
 }
 
-export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
+export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | null {
   const changes = useChanges();
   const structuralChanges = useSyncExternalStore(
     subscribeStructuralChanges,
@@ -120,6 +120,8 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement {
   );
   const groups = useMemo(() => groupChanges(changes), [changes]);
   const total = changes.length + structuralChanges.length;
+
+  if (total === 0) return null;
 
   return (
     <>

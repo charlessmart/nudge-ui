@@ -5,6 +5,7 @@ import { mountInspector, unmountInspector } from "./index.ts";
 import { getSelectedElement, setSelectedElement } from "./selectionStore.ts";
 import * as selectionResolver from "./resolveSelection.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
+import { appendChange } from "./changesLog.ts";
 import { acquireLease, releaseLease } from "./canvas/workspaceLease.ts";
 import { exitCanvas } from "./canvas/canvasStore.ts";
 import { clearRestoreCount, setRestoreCount } from "./canvas/sessionStore.ts";
@@ -219,9 +220,20 @@ describe("InspectorShell", () => {
     }
   });
 
-  it("keeps session clearing below the changes accordion without restore-count copy", () => {
+  it("keeps session clearing below the changes accordion when changes are present", () => {
     setRestoreCount(7);
     act(() => {
+      appendChange({
+        cid: "Button",
+        file: "src/Button.tsx",
+        line: 1,
+        selector: '[data-cid="Button"]',
+        property: "color",
+        oldToken: null,
+        newToken: null,
+        rawValue: "red",
+        source: { file: "src/Button.tsx", line: 1, component: "Button" },
+      });
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
@@ -247,6 +259,28 @@ describe("InspectorShell", () => {
     expect(shadow.querySelector('[data-test="inspect-tab"]')?.className).toBe("panel__header-row");
   });
 
+  it("shows selection guidance and shortcuts when nothing is selected", () => {
+    act(() => {
+      mountInspector(host);
+    });
+
+    const emptyState = host.shadowRoot?.querySelector('[data-test="empty-state"]');
+    expect(emptyState?.querySelector(".empty-state__title")?.textContent).toBe("Select an element to edit");
+    expect(host.shadowRoot?.querySelector('[data-test="changes-log"]')).toBeNull();
+    const macPlatform = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+    const modifierKey = macPlatform ? "⌘" : "Ctrl";
+    const optionKey = macPlatform ? "⌥" : "Alt";
+    expect([...emptyState?.querySelectorAll<HTMLElement>('[data-test="empty-state-shortcut"]') ?? []].map((row) => row.textContent?.trim())).toEqual([
+      "Nudge↑↓←→",
+      "Big Nudge (8px)Shift+Arrow",
+      `Select deeper${modifierKey}+Click`,
+      `Measure${optionKey}+Hover`,
+      `Hide UI${modifierKey}+\\`,
+      `Undo${modifierKey}+Z`,
+      "DeselectEsc",
+    ]);
+  });
+
   it("uses a single Canvas action and a split copy control in the header", () => {
     act(() => {
       mountInspector(host);
@@ -255,19 +289,17 @@ describe("InspectorShell", () => {
     const canvas = shadow.querySelector('[data-test="mode-canvas"]') as HTMLButtonElement;
 
     expect(canvas.textContent).toContain("View canvas");
-    expect(canvas.dataset.active).toBe("false");
-    expect(canvas.getAttribute("aria-pressed")).toBe("false");
+    expect(canvas.querySelector(".tabler-icon-arrow-up-right")).not.toBeNull();
     expect(shadow.querySelector('[data-test="copy-prompt-control"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="copy-prompt-menu"]')).not.toBeNull();
 
     act(() => canvas.click());
     expect(shadow.querySelector('[data-test="canvas-workspace"]')).not.toBeNull();
-    expect(canvas.textContent).toContain("Exit canvas");
-    expect(canvas.dataset.active).toBe("true");
-    expect(canvas.getAttribute("aria-pressed")).toBe("true");
+    expect(shadow.querySelector('[data-test="mode-canvas"]')).toBeNull();
     act(() => exitCanvas());
-    expect(canvas.dataset.active).toBe("false");
-    expect(canvas.textContent).toContain("View canvas");
+    const canvasAfterExit = shadow.querySelector('[data-test="mode-canvas"]') as HTMLButtonElement;
+    expect(canvasAfterExit.textContent).toContain("View canvas");
+    expect(canvasAfterExit.querySelector(".tabler-icon-arrow-up-right")).not.toBeNull();
   });
 
   it("omits Canvas entry points when the host disables the capability", () => {
