@@ -1,6 +1,6 @@
 import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
-import { nudgeUi } from "../../packages/plugin/src/index.ts";
+import { nudgeUi } from "../packages/plugin/src/index.ts";
 
 export default defineConfig({
   plugins: [react(), nudgeUi({

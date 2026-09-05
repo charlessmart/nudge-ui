@@ -43,9 +43,9 @@ export interface NudgeUiOptions {
   /** Enables experimental DOM parent/child navigation in the Inspector. */
   debug?: boolean;
   /**
-   * Enables the landing app's dual runtime. Development serves the normal
-   * inspector on the parent page; `nudge-demo` builds mount the demo runtime
-   * only for `?nudgeDemo=1`.
+   * Enables the landing app's explicit demo runtime. The landing document
+   * mounts the demo inspector at its root in development and in `nudge-demo`
+   * builds; `?nudgeDemo=1` remains available for explicit demo routes.
    */
   demo?: boolean;
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
@@ -731,19 +731,24 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
           return `export {};\n`;
         }
         if (options.demo === true) {
+          const landingDemoExpression = demoBuild
+            ? "true"
+            : '(import.meta.env.DEV && window.location.pathname === "/")';
           return [
-            'import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework } from "@nudge-ui/inspector";',
+            'import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework, setInspectorOpen } from "@nudge-ui/inspector";',
             'import { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";',
             'import { componentContracts } from "virtual:nudge-ui-components";',
             'const __nudge_ui_demo_frame = new URLSearchParams(window.location.search).get("nudgeDemo") === "1";',
-            'if (__nudge_ui_demo_frame || (import.meta.env.DEV && window.location.pathname !== "/demo")) {',
+            `const __nudge_ui_landing_demo = ${landingDemoExpression};`,
+            'const __nudge_ui_demo_runtime = __nudge_ui_demo_frame || __nudge_ui_landing_demo;',
+            'if (__nudge_ui_demo_runtime || (import.meta.env.DEV && window.location.pathname !== "/demo")) {',
             '  configureNudgeUiRuntime({',
             '    projectId: nudgeUiProjectId,',
             '    host: "vite-react",',
             '    framework: "React",',
             '    stylingSystem: detectFramework(tokens).stylingSystem,',
-            '    ...(__nudge_ui_demo_frame ? { demo: true } : {}),',
-            '    capabilities: { canvas: __nudge_ui_demo_frame ? false : true, componentSemantics: true },',
+            '    ...(__nudge_ui_demo_runtime ? { demo: true } : {}),',
+            '    capabilities: { canvas: __nudge_ui_demo_runtime ? false : true, componentSemantics: true },',
             '    tokenCatalog,',
             '    tokens,',
             '    tokenDiagnostics,',
@@ -751,7 +756,13 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
             '    componentContracts,',
             '  });',
             '  const __dt_root = document.getElementById("nudge-ui-root");',
-            '  if (__dt_root) bootstrapNudgeUi(__dt_root);',
+            '  if (__dt_root) {',
+            '    bootstrapNudgeUi(__dt_root);',
+            '    if (__nudge_ui_demo_runtime) {',
+            '      setInspectorOpen(false);',
+            '      window.addEventListener("nudge-ui:open", () => setInspectorOpen(true));',
+            '    }',
+            '  }',
             '}',
           ].join("\n");
         }
