@@ -15,8 +15,8 @@
   "homepage": "https://github.com/charlessmart/nudge-ui#readme",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "lint": "eslint packages examples --ext .ts,.tsx",
-    "lint:oxlint": "oxlint packages examples",
+    "lint": "eslint packages examples landing --ext .ts,.tsx",
+    "lint:oxlint": "oxlint packages examples landing",
     "typecheck": "pnpm -r typecheck",
     "test:anti-slop": "vitest run tools/anti-slop",
     "test:unit": "pnpm -r test:unit",

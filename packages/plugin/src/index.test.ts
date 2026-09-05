@@ -174,8 +174,12 @@ describe("nudgeUi plugin virtual inspector module", () => {
     plugin.configResolved?.({ root: "/project", command: "build", mode: "nudge-demo" });
     const code = await plugin.load!("\0virtual:nudge-ui-inspector");
     expect(code).toContain('get("nudgeDemo") === "1"');
+    expect(code).toContain("const __nudge_ui_landing_demo = true;");
+    expect(code).toContain("const __nudge_ui_demo_runtime = __nudge_ui_demo_frame || __nudge_ui_landing_demo;");
     expect(code).toContain("demo: true");
-    expect(code).toContain("capabilities: { canvas: __nudge_ui_demo_frame ? false : true, componentSemantics: true }");
+    expect(code).toContain("capabilities: { canvas: __nudge_ui_demo_runtime ? false : true, componentSemantics: true }");
+    expect(code).toContain("setInspectorOpen(false)");
+    expect(code).toContain('window.addEventListener("nudge-ui:open"');
     expect(transformIndexHtmlHtml(SAMPLE_HTML, "build", { demoBuild: true })).not.toBeNull();
   });
 });

@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { DemoPage } from "./DemoPage";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -9,11 +8,20 @@ if (!root) throw new Error("#root not found");
 
 const params = new URLSearchParams(window.location.search);
 const demoEnabled = params.get("nudgeDemo") === "1";
+const landingDemoBuild = import.meta.env.MODE === "nudge-demo";
 const page = window.location.pathname === "/demo"
-  ? <DemoPage enabled={demoEnabled} />
+  ? demoEnabled || landingDemoBuild
+    ? <App />
+    : (
+      <main className="demo-disabled">
+        <p className="demo-eyebrow">Nudge UI demo</p>
+        <h1>This route needs the explicit demo flag.</h1>
+        <p>Open <code>/demo?nudgeDemo=1</code> to mount the inspector.</p>
+      </main>
+    )
   : <App />;
 
-if (demoEnabled && !import.meta.env.DEV) {
+if ((demoEnabled || landingDemoBuild) && !import.meta.env.DEV) {
   const inspectorRoot = document.createElement("div");
   inspectorRoot.id = "nudge-ui-root";
   document.body.appendChild(inspectorRoot);

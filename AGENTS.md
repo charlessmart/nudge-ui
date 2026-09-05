@@ -51,9 +51,12 @@ output, and source maps.
 - `packages/standalone` — static HTML instrumentation, server, CLI, and
   browser client.
 
+### Public application
+
+- `landing` — the explicit public landing-demo artifact.
+
 ### Consumer applications
 
-- `examples/landing` — the explicit public landing-demo artifact.
 - `examples/sandbox` — the primary Vite and React consumer fixture.
 - `examples/sandbox-tailwind-v3` and `examples/sandbox-tailwind-v4` —
   Tailwind consumer fixtures.
