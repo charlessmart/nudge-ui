@@ -116,7 +116,7 @@
 }
 
 .settings__nav-item--active {
-  background: var(--surface-well-2x);
+  background: var(--surface-well);
   color: var(--text-primary);
   font-weight: var(--font-weight-label);
 }
