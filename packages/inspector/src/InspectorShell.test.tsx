@@ -281,24 +281,25 @@ describe("InspectorShell", () => {
     ]);
   });
 
-  it("uses a single Canvas action and a split copy control in the header", () => {
+  it("uses a single Canvas action and a direct settings control in the header", () => {
     act(() => {
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
     const canvas = shadow.querySelector('[data-test="mode-canvas"]') as HTMLButtonElement;
 
-    expect(canvas.textContent).toContain("View canvas");
+    expect(canvas.textContent).toContain("Canvas");
     expect(canvas.querySelector(".tabler-icon-arrow-up-right")).not.toBeNull();
     expect(shadow.querySelector('[data-test="copy-prompt-control"]')).not.toBeNull();
-    expect(shadow.querySelector('[data-test="copy-prompt-menu"]')).not.toBeNull();
+    expect(shadow.querySelector('[data-test="settings-button"]')).not.toBeNull();
+    expect(shadow.querySelector('[data-test="copy-prompt-menu"]')).toBeNull();
 
     act(() => canvas.click());
     expect(shadow.querySelector('[data-test="canvas-workspace"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="mode-canvas"]')).toBeNull();
     act(() => exitCanvas());
     const canvasAfterExit = shadow.querySelector('[data-test="mode-canvas"]') as HTMLButtonElement;
-    expect(canvasAfterExit.textContent).toContain("View canvas");
+    expect(canvasAfterExit.textContent).toContain("Canvas");
     expect(canvasAfterExit.querySelector(".tabler-icon-arrow-up-right")).not.toBeNull();
   });
 

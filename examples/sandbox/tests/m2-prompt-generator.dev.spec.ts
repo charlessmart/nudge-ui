@@ -164,10 +164,7 @@ test.describe("clipboard permissions", () => {
   test("dev: prompt settings customize the copied prompt", async ({ page }) => {
     await page.goto("/playground");
 
-    const menuButton = page.locator('[data-test="copy-prompt-menu"]');
-    await expect(menuButton).toBeEnabled();
-    await menuButton.click();
-    await page.locator('[data-test="prompt-settings-option"]').click();
+    await page.locator('[data-test="settings-button"]').click();
 
     const dialog = page.locator('[data-test="prompt-settings-dialog"]');
     await expect(dialog).toBeVisible();
@@ -193,10 +190,10 @@ test.describe("clipboard permissions", () => {
   test("dev: general settings navigates between prompt, MCP, and token sections", async ({ page }) => {
     await page.goto("/playground");
 
-    await page.locator('[data-test="copy-prompt-menu"]').click();
-    await page.locator('[data-test="mcp-setup-option"]').click();
+    await page.locator('[data-test="settings-button"]').click();
 
     await expect(page.locator('[data-test="settings-dialog"]')).toBeVisible();
+    await page.locator('[data-test="settings-nav-mcp"]').click();
     await expect(page.locator('[data-test="settings-section-mcp"]')).toBeVisible();
     await expect(page.locator('[data-test="mcp-connection-timeline"] > li')).toHaveCount(3);
 

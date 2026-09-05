@@ -39,7 +39,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
     };
   });
   expect(headerState.background).toBe("rgba(0, 0, 0, 0)");
-  expect(headerState.actions).toEqual(["tokens-tab", "mode-canvas"]);
+  expect(headerState.actions).toEqual(["tokens-tab", "settings-button", "mode-canvas"]);
   expect(headerState.hasDivider).toBe(true);
   const copyRowInset = await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
@@ -56,7 +56,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   expect(copyRowInset?.copyRowLeft).toBe(copyRowInset?.tabsContentLeft);
   await expect(page.locator('[data-test="view-mode-toggle"]')).toHaveCount(0);
   await expect(page.locator('[data-test="mode-preview"]')).toHaveCount(0);
-  await expect(page.locator('[data-test="copy-prompt-menu"]')).toBeEnabled();
+  await expect(page.locator('[data-test="copy-prompt-menu"]')).toHaveCount(0);
 
   const getOpen = () =>
     page.evaluate(

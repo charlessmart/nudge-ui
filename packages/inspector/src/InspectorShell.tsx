@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { IconArrowUpRight, IconColorSwatch, IconLayoutSidebarRight } from "@tabler/icons-react";
+import { IconArrowUpRight, IconColorSwatch, IconLayoutSidebarRight, IconSettings } from "@tabler/icons-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -32,6 +32,7 @@ import { discardChangesForInstanceOverride, undo, redo } from "./changesLog.ts";
 import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector, unlinkElement } from "./editScope.ts";
 import { Button } from "./ui/Button.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
+import type { SettingsSection } from "./settings/SettingsDialog.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
 import { ToggleButton } from "./ui/ToggleButton.tsx";
@@ -118,6 +119,8 @@ export function InspectorShell(): ReactElement {
   const selected = useSelectedElement();
   const hierarchy = useHierarchy();
   const inlineTextSession = useInlineTextSession();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
   const [scopeRevision, refreshScope] = useState(0);
   const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
@@ -245,6 +248,11 @@ export function InspectorShell(): ReactElement {
     enterCanvas();
   }
 
+  function openSettings(section: SettingsSection): void {
+    setSettingsSection(section);
+    setSettingsOpen(true);
+  }
+
   return (
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
@@ -280,6 +288,15 @@ export function InspectorShell(): ReactElement {
               >
                 <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               </ToggleButton>
+              <IconButton
+                variant="quiet"
+                label="Settings"
+                title="Settings"
+                data-test="settings-button"
+                onClick={() => openSettings("instructions")}
+              >
+                <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+              </IconButton>
               {canvasEnabled && canvasMode !== "canvas" ? (
                 <>
                   <span className="panel__header-divider" aria-hidden="true" />
@@ -290,7 +307,7 @@ export function InspectorShell(): ReactElement {
                     type="button"
                     onClick={handleCanvasModeButton}
                   >
-                    View canvas
+                    Canvas
                     <IconArrowUpRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
                   </Button>
                 </>
@@ -298,7 +315,12 @@ export function InspectorShell(): ReactElement {
             </div>
           </div>
           <div className="panel__copy-row">
-            <CopyPromptButton />
+            <CopyPromptButton
+              settingsOpen={settingsOpen}
+              settingsSection={settingsSection}
+              onOpenSettings={openSettings}
+              onSettingsOpenChange={setSettingsOpen}
+            />
           </div>
         </div>
         <div className="panel__body">

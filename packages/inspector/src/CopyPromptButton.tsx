@@ -2,12 +2,9 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import {
   IconCheck,
-  IconChevronDown,
   IconClipboardCheck,
-  IconColorSwatch,
   IconPlugConnected,
   IconSend,
-  IconSettings,
 } from "@tabler/icons-react";
 import { useChanges } from "./changesLog.ts";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
@@ -16,8 +13,6 @@ import { loadCustomInstructions, saveCustomInstructions } from "./prompt/promptS
 import { getAgentConnectionStatus } from "./agent/connectionStatus.ts";
 import { SettingsDialog, type SettingsSection } from "./settings/SettingsDialog.tsx";
 import { Button } from "./ui/Button.tsx";
-import { IconButton } from "./ui/IconButton.tsx";
-import { InspectorPopover } from "./ui/InspectorPopover.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { getStructuralChanges, subscribeStructuralChanges } from "./structuralProjection.ts";
 import { getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
@@ -39,7 +34,19 @@ import {
   subscribeClipboardHandoff,
 } from "./prompt/clipboardHandoff.ts";
 
-export function CopyPromptButton(): ReactElement {
+export interface CopyPromptButtonProps {
+  readonly settingsOpen?: boolean;
+  readonly settingsSection?: SettingsSection;
+  readonly onOpenSettings?: (section: SettingsSection) => void;
+  readonly onSettingsOpenChange?: (open: boolean) => void;
+}
+
+export function CopyPromptButton({
+  settingsOpen: controlledSettingsOpen,
+  settingsSection: controlledSettingsSection,
+  onOpenSettings,
+  onSettingsOpenChange,
+}: CopyPromptButtonProps = {}): ReactElement {
   const changes = useChanges();
   const structuralChanges = useSyncExternalStore(
     subscribeStructuralChanges,
@@ -53,9 +60,10 @@ export function CopyPromptButton(): ReactElement {
   );
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
+  const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
+  const [localSettingsSection, setLocalSettingsSection] = useState<SettingsSection>("instructions");
+  const settingsOpen = controlledSettingsOpen ?? localSettingsOpen;
+  const settingsSection = controlledSettingsSection ?? localSettingsSection;
   const runtimeConfig = getNudgeUiRuntimeConfig();
   const [customInstructions, setCustomInstructions] = useState(() =>
     loadCustomInstructions(runtimeConfig.projectId),
@@ -151,97 +159,41 @@ export function CopyPromptButton(): ReactElement {
     saveCustomInstructions(runtimeConfig.projectId, value);
   }
 
-  function openSettings(section: SettingsSection): void {
-    setMenuOpen(false);
-    setSettingsSection(section);
-    setSettingsOpen(true);
+  function setSettingsOpen(open: boolean): void {
+    if (onSettingsOpenChange) {
+      onSettingsOpenChange(open);
+    } else {
+      setLocalSettingsOpen(open);
+    }
   }
 
-  function openPromptSettings(): void {
-    openSettings("instructions");
+  function openSettings(section: SettingsSection): void {
+    setLocalSettingsSection(section);
+    onOpenSettings?.(section);
+    setSettingsOpen(true);
   }
 
   function openMcpConnection(): void {
     openSettings("mcp");
   }
 
-  function openTokenSettings(): void {
-    openSettings("tokens");
-  }
-
   return (
     <div className="copy-prompt__stack" data-test="copy-prompt-control">
-      <div className="copy-prompt">
-        <Button
-          variant="primary"
-          className="copy-prompt__main"
-          data-test="copy-prompt"
-          type="button"
-          disabled={disabled}
-          data-copied={copied ? "true" : "false"}
-          data-agent-state={agent.state}
-          aria-busy={working || connecting ? "true" : undefined}
-          title={agent.error}
-          onClick={onClick}
-        >
-          {icon}
-          {label}
-        </Button>
-        <InspectorPopover
-          data-test="copy-prompt-menu"
-          align="end"
-          triggerElement={(
-            <IconButton
-              variant="primary"
-              className="copy-prompt__menu"
-              label="Copy prompt options"
-              title="Copy prompt options"
-              data-test="copy-prompt-menu"
-              type="button"
-              disabled={connecting}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-            >
-              <IconChevronDown size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-            </IconButton>
-          )}
-          open={menuOpen}
-          onOpenChange={setMenuOpen}
-        >
-          <div className="copy-prompt__options" role="menu" aria-label="Prompt options" data-test="copy-prompt-menu-content">
-            <button
-              className="copy-prompt__option"
-              data-test="prompt-settings-option"
-              role="menuitem"
-              type="button"
-              onClick={openPromptSettings}
-            >
-              <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              <span>Custom instructions</span>
-            </button>
-            <button
-              className="copy-prompt__option"
-              data-test="mcp-setup-option"
-              role="menuitem"
-              type="button"
-              onClick={openMcpConnection}
-            >
-              <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              <span>Connect MCP…</span>
-            </button>
-            <button
-              className="copy-prompt__option"
-              data-test="tokens-settings-option"
-              role="menuitem"
-              type="button"
-              onClick={openTokenSettings}
-            >
-              <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              <span>Tokens</span>
-            </button>
-          </div>
-        </InspectorPopover>
-      </div>
+      <Button
+        variant="primary"
+        className="copy-prompt__main"
+        data-test="copy-prompt"
+        type="button"
+        disabled={disabled}
+        data-copied={copied ? "true" : "false"}
+        data-agent-state={agent.state}
+        aria-busy={working || connecting ? "true" : undefined}
+        title={agent.error}
+        onClick={onClick}
+      >
+        {icon}
+        {label}
+      </Button>
       {statusAction ? (
         <StatusCallout
           className="copy-prompt__agent-status"

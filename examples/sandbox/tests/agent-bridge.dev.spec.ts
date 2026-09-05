@@ -86,8 +86,8 @@ test.describe("Nudge MCP browser bridge", () => {
     await page.goto("/playground");
     const connectionStatus = page.locator('[data-test="agent-connection-status"]');
     await expect(connectionStatus).toContainText("Ready to connect");
-    await page.locator('button[data-test="copy-prompt-menu"]').click();
-    await page.locator('[data-test="mcp-setup-option"]').click();
+    await page.locator('[data-test="settings-button"]').click();
+    await page.locator('[data-test="settings-nav-mcp"]').click();
     const dialog = page.locator('[data-test="mcp-connection-dialog"]');
     await expect(dialog).toBeVisible();
     await expect(dialog.locator('[data-test="mcp-connection-status"]')).toContainText("Ready to connect");

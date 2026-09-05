@@ -97,26 +97,8 @@
   min-width: 0;
 }
 
-.copy-prompt {
-  display: flex;
-  align-items: stretch;
-  width: 100%;
-  min-width: 0;
-  gap: 0.5px;
-  border-radius: var(--radius-control);
-}
-
 .copy-prompt__main.button {
-  flex: 1 1 auto;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.copy-prompt__menu.icon-button {
-  width: var(--control-height-large);
-  height: var(--control-height-large);
-  border-left: 0;
-  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  width: 100%;
 }
 
 .copy-prompt__hint {
