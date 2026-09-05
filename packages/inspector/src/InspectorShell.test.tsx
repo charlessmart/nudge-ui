@@ -94,12 +94,12 @@ describe("InspectorShell", () => {
         "Child",
         "Grandchild",
       ]);
-      expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Selected");
+      expect(getSelectedElement()?.cid).toBe("Selected");
 
       act(() => {
         shadow.querySelector<HTMLButtonElement>('[data-test="dom-parent-step"][data-depth="2"]')!.click();
       });
-      expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Grandparent");
+      expect(getSelectedElement()?.cid).toBe("Grandparent");
 
       act(() => {
         setSelectedElement(resolveSelectionFromElement(selected));
@@ -107,7 +107,7 @@ describe("InspectorShell", () => {
       act(() => {
         shadow.querySelector<HTMLButtonElement>('[data-test="dom-child-step"][data-cid="Grandchild"]')!.click();
       });
-      expect(shadow.querySelector('[data-test="selection"]')?.getAttribute("data-selected-cid")).toBe("Grandchild");
+      expect(getSelectedElement()?.cid).toBe("Grandchild");
     } finally {
       setSelectedElement(null);
       grandparent.remove();

@@ -130,10 +130,13 @@ export async function runPage({ context, sandbox, url, name, discoverPages = fal
   // ---- Phase 4: canvas mode ----
   // (collapse/expand test runs last so it cannot poison later phases)
   const canvasBtn = page.locator("[data-test='mode-canvas']");
-  if (await canvasBtn.count()) {
-    // The panel button toggles: "View canvas" (inspect) / "Exit canvas".
-    // Canvas mode persists across navigations, so we may already be in it.
-    const activeAtLoad = (await canvasBtn.getAttribute("data-active").catch(() => null)) === "true";
+  const canvasWorkspace = page.locator("[data-test='canvas-workspace']");
+  const workspaceAtLoad = (await canvasWorkspace.count()) > 0;
+  if ((await canvasBtn.count()) > 0 || workspaceAtLoad) {
+    // The panel action enters Canvas from inspect mode and is hidden while
+    // Canvas is active. Canvas mode persists across navigations, so we may
+    // already be in it.
+    const activeAtLoad = workspaceAtLoad;
     if (!activeAtLoad) {
       await canvasBtn.click({ timeout: 3000 }).catch(() => {});
     }
@@ -254,13 +257,18 @@ export async function runPage({ context, sandbox, url, name, discoverPages = fal
         await page.setViewportSize(viewport);
         await page.waitForTimeout(400);
       }
-      // 5f. back to preview via the same toggle (label reads "Exit canvas")
-      await canvasBtn.click({ timeout: 3000 }).catch(() => {});
+      // 5f. return to preview through the first card's Page view action.
+      const pageView = page.locator("[data-test^='canvas-card-preview-']").first();
+      if (await pageView.count()) {
+        await pageView.click({ timeout: 3000 }).catch(() => {});
+      } else {
+        await recordIssue(page, sandbox, name, { kind: "preview-exit-failed", detail: "no Page view action was available in Canvas", phase: "canvas-exit" });
+      }
       await page.waitForTimeout(900);
       const exited = (await page.locator("[data-test='canvas-workspace']").count()) === 0;
       const panelBack = await page.evaluate(PANEL_SCAN_SNIPPET);
       if (!exited && panelBack.panelFound) {
-        await recordIssue(page, sandbox, name, { kind: "preview-exit-failed", detail: "workspace still mounted after clicking Exit canvas", phase: "canvas-exit" });
+        await recordIssue(page, sandbox, name, { kind: "preview-exit-failed", detail: "workspace still mounted after clicking Page view", phase: "canvas-exit" });
       }
       if (!panelBack.panelFound) {
         await recordIssue(page, sandbox, name, { kind: "preview-restore-failed", detail: "inspector panel missing after returning from canvas to preview", phase: "canvas-exit" });

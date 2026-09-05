@@ -21,7 +21,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   expect(hasShellText).not.toContain("Inspector shell ready");
   await expect(page.locator('[data-test="copy-prompt"]')).toBeDisabled();
   await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/button--primary/);
-  await expect(page.locator('[data-test="mode-canvas"] svg')).toHaveClass(/tabler-icon-artboard/);
+  await expect(page.locator('[data-test="mode-canvas"] svg')).toHaveClass(/tabler-icon-arrow-up-right/);
   await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/button--secondary|button--quiet/);
   await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/toggle-button--quiet/);
   const headerState = await page.evaluate(() => {
@@ -56,7 +56,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   expect(copyRowInset?.copyRowLeft).toBe(copyRowInset?.tabsContentLeft);
   await expect(page.locator('[data-test="view-mode-toggle"]')).toHaveCount(0);
   await expect(page.locator('[data-test="mode-preview"]')).toHaveCount(0);
-  await expect(page.locator('[data-test="copy-prompt-menu"]')).toBeDisabled();
+  await expect(page.locator('[data-test="copy-prompt-menu"]')).toBeEnabled();
 
   const getOpen = () =>
     page.evaluate(
@@ -104,15 +104,11 @@ test("dev: inspector icon buttons respond to clicks while the element selector i
   await page.goto("/playground");
 
   const canvasButton = page.locator('[data-test="mode-canvas"]');
-  await expect(canvasButton).toHaveAttribute("data-active", "false");
+  await expect(canvasButton).toBeVisible();
 
   await canvasButton.click();
-  await expect(canvasButton).toHaveAttribute("data-active", "true");
-  await expect(canvasButton).toHaveText(/Exit canvas/);
-
-  await canvasButton.click();
-  await expect(canvasButton).toHaveAttribute("data-active", "false");
-  await expect(canvasButton).toHaveText(/View canvas/);
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  await expect(canvasButton).toHaveCount(0);
 });
 
 test("dev: inspector can collapse and reopen from its icon controls on a mobile viewport", async ({ page }) => {

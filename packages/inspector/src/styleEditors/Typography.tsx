@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   IconTextSize,
   IconAlignCenter,
@@ -105,9 +105,9 @@ export function Typography(props: TypographyProps): ReactElement {
             element={el}
             defaultValue="left"
             options={[
-              { value: "left", label: "Align left", icon: <IconAlignLeft size={"var(--icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
-              { value: "center", label: "Align center", icon: <IconAlignCenter size={"var(--icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
-              { value: "right", label: "Align right", icon: <IconAlignRight size={"var(--icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
+              { value: "left", label: "Align left", icon: <IconAlignLeft size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
+              { value: "center", label: "Align center", icon: <IconAlignCenter size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
+              { value: "right", label: "Align right", icon: <IconAlignRight size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
             ]}
             onAfterEdit={onAfterEdit}
           />
@@ -117,9 +117,9 @@ export function Typography(props: TypographyProps): ReactElement {
             element={el}
             defaultValue="baseline"
             options={[
-              { value: "top", label: "Align top", icon: <IconLayoutAlignTop size={"var(--icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
-              { value: "middle", label: "Align middle", icon: <IconLayoutAlignMiddle size={"var(--icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
-              { value: "bottom", label: "Align bottom", icon: <IconLayoutAlignBottom size={"var(--icon-size-small)"} stroke={1.6} aria-hidden="true" /> },
+              { value: "top", label: "Align top", icon: <IconLayoutAlignTop size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
+              { value: "middle", label: "Align middle", icon: <IconLayoutAlignMiddle size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
+              { value: "bottom", label: "Align bottom", icon: <IconLayoutAlignBottom size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
             ]}
             onAfterEdit={onAfterEdit}
           />
@@ -278,15 +278,25 @@ interface AlignmentFieldProps {
 
 function AlignmentField({ property, label, element, defaultValue, options, onAfterEdit }: AlignmentFieldProps): ReactElement {
   const atRules = useFieldAtRules(property);
-  const [current, setCurrent] = useState(() => normalizeAlignment(property, getStateStyleValue(element, property, defaultValue)));
+  const [initialValue] = useState(() => getStateStyleValue(element, property, defaultValue));
+  const initialValueRef = useRef(initialValue);
+  const [current, setCurrent] = useState<string | null>(() => normalizeAlignment(property, initialValue));
 
   useEffect(() => {
-    setCurrent(normalizeAlignment(property, getStateStyleValue(element, property, defaultValue)));
+    const next = getStateStyleValue(element, property, defaultValue);
+    initialValueRef.current = next;
+    setCurrent(normalizeAlignment(property, next));
   }, [defaultValue, element, property]);
 
   function handleChange(value: string): void {
     setCurrent(value);
     setStyle(element, property, value);
+    onAfterEdit?.();
+  }
+
+  function handleDeselect(): void {
+    setCurrent(null);
+    setStyle(element, property, initialValueRef.current);
     onAfterEdit?.();
   }
 
@@ -303,6 +313,8 @@ function AlignmentField({ property, label, element, defaultValue, options, onAft
           testId: `typography-align-${property}-${option.value}`,
         }))}
         onChange={handleChange}
+        allowDeselect
+        onDeselect={handleDeselect}
       />
       <AtRuleIndicator atRules={atRules} />
     </div>

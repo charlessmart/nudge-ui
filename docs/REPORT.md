@@ -54,8 +54,8 @@ The first harness draft produced ~130 findings; forensic re-verification showed 
 - **Vertical "out-of-bounds" flood** — panel body content below the fold is by design (`.dt-panel { overflow: auto }`); check reduced to horizontal escape only.
 - **Zombie write-lease** — `page.close()` skips `beforeunload` by default, so the inspector's lease (`workspaceLease.ts`, 15 s expiry) stayed fresh and locked the next tab out (locked-notice UI). Fixed with `page.close({ runBeforeUnload: true })`, mirroring a real tab close.
 - **Element collector swallowed pages** — tagging `div#root` first skipped entire subtrees ("clicking 1 elements"); fixed to leaf-only tagging (React went from 1 to 16–30 elements/page).
-- **Wrong canvas selectors** — `[data-test^='canvas-card-']` also matches card *inner* elements (first match was a 100×32 button, so drags "failed"); card root is `.dt-canvas-card`. Exit-from-canvas uses the same `mode-canvas` toggle (label swaps to "Exit canvas"); the `mode-preview` test id belongs to a different, panel-absent component.
-- **Canvas mode persistence** — canvas mode persists across navigations (by design, `sessionStore.ts:969–973`); the battery now reads `data-active` before entering.
+- **Wrong canvas selectors** — `[data-test^='canvas-card-']` also matches card *inner* elements (first match was a 100×32 button, so drags "failed"); card root is `.dt-canvas-card`. Exit-from-canvas uses a card's `Page view` action; the `mode-preview` test id belongs to a different, panel-absent component.
+- **Canvas mode persistence** — canvas mode persists across navigations (by design, `sessionStore.ts:969–973`); the battery now detects an existing `canvas-workspace` before attempting entry.
 
 ### Forensic verification of canvas failures
 

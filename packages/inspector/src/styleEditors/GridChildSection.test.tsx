@@ -74,11 +74,20 @@ describe("GridChildSection", () => {
       .toBe("true");
     expect(handle!.host.querySelectorAll('[data-test^="layout-grid-child-align-h-"]')).toHaveLength(4);
     expect(handle!.host.querySelectorAll('[data-test^="layout-grid-child-align-v-"]')).toHaveLength(4);
+    expect(handle!.host.querySelector('[data-test="layout-grid-child-align-v-start"]')?.getAttribute("title"))
+      .toBe("Align top");
+    const alignmentIcons = handle!.host.querySelectorAll(".layout__grid-child-alignment-control svg");
+    expect(alignmentIcons).toHaveLength(8);
+    for (const icon of alignmentIcons) {
+      expect(icon.getAttribute("width")).toBe("var(--icon-size-small)");
+      expect(icon.getAttribute("height")).toBe("var(--icon-size-small)");
+      expect(icon.getAttribute("stroke-width")).toBe("var(--icon-stroke-width)");
+    }
     expect(handle!.host.querySelector('[data-test="layout-grid-child-settings"]')).toBeFalsy();
     expect(handle!.host.querySelectorAll('[data-test^="layout-grid-child-action-"]')).toHaveLength(0);
   });
 
-  it("shows an unselected alignment control when the child inherits its parent's alignment", () => {
+  it("leaves alignment unselected when the child uses the parent default", () => {
     mountSection({
       "justify-self": "auto",
       "align-self": "auto",
@@ -124,6 +133,24 @@ describe("GridChildSection", () => {
     });
 
     expect(sheetText()).toContain("align-self: center;");
+  });
+
+  it("returns an edited alignment to the parent default when its selected option is clicked again", () => {
+    mountSection({ "align-self": "auto" });
+
+    act(() => {
+      (handle!.host.querySelector('[data-test="layout-grid-child-align-v-center"]') as HTMLButtonElement).click();
+    });
+    expect(sheetText()).toContain("align-self: center;");
+    expect(handle!.host.querySelector('[data-test="layout-grid-child-align-v-center"]')?.getAttribute("aria-pressed"))
+      .toBe("true");
+
+    act(() => {
+      (handle!.host.querySelector('[data-test="layout-grid-child-align-v-center"]') as HTMLButtonElement).click();
+    });
+
+    expect(sheetText()).not.toContain("align-self: center;");
+    expect(handle!.host.querySelectorAll('[data-test^="layout-grid-child-align-v-"][aria-pressed="true"]')).toHaveLength(0);
   });
 
 });

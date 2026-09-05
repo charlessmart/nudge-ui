@@ -551,6 +551,9 @@ describe("LayoutSection", () => {
     mockComputedStyle({ display: "flex", position: "absolute", "top": "0px" });
     handle = mount(createElement(LayoutSection, { element: selected }));
 
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-position"] [data-test="individual-sides"]') as HTMLButtonElement).click();
+    });
     const input = handle.host.querySelector('[data-test="side-value-top"] [data-test="raw-input"]') as HTMLInputElement;
     expect(input).toBeTruthy();
     setInputValue(input, "50%");

@@ -123,6 +123,13 @@ describe("Typography", () => {
     }
     expect(handle.host.querySelector('[data-test="font-style-field"]')).toBeTruthy();
     expect(handle.host.querySelectorAll('[data-test="typography-align-text-align-left"], [data-test="typography-align-vertical-align-top"]')).toHaveLength(2);
+    const alignmentIcons = handle.host.querySelectorAll('[data-test^="typography-align-"] svg');
+    expect(alignmentIcons).toHaveLength(6);
+    for (const icon of alignmentIcons) {
+      expect(icon.getAttribute("width")).toBe("var(--icon-size-small)");
+      expect(icon.getAttribute("height")).toBe("var(--icon-size-small)");
+      expect(icon.getAttribute("stroke-width")).toBe("var(--icon-stroke-width)");
+    }
   });
 
   it("writes text alignment through the icon control", () => {
@@ -132,6 +139,21 @@ describe("Typography", () => {
     const center = handle.host.querySelector('[data-test="typography-align-text-align-center"]') as HTMLButtonElement;
     act(() => center.click());
     expect(sheetText()).toContain("text-align: center;");
+  });
+
+  it("returns text alignment to its original value when its selected option is clicked again", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "text-align": "left", "vertical-align": "baseline" });
+    handle = mount(createElement(Typography, { element: selected }));
+    const center = handle.host.querySelector('[data-test="typography-align-text-align-center"]') as HTMLButtonElement;
+
+    act(() => center.click());
+    expect(sheetText()).toContain("text-align: center;");
+
+    act(() => center.click());
+
+    expect(sheetText()).not.toContain("text-align: center;");
+    expect(handle.host.querySelectorAll('[data-test^="typography-align-text-align-"][aria-pressed="true"]')).toHaveLength(0);
   });
 
   it("records font shorthand provenance when a decomposed longhand is edited", () => {

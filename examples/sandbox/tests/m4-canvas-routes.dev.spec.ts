@@ -124,8 +124,7 @@ test("dev: canvas card toolbar has preview, duplicate, and refresh controls", as
   await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await expect(page.locator('[data-test="mode-canvas"]')).toHaveAttribute("data-active", "true");
-  await expect(page.locator('[data-test="mode-canvas"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-test="mode-canvas"]')).toHaveCount(0);
 
   await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toBeVisible();
   const preview = page.locator('[data-test^="canvas-card-preview-"]');

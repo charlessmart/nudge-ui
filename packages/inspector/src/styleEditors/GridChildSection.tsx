@@ -76,7 +76,7 @@ function AxisPlacementRow({ axis, label, state, onStart }: AxisPlacementRowProps
         <AxisIcon
           className="layout__grid-child-placement-icon"
           size="var(--icon-size-small)"
-          stroke={1.6}
+          stroke="var(--icon-stroke-width)"
           aria-hidden="true"
         />
         <TextInput
@@ -112,16 +112,16 @@ function AlignmentControl({ axis, value, onChange }: AlignmentControlProps): Rea
   const horizontal = axis === "h";
   const options = horizontal
     ? [
-      { value: "start", label: "Align left", icon: <IconAlignBoxLeftMiddle size={18} stroke={1.6} aria-hidden="true" /> },
-      { value: "center", label: "Align center", icon: <IconAlignBoxCenterMiddle size={18} stroke={1.6} aria-hidden="true" /> },
-      { value: "end", label: "Align right", icon: <IconAlignBoxRightMiddle size={18} stroke={1.6} aria-hidden="true" /> },
-      { value: "stretch", label: "Stretch horizontally", icon: <IconAlignBoxCenterStretch className="layout__grid-child-align-icon--horizontal" size={18} stroke={1.6} aria-hidden="true" /> },
+      { value: "start", label: "Align left", icon: <IconAlignBoxLeftMiddle size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
+      { value: "center", label: "Align center", icon: <IconAlignBoxCenterMiddle size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
+      { value: "end", label: "Align right", icon: <IconAlignBoxRightMiddle size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
+      { value: "stretch", label: "Stretch horizontally", icon: <IconAlignBoxCenterStretch className="layout__grid-child-align-icon--horizontal" size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
     ]
     : [
-      { value: "start", label: "Align top", icon: <IconAlignBoxCenterTop size={18} stroke={1.6} aria-hidden="true" /> },
-      { value: "center", label: "Align middle", icon: <IconAlignBoxCenterMiddle size={18} stroke={1.6} aria-hidden="true" /> },
-      { value: "end", label: "Align bottom", icon: <IconAlignBoxCenterBottom size={18} stroke={1.6} aria-hidden="true" /> },
-      { value: "stretch", label: "Stretch vertically", icon: <IconAlignBoxCenterStretch size={18} stroke={1.6} aria-hidden="true" /> },
+      { value: "start", label: "Align top", icon: <IconAlignBoxCenterTop size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
+      { value: "center", label: "Align middle", icon: <IconAlignBoxCenterMiddle size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
+      { value: "end", label: "Align bottom", icon: <IconAlignBoxCenterBottom size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
+      { value: "stretch", label: "Stretch vertically", icon: <IconAlignBoxCenterStretch size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
     ];
 
   return (
@@ -132,7 +132,7 @@ function AlignmentControl({ axis, value, onChange }: AlignmentControlProps): Rea
       data-test={`layout-grid-child-align-${axis}`}
     >
       <SegmentedControl
-        value={value}
+        value={value === "auto" ? null : value}
         aria-label={horizontal ? "Horizontal alignment" : "Vertical alignment"}
         data-test={`layout-grid-child-select-${horizontal ? "justify-self" : "align-self"}`}
         className="layout__grid-child-alignment-control"
@@ -141,6 +141,8 @@ function AlignmentControl({ axis, value, onChange }: AlignmentControlProps): Rea
           testId: `layout-grid-child-align-${axis}-${option.value}`,
         }))}
         onChange={onChange}
+        allowDeselect
+        onDeselect={() => onChange("auto")}
       />
     </FieldRow>
   );

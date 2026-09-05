@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
+import { Toggle } from "@base-ui/react/toggle";
 
 export interface SegmentedControlOption<T extends string> {
   value: T;
@@ -9,13 +10,17 @@ export interface SegmentedControlOption<T extends string> {
 }
 
 interface SegmentedControlProps<T extends string> {
-  value: T;
+  value: T | null;
   options: readonly SegmentedControlOption<T>[];
   onChange: (value: T) => void;
   "aria-label": string;
   "data-test"?: string;
   "data-property"?: string;
   className?: string;
+  /** Allows the active option to be cleared by clicking it again. */
+  allowDeselect?: boolean;
+  /** Restores the value represented by an unselected control. */
+  onDeselect?: () => void;
 }
 
 /** A compact single-choice control for adjacent, peer actions. */
@@ -27,6 +32,8 @@ export function SegmentedControl<T extends string>({
   "data-test": dataTest,
   "data-property": dataProperty,
   className,
+  allowDeselect = false,
+  onDeselect,
 }: SegmentedControlProps<T>): ReactElement {
   return (
     <div
@@ -36,22 +43,29 @@ export function SegmentedControl<T extends string>({
       data-test={dataTest}
       data-property={dataProperty}
     >
-      {options.map((option) => {
-        const selected = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            className={`button segmented-control__button${selected ? " segmented-control__button--selected" : ""}`}
-            aria-label={option.label}
-            aria-pressed={selected}
-            data-test={option.testId}
-            onClick={() => onChange(option.value)}
-          >
-            {option.icon ?? option.label}
-          </button>
-        );
-      })}
+        {options.map((option) => {
+          const selected = option.value === value;
+          return (
+            <Toggle
+              key={option.value}
+              type="button"
+              className={`button segmented-control__button${selected ? " segmented-control__button--selected" : ""}`}
+              pressed={selected}
+              aria-label={option.label}
+              title={option.label}
+              data-test={option.testId}
+              onPressedChange={(pressed) => {
+                if (pressed) {
+                  onChange(option.value);
+                } else if (allowDeselect) {
+                  onDeselect?.();
+                }
+              }}
+            >
+              {option.icon ?? option.label}
+            </Toggle>
+          );
+        })}
     </div>
   );
 }
