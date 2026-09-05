@@ -1,6 +1,6 @@
 {
   "name": "@nudge-ui/css",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Browser-safe CSS models, value semantics, and token inventory contracts for Nudge UI.",
   "license": "MIT",
   "repository": {
