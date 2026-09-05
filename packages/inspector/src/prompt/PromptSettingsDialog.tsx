@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, RefObject } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { IconX } from "@tabler/icons-react";
 
@@ -10,6 +10,12 @@ export interface PromptSettingsDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+export interface PromptSettingsFieldsProps {
+  value: string;
+  onChange: (value: string) => void;
+  instructionsRef?: RefObject<HTMLTextAreaElement | null>;
+}
+
 function portalContainer(): HTMLElement | ShadowRoot | null {
   return typeof document !== "undefined"
     ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
@@ -17,6 +23,34 @@ function portalContainer(): HTMLElement | ShadowRoot | null {
 }
 
 /** Edits the instructions appended to every generated prompt. */
+export function PromptSettingsFields({
+  value,
+  onChange,
+  instructionsRef,
+}: PromptSettingsFieldsProps): ReactElement {
+  return (
+    <>
+      <div className="prompt-settings__field">
+        <textarea
+          ref={instructionsRef}
+          id="nudge-ui-custom-instructions"
+          className="prompt-settings__textarea"
+          data-test="prompt-custom-instructions"
+          aria-label="Custom instructions"
+          rows={6}
+          value={value}
+          onChange={(event) => onChange(event.currentTarget.value)}
+        />
+      </div>
+      <div className="prompt-settings__actions">
+        <Dialog.Close className="button button--primary" data-test="prompt-settings-done" type="button">
+          Done
+        </Dialog.Close>
+      </div>
+    </>
+  );
+}
+
 export function PromptSettingsDialog({
   open,
   value,
@@ -48,23 +82,11 @@ export function PromptSettingsDialog({
           <Dialog.Description className="prompt-settings__description">
             These instructions are added to the end of every copied prompt.
           </Dialog.Description>
-          <div className="prompt-settings__field">
-            <textarea
-              ref={instructionsRef}
-              id="nudge-ui-custom-instructions"
-              className="prompt-settings__textarea"
-              data-test="prompt-custom-instructions"
-              aria-label="Custom instructions"
-              rows={6}
-              value={value}
-              onChange={(event) => onChange(event.currentTarget.value)}
-            />
-          </div>
-          <div className="prompt-settings__actions">
-            <Dialog.Close className="button button--primary" data-test="prompt-settings-done" type="button">
-              Done
-            </Dialog.Close>
-          </div>
+          <PromptSettingsFields
+            value={value}
+            onChange={onChange}
+            instructionsRef={instructionsRef}
+          />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

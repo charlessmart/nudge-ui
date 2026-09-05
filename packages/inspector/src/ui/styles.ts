@@ -33,6 +33,7 @@ import inspectorOverlayStyles from "../InspectorOverlay.css?inline";
 import domNavigationStyles from "../DomNavigation.css?inline";
 import promptSettingsStyles from "../prompt/PromptSettingsDialog.css?inline";
 import mcpConnectionStyles from "../agent/McpConnectionDialog.css?inline";
+import settingsStyles from "../settings/SettingsDialog.css?inline";
 
 export const UI_STYLES = [
   foundationStyles,
@@ -70,4 +71,5 @@ export const UI_STYLES = [
   domNavigationStyles,
   promptSettingsStyles,
   mcpConnectionStyles,
+  settingsStyles,
 ].join("\n");

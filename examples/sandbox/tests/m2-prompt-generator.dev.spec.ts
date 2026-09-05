@@ -190,6 +190,24 @@ test.describe("clipboard permissions", () => {
     expect(prompt).not.toContain("Preserve existing tokens, logical properties");
   });
 
+  test("dev: general settings navigates between prompt, MCP, and token sections", async ({ page }) => {
+    await page.goto("/playground");
+
+    await page.locator('[data-test="copy-prompt-menu"]').click();
+    await page.locator('[data-test="mcp-setup-option"]').click();
+
+    await expect(page.locator('[data-test="settings-dialog"]')).toBeVisible();
+    await expect(page.locator('[data-test="settings-section-mcp"]')).toBeVisible();
+    await expect(page.locator('[data-test="mcp-connection-timeline"] > li')).toHaveCount(3);
+
+    await page.locator('[data-test="settings-nav-tokens"]').click();
+    await expect(page.locator('[data-test="settings-section-tokens"]')).toBeVisible();
+    await expect(page.locator('[data-test="tokens-panel"]')).toBeVisible();
+
+    await page.locator('[data-test="settings-nav-instructions"]').click();
+    await expect(page.locator('[data-test="prompt-custom-instructions"]')).toBeVisible();
+  });
+
   test("dev: copy prompt exports only the final destination after repeated moves", async ({ page }) => {
     await page.goto("/playground");
     const item = page.locator('[data-test="flex-child-a"]');

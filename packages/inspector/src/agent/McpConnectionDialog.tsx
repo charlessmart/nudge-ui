@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import {
   IconCheck,
@@ -42,15 +42,18 @@ export function createMcpSetupCommand(projectId: string, origin: string): string
   return `npx add-mcp ${shellQuote(serverCommand)} --name nudge_ui`;
 }
 
-export interface McpConnectionDialogProps {
-  readonly open: boolean;
+export interface McpConnectionContentProps {
   readonly projectId: string;
   readonly origin: string;
   readonly snapshot: AgentClientSnapshot;
-  readonly onOpenChange: (open: boolean) => void;
   readonly onConnect: () => Promise<boolean> | boolean | void;
   readonly onDisconnect: () => void;
   readonly onCheckAgain: () => Promise<void>;
+}
+
+export interface McpConnectionDialogProps extends McpConnectionContentProps {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
 }
 
 function portalContainer(): HTMLElement | ShadowRoot | null {
@@ -59,23 +62,43 @@ function portalContainer(): HTMLElement | ShadowRoot | null {
     : null;
 }
 
-/**
- * Explains and controls the project-scoped MCP companion connection.
- *
- * This panel only discovers and pairs with the already configured companion.
- * It never runs the displayed setup command or writes host configuration.
- */
-export function McpConnectionDialog({
-  open,
+function TimelineStep({
+  number,
+  complete,
+  title,
+  children,
+}: {
+  number: number;
+  complete: boolean;
+  title: string;
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <li
+      className={`mcp-connection__timeline-step${complete ? " mcp-connection__timeline-step--complete" : ""}`}
+      data-test={`mcp-step-${number}`}
+      data-complete={complete ? "true" : "false"}
+    >
+      <div className="mcp-connection__timeline-marker" aria-hidden="true">
+        {complete ? <IconCheck size="var(--icon-size-small)" stroke={2} /> : number}
+      </div>
+      <section className="mcp-connection__timeline-content">
+        <h3 className="mcp-connection__section-title">{title}</h3>
+        {children}
+      </section>
+    </li>
+  );
+}
+
+/** Renders the MCP setup and pairing flow without owning a dialog surface. */
+export function McpConnectionContent({
   projectId,
   origin,
   snapshot,
-  onOpenChange,
   onConnect,
   onDisconnect,
   onCheckAgain,
-}: McpConnectionDialogProps): ReactElement {
-  const closeRef = useRef<HTMLButtonElement>(null);
+}: McpConnectionContentProps): ReactElement {
   const [checking, setChecking] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState(false);
   const [copiedListener, setCopiedListener] = useState(false);
@@ -127,50 +150,75 @@ export function McpConnectionDialog({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal container={portalContainer()}>
-        <Dialog.Backdrop className="mcp-connection__backdrop" data-test="mcp-connection-backdrop" />
-        <Dialog.Popup
-          className="mcp-connection__popup"
-          data-test="mcp-connection-dialog"
-          initialFocus={closeRef}
+    <>
+      <StatusCallout
+        className="mcp-connection__status"
+        tone={status.tone}
+        data-test="mcp-connection-status"
+      >
+        <span className="mcp-connection__status-label" role="status">{status.label}</span>
+        {snapshot.error ? (
+          <span className="mcp-connection__status-detail">{snapshot.error}</span>
+        ) : null}
+        {checkError ? <span role="alert">{checkError}</span> : null}
+        {snapshot.request?.summary ? (
+          <span className="mcp-connection__status-detail">{snapshot.request.summary}</span>
+        ) : null}
+        {snapshot.request?.error ? (
+          <span className="mcp-connection__status-detail">{snapshot.request.error}</span>
+        ) : null}
+      </StatusCallout>
+
+      <ol className="mcp-connection__timeline" data-test="mcp-connection-timeline">
+        <TimelineStep
+          number={1}
+          complete={snapshot.companionReachable}
+          title="Configure the MCP host"
         >
-          <div className="mcp-connection__header">
-            <div>
-              <Dialog.Title className="mcp-connection__title">Connect MCP</Dialog.Title>
-              <Dialog.Description className="mcp-connection__description">
-                Pair this page with your coding agent. You can connect before the agent starts listening.
-              </Dialog.Description>
-            </div>
-            <Dialog.Close
-              ref={closeRef}
-              className="icon-button icon-button--quiet mcp-connection__close"
-              aria-label="Close MCP connection"
-              data-test="mcp-connection-close"
+          <p className="mcp-connection__copy">
+            Run this command from the application project root in a POSIX shell, such as Bash or Zsh.
+          </p>
+          <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{setupCommand}</code></pre>
+          <div className="mcp-connection__command-actions">
+            <Button
+              size="compact"
+              variant="secondary"
+              data-test="mcp-copy-command"
               type="button"
+              onClick={() => void handleCopyCommand()}
             >
-              <IconX size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-            </Dialog.Close>
+              {copiedCommand ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
+              {copiedCommand ? "Copied" : "Copy command"}
+            </Button>
           </div>
+          <p className="mcp-connection__note">
+            After running the command, restart or refresh your coding agent's MCP server, then check again.
+          </p>
+        </TimelineStep>
 
-          <StatusCallout
-            className="mcp-connection__status"
-            tone={status.tone}
-            data-test="mcp-connection-status"
-          >
-            <span className="mcp-connection__status-label" role="status">{status.label}</span>
-            {snapshot.error ? (
-              <span className="mcp-connection__status-detail">{snapshot.error}</span>
-            ) : null}
-            {checkError ? <span role="alert">{checkError}</span> : null}
-            {snapshot.request?.summary ? (
-              <span className="mcp-connection__status-detail">{snapshot.request.summary}</span>
-            ) : null}
-            {snapshot.request?.error ? (
-              <span className="mcp-connection__status-detail">{snapshot.request.error}</span>
-            ) : null}
-          </StatusCallout>
+        <TimelineStep number={2} complete={snapshot.listenerActive} title="Start the agent listener">
+          <p className="mcp-connection__copy">
+            Ask your coding agent to call <code>nudge_listen</code> and keep that call active before sending a
+            prompt.
+          </p>
+          <div className="mcp-connection__command-actions">
+            <Button
+              size="compact"
+              variant="secondary"
+              data-test="mcp-copy-listener"
+              type="button"
+              onClick={() => void handleCopyListener()}
+            >
+              {copiedListener ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
+              {copiedListener ? "Copied" : "Copy listener instruction"}
+            </Button>
+          </div>
+        </TimelineStep>
 
+        <TimelineStep number={3} complete={snapshot.paired} title="Connect this page">
+          <p className="mcp-connection__copy">
+            Pair this page with the configured companion before sending a prompt.
+          </p>
           <dl className="mcp-connection__diagnostics" data-test="mcp-connection-diagnostics">
             <div className="mcp-connection__diagnostic">
               <dt>Project ID</dt>
@@ -181,54 +229,6 @@ export function McpConnectionDialog({
               <dd data-test="mcp-origin"><code>{origin}</code></dd>
             </div>
           </dl>
-
-          <details className="mcp-connection__setup" open={!snapshot.paired}>
-            <summary className="mcp-connection__section-title">Configure the MCP host</summary>
-            <section className="mcp-connection__section" aria-labelledby="mcp-connection-setup-title">
-              <h3 id="mcp-connection-setup-title" className="mcp-connection__visually-hidden">Configure the MCP host</h3>
-              <p className="mcp-connection__copy">
-                Run this command from the application project root in a POSIX shell, such as Bash or Zsh.
-              </p>
-              <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{setupCommand}</code></pre>
-              <div className="mcp-connection__command-actions">
-                <Button
-                  size="compact"
-                  variant="secondary"
-                  data-test="mcp-copy-command"
-                  type="button"
-                  onClick={() => void handleCopyCommand()}
-                >
-                  {copiedCommand ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
-                  {copiedCommand ? "Copied" : "Copy command"}
-                </Button>
-              </div>
-              <p className="mcp-connection__note">
-                After running the command, restart or refresh your coding agent's MCP server, then check again.
-              </p>
-            </section>
-          </details>
-
-          <section className="mcp-connection__section" aria-labelledby="mcp-connection-listener-title">
-            <h3 id="mcp-connection-listener-title" className="mcp-connection__section-title">Start the agent listener</h3>
-            <p className="mcp-connection__copy">
-              Ask your coding agent to call <code>nudge_listen</code> and keep that call active before sending a
-              prompt.
-            </p>
-            <div className="mcp-connection__command-actions">
-              <Button
-                size="compact"
-                variant="secondary"
-                data-test="mcp-copy-listener"
-                type="button"
-                onClick={() => void handleCopyListener()}
-              >
-                {copiedListener ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
-                {copiedListener ? "Copied" : "Copy listener instruction"}
-              </Button>
-            </div>
-          </section>
-          {copyError ? <p className="mcp-connection__error" role="alert">{copyError}</p> : null}
-
           <div className="mcp-connection__actions">
             <Button
               size="compact"
@@ -266,17 +266,77 @@ export function McpConnectionDialog({
               </Button>
             ) : null}
           </div>
+        </TimelineStep>
+      </ol>
 
-          <a
-            className="mcp-connection__docs"
-            data-test="mcp-docs-link"
-            href={MCP_DOCS_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <IconExternalLink size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-            Read the MCP connection guide
-          </a>
+      {copyError ? <p className="mcp-connection__error" role="alert">{copyError}</p> : null}
+
+      <a
+        className="mcp-connection__docs"
+        data-test="mcp-docs-link"
+        href={MCP_DOCS_URL}
+        target="_blank"
+        rel="noreferrer"
+      >
+        <IconExternalLink size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+        Read the MCP connection guide
+      </a>
+    </>
+  );
+}
+
+/**
+ * Explains and controls the project-scoped MCP companion connection.
+ *
+ * This compatibility wrapper keeps the existing standalone MCP surface while
+ * the shared content is also embedded in the general settings modal.
+ */
+export function McpConnectionDialog({
+  open,
+  projectId,
+  origin,
+  snapshot,
+  onOpenChange,
+  onConnect,
+  onDisconnect,
+  onCheckAgain,
+}: McpConnectionDialogProps): ReactElement {
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal container={portalContainer()}>
+        <Dialog.Backdrop className="mcp-connection__backdrop" data-test="mcp-connection-backdrop" />
+        <Dialog.Popup
+          className="mcp-connection__popup"
+          data-test="mcp-connection-dialog"
+          initialFocus={closeRef}
+        >
+          <div className="mcp-connection__header">
+            <div>
+              <Dialog.Title className="mcp-connection__title">Connect MCP</Dialog.Title>
+              <Dialog.Description className="mcp-connection__description">
+                Pair this page with your coding agent. You can connect before the agent starts listening.
+              </Dialog.Description>
+            </div>
+            <Dialog.Close
+              ref={closeRef}
+              className="icon-button icon-button--quiet mcp-connection__close"
+              aria-label="Close MCP connection"
+              data-test="mcp-connection-close"
+              type="button"
+            >
+              <IconX size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+            </Dialog.Close>
+          </div>
+          <McpConnectionContent
+            projectId={projectId}
+            origin={origin}
+            snapshot={snapshot}
+            onConnect={onConnect}
+            onDisconnect={onDisconnect}
+            onCheckAgain={onCheckAgain}
+          />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

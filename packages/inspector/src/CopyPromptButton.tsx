@@ -4,6 +4,7 @@ import {
   IconCheck,
   IconChevronDown,
   IconClipboardCheck,
+  IconColorSwatch,
   IconPlugConnected,
   IconSend,
   IconSettings,
@@ -12,9 +13,8 @@ import { useChanges } from "./changesLog.ts";
 import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { copyToClipboard } from "./prompt/copyToClipboard.ts";
 import { loadCustomInstructions, saveCustomInstructions } from "./prompt/promptSettings.ts";
-import { PromptSettingsDialog } from "./prompt/PromptSettingsDialog.tsx";
-import { McpConnectionDialog } from "./agent/McpConnectionDialog.tsx";
 import { getAgentConnectionStatus } from "./agent/connectionStatus.ts";
+import { SettingsDialog, type SettingsSection } from "./settings/SettingsDialog.tsx";
 import { Button } from "./ui/Button.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
 import { InspectorPopover } from "./ui/InspectorPopover.tsx";
@@ -54,8 +54,8 @@ export function CopyPromptButton(): ReactElement {
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [promptSettingsOpen, setPromptSettingsOpen] = useState(false);
-  const [mcpConnectionOpen, setMcpConnectionOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
   const runtimeConfig = getNudgeUiRuntimeConfig();
   const [customInstructions, setCustomInstructions] = useState(() =>
     loadCustomInstructions(runtimeConfig.projectId),
@@ -151,14 +151,22 @@ export function CopyPromptButton(): ReactElement {
     saveCustomInstructions(runtimeConfig.projectId, value);
   }
 
-  function openPromptSettings(): void {
+  function openSettings(section: SettingsSection): void {
     setMenuOpen(false);
-    setPromptSettingsOpen(true);
+    setSettingsSection(section);
+    setSettingsOpen(true);
+  }
+
+  function openPromptSettings(): void {
+    openSettings("instructions");
   }
 
   function openMcpConnection(): void {
-    setMenuOpen(false);
-    setMcpConnectionOpen(true);
+    openSettings("mcp");
+  }
+
+  function openTokenSettings(): void {
+    openSettings("tokens");
   }
 
   return (
@@ -221,6 +229,16 @@ export function CopyPromptButton(): ReactElement {
               <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               <span>Connect MCP…</span>
             </button>
+            <button
+              className="copy-prompt__option"
+              data-test="tokens-settings-option"
+              role="menuitem"
+              type="button"
+              onClick={openTokenSettings}
+            >
+              <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+              <span>Tokens</span>
+            </button>
           </div>
         </InspectorPopover>
       </div>
@@ -259,18 +277,15 @@ export function CopyPromptButton(): ReactElement {
           Removed {reconciledCount} implemented {reconciledCount === 1 ? "change" : "changes"} from the next prompt.
         </p>
       ) : null}
-      <PromptSettingsDialog
-        open={promptSettingsOpen}
+      <SettingsDialog
+        open={settingsOpen}
+        initialSection={settingsSection}
         value={customInstructions}
-        onChange={handleCustomInstructionsChange}
-        onOpenChange={setPromptSettingsOpen}
-      />
-      <McpConnectionDialog
-        open={mcpConnectionOpen}
+        onValueChange={handleCustomInstructionsChange}
+        onOpenChange={setSettingsOpen}
         projectId={runtimeConfig.projectId}
         origin={window.location.origin}
         snapshot={agent}
-        onOpenChange={setMcpConnectionOpen}
         onConnect={() => agentClient.connect()}
         onDisconnect={() => agentClient.disconnect()}
         onCheckAgain={() => agentClient.checkConnection()}
