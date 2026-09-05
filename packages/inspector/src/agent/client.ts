@@ -187,6 +187,7 @@ export class AgentClient {
   private activeRequest: ActiveRequest | null = null;
   private discoveryTimer: ReturnType<typeof setTimeout> | null = null;
   private discoveryAbort: AbortController | null = null;
+  private pairingAbort: AbortController | null = null;
   private dispatchAbort: AbortController | null = null;
   private eventSubscription: { close: () => void } | null = null;
   private started = false;
@@ -237,6 +238,8 @@ export class AgentClient {
     }
     this.discoveryAbort?.abort();
     this.discoveryAbort = null;
+    this.pairingAbort?.abort();
+    this.pairingAbort = null;
     this.dispatchAbort?.abort();
     this.dispatchAbort = null;
     this.eventSubscription?.close();
@@ -253,7 +256,7 @@ export class AgentClient {
   }
 
   private async restoreOrDiscover(): Promise<void> {
-    if (!this.started || !this.enabled) return;
+    if (!this.started || !this.enabled || this.pairingAbort) return;
     const token = this.sessionToken ?? readStoredSession(this.projectId, this.origin);
     if (token && this.transport.restore) {
       const abortController = new AbortController();
@@ -276,18 +279,34 @@ export class AgentClient {
         }
         clearStoredSession(this.projectId);
         this.sessionToken = null;
+        this.resetForDiscovery();
       } catch (error) {
         if (abortController.signal.aborted || !this.started) return;
         // A stale or revoked token is not a connection error. Clearing it
         // lets the normal listener discovery path offer a fresh pairing.
         clearStoredSession(this.projectId);
         this.sessionToken = null;
+        this.resetForDiscovery();
         void error;
       } finally {
         if (this.discoveryAbort === abortController) this.discoveryAbort = null;
       }
     }
-    void this.discover();
+    await this.discover();
+  }
+
+  /** Runs an immediate authenticated restore or companion discovery probe. */
+  async checkConnection(): Promise<void> {
+    if (!this.enabled) return;
+    if (!this.started) this.start();
+    if (!this.started || this.pairingAbort) return;
+    if (this.discoveryTimer !== null) {
+      clearTimeout(this.discoveryTimer);
+      this.discoveryTimer = null;
+    }
+    this.lastError = undefined;
+    this.publish();
+    await this.restoreOrDiscover();
   }
 
   /** Triggers a new discovery probe after a connection loss. */
@@ -300,6 +319,8 @@ export class AgentClient {
     this.eventSubscription?.close();
     this.eventSubscription = null;
     this.discoveryAbort?.abort();
+    this.pairingAbort?.abort();
+    this.pairingAbort = null;
     this.connection = "offline";
     this.listenerActive = false;
     this.companionReachable = false;
@@ -309,10 +330,13 @@ export class AgentClient {
     void this.restoreOrDiscover();
   }
 
-  /** Pairs the browser with the currently advertised companion listener. */
+  /** Pairs the browser with a reachable companion, including an idle agent. */
   async connect(): Promise<boolean> {
-    if (!this.enabled || !this.started || this.connection !== "listening") return false;
-    this.connection = "listening";
+    if (!this.enabled || !this.started || this.pairingAbort || this.paired || !this.companionReachable) return false;
+    if (this.connection === "working" || this.activeRequest?.status === "working") return false;
+    const idleListenerActive = this.listenerActive;
+    const idleCompanionReachable = this.companionReachable;
+    this.connection = idleListenerActive ? "listening" : "offline";
     this.lastError = undefined;
     this.publish("pairing");
     const request: AgentPairRequest = {
@@ -322,7 +346,7 @@ export class AgentClient {
     };
     const abortController = new AbortController();
     this.discoveryAbort?.abort();
-    this.discoveryAbort = abortController;
+    this.pairingAbort = abortController;
     try {
       const pairing = await this.transport.pair(request, abortController.signal);
       if (!this.started || abortController.signal.aborted) return false;
@@ -330,6 +354,9 @@ export class AgentClient {
         throw new Error("Agent bridge protocol version is not supported.");
       }
       if (pairing.projectId !== this.projectId) throw new Error("Agent bridge returned a different project.");
+      if (pairing.status.projectId !== this.projectId || pairing.status.protocolVersion !== AGENT_PROTOCOL_VERSION || !pairing.status.paired) {
+        throw new Error("Agent bridge returned an invalid pairing status.");
+      }
       this.sessionToken = pairing.sessionToken;
       writeStoredSession({ projectId: this.projectId, origin: this.origin, sessionToken: pairing.sessionToken });
       this.connection = "paired";
@@ -347,13 +374,17 @@ export class AgentClient {
       if (abortController.signal.aborted || !this.started) return false;
       this.lastError = errorMessage(error, "The agent could not be connected.");
       this.sessionToken = null;
-      this.connection = "listening";
-      this.listenerActive = true;
+      this.companionReachable = idleCompanionReachable;
+      this.listenerActive = idleListenerActive;
+      this.connection = idleListenerActive ? "listening" : "offline";
       this.paired = false;
-      this.publish("available");
+      this.publish(idleListenerActive ? "available" : "disconnected");
       return false;
     } finally {
-      if (this.discoveryAbort === abortController) this.discoveryAbort = null;
+      if (this.pairingAbort === abortController) {
+        this.pairingAbort = null;
+        this.scheduleDiscovery();
+      }
     }
   }
 
@@ -380,7 +411,7 @@ export class AgentClient {
    * issue a second prompt while the first one is in flight.
    */
   async dispatchPrompt(prompt: string, changeRevision?: number): Promise<PromptDispatchResponse | null> {
-    if (!this.enabled || !this.started || this.connection !== "paired" || !this.sessionToken) return null;
+    if (!this.enabled || !this.started || !this.paired || !this.listenerActive || !this.sessionToken) return null;
     if (!prompt || this.activeRequest?.status === "working") return null;
     const localRequestId = randomId("request");
     const request: AgentPromptDispatch = {
@@ -416,7 +447,7 @@ export class AgentClient {
     } catch (error) {
       if (!abortController.signal.aborted && this.activeRequest?.localRequestId === localRequestId) {
         this.activeRequest = { ...this.activeRequest, status: "failed", error: errorMessage(error, "The agent did not accept the prompt.") };
-        this.connection = "paired";
+        this.connection = this.paired ? "paired" : this.listenerActive ? "listening" : "offline";
         this.lastError = this.activeRequest.error;
         this.publish();
       }
@@ -434,6 +465,10 @@ export class AgentClient {
       this.activeRequest = { ...active, status: "interrupted", error: reason };
     }
     this.dispatchAbort?.abort();
+    this.discoveryAbort?.abort();
+    this.discoveryAbort = null;
+    this.pairingAbort?.abort();
+    this.pairingAbort = null;
     this.eventSubscription?.close();
     this.eventSubscription = null;
     this.sessionToken = null;
@@ -441,7 +476,7 @@ export class AgentClient {
     this.connection = "offline";
     this.listenerActive = false;
     this.paired = false;
-    this.lastError = reason === "reconnect" ? undefined : reason;
+    this.lastError = reason === "reconnect" || reason === "browser_disconnected" ? undefined : reason;
     this.publish();
     if (token) {
       const request: AgentDisconnectRequest = {
@@ -455,7 +490,7 @@ export class AgentClient {
   }
 
   private async discover(): Promise<void> {
-    if (!this.started || !this.enabled) return;
+    if (!this.started || !this.enabled || this.pairingAbort) return;
     const abortController = new AbortController();
     this.discoveryAbort?.abort();
     this.discoveryAbort = abortController;
@@ -467,13 +502,14 @@ export class AgentClient {
         if (status.protocolVersion !== AGENT_PROTOCOL_VERSION || status.projectId !== this.projectId) {
           this.companionReachable = false;
           this.lastError = "The agent bridge project or protocol does not match this page.";
+          this.publish();
         } else {
           this.companionReachable = true;
-          if (this.connection !== "paired" && this.connection !== "working") {
+          if (this.connection !== "paired" && this.connection !== "working" && !this.pairingAbort) {
             this.applyStatus(status);
           }
         }
-      } else if (this.connection !== "paired" && this.connection !== "working") {
+      } else if (this.connection !== "paired" && this.connection !== "working" && !this.pairingAbort) {
         this.connection = "offline";
         this.listenerActive = false;
         this.companionReachable = false;
@@ -482,7 +518,7 @@ export class AgentClient {
         this.publish();
       }
     } catch (error) {
-      if (!abortController.signal.aborted && this.started && this.connection !== "paired" && this.connection !== "working") {
+      if (!abortController.signal.aborted && this.started && this.connection !== "paired" && this.connection !== "working" && !this.pairingAbort) {
         this.connection = "offline";
         this.listenerActive = false;
         this.companionReachable = false;
@@ -500,7 +536,7 @@ export class AgentClient {
   }
 
   private scheduleDiscovery(): void {
-    if (!this.started || this.paired || this.discoveryIntervalMs <= 0 || this.discoveryTimer !== null) return;
+    if (!this.started || this.paired || this.pairingAbort || this.discoveryIntervalMs <= 0 || this.discoveryTimer !== null) return;
     this.discoveryTimer = setTimeout(() => {
       this.discoveryTimer = null;
       void this.discover();
@@ -508,7 +544,7 @@ export class AgentClient {
   }
 
   private scheduleReconnect(): void {
-    if (!this.started || this.discoveryIntervalMs <= 0 || this.discoveryTimer !== null) return;
+    if (!this.started || this.pairingAbort || this.discoveryIntervalMs <= 0 || this.discoveryTimer !== null) return;
     this.discoveryTimer = setTimeout(() => {
       this.discoveryTimer = null;
       void this.restoreOrDiscover();
@@ -573,6 +609,7 @@ export class AgentClient {
 
   private applyStatus(status: AgentStatusSnapshot): void {
     this.companionReachable = true;
+    this.lastError = undefined;
     this.listenerActive = status.listenerActive;
     this.paired = status.paired;
     this.connection = statusForConnection(status);
@@ -596,6 +633,16 @@ export class AgentClient {
       this.handleDisconnect("The agent bridge pairing expired.");
       return;
     }
+    this.publish();
+  }
+
+  private resetForDiscovery(): void {
+    this.eventSubscription?.close();
+    this.eventSubscription = null;
+    this.connection = "offline";
+    this.listenerActive = false;
+    this.companionReachable = false;
+    this.paired = false;
     this.publish();
   }
 

@@ -18,7 +18,7 @@ const sharedOptions = {
 
 // cli.mjs is the published server entry.
 await build({
-  entryPoints: [resolve(packageRoot, "src/cli.ts")],
+  entryPoints: [resolve(packageRoot, "src/cli-entry.ts")],
   outfile: output,
   ...sharedOptions,
 });

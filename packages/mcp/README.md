@@ -10,16 +10,42 @@ browser bridge. The browser does not speak MCP directly.
 pnpm add -D @nudge-ui/mcp
 ```
 
-The package has no install-time project mutation. Configure the MCP host
-explicitly to run `nudge-mcp` with the project ID, workspace root, and exact
-development origin shown below. Use the host's normal project-local or global
-configuration workflow.
+### Configure automatically
+
+From the application project root, use [`add-mcp`](https://github.com/neon-solutions/add-mcp) to detect supported coding agents and write each host's native configuration format:
+
+```sh
+npx add-mcp \
+  'npx -y @nudge-ui/mcp@latest --project-id my-app --origin http://localhost:5173 --workspace-root .' \
+  --name nudge_ui
+```
+
+The command prompts for detected project agents. Use `-a codex` (or another
+supported agent name) to target one host, or `-y` to skip the prompt and use
+the detected project agents. Keep this project-scoped; do not use `-g` unless
+the configuration intentionally targets one fixed project.
+
+`--origin` must exactly match the development application's browser origin.
+The `--project-id` value must match the ID used by the Nudge host integration.
+For standard Vite and Astro projects, `my-app` normally matches the project
+directory name. Next.js and standalone HTML projects use host-specific IDs, so
+retain the explicit ID from their integration configuration.
+
+The generated command uses the published `@nudge-ui/mcp` package through
+`npx`. Pin the package version instead of `@latest` when reproducible tool
+versions are required. After configuration, restart or reload the agent host
+so it refreshes its MCP tool catalog.
+
+The package has no install-time project mutation. The manual configuration
+below remains useful when an agent host is not supported by `add-mcp` or when
+you need an explicit custom command.
 
 After adding or changing the host configuration, restart or reload the MCP
-server, or start a fresh agent task. Then ask the agent to call `nudge_listen`
-immediately and keep it active. The inspector can only offer **Connect agent**
-after that call is active; **Copy prompt** is the expected fallback while no
-listener is running.
+server, or start a fresh agent task. Open **Connect MCP** from the inspector's
+prompt menu for setup instructions, connection status, and explicit pairing.
+You can pair a page before the agent starts listening. Ask the agent to call
+`nudge_listen` and keep it active to enable sending. **Copy prompt** remains
+available while the agent is idle; prompts are not queued.
 
 For Codex desktop, confirm that `nudge_ui` appears in the current task after
 the MCP restart. For Codex CLI, `codex mcp list` verifies the project entry.

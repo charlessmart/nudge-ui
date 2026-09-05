@@ -54,8 +54,10 @@ describe("nudge-mcp CLI", () => {
     expect(dependencies.spawn).not.toHaveBeenCalled();
   });
 
-  it("invokes runCli explicitly from the bin entry instead of relying on module auto-run", async () => {
+  it("invokes runCli explicitly from executable entries instead of relying on module auto-run", async () => {
     const bin = await readFile(fileURLToPath(new URL("../bin/nudge-mcp.mjs", import.meta.url)), "utf8");
     expect(bin).toMatch(/runCli\(/);
+    const entry = await readFile(fileURLToPath(new URL("./cli-entry.ts", import.meta.url)), "utf8");
+    expect(entry).toMatch(/runCli\(\)\.catch/);
   });
 });

@@ -18,3 +18,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0012: Canvas on every same-origin host Adapter](./0012-canvas-on-every-same-origin-host.md)
 - [ADR-0013: Agent bridge over MCP and a local controller transport](./0013-agent-bridge-mcp-and-local-controller.md)
 - [ADR-0014: Explicit public landing demo artifact](./0014-explicit-public-landing-demo.md)
+- [ADR-0015: Browser pairing and agent readiness](./0015-browser-pairing-and-agent-readiness.md)

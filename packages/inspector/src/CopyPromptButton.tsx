@@ -3,7 +3,6 @@ import type { ReactElement } from "react";
 import {
   IconChevronDown,
   IconClipboardCheck,
-  IconExternalLink,
   IconPlugConnected,
   IconSend,
   IconSettings,
@@ -13,6 +12,7 @@ import { generatePrompt } from "./prompt/generatePrompt.ts";
 import { copyToClipboard } from "./prompt/copyToClipboard.ts";
 import { loadCustomInstructions, saveCustomInstructions } from "./prompt/promptSettings.ts";
 import { PromptSettingsDialog } from "./prompt/PromptSettingsDialog.tsx";
+import { McpConnectionDialog } from "./agent/McpConnectionDialog.tsx";
 import { Button } from "./ui/Button.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
 import { InspectorPopover } from "./ui/InspectorPopover.tsx";
@@ -36,8 +36,6 @@ import {
   subscribeClipboardHandoff,
 } from "./prompt/clipboardHandoff.ts";
 
-const MCP_SETUP_URL = "https://github.com/charlessmart/nudge-ui#connect-a-coding-agent";
-
 export function CopyPromptButton(): ReactElement {
   const changes = useChanges();
   const structuralChanges = useSyncExternalStore(
@@ -54,6 +52,7 @@ export function CopyPromptButton(): ReactElement {
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [promptSettingsOpen, setPromptSettingsOpen] = useState(false);
+  const [mcpConnectionOpen, setMcpConnectionOpen] = useState(false);
   const runtimeConfig = getNudgeUiRuntimeConfig();
   const [customInstructions, setCustomInstructions] = useState(() =>
     loadCustomInstructions(runtimeConfig.projectId),
@@ -88,11 +87,15 @@ export function CopyPromptButton(): ReactElement {
   }, [agent.request?.changeRevision, agent.state]);
 
   const connecting = agent.state === "pairing";
-  const working = agent.state === "working";
-  const canConnect = agent.state === "available";
-  const canSend = agent.state === "connected" || agent.state === "completed";
-  const waitingForListener = agent.state === "disconnected"
-    && agent.companionReachable
+  const working = agent.state === "working" || agent.request?.status === "working";
+  const canConnect = agent.companionReachable
+    && agent.listenerActive
+    && !agent.paired
+    && !connecting
+    && !working;
+  const canSend = agent.paired && agent.listenerActive && !working;
+  const waitingForListener = agent.companionReachable
+    && !agent.paired
     && !agent.listenerActive;
   const listenerHint = waitingForListener
     ? "MCP companion detected, but no agent listener is active. Ask your coding agent to call nudge_listen."
@@ -183,7 +186,7 @@ export function CopyPromptButton(): ReactElement {
               title="Copy prompt options"
               data-test="copy-prompt-menu"
               type="button"
-              disabled={working || connecting}
+              disabled={connecting}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
             >
@@ -204,18 +207,19 @@ export function CopyPromptButton(): ReactElement {
               <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               <span>Custom instructions</span>
             </button>
-            <a
+            <button
               className="copy-prompt__option"
               data-test="mcp-setup-option"
-              href={MCP_SETUP_URL}
               role="menuitem"
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => setMenuOpen(false)}
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                setMcpConnectionOpen(true);
+              }}
             >
-              <IconExternalLink size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              <span>Set up MCP</span>
-            </a>
+              <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+              <span>Connect MCP…</span>
+            </button>
           </div>
         </InspectorPopover>
       </div>
@@ -234,6 +238,16 @@ export function CopyPromptButton(): ReactElement {
         value={customInstructions}
         onChange={handleCustomInstructionsChange}
         onOpenChange={setPromptSettingsOpen}
+      />
+      <McpConnectionDialog
+        open={mcpConnectionOpen}
+        projectId={runtimeConfig.projectId}
+        origin={window.location.origin}
+        snapshot={agent}
+        onOpenChange={setMcpConnectionOpen}
+        onConnect={() => agentClient.connect()}
+        onDisconnect={() => agentClient.disconnect()}
+        onCheckAgain={() => agentClient.checkConnection()}
       />
     </div>
   );

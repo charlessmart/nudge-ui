@@ -39,18 +39,25 @@ class FakeTransport implements AgentBridgeTransport {
   acknowledgementReceived = deferred<void>();
   restoredStatus: AgentStatusSnapshot | null = null;
   discoveredStatus: AgentStatusSnapshot = status();
+  pairingStatus: AgentStatusSnapshot = status({ connection: "paired", paired: true });
+  pairingError: Error | null = null;
+  pairingResult: Promise<PairingResponse> | null = null;
+  discoverCalls = 0;
 
   async discover(): Promise<AgentStatusSnapshot> {
+    this.discoverCalls += 1;
     return this.discoveredStatus;
   }
 
   async pair(): Promise<PairingResponse> {
+    if (this.pairingError) throw this.pairingError;
+    if (this.pairingResult) return this.pairingResult;
     return {
       protocolVersion: 1,
       projectId: "fixture-project",
       origin: window.location.origin,
       sessionToken: "session-token",
-      status: status({ connection: "paired", paired: true }),
+      status: this.pairingStatus,
     };
   }
 
@@ -112,6 +119,187 @@ describe("AgentClient", () => {
       companionReachable: true,
       listenerActive: false,
     });
+  });
+
+  it("pairs a reachable companion before its listener starts", async () => {
+    const transport = new FakeTransport();
+    transport.discoveredStatus = status({ connection: "offline", listenerActive: false });
+    transport.pairingStatus = status({ connection: "paired", listenerActive: false, paired: true });
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      discoveryIntervalMs: 0,
+    });
+
+    client.start();
+    await flush();
+    await expect(client.connect()).resolves.toBe(true);
+
+    expect(client.getSnapshot()).toMatchObject({
+      state: "connected",
+      connection: "paired",
+      companionReachable: true,
+      paired: true,
+      listenerActive: false,
+    });
+  });
+
+  it("does not dispatch a paired prompt until the listener becomes active", async () => {
+    const transport = new FakeTransport();
+    transport.discoveredStatus = status({ connection: "offline", listenerActive: false });
+    transport.pairingStatus = status({ connection: "paired", listenerActive: false, paired: true });
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      discoveryIntervalMs: 0,
+    });
+
+    client.start();
+    await flush();
+    await client.connect();
+    await expect(client.dispatchPrompt("Wait for the listener", 21)).resolves.toBeNull();
+    expect(transport.dispatchCalls).toHaveLength(0);
+
+    transport.emitStatus(status({ connection: "paired", paired: true, listenerActive: true, request: null }));
+    expect(client.getSnapshot()).toMatchObject({ state: "connected", listenerActive: true });
+
+    const dispatch = client.dispatchPrompt("Send after the listener starts", 22);
+    expect(client.getSnapshot().state).toBe("working");
+    transport.dispatchResult.resolve({
+      request: {
+        requestId: "listener-ready-request",
+        projectId: "fixture-project",
+        prompt: "Send after the listener starts",
+        changeRevision: 22,
+      },
+      status: "working",
+    });
+    await expect(dispatch).resolves.toMatchObject({ status: "working" });
+    expect(transport.dispatchCalls).toHaveLength(1);
+  });
+
+  it("refreshes discovery when the UI asks to check the connection again", async () => {
+    const transport = new FakeTransport();
+    transport.discoveredStatus = status({ connection: "offline", listenerActive: false });
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      discoveryIntervalMs: 0,
+    });
+
+    client.start();
+    await flush();
+    expect(client.getSnapshot()).toMatchObject({ state: "disconnected", listenerActive: false });
+
+    transport.discoveredStatus = status({ connection: "listening", listenerActive: true });
+    await client.checkConnection();
+
+    expect(client.getSnapshot()).toMatchObject({
+      state: "available",
+      connection: "listening",
+      companionReachable: true,
+      listenerActive: true,
+      paired: false,
+    });
+  });
+
+  it("drops a stale pairing during Check again while preserving request evidence", async () => {
+    const transport = new FakeTransport();
+    transport.pairingStatus = status({ connection: "paired", listenerActive: true, paired: true });
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      discoveryIntervalMs: 0,
+    });
+
+    client.start();
+    await flush();
+    await client.connect();
+    const dispatch = client.dispatchPrompt("Preserve this request", 23);
+    expect(client.getSnapshot()).toMatchObject({ request: { status: "working", changeRevision: 23 } });
+
+    transport.restoredStatus = null;
+    transport.discoveredStatus = status({ connection: "offline", listenerActive: false });
+    await client.checkConnection();
+
+    expect(client.getSnapshot()).toMatchObject({
+      companionReachable: true,
+      paired: false,
+      listenerActive: false,
+      request: { status: "working", changeRevision: 23 },
+    });
+    expect(client.getSnapshot().connection).toBe("working");
+
+    transport.dispatchResult.resolve({
+      request: {
+        requestId: "stale-pairing-request",
+        projectId: "fixture-project",
+        prompt: "Preserve this request",
+        changeRevision: 23,
+      },
+      status: "working",
+    });
+    await dispatch;
+  });
+
+  it("keeps an inactive listener state when pairing fails", async () => {
+    const transport = new FakeTransport();
+    transport.discoveredStatus = status({ connection: "offline", listenerActive: false });
+    transport.pairingError = new Error("pairing unavailable");
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      discoveryIntervalMs: 0,
+    });
+
+    client.start();
+    await flush();
+    await expect(client.connect()).resolves.toBe(false);
+
+    expect(client.getSnapshot()).toMatchObject({
+      state: "disconnected",
+      connection: "offline",
+      companionReachable: true,
+      listenerActive: false,
+      paired: false,
+      error: "pairing unavailable",
+    });
+  });
+
+  it("does not cancel pairing when a connection check runs", async () => {
+    const transport = new FakeTransport();
+    transport.discoveredStatus = status({ connection: "listening", listenerActive: true });
+    const pairing = deferred<PairingResponse>();
+    transport.pairingResult = pairing.promise;
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      discoveryIntervalMs: 0,
+    });
+
+    client.start();
+    await flush();
+    const connecting = client.connect();
+    expect(client.getSnapshot().state).toBe("pairing");
+
+    await client.checkConnection();
+    expect(transport.discoverCalls).toBe(1);
+    pairing.resolve({
+      protocolVersion: 1,
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      sessionToken: "session-token",
+      status: status({ connection: "paired", paired: true, listenerActive: true }),
+    });
+
+    await expect(connecting).resolves.toBe(true);
+    expect(client.getSnapshot()).toMatchObject({ state: "connected", paired: true });
   });
 
   it("discovers, pairs, dispatches one prompt, and returns to connected after re-arm", async () => {

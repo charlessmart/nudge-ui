@@ -88,7 +88,35 @@ not serve dot-prefixed files or directories, including `.env` files.
 
 ## Connect a coding agent
 
-Install the optional local companion in the application project:
+### Configure the MCP host automatically
+
+From the application project root, use [`add-mcp`](https://github.com/neon-solutions/add-mcp) to detect supported coding agents and write each host's native configuration format:
+
+```sh
+npx add-mcp \
+  'npx -y @nudge-ui/mcp@latest --project-id my-app --origin http://localhost:5173 --workspace-root .' \
+  --name nudge_ui
+```
+
+The command prompts for the detected project agents. Pass `-a codex` (or
+another supported agent name) to target one host, or `-y` to skip the prompt
+and use the detected project agents. Keep this project-scoped; do not use
+`-g` unless the configuration intentionally targets one fixed project.
+
+`--origin` must exactly match the development application's browser origin.
+The `--project-id` value must match the ID used by the Nudge host integration.
+For standard Vite and Astro projects, `my-app` normally matches the project
+directory name. Next.js and standalone HTML projects use host-specific IDs, so
+retain the explicit ID from their integration configuration.
+
+The generated command uses the published `@nudge-ui/mcp` package through
+`npx`. Pin the package version instead of `@latest` when reproducible tool
+versions are required. After configuration, restart or reload the agent host
+so it refreshes its MCP tool catalog.
+
+### Install the companion locally
+
+You can also install the optional local companion in the application project:
 
 ```sh
 pnpm add -D @nudge-ui/mcp
@@ -109,12 +137,12 @@ pnpm exec nudge-mcp \
 After adding or changing the MCP host entry, restart or reload the host's MCP
 server, or start a fresh agent task, so the host refreshes its tool catalog.
 
-Then ask the coding agent to call `nudge_listen` immediately and leave that
-call active. The inspector changes its primary action from **Copy prompt** to
-**Connect agent**. After explicit pairing, the action becomes **Send prompt**
-and dispatches the current immutable change revision directly to the waiting
-agent. Only one request can be active at a time; Copy remains available as the
-fallback.
+Open **Connect MCP** from the inspector's prompt menu to view setup instructions
+and pair with the local companion. Pairing can complete before the agent starts
+listening. Then ask the coding agent to call `nudge_listen` and leave that call
+active. Once paired and ready, **Send prompt** dispatches the current immutable
+change revision directly to the waiting agent. Only one request can be active
+at a time; **Copy prompt** remains the fallback while the agent is idle.
 
 If the inspector continues to show **Copy prompt** while the local companion
 is running, the agent host has probably not started `nudge_listen`. The

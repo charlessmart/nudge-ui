@@ -55,8 +55,8 @@ async function connectBrowser(
   await eventsResponse;
   await expect(connect).toHaveText("Send prompt", { timeout: 10_000 });
 
-  // This test only needs the listener to make the browser offer Connect. Stop
-  // it after pairing so a Canvas command cannot be mistaken for a prompt.
+  // Stop this helper's listener after pairing so a Canvas command cannot be
+  // mistaken for a prompt.
   if (promptListener) return listener;
   listener.abort.abort();
   await listener.promise;
@@ -80,6 +80,28 @@ test.describe("Nudge MCP browser bridge", () => {
 
   test.afterEach(async () => {
     await bridge.close();
+  });
+
+  test("pairs an idle companion from the connection panel and becomes ready when the agent listens", async ({ page }) => {
+    await page.goto("/playground");
+    await page.locator('button[data-test="copy-prompt-menu"]').click();
+    await page.locator('[data-test="mcp-setup-option"]').click();
+    const dialog = page.locator('[data-test="mcp-connection-dialog"]');
+    await expect(dialog).toBeVisible();
+    await page.locator('[data-test="mcp-connect"]').click();
+    await expect.poll(() => bridge.getStatus().paired).toBe(true);
+    expect(bridge.getStatus().listenerActive).toBe(false);
+    await expect(page.locator('[data-test="copy-prompt"]')).toHaveText("Copy prompt");
+
+    const listener = startPromptListener(bridge);
+    try {
+      await expect(page.locator('[data-test="copy-prompt"]')).toHaveText("Send prompt");
+      await page.locator('[data-test="mcp-disconnect"]').click();
+      await expect.poll(() => bridge.getStatus().paired).toBe(false);
+    } finally {
+      listener.abort.abort();
+      await listener.promise;
+    }
   });
 
   test("discovers the listener, pairs explicitly, and delivers one prompt", async ({ page }) => {
