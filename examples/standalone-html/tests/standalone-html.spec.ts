@@ -187,7 +187,8 @@ test("reloads once and refreshes CSS token knowledge after an agent-style source
   await waitForInspector(page);
   await expect.poll(() => computedStyle(page, "#static-action", "color"))
     .toBe("rgb(222, 68, 110)");
-  await page.locator('[data-test="tokens-tab"]').click();
+  await page.locator('[data-test="tokens-button"]').click();
+  await page.locator('[data-test="settings-nav-tokens"]').click();
   await expect(page.locator('[data-token-name="--color-accent"]')).toBeVisible();
   await expect.poll(async () => page.evaluate(() => {
     const bridgeWindow = window as Window & {

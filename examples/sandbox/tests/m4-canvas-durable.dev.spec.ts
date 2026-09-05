@@ -158,8 +158,9 @@ test.describe("Canvas durable session", () => {
     await page.goto("/playground");
     await waitForInspector(page);
 
-    // Switch to Tokens tab and edit a global token
-    await page.locator('[data-test="tokens-tab"]').click();
+    // Open Tokens settings and edit a global token
+    await page.locator('[data-test="tokens-button"]').click();
+    await page.locator('[data-test="settings-nav-tokens"]').click();
     await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
 
     const row = page.locator(
@@ -178,7 +179,8 @@ test.describe("Canvas durable session", () => {
     await waitForInspector(page);
 
     // Token edit should survive
-    await page.locator('[data-test="tokens-tab"]').click();
+    await page.locator('[data-test="tokens-button"]').click();
+    await page.locator('[data-test="settings-nav-tokens"]').click();
     await expect.poll(() => managedSheetContent(page)).toContain("--color-surface-raised: #abcdef;");
   });
 

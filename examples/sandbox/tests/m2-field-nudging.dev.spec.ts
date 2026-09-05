@@ -13,9 +13,14 @@ async function managedSheet(page: import("@playwright/test").Page): Promise<stri
   return managedSheetText(page);
 }
 
+async function openTokensSettings(page: import("@playwright/test").Page): Promise<void> {
+  await page.locator('[data-test="tokens-button"]').click();
+  await expect(page.locator('[data-test="settings-section-tokens"]')).toBeVisible();
+}
+
 test("dev: focused inspector text inputs keep arrow cursor navigation", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="tokens-tab"]').click();
+  await openTokensSettings(page);
 
   const search = page.locator('[data-test="token-search"]');
   await search.fill("abc");
@@ -34,7 +39,7 @@ test("dev: focused inspector inputs do not delete the selected element", async (
   await page.goto("/playground");
   const heading = page.locator("#hero-title");
   await heading.click();
-  await page.locator('[data-test="tokens-tab"]').click();
+  await openTokensSettings(page);
 
   const search = page.locator('[data-test="token-search"]');
   await search.fill("x");

@@ -23,7 +23,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/button--primary/);
   await expect(page.locator('[data-test="mode-canvas"] svg')).toHaveClass(/tabler-icon-arrow-up-right/);
   await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/button--secondary|button--quiet/);
-  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/toggle-button--quiet/);
+  await expect(page.locator('[data-test="tokens-button"]')).toHaveClass(/icon-button--quiet/);
   const headerState = await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const header = sr?.querySelector('[data-test="inspect-tab"]');
@@ -39,7 +39,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
     };
   });
   expect(headerState.background).toBe("rgba(0, 0, 0, 0)");
-  expect(headerState.actions).toEqual(["tokens-tab", "settings-button", "mode-canvas"]);
+  expect(headerState.actions).toEqual(["tokens-button", "settings-button", "mode-canvas"]);
   expect(headerState.hasDivider).toBe(true);
   const copyRowInset = await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
@@ -57,6 +57,7 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   await expect(page.locator('[data-test="view-mode-toggle"]')).toHaveCount(0);
   await expect(page.locator('[data-test="mode-preview"]')).toHaveCount(0);
   await expect(page.locator('[data-test="copy-prompt-menu"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="tokens-panel"]')).toHaveCount(0);
 
   const getOpen = () =>
     page.evaluate(
@@ -89,9 +90,10 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   expect(afterSecond).toBe(before);
   await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-nudge-ui-panel"))).toBe("open");
 
-  await page.locator('[data-test="tokens-tab"]').click();
-  await expect(page.locator('[data-test="tokens-tab"]')).toHaveClass(/toggle-button/);
-  await expect(page.locator('[data-test="tokens-tab"]')).toHaveAttribute("data-pressed");
+  await page.locator('[data-test="tokens-button"]').click();
+  await expect(page.locator('[data-test="settings-dialog"]')).toBeVisible();
+  await expect(page.locator('[data-test="settings-section-tokens"]')).toBeVisible();
+  await expect(page.locator('[data-test="tokens-panel"]')).toBeVisible();
   await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/button--secondary|button--quiet/);
 });
 

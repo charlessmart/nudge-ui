@@ -177,7 +177,7 @@ export const PANEL_SCAN_SNIPPET = () => {
         rect.right > panelRect.right + 3 || rect.left < panelRect.left - 3
       ) {
         // Only report leaf-ish content elements, ignore intentional overlays
-        const intentional = el.closest("[data-test='at-rule-tooltip'],[data-test='token-dropdown'],[data-test='copy-prompt-menu'],[role='dialog'],[role='listbox'],[data-radix-popper-content-wrapper],.popover,.menu,.popover-listbox");
+        const intentional = el.closest("[data-test='at-rule-tooltip'],[data-test='token-dropdown'],[role='dialog'],[role='listbox'],[data-radix-popper-content-wrapper],.popover,.menu,.popover-listbox");
         if (!intentional && isLeafish && text) {
           results.problems.push({
             kind: "out-of-bounds",

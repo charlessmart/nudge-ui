@@ -243,22 +243,6 @@ describe("InspectorShell", () => {
     expect(shadow.querySelector(".panel__session-actions")).toBeNull();
   });
 
-  it("switches to the Tokens tab without requiring a selection", () => {
-    act(() => {
-      mountInspector(host);
-    });
-    const shadow = host.shadowRoot!;
-    expect(shadow.querySelector('[data-test="tokens-panel"]')).toBeNull();
-    act(() => {
-      (shadow.querySelector('[data-test="tokens-tab"]') as HTMLButtonElement).click();
-    });
-    expect(shadow.querySelector('[data-test="tokens-panel"]')).not.toBeNull();
-    expect(shadow.querySelector('[data-test="tokens-tab"]')?.getAttribute("aria-selected")).toBe("true");
-    expect(shadow.querySelector('[data-test="tokens-tab"]')?.className).toContain("toggle-button");
-    expect(shadow.querySelector('[data-test="tokens-tab"]')?.getAttribute("data-pressed")).not.toBeNull();
-    expect(shadow.querySelector('[data-test="inspect-tab"]')?.className).toBe("panel__header-row");
-  });
-
   it("shows selection guidance and shortcuts when nothing is selected", () => {
     act(() => {
       mountInspector(host);
@@ -368,7 +352,10 @@ describe("InspectorShell", () => {
     });
     const shadow = host.shadowRoot!;
     act(() => {
-      (shadow.querySelector('[data-test="tokens-tab"]') as HTMLButtonElement).click();
+      (shadow.querySelector('[data-test="tokens-button"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      (shadow.querySelector('[data-test="settings-nav-tokens"]') as HTMLButtonElement).click();
     });
     const input = shadow.querySelector('[data-test="token-search"]') as HTMLInputElement;
 
@@ -396,7 +383,10 @@ describe("InspectorShell", () => {
     document.body.append(selected);
     act(() => {
       setSelectedElement(resolveSelectionFromElement(selected));
-      (host.shadowRoot!.querySelector('[data-test="tokens-tab"]') as HTMLButtonElement).click();
+      (host.shadowRoot!.querySelector('[data-test="tokens-button"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      host.shadowRoot!.querySelector<HTMLButtonElement>('[data-test="settings-nav-tokens"]')!.click();
     });
     const input = host.shadowRoot!.querySelector('[data-test="token-search"]') as HTMLInputElement;
     const event = new KeyboardEvent("keydown", {
@@ -527,7 +517,10 @@ describe("InspectorShell", () => {
     expect(panel.getAttribute("data-open")).not.toBe(before);
 
     act(() => {
-      (shadow.querySelector('[data-test="tokens-tab"]') as HTMLButtonElement).click();
+      (shadow.querySelector('[data-test="tokens-button"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      shadow.querySelector<HTMLButtonElement>('[data-test="settings-nav-tokens"]')!.click();
     });
     const input = shadow.querySelector('[data-test="token-search"]') as HTMLInputElement;
     act(() => {

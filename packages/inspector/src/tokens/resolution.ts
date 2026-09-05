@@ -251,7 +251,7 @@ function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
 }
 
 /**
- * Produces the page catalog used by the global Tokens tab. It retains the
+ * Produces the page catalog used by the global Tokens settings section. It retains the
  * build-time inventory separately, while removing declarations from CSS files
  * that Vite has not loaded for this page (such as lazy route stylesheets).
  */

@@ -13,7 +13,7 @@ console.log(await page.evaluate(() => {
     panelRect: panel.getBoundingClientRect().toJSON(),
     panelPos: cs.position, panelOverflow: cs.overflow, panelDisplay: cs.display,
     panelPE: cs.pointerEvents,
-    tabsRect: sr.querySelector('[data-test="tokens-tab"]')?.getBoundingClientRect().toJSON(),
+    tokensButtonRect: sr.querySelector('[data-test="tokens-button"]')?.getBoundingClientRect().toJSON(),
   });
 }));
 await b.close();

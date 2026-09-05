@@ -153,8 +153,9 @@ test("dev: repeated Canvas flex gap nudges survive projection acknowledgement an
 test("dev: global token edit projects into canvas frame", async ({ page }) => {
   await page.goto("/playground");
 
-  // Switch to Tokens tab and edit a global token
-  await page.locator('[data-test="tokens-tab"]').click();
+  // Open Tokens settings and edit a global token
+  await page.locator('[data-test="tokens-button"]').click();
+  await page.locator('[data-test="settings-nav-tokens"]').click();
   await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
 
   const row = page.locator(
@@ -168,6 +169,8 @@ test("dev: global token edit projects into canvas frame", async ({ page }) => {
 
   // Verify token edit is in the host managed sheet
   await expect.poll(() => managedSheetContent(page)).toContain("--color-surface-raised: #abcdef;");
+
+  await page.locator('[data-test="settings-close"]').click();
 
   // Switch to Canvas
   await page.locator('[data-test="mode-canvas"]').click();

@@ -35,9 +35,7 @@ import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import type { SettingsSection } from "./settings/SettingsDialog.tsx";
 import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
-import { ToggleButton } from "./ui/ToggleButton.tsx";
 import { UI_STYLES } from "./ui/styles.ts";
-import { TokensPanel } from "./tokens/TokensPanel.tsx";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
 import type { InteractionState } from "./styleState.ts";
 import { isEditableEvent } from "./shortcuts.ts";
@@ -122,12 +120,9 @@ export function InspectorShell(): ReactElement {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
   const [scopeRevision, refreshScope] = useState(0);
-  const [activeTab, setActiveTab] = useState<"inspect" | "tokens">("inspect");
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const [restoreCount, setShowRestore] = useState<number>(getRestoreCount());
-  const cssInspection = useBrowserCssInspection(selected, styleState, {
-    includeDocumentTokens: activeTab === "tokens",
-  });
+  const cssInspection = useBrowserCssInspection(selected, styleState);
 
   useEffect(() => {
     setInspectorLayoutOpen(isOpen);
@@ -276,18 +271,15 @@ export function InspectorShell(): ReactElement {
               <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             </IconButton>
             <div className="panel__header-actions">
-              <ToggleButton
+              <IconButton
                 variant="quiet"
-                role="tab"
-                aria-selected={activeTab === "tokens"}
-                data-test="tokens-tab"
+                data-test="tokens-button"
                 label="Tokens"
                 title="Tokens"
-                pressed={activeTab === "tokens"}
-                onPressedChange={(pressed) => setActiveTab(pressed ? "tokens" : "inspect")}
+                onClick={() => openSettings("tokens")}
               >
                 <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              </ToggleButton>
+              </IconButton>
               <IconButton
                 variant="quiet"
                 label="Settings"
@@ -395,9 +387,7 @@ export function InspectorShell(): ReactElement {
               </div>
             </section>
           ) : null}
-          {activeTab === "tokens" ? (
-            <TokensPanel rows={cssInspection.documentTokens?.tokens ?? []} />
-          ) : selected ? (
+          {selected ? (
             <>
               {domNavigationEnabled ? <DomNavigation selected={selected} hierarchy={hierarchy} /> : null}
               {showInteractionState || hasEditScopeCallout ? (

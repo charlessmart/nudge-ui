@@ -12,10 +12,15 @@ async function consumerBackgrounds(page: import("@playwright/test").Page): Promi
   }));
 }
 
-test("dev: Tokens tab edits only the active theme token and updates every consumer", async ({ page }) => {
+async function openTokensSettings(page: import("@playwright/test").Page): Promise<void> {
+  await page.locator('[data-test="tokens-button"]').click();
+  await expect(page.locator('[data-test="settings-section-tokens"]')).toBeVisible();
+}
+
+test("dev: Tokens settings edits only the active theme token and updates every consumer", async ({ page }) => {
   await page.goto("/playground");
   await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
-  await page.locator('[data-test="tokens-tab"]').click();
+  await openTokensSettings(page);
 
   const row = page.locator('[data-test="global-token-row"][data-token-name="--color-surface-raised"]');
   await expect(row).toBeVisible();
@@ -39,9 +44,9 @@ test("dev: Tokens tab edits only the active theme token and updates every consum
   await expect.poll(() => consumerBackgrounds(page)).toEqual(["rgb(255, 255, 255)", "rgb(255, 255, 255)"]);
 });
 
-test("dev: Tokens tab searches the global catalog", async ({ page }) => {
+test("dev: Tokens settings searches the global catalog", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="tokens-tab"]').click();
+  await openTokensSettings(page);
   await page.locator('[data-test="token-search"]').fill("text-primary");
   await expect(page.locator('[data-test="global-token-row"]')).toHaveCount(1);
   await expect(page.locator('[data-test="global-token-row"]')).toHaveAttribute("data-token-name", "--color-text-primary");
@@ -49,7 +54,7 @@ test("dev: Tokens tab searches the global catalog", async ({ page }) => {
 
 test("dev: nested token wrappers are preserved through the catalog and managed preview", async ({ page }) => {
   await page.goto("/conformance");
-  await page.locator('[data-test="tokens-tab"]').click();
+  await openTokensSettings(page);
 
   const row = page.locator('[data-test="global-token-row"][data-token-name="--conformance-nested"]');
   await expect(row).toBeVisible();
@@ -57,7 +62,7 @@ test("dev: nested token wrappers are preserved through the catalog and managed p
   await input.fill("4rem");
   await input.press("Enter");
 
-  await expect.poll(() => managedSheet(page)).toContain(
+  await expect.poll(async () => (await managedSheet(page)).replace(/\s+/g, " ")).toContain(
     "@media (min-width: 1px) { @supports (display: grid) { @layer conformance { @media (min-width: 1px)",
   );
   await expect.poll(() => page.evaluate(() =>

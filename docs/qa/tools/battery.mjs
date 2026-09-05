@@ -107,13 +107,14 @@ export async function runPage({ context, sandbox, url, name, discoverPages = fal
   // cleanup tags
   await page.evaluate(() => document.querySelectorAll("[data-qa-idx]").forEach((n) => n.removeAttribute("data-qa-idx"))).catch(() => {});
 
-  // ---- Phase 3: tokens tab ----
-  const tokensTab = page.locator("[data-test='tokens-tab']");
-  if (await tokensTab.count()) {
-    await tokensTab.click({ timeout: 3000 }).catch(() => {});
+  // ---- Phase 3: tokens settings ----
+  const tokensButton = page.locator("[data-test='tokens-button']");
+  if (await tokensButton.count()) {
+    await tokensButton.click({ timeout: 3000 }).catch(() => {});
+    await page.locator("[data-test='settings-nav-tokens']").click({ timeout: 3000 }).catch(() => {});
     await page.waitForTimeout(600);
-    await screenshot(page, sandbox, `${name}-tokens-tab`);
-    await scanAndRecord(page, sandbox, name, "tokens-tab", null);
+    await screenshot(page, sandbox, `${name}-tokens-settings`);
+    await scanAndRecord(page, sandbox, name, "tokens-settings", null);
     const search = page.locator("[data-test='token-search']");
     if (await search.count()) {
       await search.fill("col").catch(() => {});
@@ -121,10 +122,10 @@ export async function runPage({ context, sandbox, url, name, discoverPages = fal
       await scanAndRecord(page, sandbox, name, "tokens-search", null);
       await search.fill("").catch(() => {});
     }
-    await page.locator("[data-test='inspect-tab']").click({ timeout: 3000 }).catch(() => {});
+    await page.locator("[data-test='settings-close']").click({ timeout: 3000 }).catch(() => {});
     await page.waitForTimeout(300);
   } else {
-    await recordIssue(page, sandbox, name, { kind: "tokens-tab-missing", detail: "tokens-tab control not found" });
+    await recordIssue(page, sandbox, name, { kind: "tokens-settings-missing", detail: "tokens-button control not found" });
   }
 
   // ---- Phase 4: canvas mode ----
