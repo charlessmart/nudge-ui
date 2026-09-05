@@ -196,7 +196,60 @@ export function McpConnectionContent({
           </p>
         </TimelineStep>
 
-        <TimelineStep number={2} complete={snapshot.listenerActive} title="Start the agent listener">
+        <TimelineStep number={2} complete={snapshot.paired} title="Connect this page">
+          <p className="mcp-connection__copy">
+            Pair this page with the configured companion before sending a prompt.
+          </p>
+          <dl className="mcp-connection__diagnostics" data-test="mcp-connection-diagnostics">
+            <div className="mcp-connection__diagnostic">
+              <dt>Project ID</dt>
+              <dd data-test="mcp-project-id"><code>{projectId}</code></dd>
+            </div>
+            <div className="mcp-connection__diagnostic">
+              <dt>Origin</dt>
+              <dd data-test="mcp-origin"><code>{origin}</code></dd>
+            </div>
+          </dl>
+          <div className="mcp-connection__actions">
+            {canConnect ? (
+              <Button
+                size="compact"
+                variant="primary"
+                data-test="mcp-connect"
+                type="button"
+                onClick={() => void onConnect()}
+              >
+                <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+                Connect
+              </Button>
+            ) : null}
+            <Button
+              size="compact"
+              variant="quiet"
+              data-test="mcp-check-again"
+              type="button"
+              disabled={checking || snapshot.state === "disabled" || snapshot.state === "pairing"}
+              onClick={() => void handleCheckAgain()}
+            >
+              <IconRefresh size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+              {checking ? "Checking…" : "Check again"}
+            </Button>
+            {canDisconnect ? (
+              <Button
+                size="compact"
+                variant="danger"
+                data-test="mcp-disconnect"
+                type="button"
+                onClick={onDisconnect}
+              >
+                <IconUnlink size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+                {snapshot.paired ? "Disconnect" : "Forget connection"}
+              </Button>
+            ) : null}
+          </div>
+        </TimelineStep>
+
+        <TimelineStep number={3} complete={snapshot.listenerActive} title="Start the agent listener">
           <p className="mcp-connection__copy">
             Ask your coding agent to call <code>nudge_listen</code> and keep that call active before sending a
             prompt.
@@ -212,59 +265,6 @@ export function McpConnectionContent({
               {copiedListener ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
               {copiedListener ? "Copied" : "Copy listener instruction"}
             </Button>
-          </div>
-        </TimelineStep>
-
-        <TimelineStep number={3} complete={snapshot.paired} title="Connect this page">
-          <p className="mcp-connection__copy">
-            Pair this page with the configured companion before sending a prompt.
-          </p>
-          <dl className="mcp-connection__diagnostics" data-test="mcp-connection-diagnostics">
-            <div className="mcp-connection__diagnostic">
-              <dt>Project ID</dt>
-              <dd data-test="mcp-project-id"><code>{projectId}</code></dd>
-            </div>
-            <div className="mcp-connection__diagnostic">
-              <dt>Origin</dt>
-              <dd data-test="mcp-origin"><code>{origin}</code></dd>
-            </div>
-          </dl>
-          <div className="mcp-connection__actions">
-            <Button
-              size="compact"
-              variant="quiet"
-              data-test="mcp-check-again"
-              type="button"
-              disabled={checking || snapshot.state === "disabled" || snapshot.state === "pairing"}
-              onClick={() => void handleCheckAgain()}
-            >
-              <IconRefresh size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              {checking ? "Checking…" : "Check again"}
-            </Button>
-            {canConnect ? (
-              <Button
-                size="compact"
-                variant="primary"
-                data-test="mcp-connect"
-                type="button"
-                onClick={() => void onConnect()}
-              >
-                <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-                Connect
-              </Button>
-            ) : null}
-            {canDisconnect ? (
-              <Button
-                size="compact"
-                variant="danger"
-                data-test="mcp-disconnect"
-                type="button"
-                onClick={onDisconnect}
-              >
-                <IconUnlink size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-                {snapshot.paired ? "Disconnect" : "Forget connection"}
-              </Button>
-            ) : null}
           </div>
         </TimelineStep>
       </ol>

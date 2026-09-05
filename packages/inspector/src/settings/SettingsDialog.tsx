@@ -149,9 +149,6 @@ export function SettingsDialog({
               {activeSection === "mcp" ? (
                 <section className="settings__section" data-test="settings-section-mcp">
                   <h2 className="settings__section-title">{activeDefinition.label}</h2>
-                  <p className="settings__section-description">
-                    Connect this page to your local coding agent through the Nudge MCP companion.
-                  </p>
                   <div data-test="mcp-connection-dialog">
                     <McpConnectionContent
                       projectId={projectId}

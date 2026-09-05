@@ -83,8 +83,9 @@ describe("McpConnectionDialog", () => {
     expect(document.body.querySelector('[data-test="mcp-origin"]')?.textContent).toBe("http://localhost:5173");
     expect(document.body.textContent).toContain("call nudge_listen");
     expect(document.body.querySelectorAll('[data-test^="mcp-step-"]')).toHaveLength(3);
-    expect(document.body.querySelector('[data-test="mcp-step-3"]')?.getAttribute("data-complete")).toBe("true");
-    expect(document.body.querySelector('[data-test="mcp-step-3"] svg')).not.toBeNull();
+    expect(document.body.querySelector('[data-test="mcp-step-2"]')?.getAttribute("data-complete")).toBe("true");
+    expect(document.body.querySelector('[data-test="mcp-step-2"] svg')).not.toBeNull();
+    expect(document.body.querySelector('[data-test="mcp-step-3"]')?.getAttribute("data-complete")).toBe("false");
   });
 
   it("offers idle pairing and connection recovery as rendered actions", async () => {
