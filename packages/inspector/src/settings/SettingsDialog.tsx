@@ -22,7 +22,6 @@ export type SettingsSection = "instructions" | "mcp" | "tokens";
 interface SettingsSectionDefinition {
   readonly id: SettingsSection;
   readonly label: string;
-  readonly description: string;
   readonly icon: ReactElement;
 }
 
@@ -30,19 +29,16 @@ const SETTINGS_SECTIONS: readonly SettingsSectionDefinition[] = [
   {
     id: "instructions",
     label: "Custom instructions",
-    description: "Prompt behavior",
     icon: <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />,
   },
   {
     id: "mcp",
     label: "MCP",
-    description: "Agent connection",
     icon: <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />,
   },
   {
     id: "tokens",
     label: "Tokens",
-    description: "Design system values",
     icon: <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />,
   },
 ];
@@ -97,23 +93,19 @@ export function SettingsDialog({
           data-test="settings-dialog"
           initialFocus={closeRef}
         >
-          <div className="settings__header">
-            <div>
-              <Dialog.Title className="settings__title">Settings</Dialog.Title>
-              <Dialog.Description className="settings__description">
-                Configure how Nudge connects to your coding agent and uses your design system.
-              </Dialog.Description>
-            </div>
-            <Dialog.Close
-              ref={closeRef}
-              className="icon-button icon-button--quiet settings__close"
-              aria-label="Close settings"
-              data-test="settings-close"
-              type="button"
-            >
-              <IconX size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-            </Dialog.Close>
-          </div>
+          <Dialog.Title className="settings__visually-hidden">Settings</Dialog.Title>
+          <Dialog.Description className="settings__visually-hidden">
+            Configure how Nudge connects to your coding agent and uses your design system.
+          </Dialog.Description>
+          <Dialog.Close
+            ref={closeRef}
+            className="icon-button icon-button--quiet settings__close"
+            aria-label="Close settings"
+            data-test="settings-close"
+            type="button"
+          >
+            <IconX size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+          </Dialog.Close>
 
           <div className="settings__body">
             <nav className="settings__nav" aria-label="Settings sections">
@@ -129,10 +121,7 @@ export function SettingsDialog({
                     onClick={() => setActiveSection(section.id)}
                   >
                     {section.icon}
-                    <span className="settings__nav-item-copy">
-                      <span>{section.label}</span>
-                      <small>{section.description}</small>
-                    </span>
+                    <span className="settings__nav-item-label">{section.label}</span>
                   </button>
                 ))}
               </div>
