@@ -323,10 +323,10 @@ export function getNudgeUiRuntimeConfig(): NudgeUiRuntimeConfig {
 }
 
 /**
- * Whether this document runs the explicit public landing demo (ADR-0014).
- * The plugin emits `demo: true` solely for the demo artifact's frame, and the
- * generated module sets it only when the URL carries `?nudgeDemo=1`, so this
- * is the precise runtime boundary of the demo — narrower than any build-mode
+ * Whether this document runs the explicit public landing demo (ADR-0014 and
+ * ADR-0015). The plugin emits `demo: true` for the flagged demo route and for
+ * the explicit landing root in development and `nudge-demo` builds, so this is
+ * the precise runtime boundary of the demo — narrower than any build-mode
  * name.
  */
 export function isDemoRuntime(): boolean {

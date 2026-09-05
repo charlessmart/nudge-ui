@@ -15,12 +15,12 @@ attributes, or token data.
 - Language: TypeScript with strict checking and ES modules.
 - Workspace runtime: Node.js 22.12 or newer. Published packages target Node.js
   20 or newer unless their package metadata states otherwise.
-- Package manager: pnpm 10 workspaces (`packages/*` and `examples/*`).
+- Package manager: pnpm 10 workspaces (`packages/*`, `landing/`, and `examples/*`).
 - Build tools: Vite for the primary plugin and React fixtures; host adapters
   for Next.js, Astro, and static HTML.
 - UI runtime: React 18 and React 19 consumer fixtures.
 - Unit tests: Vitest.
-- Browser tests: Playwright against the consumer applications in `examples/`.
+- Browser tests: Playwright against the landing app and consumer applications.
 - Static checks: ESLint, Oxlint, and the repository's custom anti-slop rules.
 
 The shared compiler settings live in `tsconfig.base.json`. They include strict
