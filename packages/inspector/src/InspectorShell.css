@@ -70,11 +70,15 @@
 .panel__copy-row {
   display: flex;
   align-items: center;
-  gap: var(--space-8);
 }
 
 .panel__header-actions {
   min-width: 0;
+  gap: var(--space-4);
+}
+
+.panel__copy-row {
+  gap: var(--space-8);
 }
 
 .panel__header-divider {
