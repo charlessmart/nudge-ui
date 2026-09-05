@@ -1,7 +1,7 @@
 {
-  "name": "@nudge-ui/plugin",
+  "name": "@nudge-ui/vite-react",
   "version": "0.0.1",
-  "description": "Vite development plugin for Nudge UI identity, tokens, and inspector bootstrap.",
+  "description": "Vite + React development integration for Nudge UI identity, tokens, and inspector bootstrap.",
   "license": "MIT",
   "repository": {
     "type": "git",

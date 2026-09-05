@@ -7,7 +7,7 @@ import {
   type NudgeUiManifest,
   type NudgeUiTokenSnapshot,
 } from "./manifest.ts";
-import { extractComponentContracts } from "@nudge-ui/plugin/component-contracts";
+import { extractComponentContracts } from "@nudge-ui/vite-react/component-contracts";
 import { createStandaloneFileWatcher } from "@nudge-ui/standalone/watcher";import { createStandaloneTokenSnapshot } from "@nudge-ui/standalone/token-manifest";
 
 /**

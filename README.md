@@ -17,15 +17,15 @@ package or a local package build.
 ### Vite and React
 
 ```sh
-pnpm add -D @nudge-ui/plugin
+pnpm add -D @nudge-ui/vite-react
 ```
 
-Add the plugin after the React plugin in `vite.config.ts`:
+Add the Vite React adapter after the React plugin in `vite.config.ts`:
 
 ```ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { nudgeUi } from "@nudge-ui/plugin";
+import { nudgeUi } from "@nudge-ui/vite-react";
 
 export default defineConfig({
   plugins: [react(), ...nudgeUi()],

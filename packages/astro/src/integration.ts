@@ -1,5 +1,5 @@
 import type { AstroIntegration } from "astro";
-import { nudgeUi, type NudgeUiOptions } from "@nudge-ui/plugin";
+import { nudgeUi, type NudgeUiOptions } from "@nudge-ui/vite-react";
 import { createProjectContextPlugin } from "./projectContext.ts";
 
 export type { NudgeUiOptions };

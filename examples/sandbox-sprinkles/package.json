@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@nudge-ui/inspector": "workspace:*",
-    "@nudge-ui/plugin": "workspace:*",
+    "@nudge-ui/vite-react": "workspace:*",
     "@vanilla-extract/css": "1.21.2",
     "@vanilla-extract/sprinkles": "1.7.0",
     "react": "^18.3.1",

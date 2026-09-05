@@ -9,7 +9,7 @@ import { nudgeUi } from "../../packages/plugin/src/index.ts";
 const inspectorSourceEntry = fileURLToPath(new URL("../../packages/inspector/src/index.ts", import.meta.url));
 
 export default defineConfig({
-  // @nudge-ui/plugin is a workspace package with Vite in its own dependency
+  // @nudge-ui/vite-react is a workspace package with Vite in its own dependency
   // graph. The cast keeps Vite's plugin typing local to this app's Vite instance.
   // SAFETY: nudgeUi returns Plugin[]; this app accepts it as a PluginOption after the local Vite type mismatch.
   plugins: [react(), nudgeUi() as PluginOption],

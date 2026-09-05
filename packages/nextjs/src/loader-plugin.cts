@@ -42,7 +42,7 @@ const { transformNextModuleSource } = require("./loader.ts") as {
     options?: { root?: string; pagesDir?: string },
   ) => { code: string } | null;
 };
-const { extractComponentContracts } = require("@nudge-ui/plugin/component-contracts") as {
+const { extractComponentContracts } = require("@nudge-ui/vite-react/component-contracts") as {
   extractComponentContracts: (source: string, file: string) => unknown[];
 };
 

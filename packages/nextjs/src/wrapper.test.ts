@@ -215,7 +215,7 @@ describe("withNudgeUi — development output shape", () => {
     const transpile = config.transpilePackages as string[];
     for (const required of [
       "@nudge-ui/nextjs",
-      "@nudge-ui/plugin",
+      "@nudge-ui/vite-react",
       "@nudge-ui/inspector",
       "@nudge-ui/css",
     ]) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { injectIdentity } from "@nudge-ui/plugin/identity";
-import { extractComponentContracts } from "@nudge-ui/plugin/component-contracts";
+import { injectIdentity } from "@nudge-ui/vite-react/identity";
+import { extractComponentContracts } from "@nudge-ui/vite-react/component-contracts";
 
 /**
  * The Next.js host Adapter consumes these build-time Modules through the
@@ -8,7 +8,7 @@ import { extractComponentContracts } from "@nudge-ui/plugin/component-contracts"
  * bundler-agnostic functions — not that their transforms are exhaustive
  * (their own unit suites own that).
  */
-describe("@nudge-ui/plugin subpath exports", () => {
+describe("@nudge-ui/vite-react subpath exports", () => {
   it("resolves ./identity to the identity-injection Module", () => {
     expect(typeof injectIdentity).toBe("function");
     const result = injectIdentity(

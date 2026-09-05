@@ -38,7 +38,7 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@nudge-ui/plugin':
+      '@nudge-ui/vite-react':
         specifier: workspace:*
         version: link:../../packages/plugin
       react:
@@ -81,7 +81,7 @@ importers:
       '@nudge-ui/package-css-fixture':
         specifier: workspace:*
         version: link:../../packages/package-css-fixture
-      '@nudge-ui/plugin':
+      '@nudge-ui/vite-react':
         specifier: workspace:*
         version: link:../../packages/plugin
       react:
@@ -167,7 +167,7 @@ importers:
       '@nudge-ui/nextjs':
         specifier: workspace:*
         version: link:../../packages/nextjs
-      '@nudge-ui/plugin':
+      '@nudge-ui/vite-react':
         specifier: workspace:*
         version: link:../../packages/plugin
       next:
@@ -201,7 +201,7 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@nudge-ui/plugin':
+      '@nudge-ui/vite-react':
         specifier: workspace:*
         version: link:../../packages/plugin
       '@vanilla-extract/css':
@@ -253,7 +253,7 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@nudge-ui/plugin':
+      '@nudge-ui/vite-react':
         specifier: workspace:*
         version: link:../../packages/plugin
       react:
@@ -305,7 +305,7 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@nudge-ui/plugin':
+      '@nudge-ui/vite-react':
         specifier: workspace:*
         version: link:../../packages/plugin
       '@shadcn/react':
@@ -420,7 +420,7 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../inspector
-      '@nudge-ui/plugin':
+      '@nudge-ui/vite-react':
         specifier: workspace:*
         version: link:../plugin
       parse5:
@@ -544,12 +544,12 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../inspector
-      '@nudge-ui/plugin':
-        specifier: workspace:*
-        version: link:../plugin
       '@nudge-ui/standalone':
         specifier: workspace:*
         version: link:../standalone
+      '@nudge-ui/vite-react':
+        specifier: workspace:*
+        version: link:../plugin
       magic-string:
         specifier: ^0.30.21
         version: 0.30.21

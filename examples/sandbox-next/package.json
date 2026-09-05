@@ -16,7 +16,7 @@
     "@nudge-ui/css": "workspace:*",
     "@nudge-ui/inspector": "workspace:*",
     "@nudge-ui/nextjs": "workspace:*",
-    "@nudge-ui/plugin": "workspace:*",
+    "@nudge-ui/vite-react": "workspace:*",
     "next": "~16.3.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

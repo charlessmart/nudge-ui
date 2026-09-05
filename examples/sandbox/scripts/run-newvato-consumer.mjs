@@ -11,7 +11,7 @@ const newvatoCheckout = resolve(
   process.env["NEWVATO_CHECKOUT"] ?? defaultCheckout,
 );
 const webRoot = resolve(newvatoCheckout, "apps/web");
-const pluginLink = resolve(webRoot, "node_modules/@nudge-ui/plugin");
+const pluginLink = resolve(webRoot, "node_modules/@nudge-ui/vite-react");
 const expectedPlugin = resolve(nudgeUiRoot, "packages/plugin");
 const required = process.env["NEWVATO_CONSUMER_REQUIRED"] === "true";
 
