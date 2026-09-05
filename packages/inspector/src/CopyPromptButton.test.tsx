@@ -53,9 +53,9 @@ class ButtonTransport implements AgentBridgeTransport {
   eventHandlers: AgentEventHandlers | null = null;
   dispatches: AgentPromptDispatch[] = [];
   rejectDispatch = false;
-  discoveredStatus = listeningStatus();
+  discoveredStatus: AgentStatusSnapshot | null = listeningStatus();
 
-  async discover(): Promise<AgentStatusSnapshot> { return this.discoveredStatus; }
+  async discover(): Promise<AgentStatusSnapshot | null> { return this.discoveredStatus; }
 
   async pair(): Promise<PairingResponse> {
     return {
@@ -118,7 +118,7 @@ describe("CopyPromptButton agent handoff", () => {
     vi.restoreAllMocks();
   });
 
-  it("explains when the companion is reachable but no agent listener is active", async () => {
+  it("shows a connection action when the companion is ready but no agent listener is active", async () => {
     const transport = new ButtonTransport();
     transport.discoveredStatus = listeningStatus({ connection: "offline", listenerActive: false });
     configureAgentBridgeTransport(transport);
@@ -126,9 +126,51 @@ describe("CopyPromptButton agent handoff", () => {
     await flush();
 
     const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
-    const hint = container.querySelector<HTMLElement>('[data-test="agent-listener-hint"]');
+    const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
     expect(button.textContent).toContain("Copy prompt");
-    expect(hint?.textContent).toContain("nudge_listen");
+    expect(status?.textContent).toContain("Ready to connect");
+    expect(status?.textContent).toContain("Connect");
+    expect(status?.className).toContain("status-callout--accent");
+
+    act(() => status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.click());
+    expect(document.body.querySelector('[data-test="mcp-connection-dialog"]')?.textContent)
+      .toContain("Ready to connect");
+  });
+
+  it("shows no connection status when the companion is not found", async () => {
+    const transport = new ButtonTransport();
+    transport.discoveredStatus = null;
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+
+    expect(container.querySelector('[data-test="agent-connection-status"]')).toBeNull();
+  });
+
+  it("shows setup for a paired page whose agent is not listening", async () => {
+    const transport = new ButtonTransport();
+    transport.discoveredStatus = listeningStatus({ connection: "paired", listenerActive: false, paired: true });
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+
+    const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
+    expect(status?.textContent).toContain("Connected, not listening");
+    expect(status?.textContent).toContain("Set up");
+    expect(status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.dataset.action)
+      .toBe("setup");
+  });
+
+  it("shows a centered listening status with a check icon", async () => {
+    const transport = new ButtonTransport();
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+
+    const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
+    expect(status?.textContent).toContain("Agent listening");
+    expect(status?.className).not.toContain("status-callout");
+    expect(status?.querySelector("svg")).not.toBeNull();
   });
 
   it("changes Connect into Send and disables the control while one prompt is working", async () => {
@@ -200,7 +242,7 @@ describe("CopyPromptButton agent handoff", () => {
 
     const dialog = document.querySelector<HTMLElement>('[data-test="mcp-connection-dialog"]');
     expect(dialog).not.toBeNull();
-    expect(dialog?.textContent).toContain("Companion reachable · Ready to connect");
+    expect(dialog?.textContent).toContain("Ready to connect");
     expect(dialog?.textContent).toContain("--project-id handoff-project");
     expect(dialog?.querySelector<HTMLAnchorElement>('[data-test="mcp-docs-link"]')?.href)
       .toBe("https://github.com/charlessmart/nudge-ui#connect-a-coding-agent");

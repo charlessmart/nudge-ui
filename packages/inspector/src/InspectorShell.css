@@ -130,6 +130,38 @@
   font-family: var(--font-mono);
 }
 
+.copy-prompt__agent-status {
+  margin-top: var(--space-8);
+}
+
+.copy-prompt__agent-status-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.copy-prompt__agent-status-content > span {
+  min-width: 0;
+}
+
+.copy-prompt__agent-status-content .button--quiet {
+  flex: 0 0 auto;
+  color: inherit;
+}
+
+.copy-prompt__agent-status--listening {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .panel__body {
   min-height: auto;
   padding: 0 20px 28px;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import {
+  IconCheck,
   IconChevronDown,
   IconClipboardCheck,
   IconPlugConnected,
@@ -13,9 +14,11 @@ import { copyToClipboard } from "./prompt/copyToClipboard.ts";
 import { loadCustomInstructions, saveCustomInstructions } from "./prompt/promptSettings.ts";
 import { PromptSettingsDialog } from "./prompt/PromptSettingsDialog.tsx";
 import { McpConnectionDialog } from "./agent/McpConnectionDialog.tsx";
+import { getAgentConnectionStatus } from "./agent/connectionStatus.ts";
 import { Button } from "./ui/Button.tsx";
 import { IconButton } from "./ui/IconButton.tsx";
 import { InspectorPopover } from "./ui/InspectorPopover.tsx";
+import { StatusCallout } from "./ui/StatusCallout.tsx";
 import { getStructuralChanges, subscribeStructuralChanges } from "./structuralProjection.ts";
 import { getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 import {
@@ -94,13 +97,9 @@ export function CopyPromptButton(): ReactElement {
     && !connecting
     && !working;
   const canSend = agent.paired && agent.listenerActive && !working;
-  const waitingForListener = agent.companionReachable
-    && !agent.paired
-    && !agent.listenerActive;
-  const listenerHint = waitingForListener
-    ? "MCP companion detected, but no agent listener is active. Ask your coding agent to call nudge_listen."
-    : undefined;
   const disabled = connecting || working || (!canConnect && !hasChanges);
+  const agentStatus = getAgentConnectionStatus(agent);
+  const statusAction = agentStatus.action;
 
   const label = copied
     ? "Copied!"
@@ -157,6 +156,11 @@ export function CopyPromptButton(): ReactElement {
     setPromptSettingsOpen(true);
   }
 
+  function openMcpConnection(): void {
+    setMenuOpen(false);
+    setMcpConnectionOpen(true);
+  }
+
   return (
     <div className="copy-prompt__stack" data-test="copy-prompt-control">
       <div className="copy-prompt">
@@ -169,7 +173,7 @@ export function CopyPromptButton(): ReactElement {
           data-copied={copied ? "true" : "false"}
           data-agent-state={agent.state}
           aria-busy={working || connecting ? "true" : undefined}
-          title={agent.error ?? listenerHint}
+          title={agent.error}
           onClick={onClick}
         >
           {icon}
@@ -212,10 +216,7 @@ export function CopyPromptButton(): ReactElement {
               data-test="mcp-setup-option"
               role="menuitem"
               type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                setMcpConnectionOpen(true);
-              }}
+              onClick={openMcpConnection}
             >
               <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               <span>Connect MCP…</span>
@@ -223,10 +224,35 @@ export function CopyPromptButton(): ReactElement {
           </div>
         </InspectorPopover>
       </div>
-      {listenerHint ? (
-        <p className="copy-prompt__hint" data-test="agent-listener-hint" role="status">
-          {listenerHint}
-        </p>
+      {statusAction ? (
+        <StatusCallout
+          className="copy-prompt__agent-status"
+          tone={agentStatus.tone}
+          data-test="agent-connection-status"
+        >
+          <div className="copy-prompt__agent-status-content">
+            <span role="status">{agentStatus.label}</span>
+            <Button
+              size="compact"
+              variant="quiet"
+              data-test="agent-status-action"
+              data-action={statusAction.kind}
+              type="button"
+              onClick={openMcpConnection}
+            >
+              {statusAction.label}
+            </Button>
+          </div>
+        </StatusCallout>
+      ) : agentStatus.kind === "listening" ? (
+        <div
+          className="copy-prompt__agent-status copy-prompt__agent-status--listening"
+          data-test="agent-connection-status"
+          role="status"
+        >
+          <IconCheck size="var(--icon-size-small)" stroke={2} aria-hidden="true" />
+          <span>{agentStatus.label}</span>
+        </div>
       ) : null}
       {reconciledCount > 0 ? (
         <p className="copy-prompt__hint" data-test="clipboard-reconciled-hint" role="status">

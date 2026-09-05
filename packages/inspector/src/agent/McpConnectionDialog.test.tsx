@@ -57,7 +57,7 @@ describe("McpConnectionDialog", () => {
     expect(command).toContain("npx add-mcp '");
   });
 
-  it("shows a paired idle companion as waiting until the listener is active", () => {
+  it("shows a paired idle companion as not listening until the listener is active", () => {
     act(() => {
       root.render(
         <McpConnectionDialog
@@ -76,7 +76,7 @@ describe("McpConnectionDialog", () => {
     const dialog = document.body.querySelector<HTMLElement>('[data-test="mcp-connection-dialog"]');
     expect(dialog?.getAttribute("role")).toBe("dialog");
     expect(document.body.querySelector('[data-test="mcp-connection-status"]')?.textContent)
-      .toContain("Connected · Waiting for agent");
+      .toContain("Connected, not listening");
     expect(document.body.querySelector('[data-test="mcp-connect"]')).toBeNull();
     expect(document.body.querySelector('[data-test="mcp-disconnect"]')).not.toBeNull();
     expect(document.body.querySelector('[data-test="mcp-project-id"]')?.textContent).toBe("fixture-project");

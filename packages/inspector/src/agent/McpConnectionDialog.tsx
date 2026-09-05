@@ -11,6 +11,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import type { AgentClientSnapshot } from "./client.ts";
+import { getAgentConnectionStatus } from "./connectionStatus.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { Button } from "../ui/Button.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
@@ -52,40 +53,10 @@ export interface McpConnectionDialogProps {
   readonly onCheckAgain: () => Promise<void>;
 }
 
-interface ConnectionStatus {
-  readonly label: string;
-  readonly tone: "neutral" | "accent" | "warning" | "danger";
-}
-
 function portalContainer(): HTMLElement | ShadowRoot | null {
   return typeof document !== "undefined"
     ? document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body
     : null;
-}
-
-function connectionStatus(snapshot: AgentClientSnapshot): ConnectionStatus {
-  if (snapshot.state === "disabled") {
-    return { label: "Unavailable in this build", tone: "neutral" };
-  }
-  if (snapshot.state === "pairing") {
-    return { label: "Connecting…", tone: "accent" };
-  }
-  if (!snapshot.paired && (snapshot.state === "working" || snapshot.request?.status === "working")) {
-    return { label: "Disconnected · Last work status unknown", tone: "warning" };
-  }
-  if (snapshot.paired && (snapshot.state === "working" || snapshot.request?.status === "working")) {
-    return { label: "Connected · Agent working", tone: "accent" };
-  }
-  if (snapshot.paired && snapshot.listenerActive) {
-    return { label: "Connected · Ready", tone: "accent" };
-  }
-  if (snapshot.paired) {
-    return { label: "Connected · Waiting for agent", tone: "warning" };
-  }
-  if (snapshot.companionReachable) {
-    return { label: "Companion reachable · Ready to connect", tone: "accent" };
-  }
-  return { label: "Companion not found", tone: "neutral" };
 }
 
 /**
@@ -112,7 +83,7 @@ export function McpConnectionDialog({
   const [checkError, setCheckError] = useState<string | undefined>();
   const setupCommand = useMemo(() => createMcpSetupCommand(projectId, origin), [origin, projectId]);
   const listenerInstruction = "Call nudge_listen now and wait for my Nudge UI prompt. After applying it, call nudge_report_status and listen again.";
-  const status = connectionStatus(snapshot);
+  const status = getAgentConnectionStatus(snapshot);
   const canConnect = snapshot.companionReachable
     && !snapshot.paired
     && snapshot.state !== "pairing"

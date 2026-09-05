@@ -84,18 +84,23 @@ test.describe("Nudge MCP browser bridge", () => {
 
   test("pairs an idle companion from the connection panel and becomes ready when the agent listens", async ({ page }) => {
     await page.goto("/playground");
+    const connectionStatus = page.locator('[data-test="agent-connection-status"]');
+    await expect(connectionStatus).toContainText("Ready to connect");
     await page.locator('button[data-test="copy-prompt-menu"]').click();
     await page.locator('[data-test="mcp-setup-option"]').click();
     const dialog = page.locator('[data-test="mcp-connection-dialog"]');
     await expect(dialog).toBeVisible();
+    await expect(dialog.locator('[data-test="mcp-connection-status"]')).toContainText("Ready to connect");
     await page.locator('[data-test="mcp-connect"]').click();
     await expect.poll(() => bridge.getStatus().paired).toBe(true);
     expect(bridge.getStatus().listenerActive).toBe(false);
     await expect(page.locator('[data-test="copy-prompt"]')).toHaveText("Copy prompt");
+    await expect(connectionStatus).toContainText("Connected, not listening");
 
     const listener = startPromptListener(bridge);
     try {
       await expect(page.locator('[data-test="copy-prompt"]')).toHaveText("Send prompt");
+      await expect(connectionStatus).toContainText("Agent listening");
       await page.locator('[data-test="mcp-disconnect"]').click();
       await expect.poll(() => bridge.getStatus().paired).toBe(false);
     } finally {
