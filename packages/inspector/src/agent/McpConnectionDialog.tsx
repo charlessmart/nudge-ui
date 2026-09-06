@@ -181,7 +181,6 @@ export function McpConnectionContent({
           <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{setupCommand}</code></pre>
           <div className="mcp-connection__command-actions">
             <Button
-              size="compact"
               variant="secondary"
               data-test="mcp-copy-command"
               type="button"
@@ -197,9 +196,6 @@ export function McpConnectionContent({
         </TimelineStep>
 
         <TimelineStep number={2} complete={snapshot.paired} title="Connect this page">
-          <p className="mcp-connection__copy">
-            Pair this page with the configured companion before sending a prompt.
-          </p>
           <dl className="mcp-connection__diagnostics" data-test="mcp-connection-diagnostics">
             <div className="mcp-connection__diagnostic">
               <dt>Project ID</dt>
@@ -213,7 +209,6 @@ export function McpConnectionContent({
           <div className="mcp-connection__actions">
             {canConnect ? (
               <Button
-                size="compact"
                 variant="primary"
                 data-test="mcp-connect"
                 type="button"
@@ -224,7 +219,6 @@ export function McpConnectionContent({
               </Button>
             ) : null}
             <Button
-              size="compact"
               variant="quiet"
               data-test="mcp-check-again"
               type="button"
@@ -236,7 +230,6 @@ export function McpConnectionContent({
             </Button>
             {canDisconnect ? (
               <Button
-                size="compact"
                 variant="danger"
                 data-test="mcp-disconnect"
                 type="button"
@@ -256,7 +249,6 @@ export function McpConnectionContent({
           </p>
           <div className="mcp-connection__command-actions">
             <Button
-              size="compact"
               variant="secondary"
               data-test="mcp-copy-listener"
               type="button"

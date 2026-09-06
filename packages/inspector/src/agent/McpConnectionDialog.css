@@ -63,7 +63,7 @@
 }
 
 .mcp-connection__status-label {
-  color: var(--text-primary);
+  color: inherit;
   font-weight: var(--font-weight-label);
 }
 
@@ -78,6 +78,7 @@
   padding: var(--space-12);
   border-radius: var(--radius-control);
   background: var(--surface-control);
+  font-size: 14px;
 }
 
 .mcp-connection__diagnostic {
@@ -89,7 +90,6 @@
 
 .mcp-connection__diagnostic dt {
   color: var(--text-muted-subtle);
-  font-size: var(--font-size-small);
   font-weight: var(--font-weight-label);
 }
 
@@ -98,7 +98,6 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--text-primary);
-  font-size: var(--font-size-small);
 }
 
 .mcp-connection__diagnostic code,
@@ -221,6 +220,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-4);
+  margin-top: 64px;
   color: var(--text-secondary);
   font-size: var(--font-size-small);
   text-decoration: none;
