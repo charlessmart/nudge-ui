@@ -132,6 +132,14 @@ describe("McpConnectionDialog", () => {
     await flush();
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("--project-id fixture-project"));
 
+    act(() => document.body.querySelector<HTMLButtonElement>('[data-test="mcp-setup-tab-ai"]')!.click());
+    expect(document.body.querySelector('[data-test="mcp-setup-prompt"]')?.textContent)
+      .toContain("Please configure the Nudge MCP companion");
+    expect(document.body.querySelector('[data-test="mcp-setup-command"]')).toBeNull();
+    act(() => document.body.querySelector<HTMLButtonElement>('[data-test="mcp-copy-setup-prompt"]')!.click());
+    await flush();
+    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining("--origin http://localhost:5173"));
+
     act(() => {
       root.render(
         <McpConnectionDialog

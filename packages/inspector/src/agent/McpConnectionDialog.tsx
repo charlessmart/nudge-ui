@@ -14,6 +14,7 @@ import type { AgentClientSnapshot } from "./client.ts";
 import { getAgentConnectionStatus } from "./connectionStatus.ts";
 import { copyToClipboard } from "../prompt/copyToClipboard.ts";
 import { Button } from "../ui/Button.tsx";
+import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 
 export const MCP_DOCS_URL = "https://github.com/charlessmart/nudge-ui#connect-a-coding-agent";
@@ -100,11 +101,21 @@ export function McpConnectionContent({
   onCheckAgain,
 }: McpConnectionContentProps): ReactElement {
   const [checking, setChecking] = useState(false);
+  const [setupMethod, setSetupMethod] = useState<"terminal" | "ai">("terminal");
   const [copiedCommand, setCopiedCommand] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedListener, setCopiedListener] = useState(false);
   const [copyError, setCopyError] = useState<string | undefined>();
   const [checkError, setCheckError] = useState<string | undefined>();
   const setupCommand = useMemo(() => createMcpSetupCommand(projectId, origin), [origin, projectId]);
+  const setupPrompt = useMemo(() => [
+    "Please configure the Nudge MCP companion for this project.",
+    "",
+    "Run this command from the project root:",
+    setupCommand,
+    "",
+    "Then restart or refresh the MCP server so Nudge can connect.",
+  ].join("\n"), [setupCommand]);
   const listenerInstruction = "Call nudge_listen now and wait for my Nudge UI prompt. After applying it, call nudge_report_status and listen again.";
   const status = getAgentConnectionStatus(snapshot);
   const canConnect = snapshot.companionReachable
@@ -135,6 +146,17 @@ export function McpConnectionContent({
       window.setTimeout(() => setCopiedCommand(false), 1500);
     } catch {
       setCopyError("The setup command could not be copied. Select it and copy it manually.");
+    }
+  }
+
+  async function handleCopyPrompt(): Promise<void> {
+    setCopyError(undefined);
+    try {
+      await copyToClipboard(setupPrompt);
+      setCopiedPrompt(true);
+      window.setTimeout(() => setCopiedPrompt(false), 1500);
+    } catch {
+      setCopyError("The AI setup prompt could not be copied. Select it and copy it manually.");
     }
   }
 
@@ -175,24 +197,57 @@ export function McpConnectionContent({
           complete={snapshot.companionReachable}
           title="Configure the MCP host"
         >
-          <p className="mcp-connection__copy">
-            Run this command from your project root.
-          </p>
-          <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{setupCommand}</code></pre>
-          <div className="mcp-connection__command-actions">
-            <Button
-              variant="secondary"
-              data-test="mcp-copy-command"
-              type="button"
-              onClick={() => void handleCopyCommand()}
-            >
-              {copiedCommand ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
-              {copiedCommand ? "Copied" : "Copy command"}
-            </Button>
-          </div>
-          <p className="mcp-connection__note">
-            After running the command, restart or refresh your coding agent's MCP server, then check again.
-          </p>
+          <SegmentedControl
+            aria-label="MCP setup method"
+            className="mcp-connection__setup-tabs"
+            data-test="mcp-setup-tabs"
+            value={setupMethod}
+            options={[
+              { value: "terminal", label: "Terminal command", testId: "mcp-setup-tab-terminal" },
+              { value: "ai", label: "AI instructions", testId: "mcp-setup-tab-ai" },
+            ]}
+            onChange={setSetupMethod}
+          />
+          {setupMethod === "terminal" ? (
+            <>
+              <p className="mcp-connection__copy">
+                Run this command from your project root.
+              </p>
+              <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{setupCommand}</code></pre>
+              <div className="mcp-connection__command-actions">
+                <Button
+                  variant="secondary"
+                  data-test="mcp-copy-command"
+                  type="button"
+                  onClick={() => void handleCopyCommand()}
+                >
+                  {copiedCommand ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
+                  {copiedCommand ? "Copied" : "Copy command"}
+                </Button>
+              </div>
+              <p className="mcp-connection__note">
+                After running the command, restart or refresh your coding agent's MCP server, then check again.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mcp-connection__copy">
+                Copy this prompt into your coding agent to configure Nudge MCP.
+              </p>
+              <pre className="mcp-connection__command"><code data-test="mcp-setup-prompt">{setupPrompt}</code></pre>
+              <div className="mcp-connection__command-actions">
+                <Button
+                  variant="secondary"
+                  data-test="mcp-copy-setup-prompt"
+                  type="button"
+                  onClick={() => void handleCopyPrompt()}
+                >
+                  {copiedPrompt ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
+                  {copiedPrompt ? "Copied" : "Copy prompt"}
+                </Button>
+              </div>
+            </>
+          )}
         </TimelineStep>
 
         <TimelineStep number={2} complete={snapshot.paired} title="Connect this page">
