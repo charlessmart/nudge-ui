@@ -79,6 +79,7 @@
   border-radius: var(--radius-control);
   background: var(--surface-control);
   font-size: 14px;
+  font-weight: var(--font-weight-base);
 }
 
 .mcp-connection__diagnostic {
@@ -90,7 +91,6 @@
 
 .mcp-connection__diagnostic dt {
   color: var(--text-muted-subtle);
-  font-weight: var(--font-weight-label);
 }
 
 .mcp-connection__diagnostic dd {

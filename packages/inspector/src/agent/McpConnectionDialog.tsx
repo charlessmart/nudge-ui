@@ -176,7 +176,7 @@ export function McpConnectionContent({
           title="Configure the MCP host"
         >
           <p className="mcp-connection__copy">
-            Run this command from the application project root in a POSIX shell, such as Bash or Zsh.
+            Run this command from your project root.
           </p>
           <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{setupCommand}</code></pre>
           <div className="mcp-connection__command-actions">
@@ -244,8 +244,7 @@ export function McpConnectionContent({
 
         <TimelineStep number={3} complete={snapshot.listenerActive} title="Start the agent listener">
           <p className="mcp-connection__copy">
-            Ask your coding agent to call <code>nudge_listen</code> and keep that call active before sending a
-            prompt.
+            Ask your coding agent to call <code>nudge_listen</code> and keep it active.
           </p>
           <div className="mcp-connection__command-actions">
             <Button
