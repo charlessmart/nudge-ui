@@ -14,7 +14,7 @@ import {
 } from "./changes/projection.ts";
 import type { StyleRule, PreviewResult } from "./managedStylesheet.ts";
 import { isElementChange, isPreviewableChange } from "./changes/types.ts";
-import type { ChangeRecord, RuntimeElementEvidence } from "./changes/types.ts";
+import type { ChangeRecord } from "./changes/types.ts";
 import { cancelInlineTextForClear } from "./inlineTextLifecycle.ts";
 
 export {
@@ -48,6 +48,11 @@ const listeners = new Set<() => void>();
  */
 let pendingVerificationTargets = new Map<string, HTMLElement | null>();
 let verificationHandle: number | ReturnType<typeof setTimeout> | null = null;
+
+export interface AppendChangesOptions {
+  /** The rendered target captured for each change key at commit time. */
+  verificationTargets?: ReadonlyMap<string, HTMLElement | null>;
+}
 
 function subscribe(cb: () => void): () => void {
   listeners.add(cb);
@@ -133,20 +138,23 @@ function scheduleVerification(): void {
  * re-verify the surviving set (their sheet projection changed globally);
  * a plain commit re-verifies only the records it introduced or merged.
  */
-function markForVerification(keys: Iterable<string>): void {
+function markForVerification(
+  keys: Iterable<string>,
+  verificationTargets?: ReadonlyMap<string, HTMLElement | null>,
+): void {
   const selectedElement = getSelectedElement()?.domElement ?? null;
   let added = false;
   for (const key of keys) {
     if (!pendingVerificationTargets.has(key)) added = true;
     // Keep the latest commit context for a merged key. The element may be in
     // an iframe, so this is also the document boundary for verification.
-    pendingVerificationTargets.set(key, selectedElement);
+    pendingVerificationTargets.set(key, verificationTargets?.get(key) ?? selectedElement);
   }
   if (added) scheduleVerification();
 }
 
 /** Append several records as one projection and one undoable history entry. */
-export function appendChanges(incoming: ChangeRecord[]): void {
+export function appendChanges(incoming: ChangeRecord[], options: AppendChangesOptions = {}): void {
   if (!canWriteWorkspace() || incoming.length === 0) return;
   const before = changes;
   const nextChanges = incoming.reduce(
@@ -156,7 +164,7 @@ export function appendChanges(incoming: ChangeRecord[]): void {
   if (sameEffectiveChanges(before, nextChanges)) return;
   changes = nextChanges;
   reapply();
-  markForVerification(incoming.map(changeKey));
+  markForVerification(incoming.map(changeKey), options.verificationTargets);
   undoStack.push({ before, after: changes });
   redoStack.length = 0;
   notify();

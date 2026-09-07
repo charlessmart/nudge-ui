@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   getSelectedElement,
+  getSelectedElements,
   setSelectedElement,
 } from "./selectionStore.ts";
 import { setInspectorOpen } from "./openStore.ts";
@@ -204,6 +205,31 @@ describe("installElementSelector", () => {
     expect(sel?.line).toBe(12);
     expect(sel?.column).toBe(5);
     expect(sel?.cprops).toBe("variant:primary");
+  });
+
+  it("toggles a group on Shift-click while keeping the last target primary", () => {
+    const first = makeHostElement({
+      "data-cid": "Heading",
+      "data-src": "/path/Heading.tsx:12:5",
+    });
+    const second = makeHostElement({
+      "data-cid": "Heading",
+      "data-src": "/path/Heading.tsx:18:5",
+    });
+    document.body.append(first, second);
+
+    dispatchClick(first);
+    const additive = dispatchClick(second, { shiftKey: true });
+
+    expect(getSelectedElements().map((selected) => selected.domElement)).toEqual([first, second]);
+    expect(getSelectedElement()?.domElement).toBe(second);
+    expect(additive.defaultPrevented).toBe(true);
+
+    dispatchClick(first, { shiftKey: true });
+    expect(getSelectedElements().map((selected) => selected.domElement)).toEqual([second]);
+
+    dispatchClick(first);
+    expect(getSelectedElements().map((selected) => selected.domElement)).toEqual([first]);
   });
 
 

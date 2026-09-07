@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { setStyle, swapToken, resetPendingRules, getPendingRules, getChangeRecords } from "../tokens/editActions.ts";
+import { redo, undo } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { getManagedSheetText } from "../managedStylesheet.ts";
+import { resetRenderedInstanceState } from "../renderedInstance.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");
@@ -17,11 +19,13 @@ const COLOR_BLUE: TokenEntry = { name: "--color-blue", value: "#0000ff", source:
 describe("setStyle", () => {
   beforeEach(() => {
     resetPendingRules();
+    resetRenderedInstanceState();
     document.body.innerHTML = "";
     document.getElementById("nudge-ui-styles")?.remove();
   });
   afterEach(() => {
     resetPendingRules();
+    resetRenderedInstanceState();
     document.body.innerHTML = "";
     document.getElementById("nudge-ui-styles")?.remove();
   });
@@ -75,6 +79,34 @@ describe("setStyle", () => {
     const text = getManagedSheetText() ;
     expect(text).toContain("padding: 10px;");
     expect(text).toContain("margin: 12px;");
+  });
+
+  it("commits a multi-target edit as one undoable batch", () => {
+    const first = makeButton("Heading", "src/Heading.tsx:1:1");
+    const second = makeButton("Heading", "src/Heading.tsx:2:1");
+
+    setStyle([first, second], "font-size", "24px");
+
+    expect(getChangeRecords()).toHaveLength(2);
+    expect(getPendingRules()).toHaveLength(2);
+    expect(undo()).toBe(true);
+    expect(getChangeRecords()).toHaveLength(0);
+    expect(redo()).toBe(true);
+    expect(getChangeRecords()).toHaveLength(2);
+  });
+
+  it("limits a partial repeated-source edit to selected rendered instances", () => {
+    const first = makeButton("Heading", "src/Heading.tsx:1:1");
+    const second = makeButton("Heading", "src/Heading.tsx:1:1");
+    makeButton("Heading", "src/Heading.tsx:1:1");
+
+    setStyle([first, second], "font-size", "24px");
+
+    const records = getChangeRecords();
+    expect(records).toHaveLength(2);
+    expect(records.every((record) => "scope" in record && record.scope === "rendered-instance")).toBe(true);
+    expect(new Set(records.map((record) => "instanceOverride" in record ? record.instanceOverride?.id : null)).size).toBe(2);
+    expect(getPendingRules()).toHaveLength(2);
   });
 
   it("setStyle and swapToken for the same element+property share the dedup key", () => {

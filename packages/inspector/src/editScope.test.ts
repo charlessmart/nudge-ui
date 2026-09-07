@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { countSourceSiteMatches, getEditScope, getInstanceEvidence, relinkElement, resetSourceSiteMatchCounts, selectorForElement, unlinkElement } from "./editScope";
+import { countBatchEditReach, countSourceSiteMatches, getBatchEditScope, getEditScope, getInstanceEvidence, relinkElement, resetSourceSiteMatchCounts, selectorForElement, unlinkElement } from "./editScope";
 import { resetRenderedInstanceState } from "./renderedInstance";
 
 describe("edit scope", () => {
@@ -69,5 +69,21 @@ describe("edit scope", () => {
     unlinkElement(first);
     expect(countSourceSiteMatches(first)).toBe(2);
     expect(countSourceSiteMatches(add("three"))).toBe(3);
+  });
+
+  it("uses rendered-instance scope for a partial repeated-source selection", () => {
+    const first = add("one");
+    const second = add("two");
+    const third = add("three");
+
+    expect(countBatchEditReach([first, second])).toBe(2);
+    expect(getBatchEditScope(first, [first, second]).scope).toBe("rendered-instance");
+    expect(getBatchEditScope(second, [first, second]).scope).toBe("rendered-instance");
+
+    expect(getBatchEditScope(first, [first, second, third]).scope).toBe("rendered-instance");
+    relinkElement(first);
+    relinkElement(second);
+    expect(countBatchEditReach([first, second, third])).toBe(3);
+    expect(getBatchEditScope(first, [first, second, third]).scope).toBe("source-site");
   });
 });

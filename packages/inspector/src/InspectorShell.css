@@ -192,6 +192,21 @@
   text-transform: uppercase;
 }
 
+.selection__summary {
+  display: grid;
+  gap: 2px;
+}
+
+.selection__count {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.selection__reach {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+
 .style-state {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);

@@ -1,5 +1,5 @@
 import type { SelectedElement } from "../selectionStore.ts";
-import { setSelectedElement } from "../selectionStore.ts";
+import { getSelectedElements, setSelectedElement, toggleSelectedElement } from "../selectionStore.ts";
 import type { ElementClickMessage } from "./frameProtocol.ts";
 import { selectCard } from "./canvasStore.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
@@ -59,6 +59,11 @@ export function handleElementClick(msg: ElementClickMessage, iframe: HTMLIFrameE
 
   // setSelectedElement must run before any side effect that could reload the
   // host page, otherwise the selection would be discarded by the unload.
-  setSelectedElement(selected);
+  const current = getSelectedElements();
+  if (msg.additive && current.length > 0 && current.every((candidate) => candidate.domElement.ownerDocument === doc)) {
+    toggleSelectedElement(selected);
+  } else {
+    setSelectedElement(selected);
+  }
   selectCard(cardId);
 }

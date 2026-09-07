@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconTextSize,
   IconAlignCenter,
@@ -21,25 +21,50 @@ import type { SelectedElement } from "../selectionStore.ts";
 import { Select } from "../ui/Select.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
-import { setStyle } from "./styleActions.ts";
+import { setStyle, setStyles } from "./styleActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
+import type { AggregatedProperty } from "../inspection/aggregateInspection.ts";
+import type { EditTarget } from "../editTarget.ts";
 
-function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
+type TypographyProperty = ResolvedProperty | AggregatedProperty;
+
+function findTokenRow(rows: readonly TypographyProperty[], prop: string): TypographyProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
+}
+
+function aggregateFor(row: TypographyProperty | null): AggregatedProperty["aggregate"] | null {
+  if (!row || !("aggregate" in row)) return null;
+  return row.aggregate;
 }
 
 export interface TypographyProps {
   element: SelectedElement;
+  elements?: readonly SelectedElement[];
   entries?: TokenEntry[];
-  tokenRows?: ResolvedProperty[];
+  tokenRows?: readonly TypographyProperty[];
   onAfterEdit?: () => void;
 }
 
 export function Typography(props: TypographyProps): ReactElement {
-  const { element, entries, tokenRows = [], onAfterEdit } = props;
+  const { element, elements: selectedElementsProp, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
+  const selectedElements = useMemo(
+    () => selectedElementsProp && selectedElementsProp.length > 0 ? selectedElementsProp : [element],
+    [element, selectedElementsProp],
+  );
+  const target: EditTarget = useMemo(
+    () => selectedElements.length > 1 ? selectedElements.map((selected) => selected.domElement) : el,
+    [el, selectedElements],
+  );
+  const targetElements = useMemo(
+    () => selectedElements.map((selected) => selected.domElement),
+    [selectedElements],
+  );
   const allEntries = entries ?? [];
+  const isGroup = selectedElements.length > 1;
+  const supports = (properties: readonly string[]): boolean =>
+    !isGroup || properties.every((property) => tokenRows.some((row) => row.property === property));
 
   return (
     <div className="editor editor--typography" data-test="typography">
@@ -48,61 +73,69 @@ export function Typography(props: TypographyProps): ReactElement {
       </div>
 
       <div className="typography">
-        <TypographyTokenField
+        {supports(["font-family"]) ? <TypographyTokenField
           property="font-family"
           label="Font family"
           icon={<IconItalic size={"var(--icon-size-small)"} stroke={1.35} aria-hidden="true" />}
           tokenRow={findTokenRow(tokenRows, "font-family")}
           domElement={el}
+          editTarget={target}
           entries={allEntries}
           onAfterEdit={onAfterEdit}
-        />
+        /> : null}
 
-        <FontStyleField
+        {supports(["font-style", "font-weight"]) ? <FontStyleField
           element={el}
+          elements={targetElements}
+          editTarget={target}
           fontStyleRow={findTokenRow(tokenRows, "font-style")}
           fontWeightRow={findTokenRow(tokenRows, "font-weight")}
           onAfterEdit={onAfterEdit}
-        />
+        /> : null}
 
         <div className="typography__metrics" data-test="typography-metrics">
-          <TypographyTokenField
+          {supports(["font-size"]) ? <TypographyTokenField
             property="font-size"
             label="Font size"
             icon={<IconTextSize size={"var(--icon-size-small)"} stroke={1.55} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "font-size")}
             domElement={el}
+            editTarget={target}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
             chipVariant="small"
-          />
-          <TypographyTokenField
+          /> : null}
+          {supports(["line-height"]) ? <TypographyTokenField
             property="line-height"
             label="Line height"
             icon={<IconBaseline size={"var(--icon-size-small)"} stroke={1.5} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "line-height")}
             domElement={el}
+            editTarget={target}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
             chipVariant="small"
-          />
-          <TypographyTokenField
+          /> : null}
+          {supports(["letter-spacing"]) ? <TypographyTokenField
             property="letter-spacing"
             label="Letter spacing"
             icon={<IconLetterSpacing size={"var(--icon-size-small)"} stroke={1.5} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "letter-spacing")}
             domElement={el}
+            editTarget={target}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
             chipVariant="small"
-          />
+          /> : null}
         </div>
 
         <div className="typography__alignment" data-test="typography-alignment">
-          <AlignmentField
+          {supports(["text-align"]) ? <AlignmentField
             property="text-align"
             label="Horizontal alignment"
             element={el}
+            elements={targetElements}
+            editTarget={target}
             defaultValue="left"
             options={[
               { value: "left", label: "Align left", icon: <IconAlignLeft size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
@@ -110,11 +143,13 @@ export function Typography(props: TypographyProps): ReactElement {
               { value: "right", label: "Align right", icon: <IconAlignRight size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
             ]}
             onAfterEdit={onAfterEdit}
-          />
-          <AlignmentField
+          /> : null}
+          {supports(["vertical-align"]) ? <AlignmentField
             property="vertical-align"
             label="Vertical alignment"
             element={el}
+            elements={targetElements}
+            editTarget={target}
             defaultValue="baseline"
             options={[
               { value: "top", label: "Align top", icon: <IconLayoutAlignTop size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
@@ -122,7 +157,7 @@ export function Typography(props: TypographyProps): ReactElement {
               { value: "bottom", label: "Align bottom", icon: <IconLayoutAlignBottom size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
             ]}
             onAfterEdit={onAfterEdit}
-          />
+          /> : null}
         </div>
       </div>
     </div>
@@ -135,14 +170,21 @@ interface TypographyTokenFieldProps {
   icon: ReactElement;
   tokenRow: ResolvedProperty | null;
   domElement: HTMLElement;
+  editTarget: EditTarget;
   entries: TokenEntry[];
   onAfterEdit?: () => void;
   chipVariant?: "default" | "small";
 }
 
 function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
-  const { property, label, icon, tokenRow, domElement, entries, onAfterEdit, chipVariant } = props;
+  const { property, label, icon, tokenRow, domElement, editTarget, entries, onAfterEdit, chipVariant } = props;
   const metric = property === "font-size" || property === "line-height" || property === "letter-spacing";
+  const aggregate = aggregateFor(tokenRow);
+  const mixed = aggregate?.valueState === "mixed";
+  const displayValue = aggregate
+    ? mixed ? "Mixed" : aggregate.values[0]
+    : undefined;
+  const attributionTokens = aggregate?.sourceState === "mixed" ? ["Mixed source"] : undefined;
   const hasTokenChip = Boolean(tokenRow?.tokenName
     && tokenRow.capability !== "raw"
     && tokenRow.capability !== "composite"
@@ -153,7 +195,11 @@ function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
         property={property}
         tokenRow={tokenRow}
         domElement={domElement}
+        editTarget={editTarget}
         entries={entries}
+        displayValue={displayValue}
+        mixed={mixed}
+        attributionTokens={attributionTokens}
         editMetadata={metadataFor(tokenRow)}
         leading={icon}
         trailing={metric || hasTokenChip ? undefined : <IconChevronDown size={17} stroke={1.8} aria-hidden="true" />}
@@ -185,37 +231,45 @@ const FONT_STYLE_OPTIONS: FontStyleOption[] = [
 
 interface FontStyleFieldProps {
   element: HTMLElement;
+  elements: readonly HTMLElement[];
+  editTarget: EditTarget;
   fontStyleRow: ResolvedProperty | null;
   fontWeightRow: ResolvedProperty | null;
   onAfterEdit?: () => void;
 }
 
-function FontStyleField({ element, fontStyleRow, fontWeightRow, onAfterEdit }: FontStyleFieldProps): ReactElement {
+function FontStyleField({ element, elements, editTarget, fontStyleRow, fontWeightRow, onAfterEdit }: FontStyleFieldProps): ReactElement {
   const fontStyleAtRules = useFieldAtRules("font-style");
   const fontWeightAtRules = useFieldAtRules("font-weight");
   const atRules = fontStyleRow?.atRuleCandidates ?? fontStyleRow?.atRules
     ?? fontWeightRow?.atRuleCandidates ?? fontWeightRow?.atRules
     ?? (fontStyleAtRules.length > 0 ? fontStyleAtRules : fontWeightAtRules);
   const readValue = () => readFontStyle(element);
+  const values = elements.map(readFontStyle);
+  const isMixed = values.some((value) => value.weight !== values[0]?.weight || value.style !== values[0]?.style);
   const [current, setCurrent] = useState(readValue);
 
   useEffect(() => {
     setCurrent(readValue());
-  }, [element]);
+  }, [element, elements]);
 
   const currentOption = FONT_STYLE_OPTIONS.find((option) => option.value === `${current.weight}-${current.style}`);
   const currentKey = currentOption?.value ?? `${current.weight}-${current.style}`;
-  const currentLabel = currentOption?.label ?? formatCustomFontStyle(current.weight, current.style);
-  const options = currentOption
-    ? FONT_STYLE_OPTIONS
-    : [...FONT_STYLE_OPTIONS, { value: currentKey, label: currentLabel, ...current }];
+  const currentLabel = isMixed ? "Mixed" : currentOption?.label ?? formatCustomFontStyle(current.weight, current.style);
+  const options = isMixed
+    ? [{ value: "mixed", label: "Mixed", disabled: true }, ...FONT_STYLE_OPTIONS]
+    : currentOption
+      ? FONT_STYLE_OPTIONS
+      : [...FONT_STYLE_OPTIONS, { value: currentKey, label: currentLabel, ...current }];
 
   function handleChange(value: string): void {
     const option = options.find((candidate) => candidate.value === value);
-    if (!option) return;
+    if (!option || option.value === "mixed" || !("weight" in option) || !("style" in option)) return;
     setCurrent({ weight: option.weight, style: option.style });
-    setStyle(element, "font-style", option.style, metadataFor(fontStyleRow ?? fontWeightRow));
-    setStyle(element, "font-weight", option.weight, metadataFor(fontWeightRow ?? fontStyleRow));
+    setStyles(editTarget, [
+      { property: "font-style", value: option.style },
+      { property: "font-weight", value: option.weight },
+    ], metadataFor(fontStyleRow ?? fontWeightRow));
     onAfterEdit?.();
   }
 
@@ -232,7 +286,7 @@ function FontStyleField({ element, fontStyleRow, fontWeightRow, onAfterEdit }: F
       </span>
       <Select
         appearance="embedded"
-        value={currentKey}
+        value={isMixed ? "mixed" : currentKey}
         options={options.map(({ value, label }) => ({ value, label }))}
         onValueChange={handleChange}
         data-test="font-style-field"
@@ -271,37 +325,46 @@ interface AlignmentFieldProps {
   property: string;
   label: string;
   element: HTMLElement;
+  elements: readonly HTMLElement[];
+  editTarget: EditTarget;
   defaultValue: string;
   options: AlignmentOption[];
   onAfterEdit?: () => void;
 }
 
-function AlignmentField({ property, label, element, defaultValue, options, onAfterEdit }: AlignmentFieldProps): ReactElement {
+function AlignmentField({ property, label, element, elements, editTarget, defaultValue, options, onAfterEdit }: AlignmentFieldProps): ReactElement {
   const atRules = useFieldAtRules(property);
+  const readValues = () => elements.map((target) => getStateStyleValue(target, property, defaultValue));
+  const initialValues = readValues();
+  const isMixed = initialValues.some((value) => value !== initialValues[0]);
   const [initialValue] = useState(() => getStateStyleValue(element, property, defaultValue));
   const initialValueRef = useRef(initialValue);
-  const [current, setCurrent] = useState<string | null>(() => normalizeAlignment(property, initialValue));
+  const [current, setCurrent] = useState<string | null>(() => isMixed ? null : normalizeAlignment(property, initialValue));
 
   useEffect(() => {
     const next = getStateStyleValue(element, property, defaultValue);
+    const values = readValues();
     initialValueRef.current = next;
-    setCurrent(normalizeAlignment(property, next));
-  }, [defaultValue, element, property]);
+    setCurrent(values.some((value) => value !== values[0]) ? null : normalizeAlignment(property, next));
+  }, [defaultValue, element, elements, property]);
 
   function handleChange(value: string): void {
     setCurrent(value);
-    setStyle(element, property, value);
+    setStyle(editTarget, property, value);
     onAfterEdit?.();
   }
 
   function handleDeselect(): void {
     setCurrent(null);
-    setStyle(element, property, initialValueRef.current);
+    if (elements.length === 1) setStyle(editTarget, property, initialValueRef.current);
     onAfterEdit?.();
   }
 
   return (
     <div className="typography__alignment-field">
+      {isMixed || current === null && elements.length > 1 ? (
+        <span className="typography__mixed" data-test={`typography-mixed-${property}`}>Mixed</span>
+      ) : null}
       <SegmentedControl
         value={current}
         aria-label={label}
@@ -313,8 +376,8 @@ function AlignmentField({ property, label, element, defaultValue, options, onAft
           testId: `typography-align-${property}-${option.value}`,
         }))}
         onChange={handleChange}
-        allowDeselect
-        onDeselect={handleDeselect}
+        allowDeselect={elements.length === 1}
+        onDeselect={elements.length === 1 ? handleDeselect : undefined}
       />
       <AtRuleIndicator atRules={atRules} />
     </div>

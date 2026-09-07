@@ -2,7 +2,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   getSelectedElement,
+  getSelectedElements,
   setSelectedElement,
+  setSelectedElements,
+  toggleSelectedElement,
+  refreshSelectedElement,
   subscribe,
   stepUp,
   stepDown,
@@ -108,6 +112,39 @@ describe("selectionStore", () => {
     expect(count).toBe(1);
     expect(getSelectedElement()?.cid).toBe("Header");
     unsub();
+  });
+
+  it("toggles an ordered group and keeps the toggled target primary", () => {
+    const first = makeEl({ cid: "First" });
+    const second = makeEl({ cid: "Second" });
+    const third = makeEl({ cid: "Third" });
+
+    setSelectedElement(first);
+    toggleSelectedElement(second);
+    toggleSelectedElement(third);
+
+    expect(getSelectedElements().map((element) => element.cid)).toEqual(["First", "Second", "Third"]);
+    expect(getSelectedElement()).toBe(third);
+
+    toggleSelectedElement(second);
+    expect(getSelectedElements().map((element) => element.cid)).toEqual(["First", "Third"]);
+    expect(getSelectedElement()).toBe(third);
+
+    toggleSelectedElement(third);
+    expect(getSelectedElements()).toEqual([first]);
+    expect(getSelectedElement()).toBe(first);
+  });
+
+  it("refreshes one group member without collapsing the group", () => {
+    const first = makeEl({ cid: "First" });
+    const second = makeEl({ cid: "Second" });
+    setSelectedElements([first, second]);
+
+    const refreshed = { ...second, cprops: "variant:secondary", line: 19 };
+    refreshSelectedElement(refreshed);
+
+    expect(getSelectedElements()).toEqual([first, refreshed]);
+    expect(getSelectedElement()).toBe(refreshed);
   });
 });
 

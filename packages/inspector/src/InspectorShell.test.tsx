@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { mountInspector, unmountInspector } from "./index.ts";
-import { getSelectedElement, setSelectedElement } from "./selectionStore.ts";
+import { getSelectedElement, setSelectedElement, setSelectedElements } from "./selectionStore.ts";
 import * as selectionResolver from "./resolveSelection.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { appendChange } from "./changesLog.ts";
@@ -189,6 +189,39 @@ describe("InspectorShell", () => {
       setSelectedElement(null);
       selected.remove();
       linked.remove();
+    }
+  });
+
+  it("shows a group summary and hides single-element controls for multi-selection", () => {
+    const first = document.createElement("button");
+    first.dataset.cid = "Heading";
+    first.dataset.src = "fixtures/heading.tsx:1:1";
+    const second = document.createElement("button");
+    second.dataset.cid = "Heading";
+    second.dataset.src = "fixtures/heading.tsx:1:1";
+    document.body.append(first, second);
+
+    try {
+      act(() => {
+        setSelectedElements([
+          resolveSelectionFromElement(first)!,
+          resolveSelectionFromElement(second)!,
+        ]);
+        mountInspector(host);
+      });
+
+      const shadow = host.shadowRoot!;
+      expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
+        .toContain("2 elements selected");
+      expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
+        .toContain("Changes affect 2 rendered items.");
+      expect(shadow.querySelector('[data-test="dom-navigation"]')).toBeNull();
+      expect(shadow.querySelector('[data-test="component-props-section"]')).toBeNull();
+      expect(shadow.querySelector('[data-test="layout-size"]')).toBeNull();
+    } finally {
+      setSelectedElement(null);
+      first.remove();
+      second.remove();
     }
   });
 

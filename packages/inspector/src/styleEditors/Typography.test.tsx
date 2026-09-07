@@ -181,4 +181,37 @@ describe("Typography", () => {
     expect(sheetText()).toContain("font-size: 24px;");
     expect(getChangeRecords().at(-1)).toMatchObject({ sourceProperty: "font", sourceAuthoredValue: "1.25rem" });
   });
+
+  it("shows Mixed and writes a shared font size to every selected element", () => {
+    const first = makeSelected("Heading", "src/Heading.tsx:1:1");
+    const second = makeSelected("Heading", "src/Heading.tsx:2:1");
+    mockComputedStyle({ "font-size": "24px" });
+    handle = mount(createElement(Typography, {
+      element: first.selected,
+      elements: [first.selected, second.selected],
+      tokenRows: [{
+        property: "font-size",
+        tokenName: null,
+        declaredValue: "Mixed",
+        resolvedValue: "Mixed",
+        authored: "Mixed",
+        confidence: "exact",
+        evidence: { reason: "aggregate test" },
+        aggregate: {
+          valueState: "mixed",
+          sourceState: "common",
+          values: ["24px", "20px"],
+          tokenNames: [null, null],
+          rows: [],
+        },
+      }],
+    }));
+
+    const raw = handle.host.querySelector('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]') as HTMLInputElement;
+    expect(raw.value).toBe("Mixed");
+    setInputValue(raw, "28px");
+
+    expect(sheetText()).toContain("font-size: 28px;");
+    expect(getChangeRecords()).toHaveLength(2);
+  });
 });

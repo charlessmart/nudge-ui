@@ -137,6 +137,8 @@ export interface ElementClickMessage extends RendererMessage {
   file: string;
   line: number;
   component: string;
+  /** True for a Shift-click that toggles this target in the selection group. */
+  additive?: boolean;
 }
 
 export interface ElementDragStartMessage extends RendererMessage {
