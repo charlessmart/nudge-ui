@@ -93,34 +93,51 @@ export function swapToken(
   oldToken: TokenEntry | null,
   metadata?: StyleEditMetadata,
 ): ElementChangeRecord | null {
+  return swapTokens(target, [{ property, newToken, oldToken, metadata }])[0] ?? null;
+}
+
+export interface TokenSwap {
+  property: string;
+  newToken: TokenEntry;
+  oldToken: TokenEntry | null;
+  metadata?: StyleEditMetadata;
+}
+
+/** Applies several token swaps as one history batch. */
+export function swapTokens(
+  target: EditTarget,
+  changes: readonly TokenSwap[],
+): ElementChangeRecord[] {
   const elements = targetElements(target);
   const records: ElementChangeRecord[] = [];
   const verificationTargets = new Map<string, HTMLElement | null>();
   for (const el of elements) {
-    const cid = el.getAttribute("data-cid") ?? "";
-    const { selector, state } = stateFields(el);
-    if (!selector) continue;
-    const source = sourceFields(el);
-    const record: ElementChangeRecord = {
-      cid,
-      file: source.file,
-      line: source.line,
-      column: source.column,
-      selector,
-      property,
-      ...metadata,
-      oldToken,
-      newToken,
-      source: { file: source.file, line: source.line, component: cid },
-      runtimeEvidence: source.runtimeEvidence,
-      state,
-      ...scopeFields(el, elements),
-    };
-    records.push(record);
-    verificationTargets.set(changeKey(record), el);
+    for (const change of changes) {
+      const cid = el.getAttribute("data-cid") ?? "";
+      const { selector, state } = stateFields(el);
+      if (!selector) continue;
+      const source = sourceFields(el);
+      const record: ElementChangeRecord = {
+        cid,
+        file: source.file,
+        line: source.line,
+        column: source.column,
+        selector,
+        property: change.property,
+        ...change.metadata,
+        oldToken: change.oldToken,
+        newToken: change.newToken,
+        source: { file: source.file, line: source.line, component: cid },
+        runtimeEvidence: source.runtimeEvidence,
+        state,
+        ...scopeFields(el, elements),
+      };
+      records.push(record);
+      verificationTargets.set(changeKey(record), el);
+    }
   }
   appendChanges(records, { verificationTargets });
-  return records[0] ?? null;
+  return records;
 }
 
 export function setStyle(target: EditTarget, property: string, value: string, metadata?: StyleEditMetadata): ElementChangeRecord | null {

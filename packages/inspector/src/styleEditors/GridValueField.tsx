@@ -6,6 +6,8 @@ import { getLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "./styleActions.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import type { StringRecord } from "./stringRecord.ts";
+import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 const DEFAULT_GRID_VALUES: StringRecord = {
   "grid-template-columns": "none",
@@ -19,6 +21,8 @@ const DEFAULT_GRID_VALUES: StringRecord = {
 export interface GridValueFieldProps {
   property: string;
   domElement: HTMLElement;
+  editTarget?: EditTarget;
+  selection?: StyleSelection | null;
   revision?: number;
   onAfterEdit?: () => void;
 }
@@ -31,10 +35,13 @@ export interface GridValueFieldProps {
 export function GridValueField({
   property,
   domElement: el,
+  editTarget,
+  selection,
   revision = 0,
   onAfterEdit,
 }: GridValueFieldProps): ReactElement {
   const atRules = useFieldAtRules(property);
+  const mixed = selection?.getProperty(property)?.aggregate.valueState === "mixed";
   const readValue = (): string => {
     const value = getLayoutValue(el, property);
     return value.authored || value.computed || DEFAULT_GRID_VALUES[property] || "";
@@ -65,7 +72,7 @@ export function GridValueField({
     }
     setValue(next);
     updateDraft(next);
-    if (setStyle(el, property, next)) onAfterEdit?.();
+    if (setStyle(editTarget ?? el, property, next)) onAfterEdit?.();
   }
 
   function cancel(): void {
@@ -80,7 +87,8 @@ export function GridValueField({
       data-test={`layout-grid-${property}`}
     >
       <TextInput
-        value={draft}
+        value={mixed ? "" : draft}
+        placeholder={mixed ? "Mixed" : undefined}
         data-test={`layout-grid-input-${property}`}
         aria-label={property}
         onChange={(event) => updateDraft(event.target.value)}

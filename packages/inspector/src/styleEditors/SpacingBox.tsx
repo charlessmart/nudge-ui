@@ -14,7 +14,7 @@ import {
   type SideValuePairSlot,
   type SideValueSlot,
 } from "../ui/SideValuesField.tsx";
-import { promoteToToken, setStyle, swapToken } from "../tokens/editActions.ts";
+import { setStyles, swapTokens } from "../tokens/editActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 import {
@@ -22,8 +22,11 @@ import {
   type InspectorAxisProjection,
   type InspectorFieldProjection,
   type InspectorSpacingProjection,
+  projectInspectorValuesForSelection,
 } from "../spacing/projection.ts";
 import { getStateStyleValue } from "../stateValue.ts";
+import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
@@ -31,17 +34,26 @@ function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty 
 
 export interface SpacingBoxProps {
   element: SelectedElement;
+  selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
   onAfterEdit?: () => void;
 }
 
 export function SpacingBox(props: SpacingBoxProps): ReactElement {
-  const { element, entries, tokenRows = [], onAfterEdit } = props;
+  const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
   const allEntries = entries ?? [];
-  const projection = projectInspectorValues(el, tokenRows);
-  const position = getStateStyleValue(el, "position", "static").trim().toLowerCase();
+  const projection = selection
+    ? projectInspectorValuesForSelection(selection)
+    : projectInspectorValues(el, tokenRows);
+  const showRelativeInset = selection
+    ? selection.supportsRole("relative-position")
+    : (() => {
+      const value = getStateStyleValue(el, "position", "static").trim().toLowerCase();
+      return value === "relative" || value === "sticky";
+    })();
+  const editTarget: EditTarget = selection?.target ?? el;
 
   return (
     <div className="editor" data-test="spacing-box">
@@ -51,6 +63,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           property="padding"
           projection={projection.spacing.padding}
           domElement={el}
+          editTarget={editTarget}
           entries={allEntries}
           tokenRows={tokenRows}
           onAfterEdit={onAfterEdit}
@@ -59,14 +72,16 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           property="margin"
           projection={projection.spacing.margin}
           domElement={el}
+          editTarget={editTarget}
           entries={allEntries}
           tokenRows={tokenRows}
           onAfterEdit={onAfterEdit}
         />
-        {position === "relative" || position === "sticky" ? <SpacingField
+        {showRelativeInset ? <SpacingField
           property="inset"
           projection={projection.spacing.inset}
           domElement={el}
+          editTarget={editTarget}
           entries={allEntries}
           tokenRows={tokenRows}
           onAfterEdit={onAfterEdit}
@@ -80,6 +95,7 @@ export interface SpacingFieldProps {
   property: "padding" | "margin" | "inset";
   projection: InspectorSpacingProjection;
   domElement: HTMLElement;
+  editTarget?: EditTarget;
   entries: TokenEntry[];
   tokenRows: ResolvedProperty[];
   onAfterEdit?: () => void;
@@ -92,6 +108,7 @@ export function SpacingField({
   property,
   projection: spacingProjection,
   domElement: el,
+  editTarget,
   entries,
   tokenRows,
   onAfterEdit,
@@ -112,6 +129,7 @@ export function SpacingField({
         property={sideProperty(property, side)}
         tokenRow={findTokenRow(tokenRows, sideProperty(property, side))}
         domElement={el}
+        editTarget={editTarget}
         entries={entries}
         suggestions={suggestions}
         editMetadata={metadataFor(findTokenRow(tokenRows, sideProperty(property, side)))}
@@ -139,6 +157,7 @@ export function SpacingField({
         displayProperty={`${property}-${axis}`}
         sideProperties={sideProperties}
         domElement={el}
+        editTarget={editTarget}
         axisProjection={spacingProjection.axes[axis]}
         entries={entries}
         suggestions={suggestions}
@@ -275,6 +294,7 @@ interface PairedTokenFieldProps {
   displayProperty: string;
   sideProperties: readonly [string, string];
   domElement: HTMLElement;
+  editTarget?: EditTarget;
   axisProjection: InspectorAxisProjection;
   entries: TokenEntry[];
   suggestions?: ReadonlyArray<string>;
@@ -286,6 +306,7 @@ function PairedTokenField({
   displayProperty,
   sideProperties,
   domElement: el,
+  editTarget,
   axisProjection,
   entries,
   suggestions,
@@ -293,7 +314,8 @@ function PairedTokenField({
   chipVariant,
 }: PairedTokenFieldProps): ReactElement {
   const row = pairTokenRow(displayProperty, axisProjection);
-  const valuesMatch = axisProjection.state === "shared";
+  const groupMixed = axisProjection.fields.some((field) => field.value === "Mixed");
+  const valuesMatch = axisProjection.state === "shared" && !groupMixed;
   const expression = Boolean(row && (row.capability === "raw" || row.capability === "composite"
     || row.modifiers?.some((modifier) => modifier.kind === "alpha")));
   const calcAuthored = row?.authored ?? row?.declaredValue ?? "";
@@ -301,7 +323,9 @@ function PairedTokenField({
   // Some browsers expose the used pixel size for horizontal auto margins.
   // Keep the authored keyword visible because replacing it with that transient
   // size would misrepresent the declaration and change the edit semantics.
-  const committedValue = valuesMatch
+  const committedValue = groupMixed
+    ? "Mixed"
+    : valuesMatch
     ? calcAuthored.trim().toLowerCase() === "auto"
       ? calcAuthored.trim()
       : expression ? row.authored || row.declaredValue || row.resolvedValue : row.resolvedValue
@@ -315,12 +339,13 @@ function PairedTokenField({
 
   function commitAxisValue(value: string): void {
     const pair = splitAxisValue(value);
-    const records = sideProperties.map((property, index) => setStyle(
-      el,
-      property,
-      pair?.[index] ?? value,
-      metadataFor(axisProjection.fields[index]?.row),
-    ));
+    const records = setStyles(
+      editTarget ?? el,
+      sideProperties.map((property, index) => ({
+        property,
+        value: pair?.[index] ?? value,
+      })),
+    );
     if (records.some(Boolean)) onAfterEdit?.();
   }
 
@@ -330,6 +355,7 @@ function PairedTokenField({
       committedValue={committedValue}
       resolvedValue={resolvedValue}
       activeTokenName={activeTokenName}
+      mixed={groupMixed}
       atRules={row.atRuleCandidates ?? row.atRules}
       entries={entries}
       suggestions={suggestions}
@@ -337,12 +363,14 @@ function PairedTokenField({
       formatRawValue={(value) => formatAxisValue(value, displayProperty)}
       onCommitRaw={commitAxisValue}
       onSelectToken={(chosen) => {
-        const records = sideProperties.map((property, index) => {
-          const editMetadata = metadataFor(axisProjection.fields[index]?.row);
-          return activeTokenName
-            ? swapToken(el, property, chosen, currentToken, editMetadata)
-            : promoteToToken(el, property, chosen, editMetadata);
-        });
+        const records = swapTokens(
+          editTarget ?? el,
+          sideProperties.map((property) => ({
+            property,
+            newToken: chosen,
+            oldToken: activeTokenName ? currentToken : null,
+          })),
+        );
         if (records.some(Boolean)) onAfterEdit?.();
       }}
       onUnlink={commitAxisValue}

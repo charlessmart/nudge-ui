@@ -192,7 +192,7 @@ describe("InspectorShell", () => {
     }
   });
 
-  it("shows a group summary and hides single-element controls for multi-selection", () => {
+  it("shows a group summary and exposes shared style controls for multi-selection", () => {
     const first = document.createElement("button");
     first.dataset.cid = "Heading";
     first.dataset.src = "fixtures/heading.tsx:1:1";
@@ -217,7 +217,13 @@ describe("InspectorShell", () => {
         .toContain("Changes affect 2 rendered items.");
       expect(shadow.querySelector('[data-test="dom-navigation"]')).toBeNull();
       expect(shadow.querySelector('[data-test="component-props-section"]')).toBeNull();
-      expect(shadow.querySelector('[data-test="layout-size"]')).toBeNull();
+      expect(shadow.querySelector('[data-test="layout-section"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="layout-size"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="spacing-box"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="appearance-section"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="typography"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="border-editor"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="box-shadow-editor"]')).not.toBeNull();
     } finally {
       setSelectedElement(null);
       first.remove();

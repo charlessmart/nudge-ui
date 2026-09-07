@@ -18,6 +18,8 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
+import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 const BORDER_RADIUS_CORNERS = [
   "border-top-left-radius",
@@ -56,19 +58,24 @@ function metadataFor(row: ResolvedProperty | null | undefined) {
 }
 
 function linkAllCorners(
-  el: HTMLElement,
+  target: EditTarget,
   rows: ResolvedProperty[],
+  selection: StyleSelection | null | undefined,
   onAfterEdit?: () => void,
 ): void {
   const firstRow = findTokenRow(rows, BORDER_RADIUS_CORNERS[0]);
-  const sharedValue = firstRow?.authored ?? firstRow?.declaredValue ?? "";
+  const sharedValue = selection?.getProperty(BORDER_RADIUS_CORNERS[0])?.aggregate.values[0]
+    ?? firstRow?.authored
+    ?? firstRow?.declaredValue
+    ?? "";
   if (!sharedValue) return;
-  setStyle(el, "border-radius", sharedValue);
+  setStyle(target, "border-radius", sharedValue);
   onAfterEdit?.();
 }
 
 export interface BorderRadiusEditorProps {
   element: SelectedElement;
+  selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
   onAfterEdit?: () => void;
@@ -76,10 +83,12 @@ export interface BorderRadiusEditorProps {
 }
 
 export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement {
-  const { element, entries, tokenRows = [], onAfterEdit, embedded = false } = props;
+  const { element, selection, entries, tokenRows = [], onAfterEdit, embedded = false } = props;
   const el = element.domElement;
+  const editTarget: EditTarget = selection?.target ?? el;
+  const isGroup = Boolean(selection && selection.elements.length > 1);
   const allEntries = entries ?? getNudgeUiTokenEntries();
-  const dataLinked = cornersAreLinked(tokenRows);
+  const dataLinked = !isGroup && cornersAreLinked(tokenRows);
 
   const [userUnlinked, setUserUnlinked] = useState(false);
   const [userLinked, setUserLinked] = useState(false);
@@ -104,7 +113,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
   function handleCollapse(): void {
     setUserLinked(true);
     setUserUnlinked(false);
-    linkAllCorners(el, tokenRows, onAfterEdit);
+    linkAllCorners(editTarget, tokenRows, selection, onAfterEdit);
   }
 
   const cornerSides = BORDER_RADIUS_CORNERS.map((corner, index) => ({
@@ -119,6 +128,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
         property={corner}
         tokenRow={findTokenRow(tokenRows, corner)}
         domElement={el}
+        editTarget={editTarget}
         entries={allEntries}
         editMetadata={metadataFor(findTokenRow(tokenRows, corner))}
         onAfterEdit={onAfterEdit}
@@ -144,8 +154,10 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
         initialValue={mixed ? "Mix" : undefined}
         displayValue={mixed ? "Mix" : undefined}
         domElement={el}
+        editTarget={editTarget}
         entries={allEntries}
         editMetadata={metadataFor(borderRadiusRow)}
+        mixed={mixed}
         formatRawValue={(value) => mixed && value.trim().toLowerCase() === "mix"
           ? ""
           : completeCssValue(value.trim(), valuePolicyFor("border-radius"))}

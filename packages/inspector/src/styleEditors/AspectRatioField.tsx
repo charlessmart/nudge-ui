@@ -6,11 +6,13 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
+import type { EditTarget } from "../editTarget.ts";
 
 export const ASPECT_RATIO_PRESETS = ["auto", "1 / 1", "4 / 3", "3 / 2", "16 / 9", "21 / 9"];
 
 export interface AspectRatioFieldProps {
   domElement: HTMLElement;
+  editTarget?: EditTarget;
   entries?: TokenEntry[];
   tokenRow?: ResolvedProperty | null;
   revision?: number;
@@ -20,6 +22,7 @@ export interface AspectRatioFieldProps {
 
 export function AspectRatioField({
   domElement: el,
+  editTarget,
   entries = getNudgeUiTokenEntries(),
   tokenRow,
   onAfterEdit,
@@ -33,6 +36,7 @@ export function AspectRatioField({
           tokenRow={tokenRow}
           initialValue={meaningfulLayoutValue(el, "aspect-ratio")}
           domElement={el}
+          editTarget={editTarget}
           entries={entries}
           suggestions={ASPECT_RATIO_PRESETS}
           inputDataTest="layout-aspect-ratio-input"

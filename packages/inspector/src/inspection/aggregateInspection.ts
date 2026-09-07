@@ -10,11 +10,18 @@ export interface AggregatedProperty extends ResolvedProperty {
     values: readonly string[];
     tokenNames: readonly (string | null)[];
     rows: readonly ResolvedProperty[];
+    targetRows?: readonly (ResolvedProperty | null)[];
   };
 }
 
 export interface PropertySnapshot {
   properties: readonly ResolvedProperty[];
+}
+
+export function isAggregatedProperty(
+  row: ResolvedProperty | null | undefined,
+): row is AggregatedProperty {
+  return Boolean(row && "aggregate" in row);
 }
 
 function effectiveValue(row: ResolvedProperty): string {
@@ -26,16 +33,89 @@ function sameValues(values: readonly string[]): boolean {
   return first !== undefined && values.every((value) => value === first);
 }
 
-function commonTokenName(rows: readonly ResolvedProperty[]): string | null {
-  const names = rows.map((row) => row.tokenName);
+function sourceStateForRows(rows: readonly (ResolvedProperty | null)[]): AggregateSourceState {
+  const names = rows.map((row) => row?.tokenName ?? null);
+  if (names.every((name) => name === null)) return "none";
   const first = names[0];
-  return first && names.every((name) => name === first) ? first : null;
+  return first && names.every((name) => name === first) ? "common" : "mixed";
 }
 
-function sourceState(rows: readonly ResolvedProperty[]): AggregateSourceState {
-  const names = rows.map((row) => row.tokenName);
-  if (names.every((name) => name === null)) return "none";
-  return commonTokenName(rows) ? "common" : "mixed";
+function aggregateRow(
+  property: string,
+  targetRows: readonly (ResolvedProperty | null)[],
+  values: readonly string[],
+): AggregatedProperty {
+  const rows = targetRows.filter(
+    (row): row is ResolvedProperty => row !== null,
+  );
+  const firstRow = rows[0];
+  const normalizedValues = values.map((value) => value.trim());
+  const valueState: AggregateValueState = sameValues(normalizedValues) ? "common" : "mixed";
+  const aggregateSourceState = sourceStateForRows(targetRows);
+  const common = valueState === "common";
+  const commonSource = aggregateSourceState === "common";
+  const value = normalizedValues[0] ?? "";
+  const primary: ResolvedProperty = firstRow ?? {
+    property,
+    tokenName: null,
+    declaredValue: value,
+    resolvedValue: value,
+    authored: value,
+    computed: value,
+    confidence: "unknown",
+    evidence: { reason: "computed value used for group editing" },
+  };
+  const row: AggregatedProperty = {
+    ...primary,
+    property,
+    ...(commonSource ? {} : {
+      tokenName: null,
+      tokens: undefined,
+      sourceProperty: undefined,
+    }),
+    ...(common ? {} : {
+      tokenName: null,
+      tokens: undefined,
+      declaredValue: "Mixed",
+      resolvedValue: "Mixed",
+      authored: "Mixed",
+      computed: "Mixed",
+      opacity: undefined,
+      propertyOpacity: undefined,
+      structure: undefined,
+    }),
+    ...(common && !commonSource ? {
+      declaredValue: value,
+      resolvedValue: value,
+      authored: value,
+      computed: value,
+    } : {}),
+    aggregate: {
+      valueState,
+      sourceState: aggregateSourceState,
+      values: normalizedValues,
+      tokenNames: targetRows.map((candidate) => candidate?.tokenName ?? null),
+      rows,
+      targetRows,
+    },
+  };
+  return row;
+}
+
+/**
+ * Aggregates one property even when some targets have no authored row.
+ * Callers provide the browser-computed value for every target so defaults and
+ * inherited values remain editable as a group.
+ */
+export function aggregatePropertyValues(
+  property: string,
+  snapshots: readonly PropertySnapshot[],
+  values: readonly string[],
+): AggregatedProperty | null {
+  if (snapshots.length === 0 || values.length !== snapshots.length) return null;
+  const targetRows = snapshots.map((snapshot) =>
+    snapshot.properties.find((candidate) => candidate.property === property) ?? null);
+  return aggregateRow(property, targetRows, values);
 }
 
 /**
@@ -54,47 +134,10 @@ export function aggregateProperties(
   for (const primaryRow of first.properties) {
     const matchingRows = snapshots.map((snapshot) =>
       snapshot.properties.find((candidate) => candidate.property === primaryRow.property));
-    const resolvedRows = matchingRows.filter(
-      (row): row is ResolvedProperty => row !== undefined,
-    );
-    if (resolvedRows.length !== snapshots.length) continue;
-    const values = resolvedRows.map(effectiveValue);
-    const valueState: AggregateValueState = sameValues(values) ? "common" : "mixed";
-    const aggregateSourceState = sourceState(resolvedRows);
-    const value = values[0] ?? "";
-    const common = valueState === "common";
-    const commonSource = aggregateSourceState === "common";
-    const primary = resolvedRows[0]!;
-    const row: AggregatedProperty = {
-      ...primary,
-      ...(commonSource ? {} : {
-        tokenName: null,
-        tokens: undefined,
-      }),
-      ...(common ? {} : {
-        tokenName: null,
-        tokens: undefined,
-        declaredValue: "Mixed",
-        resolvedValue: "Mixed",
-        authored: "Mixed",
-        opacity: undefined,
-        propertyOpacity: undefined,
-        structure: undefined,
-      }),
-      ...(common && !commonSource ? {
-        declaredValue: value,
-        resolvedValue: value,
-        authored: value,
-      } : {}),
-      aggregate: {
-        valueState,
-        sourceState: aggregateSourceState,
-        values,
-        tokenNames: resolvedRows.map((candidate) => candidate.tokenName),
-        rows: resolvedRows,
-      },
-    };
-    rows.push(row);
+    if (matchingRows.some((row) => row === undefined)) continue;
+    const resolvedRows = matchingRows.map((row) => row ?? null);
+    const values = resolvedRows.map((row) => row ? effectiveValue(row) : "");
+    rows.push(aggregateRow(primaryRow.property, resolvedRows, values));
   }
   return rows;
 }

@@ -11,7 +11,7 @@ import { AspectRatioField } from "./AspectRatioField.tsx";
 import { PositionInsets } from "./PositionInsets.tsx";
 import { GridSection } from "./GridSection.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
-import { setStyle } from "./styleActions.ts";
+import { setStyle, setStyles } from "./styleActions.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { InspectorPopover } from "../ui/InspectorPopover.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
@@ -23,6 +23,8 @@ import { getElementComputedStyle } from "../domRealm.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
+import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
@@ -44,21 +46,23 @@ const MAX_HEIGHT_PRESETS = ["none", "100%", "100vh", "fit-content"];
 
 export interface LayoutSectionProps {
   element: SelectedElement;
+  selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
   onAfterEdit?: () => void;
 }
 
 export function LayoutSection(props: LayoutSectionProps): ReactElement {
-  const { element, entries, tokenRows = [], onAfterEdit } = props;
+  const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
+  const editTarget: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
 
-  const [isFlexContainer, setIsFlexContainer] = useState(false);
-  const [isFlexChild, setIsFlexChild] = useState(false);
-  const [isGridContainer, setIsGridContainer] = useState(false);
-  const [isGridChild, setIsGridChild] = useState(false);
-  const [position, setPosition] = useState(() => getStateStyleValue(el, "position", "static"));
+  const [primaryIsFlexContainer, setPrimaryIsFlexContainer] = useState(false);
+  const [primaryIsFlexChild, setPrimaryIsFlexChild] = useState(false);
+  const [primaryIsGridContainer, setPrimaryIsGridContainer] = useState(false);
+  const [primaryIsGridChild, setPrimaryIsGridChild] = useState(false);
+  const [primaryPosition, setPrimaryPosition] = useState(() => getStateStyleValue(el, "position", "static"));
   const [layoutRevision, setLayoutRevision] = useState(0);
   const [flexDirection] = useComputedLayoutValue(el, "flex-direction", "row", layoutRevision);
   const [flexWrap] = useComputedLayoutValue(el, "flex-wrap", "nowrap", layoutRevision);
@@ -75,9 +79,9 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
     try {
       const cs = getElementComputedStyle(el);
       const display = cs.display;
-      setIsFlexContainer(display === "flex" || display === "inline-flex");
-      setIsGridContainer(display === "grid" || display === "inline-grid");
-      setPosition(cs.position);
+      setPrimaryIsFlexContainer(display === "flex" || display === "inline-flex");
+      setPrimaryIsGridContainer(display === "grid" || display === "inline-grid");
+      setPrimaryPosition(cs.position);
     } catch {
       // noop
     }
@@ -87,18 +91,27 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
     try {
       const parentEl = el.parentElement;
       if (!parentEl) {
-        setIsFlexChild(false);
-        setIsGridChild(false);
+        setPrimaryIsFlexChild(false);
+        setPrimaryIsGridChild(false);
         return;
       }
       const pDisplay = getElementComputedStyle(parentEl).display;
-      setIsFlexChild(pDisplay === "flex" || pDisplay === "inline-flex");
-      setIsGridChild(pDisplay === "grid" || pDisplay === "inline-grid");
+      setPrimaryIsFlexChild(pDisplay === "flex" || pDisplay === "inline-flex");
+      setPrimaryIsGridChild(pDisplay === "grid" || pDisplay === "inline-grid");
     } catch {
-      setIsFlexChild(false);
-      setIsGridChild(false);
+      setPrimaryIsFlexChild(false);
+      setPrimaryIsGridChild(false);
     }
   }, [el, layoutRevision]);
+
+  const isFlexContainer = selection ? selection.supportsRole("flex-container") : primaryIsFlexContainer;
+  const isFlexChild = selection ? selection.supportsRole("flex-child") : primaryIsFlexChild;
+  const isGridContainer = selection ? selection.supportsRole("grid-container") : primaryIsGridContainer;
+  const isGridChild = selection ? selection.supportsRole("grid-child") : primaryIsGridChild;
+  const position = selection?.getProperty("position")?.aggregate.values[0] ?? primaryPosition;
+  const showPositionInsets = selection
+    ? selection.supportsRole("inset-position")
+    : position === "absolute" || position === "fixed";
 
   return (
     <div className="editor" data-test="layout-section">
@@ -107,6 +120,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
         <div className="layout__basic">
           <SizeSection
             domElement={el}
+            editTarget={editTarget}
             entries={allEntries}
             tokenRows={tokenRows}
             revision={layoutRevision}
@@ -118,6 +132,8 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
               property="display"
               options={DISPLAY_OPTIONS}
               domElement={el}
+              editTarget={editTarget}
+              selection={selection}
               revision={layoutRevision}
               onAfterEdit={notifyAfterEdit}
             />
@@ -126,6 +142,8 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
               property="position"
               options={POSITION_OPTIONS}
               domElement={el}
+              editTarget={editTarget}
+              selection={selection}
               revision={layoutRevision}
               onAfterEdit={notifyAfterEdit}
             />
@@ -137,28 +155,32 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             <div className="editor__title">Flex</div>
             <div className="layout__flex-toolbar">
               <div className="layout__direction-tools">
-                <FlexDirectionControl domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
-                <FlexWrapToggle domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
-                <FlexSettingsMenu domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+                <FlexDirectionControl domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+                <FlexWrapToggle domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+                <FlexSettingsMenu domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
               </div>
             </div>
             <div className="layout__flex-lower">
-              <FlexAlignmentGrid domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+              <FlexAlignmentGrid domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
               <div className="layout__gap-column" data-test="layout-gap">
                 <div className="layout__gap-fields">
                   <div className="layout__spacing-primary">
                     <FlexGapField
                       property={relevantGap}
                       domElement={el}
+                      editTarget={editTarget}
+                      selection={selection}
                       revision={layoutRevision}
                       onAfterEdit={notifyAfterEdit}
                     />
-                    <FlexDistributionControl domElement={el} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+                    <FlexDistributionControl domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
                   </div>
                   {isFlexWrapped ? (
                     <FlexGapField
                       property={lineGap}
                       domElement={el}
+                      editTarget={editTarget}
+                      selection={selection}
                       revision={layoutRevision}
                       onAfterEdit={notifyAfterEdit}
                     />
@@ -178,6 +200,8 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                 property="flex-grow"
                 presets={FLEX_GROW_PRESETS}
                 domElement={el}
+                editTarget={editTarget}
+                selection={selection}
                 inputOnly
                 revision={layoutRevision}
                 onAfterEdit={notifyAfterEdit}
@@ -187,6 +211,8 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                 property="flex-shrink"
                 presets={FLEX_SHRINK_PRESETS}
                 domElement={el}
+                editTarget={editTarget}
+                selection={selection}
                 inputOnly
                 revision={layoutRevision}
                 onAfterEdit={notifyAfterEdit}
@@ -196,12 +222,16 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                 property="flex-basis"
                 presets={FLEX_BASIS_PRESETS}
                 domElement={el}
+                editTarget={editTarget}
+                selection={selection}
                 inputOnly
                 revision={layoutRevision}
                 onAfterEdit={notifyAfterEdit}
               />
               <FlexChildSettingsMenu
                 domElement={el}
+                editTarget={editTarget}
+                selection={selection}
                 revision={layoutRevision}
                 onAfterEdit={notifyAfterEdit}
               />
@@ -214,14 +244,18 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             domElement={el}
             showContainer={isGridContainer}
             showChild={isGridChild}
+            editTarget={editTarget}
+            selection={selection}
             revision={layoutRevision}
             onAfterEdit={notifyAfterEdit}
           />
         ) : null}
 
-        {position === "absolute" || position === "fixed" ? (
+        {showPositionInsets ? (
           <PositionInsets
             domElement={el}
+            editTarget={editTarget}
+            selection={selection}
             entries={allEntries}
             tokenRows={tokenRows}
             revision={layoutRevision}
@@ -235,13 +269,14 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
 
 interface SizeSectionProps {
   domElement: HTMLElement;
+  editTarget: EditTarget;
   entries: TokenEntry[];
   tokenRows: ResolvedProperty[];
   revision: number;
   onAfterEdit?: () => void;
 }
 
-function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit }: SizeSectionProps): ReactElement {
+function SizeSection({ domElement: el, editTarget, entries, tokenRows, revision, onAfterEdit }: SizeSectionProps): ReactElement {
   const [expanded, setExpanded] = useState(false);
 
   const fields = [
@@ -261,6 +296,7 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
           tokenRow={tokenRows.find((row) => row.property === property) ?? null}
           initialValue={meaningfulLayoutValue(el, property)}
           domElement={el}
+          editTarget={editTarget}
           entries={entries}
           suggestions={presets}
           leading={property === "width"
@@ -313,6 +349,7 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
           <AspectRatioField
             className="layout__size-cell layout__size-cell--aspect-ratio"
             domElement={el}
+            editTarget={editTarget}
             entries={entries}
             tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
             revision={revision}
@@ -326,6 +363,8 @@ function SizeSection({ domElement: el, entries, tokenRows, revision, onAfterEdit
 
 interface FlexControlProps {
   domElement: HTMLElement;
+  editTarget?: EditTarget;
+  selection?: StyleSelection | null;
   revision?: number;
   onAfterEdit?: () => void;
 }
@@ -337,13 +376,15 @@ interface FlexChildValueFieldProps extends FlexControlProps {
   inputOnly?: boolean;
 }
 
-function FlexChildValueField({ label, property, presets, inputOnly = false, domElement, revision = 0, onAfterEdit }: FlexChildValueFieldProps): ReactElement {
+function FlexChildValueField({ label, property, presets, inputOnly = false, domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexChildValueFieldProps): ReactElement {
   return (
     <FieldRow label={label} className="layout__flex-child-field">
       <LayoutComboField
         property={property}
         presets={presets}
         domElement={domElement}
+        editTarget={editTarget}
+        selection={selection}
         inputOnly={inputOnly}
         revision={revision}
         onAfterEdit={onAfterEdit}
@@ -352,7 +393,7 @@ function FlexChildValueField({ label, property, presets, inputOnly = false, domE
   );
 }
 
-function FlexChildSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexChildSettingsMenu({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [open, setOpen] = useState(false);
 
   return (
@@ -380,6 +421,8 @@ function FlexChildSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexCo
           property="align-self"
           options={ALIGN_SELF_OPTIONS}
           domElement={domElement}
+          editTarget={editTarget}
+          selection={selection}
           stacked
           revision={revision}
           onAfterEdit={onAfterEdit}
@@ -389,6 +432,8 @@ function FlexChildSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexCo
           property="order"
           presets={ORDER_PRESETS}
           domElement={domElement}
+          editTarget={editTarget}
+          selection={selection}
           revision={revision}
           onAfterEdit={onAfterEdit}
         />
@@ -401,12 +446,14 @@ interface FlexGapFieldProps extends FlexControlProps {
   property: "row-gap" | "column-gap";
 }
 
-function FlexGapField({ property, domElement, revision = 0, onAfterEdit }: FlexGapFieldProps): ReactElement {
+function FlexGapField({ property, domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexGapFieldProps): ReactElement {
   const field = (
     <LayoutComboField
       property={property}
       presets={GAP_PRESETS}
       domElement={domElement}
+      editTarget={editTarget}
+      selection={selection}
       inputOnly
       appearance="embedded"
       revision={revision}
@@ -438,7 +485,7 @@ function FlexGapField({ property, domElement, revision = 0, onAfterEdit }: FlexG
   );
 }
 
-function FlexDirectionControl({ domElement, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexDirectionControl({ domElement, editTarget, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [direction, setDirection] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
   const orientation = direction.startsWith("column") ? "column" : "row";
   const reverse = direction.endsWith("-reverse");
@@ -446,7 +493,7 @@ function FlexDirectionControl({ domElement, revision = 0, onAfterEdit }: FlexCon
   function selectDirection(next: string): void {
     if (!FLEX_DIRECTION_OPTIONS.includes(next)) return;
     setDirection(next);
-    setStyle(domElement, "flex-direction", next);
+    setStyle(editTarget ?? domElement, "flex-direction", next);
     onAfterEdit?.();
   }
 
@@ -481,12 +528,12 @@ function FlexDirectionControl({ domElement, revision = 0, onAfterEdit }: FlexCon
   );
 }
 
-function FlexWrapToggle({ domElement, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexWrapToggle({ domElement, editTarget, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [wrap] = useComputedLayoutValue(domElement, "flex-wrap", "nowrap", revision);
   const isWrapped = wrap !== "nowrap";
 
   function toggleWrap(): void {
-    setStyle(domElement, "flex-wrap", isWrapped ? "nowrap" : "wrap");
+    setStyle(editTarget ?? domElement, "flex-wrap", isWrapped ? "nowrap" : "wrap");
     onAfterEdit?.();
   }
 
@@ -505,7 +552,7 @@ function FlexWrapToggle({ domElement, revision = 0, onAfterEdit }: FlexControlPr
   );
 }
 
-function FlexSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexSettingsMenu({ domElement, editTarget, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [direction] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
   const [wrap] = useComputedLayoutValue(domElement, "flex-wrap", "nowrap", revision);
   const [alignContent] = useComputedLayoutValue(domElement, "align-content", "normal", revision);
@@ -561,7 +608,7 @@ function FlexSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControl
     if (separator < 0) return;
     const property = setting.slice(0, separator);
     const value = setting.slice(separator + 1);
-    setStyle(domElement, property, value);
+    setStyle(editTarget ?? domElement, property, value);
     setOpen(false);
     onAfterEdit?.();
   }
@@ -597,7 +644,7 @@ function FlexSettingsMenu({ domElement, revision = 0, onAfterEdit }: FlexControl
   );
 }
 
-function FlexDistributionControl({ domElement, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexDistributionControl({ domElement, editTarget, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [computedJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
   const justify = normalizeFlexJustify(computedJustify);
   const lastPlacement = useRef("flex-start");
@@ -610,7 +657,7 @@ function FlexDistributionControl({ domElement, revision = 0, onAfterEdit }: Flex
 
   function selectDistribution(next: string): void {
     const value = next === "packed" ? lastPlacement.current : next;
-    setStyle(domElement, "justify-content", value);
+    setStyle(editTarget ?? domElement, "justify-content", value);
     onAfterEdit?.();
   }
 
@@ -656,7 +703,7 @@ function FlexDistributionControl({ domElement, revision = 0, onAfterEdit }: Flex
   );
 }
 
-function FlexAlignmentGrid({ domElement, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexAlignmentGrid({ domElement, editTarget, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [direction] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
   const [computedJustify, setJustify] = useComputedLayoutValue(domElement, "justify-content", "flex-start", revision);
   const [computedAlign, setAlign] = useComputedLayoutValue(domElement, "align-items", "stretch", revision);
@@ -679,8 +726,10 @@ function FlexAlignmentGrid({ domElement, revision = 0, onAfterEdit }: FlexContro
   function selectAlignment(nextJustify: string, nextAlign: string): void {
     setJustify(nextJustify);
     setAlign(nextAlign);
-    setStyle(domElement, "justify-content", nextJustify);
-    setStyle(domElement, "align-items", nextAlign);
+    setStyles(editTarget ?? domElement, [
+      { property: "justify-content", value: nextJustify },
+      { property: "align-items", value: nextAlign },
+    ]);
     onAfterEdit?.();
   }
 

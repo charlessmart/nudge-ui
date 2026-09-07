@@ -9,6 +9,8 @@ import { GridChildSection } from "./GridChildSection.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { InspectorPopover } from "../ui/InspectorPopover.tsx";
+import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 const GRID_AUTO_FLOW_OPTIONS = ["row", "column", "row dense", "column dense"];
 const GRID_CONTENT_ALIGNMENT_OPTIONS = [
@@ -26,6 +28,8 @@ const GAP_PRESETS = ["0", "0.25rem", "0.5rem", "0.75rem", "1rem", "1.5rem", "2re
 
 export interface GridSectionProps {
   domElement: HTMLElement;
+  editTarget?: EditTarget;
+  selection?: StyleSelection | null;
   showContainer: boolean;
   showChild: boolean;
   revision?: number;
@@ -34,6 +38,8 @@ export interface GridSectionProps {
 
 export function GridSection({
   domElement: el,
+  editTarget,
+  selection,
   showContainer,
   showChild,
   revision = 0,
@@ -70,23 +76,27 @@ export function GridSection({
                 <div className="layout__grid-advanced" data-test="layout-grid-advanced">
                   <div className="editor__title">Advanced grid CSS</div>
                   <div className="layout__grid-fields">
-                    <GridValueField property="grid-template-columns" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
-                    <GridValueField property="grid-template-rows" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
+                    <GridValueField property="grid-template-columns" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
+                    <GridValueField property="grid-template-rows" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
                     <LayoutDropdown
                       property="grid-auto-flow"
                       options={GRID_AUTO_FLOW_OPTIONS}
                       domElement={el}
+                      editTarget={editTarget}
+                      selection={selection}
                       revision={revision}
                       onAfterEdit={onAfterEdit}
                     />
-                    <GridValueField property="grid-auto-columns" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
-                    <GridValueField property="grid-auto-rows" domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
+                    <GridValueField property="grid-auto-columns" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
+                    <GridValueField property="grid-auto-rows" domElement={el} editTarget={editTarget} selection={selection} revision={revision} onAfterEdit={onAfterEdit} />
                   </div>
                   <div className="layout__grid-alignment" data-test="layout-grid-alignment">
                     <LayoutDropdown
                       property="justify-content"
                       options={GRID_CONTENT_ALIGNMENT_OPTIONS}
                       domElement={el}
+                      editTarget={editTarget}
+                      selection={selection}
                       stacked
                       revision={revision}
                       onAfterEdit={onAfterEdit}
@@ -95,6 +105,8 @@ export function GridSection({
                       property="align-content"
                       options={GRID_CONTENT_ALIGNMENT_OPTIONS}
                       domElement={el}
+                      editTarget={editTarget}
+                      selection={selection}
                       stacked
                       revision={revision}
                       onAfterEdit={onAfterEdit}
@@ -103,6 +115,8 @@ export function GridSection({
                       property="justify-items"
                       options={GRID_ITEM_ALIGNMENT_OPTIONS}
                       domElement={el}
+                      editTarget={editTarget}
+                      selection={selection}
                       stacked
                       revision={revision}
                       onAfterEdit={onAfterEdit}
@@ -111,6 +125,8 @@ export function GridSection({
                       property="align-items"
                       options={GRID_ITEM_ALIGNMENT_OPTIONS}
                       domElement={el}
+                      editTarget={editTarget}
+                      selection={selection}
                       stacked
                       revision={revision}
                       onAfterEdit={onAfterEdit}
@@ -119,7 +135,7 @@ export function GridSection({
                 </div>
               </InspectorPopover>
             </div>
-            <GridPicker domElement={el} revision={revision} onAfterEdit={onAfterEdit} />
+            <GridPicker domElement={el} editTarget={editTarget} revision={revision} onAfterEdit={onAfterEdit} />
           </div>
           <div className="layout__grid-gap" data-test="layout-grid-gap">
             <div className="editor__title">Gap</div>
@@ -136,6 +152,8 @@ export function GridSection({
                   property="row-gap"
                   presets={GAP_PRESETS}
                   domElement={el}
+                  editTarget={editTarget}
+                  selection={selection}
                   inputOnly
                   appearance="embedded"
                   revision={revision}
@@ -154,6 +172,8 @@ export function GridSection({
                   property="column-gap"
                   presets={GAP_PRESETS}
                   domElement={el}
+                  editTarget={editTarget}
+                  selection={selection}
                   inputOnly
                   appearance="embedded"
                   revision={revision}
@@ -165,7 +185,7 @@ export function GridSection({
         </div>
       </div> : null}
 
-      {showChild ? <GridChildSection domElement={el} revision={revision} onAfterEdit={onAfterEdit} /> : null}
+      {showChild ? <GridChildSection domElement={el} editTarget={editTarget} revision={revision} onAfterEdit={onAfterEdit} /> : null}
     </>
   );
 }

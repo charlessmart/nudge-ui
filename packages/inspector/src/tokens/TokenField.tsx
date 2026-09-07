@@ -9,6 +9,7 @@ import {
 } from "@nudge-ui/css/value-semantics";
 import type { AtRuleContext, ColorOpacity, ColorValueFacts, ResolvedProperty } from "@nudge-ui/css/model";
 import type { TokenSemanticSlot } from "@nudge-ui/css/value-semantics";
+import type { AggregatedProperty } from "../inspection/aggregateInspection.ts";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
@@ -21,7 +22,7 @@ import { getStateStyleValue } from "../stateValue.ts";
 import type { StyleEditMetadata } from "./editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { TokenChip } from "./TokenChip.tsx";
-import type { EditTarget } from "../editTarget.ts";
+import { isMultiTarget, type EditTarget } from "../editTarget.ts";
 
 export interface TokenValueFieldProps {
   property: string;
@@ -56,7 +57,7 @@ export interface TokenValueFieldProps {
 export interface TokenFieldProps {
   property: string;
   semanticSlot?: TokenSemanticSlot;
-  tokenRow?: ResolvedProperty | null;
+  tokenRow?: ResolvedProperty | AggregatedProperty | null;
   initialValue?: string;
   /** Optional normalized value shown when an authored row is not token-backed. */
   displayValue?: string;
@@ -620,6 +621,11 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     mixed = false,
     attributionTokens,
   } = props;
+  const aggregate = tokenRow && "aggregate" in tokenRow ? tokenRow.aggregate : null;
+  const aggregateMixed = aggregate?.valueState === "mixed";
+  const effectiveMixed = mixed || aggregateMixed;
+  const aggregateDisplayValue = aggregate && !aggregateMixed ? aggregate.values[0] : undefined;
+  const effectiveMetadata = editTarget && isMultiTarget(editTarget) ? undefined : editMetadata;
   const tokenBackedOpacityName = tokenRow?.tokenName
     && tokenRow.opacity
     && tokenRow.opacity.tokenName !== tokenRow.tokenName
@@ -630,7 +636,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     || tokenRow.color?.isExpression));
   const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? "";
   const isCalcAuthored = /\bcalc\s*\(/i.test(authored);
-  const activeTokenName = mixed
+  const activeTokenName = effectiveMixed
     ? null
     : tokenBackedOpacityName ?? (expression || isCalcAuthored ? null : tokenRow?.tokenName ?? null);
   const fallbackValue = initialValue ?? structuredBorderValue(property, tokenRow) ?? computedRaw(el, property);
@@ -643,9 +649,9 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     : expression || (!activeTokenName && !isCalcAuthored)
     ? structuredBorderValue(property, tokenRow) ?? tokenRow?.authored ?? tokenRow?.declaredValue ?? fallbackValue
     : tokenRow?.resolvedValue ?? fallbackValue;
-  const committedValue = mixed
-    ? "Mixed"
-    : displayValue ?? (property === "font-family" && !activeTokenName
+  const committedValue = effectiveMixed
+    ? displayValue ?? "Mixed"
+    : displayValue ?? aggregateDisplayValue ?? (property === "font-family" && !activeTokenName
       ? primaryFontFamily(authoredOrComputed)
       : authoredOrComputed);
   const currentToken = activeTokenName
@@ -658,30 +664,32 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       domElement={el}
       semanticSlot={semanticSlot}
       committedValue={committedValue}
-      resolvedValue={tokenRow?.propertyOpacity?.value ?? tokenRow?.resolvedValue ?? committedValue}
+      resolvedValue={tokenRow?.propertyOpacity?.value ?? aggregateDisplayValue ?? tokenRow?.resolvedValue ?? committedValue}
       activeTokenName={activeTokenName}
-      attributionTokens={attributionTokens ?? (expression
-        ? tokenRow?.tokens?.filter((token) => token.name !== tokenRow.opacity?.tokenName).map((token) => token.name)
-        : undefined)}
+      attributionTokens={attributionTokens ?? (aggregate?.sourceState === "mixed"
+        ? ["Mixed source"]
+        : expression
+          ? tokenRow?.tokens?.filter((token) => token.name !== tokenRow.opacity?.tokenName).map((token) => token.name)
+          : undefined)}
       opacity={tokenRow?.opacity}
       color={tokenRow?.color}
       entries={entries}
       suggestions={suggestions}
       inputDataTest={inputDataTest}
       disabled={disabled}
-      mixed={mixed}
+      mixed={effectiveMixed}
       isColor={selectTokens({ property, slot: semanticSlot, entries: [] }).preferredGroup === "color"}
       formatRawValue={(value) => {
         if (formatRawValueProp) return formatRawValueProp(value);
         return completeCssValue(value.trim(), valuePolicyFor(property));
       }}
       onCommitRaw={(value) => {
-        if (setStyle(editTarget ?? el, property, value, editMetadata)) onAfterEdit?.();
+        if (setStyle(editTarget ?? el, property, value, effectiveMetadata)) onAfterEdit?.();
       }}
       onCommitOpacity={(value) => {
         const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? committedValue;
         const result = applyValueEdit({ kind: "color-opacity", authored, opacity: value });
-        if (!result.ok || !setStyle(editTarget ?? el, property, result.value, editMetadata)) return false;
+        if (!result.ok || !setStyle(editTarget ?? el, property, result.value, effectiveMetadata)) return false;
         onAfterEdit?.();
         return true;
       }}
@@ -694,19 +702,19 @@ export function TokenField(props: TokenFieldProps): ReactElement {
             currentToken,
             nextToken: chosen,
           });
-          if (!result.ok || !setStyle(editTarget ?? el, targetProperty, result.value, editMetadata)) return false;
+          if (!result.ok || !setStyle(editTarget ?? el, targetProperty, result.value, effectiveMetadata)) return false;
           onAfterEdit?.();
           return true;
         }
         const change = activeTokenName
-          ? swapToken(editTarget ?? el, targetProperty, chosen, currentToken, editMetadata)
-          : promoteToToken(editTarget ?? el, property, chosen, editMetadata);
+          ? swapToken(editTarget ?? el, targetProperty, chosen, currentToken, effectiveMetadata)
+          : promoteToToken(editTarget ?? el, property, chosen, effectiveMetadata);
         if (!change) return false;
         onAfterEdit?.();
         return true;
       }}
       onUnlink={(value) => {
-        setStyle(editTarget ?? el, property, value, editMetadata);
+        setStyle(editTarget ?? el, property, value, effectiveMetadata);
         onAfterEdit?.();
       }}
       leading={leading}

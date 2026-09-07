@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { setStyle, swapToken, resetPendingRules, getPendingRules, getChangeRecords } from "../tokens/editActions.ts";
+import { setStyle, setStyles, swapToken, resetPendingRules, getPendingRules, getChangeRecords } from "../tokens/editActions.ts";
 import { redo, undo } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { getManagedSheetText } from "../managedStylesheet.ts";
@@ -93,6 +93,22 @@ describe("setStyle", () => {
     expect(getChangeRecords()).toHaveLength(0);
     expect(redo()).toBe(true);
     expect(getChangeRecords()).toHaveLength(2);
+  });
+
+  it("commits several declarations for multiple targets as one undoable batch", () => {
+    const first = makeButton("Heading", "src/Heading.tsx:1:1");
+    const second = makeButton("Heading", "src/Heading.tsx:2:1");
+
+    setStyles([first, second], [
+      { property: "justify-content", value: "center" },
+      { property: "align-items", value: "center" },
+    ]);
+
+    expect(getChangeRecords()).toHaveLength(4);
+    expect(undo()).toBe(true);
+    expect(getChangeRecords()).toHaveLength(0);
+    expect(redo()).toBe(true);
+    expect(getChangeRecords()).toHaveLength(4);
   });
 
   it("limits a partial repeated-source edit to selected rendered instances", () => {

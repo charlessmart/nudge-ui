@@ -6,17 +6,21 @@ import type { SelectedElement } from "../selectionStore.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
+import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 export interface BoxShadowEditorProps {
   element: SelectedElement;
+  selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
   onAfterEdit?: () => void;
 }
 
 export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
-  const { element, entries, tokenRows = [], onAfterEdit } = props;
+  const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
+  const editTarget: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
   const tokenRow = tokenRows.find((row) => row.property === "box-shadow") ?? null;
 
@@ -30,6 +34,7 @@ export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
               property="box-shadow"
               tokenRow={tokenRow}
               domElement={el}
+              editTarget={editTarget}
               entries={allEntries}
               onAfterEdit={onAfterEdit}
             />

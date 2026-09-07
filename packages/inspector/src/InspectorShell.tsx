@@ -53,6 +53,8 @@ import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive,
 import { useNudgeUiRuntimeConfig } from "./useRuntimeConfig.ts";
 import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
+import { createStyleSelection } from "./styleSelection.ts";
+import { intersectTokenEntries } from "./inspection/aggregateInspection.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -224,13 +226,21 @@ export function InspectorShell(): ReactElement {
   }, [isOpen, isMultiSelection, selected]);
 
   const inspectionSnapshot = cssInspection.element;
+  const styleSelection = useMemo(
+    () => createStyleSelection(selectedElements, cssInspection.elements),
+    [cssInspection.elements, selectedElements],
+  );
   const tokenEntries: TokenEntry[] = useMemo(
-    () => inspectionSnapshot ? [...inspectionSnapshot.availableTokens] : [],
-    [inspectionSnapshot],
+    () => isMultiSelection
+      ? intersectTokenEntries(cssInspection.elements.map((snapshot) => snapshot.availableTokens))
+      : inspectionSnapshot ? [...inspectionSnapshot.availableTokens] : [],
+    [cssInspection.elements, inspectionSnapshot, isMultiSelection],
   );
   const tokenRows: ResolvedProperty[] = useMemo(
-    () => inspectionSnapshot ? [...inspectionSnapshot.properties] : [],
-    [inspectionSnapshot],
+    () => isMultiSelection && styleSelection
+      ? [...styleSelection.properties]
+      : inspectionSnapshot ? [...inspectionSnapshot.properties] : [],
+    [inspectionSnapshot, isMultiSelection, styleSelection],
   );
   const availableInteractionStates = isMultiSelection
     ? cssInspection.elements.reduce<InteractionState[]>((common, snapshot, index) => {
@@ -256,8 +266,6 @@ export function InspectorShell(): ReactElement {
   const selectionReach = isMultiSelection
     ? countBatchEditReach(selectedElements.map((element) => element.domElement))
     : 0;
-  const supportsSharedColor = !isMultiSelection
-    || tokenRows.some((row) => row.property === "color");
   function refreshScopeState(): void {
     refreshScope((revision) => revision + 1);
   }
@@ -508,15 +516,58 @@ export function InspectorShell(): ReactElement {
                       own revision for controls that depend on computed layout. */}
                   {isMultiSelection ? (
                     <>
+                      <LayoutSection
+                        key={`layout-${styleState}`}
+                        element={selected}
+                        selection={styleSelection}
+                        entries={tokenEntries}
+                        tokenRows={tokenRows}
+                      />
+                      <SpacingBox
+                        key={`spacing-${styleState}`}
+                        element={selected}
+                        selection={styleSelection}
+                        entries={tokenEntries}
+                        tokenRows={tokenRows}
+                      />
+                      <AppearanceSection
+                        key={`appearance-${styleState}`}
+                        element={selected}
+                        selection={styleSelection}
+                        entries={tokenEntries}
+                        tokenRows={tokenRows}
+                      />
                       <Typography key={`type-${styleState}`} element={selected} elements={selectedElements} entries={tokenEntries} tokenRows={tokenRows} />
-                      {supportsSharedColor ? <ColorPicker
+                      <ColorPicker
                         key={`color-${styleState}`}
                         element={selected}
                         elements={selectedElements}
                         property="color"
                         entries={tokenEntries}
                         tokenRow={findTokenRow(tokenRows, "color")}
-                      /> : null}
+                      />
+                      <ColorPicker
+                        key={`background-${styleState}`}
+                        element={selected}
+                        elements={selectedElements}
+                        property="background-color"
+                        entries={tokenEntries}
+                        tokenRow={findTokenRow(tokenRows, "background-color")}
+                      />
+                      <BorderEditor
+                        key={`border-${styleState}`}
+                        element={selected}
+                        selection={styleSelection}
+                        entries={tokenEntries}
+                        tokenRows={tokenRows}
+                      />
+                      <BoxShadowEditor
+                        key={`box-shadow-${styleState}`}
+                        element={selected}
+                        selection={styleSelection}
+                        entries={tokenEntries}
+                        tokenRows={tokenRows}
+                      />
                     </>
                   ) : (
                     <>

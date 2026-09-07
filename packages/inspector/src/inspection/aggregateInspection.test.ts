@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
-import { aggregateProperties } from "./aggregateInspection.ts";
+import { aggregateProperties, aggregatePropertyValues } from "./aggregateInspection.ts";
 
 function property(
   name: string,
@@ -66,5 +66,40 @@ describe("aggregateProperties", () => {
     ]);
 
     expect(rows.map((row) => row.property)).toEqual(["font-size"]);
+  });
+
+  it("aggregates computed values when authored inspection rows are missing", () => {
+    const row = aggregatePropertyValues(
+      "padding-left",
+      [
+        { properties: [] },
+        { properties: [property("padding-left", "16px")] },
+      ],
+      ["16px", "16px"],
+    );
+
+    expect(row?.aggregate).toMatchObject({
+      valueState: "common",
+      sourceState: "none",
+      values: ["16px", "16px"],
+      targetRows: [null, expect.objectContaining({ property: "padding-left" })],
+    });
+    expect(row?.tokenName).toBeNull();
+    expect(row?.resolvedValue).toBe("16px");
+  });
+
+  it("marks computed differences as Mixed even when only one target has an authored row", () => {
+    const row = aggregatePropertyValues(
+      "margin-top",
+      [
+        { properties: [] },
+        { properties: [property("margin-top", "16px")] },
+      ],
+      ["8px", "16px"],
+    );
+
+    expect(row?.aggregate.valueState).toBe("mixed");
+    expect(row?.declaredValue).toBe("Mixed");
+    expect(row?.resolvedValue).toBe("Mixed");
   });
 });

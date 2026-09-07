@@ -1,5 +1,6 @@
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { getStateStyleValue } from "../stateValue.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 export type ProjectionSide = "top" | "right" | "bottom" | "left";
 export type ProjectionGroup = "padding" | "margin" | "inset";
@@ -127,6 +128,68 @@ export function projectInspectorValues(
       padding: spacingProjection(el, rows, "padding"),
       margin: spacingProjection(el, rows, "margin"),
       inset: spacingProjection(el, rows, "inset"),
+    },
+  };
+}
+
+function selectionField(
+  selection: StyleSelection,
+  property: string,
+): InspectorFieldProjection {
+  const row = selection.getProperty(property);
+  const mixed = row?.aggregate.valueState === "mixed";
+  const value = row?.aggregate.values[0] ?? "";
+  return {
+    property,
+    authoredValue: mixed ? "Mixed" : value,
+    value: mixed ? "Mixed" : value,
+    tokenName: mixed ? null : row?.tokenName ?? null,
+    sourceProperty: row?.sourceProperty,
+    row,
+  };
+}
+
+function selectionAxis(
+  axis: ProjectionAxis,
+  fields: Record<ProjectionSide, InspectorFieldProjection>,
+): InspectorAxisProjection {
+  const sides = AXIS_SIDES[axis];
+  const pair = [fields[sides[0]], fields[sides[1]]] as const;
+  return {
+    axis,
+    sides,
+    state: pair[0].value === pair[1].value ? "shared" : "mixed",
+    fields: pair,
+  };
+}
+
+function selectionSpacing(
+  selection: StyleSelection,
+  property: ProjectionGroup,
+): InspectorSpacingProjection {
+  const fields = Object.fromEntries(SIDES.map((side) => {
+    const field = selectionField(selection, property === "inset" ? side : `${property}-${side}`);
+    return [side, field];
+  })) as Record<ProjectionSide, InspectorFieldProjection>;
+  const signatures = SIDES.map((side) => fieldSignature(fields[side]));
+  return {
+    property,
+    linked: new Set(signatures).size === 1,
+    fields,
+    axes: {
+      horizontal: selectionAxis("horizontal", fields),
+      vertical: selectionAxis("vertical", fields),
+    },
+  };
+}
+
+/** Projects computed group values into the existing spacing editor model. */
+export function projectInspectorValuesForSelection(selection: StyleSelection): InspectorProjection {
+  return {
+    spacing: {
+      padding: selectionSpacing(selection, "padding"),
+      margin: selectionSpacing(selection, "margin"),
+      inset: selectionSpacing(selection, "inset"),
     },
   };
 }

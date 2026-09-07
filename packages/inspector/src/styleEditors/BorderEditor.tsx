@@ -15,7 +15,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selectionStore.ts";
-import { setStyle } from "./styleActions.ts";
+import { setStyle, setStyles } from "./styleActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -25,6 +25,9 @@ import { getStateStyleValue } from "../stateValue.ts";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
+import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
+import { isAggregatedProperty } from "../inspection/aggregateInspection.ts";
 
 const BORDER_STYLES = ["none", "hidden", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"];
 const INVISIBLE_BORDER_STYLES = new Set(["none", "hidden"]);
@@ -94,17 +97,14 @@ function sideValueForLink(el: HTMLElement, rows: ResolvedProperty[], property: s
   return fallback;
 }
 
-function linkBorderSides(
+function borderLinkDeclaration(
   el: HTMLElement,
   rows: ResolvedProperty[],
   shorthand: string,
   sideProperties: readonly string[],
-  onAfterEdit?: () => void,
-): void {
+): { property: string; value: string } | null {
   const sharedValue = sideValueForLink(el, rows, sideProperties[0]!, shorthand === "border-style" ? "solid" : "");
-  if (!sharedValue) return;
-  setStyle(el, shorthand, sharedValue);
-  onAfterEdit?.();
+  return sharedValue ? { property: shorthand, value: sharedValue } : null;
 }
 
 function linkedTokenRow(
@@ -202,6 +202,7 @@ function hasBorderPresence(el: HTMLElement, rows: ResolvedProperty[]): boolean {
 
 export interface BorderEditorProps {
   element: SelectedElement;
+  selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
   onAfterEdit?: () => void;
@@ -240,8 +241,10 @@ function useBorderLinkedState(dataLinked: boolean, resetKey: HTMLElement): [bool
 }
 
 export function BorderEditor(props: BorderEditorProps): ReactElement {
-  const { element, entries, tokenRows = [], onAfterEdit } = props;
+  const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
+  const editTarget: EditTarget = selection?.target ?? el;
+  const isGroup = Boolean(selection && selection.elements.length > 1);
   const allEntries = entries ?? getNudgeUiTokenEntries();
   const borderWidthProperties = BORDER_SIDES.map((side) => `${side}-width`);
   const borderStyleProperties = BORDER_SIDES.map((side) => `${side}-style`);
@@ -251,16 +254,18 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const borderStyleDataLinked = valuesAreLinked(el, tokenRows, "border-style", borderStyleProperties);
   const borderColorDataLinked = valuesAreLinked(el, tokenRows, "border-color", borderColorProperties);
 
-  const allDataLinked = borderWidthDataLinked && borderStyleDataLinked && borderColorDataLinked;
+  const allDataLinked = !isGroup && borderWidthDataLinked && borderStyleDataLinked && borderColorDataLinked;
   const [borderLinked, setBorderLinked] = useBorderLinkedState(allDataLinked, el);
 
   const borderRow = findTokenRow(tokenRows, "border");
   const hasStructuredBorderRows = tokenRows.some((row) => Boolean(row.structure));
-  const rawBorderFallback = Boolean(borderRow && !borderRow.structure && !hasStructuredBorderRows);
+  const rawBorderFallback = !isGroup && Boolean(borderRow && !borderRow.structure && !hasStructuredBorderRows);
   const linkedBorderStyle = borderStyleValue(el, tokenRows, "border-style");
   const showWidthAndColor = !(borderLinked && INVISIBLE_BORDER_STYLES.has(linkedBorderStyle));
 
-  const hasBorder = hasBorderPresence(el, tokenRows);
+  const hasBorder = selection
+    ? selection.domElements.some((candidate) => hasBorderPresence(candidate, []))
+    : hasBorderPresence(el, tokenRows);
   const [borderSessionOpen, setBorderSessionOpen] = useState(false);
   useEffect(() => {
     setBorderSessionOpen(false);
@@ -271,13 +276,13 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const showBorderControls = hasBorder || borderSessionOpen || rawBorderFallback;
 
   function handleAddBorder(): void {
-    setStyle(el, "border", "1px solid");
+    setStyle(editTarget, "border", "1px solid");
     setBorderSessionOpen(true);
     onAfterEdit?.();
   }
 
   function handleRemoveBorder(): void {
-    setStyle(el, "border", "0 solid");
+    setStyle(editTarget, "border", "0 solid");
     setBorderSessionOpen(false);
     onAfterEdit?.();
   }
@@ -288,9 +293,15 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
 
   function handleCollapse(): void {
     setBorderLinked(true);
-    linkBorderSides(el, tokenRows, "border-style", borderStyleProperties, onAfterEdit);
-    linkBorderSides(el, tokenRows, "border-width", borderWidthProperties, onAfterEdit);
-    linkBorderSides(el, tokenRows, "border-color", borderColorProperties, onAfterEdit);
+    const declarations = [
+      borderLinkDeclaration(el, tokenRows, "border-style", borderStyleProperties),
+      borderLinkDeclaration(el, tokenRows, "border-width", borderWidthProperties),
+      borderLinkDeclaration(el, tokenRows, "border-color", borderColorProperties),
+    ].filter((declaration): declaration is { property: string; value: string } => declaration !== null);
+    if (declarations.length > 0) {
+      setStyles(editTarget, declarations);
+      onAfterEdit?.();
+    }
   }
 
   const sideRows = SIDE_NAMES.map((side, index) => ({
@@ -301,6 +312,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           property={borderColorProperties[index]!}
           tokenRow={findTokenRow(tokenRows, borderColorProperties[index]!)}
           domElement={el}
+          editTarget={editTarget}
           entries={allEntries}
           onAfterEdit={onAfterEdit}
         />
@@ -312,6 +324,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
           property={borderWidthProperties[index]!}
           tokenRow={findTokenRow(tokenRows, borderWidthProperties[index]!)}
           domElement={el}
+          editTarget={editTarget}
           entries={allEntries}
           onAfterEdit={onAfterEdit}
           chipVariant="small"
@@ -323,6 +336,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
         property={borderStyleProperties[index]!}
         tokenRow={findTokenRow(tokenRows, borderStyleProperties[index]!)}
         domElement={el}
+        editTarget={editTarget}
         dataTest={`border-style-${side}`}
         onAfterEdit={onAfterEdit}
       />
@@ -364,6 +378,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                   property="border"
                   tokenRow={borderRow}
                   domElement={el}
+                  editTarget={editTarget}
                   entries={allEntries}
                   onAfterEdit={onAfterEdit}
                 />
@@ -379,6 +394,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                         property="border-color"
                         tokenRow={linkedTokenRow(tokenRows, "border-color", borderColorProperties)}
                         domElement={el}
+                        editTarget={editTarget}
                         entries={allEntries}
                         onAfterEdit={onAfterEdit}
                       />
@@ -390,6 +406,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                         property="border-width"
                         tokenRow={linkedTokenRow(tokenRows, "border-width", borderWidthProperties)}
                         domElement={el}
+                        editTarget={editTarget}
                         entries={allEntries}
                         onAfterEdit={onAfterEdit}
                         chipVariant="small"
@@ -402,6 +419,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                 property="border-style"
                 tokenRow={linkedTokenRow(tokenRows, "border-style", borderStyleProperties)}
                 domElement={el}
+                editTarget={editTarget}
                 onAfterEdit={onAfterEdit}
               />
               <ToggleButton
@@ -478,24 +496,27 @@ interface BorderStyleSettingsMenuProps {
   property: string;
   tokenRow?: ResolvedProperty | null;
   domElement: HTMLElement;
+  editTarget?: EditTarget;
   dataTest?: string;
   onAfterEdit?: () => void;
 }
 
-function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, dataTest = "border-style-settings", onAfterEdit }: BorderStyleSettingsMenuProps): ReactElement {
+function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, editTarget, dataTest = "border-style-settings", onAfterEdit }: BorderStyleSettingsMenuProps): ReactElement {
   const structured = tokenRow?.structure?.style?.trim().toLowerCase() ?? "";
-  const initial = structured || getStateStyleValue(el, property, "none") || "none";
+  const aggregate = isAggregatedProperty(tokenRow) ? tokenRow.aggregate : null;
+  const mixed = aggregate?.valueState === "mixed";
+  const initial = mixed ? "Mixed" : structured || getStateStyleValue(el, property, "none") || "none";
   const [value, setValue] = useState(initial);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    setValue(structured || getStateStyleValue(el, property, "none") || "none");
-  }, [el, property, structured]);
+    setValue(mixed ? "Mixed" : structured || getStateStyleValue(el, property, "none") || "none");
+  }, [el, mixed, property, structured]);
 
   function handleChange(next: string): void {
     if (!BORDER_STYLES.includes(next)) return;
     setValue(next);
-    setStyle(el, property, next);
+    setStyle(editTarget ?? el, property, next);
     setOpen(false);
     onAfterEdit?.();
   }

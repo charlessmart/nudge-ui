@@ -2,6 +2,7 @@ import { getLayoutValue } from "./layoutValue.ts";
 import { setStyle, setStyles } from "./styleActions.ts";
 import { countGridTracks } from "./GridPicker.tsx";
 import type { ChangeRecord } from "./styleActions.ts";
+import { targetElements, type EditTarget } from "../editTarget.ts";
 
 /** One grid axis of a grid item: `column` maps to grid-column-*, `row` to grid-row-*. */
 export type GridAxis = "column" | "row";
@@ -78,7 +79,7 @@ export function readGridAxisPlacement(el: HTMLElement, axis: GridAxis): GridAxis
  * start line keeps the item's size.
  */
 export function commitGridAxisPlacement(
-  el: HTMLElement,
+  target: EditTarget,
   axis: GridAxis,
   commit: { start?: string; span?: number | "keep" },
 ): ChangeRecord[] {
@@ -90,14 +91,15 @@ export function commitGridAxisPlacement(
 
   let endValue: string | null = null;
   if (commit.span === "keep") {
-    const current = readGridAxisPlacement(el, axis);
-    if (current.span !== null) endValue = current.span >= 2 ? `span ${current.span}` : "auto";
+    const primary = targetElements(target)[0];
+    const current = primary ? readGridAxisPlacement(primary, axis) : null;
+    if (current && current.span !== null) endValue = current.span >= 2 ? `span ${current.span}` : "auto";
   } else if (typeof commit.span === "number") {
     endValue = commit.span >= 2 ? `span ${commit.span}` : "auto";
   }
   if (endValue !== null) declarations.push({ property: `grid-${axis}-end`, value: endValue });
 
-  return declarations.length > 0 ? setStyles(el, declarations) : [];
+  return declarations.length > 0 ? setStyles(target, declarations) : [];
 }
 
 /**
@@ -130,12 +132,12 @@ export const GRID_CHILD_ALIGNMENT_OPTIONS: Array<{ value: GridChildAlignment; la
  * self-alignment token the UI puts in its options.
  */
 export function commitGridChildAlignment(
-  el: HTMLElement,
+  target: EditTarget,
   axis: "h" | "v",
   alignment: string,
 ): ChangeRecord[] {
   const property = axis === "h" ? "justify-self" : "align-self";
-  const record = setStyle(el, property, alignment);
+  const record = setStyle(target, property, alignment);
   return record ? [record] : [];
 }
 

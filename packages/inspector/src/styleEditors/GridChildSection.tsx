@@ -22,9 +22,11 @@ import {
   type GridAxis,
   type GridAxisPlacement,
 } from "./gridChildModel.ts";
+import type { EditTarget } from "../editTarget.ts";
 
 export interface GridChildSectionProps {
   domElement: HTMLElement;
+  editTarget?: EditTarget;
   revision?: number;
   onAfterEdit?: () => void;
 }
@@ -155,9 +157,11 @@ function AlignmentControl({ axis, value, onChange }: AlignmentControlProps): Rea
  */
 export function GridChildSection({
   domElement: el,
+  editTarget,
   revision = 0,
   onAfterEdit,
 }: GridChildSectionProps): ReactElement {
+  const target = editTarget ?? el;
   const [column, setColumn] = useState<AxisState>(() => readAxis(el, "column"));
   const [row, setRow] = useState<AxisState>(() => readAxis(el, "row"));
   const [alignH, setAlignH] = useState(() => readGridChildAlignment(el, "h"));
@@ -175,11 +179,11 @@ export function GridChildSection({
   }
 
   function handleStart(axis: GridAxis, start: string): void {
-    if (commitGridAxisPlacement(el, axis, { start, span: "keep" }).length > 0) handleAfterEdit();
+    if (commitGridAxisPlacement(target, axis, { start, span: "keep" }).length > 0) handleAfterEdit();
   }
 
   function handleAlignment(axis: "h" | "v", value: string): void {
-    if (commitGridChildAlignment(el, axis, value).length > 0) handleAfterEdit();
+    if (commitGridChildAlignment(target, axis, value).length > 0) handleAfterEdit();
   }
 
   return (
