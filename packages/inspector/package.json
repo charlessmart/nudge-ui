@@ -1,6 +1,6 @@
 {
   "name": "@nudge-ui/inspector",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browser runtime inspector for live UI selection, CSS previews, and agent prompts.",
   "license": "MIT",
   "repository": {
