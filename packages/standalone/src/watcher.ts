@@ -27,7 +27,8 @@ export interface StandaloneFileWatcherOptions {
 }
 
 export interface StandaloneFileWatcher {
-  start(): void;
+  /** Starts watching and resolves after the initial directory walk is ready. */
+  start(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -47,7 +48,9 @@ export function createStandaloneFileWatcher(
   const pending = new Map<string, StandaloneFileChangeKind>();
   let timer: NodeJS.Timeout | null = null;
   let scanQueue: Promise<void> = Promise.resolve();
-  let started = false;
+  let pendingScans = 0;
+  let readyPromise: Promise<void> | null = null;
+  let resolveReady: (() => void) | null = null;
   let closed = false;
 
   const reportError = (error: unknown): void => {
@@ -116,7 +119,14 @@ export function createStandaloneFileWatcher(
     // The watch is installed before scanning so events raised during the
     // asynchronous walk are never missed. Scans run serially and re-check
     // `closed` after every await, so a closed watcher never leaks a late one.
-    scanQueue = scanQueue.then(() => scanSubdirectories(directory)).catch(reportError);
+    pendingScans += 1;
+    scanQueue = scanQueue
+      .then(() => scanSubdirectories(directory))
+      .catch(reportError)
+      .finally(() => {
+        pendingScans -= 1;
+        if (pendingScans === 0) resolveReady?.();
+      });
   };
 
   const scanSubdirectories = async (directory: string): Promise<void> => {
@@ -138,9 +148,14 @@ export function createStandaloneFileWatcher(
 
   return {
     start: () => {
-      if (started || closed) return;
-      started = true;
+      if (readyPromise) return readyPromise;
+      if (closed) return Promise.resolve();
+      readyPromise = new Promise<void>((resolveReadyPromise) => {
+        resolveReady = resolveReadyPromise;
+      });
       watchDirectory(rootDirectory);
+      if (pendingScans === 0) resolveReady?.();
+      return readyPromise;
     },
     close: async () => {
       if (closed) return;

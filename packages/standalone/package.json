@@ -1,6 +1,6 @@
 {
   "name": "@nudge-ui/standalone",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Standalone static HTML host and inspector client for Nudge UI.",
   "license": "MIT",
   "repository": {

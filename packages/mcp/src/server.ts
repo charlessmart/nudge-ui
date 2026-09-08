@@ -17,7 +17,7 @@ import {
 } from "./bridge.ts";
 
 export const MCP_SERVER_NAME = "nudge-ui";
-export const MCP_SERVER_VERSION = "0.1.0";
+export const MCP_SERVER_VERSION = "0.1.2";
 
 /** Instructions are sent through MCP initialization for every host. */
 export const MCP_SERVER_INSTRUCTIONS = [

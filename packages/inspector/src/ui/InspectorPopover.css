@@ -9,9 +9,9 @@
   max-height: min(420px, calc(100dvh - 24px));
   overflow-x: hidden;
   overflow-y: auto;
-  padding: var(--space-8);
+  padding: var(--space-4);
   background: var(--surface-raised-2x);
-  border-radius: var(--radius-12);
+  border-radius: var(--radius-8);
   box-shadow: var(--shadow-popup);
   pointer-events: auto;
 }

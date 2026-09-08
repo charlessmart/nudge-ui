@@ -536,14 +536,17 @@ export function InspectorShell(): ReactElement {
         </div>
       </div>
       {!isOpen ? (
-        <IconButton
-          label="Show inspector"
-          className="panel__restore"
-          data-test="show-inspector"
-          onClick={() => setInspectorOpen(true)}
-        >
-          <IconLayoutSidebarRight size={16} stroke={"var(--icon-stroke-width)"} aria-hidden="true" />
-        </IconButton>
+        <div className="panel__restore">
+          <IconButton
+            variant="quiet"
+            label="Show inspector"
+            className="panel__restore-button"
+            data-test="show-inspector"
+            onClick={() => setInspectorOpen(true)}
+          >
+            <IconLayoutSidebarRight size={16} stroke={"var(--icon-stroke-width)"} aria-hidden="true" />
+          </IconButton>
+        </div>
       ) : null}
     </>
   );
