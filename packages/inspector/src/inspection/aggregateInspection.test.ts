@@ -27,7 +27,7 @@ describe("aggregateProperties", () => {
 
     expect(row?.aggregate).toMatchObject({
       valueState: "common",
-      sourceState: "common",
+      tokenState: "common",
       values: ["24px", "24px"],
       tokenNames: ["--type-heading", "--type-heading"],
     });
@@ -42,7 +42,7 @@ describe("aggregateProperties", () => {
     ]);
 
     expect(row?.aggregate.valueState).toBe("mixed");
-    expect(row?.aggregate.sourceState).toBe("common");
+    expect(row?.aggregate.tokenState).toBe("common");
     expect(row?.declaredValue).toBe("Mixed");
     expect(row?.resolvedValue).toBe("Mixed");
     expect(row?.tokenName).toBeNull();
@@ -54,7 +54,7 @@ describe("aggregateProperties", () => {
       { properties: [property("color", "#111111", "--color-brand")] },
     ]);
 
-    expect(row?.aggregate).toMatchObject({ valueState: "common", sourceState: "mixed" });
+    expect(row?.aggregate).toMatchObject({ valueState: "common", tokenState: "mixed" });
     expect(row?.declaredValue).toBe("#111111");
     expect(row?.tokenName).toBeNull();
   });
@@ -80,7 +80,7 @@ describe("aggregateProperties", () => {
 
     expect(row?.aggregate).toMatchObject({
       valueState: "common",
-      sourceState: "none",
+      tokenState: "none",
       values: ["16px", "16px"],
       targetRows: [null, expect.objectContaining({ property: "padding-left" })],
     });

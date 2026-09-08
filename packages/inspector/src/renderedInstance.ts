@@ -143,13 +143,19 @@ export function matchesRenderedInstanceEvidence(el: HTMLElement, ref: RenderedIn
     && el.getAttribute("aria-label") === ariaLabel;
 }
 
-export function createRenderedInstanceOverride(el: HTMLElement): RenderedInstanceOverride | null {
+/** Builds an instance override without changing the element's transient edit scope. */
+export function buildRenderedInstanceOverride(el: HTMLElement): RenderedInstanceOverride | null {
   const target = captureRenderedInstance(el);
   if (!target) return null;
-  const override: RenderedInstanceOverride = {
+  return {
     id: `override-${crypto.randomUUID?.() ?? nextOverrideId++}`,
     target,
   };
+}
+
+export function createRenderedInstanceOverride(el: HTMLElement): RenderedInstanceOverride | null {
+  const override = buildRenderedInstanceOverride(el);
+  if (!override) return null;
   transientTargets.set(el, override);
   return override;
 }

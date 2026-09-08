@@ -184,7 +184,7 @@ function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
   const displayValue = aggregate
     ? mixed ? "Mixed" : aggregate.values[0]
     : undefined;
-  const attributionTokens = aggregate?.sourceState === "mixed" ? ["Mixed source"] : undefined;
+  const attributionTokens = aggregate?.tokenState === "mixed" ? ["Mixed tokens"] : undefined;
   const hasTokenChip = Boolean(tokenRow?.tokenName
     && tokenRow.capability !== "raw"
     && tokenRow.capability !== "composite"
@@ -267,9 +267,9 @@ function FontStyleField({ element, elements, editTarget, fontStyleRow, fontWeigh
     if (!option || option.value === "mixed" || !("weight" in option) || !("style" in option)) return;
     setCurrent({ weight: option.weight, style: option.style });
     setStyles(editTarget, [
-      { property: "font-style", value: option.style },
-      { property: "font-weight", value: option.weight },
-    ], metadataFor(fontStyleRow ?? fontWeightRow));
+      { property: "font-style", value: option.style, metadata: metadataFor(fontStyleRow ?? fontWeightRow) },
+      { property: "font-weight", value: option.weight, metadata: metadataFor(fontWeightRow ?? fontStyleRow) },
+    ]);
     onAfterEdit?.();
   }
 

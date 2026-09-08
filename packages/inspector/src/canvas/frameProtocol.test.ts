@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   PROTOCOL_VERSION,
+  isElementClickMessage,
   isProjectionAppliedMessage,
   isRenderedInstanceProjectionReportMessage,
   isRendererMessageFor,
   isStructuralProjectionReportMessage,
   isTextProjectionReportMessage,
 } from "./frameProtocol.ts";
-import type { ElementClickMessage } from "./frameProtocol.ts";
-
 const identity = {
   projectId: "project-a",
   workspaceId: "workspace-a",
@@ -45,6 +44,35 @@ describe("isRendererMessageFor", () => {
       protocolVersion: 2,
       ...identity,
     }, identity)).toBe(false);
+  });
+});
+
+describe("element click schema", () => {
+  const message = {
+    type: "element-click",
+    protocolVersion: PROTOCOL_VERSION,
+    cid: "Button",
+    selector: "button",
+    src: "src/Button.tsx:1:1",
+    elementId: "r1",
+    file: "src/Button.tsx",
+    line: 1,
+    component: "Button",
+    additive: true,
+    ...identity,
+  };
+
+  it("accepts a boolean additive flag", () => {
+    expect(isElementClickMessage(message, identity)).toBe(true);
+  });
+
+  it.each([
+    { additive: "true" },
+    { additive: 1 },
+    { line: 1.5 },
+    { localId: "forbidden" },
+  ])("rejects malformed click data: %o", (override) => {
+    expect(isElementClickMessage({ ...message, ...override }, identity)).toBe(false);
   });
 });
 

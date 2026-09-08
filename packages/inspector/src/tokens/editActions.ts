@@ -4,7 +4,7 @@ import {
   appendChanges,
 } from "../changesLog.ts";
 import type { ElementChangeRecord } from "../changesLog.ts";
-import { getBatchEditScope, selectorForElement, sourceSiteSelector } from "../editScope.ts";
+import { planBatchEditScopes, selectorForElement, sourceSiteSelector, type BatchScopeFields } from "../editScope.ts";
 import { getActiveStyleState, selectorForInteractionState } from "../styleState.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import {
@@ -76,10 +76,6 @@ export function buildSelector(cid: string, src: string): string | null {
   return sourceSiteSelector(cid, src);
 }
 
-function scopeFields(el: HTMLElement, selectedElements: readonly HTMLElement[]) {
-  return getBatchEditScope(el, selectedElements);
-}
-
 function stateFields(el: HTMLElement) {
   const state = getActiveStyleState();
   const selector = selectorForElement(el);
@@ -109,6 +105,8 @@ export function swapTokens(
   changes: readonly TokenSwap[],
 ): ElementChangeRecord[] {
   const elements = targetElements(target);
+  const scopePlan = planBatchEditScopes(elements);
+  if (!scopePlan) return [];
   const records: ElementChangeRecord[] = [];
   const verificationTargets = new Map<string, HTMLElement | null>();
   for (const el of elements) {
@@ -130,7 +128,7 @@ export function swapTokens(
         source: { file: source.file, line: source.line, component: cid },
         runtimeEvidence: source.runtimeEvidence,
         state,
-        ...scopeFields(el, elements),
+        ...scopePlan.get(el),
       };
       records.push(record);
       verificationTargets.set(changeKey(record), el);
@@ -140,30 +138,27 @@ export function swapTokens(
   return records;
 }
 
-export function setStyle(target: EditTarget, property: string, value: string, metadata?: StyleEditMetadata): ElementChangeRecord | null {
-  const elements = targetElements(target);
-  const records: Array<{ record: ElementChangeRecord; element: HTMLElement }> = [];
-  for (const el of elements) {
-    const record = buildStyleRecord(el, elements, property, value, metadata);
-    if (record) records.push({ record, element: el });
-  }
-  const verificationTargets = new Map<string, HTMLElement | null>();
-  for (const { record, element } of records) verificationTargets.set(changeKey(record), element);
-  appendChanges(records.map(({ record }) => record), { verificationTargets });
-  return records[0]?.record ?? null;
+export interface StyleDeclaration {
+  property: string;
+  value: string;
+  metadata?: StyleEditMetadata;
 }
 
-export function setStyles(
-  target: EditTarget,
-  declarations: ReadonlyArray<{ property: string; value: string }>,
-  metadata?: StyleEditMetadata,
-): ElementChangeRecord[] {
-  const elements = targetElements(target);
+export interface ElementStyleEdit {
+  element: HTMLElement;
+  declarations: readonly StyleDeclaration[];
+}
+
+function commitElementStyles(edits: readonly ElementStyleEdit[]): ElementChangeRecord[] {
+  if (edits.every(({ declarations }) => declarations.length === 0)) return [];
+  const elements = [...new Set(edits.map(({ element }) => element))];
+  const scopePlan = planBatchEditScopes(elements);
+  if (!scopePlan) return [];
   const records: Array<{ record: ElementChangeRecord; element: HTMLElement }> = [];
-  for (const el of elements) {
-    for (const { property, value } of declarations) {
-      const record = buildStyleRecord(el, elements, property, value, metadata);
-      if (record) records.push({ record, element: el });
+  for (const { element, declarations } of edits) {
+    for (const declaration of declarations) {
+      const record = buildStyleRecord(element, scopePlan, declaration);
+      if (record) records.push({ record, element });
     }
   }
   const verificationTargets = new Map<string, HTMLElement | null>();
@@ -172,12 +167,34 @@ export function setStyles(
   return records.map(({ record }) => record);
 }
 
+export function setStyle(target: EditTarget, property: string, value: string, metadata?: StyleEditMetadata): ElementChangeRecord | null {
+  return setStyles(target, [{ property, value, metadata }])[0] ?? null;
+}
+
+export function setStyles(
+  target: EditTarget,
+  declarations: readonly StyleDeclaration[],
+  metadata?: StyleEditMetadata,
+): ElementChangeRecord[] {
+  const normalizedDeclarations = declarations.map((declaration) => ({
+    ...declaration,
+    metadata: declaration.metadata ?? metadata,
+  }));
+  return commitElementStyles(targetElements(target).map((element) => ({
+    element,
+    declarations: normalizedDeclarations,
+  })));
+}
+
+/** Applies element-specific declarations as one history batch. */
+export function setElementStyles(edits: readonly ElementStyleEdit[]): ElementChangeRecord[] {
+  return commitElementStyles(edits);
+}
+
 function buildStyleRecord(
   el: HTMLElement,
-  selectedElements: readonly HTMLElement[],
-  property: string,
-  value: string,
-  metadata?: StyleEditMetadata,
+  scopePlan: ReadonlyMap<HTMLElement, BatchScopeFields>,
+  { property, value, metadata }: StyleDeclaration,
 ): ElementChangeRecord | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const { selector, state } = stateFields(el);
@@ -198,7 +215,7 @@ function buildStyleRecord(
     source: { file: source.file, line: source.line, component: cid },
     runtimeEvidence: source.runtimeEvidence,
     state,
-    ...scopeFields(el, selectedElements),
+    ...scopePlan.get(el),
   } satisfies ElementChangeRecord;
 }
 

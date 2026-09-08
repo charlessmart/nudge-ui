@@ -157,7 +157,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       handleCustomApply();
     } else if (e.key === "Escape") {
       draftDirtyRef.current = false;
-      setCustomValue(currentValue);
+      setCustomValue(mixed ? "" : currentValue);
       setShowCustom(false);
     }
   }
@@ -172,7 +172,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       placeholder={mixed ? "Mixed" : "0"}
       aria-label={formatInspectorLabel(property)}
       data-test={`layout-combo-input-${property}`}
-      value={mixed ? "" : customValue}
+      value={customValue}
       onChange={(e) => {
         draftDirtyRef.current = true;
         setCustomValue(e.target.value);

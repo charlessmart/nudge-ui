@@ -5,6 +5,7 @@ import { redo, undo } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { getManagedSheetText } from "../managedStylesheet.ts";
 import { resetRenderedInstanceState } from "../renderedInstance.ts";
+import { getEditScope, unlinkElement } from "../editScope.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");
@@ -61,6 +62,15 @@ describe("setStyle", () => {
     expect(rec?.sourceAuthoredValue).toBe("var(--space-4)");
   });
 
+  it("preserves an explicit instance scope for a single-target edit", () => {
+    const button = makeButton();
+    unlinkElement(button);
+
+    const record = setStyle(button, "font-size", "18px");
+
+    expect(record).toMatchObject({ scope: "rendered-instance" });
+  });
+
   it("called twice for the same element+property overwrites (one rule, latest value wins)", () => {
     const btn = makeButton();
     setStyle(btn, "padding", "10px");
@@ -114,7 +124,10 @@ describe("setStyle", () => {
   it("limits a partial repeated-source edit to selected rendered instances", () => {
     const first = makeButton("Heading", "src/Heading.tsx:1:1");
     const second = makeButton("Heading", "src/Heading.tsx:1:1");
-    makeButton("Heading", "src/Heading.tsx:1:1");
+    const third = makeButton("Heading", "src/Heading.tsx:1:1");
+    first.textContent = "First";
+    second.textContent = "Second";
+    third.textContent = "Third";
 
     setStyle([first, second], "font-size", "24px");
 
@@ -123,6 +136,19 @@ describe("setStyle", () => {
     expect(records.every((record) => "scope" in record && record.scope === "rendered-instance")).toBe(true);
     expect(new Set(records.map((record) => "instanceOverride" in record ? record.instanceOverride?.id : null)).size).toBe(2);
     expect(getPendingRules()).toHaveLength(2);
+    expect(undo()).toBe(true);
+    expect(getEditScope(first)).toBe("source-site");
+  });
+
+  it("rejects an ambiguous partial repeated-source edit", () => {
+    const first = makeButton("Heading", "src/Heading.tsx:1:1");
+    const second = makeButton("Heading", "src/Heading.tsx:1:1");
+    makeButton("Heading", "src/Heading.tsx:1:1");
+
+    expect(setStyle([first, second], "font-size", "24px")).toBeNull();
+    expect(getChangeRecords()).toHaveLength(0);
+    expect(getPendingRules()).toHaveLength(0);
+    expect(getEditScope(first)).toBe("source-site");
   });
 
   it("setStyle and swapToken for the same element+property share the dedup key", () => {

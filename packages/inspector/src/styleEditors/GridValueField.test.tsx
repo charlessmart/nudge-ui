@@ -5,6 +5,7 @@ import { GridValueField } from "./GridValueField.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import {
   makeSelected,
+  makeMixedStyleSelection,
   mockComputedStyle,
   mount,
   restoreComputedStyle,
@@ -85,5 +86,30 @@ describe("GridValueField", () => {
 
     expect(sheetText()).not.toContain("grid-column:");
     expect(input.value).toBe("2 / span 2");
+  });
+
+  it("keeps a draft visible while replacing a mixed group value", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "grid-template-columns": "1fr" });
+    const selection = makeMixedStyleSelection(selected, "grid-template-columns");
+    handle = mount(createElement(GridValueField, {
+      property: "grid-template-columns",
+      domElement: selected.domElement,
+      selection,
+    }));
+    const input = handle.host.querySelector('[data-test="layout-grid-input-grid-template-columns"]') as HTMLInputElement;
+
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "repeat(");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(input.value).toBe("repeat(");
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "repeat(3,");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(input.value).toBe("repeat(3,");
   });
 });

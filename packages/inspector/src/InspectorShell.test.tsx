@@ -231,6 +231,32 @@ describe("InspectorShell", () => {
     }
   });
 
+  it("disables partial group editing when repeated outputs are indistinguishable", () => {
+    const elements = Array.from({ length: 3 }, () => {
+      const element = document.createElement("button");
+      element.dataset.cid = "Heading";
+      element.dataset.src = "fixtures/heading.tsx:1:1";
+      document.body.appendChild(element);
+      return element;
+    });
+
+    try {
+      act(() => {
+        setSelectedElements(elements.slice(0, 2).map((element) => resolveSelectionFromElement(element)!));
+        mountInspector(host);
+      });
+
+      const shadow = host.shadowRoot!;
+      expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
+        .toContain("This partial group cannot be edited safely.");
+      expect(shadow.querySelector('[data-test="multi-selection-uneditable"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="style-editors"]')).toBeNull();
+    } finally {
+      setSelectedElement(null);
+      elements.forEach((element) => element.remove());
+    }
+  });
+
   it("hides DOM navigation unless the debug capability is enabled", () => {
     const previousConfig = getNudgeUiRuntimeConfig();
     const selected = document.createElement("button");

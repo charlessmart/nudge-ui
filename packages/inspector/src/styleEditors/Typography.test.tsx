@@ -78,6 +78,50 @@ describe("Typography", () => {
     expect(sheetText()).toContain("font-weight: 700;");
   });
 
+  it("keeps separate source metadata for font style and weight", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "font-weight": "400",
+      "font-style": "normal",
+    });
+    handle = mount(createElement(Typography, {
+      element: selected,
+      tokenRows: [
+        {
+          property: "font-style",
+          tokenName: null,
+          declaredValue: "normal",
+          authored: "normal",
+          sourceProperty: "font-style",
+          resolvedValue: "normal",
+          confidence: "exact",
+          evidence: { reason: "style fixture" },
+        },
+        {
+          property: "font-weight",
+          tokenName: null,
+          declaredValue: "var(--weight-body)",
+          authored: "var(--weight-body)",
+          sourceProperty: "font-weight",
+          resolvedValue: "400",
+          confidence: "exact",
+          evidence: { reason: "weight fixture" },
+        },
+      ],
+    }));
+
+    setSelectValue(handle.host.querySelector('[data-test="font-style-field"]') as HTMLElement, "700-italic");
+
+    expect(getChangeRecords().find((record) => record.property === "font-style")).toMatchObject({
+      sourceProperty: "font-style",
+      sourceAuthoredValue: "normal",
+    });
+    expect(getChangeRecords().find((record) => record.property === "font-weight")).toMatchObject({
+      sourceProperty: "font-weight",
+      sourceAuthoredValue: "var(--weight-body)",
+    });
+  });
+
   it("writes line-height via the raw input", () => {
     const { selected } = makeSelected();
     mockComputedStyle({
@@ -199,7 +243,7 @@ describe("Typography", () => {
         evidence: { reason: "aggregate test" },
         aggregate: {
           valueState: "mixed",
-          sourceState: "common",
+          tokenState: "common",
           values: ["24px", "20px"],
           tokenNames: [null, null],
           rows: [],

@@ -1,7 +1,9 @@
 import {
   getRenderedInstanceOverride,
   createRenderedInstanceOverride,
+  buildRenderedInstanceOverride,
   clearRenderedInstanceOverride,
+  resolveRenderedInstance,
   type RenderedInstanceOverride,
 } from "./renderedInstance.ts";
 import { sourceSiteSelector } from "./sourceSite.ts";
@@ -82,7 +84,7 @@ export interface BatchScopeFields {
 /**
  * Calculates how many rendered nodes a group edit can affect without creating
  * any instance overrides. This is used for the panel's reach summary; the
- * actual edit path calls getBatchEditScope when it commits a declaration.
+ * actual edit path plans all scopes together when it commits declarations.
  */
 export function countBatchEditReach(selectedElements: readonly HTMLElement[]): number {
   if (selectedElements.length <= 1) return selectedElements.length;
@@ -118,30 +120,55 @@ export function countBatchEditReach(selectedElements: readonly HTMLElement[]): n
 }
 
 /**
- * Resolves the reach of one target in a batch edit. A partial selection of a
- * repeated source site receives a durable rendered-instance marker; a complete
- * source-site selection keeps the source-site projection.
+ * Plans the scope for every target in a batch edit without mutating the DOM or
+ * transient instance state. A partial repeated-source group is editable only
+ * when each selected output has evidence that resolves uniquely.
  */
-export function getBatchEditScope(
-  el: HTMLElement,
+export function planBatchEditScopes(
   selectedElements: readonly HTMLElement[],
-): BatchScopeFields {
-  const existing = getRenderedInstanceOverride(el);
-  if (existing) return { scope: "rendered-instance", instanceOverride: existing };
-  if (selectedElements.length <= 1) return { scope: "source-site" };
-
-  const selector = selectorForElement(el);
-  if (!selector) return { scope: "source-site" };
-  const selectedForSource = selectedElements.filter((candidate) => selectorForElement(candidate) === selector).length;
-  const totalForSource = querySourceSiteMatches(el);
-  if (totalForSource <= 1 || selectedForSource >= totalForSource) {
-    return { scope: "source-site" };
+): ReadonlyMap<HTMLElement, BatchScopeFields> | null {
+  const plan = new Map<HTMLElement, BatchScopeFields>();
+  if (selectedElements.length <= 1) {
+    for (const element of selectedElements) {
+      const existing = getRenderedInstanceOverride(element);
+      plan.set(element, existing
+        ? { scope: "rendered-instance", instanceOverride: existing }
+        : { scope: "source-site" });
+    }
+    return plan;
   }
 
-  const instanceOverride = createRenderedInstanceOverride(el);
-  return instanceOverride
-    ? { scope: "rendered-instance", instanceOverride }
-    : { scope: "source-site" };
+  const selectedBySource = new Map<string, number>();
+  for (const element of selectedElements) {
+    const selector = selectorForElement(element);
+    if (selector) selectedBySource.set(selector, (selectedBySource.get(selector) ?? 0) + 1);
+  }
+
+  for (const element of selectedElements) {
+    const existing = getRenderedInstanceOverride(element);
+    if (existing) {
+      plan.set(element, { scope: "rendered-instance", instanceOverride: existing });
+      continue;
+    }
+    const selector = selectorForElement(element);
+    if (!selector) {
+      plan.set(element, { scope: "source-site" });
+      continue;
+    }
+    const selectedForSource = selectedBySource.get(selector) ?? 0;
+    const totalForSource = querySourceSiteMatches(element);
+    if (totalForSource <= 1 || selectedForSource >= totalForSource) {
+      plan.set(element, { scope: "source-site" });
+      continue;
+    }
+
+    const instanceOverride = buildRenderedInstanceOverride(element);
+    if (!instanceOverride) return null;
+    const resolution = resolveRenderedInstance(element.ownerDocument, instanceOverride.target);
+    if (resolution.status !== "resolved" || resolution.element !== element) return null;
+    plan.set(element, { scope: "rendered-instance", instanceOverride });
+  }
+  return plan;
 }
 
 export function selectorForElement(el: HTMLElement): string | null {

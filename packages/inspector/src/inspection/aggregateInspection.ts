@@ -1,12 +1,12 @@
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 
 export type AggregateValueState = "common" | "mixed";
-export type AggregateSourceState = "none" | "common" | "mixed";
+export type AggregateTokenState = "none" | "common" | "mixed";
 
 export interface AggregatedProperty extends ResolvedProperty {
   aggregate: {
     valueState: AggregateValueState;
-    sourceState: AggregateSourceState;
+    tokenState: AggregateTokenState;
     values: readonly string[];
     tokenNames: readonly (string | null)[];
     rows: readonly ResolvedProperty[];
@@ -33,7 +33,7 @@ function sameValues(values: readonly string[]): boolean {
   return first !== undefined && values.every((value) => value === first);
 }
 
-function sourceStateForRows(rows: readonly (ResolvedProperty | null)[]): AggregateSourceState {
+function tokenStateForRows(rows: readonly (ResolvedProperty | null)[]): AggregateTokenState {
   const names = rows.map((row) => row?.tokenName ?? null);
   if (names.every((name) => name === null)) return "none";
   const first = names[0];
@@ -51,9 +51,9 @@ function aggregateRow(
   const firstRow = rows[0];
   const normalizedValues = values.map((value) => value.trim());
   const valueState: AggregateValueState = sameValues(normalizedValues) ? "common" : "mixed";
-  const aggregateSourceState = sourceStateForRows(targetRows);
+  const aggregateTokenState = tokenStateForRows(targetRows);
   const common = valueState === "common";
-  const commonSource = aggregateSourceState === "common";
+  const commonSource = aggregateTokenState === "common";
   const value = normalizedValues[0] ?? "";
   const primary: ResolvedProperty = firstRow ?? {
     property,
@@ -92,7 +92,7 @@ function aggregateRow(
     } : {}),
     aggregate: {
       valueState,
-      sourceState: aggregateSourceState,
+      tokenState: aggregateTokenState,
       values: normalizedValues,
       tokenNames: targetRows.map((candidate) => candidate?.tokenName ?? null),
       rows,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SelectedElement } from "../selectionStore.ts";
 import type { InteractionState } from "../styleState.ts";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
@@ -79,7 +79,7 @@ export function useBrowserCssInspection(
   state: InteractionState = "base",
   options: BrowserCssInspectionViewOptions = {},
 ): BrowserCssInspectionView {
-  const selectedElements = normalizeSelection(selected);
+  const selectedElements = useMemo(() => normalizeSelection(selected), [selected]);
   const selectedDocument = selectedElements[0]?.domElement.ownerDocument ?? document;
   const session = options.session ?? getBrowserCssInspection(selectedDocument);
   const includeDocumentTokens = options.includeDocumentTokens ?? false;

@@ -35,8 +35,11 @@ describe("useBrowserCssInspection", () => {
   it("owns one session subscription while selection state changes", () => {
     const unsubscribe = vi.fn();
     const subscribe = vi.fn(() => unsubscribe);
+    const inspect = vi.fn<BrowserCssInspection["inspect"]>(
+      (_element, options = {}) => snapshot(options.state ?? "base", options.cascade ?? "authored"),
+    );
     const session: BrowserCssInspection = {
-      inspect: (_element, options = {}) => snapshot(options.state ?? "base", options.cascade ?? "authored"),
+      inspect,
       inspectTokens: () => ({
         inventory: [],
         tokens: [],
@@ -72,6 +75,9 @@ describe("useBrowserCssInspection", () => {
     act(() => root.render(<Probe state="hover" />));
 
     expect(subscribe).toHaveBeenCalledTimes(1);
+    // Each state reads authored and stable cascades once. A fresh normalized
+    // selection array would make this count grow through a render loop.
+    expect(inspect).toHaveBeenCalledTimes(4);
 
     act(() => root.unmount());
     expect(unsubscribe).toHaveBeenCalledTimes(1);

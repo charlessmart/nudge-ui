@@ -23,6 +23,16 @@ function dispatchClick(target: EventTarget, init: MouseEventInit = {}): MouseEve
   return event;
 }
 
+function dispatchDoubleClick(target: EventTarget): MouseEvent {
+  const event = new MouseEvent("dblclick", {
+    bubbles: true,
+    composed: true,
+    cancelable: true,
+  });
+  target.dispatchEvent(event);
+  return event;
+}
+
 function makeHostElement(
   attrs: Record<string, string> = {},
 ): HTMLElement {
@@ -230,6 +240,27 @@ describe("installElementSelector", () => {
 
     dispatchClick(first);
     expect(getSelectedElements().map((selected) => selected.domElement)).toEqual([first]);
+  });
+
+  it("blocks application double-click behavior while a group is selected", () => {
+    const first = makeHostElement({
+      "data-cid": "Heading",
+      "data-src": "/path/Heading.tsx:12:5",
+    });
+    const second = makeHostElement({
+      "data-cid": "Heading",
+      "data-src": "/path/Heading.tsx:18:5",
+    });
+    const onApplicationDoubleClick = vi.fn();
+    second.addEventListener("dblclick", onApplicationDoubleClick);
+    document.body.append(first, second);
+    dispatchClick(first);
+    dispatchClick(second, { shiftKey: true });
+
+    const event = dispatchDoubleClick(second);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(onApplicationDoubleClick).not.toHaveBeenCalled();
   });
 
 

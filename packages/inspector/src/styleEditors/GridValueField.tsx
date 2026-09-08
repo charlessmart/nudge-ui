@@ -56,8 +56,8 @@ export function GridValueField({
   useEffect(() => {
     const next = readValue();
     setValue(next);
-    updateDraft(next);
-  }, [el, property, revision]);
+    updateDraft(mixed ? "" : next);
+  }, [el, mixed, property, revision]);
 
   function updateDraft(next: string): void {
     draftRef.current = next;
@@ -67,7 +67,7 @@ export function GridValueField({
   function commit(): void {
     const next = draftRef.current.trim();
     if (!next) {
-      updateDraft(value);
+      updateDraft(mixed ? "" : value);
       return;
     }
     setValue(next);
@@ -76,7 +76,7 @@ export function GridValueField({
   }
 
   function cancel(): void {
-    updateDraft(value);
+    updateDraft(mixed ? "" : value);
   }
 
   return (
@@ -87,7 +87,7 @@ export function GridValueField({
       data-test={`layout-grid-${property}`}
     >
       <TextInput
-        value={mixed ? "" : draft}
+        value={draft}
         placeholder={mixed ? "Mixed" : undefined}
         data-test={`layout-grid-input-${property}`}
         aria-label={property}

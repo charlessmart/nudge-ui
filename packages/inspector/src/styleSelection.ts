@@ -8,6 +8,7 @@ import {
 } from "./inspection/aggregateInspection.ts";
 import { getElementComputedStyle } from "./domRealm.ts";
 import { getStateStyleValue } from "./stateValue.ts";
+import { getActiveStyleState } from "./styleState.ts";
 
 /** Layout roles whose controls are only safe when shared by every target. */
 export type StyleRole =
@@ -50,10 +51,6 @@ const EDITOR_PROPERTIES = [
   "font-family", "font-style", "font-weight", "font-size", "line-height", "letter-spacing",
   "text-align", "vertical-align",
 ] as const;
-
-function computedValue(element: HTMLElement, property: string): string {
-  return getStateStyleValue(element, property);
-}
 
 function displayIs(element: HTMLElement, values: readonly string[]): boolean {
   const display = getElementComputedStyle(element).display;
@@ -102,8 +99,11 @@ function supportsRole(element: HTMLElement, role: StyleRole): boolean {
 export function createStyleSelection(
   elements: readonly SelectedElement[],
   snapshots: readonly InspectionSnapshot[],
+  selectedPrimary?: SelectedElement | null,
 ): StyleSelection | null {
-  const primary = elements[0];
+  const primary = selectedPrimary && elements.some((element) => element.domElement === selectedPrimary.domElement)
+    ? selectedPrimary
+    : elements.at(-1);
   if (!primary || snapshots.length !== elements.length) return null;
 
   const propertyNames = new Set<string>(EDITOR_PROPERTIES);
@@ -112,8 +112,26 @@ export function createStyleSelection(
   }
 
   const propertySnapshots: readonly PropertySnapshot[] = snapshots;
+  const activeState = getActiveStyleState();
+  const shouldUseInspection = elements.map(({ domElement }) => activeState !== "base"
+    || [":hover", ":active", ":focus", ":focus-visible"].some((selector) => {
+      try { return domElement.matches(selector); } catch { return false; }
+    }));
+  const rowsByProperty = snapshots.map((snapshot) =>
+    new Map(snapshot.properties.map((row) => [row.property, row])));
+  const computedStyles = elements.map(({ domElement }) => {
+    try { return getElementComputedStyle(domElement); } catch { return null; }
+  });
   const properties = [...propertyNames].map((property) => {
-    const values = elements.map((element) => computedValue(element.domElement, property));
+    const values = computedStyles.map((style, index) => {
+      if (shouldUseInspection[index]) {
+        const rows = rowsByProperty[index];
+        const row = rows?.get(property)
+          ?? (property === "background-color" ? rows?.get("background") : undefined);
+        if (row?.resolvedValue) return row.resolvedValue;
+      }
+      return style?.getPropertyValue(property).trim() ?? "";
+    });
     return aggregatePropertyValues(property, propertySnapshots, values);
   }).filter((property): property is AggregatedProperty => property !== null);
   const byProperty = new Map(properties.map((property) => [property.property, property]));

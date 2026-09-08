@@ -137,7 +137,7 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
               editTarget={target}
               displayValue={displayValue}
               mixed={mixed}
-              attributionTokens={aggregate?.sourceState === "mixed" ? ["Mixed source"] : undefined}
+              attributionTokens={aggregate?.tokenState === "mixed" ? ["Mixed tokens"] : undefined}
               entries={allEntries}
               onAfterEdit={handleAfterEdit}
             />

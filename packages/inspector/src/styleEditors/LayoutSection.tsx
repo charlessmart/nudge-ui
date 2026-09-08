@@ -16,7 +16,6 @@ import { IconButton } from "../ui/IconButton.tsx";
 import { InspectorPopover } from "../ui/InspectorPopover.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
-import { Select } from "../ui/Select.tsx";
 import { getStateStyleValue } from "../stateValue.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
@@ -66,8 +65,18 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const [layoutRevision, setLayoutRevision] = useState(0);
   const [flexDirection] = useComputedLayoutValue(el, "flex-direction", "row", layoutRevision);
   const [flexWrap] = useComputedLayoutValue(el, "flex-wrap", "nowrap", layoutRevision);
-  const isFlexWrapped = flexWrap !== "nowrap";
-  const relevantGap = flexDirection.startsWith("column") ? "row-gap" : "column-gap";
+  const directionAggregate = selection?.getProperty("flex-direction")?.aggregate;
+  const wrapAggregate = selection?.getProperty("flex-wrap")?.aggregate;
+  const mixedFlexDirection = directionAggregate?.valueState === "mixed";
+  const mixedFlexWrap = wrapAggregate?.valueState === "mixed";
+  const sharedFlexDirection = directionAggregate?.valueState === "common"
+    ? directionAggregate.values[0] ?? flexDirection
+    : flexDirection;
+  const sharedFlexWrap = wrapAggregate?.valueState === "common"
+    ? wrapAggregate.values[0] ?? flexWrap
+    : flexWrap;
+  const isFlexWrapped = mixedFlexDirection || mixedFlexWrap || sharedFlexWrap !== "nowrap";
+  const relevantGap = !mixedFlexDirection && sharedFlexDirection.startsWith("column") ? "row-gap" : "column-gap";
   const lineGap = relevantGap === "row-gap" ? "column-gap" : "row-gap";
 
   function notifyAfterEdit(): void {
@@ -161,7 +170,13 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
               </div>
             </div>
             <div className="layout__flex-lower">
-              <FlexAlignmentGrid domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+              {mixedFlexDirection ? (
+                <div className="layout__alignment-grid" data-test="layout-flex-axis-mixed">
+                  Choose a shared flex direction to edit physical alignment.
+                </div>
+              ) : (
+                <FlexAlignmentGrid domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+              )}
               <div className="layout__gap-column" data-test="layout-gap">
                 <div className="layout__gap-fields">
                   <div className="layout__spacing-primary">
@@ -485,10 +500,13 @@ function FlexGapField({ property, domElement, editTarget, selection, revision = 
   );
 }
 
-function FlexDirectionControl({ domElement, editTarget, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexDirectionControl({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [direction, setDirection] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
-  const orientation = direction.startsWith("column") ? "column" : "row";
-  const reverse = direction.endsWith("-reverse");
+  const aggregate = selection?.getProperty("flex-direction")?.aggregate;
+  const mixed = aggregate?.valueState === "mixed";
+  const sharedDirection = aggregate?.valueState === "common" ? aggregate.values[0] ?? direction : direction;
+  const orientation = sharedDirection.startsWith("column") ? "column" : "row";
+  const reverse = sharedDirection.endsWith("-reverse");
 
   function selectDirection(next: string): void {
     if (!FLEX_DIRECTION_OPTIONS.includes(next)) return;
@@ -499,7 +517,7 @@ function FlexDirectionControl({ domElement, editTarget, revision = 0, onAfterEdi
 
   return (
     <SegmentedControl
-      value={orientation}
+      value={mixed ? null : orientation}
       aria-label="Flex direction"
       options={[
         {
@@ -523,14 +541,17 @@ function FlexDirectionControl({ domElement, editTarget, revision = 0, onAfterEdi
           ),
         },
       ]}
-      onChange={(next) => selectDirection(`${next}${reverse ? "-reverse" : ""}`)}
+      onChange={(next) => selectDirection(`${next}${!mixed && reverse ? "-reverse" : ""}`)}
     />
   );
 }
 
-function FlexWrapToggle({ domElement, editTarget, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexWrapToggle({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [wrap] = useComputedLayoutValue(domElement, "flex-wrap", "nowrap", revision);
-  const isWrapped = wrap !== "nowrap";
+  const aggregate = selection?.getProperty("flex-wrap")?.aggregate;
+  const mixed = aggregate?.valueState === "mixed";
+  const sharedWrap = aggregate?.valueState === "common" ? aggregate.values[0] ?? wrap : wrap;
+  const isWrapped = !mixed && sharedWrap !== "nowrap";
 
   function toggleWrap(): void {
     setStyle(editTarget ?? domElement, "flex-wrap", isWrapped ? "nowrap" : "wrap");
@@ -543,8 +564,8 @@ function FlexWrapToggle({ domElement, editTarget, revision = 0, onAfterEdit }: F
       size="default"
       data-active={isWrapped}
       data-test="layout-flex-wrap-toggle"
-      label={isWrapped ? "Disable Flex Wrap" : "Enable Flex Wrap"}
-      aria-pressed={isWrapped}
+      label={mixed ? "Set Flex Wrap" : isWrapped ? "Disable Flex Wrap" : "Enable Flex Wrap"}
+      aria-pressed={mixed ? "mixed" : isWrapped}
       onClick={toggleWrap}
     >
       <IconTextWrap size={16} stroke={1.8} aria-hidden="true" />
@@ -552,34 +573,42 @@ function FlexWrapToggle({ domElement, editTarget, revision = 0, onAfterEdit }: F
   );
 }
 
-function FlexSettingsMenu({ domElement, editTarget, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
+function FlexSettingsMenu({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [direction] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
   const [wrap] = useComputedLayoutValue(domElement, "flex-wrap", "nowrap", revision);
   const [alignContent] = useComputedLayoutValue(domElement, "align-content", "normal", revision);
   const [alignItems] = useComputedLayoutValue(domElement, "align-items", "stretch", revision);
   const [open, setOpen] = useState(false);
-  const orientation = direction.startsWith("column") ? "column" : "row";
-  const crossAxis = orientation === "column" ? "width" : "height";
+  const directionAggregate = selection?.getProperty("flex-direction")?.aggregate;
+  const wrapAggregate = selection?.getProperty("flex-wrap")?.aggregate;
+  const mixedDirection = directionAggregate?.valueState === "mixed";
+  const mixedWrap = wrapAggregate?.valueState === "mixed";
+  const sharedDirection = directionAggregate?.valueState === "common"
+    ? directionAggregate.values[0] ?? direction
+    : direction;
+  const sharedWrap = wrapAggregate?.valueState === "common" ? wrapAggregate.values[0] ?? wrap : wrap;
+  const orientation = sharedDirection.startsWith("column") ? "column" : "row";
+  const crossAxis = mixedDirection ? "cross axis" : orientation === "column" ? "width" : "height";
   const isStretching = normalizeFlexAlign(alignItems) === "stretch";
-  const reverseDirection = direction.endsWith("-reverse")
+  const reverseDirection = sharedDirection.endsWith("-reverse")
     ? orientation
     : `${orientation}-reverse`;
 
   const items = [
-    {
+    ...(mixedDirection ? [] : [{
       value: `flex-direction:${reverseDirection}`,
       label: formatInspectorLabel(reverseDirection),
       trailing: "Flex Direction",
-      current: direction === reverseDirection,
+      current: sharedDirection === reverseDirection,
       "data-test": "layout-flex-setting-direction-reverse",
-    },
-    {
+    }]),
+    ...(mixedWrap ? [] : [{
       value: "flex-wrap:wrap-reverse",
       label: formatInspectorLabel("wrap-reverse"),
       trailing: "Flex Wrap",
-      current: wrap === "wrap-reverse",
+      current: sharedWrap === "wrap-reverse",
       "data-test": "layout-flex-setting-wrap-reverse",
-    },
+    }]),
     ...ALIGN_CONTENT_OPTIONS.map((value) => ({
       value: `align-content:${value}`,
       label: formatInspectorLabel(value),

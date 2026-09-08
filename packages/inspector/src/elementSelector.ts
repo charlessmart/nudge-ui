@@ -12,8 +12,12 @@ import { blockApplicationClick, isApplicationActivationClick } from "./clickPoli
 export function installElementSelector(inspectorHost: HTMLElement): () => void {
   function onDoubleClick(e: MouseEvent): void {
     if (!getOpen()) return;
-    if (getSelectedElements().length > 1) return;
     if (isInsideInspectorUi(e)) return;
+    if (getSelectedElements().length > 1) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (isInlineTextEditingActive()) {
       e.preventDefault();
       e.stopPropagation();

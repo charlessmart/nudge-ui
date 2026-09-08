@@ -666,8 +666,8 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       committedValue={committedValue}
       resolvedValue={tokenRow?.propertyOpacity?.value ?? aggregateDisplayValue ?? tokenRow?.resolvedValue ?? committedValue}
       activeTokenName={activeTokenName}
-      attributionTokens={attributionTokens ?? (aggregate?.sourceState === "mixed"
-        ? ["Mixed source"]
+      attributionTokens={attributionTokens ?? (aggregate?.tokenState === "mixed"
+        ? ["Mixed tokens"]
         : expression
           ? tokenRow?.tokens?.filter((token) => token.name !== tokenRow.opacity?.tokenName).map((token) => token.name)
           : undefined)}

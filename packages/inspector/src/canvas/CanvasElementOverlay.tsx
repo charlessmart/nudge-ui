@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
+  isElementClickMessage,
   isRendererMessageFor,
   type FrameProtocolMessage,
 } from "./frameProtocol.ts";
@@ -167,11 +168,12 @@ export function CanvasElementOverlay(): ReactElement | null {
       const sourceFrame = findCanvasFrameBySource(event.source);
       if (!sourceFrame) return;
       const { cardId: sourceCardId, iframe: sourceIframe } = sourceFrame;
-      if (!isRendererMessageFor(event.data, {
+      const frameIdentity = {
         projectId: PROJECT_ID,
         workspaceId: WORKSPACE_ID,
         cardId: sourceCardId,
-      })) return;
+      };
+      if (!isRendererMessageFor(event.data, frameIdentity)) return;
 
       // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
       const data = event.data as FrameProtocolMessage;
@@ -198,6 +200,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           pointerOverPage: msg.pointerOverPage,
         });
       } else if (data.type === "element-click") {
+        if (!isElementClickMessage(event.data, frameIdentity)) return;
         const msg = data;
         if (!msg.cid) return;
         handleElementClick(msg, sourceIframe, sourceCardId);

@@ -2,6 +2,8 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { act } from "react";
 import type { SelectedElement } from "../selectionStore.ts";
+import type { AggregatedProperty } from "../inspection/aggregateInspection.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 import { getManagedSheetText } from "../managedStylesheet.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -25,6 +27,38 @@ export function makeSelected(
     componentTargets: [],
   };
   return { el, selected };
+}
+
+export function makeMixedStyleSelection(
+  selected: SelectedElement,
+  property: string,
+): StyleSelection {
+  const row: AggregatedProperty = {
+    property,
+    tokenName: null,
+    declaredValue: "Mixed",
+    resolvedValue: "Mixed",
+    authored: "Mixed",
+    confidence: "unknown",
+    evidence: { reason: "mixed selection test fixture" },
+    aggregate: {
+      valueState: "mixed",
+      tokenState: "none",
+      values: ["first", "second"],
+      tokenNames: [null, null],
+      rows: [],
+    },
+  };
+  return {
+    primary: selected,
+    elements: [selected],
+    domElements: [selected.domElement],
+    target: selected.domElement,
+    properties: [row],
+    getProperty: (name) => name === property ? row : null,
+    supportsProperties: (properties) => properties.every((name) => name === property),
+    supportsRole: () => false,
+  };
 }
 
 export interface MountHandle {

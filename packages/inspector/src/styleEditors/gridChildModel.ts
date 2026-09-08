@@ -1,5 +1,5 @@
 import { getLayoutValue } from "./layoutValue.ts";
-import { setStyle, setStyles } from "./styleActions.ts";
+import { setElementStyles, setStyle, setStyles } from "./styleActions.ts";
 import { countGridTracks } from "./GridPicker.tsx";
 import type { ChangeRecord } from "./styleActions.ts";
 import { targetElements, type EditTarget } from "../editTarget.ts";
@@ -83,6 +83,7 @@ export function commitGridAxisPlacement(
   axis: GridAxis,
   commit: { start?: string; span?: number | "keep" },
 ): ChangeRecord[] {
+  const elements = targetElements(target);
   const declarations: Array<{ property: string; value: string }> = [];
 
   if (commit.start !== undefined) {
@@ -91,9 +92,17 @@ export function commitGridAxisPlacement(
 
   let endValue: string | null = null;
   if (commit.span === "keep") {
-    const primary = targetElements(target)[0];
-    const current = primary ? readGridAxisPlacement(primary, axis) : null;
-    if (current && current.span !== null) endValue = current.span >= 2 ? `span ${current.span}` : "auto";
+    return setElementStyles(elements.map((element) => {
+      const elementDeclarations = [...declarations];
+      const current = readGridAxisPlacement(element, axis);
+      if (current.span !== null) {
+        elementDeclarations.push({
+          property: `grid-${axis}-end`,
+          value: current.span >= 2 ? `span ${current.span}` : "auto",
+        });
+      }
+      return { element, declarations: elementDeclarations };
+    }));
   } else if (typeof commit.span === "number") {
     endValue = commit.span >= 2 ? `span ${commit.span}` : "auto";
   }

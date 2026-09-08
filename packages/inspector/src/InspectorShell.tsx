@@ -30,7 +30,7 @@ import { BoxShadowEditor } from "./styleEditors/BoxShadowEditor.tsx";
 import { LayoutSection } from "./styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
 import { discardChangesForInstanceOverride, undo, redo } from "./changesLog.ts";
-import { countBatchEditReach, countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector, unlinkElement } from "./editScope.ts";
+import { countBatchEditReach, countSourceSiteMatches, getEditScope, planBatchEditScopes, relinkElement, sourceSiteSelector, unlinkElement } from "./editScope.ts";
 import { Button } from "./ui/Button.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import type { SettingsSection } from "./settings/SettingsDialog.tsx";
@@ -226,9 +226,18 @@ export function InspectorShell(): ReactElement {
   }, [isOpen, isMultiSelection, selected]);
 
   const inspectionSnapshot = cssInspection.element;
+  const batchScopePlan = useMemo(
+    () => isMultiSelection
+      ? planBatchEditScopes(selectedElements.map(({ domElement }) => domElement))
+      : null,
+    [isMultiSelection, scopeRevision, selectedElements],
+  );
+  const multiSelectionEditable = !isMultiSelection || batchScopePlan !== null;
   const styleSelection = useMemo(
-    () => createStyleSelection(selectedElements, cssInspection.elements),
-    [cssInspection.elements, selectedElements],
+    () => isMultiSelection && multiSelectionEditable
+      ? createStyleSelection(selectedElements, cssInspection.elements, selected)
+      : null,
+    [cssInspection.elements, isMultiSelection, multiSelectionEditable, selected, selectedElements],
   );
   const tokenEntries: TokenEntry[] = useMemo(
     () => isMultiSelection
@@ -437,7 +446,11 @@ export function InspectorShell(): ReactElement {
                     {isMultiSelection ? (
                       <div className="selection__summary" data-test="multi-selection-summary">
                         <span className="selection__count">{selectedElements.length} elements selected</span>
-                        <span className="selection__reach">Changes affect {selectionReach} rendered items.</span>
+                        <span className="selection__reach">
+                          {multiSelectionEditable
+                            ? `Changes affect ${selectionReach} rendered items.`
+                            : "This partial group cannot be edited safely."}
+                        </span>
                       </div>
                     ) : null}
                     {showInteractionState ? (
@@ -509,8 +522,9 @@ export function InspectorShell(): ReactElement {
 
               {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
 
-              <AtRuleContextProvider rows={tokenRows}>
-                <div className="style-editors" data-test="style-editors">
+              {multiSelectionEditable ? (
+                <AtRuleContextProvider rows={tokenRows}>
+                  <div className="style-editors" data-test="style-editors">
                   {/* CSS edits publish through changesLog and browser inspection;
                       component metadata does not change. LayoutSection keeps its
                       own revision for controls that depend on computed layout. */}
@@ -593,8 +607,13 @@ export function InspectorShell(): ReactElement {
                       <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
                     </>
                   )}
-                </div>
-              </AtRuleContextProvider>
+                  </div>
+                </AtRuleContextProvider>
+              ) : (
+                <StatusCallout tone="neutral" data-test="multi-selection-uneditable">
+                  These repeated items are indistinguishable, so Nudge UI cannot safely target only part of the group. Select every repeated item to edit them together.
+                </StatusCallout>
+              )}
             </>
           ) : (
             <EmptyState />
