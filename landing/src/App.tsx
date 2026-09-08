@@ -1,11 +1,18 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import editDirectlyPoster from "../assets/screen-1.png";
+import editDirectlyVideo from "../assets/screen-1.mp4";
+import exploreCanvasPoster from "../assets/screen-2.png";
+import exploreCanvasVideo from "../assets/screen2.mp4";
+import syncTokensPoster from "../assets/screen-3.png";
+import syncTokensVideo from "../assets/screen3.mp4";
 
-const installCommand = "@nudge-ui/plugin in this project";
+const installCommand = "@nudge-ui/vite-react in this project";
+const installPrompt = `Let's install ${installCommand}`;
 const OPEN_NUDGE_EVENT = "nudge-ui:open";
 const viteSetupCode = [
   'import { defineConfig } from "vite";',
   'import react from "@vitejs/plugin-react";',
-  'import { nudgeUi } from "@nudge-ui/plugin";',
+  'import { nudgeUi } from "@nudge-ui/vite-react";',
   "",
   "export default defineConfig({",
   "  plugins: [react(), ...nudgeUi()],",
@@ -22,29 +29,40 @@ const agentSetupCode = [
 const showcaseVideos = [
   {
     id: "edit-directly",
-    title: "Edit directly for fast visual iteration",
-    description: "I got tired of asking an agent for tiny visual changes, waiting for the update, and then finding one more thing to fix. Nudge lets me make those adjustments directly on the page.",
-    src: "/videos/edit-directly.mp4",
+    title: "Edit UI directly",
+    description: "Prompting an agent to center a div feels like backseat driving. Asking an agent for tiny visual changes, waiting for the update, and then finding one more thing to fix. Speed up the iteration loop by adjusting UI directly.",
+    src: editDirectlyVideo,
+    poster: editDirectlyPoster,
   },
   {
     id: "explore-canvas",
-    title: "Use the canvas to explore variations",
-    description: "Figma is still easier to refine in because you can try an idea and see it immediately. The canvas gives that same room to explore without leaving the code that is becoming the product.",
-    src: "/videos/explore-canvas.mp4",
+    title: "A canvas for exploring variations",
+    description: "Designers long for the canvas. Open different routes and pages in a canvas view to compare agent generated variations, screen sizes or overall flows.",
+    src: exploreCanvasVideo,
+    poster: exploreCanvasPoster,
   },
   {
     id: "sync-tokens-components",
     title: "Keep tokens and components in sync",
-    description: "An engineer's proof of concept often becomes the real product surface a designer needs to refine. Keeping the real tokens and components in the loop means the polish lands where the product actually lives.",
-    src: "/videos/sync-tokens-components.mp4",
+    description: "It's your real codebase, so you need to use the tokens and components that exist. See them directly here, and avoid agents churning out custom CSS for every button.",
+    src: syncTokensVideo,
+    poster: syncTokensPoster,
   },
 ] as const;
 
 function CopyIcon(): ReactNode {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg className="landing-install-copy-icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect width="13" height="13" x="9" y="9" rx="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function DoneIcon(): ReactNode {
+  return (
+    <svg className="landing-install-copy-icon-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m5 12 4 4L19 6" />
     </svg>
   );
 }
@@ -99,39 +117,214 @@ function FrameworkName({ icon, children }: { icon: ReactNode; children: ReactNod
   return <span className="landing-framework"><span className="landing-framework-icon">{icon}</span>{children}</span>;
 }
 
-function DemoShowcase(): ReactNode {
-  const [readyVideos, setReadyVideos] = useState<Record<string, boolean>>({});
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(Math.max(value, minimum), maximum);
+}
 
+type ShowcaseControls = {
+  initialWidth: number;
+  startViewport: number;
+  scrollSpeed: number;
+  visibilityThreshold: number;
+};
+
+const showcaseControls: ShowcaseControls = {
+  initialWidth: 650,
+  startViewport: 0.88,
+  scrollSpeed: 0.75,
+  visibilityThreshold: 1,
+};
+
+function useShowcaseWidth(animate: boolean, controls: ShowcaseControls): { ref: RefObject<HTMLDivElement | null>; width: string; opacity: number; isFullWidth: boolean } {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(`${controls.initialWidth}px`);
+  const [opacity, setOpacity] = useState(1);
+  const [isFullWidth, setIsFullWidth] = useState(!animate);
+
+  useEffect(() => {
+    if (!animate) return;
+
+    const element = ref.current;
+    if (!element) return;
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let frame = 0;
+
+    const update = () => {
+      frame = 0;
+      const parent = element.parentElement;
+      if (!parent) return;
+
+      const rect = element.getBoundingClientRect();
+      const parentWidth = parent.getBoundingClientRect().width;
+
+      if (reducedMotion.matches) {
+        setWidth(`${parentWidth}px`);
+        setOpacity(1);
+        setIsFullWidth(true);
+        return;
+      }
+
+      const minimumWidth = clamp(controls.initialWidth, 0, parentWidth);
+      const widthRange = parentWidth - minimumWidth;
+      const scrollSpeed = Math.max(controls.scrollSpeed, 0);
+      const entryTop = window.innerHeight * controls.startViewport;
+      const expansionProgress = clamp((entryTop - rect.top) * scrollSpeed, 0, widthRange);
+      const collapseProgress = clamp(-rect.top * scrollSpeed, 0, widthRange);
+      const nextWidth = minimumWidth + expansionProgress - collapseProgress;
+      const nextOpacity = widthRange === 0 ? 1 : 1 - (collapseProgress / widthRange) * 0.5;
+      setWidth((current) => current === `${nextWidth}px` ? current : `${nextWidth}px`);
+      setOpacity((current) => current === nextOpacity ? current : nextOpacity);
+      setIsFullWidth(nextWidth >= parentWidth);
+    };
+
+    const scheduleUpdate = () => {
+      if (frame === 0) frame = window.requestAnimationFrame(update);
+    };
+
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    reducedMotion.addEventListener("change", scheduleUpdate);
+
+    return () => {
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      reducedMotion.removeEventListener("change", scheduleUpdate);
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+    };
+  }, [animate, controls.initialWidth, controls.scrollSpeed, controls.startViewport]);
+
+  return { ref, width: animate ? width : "100%", opacity: animate ? opacity : 1, isFullWidth: animate ? isFullWidth : true };
+}
+
+function useShowcaseInView(ref: RefObject<HTMLDivElement | null>, threshold: number): boolean {
+  const [isInView, setIsInView] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    if (!("IntersectionObserver" in window)) {
+      setIsInView(true);
+      return;
+    }
+
+    const intersectionThreshold = clamp(threshold, 0, 1);
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry) return;
+      setIsInView(entry.isIntersecting && entry.intersectionRatio >= intersectionThreshold);
+    }, { threshold: [0, intersectionThreshold] });
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref, threshold]);
+
+  return isInView;
+}
+
+function ShowcaseVideo({
+  animate,
+  controls,
+  video,
+}: {
+  animate: boolean;
+  controls: ShowcaseControls;
+  video: (typeof showcaseVideos)[number];
+}): ReactNode {
+  const { ref, width, opacity, isFullWidth } = useShowcaseWidth(animate, controls);
+  const isInView = useShowcaseInView(ref, controls.visibilityThreshold);
+  const [videoReady, setVideoReady] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const loopTimeout = useRef<number | null>(null);
+  const isVideoVisible = isInView && isFullWidth;
+
+  useEffect(() => {
+    if (!isInView) setVideoReady(false);
+  }, [isInView]);
+
+  useEffect(() => {
+    if (isVideoVisible) {
+      void videoRef.current?.play().catch(() => undefined);
+      return;
+    }
+
+    if (loopTimeout.current !== null) {
+      window.clearTimeout(loopTimeout.current);
+      loopTimeout.current = null;
+    }
+    videoRef.current?.pause();
+  }, [isVideoVisible]);
+
+  useEffect(() => {
+    return () => {
+      if (loopTimeout.current !== null) {
+        window.clearTimeout(loopTimeout.current);
+      }
+    };
+  }, []);
+
+  const handleVideoEnded = () => {
+    if (loopTimeout.current !== null) {
+      window.clearTimeout(loopTimeout.current);
+    }
+
+    loopTimeout.current = window.setTimeout(() => {
+      const element = videoRef.current;
+      if (element && isVideoVisible) {
+        element.currentTime = 0;
+        void element.play().catch(() => undefined);
+      }
+      loopTimeout.current = null;
+    }, 5000);
+  };
+
+  return (
+    <div
+      className="landing-showcase-video"
+      ref={ref}
+      style={{ "--landing-showcase-video-width": width, opacity } as CSSProperties}
+    >
+      <div className="landing-showcase-placeholder" data-visible={!isVideoVisible || !videoReady}>
+        <img className="landing-showcase-placeholder-image" src={video.poster} alt="" aria-hidden="true" />
+      </div>
+      {isInView ? (
+        <video
+          className="landing-showcase-video-element"
+          ref={videoRef}
+          data-ready={isVideoVisible && videoReady}
+          aria-label={video.title}
+          autoPlay={isVideoVisible}
+          muted
+          playsInline
+          poster={video.poster}
+          preload="metadata"
+          onError={() => setVideoReady(false)}
+          onLoadedData={() => setVideoReady(true)}
+          onEnded={handleVideoEnded}
+        >
+          <source src={video.src} type="video/mp4" />
+        </video>
+      ) : null}
+    </div>
+  );
+}
+
+function DemoShowcase({ controls }: { controls: ShowcaseControls }): ReactNode {
   return (
     <section className="landing-showcase landing-inner" aria-label="Nudge UI demos">
       <div className="landing-showcase-list">
-        {showcaseVideos.map((video, index) => {
-          const videoReady = readyVideos[video.id] === true;
+        {showcaseVideos.map((video) => {
           return (
             <article className="landing-showcase-item" key={video.id}>
-              <div className="landing-showcase-item-header">
+              <ShowcaseVideo
+                animate
+                controls={controls}
+                video={video}
+              />
+              <div className="landing-showcase-item-header landing-content-column">
                 <h2 className="landing-showcase-item-title">{video.title}</h2>
                 <p className="landing-showcase-item-description">{video.description}</p>
-              </div>
-              <div className="landing-showcase-video">
-                <div className="landing-showcase-placeholder" data-visible={!videoReady}>
-                  <span className="landing-showcase-placeholder-index">DEMO 0{index + 1}</span>
-                  <span>Recording coming soon</span>
-                </div>
-                <video
-                  className="landing-showcase-video-element"
-                  data-ready={videoReady}
-                  aria-label={video.title}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  preload="metadata"
-                  onError={() => setReadyVideos((current) => ({ ...current, [video.id]: false }))}
-                  onLoadedData={() => setReadyVideos((current) => ({ ...current, [video.id]: true }))}
-                >
-                  <source src={video.src} type="video/mp4" />
-                </video>
               </div>
             </article>
           );
@@ -142,13 +335,51 @@ function DemoShowcase(): ReactNode {
 }
 
 function InstallCommand(): ReactNode {
+  const [copied, setCopied] = useState(false);
+  const copyTimeout = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeout.current !== null) {
+        window.clearTimeout(copyTimeout.current);
+      }
+    };
+  }, []);
+
+  const copyPrompt = async () => {
+    if (!navigator.clipboard?.writeText) return;
+
+    try {
+      await navigator.clipboard.writeText(installPrompt);
+      setCopied(true);
+      if (copyTimeout.current !== null) {
+        window.clearTimeout(copyTimeout.current);
+      }
+      copyTimeout.current = window.setTimeout(() => {
+        setCopied(false);
+        copyTimeout.current = null;
+      }, 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
+
   return (
     <div className="landing-install">
-      <span className="landing-install-command">Let&apos;s install {installCommand}</span>
-      <span className="landing-install-copy" aria-hidden="true">
-        Copy
-        <CopyIcon />
-      </span>
+      <span className="landing-install-command">{installPrompt}</span>
+      <button
+        type="button"
+        className="landing-install-copy"
+        data-copied={copied}
+        aria-label={copied ? "Install prompt copied" : "Copy install prompt"}
+        onClick={copyPrompt}
+      >
+        {copied ? "Copied" : "Copy"}
+        <span className="landing-install-copy-icon" aria-hidden="true">
+          <CopyIcon />
+          <DoneIcon />
+        </span>
+      </button>
     </div>
   );
 }
@@ -156,8 +387,8 @@ function InstallCommand(): ReactNode {
 function DemoIntro(): ReactNode {
   return (
     <section className="landing-demo landing-inner" id="demo" aria-labelledby="landing-demo-title">
-      <h2 id="landing-demo-title">Demo</h2>
-      <div className="landing-demo-content">
+      <h2 className="landing-content-column" id="landing-demo-title">Demo</h2>
+      <div className="landing-demo-content landing-content-column">
         <p className="landing-demo-description">Open Nudge and try the loop yourself: select any element on this page, make a small change, and see it immediately.</p>
         <button
           type="button"
@@ -177,54 +408,65 @@ function DemoIntro(): ReactNode {
 
 export function App(): ReactNode {
   return (
-    <div className="landing" id="top">
-      <main>
-        <section className="landing-hero landing-inner" aria-labelledby="landing-hero-title">
-          <h1 id="landing-hero-title">Nudge is for designing in code.</h1>
-          <div className="landing-hero-side">
-            <p className="landing-hero-intro">
-              Nudge works with your <FrameworkName icon={<ReactMark />}>React</FrameworkName>, <FrameworkName icon={<NextMark />}>Next.js</FrameworkName>, <FrameworkName icon={<HtmlMark />}>HTML</FrameworkName> and <FrameworkName icon={<AstroMark />}>Astro</FrameworkName> code. Adjust styles, move elements, change text and adjust tokens directly. Then hand off to an agent.
-            </p>
-            <p className="landing-install-label">Ask your agent to install nudge-ui:</p>
-            <InstallCommand />
+    <>
+      <div className="landing" id="top">
+        <main>
+          <section className="landing-hero landing-inner" aria-labelledby="landing-hero-title">
+            <h1 className="landing-content-column" id="landing-hero-title">Nudge is a tool for designing in code.</h1>
+            <div className="landing-hero-side landing-content-column">
+              <p className="landing-hero-intro">
+                Nudge works with your <FrameworkName icon={<ReactMark />}>React</FrameworkName>, <FrameworkName icon={<NextMark />}>Next.js</FrameworkName>, <FrameworkName icon={<HtmlMark />}>HTML</FrameworkName> and <FrameworkName icon={<AstroMark />}>Astro</FrameworkName> code. Adjust styles, move elements, change text and adjust tokens directly, then hand off to an agent.
+              </p>
+              <p className="landing-install-label">Ask your agent to install nudge-ui:</p>
+              <InstallCommand />
+            </div>
+          </section>
+
+          <DemoShowcase controls={showcaseControls} />
+
+          <DemoIntro />
+
+          <section className="landing-setup landing-inner" aria-labelledby="landing-setup-title">
+            <h2 className="landing-content-column" id="landing-setup-title">Installation</h2>
+            <div className="landing-setup-content landing-content-column">
+              <div className="landing-setup-step">
+                <p className="landing-setup-lead">Install Nudge UI via pnpm:</p>
+                <pre className="landing-setup-code landing-setup-code--command"><code>pnpm add -D @nudge-ui/vite-react</code></pre>
+              </div>
+
+              <div className="landing-setup-step">
+                <p className="landing-setup-lead">Or just tell your agent to set it up:</p>
+                <pre className="landing-setup-code"><code>Install @nudge-ui/vite-react in this project</code></pre>
+              </div>
+
+              <div className="landing-setup-step">
+                <p className="landing-setup-lead">If installing manually, add the plugin after your React plugin in <code>vite.config.ts</code>:</p>
+                <pre className="landing-setup-code landing-setup-code--large"><code>{viteSetupCode}</code></pre>
+              </div>
+
+              <div className="landing-setup-step">
+                <p className="landing-setup-lead">Connect your coding agent:</p>
+                <pre className="landing-setup-code"><code>{agentSetupCode}</code></pre>
+              </div>
+
+              <p className="landing-setup-note">Configure the agent&apos;s MCP host to run this command, reload it, then ask the agent to call <code>nudge_listen</code> and keep the listener active. That&apos;s it — Nudge can now send the current change directly to your agent.</p>
+            </div>
+          </section>
+        </main>
+
+        <footer className="landing-footer">
+          <div className="landing-footer-content landing-inner">
+            <span>Nudge UI</span>
+            <div className="landing-footer-links">
+              <a className="landing-footer-social" href="https://github.com/charlessmart/nudge-ui" target="_blank" rel="noreferrer" aria-label="Nudge UI on GitHub">
+                <GitHubIcon />
+              </a>
+              <a href="https://twitter.com/CharlesMSmart" target="_blank" rel="noreferrer">Made by Charles</a>
+            </div>
           </div>
-        </section>
+        </footer>
+      </div>
 
-        <DemoShowcase />
-
-        <DemoIntro />
-
-        <section className="landing-setup landing-inner" aria-labelledby="landing-setup-title">
-          <h2 id="landing-setup-title">Installation</h2>
-          <div className="landing-setup-content">
-            <p className="landing-setup-lead">Install Nudge UI via pnpm:</p>
-            <pre className="landing-setup-code"><code>pnpm add -D @nudge-ui/plugin</code></pre>
-
-            <p className="landing-setup-lead">Or just tell your agent to set it up:</p>
-            <pre className="landing-setup-code"><code>Install @nudge-ui/plugin in this project</code></pre>
-
-            <p className="landing-setup-lead">If installing manually, add the plugin after your React plugin in <code>vite.config.ts</code>:</p>
-            <pre className="landing-setup-code landing-setup-code--large"><code>{viteSetupCode}</code></pre>
-
-            <p className="landing-setup-lead">Connect your coding agent:</p>
-            <pre className="landing-setup-code"><code>{agentSetupCode}</code></pre>
-
-            <p className="landing-setup-note">Configure the agent&apos;s MCP host to run this command, reload it, then ask the agent to call <code>nudge_listen</code> and keep the listener active. That&apos;s it — Nudge can now send the current change directly to your agent.</p>
-          </div>
-        </section>
-      </main>
-
-      <footer className="landing-footer">
-        <div className="landing-footer-content landing-inner">
-          <span>Nudge UI</span>
-          <div className="landing-footer-links">
-            <a className="landing-footer-social" href="https://github.com/charlessmart/nudge-ui" target="_blank" rel="noreferrer" aria-label="Nudge UI on GitHub">
-              <GitHubIcon />
-            </a>
-            <a href="https://twitter.com/CharlesMSmart" target="_blank" rel="noreferrer">Made by Charles</a>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </>
   );
 }
