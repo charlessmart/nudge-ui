@@ -6,8 +6,10 @@ import { installElementSelector } from "./elementSelector.ts";
 import {
   getMarginFills,
   getMarginGuides,
+  readBorderWidths,
   readMargins,
   toRect,
+  type BorderWidths,
   type Margins,
   type Rect,
 } from "./overlayGeometry.ts";
@@ -39,7 +41,9 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
   const inlineTextSession = useInlineTextSession();
   const [hoverRect, setHoverRect] = useState<Rect | null>(null);
   const [hoverMargins, setHoverMargins] = useState<Margins | null>(null);
+  const [hoverBorders, setHoverBorders] = useState<BorderWidths | null>(null);
   const [selectedRect, setSelectedRect] = useState<Rect | null>(null);
+  const [selectedBorders, setSelectedBorders] = useState<BorderWidths | null>(null);
   const [optionDown, setOptionDown] = useState(false);
   const [pointerOverPage, setPointerOverPage] = useState(false);
   const dropGuide = useDropGuide("inspect");
@@ -51,6 +55,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
     if (!open) {
       setHoverRect(null);
       setHoverMargins(null);
+      setHoverBorders(null);
       hoverElRef.current = null;
       setPointerOverPage(false);
       return;
@@ -63,6 +68,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       hoverElRef.current = null;
       setHoverRect(null);
       setHoverMargins(null);
+      setHoverBorders(null);
       hoverResizeObserver?.disconnect();
       observedHover = null;
     }
@@ -78,10 +84,12 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       if (!el) {
         setHoverRect(null);
         setHoverMargins(null);
+        setHoverBorders(null);
         return;
       }
       setHoverRect(toRect(el.getBoundingClientRect()));
       setHoverMargins(readMargins(el));
+      setHoverBorders(readBorderWidths(el));
     }
     function scheduleHoverRecalc(): void {
       if (isDraggingRef.current) return;
@@ -144,8 +152,10 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
     function recalc(): void {
       if (selected) {
         setSelectedRect(toRect(selected.domElement.getBoundingClientRect()));
+        setSelectedBorders(readBorderWidths(selected.domElement));
       } else {
         setSelectedRect(null);
+        setSelectedBorders(null);
       }
     }
     function schedule(): void {
@@ -302,7 +312,10 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
     && hoverRect
     && hoverElRef.current !== selected?.domElement;
   const measurement = showMeasurement && selectedRect && hoverRect
-    ? getMeasurementGeometry(selectedRect, hoverRect)
+    ? getMeasurementGeometry(selectedRect, hoverRect, {
+        selectedBorders: selectedBorders ?? undefined,
+        hoveredBorders: hoverBorders ?? undefined,
+      })
     : null;
 
   return (

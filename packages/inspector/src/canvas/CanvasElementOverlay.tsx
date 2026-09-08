@@ -10,7 +10,9 @@ import { useSelectedElement } from "../selectionStore.ts";
 import {
   getMarginFills,
   getMarginGuides,
+  readBorderWidths,
   toRect,
+  type BorderWidths,
   type Margins,
   type Rect,
 } from "../overlayGeometry.ts";
@@ -37,6 +39,7 @@ interface FrameOverlayState {
   identity: ElementIdentity;
   rect: Rect;
   margins: Margins;
+  borders: BorderWidths;
   cardId: string;
 }
 
@@ -134,6 +137,9 @@ export function CanvasElementOverlay(): ReactElement | null {
   const selectedRect = selectedInCanvas && selectedLocalRect
     ? projectRect(selectedFrame, selectedLocalRect, camera.zoom)
     : null;
+  const selectedBorders = selectedInCanvas && selected
+    ? readBorderWidths(selected.domElement)
+    : null;
 
   useEffect(() => {
     if (!selectedInCanvas || !selected) return;
@@ -178,6 +184,7 @@ export function CanvasElementOverlay(): ReactElement | null {
           identity: { elementId: msg.elementId },
           rect: msg.rect,
           margins: msg.margins ?? { top: 0, right: 0, bottom: 0, left: 0 },
+          borders: msg.borders ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: sourceCardId,
         });
       } else if (data.type === "element-measure-state") {
@@ -285,7 +292,10 @@ export function CanvasElementOverlay(): ReactElement | null {
   const measurementSegments = showMeasurement && selectedFrameRect && selectedLocalRect && hoverInSelectedFrame
     ? projectMeasurementSegments(
       selectedFrameRect,
-      getMeasurementGeometry(selectedLocalRect, hoverInSelectedFrame.rect).segments,
+      getMeasurementGeometry(selectedLocalRect, hoverInSelectedFrame.rect, {
+        selectedBorders: selectedBorders ?? undefined,
+        hoveredBorders: hoverInSelectedFrame.borders,
+      }).segments,
       camera.zoom,
     )
     : [];

@@ -11,6 +11,13 @@ function rulers(selected: ReturnType<typeof rect>, hovered: ReturnType<typeof re
     .map((segment) => ({ id: segment.id, axis: segment.axis, distance: segment.distance }));
 }
 
+const borders = (top: number, right: number, bottom: number, left: number) => ({
+  top,
+  right,
+  bottom,
+  left,
+});
+
 describe("getMeasurementGeometry", () => {
   it("measures nearest facing edges for side-by-side boxes", () => {
     expect(rulers(rect(300, 100, 80, 80), rect(100, 100, 100, 80))).toEqual([
@@ -69,6 +76,52 @@ describe("getMeasurementGeometry", () => {
       { id: "primary-vertical-0", axis: "vertical", distance: 20 },
       { id: "primary-vertical-1", axis: "vertical", distance: 20 },
     ]));
+  });
+
+  it("excludes the containing element's borders from inset measurements", () => {
+    const selected = rect(100, 100, 200, 100);
+    const hovered = rect(117, 119, 166, 60);
+    const geometry = getMeasurementGeometry(selected, hovered, {
+      selectedBorders: borders(3, 5, 7, 1),
+    });
+
+    expect(geometry.segments
+      .filter((segment) => segment.kind === "ruler")
+      .map((segment) => ({ id: segment.id, distance: segment.distance })))
+      .toEqual([
+        { id: "primary-horizontal-0", distance: 16 },
+        { id: "primary-horizontal-1", distance: 12 },
+        { id: "primary-vertical-0", distance: 16 },
+        { id: "primary-vertical-1", distance: 14 },
+      ]);
+  });
+
+  it("excludes hovered container borders when the selected element is inside it", () => {
+    const selected = rect(117, 117, 166, 66);
+    const hovered = rect(100, 100, 200, 100);
+
+    expect(getMeasurementGeometry(selected, hovered, {
+      hoveredBorders: borders(1, 1, 1, 1),
+    }).segments
+      .filter((segment) => segment.kind === "ruler")
+      .map((segment) => segment.distance))
+      .toEqual([16, 16, 16, 16]);
+  });
+
+  it("keeps border-box gaps between separate elements unchanged", () => {
+    const geometry = getMeasurementGeometry(
+      rect(300, 100, 80, 80),
+      rect(100, 100, 100, 80),
+      {
+        selectedBorders: borders(4, 4, 4, 4),
+        hoveredBorders: borders(8, 8, 8, 8),
+      },
+    );
+
+    expect(geometry.segments
+      .filter((segment) => segment.kind === "ruler")
+      .map((segment) => segment.distance))
+      .toEqual([100]);
   });
 
   it("does not add zero-length rulers or projections for identical boxes", () => {

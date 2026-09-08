@@ -93,6 +93,8 @@ describe("renderer hover scheduling", () => {
   it("coalesces many targets into one geometry read and sends the latest target", () => {
     const first = trackedElement("first");
     const second = trackedElement("second");
+    second.style.borderStyle = "solid";
+    second.style.borderWidth = "1px 2px 3px 4px";
     const firstRect = vi.spyOn(first, "getBoundingClientRect").mockReturnValue({
       left: 1, top: 2, width: 3, height: 4,
     } as DOMRect);
@@ -118,6 +120,7 @@ describe("renderer hover scheduling", () => {
     expect(hoverMessages(postMessage)[0]).toMatchObject({
       cid: "second",
       rect: { left: 5, top: 6, width: 7, height: 8 },
+      borders: { top: 1, right: 2, bottom: 3, left: 4 },
     });
   });
 
@@ -142,6 +145,7 @@ describe("renderer hover scheduling", () => {
       cid: "second",
       rect: null,
       margins: null,
+      borders: null,
     });
   });
 });
