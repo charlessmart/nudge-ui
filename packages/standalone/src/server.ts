@@ -214,8 +214,13 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
               debounceMs: options.watchDebounceMs,
               onSettled: processSettledChanges,
             });
-            fileWatcher.start();
-            resolveStart(readAddress(httpServer, host));
+            void fileWatcher.start().then(() => {
+              if (closeRequested) {
+                rejectStart(new Error("Standalone server closed during startup."));
+                return;
+              }
+              resolveStart(readAddress(httpServer, host));
+            });
           };
           httpServer.once("error", onError);
           httpServer.once("listening", onListening);

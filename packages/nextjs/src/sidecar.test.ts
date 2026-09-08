@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   unlinkSync,
   writeFileSync,
@@ -130,6 +131,32 @@ describe("sidecar transport", () => {
 
 async function settle(ms = 900): Promise<void> {
   await new Promise((r) => setTimeout(r, ms));
+}
+
+async function waitForBadgeProps(
+  port: number,
+  predicate: (names: string[]) => boolean,
+  timeoutMs = 5_000,
+): Promise<string[]> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const response = await fetch(`http://127.0.0.1:${port}/__nudge_ui__/manifest`);
+    const manifest = (await response.json()) as {
+      componentContracts: Array<{
+        componentId: string;
+        props: Array<{ name: string }>;
+      }>;
+    };
+    const badge = manifest.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
+    const names = badge?.props.map((p) => p.name);
+    if (names && predicate(names)) return names;
+
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      throw new Error(`Timed out waiting for the Badge contract to settle; got ${JSON.stringify(names ?? null)}.`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, Math.min(50, remaining)));
+  }
 }
 
 describe("sidecar contract aggregation (Stage 5)", () => {
@@ -386,16 +413,16 @@ describe("sidecar source contract scan", () => {
     const handle = await ensureSidecar(root, { tokens: true });
     handles.push(handle);
 
+    const sourcePath = join(root, "app", "Badge.tsx");
+    const temporaryPath = join(root, "app", "Badge.tsx.tmp");
+    // Model an editor's atomic save so the test observes a deterministic
+    // rename event instead of depending on how the host coalesces writes.
     writeFileSync(
-      join(root, "app", "Badge.tsx"),
+      temporaryPath,
       `${BADGE_SOURCE.replace('  tone?: "accent" | "quiet";\n', "").replace('tone = "quiet", ', "")}\n`,
     );
-    await settle();
-
-    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
-    const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string; props: Array<{ name: string }> }> };
-    const badge = manifest.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
-    expect(badge).toBeTruthy();
-    expect(badge!.props.map((p) => p.name)).not.toContain("tone");
+    renameSync(temporaryPath, sourcePath);
+    const names = await waitForBadgeProps(handle.port, (names) => !names.includes("tone"));
+    expect(names).not.toContain("tone");
   });
 });

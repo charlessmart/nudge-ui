@@ -92,11 +92,12 @@ const SCAN_MAX_SOURCES = 5000;
 async function scanProjectContracts(
   canonicalRoot: string,
   apply: (file: string, contracts: unknown[]) => void,
-): Promise<void> {
+): Promise<{ truncated: boolean; files: Set<string> }> {
   const queue: string[] = [canonicalRoot];
+  const files = new Set<string>();
   let examined = 0;
   let truncated = false;
-  while (queue.length > 0) {
+  while (queue.length > 0 && !truncated) {
     const directory = queue.shift()!;
     let entries;
     try {
@@ -115,9 +116,10 @@ async function scanProjectContracts(
       if (!CONTRACT_SOURCE_EXT.test(entry.name)) continue;
       if (++examined > SCAN_MAX_SOURCES) {
         truncated = true;
-        return;
+        break;
       }
       const relativeFile = relative(canonicalRoot, absolutePath).split("\\").join("/");
+      files.add(relativeFile);
       try {
         const source = readFileSync(absolutePath, "utf8");
         apply(relativeFile, extractComponentContracts(source, relativeFile));
@@ -132,6 +134,7 @@ async function scanProjectContracts(
         + "contracts beyond that bound are missing until their files compile.",
     );
   }
+  return { truncated, files };
 }
 
 /**
@@ -290,6 +293,7 @@ export async function ensureSidecar(
         rootDirectory: fsRoot,
         debounceMs: 60,
         onSettled: async (changes) => {
+          let needsContractRescan = false;
           // Changed or deleted component sources update their aggregated
           // contracts directly: deletions must prune (or stale controls
           // survive forever), and edits re-extract from the authored bytes
@@ -297,18 +301,42 @@ export async function ensureSidecar(
           // lands mid-write is skipped — the next settled batch retries.
           for (const change of changes) {
             const normalized = change.absolutePath.split("\\").join("/");
-            if (!CONTRACT_SOURCE_EXT.test(normalized)) continue;
+            // fs.watch can report a directory or omit a filename. In that
+            // case the exact source is unknown, so a bounded project scan is
+            // the only way to keep the contract catalog coherent.
+            if (!CONTRACT_SOURCE_EXT.test(normalized)) {
+              needsContractRescan = true;
+              continue;
+            }
             const key = relative(fsRoot, normalized);
             if (change.kind === "remove") {
               contractsByFile.delete(key);
               continue;
             }
             const stable = readStableSource(change.absolutePath);
-            if (!stable) continue;
+            if (!stable) {
+              needsContractRescan = true;
+              continue;
+            }
             try {
               contractsByFile.set(key, extractComponentContracts(stable.source, key));
             } catch {
               /* syntactically invalid sources keep their previous knowledge */
+            }
+          }
+
+          if (needsContractRescan) {
+            const scannedContracts = new Map<string, unknown[]>();
+            const scan = await scanProjectContracts(fsRoot, (file, list) => {
+              scannedContracts.set(file, list);
+            });
+            if (!scan.truncated) {
+              for (const file of contractsByFile.keys()) {
+                if (!scan.files.has(file)) contractsByFile.delete(file);
+              }
+            }
+            for (const [file, list] of scannedContracts) {
+              contractsByFile.set(file, list);
             }
           }
 
@@ -323,7 +351,7 @@ export async function ensureSidecar(
           flushContracts();
         },
       });
-      watcher.start();
+      await watcher.start();
       watchers.push(watcher);
     }
 
