@@ -64,8 +64,8 @@
   transform: translateX(-50%);
   visibility: hidden;
   width: 360px;
-  padding: 10px;
-  border-radius: 10px;
+  padding: var(--space-4);
+  border-radius: var(--radius-8);
   background: var(--surface-raised-2x);
   box-shadow: var(--shadow-popup);
 }
@@ -83,7 +83,7 @@
   padding: 0;
   appearance: none;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-4);
   background: var(--surface-control);
   cursor: pointer;
   transition: background-color 100ms ease, box-shadow 100ms ease;

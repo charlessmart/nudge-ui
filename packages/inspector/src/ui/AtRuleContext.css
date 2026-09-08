@@ -50,9 +50,9 @@
 .at-rule-tooltip {
   width: max-content;
   max-width: min(320px, calc(100vw - 24px));
-  padding: 4px;
+  padding: var(--space-4);
   border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-8);
   background: var(--surface-raised);
   box-shadow: 0 8px 22px rgb(0 0 0 / 18%);
   color: var(--text-primary);
@@ -70,7 +70,7 @@
 .at-rule-tooltip__rule {
   min-width: 0;
   padding: 5px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-4);
 }
 
 .at-rule-tooltip__rule--active {

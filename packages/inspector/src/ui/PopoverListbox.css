@@ -19,7 +19,7 @@
   overscroll-behavior: contain;
   pointer-events: auto;
   background: var(--surface-raised-2x);
-  border-radius: 12px;
+  border-radius: var(--radius-8);
   box-shadow: var(--shadow-popup);
 }
 
@@ -64,7 +64,7 @@
 
 .popover-listbox__list {
   min-width: 0;
-  padding: var(--space-8);
+  padding: var(--space-4);
 }
 
 .popover-listbox__list--searchable {
@@ -80,7 +80,7 @@
   min-width: 0;
   min-height: 34px;
   padding: 6px 9px;
-  border-radius: 8px;
+  border-radius: var(--radius-4);
   color: var(--text-primary);
   cursor: pointer;
   font-size: var(--font-size-base);
