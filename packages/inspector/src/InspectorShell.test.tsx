@@ -213,8 +213,6 @@ describe("InspectorShell", () => {
       const shadow = host.shadowRoot!;
       expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
         .toContain("2 elements selected");
-      expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
-        .toContain("Changes affect 2 rendered items.");
       expect(shadow.querySelector('[data-test="dom-navigation"]')).toBeNull();
       expect(shadow.querySelector('[data-test="component-props-section"]')).toBeNull();
       expect(shadow.querySelector('[data-test="layout-section"]')).not.toBeNull();
@@ -248,7 +246,7 @@ describe("InspectorShell", () => {
 
       const shadow = host.shadowRoot!;
       expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
-        .toContain("This partial group cannot be edited safely.");
+        .toContain("2 elements selected");
       expect(shadow.querySelector('[data-test="multi-selection-uneditable"]')).not.toBeNull();
       expect(shadow.querySelector('[data-test="style-editors"]')).toBeNull();
     } finally {

@@ -64,7 +64,10 @@ function linkAllCorners(
   onAfterEdit?: () => void,
 ): void {
   const firstRow = findTokenRow(rows, BORDER_RADIUS_CORNERS[0]);
-  const sharedValue = selection?.getProperty(BORDER_RADIUS_CORNERS[0])?.aggregate.values[0]
+  const selectedValue = selection && selection.elements.length > 1
+    ? selection.getProperty(BORDER_RADIUS_CORNERS[0])?.value
+    : null;
+  const sharedValue = (selectedValue?.kind === "common" ? selectedValue.value : undefined)
     ?? firstRow?.authored
     ?? firstRow?.declaredValue
     ?? "";
@@ -126,6 +129,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
     control: (
       <TokenField
         property={corner}
+        selection={selection}
         tokenRow={findTokenRow(tokenRows, corner)}
         domElement={el}
         editTarget={editTarget}
@@ -150,6 +154,7 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
     <ControlSurface>
       <TokenField
         property="border-radius"
+        selection={selection}
         tokenRow={mixed ? null : borderRadiusRow}
         initialValue={mixed ? "Mix" : undefined}
         displayValue={mixed ? "Mix" : undefined}

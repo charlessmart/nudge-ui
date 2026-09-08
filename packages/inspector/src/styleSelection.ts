@@ -1,11 +1,11 @@
 import type { SelectedElement } from "./selectionStore.ts";
 import type { EditTarget } from "./editTarget.ts";
 import type { InspectionSnapshot } from "./inspection/browserCssInspection.ts";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import {
-  aggregatePropertyValues,
-  type AggregatedProperty,
-  type PropertySnapshot,
-} from "./inspection/aggregateInspection.ts";
+  projectSelectionProperty,
+  type SelectionProperty,
+} from "./inspection/selectionProperty.ts";
 import { getElementComputedStyle } from "./domRealm.ts";
 import { getStateStyleValue } from "./stateValue.ts";
 import { getActiveStyleState } from "./styleState.ts";
@@ -24,33 +24,10 @@ export interface StyleSelection {
   elements: readonly SelectedElement[];
   domElements: readonly HTMLElement[];
   target: EditTarget;
-  properties: readonly AggregatedProperty[];
-  getProperty(property: string): AggregatedProperty | null;
-  supportsProperties(properties: readonly string[]): boolean;
+  primaryRows: readonly ResolvedProperty[];
+  getProperty(property: string): SelectionProperty | null;
   supportsRole(role: StyleRole): boolean;
 }
-
-const EDITOR_PROPERTIES = [
-  "width", "height", "min-width", "min-height", "max-width", "max-height", "aspect-ratio",
-  "display", "position",
-  "flex-direction", "flex-wrap", "align-content", "align-items", "justify-content",
-  "flex-grow", "flex-shrink", "flex-basis", "align-self", "order",
-  "row-gap", "column-gap",
-  "grid-template-columns", "grid-template-rows", "grid-auto-flow", "grid-auto-columns", "grid-auto-rows",
-  "justify-items", "justify-self", "grid-column-start", "grid-column-end", "grid-row-start", "grid-row-end",
-  "padding-top", "padding-right", "padding-bottom", "padding-left",
-  "margin-top", "margin-right", "margin-bottom", "margin-left",
-  "top", "right", "bottom", "left",
-  "opacity", "border-radius", "border-top-left-radius", "border-top-right-radius",
-  "border-bottom-right-radius", "border-bottom-left-radius",
-  "color", "background-color", "box-shadow",
-  "border", "border-width", "border-style", "border-color",
-  "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
-  "border-top-style", "border-right-style", "border-bottom-style", "border-left-style",
-  "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
-  "font-family", "font-style", "font-weight", "font-size", "line-height", "letter-spacing",
-  "text-align", "vertical-align",
-] as const;
 
 function displayIs(element: HTMLElement, values: readonly string[]): boolean {
   const display = getElementComputedStyle(element).display;
@@ -106,12 +83,7 @@ export function createStyleSelection(
     : elements.at(-1);
   if (!primary || snapshots.length !== elements.length) return null;
 
-  const propertyNames = new Set<string>(EDITOR_PROPERTIES);
-  for (const snapshot of snapshots) {
-    for (const row of snapshot.properties) propertyNames.add(row.property);
-  }
-
-  const propertySnapshots: readonly PropertySnapshot[] = snapshots;
+  const primaryIndex = elements.findIndex((element) => element.domElement === primary.domElement);
   const activeState = getActiveStyleState();
   const shouldUseInspection = elements.map(({ domElement }) => activeState !== "base"
     || [":hover", ":active", ":focus", ":focus-visible"].some((selector) => {
@@ -122,19 +94,24 @@ export function createStyleSelection(
   const computedStyles = elements.map(({ domElement }) => {
     try { return getElementComputedStyle(domElement); } catch { return null; }
   });
-  const properties = [...propertyNames].map((property) => {
+  const propertyCache = new Map<string, SelectionProperty>();
+  function getProperty(property: string): SelectionProperty | null {
+    const cached = propertyCache.get(property);
+    if (cached) return cached;
+    const rows = rowsByProperty.map((candidateRows) => candidateRows.get(property)
+      ?? (property === "background-color" ? candidateRows.get("background") : undefined)
+      ?? null);
     const values = computedStyles.map((style, index) => {
       if (shouldUseInspection[index]) {
-        const rows = rowsByProperty[index];
-        const row = rows?.get(property)
-          ?? (property === "background-color" ? rows?.get("background") : undefined);
+        const row = rows[index];
         if (row?.resolvedValue) return row.resolvedValue;
       }
       return style?.getPropertyValue(property).trim() ?? "";
     });
-    return aggregatePropertyValues(property, propertySnapshots, values);
-  }).filter((property): property is AggregatedProperty => property !== null);
-  const byProperty = new Map(properties.map((property) => [property.property, property]));
+    const projected = projectSelectionProperty(property, rows, values, primaryIndex);
+    if (projected) propertyCache.set(property, projected);
+    return projected;
+  }
   const domElements = elements.map((element) => element.domElement);
   const target: EditTarget = domElements.length > 1 ? domElements : primary.domElement;
 
@@ -143,13 +120,8 @@ export function createStyleSelection(
     elements,
     domElements,
     target,
-    properties,
-    getProperty(property) {
-      return byProperty.get(property) ?? null;
-    },
-    supportsProperties(required) {
-      return required.every((property) => byProperty.has(property));
-    },
+    primaryRows: snapshots[primaryIndex]?.properties ?? [],
+    getProperty,
     supportsRole(role) {
       return domElements.every((element) => supportsRole(element, role));
     },

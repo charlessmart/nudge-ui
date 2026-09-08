@@ -8,7 +8,6 @@ import type {
   InspectionSnapshot,
 } from "./browserCssInspection.ts";
 import { getBrowserCssInspection } from "./browserCssInspectionRegistry.ts";
-import { aggregateProperties, type AggregatedProperty } from "./aggregateInspection.ts";
 
 const SELECTION_DEBOUNCE_MS = 8;
 const EMPTY_SELECTION: readonly SelectedElement[] = [];
@@ -22,7 +21,6 @@ function isSelectedElementList(
 export interface BrowserCssInspectionView {
   element: InspectionSnapshot | null;
   elements: readonly InspectionSnapshot[];
-  properties: readonly AggregatedProperty[];
   stableProperties: readonly ResolvedProperty[];
   documentTokens: DocumentTokenInspectionSnapshot | null;
 }
@@ -63,7 +61,6 @@ function inspectStableView(
   return {
     element: primary,
     elements,
-    properties: aggregateProperties(elements),
     stableProperties,
     documentTokens,
   };

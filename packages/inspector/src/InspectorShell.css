@@ -202,11 +202,6 @@
   font-weight: 600;
 }
 
-.selection__reach {
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-}
-
 .style-state {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);

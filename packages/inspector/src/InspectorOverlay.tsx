@@ -33,6 +33,17 @@ export {
   type MarginGuideSide,
 } from "./overlayGeometry.ts";
 
+function overlayStyle(rect: Rect): CSSProperties {
+  return {
+    position: "fixed",
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+    pointerEvents: "none",
+  };
+}
+
 export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement {
   const open = useInspectorOpen();
   const selected = useSelectedElement();
@@ -270,27 +281,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
   const selectedPrimaryIndex = selectedElements.findIndex((candidate) => candidate.domElement === selected?.domElement);
   const selectedRect = selectedRects[selectedPrimaryIndex >= 0 ? selectedPrimaryIndex : 0] ?? null;
 
-  const hoverStyle: CSSProperties = hoverRect
-    ? {
-        position: "fixed",
-        left: hoverRect.left,
-        top: hoverRect.top,
-        width: hoverRect.width,
-        height: hoverRect.height,
-        pointerEvents: "none",
-      }
-    : { display: "none" };
-
-  const selectedStyle: CSSProperties = selectedRect
-    ? {
-        position: "fixed",
-        left: selectedRect.left,
-        top: selectedRect.top,
-        width: selectedRect.width,
-        height: selectedRect.height,
-        pointerEvents: "none",
-      }
-    : { display: "none" };
+  const hoverStyle: CSSProperties = hoverRect ? overlayStyle(hoverRect) : { display: "none" };
 
   const hoverMarginGuides = hoverRect && hoverMargins
     ? getMarginGuides(hoverRect, hoverMargins)
@@ -363,15 +354,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
           className="selected-outline"
           data-test="selected-outline"
           data-selected-index={index}
-          data-primary={element.domElement === selected?.domElement ? "true" : "false"}
-          style={element.domElement === selected?.domElement ? selectedStyle : {
-            position: "fixed",
-            left: rect.left,
-            top: rect.top,
-            width: rect.width,
-            height: rect.height,
-            pointerEvents: "none",
-          }}
+          style={overlayStyle(rect)}
           aria-hidden="true"
         />
       )) : null}

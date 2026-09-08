@@ -136,14 +136,15 @@ function selectionField(
   selection: StyleSelection,
   property: string,
 ): InspectorFieldProjection {
-  const row = selection.getProperty(property);
-  const mixed = row?.aggregate.valueState === "mixed";
-  const value = row?.aggregate.values[0] ?? "";
+  const selectedProperty = selection.getProperty(property);
+  const mixed = selectedProperty?.value.kind === "mixed";
+  const value = selectedProperty?.value.kind === "common" ? selectedProperty.value.value : "";
+  const row = selectedProperty?.primaryRow ?? null;
   return {
     property,
     authoredValue: mixed ? "Mixed" : value,
     value: mixed ? "Mixed" : value,
-    tokenName: mixed ? null : row?.tokenName ?? null,
+    tokenName: selectedProperty?.token.kind === "common" ? selectedProperty.token.name : null,
     sourceProperty: row?.sourceProperty,
     row,
   };
@@ -185,6 +186,9 @@ function selectionSpacing(
 
 /** Projects computed group values into the existing spacing editor model. */
 export function projectInspectorValuesForSelection(selection: StyleSelection): InspectorProjection {
+  if (selection.elements.length === 1) {
+    return projectInspectorValues(selection.primary.domElement, [...selection.primaryRows]);
+  }
   return {
     spacing: {
       padding: selectionSpacing(selection, "padding"),

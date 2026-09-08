@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { countBatchEditReach, countSourceSiteMatches, getEditScope, getInstanceEvidence, planBatchEditScopes, relinkElement, resetSourceSiteMatchCounts, selectorForElement, unlinkElement } from "./editScope";
+import { countSourceSiteMatches, getEditScope, getInstanceEvidence, relinkElement, resetSourceSiteMatchCounts, selectorForElement, unlinkElement } from "./editScope";
 import { resetRenderedInstanceState } from "./renderedInstance";
 
 describe("edit scope", () => {
@@ -71,28 +71,4 @@ describe("edit scope", () => {
     expect(countSourceSiteMatches(add("three"))).toBe(3);
   });
 
-  it("uses rendered-instance scope for a partial repeated-source selection", () => {
-    const first = add("one");
-    const second = add("two");
-    const third = add("three");
-
-    expect(countBatchEditReach([first, second])).toBe(2);
-    const partialPlan = planBatchEditScopes([first, second]);
-    expect(partialPlan?.get(first)?.scope).toBe("rendered-instance");
-    expect(partialPlan?.get(second)?.scope).toBe("rendered-instance");
-    expect(getEditScope(first)).toBe("source-site");
-
-    expect(countBatchEditReach([first, second, third])).toBe(3);
-    expect(planBatchEditScopes([first, second, third])?.get(first)?.scope).toBe("source-site");
-  });
-
-  it("rejects a partial repeated-source selection with ambiguous evidence", () => {
-    const first = add("same");
-    const second = add("same");
-    add("same");
-
-    expect(planBatchEditScopes([first, second])).toBeNull();
-    expect(getEditScope(first)).toBe("source-site");
-    expect(getEditScope(second)).toBe("source-site");
-  });
 });

@@ -43,7 +43,11 @@ describe("createStyleSelection", () => {
 
     const selection = createStyleSelection([first, second], snapshots, second);
 
+    const width = selection?.getProperty("width");
+
     expect(selection?.primary).toBe(second);
+    expect(width?.value).toEqual({ kind: "common", value: "" });
+    expect(selection?.getProperty("width")).toBe(width);
     expect(getComputedStyle).toHaveBeenCalledTimes(2);
   });
 });

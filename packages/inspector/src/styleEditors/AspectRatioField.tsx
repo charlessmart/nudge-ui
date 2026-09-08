@@ -7,12 +7,14 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
 import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 export const ASPECT_RATIO_PRESETS = ["auto", "1 / 1", "4 / 3", "3 / 2", "16 / 9", "21 / 9"];
 
 export interface AspectRatioFieldProps {
   domElement: HTMLElement;
   editTarget?: EditTarget;
+  selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRow?: ResolvedProperty | null;
   revision?: number;
@@ -23,6 +25,7 @@ export interface AspectRatioFieldProps {
 export function AspectRatioField({
   domElement: el,
   editTarget,
+  selection,
   entries = getNudgeUiTokenEntries(),
   tokenRow,
   onAfterEdit,
@@ -33,6 +36,7 @@ export function AspectRatioField({
       <ControlSurface>
         <TokenField
           property="aspect-ratio"
+          selection={selection}
           tokenRow={tokenRow}
           initialValue={meaningfulLayoutValue(el, "aspect-ratio")}
           domElement={el}

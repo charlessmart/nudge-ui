@@ -9,7 +9,6 @@ import {
 } from "@nudge-ui/css/value-semantics";
 import type { AtRuleContext, ColorOpacity, ColorValueFacts, ResolvedProperty } from "@nudge-ui/css/model";
 import type { TokenSemanticSlot } from "@nudge-ui/css/value-semantics";
-import type { AggregatedProperty } from "../inspection/aggregateInspection.ts";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "../styleEditors/styleActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
@@ -23,6 +22,7 @@ import type { StyleEditMetadata } from "./editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { TokenChip } from "./TokenChip.tsx";
 import { isMultiTarget, type EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 export interface TokenValueFieldProps {
   property: string;
@@ -57,7 +57,8 @@ export interface TokenValueFieldProps {
 export interface TokenFieldProps {
   property: string;
   semanticSlot?: TokenSemanticSlot;
-  tokenRow?: ResolvedProperty | AggregatedProperty | null;
+  tokenRow?: ResolvedProperty | null;
+  selection?: StyleSelection | null;
   initialValue?: string;
   /** Optional normalized value shown when an authored row is not token-backed. */
   displayValue?: string;
@@ -602,6 +603,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     property,
     semanticSlot,
     tokenRow,
+    selection,
     initialValue,
     displayValue,
     domElement: el,
@@ -621,10 +623,14 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     mixed = false,
     attributionTokens,
   } = props;
-  const aggregate = tokenRow && "aggregate" in tokenRow ? tokenRow.aggregate : null;
-  const aggregateMixed = aggregate?.valueState === "mixed";
-  const effectiveMixed = mixed || aggregateMixed;
-  const aggregateDisplayValue = aggregate && !aggregateMixed ? aggregate.values[0] : undefined;
+  const selectedProperty = selection && selection.elements.length > 1
+    ? selection.getProperty(property)
+    : null;
+  const selectionMixed = selectedProperty?.value.kind === "mixed";
+  const effectiveMixed = mixed || selectionMixed;
+  const selectionDisplayValue = selectedProperty?.value.kind === "common"
+    ? selectedProperty.value.value
+    : undefined;
   const effectiveMetadata = editTarget && isMultiTarget(editTarget) ? undefined : editMetadata;
   const tokenBackedOpacityName = tokenRow?.tokenName
     && tokenRow.opacity
@@ -636,9 +642,15 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     || tokenRow.color?.isExpression));
   const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? "";
   const isCalcAuthored = /\bcalc\s*\(/i.test(authored);
+  const selectedTokenName = selectedProperty?.token.kind === "common"
+    ? selectedProperty.token.name
+    : null;
   const activeTokenName = effectiveMixed
     ? null
-    : tokenBackedOpacityName ?? (expression || isCalcAuthored ? null : tokenRow?.tokenName ?? null);
+    : tokenBackedOpacityName
+      ?? (expression || isCalcAuthored
+        ? null
+        : selectedProperty ? selectedTokenName : tokenRow?.tokenName ?? null);
   const fallbackValue = initialValue ?? structuredBorderValue(property, tokenRow) ?? computedRaw(el, property);
   // When a calc() was simplified to a numeric value we suppress the token
   // chip so the UI shows the resolved pixel value, not the internal
@@ -651,7 +663,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     : tokenRow?.resolvedValue ?? fallbackValue;
   const committedValue = effectiveMixed
     ? displayValue ?? "Mixed"
-    : displayValue ?? aggregateDisplayValue ?? (property === "font-family" && !activeTokenName
+    : displayValue ?? selectionDisplayValue ?? (property === "font-family" && !activeTokenName
       ? primaryFontFamily(authoredOrComputed)
       : authoredOrComputed);
   const currentToken = activeTokenName
@@ -664,11 +676,11 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       domElement={el}
       semanticSlot={semanticSlot}
       committedValue={committedValue}
-      resolvedValue={tokenRow?.propertyOpacity?.value ?? aggregateDisplayValue ?? tokenRow?.resolvedValue ?? committedValue}
+      resolvedValue={tokenRow?.propertyOpacity?.value ?? tokenRow?.resolvedValue ?? committedValue}
       activeTokenName={activeTokenName}
-      attributionTokens={attributionTokens ?? (aggregate?.tokenState === "mixed"
-        ? ["Mixed tokens"]
-        : expression
+      attributionTokens={attributionTokens
+        ?? (selectedProperty?.token.kind === "mixed" ? ["Mixed tokens"] : undefined)
+        ?? (expression
           ? tokenRow?.tokens?.filter((token) => token.name !== tokenRow.opacity?.tokenName).map((token) => token.name)
           : undefined)}
       opacity={tokenRow?.opacity}

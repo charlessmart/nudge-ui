@@ -147,6 +147,11 @@ export function matchesRenderedInstanceEvidence(el: HTMLElement, ref: RenderedIn
 export function buildRenderedInstanceOverride(el: HTMLElement): RenderedInstanceOverride | null {
   const target = captureRenderedInstance(el);
   if (!target) return null;
+  return buildRenderedInstanceOverrideForTarget(target);
+}
+
+/** Creates a serializable override for identity that was already validated. */
+export function buildRenderedInstanceOverrideForTarget(target: RenderedInstanceRef): RenderedInstanceOverride {
   return {
     id: `override-${crypto.randomUUID?.() ?? nextOverrideId++}`,
     target,

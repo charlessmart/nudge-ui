@@ -4,6 +4,7 @@ import { act, createElement } from "react";
 import { Typography } from "./Typography.tsx";
 import { getChangeRecords, resetPendingRules } from "../tokens/editActions.ts";
 import {
+  makeMixedStyleSelection,
   makeSelected,
   mount,
   setSelectValue,
@@ -230,25 +231,15 @@ describe("Typography", () => {
     const first = makeSelected("Heading", "src/Heading.tsx:1:1");
     const second = makeSelected("Heading", "src/Heading.tsx:2:1");
     mockComputedStyle({ "font-size": "24px" });
+    const selection = {
+      ...makeMixedStyleSelection(first.selected, "font-size"),
+      elements: [first.selected, second.selected],
+      domElements: [first.el, second.el],
+      target: [first.el, second.el],
+    };
     handle = mount(createElement(Typography, {
       element: first.selected,
-      elements: [first.selected, second.selected],
-      tokenRows: [{
-        property: "font-size",
-        tokenName: null,
-        declaredValue: "Mixed",
-        resolvedValue: "Mixed",
-        authored: "Mixed",
-        confidence: "exact",
-        evidence: { reason: "aggregate test" },
-        aggregate: {
-          valueState: "mixed",
-          tokenState: "common",
-          values: ["24px", "20px"],
-          tokenNames: [null, null],
-          rows: [],
-        },
-      }],
+      selection,
     }));
 
     const raw = handle.host.querySelector('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]') as HTMLInputElement;

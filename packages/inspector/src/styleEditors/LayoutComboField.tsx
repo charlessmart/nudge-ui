@@ -55,7 +55,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     onAfterEdit,
   } = props;
   const atRules = useFieldAtRules(property);
-  const mixed = selection?.getProperty(property)?.aggregate.valueState === "mixed";
+  const mixed = selection?.getProperty(property)?.value.kind === "mixed";
 
   const [currentValue, setCurrentValue] = useState(() =>
     meaningfulLayoutValue(el, property),

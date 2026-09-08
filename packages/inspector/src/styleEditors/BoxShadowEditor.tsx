@@ -32,6 +32,7 @@ export function BoxShadowEditor(props: BoxShadowEditorProps): ReactElement {
           <ControlSurface>
             <TokenField
               property="box-shadow"
+              selection={selection}
               tokenRow={tokenRow}
               domElement={el}
               editTarget={editTarget}

@@ -12,14 +12,14 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { setStyle } from "./styleActions.ts";
 import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 import type { EditTarget } from "../editTarget.ts";
-import type { AggregatedProperty } from "../inspection/aggregateInspection.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 export interface ColorPickerProps {
   element: SelectedElement;
-  elements?: readonly SelectedElement[];
+  selection?: StyleSelection | null;
   property?: string;
   entries?: TokenEntry[];
-  tokenRow?: ResolvedProperty | AggregatedProperty | null;
+  tokenRow?: ResolvedProperty | null;
   onAfterEdit?: () => void;
 }
 
@@ -47,19 +47,11 @@ export function isEmptyColorValue(value: string): boolean {
 }
 
 export function ColorPicker(props: ColorPickerProps): ReactElement {
-  const { element, elements: selectedElementsProp, property = "color", entries, tokenRow, onAfterEdit } = props;
+  const { element, selection, property = "color", entries, tokenRow, onAfterEdit } = props;
   const el = element.domElement;
-  const selectedElements = useMemo(
-    () => selectedElementsProp && selectedElementsProp.length > 0 ? selectedElementsProp : [element],
-    [element, selectedElementsProp],
-  );
-  const target: EditTarget = selectedElements.length > 1
-    ? selectedElements.map((selected) => selected.domElement)
-    : el;
+  const selectedElements = useMemo(() => selection?.elements ?? [element], [element, selection]);
+  const target: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
-  const aggregate = tokenRow && "aggregate" in tokenRow
-    ? tokenRow.aggregate
-    : null;
   const declaredValue = tokenRow?.declaredValue?.trim() ?? "";
   const paintedValue = getStateStyleValue(el, property);
   const resolvedValue = tokenRow?.resolvedValue ?? paintedValue;
@@ -73,10 +65,6 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
     : property === "background-color"
       ? isEmptyColorValue(declaredValue) || isEmptyColorValue(resolvedValue) || isEmptyColorValue(paintedValue)
       : declaredValue.length === 0 && isEmptyColorValue(resolvedValue);
-  const mixed = aggregate?.valueState === "mixed";
-  const displayValue = aggregate
-    ? mixed ? "Mixed" : aggregate.values[0]
-    : undefined;
   const [fieldAdded, setFieldAdded] = useState(false);
   const [backgroundRemoved, setBackgroundRemoved] = useState(false);
 
@@ -132,12 +120,10 @@ export function ColorPicker(props: ColorPickerProps): ReactElement {
             <TokenField
               property={property}
               tokenRow={isEmpty ? null : tokenRow}
+              selection={selection}
               initialValue={isEmpty ? "" : undefined}
               domElement={el}
               editTarget={target}
-              displayValue={displayValue}
-              mixed={mixed}
-              attributionTokens={aggregate?.tokenState === "mixed" ? ["Mixed tokens"] : undefined}
               entries={allEntries}
               onAfterEdit={handleAfterEdit}
             />

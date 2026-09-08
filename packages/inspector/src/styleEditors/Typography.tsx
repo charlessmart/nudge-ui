@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   IconTextSize,
   IconAlignCenter,
@@ -24,47 +24,27 @@ import { getStateStyleValue } from "../stateValue.ts";
 import { setStyle, setStyles } from "./styleActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import type { AggregatedProperty } from "../inspection/aggregateInspection.ts";
 import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
-type TypographyProperty = ResolvedProperty | AggregatedProperty;
-
-function findTokenRow(rows: readonly TypographyProperty[], prop: string): TypographyProperty | null {
+function findTokenRow(rows: readonly ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;
-}
-
-function aggregateFor(row: TypographyProperty | null): AggregatedProperty["aggregate"] | null {
-  if (!row || !("aggregate" in row)) return null;
-  return row.aggregate;
 }
 
 export interface TypographyProps {
   element: SelectedElement;
-  elements?: readonly SelectedElement[];
+  selection?: StyleSelection | null;
   entries?: TokenEntry[];
-  tokenRows?: readonly TypographyProperty[];
+  tokenRows?: readonly ResolvedProperty[];
   onAfterEdit?: () => void;
 }
 
 export function Typography(props: TypographyProps): ReactElement {
-  const { element, elements: selectedElementsProp, entries, tokenRows = [], onAfterEdit } = props;
+  const { element, selection, entries, tokenRows = [], onAfterEdit } = props;
   const el = element.domElement;
-  const selectedElements = useMemo(
-    () => selectedElementsProp && selectedElementsProp.length > 0 ? selectedElementsProp : [element],
-    [element, selectedElementsProp],
-  );
-  const target: EditTarget = useMemo(
-    () => selectedElements.length > 1 ? selectedElements.map((selected) => selected.domElement) : el,
-    [el, selectedElements],
-  );
-  const targetElements = useMemo(
-    () => selectedElements.map((selected) => selected.domElement),
-    [selectedElements],
-  );
+  const target: EditTarget = selection?.target ?? el;
+  const targetElements = selection?.domElements ?? [el];
   const allEntries = entries ?? [];
-  const isGroup = selectedElements.length > 1;
-  const supports = (properties: readonly string[]): boolean =>
-    !isGroup || properties.every((property) => tokenRows.some((row) => row.property === property));
 
   return (
     <div className="editor editor--typography" data-test="typography">
@@ -73,64 +53,68 @@ export function Typography(props: TypographyProps): ReactElement {
       </div>
 
       <div className="typography">
-        {supports(["font-family"]) ? <TypographyTokenField
+        <TypographyTokenField
           property="font-family"
           label="Font family"
           icon={<IconItalic size={"var(--icon-size-small)"} stroke={1.35} aria-hidden="true" />}
           tokenRow={findTokenRow(tokenRows, "font-family")}
+          selection={selection}
           domElement={el}
           editTarget={target}
           entries={allEntries}
           onAfterEdit={onAfterEdit}
-        /> : null}
+        />
 
-        {supports(["font-style", "font-weight"]) ? <FontStyleField
+        <FontStyleField
           element={el}
           elements={targetElements}
           editTarget={target}
           fontStyleRow={findTokenRow(tokenRows, "font-style")}
           fontWeightRow={findTokenRow(tokenRows, "font-weight")}
           onAfterEdit={onAfterEdit}
-        /> : null}
+        />
 
         <div className="typography__metrics" data-test="typography-metrics">
-          {supports(["font-size"]) ? <TypographyTokenField
+          <TypographyTokenField
             property="font-size"
             label="Font size"
             icon={<IconTextSize size={"var(--icon-size-small)"} stroke={1.55} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "font-size")}
+            selection={selection}
             domElement={el}
             editTarget={target}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
             chipVariant="small"
-          /> : null}
-          {supports(["line-height"]) ? <TypographyTokenField
+          />
+          <TypographyTokenField
             property="line-height"
             label="Line height"
             icon={<IconBaseline size={"var(--icon-size-small)"} stroke={1.5} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "line-height")}
+            selection={selection}
             domElement={el}
             editTarget={target}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
             chipVariant="small"
-          /> : null}
-          {supports(["letter-spacing"]) ? <TypographyTokenField
+          />
+          <TypographyTokenField
             property="letter-spacing"
             label="Letter spacing"
             icon={<IconLetterSpacing size={"var(--icon-size-small)"} stroke={1.5} aria-hidden="true" />}
             tokenRow={findTokenRow(tokenRows, "letter-spacing")}
+            selection={selection}
             domElement={el}
             editTarget={target}
             entries={allEntries}
             onAfterEdit={onAfterEdit}
             chipVariant="small"
-          /> : null}
+          />
         </div>
 
         <div className="typography__alignment" data-test="typography-alignment">
-          {supports(["text-align"]) ? <AlignmentField
+          <AlignmentField
             property="text-align"
             label="Horizontal alignment"
             element={el}
@@ -143,8 +127,8 @@ export function Typography(props: TypographyProps): ReactElement {
               { value: "right", label: "Align right", icon: <IconAlignRight size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
             ]}
             onAfterEdit={onAfterEdit}
-          /> : null}
-          {supports(["vertical-align"]) ? <AlignmentField
+          />
+          <AlignmentField
             property="vertical-align"
             label="Vertical alignment"
             element={el}
@@ -157,7 +141,7 @@ export function Typography(props: TypographyProps): ReactElement {
               { value: "bottom", label: "Align bottom", icon: <IconLayoutAlignBottom size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" /> },
             ]}
             onAfterEdit={onAfterEdit}
-          /> : null}
+          />
         </div>
       </div>
     </div>
@@ -169,6 +153,7 @@ interface TypographyTokenFieldProps {
   label: string;
   icon: ReactElement;
   tokenRow: ResolvedProperty | null;
+  selection?: StyleSelection | null;
   domElement: HTMLElement;
   editTarget: EditTarget;
   entries: TokenEntry[];
@@ -177,29 +162,27 @@ interface TypographyTokenFieldProps {
 }
 
 function TypographyTokenField(props: TypographyTokenFieldProps): ReactElement {
-  const { property, label, icon, tokenRow, domElement, editTarget, entries, onAfterEdit, chipVariant } = props;
+  const { property, label, icon, tokenRow, selection, domElement, editTarget, entries, onAfterEdit, chipVariant } = props;
   const metric = property === "font-size" || property === "line-height" || property === "letter-spacing";
-  const aggregate = aggregateFor(tokenRow);
-  const mixed = aggregate?.valueState === "mixed";
-  const displayValue = aggregate
-    ? mixed ? "Mixed" : aggregate.values[0]
-    : undefined;
-  const attributionTokens = aggregate?.tokenState === "mixed" ? ["Mixed tokens"] : undefined;
-  const hasTokenChip = Boolean(tokenRow?.tokenName
-    && tokenRow.capability !== "raw"
-    && tokenRow.capability !== "composite"
-    && !tokenRow.modifiers?.some((modifier) => modifier.kind === "alpha"));
+  const selectedProperty = selection && selection.elements.length > 1
+    ? selection.getProperty(property)
+    : null;
+  const tokenName = selectedProperty
+    ? selectedProperty.token.kind === "common" ? selectedProperty.token.name : null
+    : tokenRow?.tokenName;
+  const hasTokenChip = Boolean(tokenName
+    && tokenRow?.capability !== "raw"
+    && tokenRow?.capability !== "composite"
+    && !tokenRow?.modifiers?.some((modifier) => modifier.kind === "alpha"));
   return (
     <ControlSurface className={`typography__field typography__field--${property}`}>
       <TokenField
         property={property}
         tokenRow={tokenRow}
+        selection={selection}
         domElement={domElement}
         editTarget={editTarget}
         entries={entries}
-        displayValue={displayValue}
-        mixed={mixed}
-        attributionTokens={attributionTokens}
         editMetadata={metadataFor(tokenRow)}
         leading={icon}
         trailing={metric || hasTokenChip ? undefined : <IconChevronDown size={17} stroke={1.8} aria-hidden="true" />}

@@ -10,7 +10,6 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 import type { EditTarget } from "../editTarget.ts";
 import type { StyleSelection } from "../styleSelection.ts";
-import { isAggregatedProperty } from "../inspection/aggregateInspection.ts";
 
 function metadataFor(row: ResolvedProperty | null) {
   return row?.sourceProperty
@@ -38,11 +37,19 @@ export function OpacityEditor({ element, selection, entries, tokenRows = [], onA
   const editTarget: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
   const row = tokenRows.find((candidate) => candidate.property === "opacity") ?? null;
-  const aggregate = isAggregatedProperty(row) ? row.aggregate : null;
-  const mixed = aggregate?.valueState === "mixed";
-  const value = mixed ? "Mixed" : aggregate?.values[0] ?? effectiveOpacity(el, row);
+  const selectedProperty = selection && selection.elements.length > 1
+    ? selection.getProperty("opacity")
+    : null;
+  const mixed = selectedProperty?.value.kind === "mixed";
+  const value = mixed
+    ? "Mixed"
+    : selectedProperty?.value.kind === "common" ? selectedProperty.value.value : effectiveOpacity(el, row);
   const editable = row?.propertyOpacity?.editable ?? true;
-  const activeToken = mixed ? null : row?.propertyOpacity?.tokenName ?? row?.tokenName;
+  const activeToken = mixed
+    ? null
+    : selectedProperty
+      ? selectedProperty.token.kind === "common" ? selectedProperty.token.name : null
+      : row?.propertyOpacity?.tokenName ?? row?.tokenName;
 
   return (
     <div className="appearance__field opacity-editor" data-test="opacity-editor">
@@ -52,6 +59,7 @@ export function OpacityEditor({ element, selection, entries, tokenRows = [], onA
           property="opacity"
           semanticSlot="opacity"
           tokenRow={row}
+          selection={selection}
           initialValue={value}
           displayValue={value}
           domElement={el}

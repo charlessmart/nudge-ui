@@ -2,7 +2,6 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { act } from "react";
 import type { SelectedElement } from "../selectionStore.ts";
-import type { AggregatedProperty } from "../inspection/aggregateInspection.ts";
 import type { StyleSelection } from "../styleSelection.ts";
 import { getManagedSheetText } from "../managedStylesheet.ts";
 
@@ -33,30 +32,19 @@ export function makeMixedStyleSelection(
   selected: SelectedElement,
   property: string,
 ): StyleSelection {
-  const row: AggregatedProperty = {
+  const selectedProperty = {
     property,
-    tokenName: null,
-    declaredValue: "Mixed",
-    resolvedValue: "Mixed",
-    authored: "Mixed",
-    confidence: "unknown",
-    evidence: { reason: "mixed selection test fixture" },
-    aggregate: {
-      valueState: "mixed",
-      tokenState: "none",
-      values: ["first", "second"],
-      tokenNames: [null, null],
-      rows: [],
-    },
+    value: { kind: "mixed" as const },
+    token: { kind: "none" as const },
+    primaryRow: null,
   };
   return {
     primary: selected,
     elements: [selected],
     domElements: [selected.domElement],
     target: selected.domElement,
-    properties: [row],
-    getProperty: (name) => name === property ? row : null,
-    supportsProperties: (properties) => properties.every((name) => name === property),
+    primaryRows: [],
+    getProperty: (name) => name === property ? selectedProperty : null,
     supportsRole: () => false,
   };
 }

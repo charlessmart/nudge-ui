@@ -64,6 +64,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           projection={projection.spacing.padding}
           domElement={el}
           editTarget={editTarget}
+          selection={selection}
           entries={allEntries}
           tokenRows={tokenRows}
           onAfterEdit={onAfterEdit}
@@ -73,6 +74,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           projection={projection.spacing.margin}
           domElement={el}
           editTarget={editTarget}
+          selection={selection}
           entries={allEntries}
           tokenRows={tokenRows}
           onAfterEdit={onAfterEdit}
@@ -82,6 +84,7 @@ export function SpacingBox(props: SpacingBoxProps): ReactElement {
           projection={projection.spacing.inset}
           domElement={el}
           editTarget={editTarget}
+          selection={selection}
           entries={allEntries}
           tokenRows={tokenRows}
           onAfterEdit={onAfterEdit}
@@ -96,6 +99,7 @@ export interface SpacingFieldProps {
   projection: InspectorSpacingProjection;
   domElement: HTMLElement;
   editTarget?: EditTarget;
+  selection?: StyleSelection | null;
   entries: TokenEntry[];
   tokenRows: ResolvedProperty[];
   onAfterEdit?: () => void;
@@ -109,6 +113,7 @@ export function SpacingField({
   projection: spacingProjection,
   domElement: el,
   editTarget,
+  selection,
   entries,
   tokenRows,
   onAfterEdit,
@@ -127,6 +132,7 @@ export function SpacingField({
     control: (
       <TokenField
         property={sideProperty(property, side)}
+        selection={selection}
         tokenRow={findTokenRow(tokenRows, sideProperty(property, side))}
         domElement={el}
         editTarget={editTarget}

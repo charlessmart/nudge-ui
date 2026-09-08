@@ -27,7 +27,6 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
 import type { EditTarget } from "../editTarget.ts";
 import type { StyleSelection } from "../styleSelection.ts";
-import { isAggregatedProperty } from "../inspection/aggregateInspection.ts";
 
 const BORDER_STYLES = ["none", "hidden", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"];
 const INVISIBLE_BORDER_STYLES = new Set(["none", "hidden"]);
@@ -263,8 +262,8 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const linkedBorderStyle = borderStyleValue(el, tokenRows, "border-style");
   const showWidthAndColor = !(borderLinked && INVISIBLE_BORDER_STYLES.has(linkedBorderStyle));
 
-  const hasBorder = selection
-    ? selection.domElements.some((candidate) => hasBorderPresence(candidate, []))
+  const hasBorder = isGroup
+    ? selection?.domElements.some((candidate) => hasBorderPresence(candidate, [])) ?? false
     : hasBorderPresence(el, tokenRows);
   const [borderSessionOpen, setBorderSessionOpen] = useState(false);
   useEffect(() => {
@@ -310,6 +309,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
       <ControlSurface>
         <TokenField
           property={borderColorProperties[index]!}
+          selection={selection}
           tokenRow={findTokenRow(tokenRows, borderColorProperties[index]!)}
           domElement={el}
           editTarget={editTarget}
@@ -322,6 +322,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
       <ControlSurface>
         <TokenField
           property={borderWidthProperties[index]!}
+          selection={selection}
           tokenRow={findTokenRow(tokenRows, borderWidthProperties[index]!)}
           domElement={el}
           editTarget={editTarget}
@@ -337,6 +338,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
         tokenRow={findTokenRow(tokenRows, borderStyleProperties[index]!)}
         domElement={el}
         editTarget={editTarget}
+        selection={selection}
         dataTest={`border-style-${side}`}
         onAfterEdit={onAfterEdit}
       />
@@ -376,6 +378,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
               <ControlSurface>
                 <TokenField
                   property="border"
+                  selection={selection}
                   tokenRow={borderRow}
                   domElement={el}
                   editTarget={editTarget}
@@ -392,6 +395,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                     <ControlSurface>
                       <TokenField
                         property="border-color"
+                        selection={selection}
                         tokenRow={linkedTokenRow(tokenRows, "border-color", borderColorProperties)}
                         domElement={el}
                         editTarget={editTarget}
@@ -404,6 +408,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                     <ControlSurface>
                       <TokenField
                         property="border-width"
+                        selection={selection}
                         tokenRow={linkedTokenRow(tokenRows, "border-width", borderWidthProperties)}
                         domElement={el}
                         editTarget={editTarget}
@@ -420,6 +425,7 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
                 tokenRow={linkedTokenRow(tokenRows, "border-style", borderStyleProperties)}
                 domElement={el}
                 editTarget={editTarget}
+                selection={selection}
                 onAfterEdit={onAfterEdit}
               />
               <ToggleButton
@@ -497,21 +503,23 @@ interface BorderStyleSettingsMenuProps {
   tokenRow?: ResolvedProperty | null;
   domElement: HTMLElement;
   editTarget?: EditTarget;
+  selection?: StyleSelection | null;
   dataTest?: string;
   onAfterEdit?: () => void;
 }
 
-function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, editTarget, dataTest = "border-style-settings", onAfterEdit }: BorderStyleSettingsMenuProps): ReactElement {
+function BorderStyleSettingsMenu({ property, tokenRow, domElement: el, editTarget, selection, dataTest = "border-style-settings", onAfterEdit }: BorderStyleSettingsMenuProps): ReactElement {
   const structured = tokenRow?.structure?.style?.trim().toLowerCase() ?? "";
-  const aggregate = isAggregatedProperty(tokenRow) ? tokenRow.aggregate : null;
-  const mixed = aggregate?.valueState === "mixed";
-  const initial = mixed ? "Mixed" : structured || getStateStyleValue(el, property, "none") || "none";
+  const selectedValue = selection?.getProperty(property)?.value;
+  const mixed = selectedValue?.kind === "mixed";
+  const commonValue = selectedValue?.kind === "common" ? selectedValue.value : "";
+  const initial = mixed ? "Mixed" : commonValue || structured || getStateStyleValue(el, property, "none") || "none";
   const [value, setValue] = useState(initial);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    setValue(mixed ? "Mixed" : structured || getStateStyleValue(el, property, "none") || "none");
-  }, [el, mixed, property, structured]);
+    setValue(mixed ? "Mixed" : commonValue || structured || getStateStyleValue(el, property, "none") || "none");
+  }, [commonValue, el, mixed, property, structured]);
 
   function handleChange(next: string): void {
     if (!BORDER_STYLES.includes(next)) return;

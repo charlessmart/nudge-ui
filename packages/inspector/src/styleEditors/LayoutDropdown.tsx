@@ -23,8 +23,8 @@ export interface LayoutDropdownProps {
 export function LayoutDropdown(props: LayoutDropdownProps): ReactElement {
   const { property, options, domElement: el, editTarget, selection, stacked, revision = 0, onAfterEdit } = props;
   const atRules = useFieldAtRules(property);
-  const aggregate = selection?.getProperty(property);
-  const mixed = aggregate?.aggregate.valueState === "mixed";
+  const selectedProperty = selection?.getProperty(property);
+  const mixed = selectedProperty?.value.kind === "mixed";
 
   const [value, setValue] = useState(() =>
     getStateStyleValue(el, property, options[0]),

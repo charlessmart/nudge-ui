@@ -224,22 +224,23 @@ describe("LayoutSection", () => {
     const first = makeSelected("Stack", "src/Stack.tsx:1:1");
     const second = makeSelected("Stack", "src/Stack.tsx:2:1");
     mockComputedStyle({ display: "flex", position: "static", "flex-direction": "row", "flex-wrap": "nowrap" });
-    const aggregate = (property: string, values: readonly string[]) => ({
+    const mixedProperty = (property: string) => ({
       property,
-      aggregate: { valueState: "mixed", values },
+      value: { kind: "mixed" as const },
+      token: { kind: "none" as const },
+      primaryRow: null,
     });
     const selection = {
       primary: second.selected,
       elements: [first.selected, second.selected],
       domElements: [first.el, second.el],
       target: [first.el, second.el],
-      properties: [],
+      primaryRows: [],
       getProperty: (property: string) => property === "flex-direction"
-        ? aggregate(property, ["row", "column"])
+        ? mixedProperty(property)
         : property === "flex-wrap"
-          ? aggregate(property, ["nowrap", "wrap"])
+          ? mixedProperty(property)
           : null,
-      supportsProperties: () => true,
       supportsRole: (role: string) => role === "flex-container",
     } as StyleSelection;
 

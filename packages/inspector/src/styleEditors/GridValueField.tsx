@@ -41,7 +41,7 @@ export function GridValueField({
   onAfterEdit,
 }: GridValueFieldProps): ReactElement {
   const atRules = useFieldAtRules(property);
-  const mixed = selection?.getProperty(property)?.aggregate.valueState === "mixed";
+  const mixed = selection?.getProperty(property)?.value.kind === "mixed";
   const readValue = (): string => {
     const value = getLayoutValue(el, property);
     return value.authored || value.computed || DEFAULT_GRID_VALUES[property] || "";

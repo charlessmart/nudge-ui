@@ -30,7 +30,8 @@ import { BoxShadowEditor } from "./styleEditors/BoxShadowEditor.tsx";
 import { LayoutSection } from "./styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
 import { discardChangesForInstanceOverride, undo, redo } from "./changesLog.ts";
-import { countBatchEditReach, countSourceSiteMatches, getEditScope, planBatchEditScopes, relinkElement, sourceSiteSelector, unlinkElement } from "./editScope.ts";
+import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector, unlinkElement } from "./editScope.ts";
+import { canEditStyles } from "./tokens/editActions.ts";
 import { Button } from "./ui/Button.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import type { SettingsSection } from "./settings/SettingsDialog.tsx";
@@ -54,7 +55,7 @@ import { useNudgeUiRuntimeConfig } from "./useRuntimeConfig.ts";
 import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { createStyleSelection } from "./styleSelection.ts";
-import { intersectTokenEntries } from "./inspection/aggregateInspection.ts";
+import { intersectTokenEntries } from "./inspection/selectionProperty.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -226,41 +227,28 @@ export function InspectorShell(): ReactElement {
   }, [isOpen, isMultiSelection, selected]);
 
   const inspectionSnapshot = cssInspection.element;
-  const batchScopePlan = useMemo(
-    () => isMultiSelection
-      ? planBatchEditScopes(selectedElements.map(({ domElement }) => domElement))
-      : null,
-    [isMultiSelection, scopeRevision, selectedElements],
-  );
-  const multiSelectionEditable = !isMultiSelection || batchScopePlan !== null;
   const styleSelection = useMemo(
-    () => isMultiSelection && multiSelectionEditable
-      ? createStyleSelection(selectedElements, cssInspection.elements, selected)
-      : null,
-    [cssInspection.elements, isMultiSelection, multiSelectionEditable, selected, selectedElements],
+    () => createStyleSelection(selectedElements, cssInspection.elements, selected),
+    [cssInspection.elements, selected, selectedElements],
+  );
+  const selectionEditable = useMemo(
+    () => styleSelection ? canEditStyles(styleSelection.target) : false,
+    [scopeRevision, styleSelection],
   );
   const tokenEntries: TokenEntry[] = useMemo(
-    () => isMultiSelection
-      ? intersectTokenEntries(cssInspection.elements.map((snapshot) => snapshot.availableTokens))
-      : inspectionSnapshot ? [...inspectionSnapshot.availableTokens] : [],
-    [cssInspection.elements, inspectionSnapshot, isMultiSelection],
+    () => intersectTokenEntries(cssInspection.elements.map((snapshot) => snapshot.availableTokens)),
+    [cssInspection.elements],
   );
   const tokenRows: ResolvedProperty[] = useMemo(
-    () => isMultiSelection && styleSelection
-      ? [...styleSelection.properties]
-      : inspectionSnapshot ? [...inspectionSnapshot.properties] : [],
-    [inspectionSnapshot, isMultiSelection, styleSelection],
+    () => styleSelection ? [...styleSelection.primaryRows] : [],
+    [styleSelection],
   );
-  const availableInteractionStates = isMultiSelection
-    ? cssInspection.elements.reduce<InteractionState[]>((common, snapshot, index) => {
-      if (index === 0) return [...snapshot.availableStates];
-      return common.filter((state) => snapshot.availableStates.includes(state));
-    }, [])
-    : inspectionSnapshot?.availableStates ?? [];
+  const availableInteractionStates = inspectionSnapshot?.availableStates ?? [];
   const showInteractionState = !isMultiSelection && availableInteractionStates.length > 2;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
   const backgroundTokenRow = useMemo(() => {
-    if (!selected || isMultiSelection) return null;
+    if (!selected) return null;
+    if (isMultiSelection) return paintedBackgroundRow;
     if (paintedBackgroundRow?.tokenName || styleState !== "base") return paintedBackgroundRow;
     return cssInspection.stableProperties.find((row) =>
       (row.property === "background-color" || row.property === "background") && row.tokenName,
@@ -272,9 +260,6 @@ export function InspectorShell(): ReactElement {
     : 0;
   const hasEditScopeCallout = !isMultiSelection
     && (editScope === "rendered-instance" || sourceSiteMatchCount > 1);
-  const selectionReach = isMultiSelection
-    ? countBatchEditReach(selectedElements.map((element) => element.domElement))
-    : 0;
   function refreshScopeState(): void {
     refreshScope((revision) => revision + 1);
   }
@@ -441,16 +426,10 @@ export function InspectorShell(): ReactElement {
                   data-selected-cid={selected.cid}
                   data-selected-src={selected.src}
                   data-selected-count={selectedElements.length}
-                  data-selected-reach={selectionReach}
                   >
                     {isMultiSelection ? (
                       <div className="selection__summary" data-test="multi-selection-summary">
                         <span className="selection__count">{selectedElements.length} elements selected</span>
-                        <span className="selection__reach">
-                          {multiSelectionEditable
-                            ? `Changes affect ${selectionReach} rendered items.`
-                            : "This partial group cannot be edited safely."}
-                        </span>
                       </div>
                     ) : null}
                     {showInteractionState ? (
@@ -522,91 +501,20 @@ export function InspectorShell(): ReactElement {
 
               {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
 
-              {multiSelectionEditable ? (
+              {selectionEditable ? (
                 <AtRuleContextProvider rows={tokenRows}>
                   <div className="style-editors" data-test="style-editors">
                   {/* CSS edits publish through changesLog and browser inspection;
                       component metadata does not change. LayoutSection keeps its
                       own revision for controls that depend on computed layout. */}
-                  {isMultiSelection ? (
-                    <>
-                      <LayoutSection
-                        key={`layout-${styleState}`}
-                        element={selected}
-                        selection={styleSelection}
-                        entries={tokenEntries}
-                        tokenRows={tokenRows}
-                      />
-                      <SpacingBox
-                        key={`spacing-${styleState}`}
-                        element={selected}
-                        selection={styleSelection}
-                        entries={tokenEntries}
-                        tokenRows={tokenRows}
-                      />
-                      <AppearanceSection
-                        key={`appearance-${styleState}`}
-                        element={selected}
-                        selection={styleSelection}
-                        entries={tokenEntries}
-                        tokenRows={tokenRows}
-                      />
-                      <Typography key={`type-${styleState}`} element={selected} elements={selectedElements} entries={tokenEntries} tokenRows={tokenRows} />
-                      <ColorPicker
-                        key={`color-${styleState}`}
-                        element={selected}
-                        elements={selectedElements}
-                        property="color"
-                        entries={tokenEntries}
-                        tokenRow={findTokenRow(tokenRows, "color")}
-                      />
-                      <ColorPicker
-                        key={`background-${styleState}`}
-                        element={selected}
-                        elements={selectedElements}
-                        property="background-color"
-                        entries={tokenEntries}
-                        tokenRow={findTokenRow(tokenRows, "background-color")}
-                      />
-                      <BorderEditor
-                        key={`border-${styleState}`}
-                        element={selected}
-                        selection={styleSelection}
-                        entries={tokenEntries}
-                        tokenRows={tokenRows}
-                      />
-                      <BoxShadowEditor
-                        key={`box-shadow-${styleState}`}
-                        element={selected}
-                        selection={styleSelection}
-                        entries={tokenEntries}
-                        tokenRows={tokenRows}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <LayoutSection key={`layout-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                      <SpacingBox key={`spacing-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                      <AppearanceSection key={`appearance-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                      <Typography key={`type-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                      <ColorPicker
-                        key={`color-${styleState}`}
-                        element={selected}
-                        property="color"
-                        entries={tokenEntries}
-                        tokenRow={findTokenRow(tokenRows, "color")}
-                      />
-                      <ColorPicker
-                        key={`background-${styleState}`}
-                        element={selected}
-                        property="background-color"
-                        entries={tokenEntries}
-                        tokenRow={backgroundTokenRow}
-                      />
-                      <BorderEditor key={`border-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                      <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                    </>
-                  )}
+                  <LayoutSection key={`layout-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  <SpacingBox key={`spacing-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  <AppearanceSection key={`appearance-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  <Typography key={`type-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  <ColorPicker key={`color-${styleState}`} element={selected} selection={styleSelection} property="color" entries={tokenEntries} tokenRow={findTokenRow(tokenRows, "color")} />
+                  <ColorPicker key={`background-${styleState}`} element={selected} selection={styleSelection} property="background-color" entries={tokenEntries} tokenRow={backgroundTokenRow} />
+                  <BorderEditor key={`border-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
                   </div>
                 </AtRuleContextProvider>
               ) : (

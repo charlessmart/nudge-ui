@@ -1,10 +1,12 @@
 import {
   getRenderedInstanceOverride,
   createRenderedInstanceOverride,
-  buildRenderedInstanceOverride,
+  buildRenderedInstanceOverrideForTarget,
+  captureRenderedInstance,
   clearRenderedInstanceOverride,
   resolveRenderedInstance,
   type RenderedInstanceOverride,
+  type RenderedInstanceRef,
 } from "./renderedInstance.ts";
 import { sourceSiteSelector } from "./sourceSite.ts";
 
@@ -81,53 +83,19 @@ export interface BatchScopeFields {
   instanceOverride?: RenderedInstanceOverride;
 }
 
-/**
- * Calculates how many rendered nodes a group edit can affect without creating
- * any instance overrides. This is used for the panel's reach summary; the
- * actual edit path plans all scopes together when it commits declarations.
- */
-export function countBatchEditReach(selectedElements: readonly HTMLElement[]): number {
-  if (selectedElements.length <= 1) return selectedElements.length;
-  const sourceGroups = new Map<string, { element: HTMLElement; selected: number; total: number }>();
-  let instanceCount = 0;
-
-  for (const element of selectedElements) {
-    if (getRenderedInstanceOverride(element)) {
-      instanceCount += 1;
-      continue;
-    }
-    const selector = selectorForElement(element);
-    if (!selector) {
-      instanceCount += 1;
-      continue;
-    }
-    const group = sourceGroups.get(selector);
-    if (group) {
-      group.selected += 1;
-      continue;
-    }
-    sourceGroups.set(selector, {
-      element,
-      selected: 1,
-      total: querySourceSiteMatches(element),
-    });
-  }
-
-  return instanceCount + [...sourceGroups.values()].reduce((reach, group) => {
-    if (group.total <= 1 || group.selected >= group.total) return reach + group.total;
-    return reach + group.selected;
-  }, 0);
-}
+type BatchScopeDecision =
+  | BatchScopeFields
+  | { scope: "new-rendered-instance"; target: RenderedInstanceRef };
 
 /**
  * Plans the scope for every target in a batch edit without mutating the DOM or
  * transient instance state. A partial repeated-source group is editable only
  * when each selected output has evidence that resolves uniquely.
  */
-export function planBatchEditScopes(
+function analyzeBatchEditScopes(
   selectedElements: readonly HTMLElement[],
-): ReadonlyMap<HTMLElement, BatchScopeFields> | null {
-  const plan = new Map<HTMLElement, BatchScopeFields>();
+): ReadonlyMap<HTMLElement, BatchScopeDecision> | null {
+  const plan = new Map<HTMLElement, BatchScopeDecision>();
   if (selectedElements.length <= 1) {
     for (const element of selectedElements) {
       const existing = getRenderedInstanceOverride(element);
@@ -162,11 +130,34 @@ export function planBatchEditScopes(
       continue;
     }
 
-    const instanceOverride = buildRenderedInstanceOverride(element);
-    if (!instanceOverride) return null;
-    const resolution = resolveRenderedInstance(element.ownerDocument, instanceOverride.target);
+    const target = captureRenderedInstance(element);
+    if (!target) return null;
+    const resolution = resolveRenderedInstance(element.ownerDocument, target);
     if (resolution.status !== "resolved" || resolution.element !== element) return null;
-    plan.set(element, { scope: "rendered-instance", instanceOverride });
+    plan.set(element, { scope: "new-rendered-instance", target });
+  }
+  return plan;
+}
+
+/** Returns whether every element can be addressed safely by one batch edit. */
+export function canPlanBatchEditScopes(selectedElements: readonly HTMLElement[]): boolean {
+  return analyzeBatchEditScopes(selectedElements) !== null;
+}
+
+/** Resolves safe scopes immediately before a write is committed. */
+export function planBatchEditScopes(
+  selectedElements: readonly HTMLElement[],
+): ReadonlyMap<HTMLElement, BatchScopeFields> | null {
+  const decisions = analyzeBatchEditScopes(selectedElements);
+  if (!decisions) return null;
+  const plan = new Map<HTMLElement, BatchScopeFields>();
+  for (const [element, decision] of decisions) {
+    plan.set(element, decision.scope === "new-rendered-instance"
+      ? {
+          scope: "rendered-instance",
+          instanceOverride: buildRenderedInstanceOverrideForTarget(decision.target),
+        }
+      : decision);
   }
   return plan;
 }

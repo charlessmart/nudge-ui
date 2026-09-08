@@ -4,7 +4,7 @@ import {
   appendChanges,
 } from "../changesLog.ts";
 import type { ElementChangeRecord } from "../changesLog.ts";
-import { planBatchEditScopes, selectorForElement, sourceSiteSelector, type BatchScopeFields } from "../editScope.ts";
+import { canPlanBatchEditScopes, planBatchEditScopes, selectorForElement, sourceSiteSelector, type BatchScopeFields } from "../editScope.ts";
 import { getActiveStyleState, selectorForInteractionState } from "../styleState.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import {
@@ -70,6 +70,11 @@ export { getPendingRules, getChangesList as getChangeRecords, clearChanges as re
 export interface StyleEditMetadata {
   sourceProperty?: string;
   sourceAuthoredValue?: string;
+}
+
+/** Returns whether a style write can address every element in the target safely. */
+export function canEditStyles(target: EditTarget): boolean {
+  return canPlanBatchEditScopes(targetElements(target));
 }
 
 export function buildSelector(cid: string, src: string): string | null {

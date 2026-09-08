@@ -335,7 +335,6 @@ export function CanvasElementOverlay(): ReactElement | null {
           className="canvas-selected-outline"
           data-test="canvas-selected-outline"
           data-selected-index={index}
-          data-primary={index === selectedPrimaryIndex ? "true" : "false"}
           style={overlayStyle(rect)}
           aria-hidden="true"
         />

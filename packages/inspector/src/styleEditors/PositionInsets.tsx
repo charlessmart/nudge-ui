@@ -40,6 +40,7 @@ export function PositionInsets({
         projection={projection.spacing.inset}
         domElement={el}
         editTarget={editTarget}
+        selection={selection}
         entries={allEntries}
         tokenRows={tokenRows}
         onAfterEdit={onAfterEdit}

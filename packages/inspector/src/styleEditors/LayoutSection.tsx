@@ -65,15 +65,15 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const [layoutRevision, setLayoutRevision] = useState(0);
   const [flexDirection] = useComputedLayoutValue(el, "flex-direction", "row", layoutRevision);
   const [flexWrap] = useComputedLayoutValue(el, "flex-wrap", "nowrap", layoutRevision);
-  const directionAggregate = selection?.getProperty("flex-direction")?.aggregate;
-  const wrapAggregate = selection?.getProperty("flex-wrap")?.aggregate;
-  const mixedFlexDirection = directionAggregate?.valueState === "mixed";
-  const mixedFlexWrap = wrapAggregate?.valueState === "mixed";
-  const sharedFlexDirection = directionAggregate?.valueState === "common"
-    ? directionAggregate.values[0] ?? flexDirection
+  const selectedDirection = selection?.getProperty("flex-direction")?.value;
+  const selectedWrap = selection?.getProperty("flex-wrap")?.value;
+  const mixedFlexDirection = selectedDirection?.kind === "mixed";
+  const mixedFlexWrap = selectedWrap?.kind === "mixed";
+  const sharedFlexDirection = selectedDirection?.kind === "common"
+    ? selectedDirection.value
     : flexDirection;
-  const sharedFlexWrap = wrapAggregate?.valueState === "common"
-    ? wrapAggregate.values[0] ?? flexWrap
+  const sharedFlexWrap = selectedWrap?.kind === "common"
+    ? selectedWrap.value
     : flexWrap;
   const isFlexWrapped = mixedFlexDirection || mixedFlexWrap || sharedFlexWrap !== "nowrap";
   const relevantGap = !mixedFlexDirection && sharedFlexDirection.startsWith("column") ? "row-gap" : "column-gap";
@@ -117,7 +117,8 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const isFlexChild = selection ? selection.supportsRole("flex-child") : primaryIsFlexChild;
   const isGridContainer = selection ? selection.supportsRole("grid-container") : primaryIsGridContainer;
   const isGridChild = selection ? selection.supportsRole("grid-child") : primaryIsGridChild;
-  const position = selection?.getProperty("position")?.aggregate.values[0] ?? primaryPosition;
+  const selectedPosition = selection?.getProperty("position")?.value;
+  const position = selectedPosition?.kind === "common" ? selectedPosition.value : primaryPosition;
   const showPositionInsets = selection
     ? selection.supportsRole("inset-position")
     : position === "absolute" || position === "fixed";
@@ -130,6 +131,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
           <SizeSection
             domElement={el}
             editTarget={editTarget}
+            selection={selection}
             entries={allEntries}
             tokenRows={tokenRows}
             revision={layoutRevision}
@@ -285,13 +287,14 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
 interface SizeSectionProps {
   domElement: HTMLElement;
   editTarget: EditTarget;
+  selection?: StyleSelection | null;
   entries: TokenEntry[];
   tokenRows: ResolvedProperty[];
   revision: number;
   onAfterEdit?: () => void;
 }
 
-function SizeSection({ domElement: el, editTarget, entries, tokenRows, revision, onAfterEdit }: SizeSectionProps): ReactElement {
+function SizeSection({ domElement: el, editTarget, selection, entries, tokenRows, revision, onAfterEdit }: SizeSectionProps): ReactElement {
   const [expanded, setExpanded] = useState(false);
 
   const fields = [
@@ -308,6 +311,7 @@ function SizeSection({ domElement: el, editTarget, entries, tokenRows, revision,
       <ControlSurface className={property === "width" || property === "height" ? "layout__size-field--icon" : undefined}>
         <TokenField
           property={property}
+          selection={selection}
           tokenRow={tokenRows.find((row) => row.property === property) ?? null}
           initialValue={meaningfulLayoutValue(el, property)}
           domElement={el}
@@ -365,6 +369,7 @@ function SizeSection({ domElement: el, editTarget, entries, tokenRows, revision,
             className="layout__size-cell layout__size-cell--aspect-ratio"
             domElement={el}
             editTarget={editTarget}
+            selection={selection}
             entries={entries}
             tokenRow={tokenRows.find((row) => row.property === "aspect-ratio") ?? null}
             revision={revision}
@@ -502,9 +507,9 @@ function FlexGapField({ property, domElement, editTarget, selection, revision = 
 
 function FlexDirectionControl({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [direction, setDirection] = useComputedLayoutValue(domElement, "flex-direction", "row", revision);
-  const aggregate = selection?.getProperty("flex-direction")?.aggregate;
-  const mixed = aggregate?.valueState === "mixed";
-  const sharedDirection = aggregate?.valueState === "common" ? aggregate.values[0] ?? direction : direction;
+  const selectedDirection = selection?.getProperty("flex-direction")?.value;
+  const mixed = selectedDirection?.kind === "mixed";
+  const sharedDirection = selectedDirection?.kind === "common" ? selectedDirection.value : direction;
   const orientation = sharedDirection.startsWith("column") ? "column" : "row";
   const reverse = sharedDirection.endsWith("-reverse");
 
@@ -548,9 +553,9 @@ function FlexDirectionControl({ domElement, editTarget, selection, revision = 0,
 
 function FlexWrapToggle({ domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexControlProps): ReactElement {
   const [wrap] = useComputedLayoutValue(domElement, "flex-wrap", "nowrap", revision);
-  const aggregate = selection?.getProperty("flex-wrap")?.aggregate;
-  const mixed = aggregate?.valueState === "mixed";
-  const sharedWrap = aggregate?.valueState === "common" ? aggregate.values[0] ?? wrap : wrap;
+  const selectedWrap = selection?.getProperty("flex-wrap")?.value;
+  const mixed = selectedWrap?.kind === "mixed";
+  const sharedWrap = selectedWrap?.kind === "common" ? selectedWrap.value : wrap;
   const isWrapped = !mixed && sharedWrap !== "nowrap";
 
   function toggleWrap(): void {
@@ -579,14 +584,14 @@ function FlexSettingsMenu({ domElement, editTarget, selection, revision = 0, onA
   const [alignContent] = useComputedLayoutValue(domElement, "align-content", "normal", revision);
   const [alignItems] = useComputedLayoutValue(domElement, "align-items", "stretch", revision);
   const [open, setOpen] = useState(false);
-  const directionAggregate = selection?.getProperty("flex-direction")?.aggregate;
-  const wrapAggregate = selection?.getProperty("flex-wrap")?.aggregate;
-  const mixedDirection = directionAggregate?.valueState === "mixed";
-  const mixedWrap = wrapAggregate?.valueState === "mixed";
-  const sharedDirection = directionAggregate?.valueState === "common"
-    ? directionAggregate.values[0] ?? direction
+  const selectedDirection = selection?.getProperty("flex-direction")?.value;
+  const selectedWrap = selection?.getProperty("flex-wrap")?.value;
+  const mixedDirection = selectedDirection?.kind === "mixed";
+  const mixedWrap = selectedWrap?.kind === "mixed";
+  const sharedDirection = selectedDirection?.kind === "common"
+    ? selectedDirection.value
     : direction;
-  const sharedWrap = wrapAggregate?.valueState === "common" ? wrapAggregate.values[0] ?? wrap : wrap;
+  const sharedWrap = selectedWrap?.kind === "common" ? selectedWrap.value : wrap;
   const orientation = sharedDirection.startsWith("column") ? "column" : "row";
   const crossAxis = mixedDirection ? "cross axis" : orientation === "column" ? "width" : "height";
   const isStretching = normalizeFlexAlign(alignItems) === "stretch";
