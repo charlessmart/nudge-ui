@@ -1,6 +1,6 @@
 {
   "name": "@nudge-ui/agent-protocol",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Host-neutral browser-agent bridge and Canvas protocol contracts for Nudge UI.",
   "license": "MIT",
   "repository": {
