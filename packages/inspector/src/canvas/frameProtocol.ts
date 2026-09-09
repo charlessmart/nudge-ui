@@ -140,6 +140,8 @@ export interface ElementClickMessage extends RendererMessage {
   file: string;
   line: number;
   component: string;
+  /** True for a Shift-click that toggles this target in the selection group. */
+  additive?: boolean;
 }
 
 /** Renderer request to clear the controller-owned element selection. */
@@ -269,6 +271,29 @@ export function isRendererMessageFor(
     && message.cardId === identity.cardId;
 }
 
+/** Strict JSON-only schema for selecting an element from a renderer frame. */
+export function isElementClickMessage(
+  value: unknown,
+  identity: FrameIdentity,
+): value is ElementClickMessage {
+  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
+  if (!hasOnlyKeys(value, [
+    "type", "protocolVersion", "projectId", "workspaceId", "cardId",
+    "cid", "selector", "src", "elementId", "file", "line", "component", "additive",
+  ])) return false;
+  const line = ownValue(value, "line");
+  const additive = ownValue(value, "additive");
+  return ownValue(value, "type") === "element-click"
+    && typeof ownValue(value, "cid") === "string"
+    && typeof ownValue(value, "selector") === "string"
+    && typeof ownValue(value, "src") === "string"
+    && typeof ownValue(value, "elementId") === "string"
+    && typeof ownValue(value, "file") === "string"
+    && typeof line === "number" && Number.isSafeInteger(line) && line >= 0
+    && typeof ownValue(value, "component") === "string"
+    && (additive === undefined || typeof additive === "boolean");
+}
+
 /** Strict JSON-only schema for renderer diagnostics before the parent records them. */
 export function isStructuralProjectionReportMessage(
   value: unknown,
@@ -358,15 +383,23 @@ export function isComponentOverrideList(value: unknown): value is ComponentOverr
 
 /** Raw JSON object at the renderer postMessage boundary. */
 interface ProtocolObject {
+  readonly additive?: unknown;
   readonly cardId?: unknown;
+  readonly cid?: unknown;
   readonly callsiteId?: unknown;
   readonly framework?: unknown;
+  readonly elementId?: unknown;
+  readonly file?: unknown;
+  readonly line?: unknown;
   readonly prop?: unknown;
   readonly projectId?: unknown;
   readonly protocolVersion?: unknown;
   readonly reports?: unknown;
   readonly revision?: unknown;
   readonly type?: unknown;
+  readonly selector?: unknown;
+  readonly src?: unknown;
+  readonly component?: unknown;
   readonly value?: unknown;
   readonly workspaceId?: unknown;
 }
@@ -379,15 +412,23 @@ function isProtocolObject(value: unknown): value is ProtocolObject {
 
 function ownValue(value: ProtocolObject, key: ProtocolObjectKey): unknown {
   switch (key) {
+    case "additive": return value.additive;
     case "cardId": return value.cardId;
+    case "cid": return value.cid;
     case "callsiteId": return value.callsiteId;
     case "framework": return value.framework;
+    case "elementId": return value.elementId;
+    case "file": return value.file;
+    case "line": return value.line;
     case "prop": return value.prop;
     case "projectId": return value.projectId;
     case "protocolVersion": return value.protocolVersion;
     case "reports": return value.reports;
     case "revision": return value.revision;
     case "type": return value.type;
+    case "selector": return value.selector;
+    case "src": return value.src;
+    case "component": return value.component;
     case "value": return value.value;
     case "workspaceId": return value.workspaceId;
   }

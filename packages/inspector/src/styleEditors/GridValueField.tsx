@@ -6,6 +6,8 @@ import { getLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "./styleActions.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import type { StringRecord } from "./stringRecord.ts";
+import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 const DEFAULT_GRID_VALUES: StringRecord = {
   "grid-template-columns": "none",
@@ -19,6 +21,8 @@ const DEFAULT_GRID_VALUES: StringRecord = {
 export interface GridValueFieldProps {
   property: string;
   domElement: HTMLElement;
+  editTarget?: EditTarget;
+  selection?: StyleSelection | null;
   revision?: number;
   onAfterEdit?: () => void;
 }
@@ -31,10 +35,13 @@ export interface GridValueFieldProps {
 export function GridValueField({
   property,
   domElement: el,
+  editTarget,
+  selection,
   revision = 0,
   onAfterEdit,
 }: GridValueFieldProps): ReactElement {
   const atRules = useFieldAtRules(property);
+  const mixed = selection?.getProperty(property)?.value.kind === "mixed";
   const readValue = (): string => {
     const value = getLayoutValue(el, property);
     return value.authored || value.computed || DEFAULT_GRID_VALUES[property] || "";
@@ -49,8 +56,8 @@ export function GridValueField({
   useEffect(() => {
     const next = readValue();
     setValue(next);
-    updateDraft(next);
-  }, [el, property, revision]);
+    updateDraft(mixed ? "" : next);
+  }, [el, mixed, property, revision]);
 
   function updateDraft(next: string): void {
     draftRef.current = next;
@@ -60,16 +67,16 @@ export function GridValueField({
   function commit(): void {
     const next = draftRef.current.trim();
     if (!next) {
-      updateDraft(value);
+      updateDraft(mixed ? "" : value);
       return;
     }
     setValue(next);
     updateDraft(next);
-    if (setStyle(el, property, next)) onAfterEdit?.();
+    if (setStyle(editTarget ?? el, property, next)) onAfterEdit?.();
   }
 
   function cancel(): void {
-    updateDraft(value);
+    updateDraft(mixed ? "" : value);
   }
 
   return (
@@ -81,6 +88,7 @@ export function GridValueField({
     >
       <TextInput
         value={draft}
+        placeholder={mixed ? "Mixed" : undefined}
         data-test={`layout-grid-input-${property}`}
         aria-label={property}
         onChange={(event) => updateDraft(event.target.value)}

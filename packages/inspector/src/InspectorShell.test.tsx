@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { mountInspector, unmountInspector } from "./index.ts";
-import { getSelectedElement, setSelectedElement } from "./selectionStore.ts";
+import { getSelectedElement, setSelectedElement, setSelectedElements } from "./selectionStore.ts";
 import * as selectionResolver from "./resolveSelection.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import { appendChange } from "./changesLog.ts";
@@ -189,6 +189,69 @@ describe("InspectorShell", () => {
       setSelectedElement(null);
       selected.remove();
       linked.remove();
+    }
+  });
+
+  it("shows a group summary and exposes shared style controls for multi-selection", () => {
+    const first = document.createElement("button");
+    first.dataset.cid = "Heading";
+    first.dataset.src = "fixtures/heading.tsx:1:1";
+    const second = document.createElement("button");
+    second.dataset.cid = "Heading";
+    second.dataset.src = "fixtures/heading.tsx:1:1";
+    document.body.append(first, second);
+
+    try {
+      act(() => {
+        setSelectedElements([
+          resolveSelectionFromElement(first)!,
+          resolveSelectionFromElement(second)!,
+        ]);
+        mountInspector(host);
+      });
+
+      const shadow = host.shadowRoot!;
+      expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
+        .toContain("2 elements selected");
+      expect(shadow.querySelector('[data-test="dom-navigation"]')).toBeNull();
+      expect(shadow.querySelector('[data-test="component-props-section"]')).toBeNull();
+      expect(shadow.querySelector('[data-test="layout-section"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="layout-size"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="spacing-box"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="appearance-section"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="typography"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="border-editor"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="box-shadow-editor"]')).not.toBeNull();
+    } finally {
+      setSelectedElement(null);
+      first.remove();
+      second.remove();
+    }
+  });
+
+  it("disables partial group editing when repeated outputs are indistinguishable", () => {
+    const elements = Array.from({ length: 3 }, () => {
+      const element = document.createElement("button");
+      element.dataset.cid = "Heading";
+      element.dataset.src = "fixtures/heading.tsx:1:1";
+      document.body.appendChild(element);
+      return element;
+    });
+
+    try {
+      act(() => {
+        setSelectedElements(elements.slice(0, 2).map((element) => resolveSelectionFromElement(element)!));
+        mountInspector(host);
+      });
+
+      const shadow = host.shadowRoot!;
+      expect(shadow.querySelector('[data-test="multi-selection-summary"]')?.textContent)
+        .toContain("2 elements selected");
+      expect(shadow.querySelector('[data-test="multi-selection-uneditable"]')).not.toBeNull();
+      expect(shadow.querySelector('[data-test="style-editors"]')).toBeNull();
+    } finally {
+      setSelectedElement(null);
+      elements.forEach((element) => element.remove());
     }
   });
 

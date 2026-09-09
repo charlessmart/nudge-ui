@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SelectedElement } from "../selectionStore.ts";
 import type { InteractionState } from "../styleState.ts";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
@@ -10,9 +10,17 @@ import type {
 import { getBrowserCssInspection } from "./browserCssInspectionRegistry.ts";
 
 const SELECTION_DEBOUNCE_MS = 8;
+const EMPTY_SELECTION: readonly SelectedElement[] = [];
+
+function isSelectedElementList(
+  selected: SelectedElement | readonly SelectedElement[],
+): selected is readonly SelectedElement[] {
+  return Array.isArray(selected);
+}
 
 export interface BrowserCssInspectionView {
   element: InspectionSnapshot | null;
+  elements: readonly InspectionSnapshot[];
   stableProperties: readonly ResolvedProperty[];
   documentTokens: DocumentTokenInspectionSnapshot | null;
 }
@@ -22,30 +30,39 @@ export interface BrowserCssInspectionViewOptions {
   session?: BrowserCssInspection;
 }
 
-function inspectAuthoredElement(
+function normalizeSelection(
+  selected: SelectedElement | readonly SelectedElement[] | null,
+): readonly SelectedElement[] {
+  if (!selected) return EMPTY_SELECTION;
+  if (isSelectedElementList(selected)) return selected;
+  return [selected];
+}
+
+function inspectAuthoredElements(
   session: BrowserCssInspection,
-  selected: SelectedElement | null,
+  selected: readonly SelectedElement[],
   state: InteractionState,
-): InspectionSnapshot | null {
-  return selected
-    ? session.inspect(selected.domElement, { state, cascade: "authored" })
-    : null;
+): readonly InspectionSnapshot[] {
+  return selected.map((element) => session.inspect(element.domElement, { state, cascade: "authored" }));
 }
 
 function inspectStableView(
   session: BrowserCssInspection,
-  selected: SelectedElement | null,
+  selected: readonly SelectedElement[],
   state: InteractionState,
   includeDocumentTokens: boolean,
-  element: InspectionSnapshot | null,
+  elements: readonly InspectionSnapshot[],
 ): BrowserCssInspectionView {
-  const stableProperties = selected && state === "base"
-    ? session.inspect(selected.domElement, { cascade: "stable" }).properties
+  const primary = elements[0] ?? null;
+  const stableProperties = selected[0] && state === "base"
+    ? session.inspect(selected[0].domElement, { cascade: "stable" }).properties
     : [];
+  const documentTokens = includeDocumentTokens ? session.inspectTokens() : null;
   return {
-    element,
+    element: primary,
+    elements,
     stableProperties,
-    documentTokens: includeDocumentTokens ? session.inspectTokens() : null,
+    documentTokens,
   };
 }
 
@@ -55,17 +72,24 @@ function inspectStableView(
  * the returned snapshots.
  */
 export function useBrowserCssInspection(
-  selected: SelectedElement | null,
+  selected: SelectedElement | readonly SelectedElement[] | null,
   state: InteractionState = "base",
   options: BrowserCssInspectionViewOptions = {},
 ): BrowserCssInspectionView {
-  const selectedDocument = selected?.domElement.ownerDocument ?? document;
+  const selectedElements = useMemo(() => normalizeSelection(selected), [selected]);
+  const selectedDocument = selectedElements[0]?.domElement.ownerDocument ?? document;
   const session = options.session ?? getBrowserCssInspection(selectedDocument);
   const includeDocumentTokens = options.includeDocumentTokens ?? false;
-  const latest = useRef({ selected, state, session, includeDocumentTokens });
-  latest.current = { selected, state, session, includeDocumentTokens };
+  const latest = useRef({ selected: selectedElements, state, session, includeDocumentTokens });
+  latest.current = { selected: selectedElements, state, session, includeDocumentTokens };
   const [view, setView] = useState<BrowserCssInspectionView>(() =>
-    inspectStableView(session, selected, state, includeDocumentTokens, inspectAuthoredElement(session, selected, state)));
+    inspectStableView(
+      session,
+      selectedElements,
+      state,
+      includeDocumentTokens,
+      inspectAuthoredElements(session, selectedElements, state),
+    ));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSelectionResolveAtRef = useRef(0);
   const revisionFrameRef = useRef<number | null>(null);
@@ -109,7 +133,7 @@ export function useBrowserCssInspection(
       current.selected,
       current.state,
       current.includeDocumentTokens,
-      inspectAuthoredElement(current.session, current.selected, current.state),
+      inspectAuthoredElements(current.session, current.selected, current.state),
     ));
   };
 
@@ -121,7 +145,7 @@ export function useBrowserCssInspection(
     // instead of finding a long blocking task already running, and the two
     // resolution sweeps never block one task for their combined duration.
     // The view still commits once, with the same data and ordering.
-    const element = inspectAuthoredElement(current.session, current.selected, current.state);
+    const elements = inspectAuthoredElements(current.session, current.selected, current.state);
     stableFrameRef.current = requestAnimationFrame(() => {
       stableFrameRef.current = null;
       setView(inspectStableView(
@@ -129,7 +153,7 @@ export function useBrowserCssInspection(
         current.selected,
         current.state,
         current.includeDocumentTokens,
-        element,
+        elements,
       ));
     });
   };
@@ -178,7 +202,7 @@ export function useBrowserCssInspection(
   useEffect(() => {
     scheduleSelectionInspection();
     return cancelScheduledInspection;
-  }, [includeDocumentTokens, selected, state, session]);
+  }, [includeDocumentTokens, selectedElements, state, session]);
 
   useEffect(() => session.subscribe(scheduleRevisionInspection), [session]);
 

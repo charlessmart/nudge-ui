@@ -21,6 +21,8 @@ import { getStateStyleValue } from "../stateValue.ts";
 import type { StyleEditMetadata } from "./editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { TokenChip } from "./TokenChip.tsx";
+import { isMultiTarget, type EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 export interface TokenValueFieldProps {
   property: string;
@@ -35,6 +37,7 @@ export interface TokenValueFieldProps {
   allowedTokenNames?: ReadonlySet<string>;
   isColor?: boolean;
   disabled?: boolean;
+  mixed?: boolean;
   formatRawValue?: (value: string) => string;
   onCommitRaw(value: string): void;
   onSelectToken(token: TokenEntry): boolean | void;
@@ -55,10 +58,13 @@ export interface TokenFieldProps {
   property: string;
   semanticSlot?: TokenSemanticSlot;
   tokenRow?: ResolvedProperty | null;
+  selection?: StyleSelection | null;
   initialValue?: string;
   /** Optional normalized value shown when an authored row is not token-backed. */
   displayValue?: string;
   domElement: HTMLElement;
+  /** Optional group target. `domElement` remains the primary inspection node. */
+  editTarget?: EditTarget;
   entries: TokenEntry[];
   suggestions?: ReadonlyArray<string>;
   inputDataTest?: string;
@@ -71,6 +77,10 @@ export interface TokenFieldProps {
   chipVariant?: "default" | "small";
   formatRawValue?: (value: string) => string;
   disabled?: boolean;
+  /** Shows a mixed value without accidentally committing the placeholder. */
+  mixed?: boolean;
+  /** Extra provenance labels shown beside a raw aggregate value. */
+  attributionTokens?: string[];
 }
 
 const NON_COLOR_FACTS: ColorValueFacts = { hasEmbeddedAlpha: false, isExpression: false, opacityEditable: false };
@@ -235,6 +245,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     allowedTokenNames,
     isColor = false,
     disabled = false,
+    mixed = false,
     formatRawValue = (value) => value.trim(),
     onCommitRaw,
     onSelectToken,
@@ -276,7 +287,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     setRawValue(committedValue);
     setActiveTokenName(controlledTokenName);
     setOpacityValue(opacity?.value ?? defaultOpacityValue);
-  }, [committedValue, controlledTokenName, defaultOpacityValue, opacity?.value, property]);
+  }, [committedValue, controlledTokenName, defaultOpacityValue, mixed, opacity?.value, property]);
 
   const activeToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? { name: activeTokenName, value: resolvedValue, source: "runtime" }
@@ -337,6 +348,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   }
 
   function commitRawValue(value = rawValue): void {
+    if (mixed && value.trim().toLowerCase() === "mixed") return;
     const formatted = formatRawValue(value);
     if (!formatted) {
       setRawValue(committedValue);
@@ -548,7 +560,10 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         inputRef={inputRef}
         inputAppearance="embedded"
         inputDataTest={inputDataTest}
-        inputOnFocus={() => setIsFocused(true)}
+        inputOnFocus={() => {
+          setIsFocused(true);
+          if (mixed && rawValue.trim().toLowerCase() === "mixed") setRawValue("");
+        }}
         inputOnBlur={handleRawBlur}
         inputOnKeyDown={handleRawKeyDown}
         items={[
@@ -588,9 +603,11 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     property,
     semanticSlot,
     tokenRow,
+    selection,
     initialValue,
     displayValue,
     domElement: el,
+    editTarget,
     entries,
     suggestions,
     inputDataTest,
@@ -603,7 +620,18 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     chipVariant,
     formatRawValue: formatRawValueProp,
     disabled = false,
+    mixed = false,
+    attributionTokens,
   } = props;
+  const selectedProperty = selection && selection.elements.length > 1
+    ? selection.getProperty(property)
+    : null;
+  const selectionMixed = selectedProperty?.value.kind === "mixed";
+  const effectiveMixed = mixed || selectionMixed;
+  const selectionDisplayValue = selectedProperty?.value.kind === "common"
+    ? selectedProperty.value.value
+    : undefined;
+  const effectiveMetadata = editTarget && isMultiTarget(editTarget) ? undefined : editMetadata;
   const tokenBackedOpacityName = tokenRow?.tokenName
     && tokenRow.opacity
     && tokenRow.opacity.tokenName !== tokenRow.tokenName
@@ -614,7 +642,15 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     || tokenRow.color?.isExpression));
   const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? "";
   const isCalcAuthored = /\bcalc\s*\(/i.test(authored);
-  const activeTokenName = tokenBackedOpacityName ?? (expression || isCalcAuthored ? null : tokenRow?.tokenName ?? null);
+  const selectedTokenName = selectedProperty?.token.kind === "common"
+    ? selectedProperty.token.name
+    : null;
+  const activeTokenName = effectiveMixed
+    ? null
+    : tokenBackedOpacityName
+      ?? (expression || isCalcAuthored
+        ? null
+        : selectedProperty ? selectedTokenName : tokenRow?.tokenName ?? null);
   const fallbackValue = initialValue ?? structuredBorderValue(property, tokenRow) ?? computedRaw(el, property);
   // When a calc() was simplified to a numeric value we suppress the token
   // chip so the UI shows the resolved pixel value, not the internal
@@ -625,9 +661,11 @@ export function TokenField(props: TokenFieldProps): ReactElement {
     : expression || (!activeTokenName && !isCalcAuthored)
     ? structuredBorderValue(property, tokenRow) ?? tokenRow?.authored ?? tokenRow?.declaredValue ?? fallbackValue
     : tokenRow?.resolvedValue ?? fallbackValue;
-  const committedValue = displayValue ?? (property === "font-family" && !activeTokenName
-    ? primaryFontFamily(authoredOrComputed)
-    : authoredOrComputed);
+  const committedValue = effectiveMixed
+    ? displayValue ?? "Mixed"
+    : displayValue ?? selectionDisplayValue ?? (property === "font-family" && !activeTokenName
+      ? primaryFontFamily(authoredOrComputed)
+      : authoredOrComputed);
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null
     : null;
@@ -640,27 +678,30 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       committedValue={committedValue}
       resolvedValue={tokenRow?.propertyOpacity?.value ?? tokenRow?.resolvedValue ?? committedValue}
       activeTokenName={activeTokenName}
-      attributionTokens={expression
-        ? tokenRow?.tokens?.filter((token) => token.name !== tokenRow.opacity?.tokenName).map((token) => token.name)
-        : undefined}
+      attributionTokens={attributionTokens
+        ?? (selectedProperty?.token.kind === "mixed" ? ["Mixed tokens"] : undefined)
+        ?? (expression
+          ? tokenRow?.tokens?.filter((token) => token.name !== tokenRow.opacity?.tokenName).map((token) => token.name)
+          : undefined)}
       opacity={tokenRow?.opacity}
       color={tokenRow?.color}
       entries={entries}
       suggestions={suggestions}
       inputDataTest={inputDataTest}
       disabled={disabled}
+      mixed={effectiveMixed}
       isColor={selectTokens({ property, slot: semanticSlot, entries: [] }).preferredGroup === "color"}
       formatRawValue={(value) => {
         if (formatRawValueProp) return formatRawValueProp(value);
         return completeCssValue(value.trim(), valuePolicyFor(property));
       }}
       onCommitRaw={(value) => {
-        if (setStyle(el, property, value, editMetadata)) onAfterEdit?.();
+        if (setStyle(editTarget ?? el, property, value, effectiveMetadata)) onAfterEdit?.();
       }}
       onCommitOpacity={(value) => {
         const authored = tokenRow?.authored ?? tokenRow?.declaredValue ?? committedValue;
         const result = applyValueEdit({ kind: "color-opacity", authored, opacity: value });
-        if (!result.ok || !setStyle(el, property, result.value, editMetadata)) return false;
+        if (!result.ok || !setStyle(editTarget ?? el, property, result.value, effectiveMetadata)) return false;
         onAfterEdit?.();
         return true;
       }}
@@ -673,19 +714,19 @@ export function TokenField(props: TokenFieldProps): ReactElement {
             currentToken,
             nextToken: chosen,
           });
-          if (!result.ok || !setStyle(el, targetProperty, result.value, editMetadata)) return false;
+          if (!result.ok || !setStyle(editTarget ?? el, targetProperty, result.value, effectiveMetadata)) return false;
           onAfterEdit?.();
           return true;
         }
         const change = activeTokenName
-          ? swapToken(el, targetProperty, chosen, currentToken, editMetadata)
-          : promoteToToken(el, property, chosen, editMetadata);
+          ? swapToken(editTarget ?? el, targetProperty, chosen, currentToken, effectiveMetadata)
+          : promoteToToken(editTarget ?? el, property, chosen, effectiveMetadata);
         if (!change) return false;
         onAfterEdit?.();
         return true;
       }}
       onUnlink={(value) => {
-        setStyle(el, property, value, editMetadata);
+        setStyle(editTarget ?? el, property, value, effectiveMetadata);
         onAfterEdit?.();
       }}
       leading={leading}

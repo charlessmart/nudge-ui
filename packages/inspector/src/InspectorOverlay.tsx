@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { useInspectorOpen } from "./openStore.ts";
-import { useSelectedElement } from "./selectionStore.ts";
+import { useSelectedElement, useSelectedElements } from "./selectionStore.ts";
 import { installElementSelector } from "./elementSelector.ts";
 import {
   getMarginFills,
@@ -35,14 +35,26 @@ export {
   type MarginGuideSide,
 } from "./overlayGeometry.ts";
 
+function overlayStyle(rect: Rect): CSSProperties {
+  return {
+    position: "fixed",
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+    pointerEvents: "none",
+  };
+}
+
 export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement {
   const open = useInspectorOpen();
   const selected = useSelectedElement();
+  const selectedElements = useSelectedElements();
   const inlineTextSession = useInlineTextSession();
   const [hoverRect, setHoverRect] = useState<Rect | null>(null);
   const [hoverMargins, setHoverMargins] = useState<Margins | null>(null);
   const [hoverBorders, setHoverBorders] = useState<BorderWidths | null>(null);
-  const [selectedRect, setSelectedRect] = useState<Rect | null>(null);
+  const [selectedRects, setSelectedRects] = useState<readonly Rect[]>([]);
   const [selectedBorders, setSelectedBorders] = useState<BorderWidths | null>(null);
   const [optionDown, setOptionDown] = useState(false);
   const [pointerOverPage, setPointerOverPage] = useState(false);
@@ -145,16 +157,15 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       window.removeEventListener("scroll", scheduleHoverRecalc, true);
       hoverResizeObserver?.disconnect();
     };
-  }, [open, host]);
+  }, [open, host, selectedElements.length]);
 
   useEffect(() => {
     let raf = 0;
     function recalc(): void {
+      setSelectedRects(selectedElements.map((candidate) => toRect(candidate.domElement.getBoundingClientRect())));
       if (selected) {
-        setSelectedRect(toRect(selected.domElement.getBoundingClientRect()));
         setSelectedBorders(readBorderWidths(selected.domElement));
       } else {
-        setSelectedRect(null);
         setSelectedBorders(null);
       }
     }
@@ -163,14 +174,13 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       raf = requestAnimationFrame(recalc);
     }
     recalc();
-    const stopObserving = selected
-      ? observeSelectedGeometry(selected.domElement, schedule)
-      : null;
+    const stopObserving = selectedElements.map((candidate) =>
+      observeSelectedGeometry(candidate.domElement, schedule));
     return () => {
       cancelAnimationFrame(raf);
-      stopObserving?.();
+      stopObserving.forEach((stop) => stop());
     };
-  }, [selected]);
+  }, [selectedElements]);
 
   useEffect(() => {
     if (!open) {
@@ -219,6 +229,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
 
     function onPointerDown(event: MouseEvent): void {
       if (isInlineTextEditingActive()) return;
+      if (selectedElements.length > 1) return;
       if (event.button !== 0 || !(event.target instanceof HTMLElement)) return;
       if (host === event.target || host.contains(event.target)) return;
       if (event.target.closest(`[${EMPTY_TEXT_PROJECTION_ATTR}]`)) return;
@@ -274,29 +285,16 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       clearDropGuide("inspect");
       removeInteractionStyles();
     };
-  }, [open, host]);
+  }, [open, host, selectedElements.length]);
 
-  const hoverStyle: CSSProperties = hoverRect
-    ? {
-        position: "fixed",
-        left: hoverRect.left,
-        top: hoverRect.top,
-        width: hoverRect.width,
-        height: hoverRect.height,
-        pointerEvents: "none",
-      }
-    : { display: "none" };
+  const selectedGeometry = selectedElements.flatMap((candidate, index) => {
+    const rect = selectedRects[index];
+    return rect ? [{ element: candidate, rect }] : [];
+  });
+  const selectedPrimaryIndex = selectedElements.findIndex((candidate) => candidate.domElement === selected?.domElement);
+  const selectedRect = selectedRects[selectedPrimaryIndex >= 0 ? selectedPrimaryIndex : 0] ?? null;
 
-  const selectedStyle: CSSProperties = selectedRect
-    ? {
-        position: "fixed",
-        left: selectedRect.left,
-        top: selectedRect.top,
-        width: selectedRect.width,
-        height: selectedRect.height,
-        pointerEvents: "none",
-      }
-    : { display: "none" };
+  const hoverStyle: CSSProperties = hoverRect ? overlayStyle(hoverRect) : { display: "none" };
 
   const hoverMarginGuides = hoverRect && hoverMargins
     ? getMarginGuides(hoverRect, hoverMargins)
@@ -305,6 +303,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
     ? getMarginFills(hoverRect, hoverMargins)
     : [];
   const showGuideOverlay = open
+    && selectedElements.length === 1
     && optionDown
     && pointerOverPage
     && selectedRect;
@@ -365,12 +364,17 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
           ))}
         </>
       ) : null}
-      {open && selectedRect && !inlineTextSession ? (
-        <>
-          <div className="selected-outline" data-test="selected-outline" style={selectedStyle} aria-hidden="true" />
-        </>
-      ) : null}
-      {open ? <DropGuideOverlay
+      {open && !inlineTextSession ? selectedGeometry.map(({ element, rect }, index) => (
+        <div
+          key={`${element.domElement.getAttribute("data-cid") ?? "element"}-${index}`}
+          className="selected-outline"
+          data-test="selected-outline"
+          data-selected-index={index}
+          style={overlayStyle(rect)}
+          aria-hidden="true"
+        />
+      )) : null}
+      {open && selectedElements.length === 1 ? <DropGuideOverlay
         guide={dropGuide?.document === document
           ? { orientation: dropGuide.orientation, line: dropGuide.line, target: dropGuide.target }
           : null}

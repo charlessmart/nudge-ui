@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
+  isElementClickMessage,
   isRendererMessageFor,
   type FrameProtocolMessage,
 } from "./frameProtocol.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { useBoardCamera, useCanvasCards } from "./canvasStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
-import { useSelectedElement } from "../selectionStore.ts";
+import { useSelectedElement, useSelectedElements } from "../selectionStore.ts";
 import {
   getMarginFills,
   getMarginGuides,
@@ -119,6 +120,7 @@ export function CanvasElementOverlay(): ReactElement | null {
   const [measureState, setMeasureState] = useState<FrameMeasureState | null>(null);
   const [, refreshSelectedGeometry] = useReducer((revision: number) => revision + 1, 0);
   const selected = useSelectedElement();
+  const selectedElements = useSelectedElements();
   const camera = useBoardCamera();
   useCanvasCards(); // Projected geometry must follow card drag and resize updates.
   const dragRef = useRef<CanvasDragState | null>(null);
@@ -128,23 +130,32 @@ export function CanvasElementOverlay(): ReactElement | null {
   const selectedFrame = selected?.domElement.ownerDocument.defaultView?.frameElement;
   const selectedInCanvas = selectedFrame instanceof HTMLIFrameElement
     && selectedFrame.hasAttribute("data-nudge-ui-canvas-renderer");
-  const selectedLocalRect = selectedInCanvas && selected
-    ? toRect(selected.domElement.getBoundingClientRect())
-    : null;
+  const selectedRects = selectedInCanvas
+    ? selectedElements.map((candidate) => {
+      const frame = candidate.domElement.ownerDocument.defaultView?.frameElement;
+      return frame === selectedFrame ? toRect(candidate.domElement.getBoundingClientRect()) : null;
+    })
+    : [];
+  const selectedPrimaryIndex = selectedElements.findIndex((candidate) => candidate.domElement === selected?.domElement);
+  const selectedLocalRect = selectedRects[selectedPrimaryIndex >= 0 ? selectedPrimaryIndex : 0] ?? null;
   const selectedFrameRect = selectedInCanvas
     ? toRect(selectedFrame.getBoundingClientRect())
     : null;
   const selectedRect = selectedInCanvas && selectedLocalRect
     ? projectRect(selectedFrame, selectedLocalRect, camera.zoom)
     : null;
+  const projectedSelectedRects = selectedInCanvas
+    ? selectedRects.flatMap((rect) => rect ? [projectRect(selectedFrame!, rect, camera.zoom)] : [])
+    : [];
   const selectedBorders = selectedInCanvas && selected
     ? readBorderWidths(selected.domElement)
     : null;
 
   useEffect(() => {
     if (!selectedInCanvas || !selected) return;
-    return observeSelectedGeometry(selected.domElement, refreshSelectedGeometry);
-  }, [selected, selectedInCanvas]);
+    const stops = selectedElements.map((candidate) => observeSelectedGeometry(candidate.domElement, refreshSelectedGeometry));
+    return () => stops.forEach((stop) => stop());
+  }, [selected, selectedElements, selectedInCanvas]);
 
   // The selected element's identity is computed once per selection change
   // (never per hover), so the measurement self-rulers exclusion can compare
@@ -163,11 +174,12 @@ export function CanvasElementOverlay(): ReactElement | null {
       const sourceFrame = findCanvasFrameBySource(event.source);
       if (!sourceFrame) return;
       const { cardId: sourceCardId, iframe: sourceIframe } = sourceFrame;
-      if (!isRendererMessageFor(event.data, {
+      const frameIdentity = {
         projectId: PROJECT_ID,
         workspaceId: WORKSPACE_ID,
         cardId: sourceCardId,
-      })) return;
+      };
+      if (!isRendererMessageFor(event.data, frameIdentity)) return;
 
       // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
       const data = event.data as FrameProtocolMessage;
@@ -195,12 +207,14 @@ export function CanvasElementOverlay(): ReactElement | null {
           pointerOverPage: msg.pointerOverPage,
         });
       } else if (data.type === "element-click") {
+        if (!isElementClickMessage(event.data, frameIdentity)) return;
         const msg = data;
         if (!msg.cid) return;
         handleElementClick(msg, sourceIframe, sourceCardId);
       } else if (data.type === "element-deselect") {
         setSelectedElement(null);
       } else if (data.type === "element-drag-start") {
+        if (selectedElements.length !== 1) return;
         const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         if (!element) return;
@@ -222,11 +236,13 @@ export function CanvasElementOverlay(): ReactElement | null {
         dragRef.current = null;
         clearDropGuide("canvas");
       } else if (data.type === "element-delete") {
+        if (selectedElements.length !== 1) return;
         const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         const selectedElement = element ? resolveSelectionFromElement(element) : null;
         if (selectedElement && deleteElement(selectedElement)) setSelectedElement(null);
       } else if (data.type === "element-nudge") {
+        if (selectedElements.length !== 1) return;
         const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         const record = element ? nudgeElement(element, msg.key) : null;
@@ -260,9 +276,9 @@ export function CanvasElementOverlay(): ReactElement | null {
       window.removeEventListener("message", onMessage);
       clearDropGuide("canvas");
     };
-  }, []);
+  }, [selectedElements.length]);
 
-  if (!hover && !selectedRect && !projectedDropGuide) return null;
+  if (!hover && projectedSelectedRects.length === 0 && !projectedDropGuide) return null;
 
   const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, camera.zoom) : null;
   const hoverMargins = hover ? scaleMargins(hover.margins, camera.zoom) : null;
@@ -275,7 +291,8 @@ export function CanvasElementOverlay(): ReactElement | null {
   const measureStateForSelectedFrame = measureState?.iframe === selectedFrame ? measureState : null;
   const hoverInSelectedFrame = hover?.iframe === selectedFrame ? hover : null;
   const showGuideOverlay = Boolean(
-    selectedRect
+    selectedElements.length === 1
+    && selectedRect
     && selectedFrameRect
     && measureStateForSelectedFrame?.altKey
     && measureStateForSelectedFrame.pointerOverPage,
@@ -324,7 +341,16 @@ export function CanvasElementOverlay(): ReactElement | null {
           ))}
         </>
       ) : null}
-      {selectedRect ? <div className="canvas-selected-outline" data-test="canvas-selected-outline" style={overlayStyle(selectedRect)} aria-hidden="true" /> : null}
+      {projectedSelectedRects.map((rect, index) => (
+        <div
+          key={`canvas-selected-${index}`}
+          className="canvas-selected-outline"
+          data-test="canvas-selected-outline"
+          data-selected-index={index}
+          style={overlayStyle(rect)}
+          aria-hidden="true"
+        />
+      ))}
       <DropGuideOverlay
         guide={projectedDropGuide}
         lineClassName="canvas-dom-drop-line"

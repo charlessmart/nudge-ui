@@ -4,6 +4,8 @@ import {
   swapToken,
   promoteToToken,
   setStyle,
+  setStyles,
+  canEditStyles,
   buildSelector,
   resetPendingRules,
   getPendingRules,
@@ -13,6 +15,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import { setActiveStyleState } from "../styleState.ts";
 import { getManagedSheetText } from "../managedStylesheet.ts";
 import { installStaticHtmlRuntimeIdentity } from "../staticHtmlRuntimeIdentity.ts";
+import { resetRenderedInstanceState } from "../renderedInstance.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");
@@ -169,6 +172,52 @@ describe("promoteToToken", () => {
     expect(recs).toHaveLength(1);
     expect("oldToken" in recs[0]! ? recs[0]!.oldToken : undefined).toBeNull();
     expect(recs[0]!.property).toBe("cursor");
+  });
+});
+
+describe("group style edits", () => {
+  beforeEach(() => {
+    resetPendingRules();
+    resetRenderedInstanceState();
+    document.body.innerHTML = "";
+    document.getElementById("nudge-ui-styles")?.remove();
+  });
+
+  it("targets distinguishable members of a partial repeated group by rendered instance", () => {
+    const first = makeButton("Item", "src/Item.tsx:4:3");
+    first.textContent = "First";
+    const second = makeButton("Item", "src/Item.tsx:4:3");
+    second.textContent = "Second";
+    const third = makeButton("Item", "src/Item.tsx:4:3");
+    third.textContent = "Third";
+
+    const records = setStyles([first, second], [{ property: "color", value: "red" }]);
+
+    expect(records).toHaveLength(2);
+    expect(records.every((record) => record.scope === "rendered-instance")).toBe(true);
+    expect(getChangeRecords()).toHaveLength(2);
+  });
+
+  it("uses source scope when every member of a repeated group is selected", () => {
+    const elements = ["First", "Second", "Third"].map((text) => {
+      const element = makeButton("Item", "src/Item.tsx:4:3");
+      element.textContent = text;
+      return element;
+    });
+
+    const records = setStyles(elements, [{ property: "color", value: "red" }]);
+
+    expect(records).toHaveLength(3);
+    expect(records.every((record) => record.scope === "source-site")).toBe(true);
+  });
+
+  it("rejects an indistinguishable partial repeated group without recording a change", () => {
+    const elements = Array.from({ length: 3 }, () => makeButton("Item", "src/Item.tsx:4:3"));
+    const target = elements.slice(0, 2);
+
+    expect(canEditStyles(target)).toBe(false);
+    expect(setStyles(target, [{ property: "color", value: "red" }])).toEqual([]);
+    expect(getChangeRecords()).toEqual([]);
   });
 });
 

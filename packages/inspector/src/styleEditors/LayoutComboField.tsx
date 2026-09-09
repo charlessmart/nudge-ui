@@ -16,6 +16,8 @@ import {
   getCanvasProjectionStatus,
   subscribeCanvasProjectionAcknowledgements,
 } from "../canvas/projection.ts";
+import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 const CUSTOM_KEY = "__custom__";
 
@@ -29,6 +31,8 @@ export interface LayoutComboFieldProps {
   property: string;
   presets: string[];
   domElement: HTMLElement;
+  editTarget?: EditTarget;
+  selection?: StyleSelection | null;
   compact?: boolean;
   inputOnly?: boolean;
   alwaysShowInput?: boolean;
@@ -42,6 +46,8 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     property,
     presets,
     domElement: el,
+    editTarget,
+    selection,
     compact,
     inputOnly,
     alwaysShowInput,
@@ -50,6 +56,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     onAfterEdit,
   } = props;
   const atRules = useFieldAtRules(property);
+  const mixed = selection?.getProperty(property)?.value.kind === "mixed";
 
   const [currentValue, setCurrentValue] = useState(() =>
     meaningfulLayoutValue(el, property),
@@ -88,11 +95,11 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
 
       const cv = meaningfulLayoutValue(el, property);
       setCurrentValue(cv);
-      setCustomValue(cv);
+      setCustomValue(mixed ? "" : cv);
     } catch {
       // noop
     }
-  }, [el, property, revision, projectionAcknowledgementVersion]);
+  }, [el, mixed, property, revision, projectionAcknowledgementVersion]);
 
   const inPresets = presets.includes(currentValue);
 
@@ -109,7 +116,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
     setCustomValue(value);
     draftDirtyRef.current = false;
     pendingProjectionRef.current = null;
-    const change = setStyle(el, property, value);
+    const change = setStyle(editTarget ?? el, property, value);
     if (change) {
       const status = getCanvasProjectionStatus(el.ownerDocument);
       if (status && status.sentRevision > status.appliedRevision) {
@@ -139,7 +146,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       commit(completeCssValue(trimmed, valuePolicyFor(property)));
     } else {
       draftDirtyRef.current = false;
-      setCustomValue(currentValue);
+      setCustomValue(mixed ? "" : currentValue);
     }
     setShowCustom(false);
   }
@@ -159,19 +166,19 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
       handleCustomApply();
     } else if (e.key === "Escape") {
       draftDirtyRef.current = false;
-      setCustomValue(currentValue);
+      setCustomValue(mixed ? "" : currentValue);
       setShowCustom(false);
     }
   }
 
-  const selectValue = inPresets ? currentValue : CUSTOM_KEY;
+  const selectValue = mixed ? CUSTOM_KEY : inPresets ? currentValue : CUSTOM_KEY;
   const customInput = (
     <TextInput
       ref={customInputRef}
       compact={compact}
       appearance={appearance}
       inputMode="decimal"
-      placeholder="0"
+      placeholder={mixed ? "Mixed" : "0"}
       aria-label={formatInspectorLabel(property)}
       data-test={`layout-combo-input-${property}`}
       value={customValue}

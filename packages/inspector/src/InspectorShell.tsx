@@ -4,10 +4,11 @@ import { IconArrowUpRight, IconColorSwatch, IconLayoutSidebarRight, IconSettings
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
+  useSelectedElements,
   useHierarchy,
   setSelectedElement,
+  removeSelectedElement,
 } from "./selectionStore.ts";
-import type { SelectedElement } from "./selectionStore.ts";
 import { InspectorOverlay } from "./InspectorOverlay.tsx";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import type { TokenEntry } from "virtual:design-tokens";
@@ -30,6 +31,7 @@ import { LayoutSection } from "./styleEditors/LayoutSection.tsx";
 import { ChangesLog } from "./ChangesLog.tsx";
 import { discardChangesForInstanceOverride, undo, redo } from "./changesLog.ts";
 import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector, unlinkElement } from "./editScope.ts";
+import { canEditStyles } from "./tokens/editActions.ts";
 import { Button } from "./ui/Button.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
 import type { SettingsSection } from "./settings/SettingsDialog.tsx";
@@ -53,6 +55,8 @@ import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive,
 import { useNudgeUiRuntimeConfig } from "./useRuntimeConfig.ts";
 import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
+import { createStyleSelection } from "./styleSelection.ts";
+import { intersectTokenEntries } from "./inspection/selectionProperty.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((row) => row.property === prop) ?? null;
@@ -116,6 +120,7 @@ export function InspectorShell(): ReactElement {
   const activeCanvasMode = useCanvasMode();
   const canvasMode = canvasEnabled ? activeCanvasMode : "inspect";
   const selected = useSelectedElement();
+  const selectedElements = useSelectedElements();
   const hierarchy = useHierarchy();
   const inlineTextSession = useInlineTextSession();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -123,7 +128,8 @@ export function InspectorShell(): ReactElement {
   const [scopeRevision, refreshScope] = useState(0);
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const [restoreCount, setShowRestore] = useState<number>(getRestoreCount());
-  const cssInspection = useBrowserCssInspection(selected, styleState);
+  const cssInspection = useBrowserCssInspection(selectedElements, styleState);
+  const isMultiSelection = selectedElements.length > 1;
 
   useEffect(() => {
     setInspectorLayoutOpen(isOpen);
@@ -135,29 +141,41 @@ export function InspectorShell(): ReactElement {
     // previous element. Base is the inspector's deliberate default.
     setActiveStyleState("base");
     setStyleState("base");
-  }, [selected?.domElement]);
+  }, [selected?.domElement, isMultiSelection]);
 
   useEffect(() => {
     if (!selected) return;
     // The selected element can live inside a card iframe (canvas mode); observe
     // its own ownerDocument rather than the parent app's document, otherwise
     // removal inside the iframe would never be noticed.
-    const ownerRoot = selected.domElement.ownerDocument?.documentElement ?? document.documentElement;
-    const OwnerMutationObserver = getElementWindow(selected.domElement).MutationObserver;
-    const observer = new OwnerMutationObserver((records) => {
-      if (scopeMutationAffectsSelection(records, selected.domElement)) {
-        refreshScope((revision) => revision + 1);
-      }
-      if (!selected.domElement.isConnected) setSelectedElement(null);
-    });
-    observer.observe(ownerRoot, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["data-cid", "data-src", "data-projection-instance"],
-    });
-    return () => observer.disconnect();
-  }, [selected, scopeRevision]);
+    const observers: MutationObserver[] = [];
+    const roots = new Map<Document, HTMLElement>();
+    for (const target of selectedElements) {
+      const ownerRoot = target.domElement.ownerDocument?.documentElement;
+      if (ownerRoot) roots.set(target.domElement.ownerDocument, ownerRoot);
+    }
+    for (const [ownerDocument, ownerRoot] of roots) {
+      const OwnerMutationObserver = getElementWindow(ownerRoot).MutationObserver;
+      const observer = new OwnerMutationObserver((records) => {
+        if (selectedElements.some((candidate) => scopeMutationAffectsSelection(records, candidate.domElement))) {
+          refreshScope((revision) => revision + 1);
+        }
+        for (const candidate of selectedElements) {
+          if (candidate.domElement.ownerDocument === ownerDocument && !candidate.domElement.isConnected) {
+            removeSelectedElement(candidate.domElement);
+          }
+        }
+      });
+      observer.observe(ownerRoot, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["data-cid", "data-src", "data-projection-instance"],
+      });
+      observers.push(observer);
+    }
+    return () => observers.forEach((observer) => observer.disconnect());
+  }, [selectedElements, scopeRevision]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -195,9 +213,10 @@ export function InspectorShell(): ReactElement {
       // report it as "Backspace". Support both without stealing text edits.
       if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
-        if (deleteElement(selected)) setSelectedElement(null);
+        if (!isMultiSelection && deleteElement(selected)) setSelectedElement(null);
         return;
       }
+      if (isMultiSelection) return;
       if (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       if (nudgeElement(selected.domElement, event.key)) {
         const refreshed = resolveSelectionFromElement(selected.domElement);
@@ -206,32 +225,42 @@ export function InspectorShell(): ReactElement {
     }
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, [isOpen, selected]);
+  }, [isOpen, isMultiSelection, selected]);
 
   const inspectionSnapshot = cssInspection.element;
+  const styleSelection = useMemo(
+    () => createStyleSelection(selectedElements, cssInspection.elements, selected),
+    [cssInspection.elements, selected, selectedElements],
+  );
+  const selectionEditable = useMemo(
+    () => styleSelection ? canEditStyles(styleSelection.target) : false,
+    [scopeRevision, styleSelection],
+  );
   const tokenEntries: TokenEntry[] = useMemo(
-    () => inspectionSnapshot ? [...inspectionSnapshot.availableTokens] : [],
-    [inspectionSnapshot],
+    () => intersectTokenEntries(cssInspection.elements.map((snapshot) => snapshot.availableTokens)),
+    [cssInspection.elements],
   );
   const tokenRows: ResolvedProperty[] = useMemo(
-    () => inspectionSnapshot ? [...inspectionSnapshot.properties] : [],
-    [inspectionSnapshot],
+    () => styleSelection ? [...styleSelection.primaryRows] : [],
+    [styleSelection],
   );
   const availableInteractionStates = inspectionSnapshot?.availableStates ?? [];
-  const showInteractionState = availableInteractionStates.length > 2;
+  const showInteractionState = !isMultiSelection && availableInteractionStates.length > 2;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
   const backgroundTokenRow = useMemo(() => {
     if (!selected) return null;
+    if (isMultiSelection) return paintedBackgroundRow;
     if (paintedBackgroundRow?.tokenName || styleState !== "base") return paintedBackgroundRow;
     return cssInspection.stableProperties.find((row) =>
       (row.property === "background-color" || row.property === "background") && row.tokenName,
     ) ?? paintedBackgroundRow;
-  }, [cssInspection.stableProperties, paintedBackgroundRow, selected, styleState]);
-  const editScope = selected ? getEditScope(selected.domElement) : null;
+  }, [cssInspection.stableProperties, isMultiSelection, paintedBackgroundRow, selected, styleState]);
+  const editScope = selected && !isMultiSelection ? getEditScope(selected.domElement) : null;
   const sourceSiteMatchCount = selected && editScope === "source-site"
     ? countSourceSiteMatches(selected.domElement, scopeRevision)
     : 0;
-  const hasEditScopeCallout = editScope === "rendered-instance" || sourceSiteMatchCount > 1;
+  const hasEditScopeCallout = !isMultiSelection
+    && (editScope === "rendered-instance" || sourceSiteMatchCount > 1);
   function refreshScopeState(): void {
     refreshScope((revision) => revision + 1);
   }
@@ -390,105 +419,105 @@ export function InspectorShell(): ReactElement {
           ) : null}
           {selected ? (
             <>
-              {domNavigationEnabled ? <DomNavigation selected={selected} hierarchy={hierarchy} /> : null}
-              {showInteractionState || hasEditScopeCallout ? (
+              {domNavigationEnabled && !isMultiSelection ? <DomNavigation selected={selected} hierarchy={hierarchy} /> : null}
+              {isMultiSelection || showInteractionState || hasEditScopeCallout ? (
                 <div
                   className={`selection${hasEditScopeCallout ? "" : " selection--without-scope-callout"}`}
                   data-test="selection"
                   data-selected-cid={selected.cid}
                   data-selected-src={selected.src}
-                >
-                {showInteractionState ? (
-                  <div className="style-state" data-test="style-state">
-                    <span className="selection__label">State</span>
-                    <SegmentedControl
-                      value={styleState}
-                      className="style-state__control"
-                      aria-label="Style State"
-                      options={availableInteractionStates.map((state) => ({
-                        value: state,
-                        label: formatInspectorLabel(state),
-                        testId: `style-state-${state}`,
-                      }))}
-                      onChange={(state) => {
-                        setActiveStyleState(state);
-                        setStyleState(state);
-                      }}
-                    />
-                  </div>
-                ) : null}
-                {hasEditScopeCallout ? (
-                  <StatusCallout
-                    tone={editScope === "rendered-instance" ? "neutral" : "accent"}
-                    data-test="edit-scope"
-                    data-lost="false"
+                  data-selected-count={selectedElements.length}
                   >
-                    {editScope === "rendered-instance" ? (
-                      <>
-                        <span>Editing only this rendered item.</span>
-                        <Button
-                          size="compact"
-                          className="scope__action"
-                          data-test="relink-element"
-                          onClick={() => {
-                            const overrideId = relinkElement(selected.domElement);
-                            if (overrideId) discardChangesForInstanceOverride(overrideId);
-                            refreshScopeState();
-                          }}
-                        >
-                          Relink To Source
-                        </Button>
-                      </>
-                    ) : (
-                      <div className="scope__linked">
-                        <span>Affects {sourceSiteMatchCount} elements.</span>
-                        <Button
-                          size="compact"
-                          variant="quiet"
-                          data-test="unlink-element"
-                          onClick={() => {
-                            unlinkElement(selected.domElement);
-                            refreshScopeState();
-                          }}
-                        >
-                        Unlink
-                        </Button>
+                    {isMultiSelection ? (
+                      <div className="selection__summary" data-test="multi-selection-summary">
+                        <span className="selection__count">{selectedElements.length} elements selected</span>
                       </div>
-                    )}
-                  </StatusCallout>
-                ) : null}
+                    ) : null}
+                    {showInteractionState ? (
+                      <div className="style-state" data-test="style-state">
+                        <span className="selection__label">State</span>
+                        <SegmentedControl
+                          value={styleState}
+                          className="style-state__control"
+                          aria-label="Style State"
+                          options={availableInteractionStates.map((state) => ({
+                            value: state,
+                            label: formatInspectorLabel(state),
+                            testId: `style-state-${state}`,
+                          }))}
+                          onChange={(state) => {
+                            setActiveStyleState(state);
+                            setStyleState(state);
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                    {hasEditScopeCallout ? (
+                      <StatusCallout
+                        tone={editScope === "rendered-instance" ? "neutral" : "accent"}
+                        data-test="edit-scope"
+                        data-lost="false"
+                      >
+                        {editScope === "rendered-instance" ? (
+                          <>
+                            <span>Editing only this rendered item.</span>
+                            <Button
+                              size="compact"
+                              className="scope__action"
+                              data-test="relink-element"
+                              onClick={() => {
+                                const overrideId = relinkElement(selected.domElement);
+                                if (overrideId) discardChangesForInstanceOverride(overrideId);
+                                refreshScopeState();
+                              }}
+                            >
+                              Relink To Source
+                            </Button>
+                          </>
+                        ) : (
+                          <div className="scope__linked">
+                            <span>Affects {sourceSiteMatchCount} elements.</span>
+                            <Button
+                              size="compact"
+                              variant="quiet"
+                              data-test="unlink-element"
+                              onClick={() => {
+                                unlinkElement(selected.domElement);
+                                refreshScopeState();
+                              }}
+                            >
+                              Unlink
+                            </Button>
+                          </div>
+                        )}
+                      </StatusCallout>
+                    ) : null}
                 </div>
               ) : null}
 
-              <ComponentPropsSection selected={selected} />
+              {!isMultiSelection ? <ComponentPropsSection selected={selected} /> : null}
 
-              <AtRuleContextProvider rows={tokenRows}>
-                <div className="style-editors" data-test="style-editors">
+              {selectionEditable ? (
+                <AtRuleContextProvider rows={tokenRows}>
+                  <div className="style-editors" data-test="style-editors">
                   {/* CSS edits publish through changesLog and browser inspection;
                       component metadata does not change. LayoutSection keeps its
                       own revision for controls that depend on computed layout. */}
-                  <LayoutSection key={`layout-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                  <SpacingBox key={`spacing-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                  <AppearanceSection key={`appearance-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                  <Typography key={`type-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                  <ColorPicker
-                    key={`color-${styleState}`}
-                    element={selected}
-                    property="color"
-                    entries={tokenEntries}
-                    tokenRow={findTokenRow(tokenRows, "color")}
-                  />
-                  <ColorPicker
-                    key={`background-${styleState}`}
-                    element={selected}
-                    property="background-color"
-                    entries={tokenEntries}
-                    tokenRow={backgroundTokenRow}
-                  />
-                  <BorderEditor key={`border-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                  <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} entries={tokenEntries} tokenRows={tokenRows} />
-                </div>
-              </AtRuleContextProvider>
+                  <LayoutSection key={`layout-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  <SpacingBox key={`spacing-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  <AppearanceSection key={`appearance-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  <Typography key={`type-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  <ColorPicker key={`color-${styleState}`} element={selected} selection={styleSelection} property="color" entries={tokenEntries} tokenRow={findTokenRow(tokenRows, "color")} />
+                  <ColorPicker key={`background-${styleState}`} element={selected} selection={styleSelection} property="background-color" entries={tokenEntries} tokenRow={backgroundTokenRow} />
+                  <BorderEditor key={`border-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                  </div>
+                </AtRuleContextProvider>
+              ) : (
+                <StatusCallout tone="neutral" data-test="multi-selection-uneditable">
+                  These repeated items are indistinguishable, so Nudge UI cannot safely target only part of the group. Select every repeated item to edit them together.
+                </StatusCallout>
+              )}
             </>
           ) : (
             <EmptyState />

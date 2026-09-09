@@ -8,6 +8,8 @@ import { getStateStyleValue } from "../stateValue.ts";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
+import type { EditTarget } from "../editTarget.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 
 function metadataFor(row: ResolvedProperty | null) {
   return row?.sourceProperty
@@ -24,18 +26,30 @@ function effectiveOpacity(element: HTMLElement, row: ResolvedProperty | null): s
 
 export interface OpacityEditorProps {
   element: SelectedElement;
+  selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
   onAfterEdit?: () => void;
 }
 
-export function OpacityEditor({ element, entries, tokenRows = [], onAfterEdit }: OpacityEditorProps): ReactElement {
+export function OpacityEditor({ element, selection, entries, tokenRows = [], onAfterEdit }: OpacityEditorProps): ReactElement {
   const el = element.domElement;
+  const editTarget: EditTarget = selection?.target ?? el;
   const allEntries = entries ?? getNudgeUiTokenEntries();
   const row = tokenRows.find((candidate) => candidate.property === "opacity") ?? null;
-  const value = effectiveOpacity(el, row);
+  const selectedProperty = selection && selection.elements.length > 1
+    ? selection.getProperty("opacity")
+    : null;
+  const mixed = selectedProperty?.value.kind === "mixed";
+  const value = mixed
+    ? "Mixed"
+    : selectedProperty?.value.kind === "common" ? selectedProperty.value.value : effectiveOpacity(el, row);
   const editable = row?.propertyOpacity?.editable ?? true;
-  const activeToken = row?.propertyOpacity?.tokenName ?? row?.tokenName;
+  const activeToken = mixed
+    ? null
+    : selectedProperty
+      ? selectedProperty.token.kind === "common" ? selectedProperty.token.name : null
+      : row?.propertyOpacity?.tokenName ?? row?.tokenName;
 
   return (
     <div className="appearance__field opacity-editor" data-test="opacity-editor">
@@ -45,13 +59,16 @@ export function OpacityEditor({ element, entries, tokenRows = [], onAfterEdit }:
           property="opacity"
           semanticSlot="opacity"
           tokenRow={row}
+          selection={selection}
           initialValue={value}
           displayValue={value}
           domElement={el}
+          editTarget={editTarget}
           entries={allEntries}
           inputDataTest="opacity-input"
           editMetadata={metadataFor(row)}
           disabled={!editable}
+          mixed={mixed}
           formatRawValue={(raw) => normalizeOpacityPercent(raw) ?? ""}
           leading={<IconBackground size={16} stroke={1.8} aria-hidden="true" />}
           trailing={activeToken ? <span className="opacity-editor__effective" data-test="opacity-effective">{value}</span> : undefined}

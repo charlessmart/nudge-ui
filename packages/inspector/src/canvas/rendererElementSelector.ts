@@ -371,6 +371,7 @@ export function installRendererElementSelector(): void {
         file,
         line,
         component,
+        additive: event.shiftKey && !event.ctrlKey && !event.metaKey,
         ...identity,
       };
 
