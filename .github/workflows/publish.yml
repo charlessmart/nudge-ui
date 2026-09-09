@@ -1,25 +1,36 @@
-name: Publish packages
+name: Stage npm packages
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable release tag to retry
+        required: true
+        type: string
   push:
     tags:
       - "v*"
 
 concurrency:
-  group: npm-publish
+  group: npm-stage-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
   contents: read
 
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
 jobs:
   verify:
-    name: Verify release
+    name: Verify and package release
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - name: Check out the repository
+      - name: Check out the release tag
         uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -32,11 +43,11 @@ jobs:
           node-version: 24.x
           cache: pnpm
 
+      - name: Validate release tag
+        run: pnpm run release:validate -- "$RELEASE_TAG"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Verify package archives
-        run: pnpm run package:verify
 
       - name: Typecheck
         run: pnpm run typecheck
@@ -44,21 +55,51 @@ jobs:
       - name: Run full test suite
         run: pnpm run test:full
 
-  publish:
-    name: Publish to npm
+      - name: Build and verify package archives
+        run: pnpm run package:archive
+
+      - name: Upload verified package archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-packages-${{ env.RELEASE_TAG }}
+          path: .release-packages/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  stage:
+    name: Stage ${{ matrix.name }}
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: "@nudge-ui/agent-protocol"
+            archive: nudge-ui-agent-protocol
+          - name: "@nudge-ui/css"
+            archive: nudge-ui-css
+          - name: "@nudge-ui/inspector"
+            archive: nudge-ui-inspector
+          - name: "@nudge-ui/vite-react"
+            archive: nudge-ui-vite-react
+          - name: "@nudge-ui/astro"
+            archive: nudge-ui-astro
+          - name: "@nudge-ui/nextjs"
+            archive: nudge-ui-nextjs
+          - name: "@nudge-ui/standalone"
+            archive: nudge-ui-standalone
+          - name: "@nudge-ui/mcp"
+            archive: nudge-ui-mcp
     permissions:
       contents: read
       id-token: write
     steps:
-      - name: Check out the repository
-        uses: actions/checkout@v6
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+      - name: Download verified package archives
+        uses: actions/download-artifact@v5
         with:
-          version: 10.33.0
+          name: npm-packages-${{ env.RELEASE_TAG }}
+          path: .release-packages
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -67,37 +108,29 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install npm with staged publishing support
+        run: npm install --global npm@11.19.1
 
-      - name: Publish public packages
+      - name: Stage package on npm
         shell: bash
         run: |
           set -euo pipefail
+          version="${RELEASE_TAG#v}"
 
-          packages=(
-            agent-protocol
-            css
-            inspector
-            plugin
-            astro
-            nextjs
-            standalone
-            mcp
-          )
+          if npm view "${{ matrix.name }}@${version}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "${{ matrix.name }}@${version} is already published; skipping."
+            exit 0
+          fi
 
-          for directory in "${packages[@]}"; do
-            package_name="$(node -p "require('./packages/${directory}/package.json').name")"
-            package_version="$(node -p "require('./packages/${directory}/package.json').version")"
+          npm stage publish ".release-packages/${{ matrix.archive }}-${version}.tgz" \
+            --registry=https://registry.npmjs.org
 
-            if npm view "${package_name}@${package_version}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
-              echo "${package_name}@${package_version} is already published; skipping."
-              continue
-            fi
-
-            echo "Publishing ${package_name}@${package_version}..."
-            (
-              cd "packages/${directory}"
-              npm publish --access public
-            )
-          done
+  approval-instructions:
+    name: Await npm approval
+    needs: stage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write approval instructions
+        run: |
+          echo "### $RELEASE_TAG is staged on npm" >> "$GITHUB_STEP_SUMMARY"
+          echo "Review all eight packages in npm's Staged Packages page, then approve them with 2FA." >> "$GITHUB_STEP_SUMMARY"

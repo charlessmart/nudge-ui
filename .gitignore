@@ -45,6 +45,7 @@ Thumbs.db
 coverage/
 .tmp/
 test-results/
+.release-packages/
 
 # Local teaching materials and research notes
 /MISSION.md

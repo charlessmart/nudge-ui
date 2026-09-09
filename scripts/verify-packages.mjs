@@ -8,7 +8,7 @@
  * version is published.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -23,7 +23,21 @@ const packageDirectories = [
   "standalone",
   "mcp",
 ];
-const outputDirectory = mkdtempSync(join(tmpdir(), "nudge-ui-packages-"));
+const outputArgument = process.argv.indexOf("--output-directory");
+const retainedOutput = outputArgument !== -1;
+const requestedOutput = retainedOutput ? process.argv[outputArgument + 1] : undefined;
+if (retainedOutput && !requestedOutput) {
+  throw new Error("--output-directory requires a path.");
+}
+
+const outputDirectory = requestedOutput
+  ? resolve(repositoryRoot, requestedOutput)
+  : mkdtempSync(join(tmpdir(), "nudge-ui-packages-"));
+
+if (retainedOutput) {
+  mkdirSync(outputDirectory, { recursive: true });
+  assert(readdirSync(outputDirectory).length === 0, `${outputDirectory} must be empty.`);
+}
 
 try {
   for (const directory of packageDirectories) {
@@ -31,7 +45,7 @@ try {
   }
   console.log(`Verified ${packageDirectories.length} publishable packages.`);
 } finally {
-  rmSync(outputDirectory, { recursive: true, force: true });
+  if (!retainedOutput) rmSync(outputDirectory, { recursive: true, force: true });
 }
 
 function verifyPackage(packageRoot) {
