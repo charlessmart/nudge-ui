@@ -17,7 +17,6 @@ import {
   setRestoreCount,
 } from "./canvas/sessionStore.ts";
 import { subscribeChanges, getChangesList } from "./changesLog.ts";
-import { subscribeStructuralChanges } from "./structuralProjection.ts";
 import { subscribe as subscribeCanvas } from "./canvas/canvasStore.ts";
 import {
   acquireLease,
@@ -29,7 +28,7 @@ import {
 import { startStaleDetection } from "./canvas/staleChangeDetector.ts";
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./AppShell.tsx";
-import { clearStructuralChanges, resetStructuralDeleteProjection } from "./structuralProjection.ts";
+import { resetStructuralDeleteProjection } from "./structuralProjection.ts";
 import { installInspectionBridge } from "./inspection.ts";
 import { cancelInlineTextEdit } from "./inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtimeConfig.ts";
@@ -139,7 +138,6 @@ function startController(inspectorHost: HTMLElement): void {
   }
   if (!persistenceSubscribed) {
     subscribeChanges(() => scheduleAutoSave());
-    subscribeStructuralChanges(() => scheduleAutoSave());
     subscribeClipboardHandoff(() => scheduleAutoSave());
     subscribeCanvas(() => scheduleCanvasSave());
     persistenceSubscribed = true;
@@ -225,7 +223,6 @@ export function unmountInspector(): void {
     reactRoot = null;
   }
   clearChanges();
-  clearStructuralChanges();
   clearClipboardHandoff();
   resetStructuralDeleteProjection();
   removeManagedSheet();

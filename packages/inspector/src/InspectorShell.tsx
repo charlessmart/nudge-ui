@@ -47,7 +47,6 @@ import { enterCanvas, useCanvasMode } from "./canvas/canvasStore.ts";
 import { getRestoreCount, clearRestoreCount, clearSession } from "./canvas/sessionStore.ts";
 import { getElementWindow } from "./domRealm.ts";
 import { deleteElement, nudgeElement } from "./structuralGestures.ts";
-import { redoStructuralChange, undoStructuralChange } from "./structuralProjection.ts";
 import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
 import { SegmentedControl } from "./ui/SegmentedControl.tsx";
 import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
@@ -193,12 +192,12 @@ export function InspectorShell(): ReactElement {
         if (scrollKey) event.preventDefault();
         if (mod && event.shiftKey && event.key.toLowerCase() === "z") {
           event.preventDefault();
-          if (!redoStructuralChange()) redo();
+          redo();
           return;
         }
         if (mod && !event.shiftKey && event.key.toLowerCase() === "z") {
           event.preventDefault();
-          if (!undoStructuralChange()) undo();
+          undo();
           return;
         }
       }

@@ -1,11 +1,7 @@
 import { useSyncExternalStore } from "react";
-import { canWriteWorkspace } from "./canvas/workspaceLease.ts";
 import { getSelectedElement } from "./selectionStore.ts";
 import {
   changeKey,
-  mergeChange,
-  sameEffectiveChanges,
-  selectorForChange,
 } from "./changes/model.ts";
 import {
   applyChangeProjections,
@@ -13,9 +9,28 @@ import {
   verifyManagedStyleProjection,
 } from "./changes/projection.ts";
 import type { StyleRule, PreviewResult } from "./managedStylesheet.ts";
-import { isElementChange, isPreviewableChange } from "./changes/types.ts";
+import { isPreviewableChange } from "./changes/types.ts";
 import type { ChangeRecord } from "./changes/types.ts";
 import { cancelInlineTextForClear } from "./inlineTextLifecycle.ts";
+import {
+  clearWorkspaceChanges,
+  commitChangeRecords,
+  discardChangeRecords,
+  getWorkspaceChanges,
+  reconcileWorkspaceChanges,
+  redoWorkspaceChange,
+  replaceChangeRecordsForDiagnostics,
+  restoreWorkspaceChanges,
+  revertChangeRecord,
+  subscribeWorkspaceChanges,
+  undoWorkspaceChange,
+} from "./changes/workspaceChanges.ts";
+import {
+  applyStructuralProjection,
+  clearStructuralProjectionReports,
+  pruneStructuralProjectionReports,
+} from "./structuralProjection.ts";
+import type { StructuralChange } from "./changes/structuralTypes.ts";
 
 export {
   isComponentChange,
@@ -35,12 +50,6 @@ export type {
   RuntimeElementEvidence,
 } from "./changes/types.ts";
 
-let changes: ChangeRecord[] = [];
-interface HistoryEntry { before: ChangeRecord[]; after: ChangeRecord[] }
-let undoStack: HistoryEntry[] = [];
-let redoStack: HistoryEntry[] = [];
-const listeners = new Set<() => void>();
-
 /**
  * Deferred delta verification (0044). Only the keys touched by a mutation are
  * re-verified, and the probe work runs coalesced off the synchronous commit
@@ -55,26 +64,21 @@ export interface AppendChangesOptions {
 }
 
 function subscribe(cb: () => void): () => void {
-  listeners.add(cb);
-  return () => {
-    listeners.delete(cb);
-  };
+  return subscribeWorkspaceChanges(cb);
 }
 
 function getChangesSnapshot(): ChangeRecord[] {
-  return changes;
-}
-
-function notify(): void {
-  listeners.forEach((l) => l());
+  return getWorkspaceChanges().changes as ChangeRecord[];
 }
 
 export function getPendingRules(): StyleRule[] {
-  return buildManagedStyleRules(changes);
+  return buildManagedStyleRules(getChangesSnapshot());
 }
 
 function reapply(): void {
-  changes = applyChangeProjections(changes);
+  const workspace = getWorkspaceChanges();
+  applyStructuralProjection(document, workspace.structuralChanges);
+  applyChangeProjections(workspace.changes as ChangeRecord[]);
 }
 
 function samePreviewResult(
@@ -94,7 +98,7 @@ function flushVerification(): void {
   const targets = pendingVerificationTargets;
   pendingVerificationTargets = new Map<string, HTMLElement | null>();
   if (targets.size === 0) return;
-  const current = changes;
+  const current = getChangesSnapshot();
   let updated: ChangeRecord[] | null = null;
   for (let i = 0; i < current.length; i++) {
     const change = current[i]!;
@@ -110,8 +114,7 @@ function flushVerification(): void {
     updated[i] = verified;
   }
   if (updated) {
-    changes = updated;
-    notify();
+    replaceChangeRecordsForDiagnostics(updated);
   }
 }
 
@@ -155,19 +158,8 @@ function markForVerification(
 
 /** Append several records as one projection and one undoable history entry. */
 export function appendChanges(incoming: ChangeRecord[], options: AppendChangesOptions = {}): void {
-  if (!canWriteWorkspace() || incoming.length === 0) return;
-  const before = changes;
-  const nextChanges = incoming.reduce(
-    (current, change) => mergeChange(current, change),
-    changes,
-  );
-  if (sameEffectiveChanges(before, nextChanges)) return;
-  changes = nextChanges;
-  reapply();
+  if (!commitChangeRecords(incoming, reapply)) return;
   markForVerification(incoming.map(changeKey), options.verificationTargets);
-  undoStack.push({ before, after: changes });
-  redoStack.length = 0;
-  notify();
 }
 
 export function appendChange(change: ChangeRecord): void {
@@ -175,17 +167,8 @@ export function appendChange(change: ChangeRecord): void {
 }
 
 export function revertChange(change: ChangeRecord): void {
-  if (!canWriteWorkspace()) return;
-  const before = changes;
-  const key = changeKey(change);
-  const next = changes.filter((c) => changeKey(c) !== key);
-  if (next.length === changes.length) return;
-  changes = next;
-  reapply();
-  markForVerification(changes.map(changeKey));
-  undoStack.push({ before, after: changes });
-  redoStack.length = 0;
-  notify();
+  if (!revertChangeRecord(change, reapply)) return;
+  markForVerification(getChangesSnapshot().map(changeKey));
 }
 
 /**
@@ -197,83 +180,44 @@ export function revertChange(change: ChangeRecord): void {
  * preserving newer, unsent edits and their remaining undo history.
  */
 export function reconcileVerifiedChanges(verifiedKeys: ReadonlySet<string>): number {
-  if (!canWriteWorkspace() || verifiedKeys.size === 0) return 0;
-  const retainUnverified = (snapshot: ChangeRecord[]): ChangeRecord[] =>
-    snapshot.filter((change) => !verifiedKeys.has(changeKey(change)));
-  const before = changes;
-  const after = retainUnverified(before);
-  const removed = before.length - after.length;
+  const removed = reconcileVerifiedWorkspaceChanges(verifiedKeys, new Set());
   if (removed === 0) return 0;
+  return removed;
+}
 
-  changes = after;
-  undoStack = undoStack
-    .map((entry) => ({
-      before: retainUnverified(entry.before),
-      after: retainUnverified(entry.after),
-    }))
-    .filter((entry) => !sameEffectiveChanges(entry.before, entry.after));
-  redoStack = redoStack
-    .map((entry) => ({
-      before: retainUnverified(entry.before),
-      after: retainUnverified(entry.after),
-    }))
-    .filter((entry) => !sameEffectiveChanges(entry.before, entry.after));
-  reapply();
-  markForVerification(changes.map(changeKey));
-  notify();
+/** Atomically reconciles ordinary and structural intent from one agent handoff. */
+export function reconcileVerifiedWorkspaceChanges(
+  verifiedKeys: ReadonlySet<string>,
+  verifiedStructuralIds: ReadonlySet<string>,
+): number {
+  const removed = reconcileWorkspaceChanges(verifiedKeys, verifiedStructuralIds, reapply);
+  if (removed === 0) return 0;
+  pruneStructuralProjectionReports(verifiedStructuralIds);
+  markForVerification(getChangesSnapshot().map(changeKey));
   return removed;
 }
 
 export function discardChangesForSelector(selector: string): void {
-  if (!canWriteWorkspace()) return;
-  const before = changes;
-  changes = changes.filter((change) => selectorForChange(change) !== selector);
-  if (changes.length === before.length) return;
-  reapply();
-  markForVerification(changes.map(changeKey));
-  undoStack.push({ before, after: changes });
-  redoStack.length = 0;
-  notify();
+  if (!discardChangeRecords({ kind: "selector", selector }, reapply)) return;
+  markForVerification(getChangesSnapshot().map(changeKey));
 }
 
 /** Relink removes every CSS declaration owned by one durable rendered target. */
 export function discardChangesForInstanceOverride(overrideId: string): void {
-  if (!canWriteWorkspace()) return;
-  const before = changes;
-  changes = changes.filter((change) =>
-    !isElementChange(change) || change.instanceOverride?.id !== overrideId);
-  if (changes.length === before.length) return;
-  reapply();
-  markForVerification(changes.map(changeKey));
-  undoStack.push({ before, after: changes });
-  redoStack.length = 0;
-  notify();
+  if (!discardChangeRecords({ kind: "instance-override", id: overrideId }, reapply)) return;
+  markForVerification(getChangesSnapshot().map(changeKey));
 }
 
 export function undo(): boolean {
-  if (!canWriteWorkspace()) return false;
-  const entry = undoStack.at(-1);
-  if (!entry) return false;
-  undoStack.pop();
-  changes = entry.before;
-  reapply();
-  markForVerification(changes.map(changeKey));
-  redoStack.push(entry);
-  notify();
-  return true;
+  const undone = undoWorkspaceChange(reapply);
+  if (undone) markForVerification(getChangesSnapshot().map(changeKey));
+  return undone;
 }
 
 export function redo(): boolean {
-  if (!canWriteWorkspace()) return false;
-  const entry = redoStack.at(-1);
-  if (!entry) return false;
-  redoStack.pop();
-  changes = entry.after;
-  reapply();
-  markForVerification(changes.map(changeKey));
-  undoStack.push(entry);
-  notify();
-  return true;
+  const redone = redoWorkspaceChange(reapply);
+  if (redone) markForVerification(getChangesSnapshot().map(changeKey));
+  return redone;
 }
 
 export function loadChanges(incoming: ChangeRecord[]): void {
@@ -281,34 +225,36 @@ export function loadChanges(incoming: ChangeRecord[]): void {
   // document. Do not let a deferred verification from the previous session
   // inspect a newly loaded record with its old selection context.
   pendingVerificationTargets.clear();
-  changes = [...incoming];
-  undoStack.length = 0;
-  redoStack.length = 0;
-  changes = applyChangeProjections(changes);
-  notify();
+  const workspace = getWorkspaceChanges();
+  restoreWorkspaceChanges({ changes: incoming, structuralChanges: workspace.structuralChanges }, reapply);
+}
+
+/** Restores every canonical workspace intent as one subscriber-visible snapshot. */
+export function loadWorkspaceChanges(
+  incoming: readonly ChangeRecord[],
+  structuralChanges: readonly StructuralChange[],
+): void {
+  pendingVerificationTargets.clear();
+  clearStructuralProjectionReports();
+  restoreWorkspaceChanges({ changes: incoming, structuralChanges }, reapply);
 }
 
 export function clearChanges(): void {
   // A pending blur/composition timer must not be able to append a draft after
   // the canonical set has been cleared.
   cancelInlineTextForClear();
-  changes = [];
-  undoStack.length = 0;
-  redoStack.length = 0;
   pendingVerificationTargets.clear();
-  applyChangeProjections([]);
-  notify();
+  clearWorkspaceChanges(reapply);
 }
 
 export function getChangesList(): ChangeRecord[] {
-  return changes.slice();
+  return [...getChangesSnapshot()];
 }
 
 export { subscribe as subscribeChanges, getChangesSnapshot as getChanges };
 
 export function touchChanges(): void {
-  changes = [...changes];
-  notify();
+  replaceChangeRecordsForDiagnostics([...getChangesSnapshot()]);
 }
 
 export function useChanges(): ChangeRecord[] {

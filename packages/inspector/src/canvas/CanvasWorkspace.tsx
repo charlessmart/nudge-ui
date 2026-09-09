@@ -18,7 +18,6 @@ import {
 import { CanvasCard } from "./CanvasCard.tsx";
 import { useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changesLog.ts";
-import { subscribeStructuralChanges } from "../structuralProjection.ts";
 import { recordCanvasStructuralProjectionReports } from "../structuralProjection.ts";
 import { recordCanvasRenderedInstanceProjectionReports } from "../renderedInstance.ts";
 import { recordCanvasTextProjectionReports } from "../textProjection.ts";
@@ -130,10 +129,6 @@ export function CanvasWorkspace(): ReactElement | null {
       projectToAllReadyCards();
     });
   }, []);
-
-  useEffect(() => subscribeStructuralChanges(() => {
-    projectToAllReadyCards();
-  }), []);
 
   useEffect(() => {
     function onMessage(event: MessageEvent): void {

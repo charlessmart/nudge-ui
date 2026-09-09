@@ -1,4 +1,5 @@
 import { getChangesList, getPendingRules } from "../changesLog.ts";
+import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import { rulesToCssText } from "../managedStylesheet.ts";
 import type { CanvasCard } from "./canvasStore.ts";
 import { getCanvasMode } from "./canvasStore.ts";
@@ -43,6 +44,7 @@ let projectionAcknowledgementVersion = 0;
 
 function rulesKey(
   css: string,
+  structuralChanges: ReturnType<typeof getWorkspaceChanges>["structuralChanges"],
   overrides: ReturnType<typeof collectRenderedInstanceOverrides>,
   textContentChanges: ReturnType<typeof collectTextContentChanges>,
   componentOverrides: ReturnType<typeof componentChangeToOverride>[],
@@ -50,36 +52,29 @@ function rulesKey(
   // Revision ordering protects every controller-owned projection dimension.
   // In particular, a delete-only snapshot has empty CSS but must still advance
   // past the snapshot already accepted by ready Canvas renderers.
-  return `${css}\u0000${JSON.stringify(overrides)}\u0000${JSON.stringify(getStructuralChanges())}\u0000${JSON.stringify(textContentChanges)}\u0000${JSON.stringify(componentOverrides)}`;
+  return `${css}\u0000${JSON.stringify(overrides)}\u0000${JSON.stringify(structuralChanges)}\u0000${JSON.stringify(textContentChanges)}\u0000${JSON.stringify(componentOverrides)}`;
 }
 
 export function computeProjection() {
-  const structuralChanges = getStructuralChanges();
+  const workspace = getWorkspaceChanges();
+  const structuralChanges = workspace.structuralChanges;
   applyStructuralProjection(document, structuralChanges);
-  const overrides = collectRenderedInstanceOverrides(getChangesListForProjection());
+  const overrides = collectRenderedInstanceOverrides(workspace.changes);
   applyRenderedInstanceProjection(document, overrides);
-  const textContentChanges = collectTextContentChanges(getChangesListForProjection());
-  const componentOverrides = getChangesListForProjection()
+  const textContentChanges = collectTextContentChanges(workspace.changes);
+  const componentOverrides = workspace.changes
     .filter(isComponentChange)
     .map(componentChangeToOverride)
     .filter((override): override is NonNullable<ReturnType<typeof componentChangeToOverride>> => override !== null);
   applyTextContentProjection(document, textContentChanges);
   const rules = getPendingRules();
   const css = rulesToCssText(rules);
-  const key = rulesKey(css, overrides, textContentChanges, componentOverrides);
+  const key = rulesKey(css, structuralChanges, overrides, textContentChanges, componentOverrides);
   if (key !== lastRulesKey) {
     lastRulesKey = key;
     revision += 1;
   }
   return { css, revision, instanceOverrides: overrides, structuralChanges, textContentChanges, componentOverrides };
-}
-
-// Kept private to projection so callers cannot accidentally make a renderer
-// authoritative over the controller change log.
-function getChangesListForProjection() {
-  // getPendingRules intentionally hides canonical metadata; projection needs
-  // the durable instance references in addition to its CSS serialization.
-  return getChangesList();
 }
 
 export function resetProjectionRevision(): void {

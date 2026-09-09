@@ -5,7 +5,7 @@ import {
   isComponentChange,
   isTextContentChange,
   isTokenChange,
-  reconcileVerifiedChanges,
+  reconcileVerifiedWorkspaceChanges,
   type ChangeRecord,
   type PreviewableChangeRecord,
 } from "../changesLog.ts";
@@ -14,7 +14,6 @@ import { resolveRenderedInstance } from "../renderedInstance.ts";
 import {
   applyStructuralProjection,
   getStructuralChanges,
-  reconcileVerifiedStructuralChanges,
   type StructuralChange,
   type StructuralDelete,
   type StructuralMove,
@@ -236,9 +235,7 @@ export async function verifyAndReconcileHandoff(snapshot: HandoffSnapshot): Prom
         (id) => currentStructuralById.get(id) === sentStructural.get(id),
       ),
     );
-    const removedChanges = reconcileVerifiedChanges(stillVerified);
-    const removedStructural = reconcileVerifiedStructuralChanges(stillVerifiedStructural);
-    return removedChanges + removedStructural;
+    return reconcileVerifiedWorkspaceChanges(stillVerified, stillVerifiedStructural);
   } finally {
     // Reconciliation reapplies the canonical set. If it was unable to write
     // (for example, a read-only Canvas lease), restore the untouched set here.

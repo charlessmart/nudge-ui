@@ -10,6 +10,25 @@ import {
   isStructuralMove,
   isStructuralProjectionReport,
 } from "./structuralProjectionBoundary.ts";
+import {
+  commitStructuralChange,
+  getWorkspaceChanges,
+  redoWorkspaceChange,
+  reconcileWorkspaceChanges,
+  resetWorkspaceChanges,
+  restoreWorkspaceChanges,
+  revertStructuralChangeRecord,
+  subscribeWorkspaceChanges,
+  undoWorkspaceChange,
+} from "./changes/workspaceChanges.ts";
+import type {
+  StructuralChange,
+  StructuralDelete,
+  StructuralMove,
+  StructuralProjectionReason,
+  StructuralProjectionReport,
+  StructuralProjectionStatus,
+} from "./changes/structuralTypes.ts";
 
 export {
   isStructuralChange,
@@ -23,50 +42,14 @@ export {
  * position, or renderer-local identity. Each document resolves a snapshot for
  * itself and keeps any physical preview artefacts private to that document.
  */
-export interface StructuralDelete {
-  id: string;
-  kind: "delete";
-  target: RenderedInstanceRef;
-}
-
-/** A serializable, controller-owned DOM insertion intent. */
-export interface StructuralMove {
-  id: string;
-  kind: "move";
-  target: RenderedInstanceRef;
-  source: {
-    /** Durable source-parent precondition captured before the move. */
-    parent: RenderedInstanceRef;
-  };
-  destination: {
-    parent: RenderedInstanceRef;
-    before: RenderedInstanceRef | null;
-  };
-  /** Presentation-only context; durable resolution uses the references above. */
-  presentation: {
-    sourceParentTag: string;
-    destinationParentTag: string;
-    fromIndex: number;
-    toIndex: number;
-  };
-}
-
-export type StructuralChange = StructuralDelete | StructuralMove;
-export type StructuralProjectionStatus = "applied" | "missing" | "ambiguous" | "overridden";
-export type StructuralProjectionReason =
-  | "target"
-  | "source-parent"
-  | "destination-parent"
-  | "anchor"
-  | "illegal-destination"
-  | "react-override";
-
-export interface StructuralProjectionReport {
-  changeId: string;
-  status: StructuralProjectionStatus;
-  /** Bounded diagnostic data; it never changes canonical structural intent. */
-  reason?: StructuralProjectionReason;
-}
+export type {
+  StructuralChange,
+  StructuralDelete,
+  StructuralMove,
+  StructuralProjectionReason,
+  StructuralProjectionReport,
+  StructuralProjectionStatus,
+} from "./changes/structuralTypes.ts";
 
 const VOID_PARENT_TAGS = new Set([
   "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr",
@@ -201,30 +184,17 @@ interface DocumentProjectionState {
   validationQueued: boolean;
 }
 
-interface HistoryEntry {
-  before: StructuralChange[];
-  after: StructuralChange[];
-}
-
 interface CanvasReports {
   revision: number;
   reports: StructuralProjectionReport[];
 }
 
 let nextStructuralId = 1;
-let changes: StructuralChange[] = [];
-let undoStack: HistoryEntry[] = [];
-let redoStack: HistoryEntry[] = [];
 const documentStates = new Map<Document, DocumentProjectionState>();
 let reportsByDocument = new WeakMap<Document, StructuralProjectionReport[]>();
 const reportsByCanvasCard = new Map<string, CanvasReports>();
-const stateListeners = new Set<() => void>();
 const diagnosticListeners = new Set<() => void>();
 let diagnosticRevision = 0;
-
-function notifyState(): void {
-  for (const listener of stateListeners) listener();
-}
 
 function notifyDiagnostics(): void {
   diagnosticRevision += 1;
@@ -241,14 +211,8 @@ function cloneSnapshot(snapshot: readonly StructuralChange[]): StructuralChange[
   return [...snapshot];
 }
 
-function setChanges(next: StructuralChange[], history: HistoryEntry | null): void {
-  changes = next;
-  if (history) {
-    undoStack.push(history);
-    redoStack.length = 0;
-  }
-  reprojectKnownDocuments();
-  notifyState();
+function projectStructuralChanges(snapshot = getWorkspaceChanges()): void {
+  reprojectKnownDocuments(snapshot.structuralChanges);
 }
 
 /** Captures a delete intent once, in the controller, at the user gesture. */
@@ -256,8 +220,7 @@ export function createStructuralDelete(element: HTMLElement, id = structuralId()
   const target = captureRenderedInstance(element);
   if (!target) return null;
   const change: StructuralDelete = { id, kind: "delete", target };
-  const before = cloneSnapshot(changes);
-  setChanges([...changes, change], { before, after: [...changes, change] });
+  if (!commitStructuralChange(change, projectStructuralChanges)) return null;
   return change;
 }
 
@@ -301,27 +264,21 @@ export function createStructuralMove(
         : destinationChildren.length - (sameParent ? 1 : 0),
     },
   };
-  const beforeSnapshot = cloneSnapshot(changes);
-  const after = [...changes, change];
-  setChanges(after, { before: beforeSnapshot, after: cloneSnapshot(after) });
+  if (!commitStructuralChange(change, projectStructuralChanges)) return null;
   return change;
 }
 
 export function getStructuralChanges(): readonly StructuralChange[] {
-  return changes;
+  return getWorkspaceChanges().structuralChanges;
 }
 
 export function getStructuralDeletes(): readonly StructuralDelete[] {
-  return changes.filter((change): change is StructuralDelete => change.kind === "delete");
+  return getStructuralChanges().filter((change): change is StructuralDelete => change.kind === "delete");
 }
 
 /** Revert removes one canonical intent and leaves every other intent intact. */
 export function revertStructuralChange(changeId: string): boolean {
-  const after = changes.filter((change) => change.id !== changeId);
-  if (after.length === changes.length) return false;
-  const before = cloneSnapshot(changes);
-  setChanges(after, { before, after: cloneSnapshot(after) });
-  return true;
+  return revertStructuralChangeRecord(changeId, projectStructuralChanges);
 }
 
 /**
@@ -336,70 +293,34 @@ export function reconcileVerifiedStructuralChanges(
   verifiedIds: ReadonlySet<string>,
 ): number {
   if (verifiedIds.size === 0) return 0;
-  const retainUnverified = (snapshot: readonly StructuralChange[]): StructuralChange[] =>
-    snapshot.filter((change) => !verifiedIds.has(change.id));
-  const after = retainUnverified(changes);
-  const removed = changes.length - after.length;
+  const removed = reconcileWorkspaceChanges(new Set(), verifiedIds, projectStructuralChanges);
   if (removed === 0) return 0;
-
-  changes = after;
-  undoStack = undoStack
-    .map((entry) => ({
-      before: retainUnverified(entry.before),
-      after: retainUnverified(entry.after),
-    }))
-    .filter((entry) => JSON.stringify(entry.before) !== JSON.stringify(entry.after));
-  redoStack = redoStack
-    .map((entry) => ({
-      before: retainUnverified(entry.before),
-      after: retainUnverified(entry.after),
-    }))
-    .filter((entry) => JSON.stringify(entry.before) !== JSON.stringify(entry.after));
   for (const [cardId, canvasReports] of reportsByCanvasCard) {
     reportsByCanvasCard.set(cardId, {
       ...canvasReports,
       reports: canvasReports.reports.filter((report) => !verifiedIds.has(report.changeId)),
     });
   }
-  reprojectKnownDocuments();
-  notifyState();
   notifyDiagnostics();
   return removed;
 }
 
 /** Undo/redo histories contain snapshots of serializable canonical intent only. */
 export function undoStructuralChange(): boolean {
-  const entry = undoStack.at(-1);
-  if (!entry) return false;
-  undoStack.pop();
-  changes = cloneSnapshot(entry.before);
-  redoStack.push(entry);
-  reprojectKnownDocuments();
-  notifyState();
-  return true;
+  return undoWorkspaceChange(projectStructuralChanges);
 }
 
 export function redoStructuralChange(): boolean {
-  const entry = redoStack.at(-1);
-  if (!entry) return false;
-  redoStack.pop();
-  changes = cloneSnapshot(entry.after);
-  undoStack.push(entry);
-  reprojectKnownDocuments();
-  notifyState();
-  return true;
+  return redoWorkspaceChange(projectStructuralChanges);
 }
 
 /** Clear is deliberately terminal: it restores the empty desired snapshot and history. */
 export function clearStructuralChanges(): void {
-  changes = [];
-  undoStack.length = 0;
-  redoStack.length = 0;
+  const current = getWorkspaceChanges();
+  restoreWorkspaceChanges({ changes: current.changes, structuralChanges: [] }, projectStructuralChanges);
   // Frame reports are document-local diagnostics for an old desired snapshot.
   // They must not outlive the canonical records they describe.
   reportsByCanvasCard.clear();
-  reprojectKnownDocuments();
-  notifyState();
   notifyDiagnostics();
 }
 
@@ -410,22 +331,18 @@ export function clearStructuralChanges(): void {
  */
 export function hydrateStructuralChanges(snapshot: readonly StructuralChange[]): void {
   if (!snapshot.every(isStructuralChange)) return;
-  changes = cloneSnapshot(snapshot);
-  undoStack.length = 0;
-  redoStack.length = 0;
+  const current = getWorkspaceChanges();
+  restoreWorkspaceChanges({ changes: current.changes, structuralChanges: snapshot }, projectStructuralChanges);
   reportsByCanvasCard.clear();
-  reprojectKnownDocuments();
   // Session startup has no existing document adapter yet. Register and replay
   // the host explicitly so restore behaves the same as a later Canvas frame.
-  if (typeof document !== "undefined") applyStructuralProjection(document, changes);
-  notifyState();
+  if (typeof document !== "undefined") applyStructuralProjection(document, snapshot);
   notifyDiagnostics();
 }
 
 /** State changes drive controller-to-renderer projection. Diagnostics do not. */
 export function subscribeStructuralChanges(listener: () => void): () => void {
-  stateListeners.add(listener);
-  return () => stateListeners.delete(listener);
+  return subscribeWorkspaceChanges(listener);
 }
 
 /** Compatibility name retained while the controller moved to a full union. */
@@ -644,7 +561,7 @@ function validationStatus(local: AppliedStructuralChange): StructuralProjectionS
 }
 
 /** Rebuild already-mounted document adapters from canonical data only. */
-function reprojectKnownDocuments(): void {
+function reprojectKnownDocuments(changes: readonly StructuralChange[] = getStructuralChanges()): void {
   for (const [doc, state] of documentStates) {
     rebuildForSnapshot(doc, state, changes);
     storeReports(doc, reportsForSnapshot(state, state.snapshot));
@@ -704,7 +621,7 @@ export function recordCanvasStructuralProjectionReports(
   reports: readonly StructuralProjectionReport[],
 ): void {
   if (!Number.isSafeInteger(revision) || revision < 0 || !reports.every(isStructuralProjectionReport)) return;
-  const expected = new Set(changes.map((change) => change.id));
+  const expected = new Set(getStructuralChanges().map((change) => change.id));
   if (reports.length !== expected.size || new Set(reports.map((report) => report.changeId)).size !== reports.length
     || reports.some((report) => !expected.has(report.changeId))) return;
   const existing = reportsByCanvasCard.get(cardId);
@@ -717,6 +634,25 @@ export function recordCanvasStructuralProjectionReports(
 
 export function clearCanvasStructuralProjectionReports(cardId: string): void {
   if (!reportsByCanvasCard.delete(cardId)) return;
+  notifyDiagnostics();
+}
+
+/** Removes document-local reports for canonical intents that no longer exist. */
+export function pruneStructuralProjectionReports(changeIds: ReadonlySet<string>): void {
+  if (changeIds.size === 0) return;
+  for (const [cardId, canvasReports] of reportsByCanvasCard) {
+    reportsByCanvasCard.set(cardId, {
+      ...canvasReports,
+      reports: canvasReports.reports.filter((report) => !changeIds.has(report.changeId)),
+    });
+  }
+  notifyDiagnostics();
+}
+
+/** Clears reports before restoring or clearing an atomic workspace snapshot. */
+export function clearStructuralProjectionReports(): void {
+  reportsByCanvasCard.clear();
+  reportsByDocument = new WeakMap();
   notifyDiagnostics();
 }
 
@@ -741,14 +677,11 @@ export function resetStructuralDeleteProjection(): void {
     }
     state.observer?.disconnect();
   }
-  changes = [];
-  undoStack = [];
-  redoStack = [];
   documentStates.clear();
   reportsByDocument = new WeakMap();
   reportsByCanvasCard.clear();
   nextStructuralId = 1;
   diagnosticRevision = 0;
-  notifyState();
+  resetWorkspaceChanges();
   notifyDiagnostics();
 }

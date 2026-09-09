@@ -1,7 +1,8 @@
 import type { ChangeRecord } from "../changesLog.ts";
+import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import {
   getChangesList,
-  loadChanges,
+  loadWorkspaceChanges,
   isComponentChange,
   isTokenChange,
   isTextContentChangeValue,
@@ -40,9 +41,7 @@ import {
 } from "../renderedInstance.ts";
 import {
   getStructuralChanges,
-  hydrateStructuralChanges,
   isStructuralChange,
-  clearStructuralChanges,
   resetStructuralDeleteProjection,
   type StructuralChange,
 } from "../structuralProjection.ts";
@@ -764,7 +763,8 @@ export interface HydrationResult {
 }
 
 function buildSession(): DurableSession {
-  const changes = getChangesList();
+  const workspace = getWorkspaceChanges();
+  const changes = workspace.changes;
   const serializableChanges: SerializableChange[] = [];
   for (const change of changes) {
     const serialized = serializeChange(change);
@@ -805,7 +805,7 @@ function buildSession(): DurableSession {
     })),
     camera: { x: camera.x, y: camera.y, zoom: camera.zoom },
     changes: serializableChanges,
-    structuralChanges: getStructuralChanges().map((change) => ({ ...change })),
+    structuralChanges: workspace.structuralChanges.map((change) => ({ ...change })),
     clipboardHandoff: getClipboardHandoffSnapshot(),
   };
 }
@@ -1060,10 +1060,9 @@ export function hydrateSession(): HydrationResult {
     camera,
     serializableComparisonGroups as CanvasComparisonGroup[],
   );
-  hydrateStructuralChanges(structuralChanges);
-  // Instance evidence captured after a move must resolve against the restored
-  // structural order, not the application's pre-move baseline.
-  loadChanges(deserializedChanges);
+  // Structural intent and instance evidence become visible atomically. The
+  // projection layer preserves structural-first document application order.
+  loadWorkspaceChanges(deserializedChanges, structuralChanges);
   hydrateClipboardHandoff(clipboardHandoff);
   // A different URL means the user intentionally navigated while Inspect was
   // active. Keep the durable edits, but adopt the new route instead of
@@ -1098,7 +1097,6 @@ export function clearSession(): void {
   }
 
   clearChangesLog();
-  clearStructuralChanges();
   clearClipboardHandoff();
   resetStructuralDeleteProjection();
   removeManagedSheet();

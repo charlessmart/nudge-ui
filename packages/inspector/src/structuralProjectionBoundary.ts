@@ -5,7 +5,7 @@ import type {
   StructuralMove,
   StructuralProjectionReason,
   StructuralProjectionReport,
-} from "./structuralProjection.ts";
+} from "./changes/structuralTypes.ts";
 
 export function isStructuralProjectionReport(value: unknown): value is StructuralProjectionReport {
   if (!value || typeof value !== "object") return false;
