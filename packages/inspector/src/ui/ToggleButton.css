@@ -48,7 +48,7 @@
 }
 
 .toggle-button:hover:not(:disabled) {
-  background: var(--surface-control-hover);
+  background: var(--surface-well);
 }
 
 .toggle-button--primary:hover:not(:disabled) {

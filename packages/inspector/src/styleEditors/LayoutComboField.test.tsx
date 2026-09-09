@@ -217,4 +217,76 @@ describe("LayoutComboField", () => {
     expect(input.value).toBe("20px");
     expect(sheetText()).toContain("row-gap: 20px;");
   });
+
+  it("disables the gap field and explains why when gap is set inline", () => {
+    const { el } = makeSelected();
+    el.style.setProperty("gap", "16px");
+    mockComputedStyle({ "column-gap": "16px" });
+    handle = mount(
+      createElement(LayoutComboField, {
+        property: "column-gap",
+        presets: ["0", "8px", "16px"],
+        domElement: el,
+        inputOnly: true,
+      }),
+    );
+    const input = handle.host.querySelector('[data-test="layout-combo-input-column-gap"]') as HTMLInputElement;
+    expect(input.disabled).toBe(true);
+
+    const blocked = handle.host.querySelector('[data-test="layout-combo-blocked"]') as HTMLElement;
+    expect(blocked?.getAttribute("aria-label")).toContain("gap: 16px");
+  });
+
+  it("disables the field when the longhand itself is set inline", () => {
+    const { el } = makeSelected();
+    el.style.setProperty("column-gap", "16px");
+    mockComputedStyle({ "column-gap": "16px" });
+    handle = mount(
+      createElement(LayoutComboField, {
+        property: "column-gap",
+        presets: ["0", "8px", "16px"],
+        domElement: el,
+      }),
+    );
+    const select = handle.host.querySelector('[data-test="layout-combo-select-column-gap"]') as HTMLElement;
+    expect(select.hasAttribute("disabled")).toBe(true);
+
+    expect(handle.host.querySelector('[data-test="layout-combo-blocked"]')).toBeTruthy();
+  });
+
+  it("writes nothing to the managed sheet while blocked by inline styles", () => {
+    const { el } = makeSelected();
+    el.style.setProperty("gap", "16px");
+    mockComputedStyle({ "column-gap": "16px" });
+    handle = mount(
+      createElement(LayoutComboField, {
+        property: "column-gap",
+        presets: ["0", "8px", "16px"],
+        domElement: el,
+        inputOnly: true,
+      }),
+    );
+    const input = handle.host.querySelector('[data-test="layout-combo-input-column-gap"]') as HTMLInputElement;
+
+    setInputValue(input, "24");
+
+    expect(sheetText()).not.toContain("column-gap");
+  });
+
+  it("stays enabled when only an unrelated property is set inline", () => {
+    const { el } = makeSelected();
+    el.style.setProperty("display", "flex");
+    mockComputedStyle({ "column-gap": "0px" });
+    handle = mount(
+      createElement(LayoutComboField, {
+        property: "column-gap",
+        presets: ["0", "8px", "16px"],
+        domElement: el,
+        inputOnly: true,
+      }),
+    );
+    const input = handle.host.querySelector('[data-test="layout-combo-input-column-gap"]') as HTMLInputElement;
+    expect(input.disabled).toBe(false);
+    expect(handle.host.querySelector('[data-test="layout-combo-blocked"]')).toBeNull();
+  });
 });

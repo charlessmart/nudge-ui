@@ -2,7 +2,7 @@ import { getActiveStyleState } from "../styleState.ts";
 import { getStateStyleValue } from "../stateValue.ts";
 import { getElementComputedStyle } from "../domRealm.ts";
 import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
-import type { StringRecord } from "./stringRecord.ts";
+import type { StringListRecord, StringRecord } from "./stringRecord.ts";
 
 const DEFAULT_LAYOUT_VALUES: StringRecord = {
   width: "auto",
@@ -47,6 +47,45 @@ export function readAuthoredStyleValue(el: HTMLElement, property: string): strin
 
   const inline = el.style.getPropertyValue(property).trim();
   return inline || null;
+}
+
+/**
+ * Shorthands that also author the keyed longhand when present in a `style`
+ * attribute. Managed-stylesheet previews lose the cascade to any of these,
+ * so fields must treat the longhand as inline-blocked either way.
+ */
+const INLINE_SHORTHAND_SOURCES: StringListRecord = {
+  "row-gap": ["gap"],
+  "column-gap": ["gap"],
+  "margin-top": ["margin"],
+  "margin-right": ["margin"],
+  "margin-bottom": ["margin"],
+  "margin-left": ["margin"],
+  "padding-top": ["padding"],
+  "padding-right": ["padding"],
+  "padding-bottom": ["padding"],
+  "padding-left": ["padding"],
+  top: ["inset"],
+  right: ["inset"],
+  bottom: ["inset"],
+  left: ["inset"],
+};
+
+/**
+ * Returns the inline-authored source when `el` carries the property — or a
+ * shorthand that sets it — in its `style` attribute. Managed previews can
+ * never beat inline styles in the cascade, so a non-null result means the
+ * field must present as blocked instead of accepting edits that silently
+ * revert (see `verifyPreview`'s "inline-style" conflict).
+ */
+export function inlineAuthoredValue(el: HTMLElement, property: string): string | null {
+  const direct = el.style.getPropertyValue(property).trim();
+  if (direct) return `${property}: ${direct}`;
+  for (const shorthand of INLINE_SHORTHAND_SOURCES[property] ?? []) {
+    const value = el.style.getPropertyValue(shorthand).trim();
+    if (value) return `${shorthand}: ${value}`;
+  }
+  return null;
 }
 
 export interface LayoutValue {
