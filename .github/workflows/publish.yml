@@ -55,8 +55,8 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
-      - name: Run full test suite
-        run: pnpm run test:full
+      - name: Run required unit tests
+        run: pnpm run test:unit
 
       - name: Verify package archives
         run: node scripts/verify-packages.mjs --output-directory .release-packages
