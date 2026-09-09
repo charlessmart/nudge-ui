@@ -7,11 +7,11 @@ import type {
 } from "../changesLog.ts";
 import { startStaleDetection, cancelStaleDetection, isVerificationPending } from "./staleChangeDetector.ts";
 import {
-  clearChanges,
+  clearWorkspace,
   getChangesList,
   isElementChange,
   isPreviewableChange,
-  loadChanges,
+  restoreChangeRecords,
 } from "../changesLog.ts";
 import { getRegisteredFrames } from "./projection.ts";
 import { addCanvasCard, removeCanvasCard as removeCanvasCardStore, getCanvasCards } from "./canvasStore.ts";
@@ -103,12 +103,12 @@ function addElementToFrame(iframe: HTMLIFrameElement, selector: string): void {
 describe("staleChangeDetector", () => {
   beforeEach(() => {
     cancelStaleDetection();
-    clearChanges();
+    clearWorkspace();
   });
 
   afterEach(() => {
     cancelStaleDetection();
-    clearChanges();
+    clearWorkspace();
   });
 
   describe("element change verification", () => {
@@ -116,7 +116,7 @@ describe("staleChangeDetector", () => {
       const change = makeElementChange({
         previewResult: { status: "applied", requestedValue: "var(--color-b)", computedValue: "#bbbbbb" },
       });
-      loadChanges([change]);
+      restoreChangeRecords([change]);
 
       const changes = getPreviewableChanges();
       expect(changes[0]!.previewResult?.status).toBe("applied");
@@ -130,7 +130,7 @@ describe("staleChangeDetector", () => {
       const change = makeElementChange({
         selector: '[data-cid="Missing"][data-src*="Missing.tsx:1"]',
       });
-      loadChanges([change]);
+      restoreChangeRecords([change]);
 
       startStaleDetection(getChangesList());
 
@@ -148,7 +148,7 @@ describe("staleChangeDetector", () => {
       setupMockElements('[data-cid="Button"][data-src*="src/Button.tsx:1"]');
 
       const change = makeElementChange();
-      loadChanges([change]);
+      restoreChangeRecords([change]);
 
       startStaleDetection(getChangesList());
 
@@ -173,7 +173,7 @@ describe("staleChangeDetector", () => {
       frameMap.set(card.id, iframe);
 
       const change = makeElementChange({ selector, cid: "Sidebar", file: "src/Sidebar.tsx", line: 42 });
-      loadChanges([change]);
+      restoreChangeRecords([change]);
 
       startStaleDetection(getChangesList());
 
@@ -203,7 +203,7 @@ describe("staleChangeDetector", () => {
         file: "src/Deleted.tsx",
         line: 1,
       });
-      loadChanges([change]);
+      restoreChangeRecords([change]);
 
       startStaleDetection(getChangesList());
 
@@ -232,7 +232,7 @@ describe("staleChangeDetector", () => {
         property: "margin",
         rawValue: "16px",
       });
-      loadChanges([change]);
+      restoreChangeRecords([change]);
 
       startStaleDetection(getChangesList());
 
@@ -260,7 +260,7 @@ describe("staleChangeDetector", () => {
       const change = makeElementChange({
         selector: '[data-cid="Gone"][data-src*="Gone.tsx:1"]',
       });
-      loadChanges([change]);
+      restoreChangeRecords([change]);
 
       startStaleDetection(getChangesList());
 
@@ -277,7 +277,7 @@ describe("staleChangeDetector", () => {
     it("cancels the verification timer", () => {
       vi.useFakeTimers();
       const change = makeElementChange();
-      loadChanges([change]);
+      restoreChangeRecords([change]);
 
       startStaleDetection(getChangesList());
       expect(isVerificationPending()).toBe(true);

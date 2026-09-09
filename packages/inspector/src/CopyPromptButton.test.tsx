@@ -12,7 +12,7 @@ import type {
   PairingResponse,
   PromptDispatchResponse,
 } from "./agent/protocol.ts";
-import { clearChanges, loadChanges, type ElementChangeRecord } from "./changesLog.ts";
+import { clearWorkspace, restoreChangeRecords, type ElementChangeRecord } from "./changesLog.ts";
 import { setNudgeUiHostDevFlag } from "./devFlag.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 import {
@@ -111,7 +111,7 @@ describe("CopyPromptButton agent handoff", () => {
     act(() => root.unmount());
     configureAgentBridgeTransport(undefined);
     resetAgentClients();
-    clearChanges();
+    clearWorkspace();
     clearClipboardHandoff();
     configureNudgeUiRuntime(previousConfig);
     container.remove();
@@ -185,7 +185,7 @@ describe("CopyPromptButton agent handoff", () => {
     expect(button.textContent).toContain("Send prompt");
     expect(button.disabled).toBe(true);
 
-    act(() => loadChanges([change()]));
+    act(() => restoreChangeRecords([change()]));
     expect(button.disabled).toBe(false);
     await act(async () => { button.click(); });
 
@@ -202,7 +202,7 @@ describe("CopyPromptButton agent handoff", () => {
     const writeText = vi.fn(async () => undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     act(() => {
-      loadChanges([change()]);
+      restoreChangeRecords([change()]);
       root.render(<CopyPromptButton />);
     });
     await flush();

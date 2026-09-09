@@ -9,7 +9,8 @@ import {
   nudgeElement,
 } from "./structuralGestures.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
-import { clearStructuralChanges, getStructuralChanges, resetStructuralDeleteProjection } from "./structuralProjection.ts";
+import { clearWorkspace } from "./changesLog.ts";
+import { getStructuralChanges, resetStructuralDeleteProjection } from "./structuralProjection.ts";
 
 function fixture() {
   const root = document.createElement("div");
@@ -27,7 +28,7 @@ function fixture() {
 }
 
 afterEach(() => {
-  clearStructuralChanges();
+  clearWorkspace();
   resetStructuralDeleteProjection();
   document.body.replaceChildren();
 });

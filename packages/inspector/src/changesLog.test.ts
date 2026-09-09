@@ -5,7 +5,7 @@ import {
   appendChanges,
   revertChange,
   reconcileVerifiedChanges,
-  clearChanges,
+  clearWorkspace,
   getChangesList,
   getPendingRules,
   subscribeChanges,
@@ -64,11 +64,11 @@ function makeInstanceOverride(): RenderedInstanceOverride {
 
 describe("changesLog", () => {
   beforeEach(() => {
-    clearChanges();
+    clearWorkspace();
     document.getElementById("nudge-ui-styles")?.remove();
   });
   afterEach(() => {
-    clearChanges();
+    clearWorkspace();
     document.getElementById("nudge-ui-styles")?.remove();
   });
 
@@ -194,10 +194,10 @@ describe("changesLog", () => {
     expect(getChangesList()).toHaveLength(1);
   });
 
-  it("clearChanges empties the log", () => {
+  it("clearWorkspace empties the log", () => {
     appendChange(makeRecord("background", COLOR_B, COLOR_A));
     appendChange(makeRecord("color", COLOR_C, null));
-    clearChanges();
+    clearWorkspace();
     expect(getChangesList()).toHaveLength(0);
     expect(getPendingRules()).toHaveLength(0);
   });
@@ -289,11 +289,11 @@ describe("changesLog", () => {
       expect(redo()).toBe(false);
     });
 
-    it("clearChanges clears the undo stack", () => {
+    it("clearWorkspace clears the undo stack", () => {
       appendChange(makeRecord("background", COLOR_B, COLOR_A));
       appendChange(makeRecord("color", COLOR_C, null));
       undo();
-      clearChanges();
+      clearWorkspace();
       expect(redo()).toBe(false);
     });
 
@@ -342,7 +342,7 @@ describe("changesLog", () => {
     appendChange(makeRecord("margin", null, null, "12px"));
     const before = getPendingRules();
     expect(before).toHaveLength(2);
-    clearChanges();
+    clearWorkspace();
     appendChange(makeRecord("padding", null, null, "10px"));
     appendChange(makeRecord("margin", null, null, "12px"));
     const rebuilt = getPendingRules();
@@ -441,9 +441,9 @@ describe("changesLog", () => {
     expect(rules[1]!.declarations.color).toBe("blue");
   });
 
-  it("clearChanges also empties the managed stylesheet", () => {
+  it("clearWorkspace also empties the managed stylesheet", () => {
     appendChange(makeRecord("color", null, null, "red"));
-    clearChanges();
+    clearWorkspace();
     expect(document.getElementById("nudge-ui-styles")?.textContent).toBe("");
   });
 

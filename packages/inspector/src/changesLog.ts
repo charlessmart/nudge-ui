@@ -13,7 +13,7 @@ import { isPreviewableChange } from "./changes/types.ts";
 import type { ChangeRecord } from "./changes/types.ts";
 import { cancelInlineTextForClear } from "./inlineTextLifecycle.ts";
 import {
-  clearWorkspaceChanges,
+  clearWorkspaceChanges as clearCanonicalWorkspace,
   commitChangeRecords,
   discardChangeRecords,
   getWorkspaceChanges,
@@ -24,6 +24,7 @@ import {
   revertChangeRecord,
   subscribeWorkspaceChanges,
   undoWorkspaceChange,
+  type WorkspaceChangesSnapshot,
 } from "./changes/workspaceChanges.ts";
 import {
   applyStructuralProjection,
@@ -75,8 +76,7 @@ export function getPendingRules(): StyleRule[] {
   return buildManagedStyleRules(getChangesSnapshot());
 }
 
-function reapply(): void {
-  const workspace = getWorkspaceChanges();
+function reapply(workspace: WorkspaceChangesSnapshot): void {
   applyStructuralProjection(document, workspace.structuralChanges);
   applyChangeProjections(workspace.changes as ChangeRecord[]);
 }
@@ -220,7 +220,12 @@ export function redo(): boolean {
   return redone;
 }
 
-export function loadChanges(incoming: ChangeRecord[]): void {
+/**
+ * Replaces ordinary records while preserving structural intent. Restoring any
+ * dimension is terminal for the unified workspace timeline, so undo and redo
+ * history are reset for both dimensions.
+ */
+export function restoreChangeRecords(incoming: ChangeRecord[]): void {
   // A restored session replaces the change set and may also switch the active
   // document. Do not let a deferred verification from the previous session
   // inspect a newly loaded record with its old selection context.
@@ -239,12 +244,14 @@ export function loadWorkspaceChanges(
   restoreWorkspaceChanges({ changes: incoming, structuralChanges }, reapply);
 }
 
-export function clearChanges(): void {
+/** Clears all workspace intent and its unified undo/redo timeline. */
+export function clearWorkspace(): void {
   // A pending blur/composition timer must not be able to append a draft after
   // the canonical set has been cleared.
   cancelInlineTextForClear();
   pendingVerificationTargets.clear();
-  clearWorkspaceChanges(reapply);
+  clearStructuralProjectionReports();
+  clearCanonicalWorkspace(reapply);
 }
 
 export function getChangesList(): ChangeRecord[] {

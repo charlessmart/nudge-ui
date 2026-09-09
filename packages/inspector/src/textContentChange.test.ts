@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   appendChanges,
   appendChange,
-  clearChanges,
+  clearWorkspace,
   getChangesList,
   getPendingRules,
   isTextContentChangeValue,
@@ -39,7 +39,7 @@ function makeTextChange(
 
 describe("text-content canonical changes", () => {
   beforeEach(() => {
-    clearChanges();
+    clearWorkspace();
     document.body.replaceChildren();
   });
 
