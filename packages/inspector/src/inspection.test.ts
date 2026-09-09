@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TokenDefinition } from "virtual:design-tokens";
-import { clearChanges } from "./changesLog.ts";
+import { clearWorkspace } from "./changesLog.ts";
 import { inspectElement, installInspectionBridge } from "./inspection.ts";
 
 const catalog: TokenDefinition[] = [
@@ -34,7 +34,7 @@ const catalog: TokenDefinition[] = [
 ];
 
 afterEach(() => {
-  clearChanges();
+  clearWorkspace();
   delete window.__nudgeUi;
   document.head.innerHTML = "";
   document.body.innerHTML = "";

@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { InspectorShell, toggleInspector, setInspectorOpen, setInspectorHost } from "./InspectorShell.tsx";
 import { setSelectedElement } from "./selectionStore.ts";
-import { clearChanges } from "./changesLog.ts";
+import { clearWorkspace } from "./changesLog.ts";
 import { removeManagedSheet } from "./managedStylesheet.ts";
 import { isInspectorToggleShortcut } from "./shortcuts.ts";
 import { clearInspectorLayout } from "./panelLayout.ts";
@@ -222,7 +222,7 @@ export function unmountInspector(): void {
     reactRoot.unmount();
     reactRoot = null;
   }
-  clearChanges();
+  clearWorkspace();
   clearClipboardHandoff();
   resetStructuralDeleteProjection();
   removeManagedSheet();

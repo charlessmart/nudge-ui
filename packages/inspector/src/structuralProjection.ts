@@ -13,13 +13,11 @@ import {
 import {
   commitStructuralChange,
   getWorkspaceChanges,
-  redoWorkspaceChange,
   reconcileWorkspaceChanges,
   resetWorkspaceChanges,
-  restoreWorkspaceChanges,
   revertStructuralChangeRecord,
   subscribeWorkspaceChanges,
-  undoWorkspaceChange,
+  type WorkspaceChangesSnapshot,
 } from "./changes/workspaceChanges.ts";
 import type {
   StructuralChange,
@@ -211,7 +209,7 @@ function cloneSnapshot(snapshot: readonly StructuralChange[]): StructuralChange[
   return [...snapshot];
 }
 
-function projectStructuralChanges(snapshot = getWorkspaceChanges()): void {
+function projectStructuralChanges(snapshot: WorkspaceChangesSnapshot): void {
   reprojectKnownDocuments(snapshot.structuralChanges);
 }
 
@@ -303,41 +301,6 @@ export function reconcileVerifiedStructuralChanges(
   }
   notifyDiagnostics();
   return removed;
-}
-
-/** Undo/redo histories contain snapshots of serializable canonical intent only. */
-export function undoStructuralChange(): boolean {
-  return undoWorkspaceChange(projectStructuralChanges);
-}
-
-export function redoStructuralChange(): boolean {
-  return redoWorkspaceChange(projectStructuralChanges);
-}
-
-/** Clear is deliberately terminal: it restores the empty desired snapshot and history. */
-export function clearStructuralChanges(): void {
-  const current = getWorkspaceChanges();
-  restoreWorkspaceChanges({ changes: current.changes, structuralChanges: [] }, projectStructuralChanges);
-  // Frame reports are document-local diagnostics for an old desired snapshot.
-  // They must not outlive the canonical records they describe.
-  reportsByCanvasCard.clear();
-  notifyDiagnostics();
-}
-
-/**
- * Replaces canonical structural intent from a durable session. Hydration is
- * deliberately not an edit: it resets undo/redo and clears stale renderer
- * diagnostics before replaying the snapshot into every mounted document.
- */
-export function hydrateStructuralChanges(snapshot: readonly StructuralChange[]): void {
-  if (!snapshot.every(isStructuralChange)) return;
-  const current = getWorkspaceChanges();
-  restoreWorkspaceChanges({ changes: current.changes, structuralChanges: snapshot }, projectStructuralChanges);
-  reportsByCanvasCard.clear();
-  // Session startup has no existing document adapter yet. Register and replay
-  // the host explicitly so restore behaves the same as a later Canvas frame.
-  if (typeof document !== "undefined") applyStructuralProjection(document, snapshot);
-  notifyDiagnostics();
 }
 
 /** State changes drive controller-to-renderer projection. Diagnostics do not. */
