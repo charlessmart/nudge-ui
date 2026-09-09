@@ -9,8 +9,8 @@
   color: var(--text-secondary);
 }
 
-.empty-state__icon { display: grid; place-items: center; width: var(--space-48); height: var(--space-48); margin-bottom: var(--space-16); border-radius: var(--radius-8); background: var(--surface-raised-2x); color: var(--text-secondary); }
-.empty-state__title { margin: 0; color: var(--text-primary); font-size: var(--font-size-base); font-weight: var(--font-weight-label); }
+.empty-state__icon { display: block; width: min(100%, 182px); height: auto; margin-bottom: var(--space-16); }
+.empty-state__title { margin: 0; color: var(--text-primary); font-size: var(--font-size-base); font-weight: var(--font-weight-base); }
 .empty-state__shortcuts { width: 100%; margin-top: var(--space-32); padding-top: var(--space-20); text-align: left; }
 .empty-state__shortcut-list { display: grid; gap: var(--space-8); margin: var(--space-0); padding: var(--space-0); list-style: none; }
 .empty-state__shortcut { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--control-height-small); color: var(--text-secondary); }

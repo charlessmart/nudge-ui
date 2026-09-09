@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { IconPointer } from "@tabler/icons-react";
+import gridIllustration from "./ui/assets/grid.svg";
 
 function isMacPlatform(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -15,9 +15,7 @@ export function EmptyState(): ReactElement {
 
   return (
     <div className="empty-state" data-test="empty-state">
-      <div className="empty-state__icon" aria-hidden="true">
-        <IconPointer size="var(--icon-size-large)" stroke="var(--icon-stroke-width)" />
-      </div>
+      <img className="empty-state__icon" src={gridIllustration} alt="" aria-hidden="true" />
       <h2 className="empty-state__title">Select an element to edit</h2>
       <div className="empty-state__shortcuts">
         <ul className="empty-state__shortcut-list">

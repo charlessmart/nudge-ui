@@ -134,11 +134,11 @@
 }
 
 .canvas-card__resize-handle:hover {
-  color: var(--accent, #00b0ff);
+  color: var(--accent);
 }
 
 .canvas-card__resize-handle:focus-visible {
-  outline: 2px solid var(--focus, #00b0ff);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
   opacity: 1;
 }

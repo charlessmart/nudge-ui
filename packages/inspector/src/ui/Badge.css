@@ -10,7 +10,7 @@
 
 .badge--accent {
   background: var(--accent-surface);
-  color: var(--accent-text);
+  color: var(--accent);
 }
 
 .badge--warning {

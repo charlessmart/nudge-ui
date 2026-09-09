@@ -3,7 +3,7 @@
   display: flex;
   flex: 1;
   min-width: 0;
-  background: var(--surface-raised);
+  background: var(--surface-raised-2x);
   margin-right: -6px;
   align-self: stretch;
   padding-left: var(--space-8);
@@ -45,7 +45,7 @@
 }
 
 .token-chip__trigger:focus-visible {
-  box-shadow: var(--token-chip-focus-ring, inset 0 0 0 2px var(--focus));
+  box-shadow: var(--token-chip-focus-ring, inset 0 0 0 2px var(--accent));
 }
 
 .token-chip--small .token-chip__trigger {
@@ -101,7 +101,7 @@
   right: 2px;
   display: inline-flex;
   align-items: center;
-  background: var(--surface-raised);
+  background: var(--surface-raised-2x);
   transform: translateY(-50%);
   opacity: 0;
 }

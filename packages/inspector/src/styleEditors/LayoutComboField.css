@@ -54,7 +54,7 @@
 
 .layout-combo-blocked:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 2px var(--focus);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .layout-combo-blocked__symbol {

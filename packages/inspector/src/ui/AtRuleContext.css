@@ -24,8 +24,8 @@
 }
 
 .at-rule-indicator:hover {
-  color: var(--accent-text);
-  background: var(--accent-text);
+  color: var(--accent);
+  background: var(--accent);
 }
 
 .at-rule-indicator__symbol {
@@ -38,7 +38,7 @@
 
 .at-rule-indicator:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 2px var(--focus);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .at-rule-tooltip-positioner {

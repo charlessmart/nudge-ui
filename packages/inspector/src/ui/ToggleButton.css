@@ -52,22 +52,22 @@
 }
 
 .toggle-button--primary:hover:not(:disabled) {
-  background: var(--accent-strong);
+  background: var(--accent);
 }
 
 .toggle-button[data-pressed] {
   background: var(--accent-surface);
-  color: var(--accent-text);
+  color: var(--accent);
 }
 
 .toggle-button[data-pressed]:hover:not(:disabled) {
   background: var(--accent-surface);
-  color: var(--accent-text);
+  color: var(--accent);
 }
 
 .toggle-button:focus-visible {
   outline: 0;
-  box-shadow: inset 0 0 0 2px var(--focus);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .toggle-button:disabled {

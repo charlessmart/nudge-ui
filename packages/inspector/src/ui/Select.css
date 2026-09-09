@@ -85,7 +85,7 @@
 
 .select__search-input:focus {
   border-color: var(--border-strong);
-  box-shadow: 0 0 0 2px var(--focus);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .select__empty {

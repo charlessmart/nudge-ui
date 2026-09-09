@@ -65,17 +65,17 @@
 
 .button[data-active="true"] {
   background: var(--accent-surface);
-  color: var(--accent-text);
+  color: var(--accent);
 }
 
 .button[data-active="true"]:hover:not(:disabled) {
   background: var(--accent-surface);
-  color: var(--accent-text);
+  color: var(--accent);
 }
 
 .button:focus-visible {
   outline: 0;
-  box-shadow: inset 0 0 0 2px var(--focus);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .button:disabled {

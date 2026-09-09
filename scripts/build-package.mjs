@@ -73,6 +73,7 @@ if (result.status !== 0) {
 buildProject.cleanup();
 
 copyDeclarationFiles(sourceRoot, outputRoot);
+copyStaticAssets(sourceRoot, outputRoot);
 rewriteDeclarationExtensions(outputRoot);
 inlineCssImports(outputRoot, sourceRoot);
 copyFileSync(resolve(packageRoot, "../../LICENSE"), resolve(outputRoot, "LICENSE"));
@@ -123,6 +124,20 @@ function copyDeclarationFiles(sourceDirectory, outputDirectory) {
     ) continue;
     mkdirSync(dirname(outputPath), { recursive: true });
     writeFileSync(outputPath, readFileSync(sourcePath));
+  }
+}
+
+function copyStaticAssets(sourceDirectory, outputDirectory) {
+  for (const entry of readdirSync(sourceDirectory, { withFileTypes: true })) {
+    const sourcePath = resolve(sourceDirectory, entry.name);
+    const outputPath = resolve(outputDirectory, entry.name);
+    if (entry.isDirectory()) {
+      copyStaticAssets(sourcePath, outputPath);
+      continue;
+    }
+    if (!entry.isFile() || !/\.(?:avif|gif|jpe?g|png|svg|webp|woff2?)$/i.test(entry.name)) continue;
+    mkdirSync(dirname(outputPath), { recursive: true });
+    copyFileSync(sourcePath, outputPath);
   }
 }
 
