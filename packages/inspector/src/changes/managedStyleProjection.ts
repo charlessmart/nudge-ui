@@ -1,8 +1,8 @@
-import type { PreviewResult, StyleRule } from "../managedStylesheet.ts";
-import { verifyPreview } from "../managedStylesheet.ts";
-import { getSelectedElement } from "../selectionStore.ts";
-import { instanceSelector } from "../renderedInstance.ts";
-import { selectorForInteractionState } from "../styleState.ts";
+import type { PreviewResult, StyleRule } from "../projection/managedStylesheet.ts";
+import { verifyPreview } from "../projection/managedStylesheet.ts";
+import { getSelectedElement } from "../selection/selectionStore.ts";
+import { instanceSelector } from "../projection/renderedInstance.ts";
+import { selectorForInteractionState } from "../shell/styleState.ts";
 import {
   isComponentChange,
   isTextContentChange,

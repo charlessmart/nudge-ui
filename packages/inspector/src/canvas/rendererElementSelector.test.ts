@@ -2,7 +2,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setRendererIdentity, type ElementHoverMessage } from "./frameProtocol.ts";
 import { buildSelector, installRendererElementSelector } from "./rendererElementSelector.ts";
-import { setNudgeUiHostDevFlag } from "../devFlag.ts";
+import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 
 const identity = {
   projectId: "project-a",

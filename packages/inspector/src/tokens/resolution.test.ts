@@ -16,8 +16,8 @@ import {
 import { interpretValue } from "@nudge-ui/css/value-semantics";
 import { createInspectorValueContext } from "./valueSemanticsAdapter.ts";
 import type { MatchedRule, TokenTable } from "@nudge-ui/css/model";
-import { unlinkElement } from "../editScope.ts";
-import { applyRenderedInstanceProjection, getRenderedInstanceOverride } from "../renderedInstance.ts";
+import { unlinkElement } from "../selection/editScope.ts";
+import { applyRenderedInstanceProjection, getRenderedInstanceOverride } from "../projection/renderedInstance.ts";
 import {
   computeSpecificity,
   computeSpecificityCore,

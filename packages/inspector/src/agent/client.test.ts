@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setNudgeUiHostDevFlag } from "../devFlag.ts";
+import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { AgentClient } from "./client.ts";
 import type {
   AgentBridgeTransport,

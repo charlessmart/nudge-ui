@@ -1,20 +1,20 @@
 import type { TokenEntry } from "virtual:design-tokens";
-import { parseDataSrc } from "../resolveSelection.ts";
+import { parseDataSrc } from "../selection/resolveSelection.ts";
 import {
   appendChanges,
-} from "../changesLog.ts";
-import type { ElementChangeRecord } from "../changesLog.ts";
-import { canPlanBatchEditScopes, planBatchEditScopes, selectorForElement, sourceSiteSelector, type BatchScopeFields } from "../editScope.ts";
-import { getActiveStyleState, selectorForInteractionState } from "../styleState.ts";
-import { getStateStyleValue } from "../stateValue.ts";
+} from "../changes/changesLog.ts";
+import type { ElementChangeRecord } from "../changes/changesLog.ts";
+import { canPlanBatchEditScopes, planBatchEditScopes, selectorForElement, sourceSiteSelector, type BatchScopeFields } from "../selection/editScope.ts";
+import { getActiveStyleState, selectorForInteractionState } from "../shell/styleState.ts";
+import { getStateStyleValue } from "../shell/stateValue.ts";
 import {
   boundRuntimeEvidence,
   isRuntimeCreatedElement,
   isRuntimeGeneratedSource,
   normalizeRuntimeTag,
   normalizeRuntimeText,
-} from "../staticHtmlRuntimeIdentity.ts";
-import { targetElements, type EditTarget } from "../editTarget.ts";
+} from "../runtime/staticHtmlRuntimeIdentity.ts";
+import { targetElements, type EditTarget } from "../selection/editTarget.ts";
 import { changeKey } from "../changes/model.ts";
 
 function boundedRenderedText(el: HTMLElement): string | null {
@@ -64,8 +64,8 @@ function sourceFields(el: HTMLElement): {
   };
 }
 
-export type { ChangeRecord } from "../changesLog.ts";
-export { getPendingRules, getChangesList as getChangeRecords, clearChanges as resetPendingRules } from "../changesLog.ts";
+export type { ChangeRecord } from "../changes/changesLog.ts";
+export { getPendingRules, getChangesList as getChangeRecords, clearChanges as resetPendingRules } from "../changes/changesLog.ts";
 
 export interface StyleEditMetadata {
   sourceProperty?: string;

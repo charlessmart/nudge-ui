@@ -1,6 +1,6 @@
-import { isDocumentProjectionReport } from "../renderedInstance.ts";
-import { isTextProjectionReport } from "../textProjection.ts";
-import { isStructuralProjectionReport } from "../structuralProjectionBoundary.ts";
+import { isDocumentProjectionReport } from "../projection/renderedInstance.ts";
+import { isTextProjectionReport } from "../projection/textProjection.ts";
+import { isStructuralProjectionReport } from "../projection/structuralProjectionBoundary.ts";
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 
 // v15 adds renderer-to-controller element deselection for Canvas frames. v14
@@ -68,9 +68,9 @@ export interface ReplaceStylesMessage extends FrameMessage {
   css: string;
   revision: number;
   /** Controller-owned durable targets; the renderer derives local markers. */
-  instanceOverrides: import("../renderedInstance.ts").RenderedInstanceOverride[];
+  instanceOverrides: import("../projection/renderedInstance.ts").RenderedInstanceOverride[];
   /** Controller-owned structural intent; renderers never own this change log. */
-  structuralChanges: import("../structuralProjection.ts").StructuralChange[];
+  structuralChanges: import("../projection/structuralProjection.ts").StructuralChange[];
   /** Controller-owned durable rendered text intent. */
   textContentChanges: import("../changes/types.ts").TextContentChangeRecord[];
   /** Controller-owned semantic component overrides for Canvas runtimes. */
@@ -90,21 +90,21 @@ export interface ProjectionAppliedMessage extends RendererMessage {
 export interface StructuralProjectionReportMessage extends RendererMessage {
   type: "structural-projection-report";
   revision: number;
-  reports: import("../structuralProjection.ts").StructuralProjectionReport[];
+  reports: import("../projection/structuralProjection.ts").StructuralProjectionReport[];
 }
 
 /** Renderer-local CSS-instance outcomes for one controller snapshot. */
 export interface RenderedInstanceProjectionReportMessage extends RendererMessage {
   type: "rendered-instance-projection-report";
   revision: number;
-  reports: import("../renderedInstance.ts").DocumentProjectionReport[];
+  reports: import("../projection/renderedInstance.ts").DocumentProjectionReport[];
 }
 
 /** Renderer-local outcomes for one controller-owned text snapshot. */
 export interface TextProjectionReportMessage extends RendererMessage {
   type: "text-projection-report";
   revision: number;
-  reports: import("../textProjection.ts").TextProjectionReport[];
+  reports: import("../projection/textProjection.ts").TextProjectionReport[];
 }
 
 export interface NavigationIntentMessage extends RendererMessage {

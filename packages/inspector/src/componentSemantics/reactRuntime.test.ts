@@ -10,7 +10,7 @@ import {
   type ReactElement,
 } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { getManagedSheetText } from "../managedStylesheet.ts";
+import { getManagedSheetText } from "../projection/managedStylesheet.ts";
 import { applyChangeProjections } from "../changes/projection.ts";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { ElementChangeRecord } from "../changes/types.ts";

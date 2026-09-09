@@ -3,13 +3,13 @@ import { IconBackground } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { normalizeOpacityPercent } from "@nudge-ui/css/value-semantics";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
-import type { SelectedElement } from "../selectionStore.ts";
-import { getStateStyleValue } from "../stateValue.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
+import { getStateStyleValue } from "../shell/stateValue.ts";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { TokenField } from "../tokens/TokenField.tsx";
-import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 function metadataFor(row: ResolvedProperty | null) {
   return row?.sourceProperty

@@ -1,17 +1,17 @@
-import { applyRules, rulesToCssText, type StyleRule } from "../managedStylesheet.ts";
+import { applyRules, rulesToCssText, type StyleRule } from "./managedStylesheet.ts";
 import {
   applyRenderedInstanceProjection,
   collectRenderedInstanceOverrides,
   type RenderedInstanceOverride,
-} from "../renderedInstance.ts";
+} from "./renderedInstance.ts";
 import {
   applyStructuralProjection,
   type StructuralChange,
-} from "../structuralProjection.ts";
+} from "./structuralProjection.ts";
 import {
   applyTextContentProjection,
   collectTextContentChanges,
-} from "../textProjection.ts";
+} from "./textProjection.ts";
 import { replaceComponentOverrideProjection } from "../componentSemantics/index.ts";
 import { componentChangeToOverride } from "../componentSemantics/changeModel.ts";
 import type { ComponentOverride } from "../componentSemantics/types.ts";

@@ -9,7 +9,7 @@ import {
   type TextProjectionReportMessage,
 } from "./frameProtocol.ts";
 import { isComponentOverrideList } from "./frameProtocol.ts";
-import { isNudgeUiDev } from "../devFlag.ts";
+import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { replaceComponentOverrideProjection } from "../componentSemantics/index.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
 import {
@@ -17,18 +17,18 @@ import {
   getRenderedInstanceProjectionReports,
   isRenderedInstanceOverride,
   subscribeRenderedInstanceDiagnostics,
-} from "../renderedInstance.ts";
+} from "../projection/renderedInstance.ts";
 import {
   applyStructuralProjection,
   getStructuralProjectionReports,
   isStructuralChange,
   subscribeStructuralDiagnostics,
-} from "../structuralProjection.ts";
+} from "../projection/structuralProjection.ts";
 import {
   applyTextContentProjection,
   getTextProjectionReports,
   subscribeTextProjectionDiagnostics,
-} from "../textProjection.ts";
+} from "../projection/textProjection.ts";
 import { isTextContentChangeListValue } from "../changes/types.ts";
 import {
   applyWorkspaceProjection,

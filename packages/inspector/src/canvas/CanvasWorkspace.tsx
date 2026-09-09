@@ -17,10 +17,10 @@ import {
 } from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { useCanvasMode } from "./canvasStore.ts";
-import { subscribeChanges } from "../changesLog.ts";
-import { recordCanvasStructuralProjectionReports } from "../structuralProjection.ts";
-import { recordCanvasRenderedInstanceProjectionReports } from "../renderedInstance.ts";
-import { recordCanvasTextProjectionReports } from "../textProjection.ts";
+import { subscribeChanges } from "../changes/changesLog.ts";
+import { recordCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
+import { recordCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
+import { recordCanvasTextProjectionReports } from "../projection/textProjection.ts";
 import {
   findCanvasFrameBySource,
   getRegisteredFrames,
@@ -43,8 +43,8 @@ import { iframePointToClientPoint, zoomCameraAtPointer } from "./canvasGestures.
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
 import canvasCardStyles from "./CanvasCard.css?inline";
 import foundationStyles from "../ui/Foundation.css?inline";
-import { useInspectorOpen } from "../openStore.ts";
-import { isEditableEvent } from "../shortcuts.ts";
+import { useInspectorOpen } from "../shell/openStore.ts";
+import { isEditableEvent } from "../shell/shortcuts.ts";
 import { acknowledgeAgentRendererReady } from "./agentPresentation.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");

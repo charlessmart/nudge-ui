@@ -4,11 +4,11 @@ import { getCanvasMode } from "./canvasStore.ts";
 import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
 import {
   clearCanvasRenderedInstanceProjectionReports,
-} from "../renderedInstance.ts";
+} from "../projection/renderedInstance.ts";
 import {
   clearCanvasTextProjectionReports,
-} from "../textProjection.ts";
-import { clearCanvasStructuralProjectionReports } from "../structuralProjection.ts";
+} from "../projection/textProjection.ts";
+import { clearCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import {
   applyHostWorkspaceProjection,
   compileWorkspaceProjection,

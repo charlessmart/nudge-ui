@@ -2,17 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { IconMinus, IconPlus } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { getStateStyleValue } from "../stateValue.ts";
-import type { SelectedElement } from "../selectionStore.ts";
+import { getStateStyleValue } from "../shell/stateValue.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { setStyle } from "./styleActions.ts";
-import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 export interface ColorPickerProps {
   element: SelectedElement;

@@ -1,11 +1,11 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { generatePrompt } from "./generatePrompt.ts";
 import { detectFramework } from "./detectFramework.ts";
-import type { ElementChangeRecord, TextContentChangeRecord } from "../changesLog.ts";
+import type { ElementChangeRecord, TextContentChangeRecord } from "../changes/changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "../changes/_testUtils.ts";
-import type { StructuralChange } from "../structuralProjection.ts";
-import { configureNudgeUiRuntime } from "../runtimeConfig.ts";
+import type { StructuralChange } from "../projection/structuralProjection.ts";
+import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
 
 const SURFACE_RAISED: TokenEntry = { name: "--color-surface-raised", value: "#ffffff", source: "styles.css:1" };

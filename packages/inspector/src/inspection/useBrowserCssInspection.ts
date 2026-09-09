@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { SelectedElement } from "../selectionStore.ts";
-import type { InteractionState } from "../styleState.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
+import type { InteractionState } from "../shell/styleState.ts";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import type {
   BrowserCssInspection,

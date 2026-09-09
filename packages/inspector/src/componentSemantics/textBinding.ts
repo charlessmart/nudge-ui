@@ -11,9 +11,9 @@ import {
   captureTextProjectionTarget,
   resolveTextProjectionTextNode,
   textProjectionSelector,
-} from "../textProjection.ts";
-import type { TextProjectionTarget } from "../textChangeBoundary.ts";
-import type { TextBindingEvidence, TextProjectionScope } from "../textChangeBoundary.ts";
+} from "../projection/textProjection.ts";
+import type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
+import type { TextBindingEvidence, TextProjectionScope } from "../inline-text/textChangeBoundary.ts";
 
 /** The order used when more than one visible prop has the same value. */
 export const VISIBLE_TEXT_PROP_PRIORITY = [

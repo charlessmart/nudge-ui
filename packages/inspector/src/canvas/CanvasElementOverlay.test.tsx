@@ -3,8 +3,8 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { getSelectedElement, setSelectedElement } from "../selectionStore.ts";
-import { resolveSelectionFromElement } from "../resolveSelection.ts";
+import { getSelectedElement, setSelectedElement } from "../selection/selectionStore.ts";
+import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { CanvasElementOverlay } from "./CanvasElementOverlay.tsx";
 import {
   PROTOCOL_VERSION,

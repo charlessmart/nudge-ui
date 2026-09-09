@@ -1,4 +1,4 @@
-import { isComponentChange, isElementChange, isTextContentChange, isTokenChange } from "../changesLog.ts";
+import { isComponentChange, isElementChange, isTextContentChange, isTokenChange } from "../changes/changesLog.ts";
 import type {
   ChangeRecord,
   ComponentChangeRecord,
@@ -6,10 +6,10 @@ import type {
   PreviewableChangeRecord,
   TokenChangeRecord,
   TextContentChangeRecord,
-} from "../changesLog.ts";
-import type { RenderedInstanceOverride, RenderedInstanceRef } from "../renderedInstance.ts";
-import type { StructuralChange } from "../structuralProjection.ts";
-import type { TextProjectionTarget } from "../textChangeBoundary.ts";
+} from "../changes/changesLog.ts";
+import type { RenderedInstanceOverride, RenderedInstanceRef } from "../projection/renderedInstance.ts";
+import type { StructuralChange } from "../projection/structuralProjection.ts";
+import type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
 import { canonicalizeChanges, tokenReference } from "../changes/model.ts";
 import {
   formatComponentPropBaseline,
@@ -20,8 +20,8 @@ import {
   isRuntimeGeneratedSource,
   normalizeRuntimeTag,
   normalizeRuntimeText,
-} from "../staticHtmlRuntimeIdentity.ts";
-import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runtimeConfig.ts";
+} from "../runtime/staticHtmlRuntimeIdentity.ts";
+import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runtime/runtimeConfig.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
 
 export interface FrameworkHints {

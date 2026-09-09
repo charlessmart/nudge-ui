@@ -2,9 +2,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createTokenInventory } from "@nudge-ui/css/token-inventory";
 import type { TokenDefinition, TokenEntry } from "@nudge-ui/css/model";
-import { applyRules, verifyPreview } from "../managedStylesheet.ts";
+import { applyRules, verifyPreview } from "../projection/managedStylesheet.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
-import type { ElementChangeRecord } from "../changesLog.ts";
+import type { ElementChangeRecord } from "../changes/changesLog.ts";
 import { createBrowserCssInspection } from "./browserCssInspection.ts";
 
 const TRACER_CSS = `:root {

@@ -1,4 +1,4 @@
-import { appendChange } from "../changesLog.ts";
+import { appendChange } from "../changes/changesLog.ts";
 import type {
   ComponentChangeRecord,
   ComponentPropContract,

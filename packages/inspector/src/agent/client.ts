@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { isNudgeUiDev } from "../devFlag.ts";
-import { isDemoRuntime } from "../runtimeConfig.ts";
+import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
 import { HttpAgentBridgeTransport } from "./httpTransport.ts";
 import {
   AGENT_PROTOCOL_VERSION,

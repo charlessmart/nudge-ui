@@ -15,9 +15,9 @@ import {
   sendProjectionToCard,
   WORKSPACE_ID,
 } from "./projection.ts";
-import { appendChange, clearChanges, getPendingRules } from "../changesLog.ts";
+import { appendChange, clearChanges, getPendingRules } from "../changes/changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
-import { createStructuralDelete, createStructuralMove, resetStructuralDeleteProjection } from "../structuralProjection.ts";
+import { createStructuralDelete, createStructuralMove, resetStructuralDeleteProjection } from "../projection/structuralProjection.ts";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };

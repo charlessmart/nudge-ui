@@ -12,10 +12,10 @@ import {
   getChangeRecords,
 } from "./editActions.ts";
 import type { TokenEntry } from "virtual:design-tokens";
-import { setActiveStyleState } from "../styleState.ts";
-import { getManagedSheetText } from "../managedStylesheet.ts";
-import { installStaticHtmlRuntimeIdentity } from "../staticHtmlRuntimeIdentity.ts";
-import { resetRenderedInstanceState } from "../renderedInstance.ts";
+import { setActiveStyleState } from "../shell/styleState.ts";
+import { getManagedSheetText } from "../projection/managedStylesheet.ts";
+import { installStaticHtmlRuntimeIdentity } from "../runtime/staticHtmlRuntimeIdentity.ts";
+import { resetRenderedInstanceState } from "../projection/renderedInstance.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");

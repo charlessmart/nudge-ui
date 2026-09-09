@@ -1,12 +1,12 @@
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
-import { InspectorShell, toggleInspector, setInspectorOpen, setInspectorHost } from "./InspectorShell.tsx";
-import { setSelectedElement } from "./selectionStore.ts";
-import { clearChanges } from "./changesLog.ts";
-import { removeManagedSheet } from "./managedStylesheet.ts";
-import { isInspectorToggleShortcut } from "./shortcuts.ts";
-import { clearInspectorLayout } from "./panelLayout.ts";
+import { InspectorShell, toggleInspector, setInspectorOpen, setInspectorHost } from "./shell/InspectorShell.tsx";
+import { setSelectedElement } from "./selection/selectionStore.ts";
+import { clearChanges } from "./changes/changesLog.ts";
+import { removeManagedSheet } from "./projection/managedStylesheet.ts";
+import { isInspectorToggleShortcut } from "./shell/shortcuts.ts";
+import { clearInspectorLayout } from "./shell/panelLayout.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import { bootstrapRenderer } from "./canvas/rendererBootstrap.ts";
 import {
@@ -16,7 +16,7 @@ import {
   scheduleCanvasSave,
   setRestoreCount,
 } from "./canvas/sessionStore.ts";
-import { subscribeChanges, getChangesList } from "./changesLog.ts";
+import { subscribeChanges, getChangesList } from "./changes/changesLog.ts";
 import { subscribe as subscribeCanvas } from "./canvas/canvasStore.ts";
 import {
   acquireLease,
@@ -27,13 +27,13 @@ import {
 } from "./canvas/workspaceLease.ts";
 import { startStaleDetection } from "./canvas/staleChangeDetector.ts";
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
-import { AppShell } from "./AppShell.tsx";
-import { resetStructuralDeleteProjection } from "./structuralProjection.ts";
-import { installInspectionBridge } from "./inspection.ts";
-import { cancelInlineTextEdit } from "./inlineTextEditor.ts";
-import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtimeConfig.ts";
+import { AppShell } from "./shell/AppShell.tsx";
+import { resetStructuralDeleteProjection } from "./projection/structuralProjection.ts";
+import { installInspectionBridge } from "./inspection/bridge.ts";
+import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
-import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./devFlag.ts";
+import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import {
   clearClipboardHandoff,
   startClipboardHandoffController,
@@ -232,19 +232,19 @@ export function unmountInspector(): void {
   hostElement = null;
 }
 
-export { toggleInspector, setInspectorOpen } from "./InspectorShell.tsx";
-export { InspectorShell } from "./InspectorShell.tsx";
+export { toggleInspector, setInspectorOpen } from "./shell/InspectorShell.tsx";
+export { InspectorShell } from "./shell/InspectorShell.tsx";
 export { detectFramework } from "./prompt/detectFramework.ts";
 export {
   installStaticHtmlRuntimeIdentity,
   isRuntimeGeneratedSource,
   RUNTIME_ELEMENT_CID_PREFIX,
   RUNTIME_UNKNOWN_SOURCE_PREFIX,
-} from "./staticHtmlRuntimeIdentity.ts";
+} from "./runtime/staticHtmlRuntimeIdentity.ts";
 export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
 export { isCanvasRenderer } from "./canvas/roleDetection.ts";
-export { NUDGE_UI_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection.ts";
-export type { NudgeUiInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection.ts";
+export { NUDGE_UI_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection/bridge.ts";
+export type { NudgeUiInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection/bridge.ts";
 export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation, ConformanceProjectionExpectation, ConformanceProjectionFieldExpectation } from "./conformance/fixture.ts";
 export { TYPOGRAPHY_CASES } from "./conformance/typographyCases.ts";
 export {
@@ -259,7 +259,7 @@ export {
   subscribeInlineTextDiagnostics,
   resolveTextBinding,
   useInlineTextSession,
-} from "./inlineTextEditor.ts";
+} from "./inline-text/inlineTextEditor.ts";
 export type {
   InlineTextEditor,
   InlineTextDiagnostic,
@@ -269,7 +269,7 @@ export type {
   TextBindingCandidate,
   TextEditBinding,
   TextEditRejection,
-} from "./inlineTextEditor.ts";
+} from "./inline-text/inlineTextEditor.ts";
 export { projectInspectorValues, projectionSides } from "./spacing/projection.ts";
 export type { InspectorAxisProjection, InspectorFieldProjection, InspectorProjection, InspectorSpacingProjection, ProjectionAxis, ProjectionGroup, ProjectionSide, ProjectionState } from "./spacing/projection.ts";
 export { createBrowserCssInspection } from "./inspection/browserCssInspection.ts";
@@ -278,15 +278,15 @@ export {
   getNudgeUiRuntimeConfig,
   normalizeNudgeUiRuntimeConfig,
   subscribeNudgeUiRuntime,
-} from "./runtimeConfig.ts";
-export { useNudgeUiRuntimeConfig } from "./useRuntimeConfig.ts";
-export { isNudgeUiDev, setNudgeUiHostDevFlag } from "./devFlag.ts";
+} from "./runtime/runtimeConfig.ts";
+export { useNudgeUiRuntimeConfig } from "./runtime/useRuntimeConfig.ts";
+export { isNudgeUiDev, setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 export type {
   NudgeUiRuntimeConfig,
   NudgeUiRuntimeCapabilities,
   NudgeUiRuntimeFramework,
   NudgeUiRuntimeHost,
-} from "./runtimeConfig.ts";
+} from "./runtime/runtimeConfig.ts";
 export type {
   BrowserCssInspection,
   BrowserCssInspectionConfig,

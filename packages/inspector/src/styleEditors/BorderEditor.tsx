@@ -14,19 +14,19 @@ import {
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
-import type { SelectedElement } from "../selectionStore.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
 import { setStyle, setStyles } from "./styleActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { ToggleButton } from "../ui/ToggleButton.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
-import { getStateStyleValue } from "../stateValue.ts";
+import { getStateStyleValue } from "../shell/stateValue.ts";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 const BORDER_STYLES = ["none", "hidden", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"];
 const INVISIBLE_BORDER_STYLES = new Set(["none", "hidden"]);

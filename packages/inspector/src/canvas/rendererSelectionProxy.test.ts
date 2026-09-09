@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { getSelectedElement, getSelectedElements, setSelectedElement } from "../selectionStore.ts";
+import { getSelectedElement, getSelectedElements, setSelectedElement } from "../selection/selectionStore.ts";
 import { PROTOCOL_VERSION, type ElementClickMessage } from "./frameProtocol.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
 

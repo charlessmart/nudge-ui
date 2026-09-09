@@ -1,6 +1,6 @@
-import { getActiveStyleState } from "../styleState.ts";
-import { getStateStyleValue } from "../stateValue.ts";
-import { getElementComputedStyle } from "../domRealm.ts";
+import { getActiveStyleState } from "../shell/styleState.ts";
+import { getStateStyleValue } from "../shell/stateValue.ts";
+import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import type { StringListRecord, StringRecord } from "./stringRecord.ts";
 

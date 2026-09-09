@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendChange, clearChanges, getChangesList, type ElementChangeRecord } from "../changesLog.ts";
-import { setNudgeUiHostDevFlag } from "../devFlag.ts";
+import { appendChange, clearChanges, getChangesList, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import {
   applyStructuralProjection,
   createStructuralDelete,
   getStructuralChanges,
   resetStructuralDeleteProjection,
   undoStructuralChange,
-} from "../structuralProjection.ts";
+} from "../projection/structuralProjection.ts";
 import {
   recordAgentDispatch,
   resetAgentVerification,

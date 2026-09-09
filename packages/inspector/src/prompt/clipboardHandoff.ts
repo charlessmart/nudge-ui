@@ -2,10 +2,10 @@ import { changeKey } from "../changes/model.ts";
 import {
   subscribeChanges,
   type ChangeRecord,
-} from "../changesLog.ts";
+} from "../changes/changesLog.ts";
 import {
   type StructuralChange,
-} from "../structuralProjection.ts";
+} from "../projection/structuralProjection.ts";
 import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import { documentRevisions, subscribeDocumentRevision } from "../tokens/resolution/cssomCollector.ts";
 import {

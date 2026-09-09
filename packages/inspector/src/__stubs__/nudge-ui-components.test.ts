@@ -3,8 +3,8 @@ import { componentContracts } from "./nudge-ui-components.ts";
 import {
   configureNudgeUiRuntime,
   getNudgeUiRuntimeConfig,
-} from "../runtimeConfig.ts";
-import type { NudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+} from "../runtime/runtimeConfig.ts";
+import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 let previousConfig: NudgeUiRuntimeConfig | null = null;
 

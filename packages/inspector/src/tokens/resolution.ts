@@ -1,7 +1,7 @@
 import type { TokenDefinition, TokenEntry } from "@nudge-ui/css/model";
-import { INTERACTION_STATES } from "../styleState.ts";
-import type { InteractionState } from "../styleState.ts";
-import { getElementComputedStyle } from "../domRealm.ts";
+import { INTERACTION_STATES } from "../shell/styleState.ts";
+import type { InteractionState } from "../shell/styleState.ts";
+import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import {
   collectRules as collectCssomRules,
   documentRevisions as getDocumentRevisions,
@@ -32,7 +32,7 @@ import {
   type InterpretedValueField,
 } from "@nudge-ui/css/value-semantics";
 import { createInspectorValueContext, inspectorTokenOrigin } from "./valueSemanticsAdapter.ts";
-import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 /**
  * Builds (or reuses) the document's CSSOM rule snapshot ahead of a resolution

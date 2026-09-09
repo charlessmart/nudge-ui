@@ -8,7 +8,7 @@ import {
   startRendererProjectionDiagnostics,
 } from "./rendererStylesheet.ts";
 import { PROTOCOL_VERSION, setRendererIdentity, type ReplaceStylesMessage } from "./frameProtocol.ts";
-import { resetStructuralDeleteProjection } from "../structuralProjection.ts";
+import { resetStructuralDeleteProjection } from "../projection/structuralProjection.ts";
 
 const SHEET_ID = "nudge-ui-styles";
 const TEST_PROJECT = "http://localhost:5173";

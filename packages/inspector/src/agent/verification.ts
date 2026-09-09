@@ -8,20 +8,20 @@ import {
   reconcileVerifiedWorkspaceChanges,
   type ChangeRecord,
   type PreviewableChangeRecord,
-} from "../changesLog.ts";
-import { verifyPreview } from "../managedStylesheet.ts";
-import { resolveRenderedInstance } from "../renderedInstance.ts";
+} from "../changes/changesLog.ts";
+import { verifyPreview } from "../projection/managedStylesheet.ts";
+import { resolveRenderedInstance } from "../projection/renderedInstance.ts";
 import {
   applyStructuralProjection,
   getStructuralChanges,
   type StructuralChange,
   type StructuralDelete,
   type StructuralMove,
-} from "../structuralProjection.ts";
+} from "../projection/structuralProjection.ts";
 import {
   resolveTextProjectionTarget,
   resolveTextProjectionTextNode,
-} from "../textProjection.ts";
+} from "../projection/textProjection.ts";
 
 export interface HandoffSnapshot {
   readonly changes: readonly ChangeRecord[];

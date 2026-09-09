@@ -1,4 +1,4 @@
-import type { ChangeRecord } from "../changesLog.ts";
+import type { ChangeRecord } from "../changes/changesLog.ts";
 import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import {
   getChangesList,
@@ -10,7 +10,7 @@ import {
   type ElementChangeRecord,
   type TextContentChangeRecord,
   type TokenChangeRecord,
-} from "../changesLog.ts";
+} from "../changes/changesLog.ts";
 import {
   getCanvasMode,
   setCanvasMode,
@@ -24,30 +24,30 @@ import {
   type CanvasMode,
   type CanvasComparisonGroup,
 } from "./canvasStore.ts";
-import { applyRules } from "../managedStylesheet.ts";
-import { clearChanges as clearChangesLog } from "../changesLog.ts";
-import { removeManagedSheet } from "../managedStylesheet.ts";
-import { clearInspectorLayout } from "../panelLayout.ts";
-import { setSelectedElement } from "../selectionStore.ts";
+import { applyRules } from "../projection/managedStylesheet.ts";
+import { clearChanges as clearChangesLog } from "../changes/changesLog.ts";
+import { removeManagedSheet } from "../projection/managedStylesheet.ts";
+import { clearInspectorLayout } from "../shell/panelLayout.ts";
+import { setSelectedElement } from "../selection/selectionStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { canWriteWorkspace } from "./workspaceLease.ts";
-import type { StyleRuleContext } from "../managedStylesheet.ts";
+import type { StyleRuleContext } from "../projection/managedStylesheet.ts";
 import {
   isRenderedInstanceOverride,
   isRenderedInstanceRef,
   resolveRenderedInstance,
   type RenderedInstanceOverride,
   type RenderedInstanceRef,
-} from "../renderedInstance.ts";
+} from "../projection/renderedInstance.ts";
 import {
   getStructuralChanges,
   isStructuralChange,
   resetStructuralDeleteProjection,
   type StructuralChange,
-} from "../structuralProjection.ts";
+} from "../projection/structuralProjection.ts";
 import { projectToAllReadyCards } from "./projection.ts";
-import type { TextProjectionTarget } from "../textChangeBoundary.ts";
-import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   clearClipboardHandoff,
   getClipboardHandoffSnapshot,

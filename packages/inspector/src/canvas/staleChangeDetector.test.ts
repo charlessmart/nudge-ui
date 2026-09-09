@@ -4,7 +4,7 @@ import type {
   ElementChangeRecord,
   PreviewableChangeRecord,
   TokenChangeRecord,
-} from "../changesLog.ts";
+} from "../changes/changesLog.ts";
 import { startStaleDetection, cancelStaleDetection, isVerificationPending } from "./staleChangeDetector.ts";
 import {
   clearChanges,
@@ -12,7 +12,7 @@ import {
   isElementChange,
   isPreviewableChange,
   loadChanges,
-} from "../changesLog.ts";
+} from "../changes/changesLog.ts";
 import { getRegisteredFrames } from "./projection.ts";
 import { addCanvasCard, removeCanvasCard as removeCanvasCardStore, getCanvasCards } from "./canvasStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";

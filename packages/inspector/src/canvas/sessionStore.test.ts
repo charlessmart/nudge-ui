@@ -14,8 +14,8 @@ import {
   clearRestoreCount,
   resetAutoSave,
 } from "./sessionStore.ts";
-import { clearChanges, getChangesList, appendChange } from "../changesLog.ts";
-import type { ComponentChangeRecord, ElementChangeRecord, TextContentChangeRecord, TokenChangeRecord } from "../changesLog.ts";
+import { clearChanges, getChangesList, appendChange } from "../changes/changesLog.ts";
+import type { ComponentChangeRecord, ElementChangeRecord, TextContentChangeRecord, TokenChangeRecord } from "../changes/changesLog.ts";
 import { makeComponentChange as makeComponentChangeRecord } from "../changes/_testUtils.ts";
 import {
   getCanvasMode,
@@ -37,8 +37,8 @@ import {
   applyStructuralProjection,
   getStructuralChanges,
   resetStructuralDeleteProjection,
-} from "../structuralProjection.ts";
-import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+} from "../projection/structuralProjection.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   clearClipboardHandoff,
   getClipboardHandoffSnapshot,

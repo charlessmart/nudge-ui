@@ -7,7 +7,7 @@ import {
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { useBoardCamera, useCanvasCards } from "./canvasStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
-import { useSelectedElement, useSelectedElements } from "../selectionStore.ts";
+import { useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 import {
   getMarginFills,
   getMarginGuides,
@@ -16,19 +16,19 @@ import {
   type BorderWidths,
   type Margins,
   type Rect,
-} from "../overlayGeometry.ts";
+} from "../overlay/overlayGeometry.ts";
 import overlayStyles from "./CanvasElementOverlay.css?inline";
-import { deleteElement, getDropLocationAtPoint, moveElement, nudgeElement } from "../structuralGestures.ts";
-import { redo, undo } from "../changesLog.ts";
-import { resolveSelectionFromElement } from "../resolveSelection.ts";
-import { setSelectedElement } from "../selectionStore.ts";
-import { clearDropGuide, showDropGuide, useDropGuide, type DropGuide } from "../dropGuide.ts";
-import { DropGuideOverlay, type ViewportDropGuide } from "../DropGuideOverlay.tsx";
-import { getMeasurementGeometry } from "../measurementGeometry.ts";
-import { MeasurementGuideOverlay } from "../MeasurementGuideOverlay.tsx";
+import { deleteElement, getDropLocationAtPoint, moveElement, nudgeElement } from "../overlay/structuralGestures.ts";
+import { redo, undo } from "../changes/changesLog.ts";
+import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
+import { setSelectedElement } from "../selection/selectionStore.ts";
+import { clearDropGuide, showDropGuide, useDropGuide, type DropGuide } from "../overlay/dropGuide.ts";
+import { DropGuideOverlay, type ViewportDropGuide } from "../overlay/DropGuideOverlay.tsx";
+import { getMeasurementGeometry } from "../overlay/measurementGeometry.ts";
+import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
 import { projectMeasurementSegments } from "./measurementProjection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
-import { observeSelectedGeometry } from "../selectedGeometry.ts";
+import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
 
 interface ElementIdentity {
   elementId: string;

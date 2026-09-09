@@ -1,11 +1,11 @@
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
-import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
+import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import { projectInspectorValues, projectInspectorValuesForSelection } from "../spacing/projection.ts";
 import { SpacingField } from "./SpacingBox.tsx";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 const OFFSET_PRESETS = ["auto", "0", "50%", "100%"];
 
