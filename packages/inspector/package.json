@@ -34,8 +34,10 @@
     "build": "node ../../scripts/build-package.mjs",
     "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:unit": "vitest run",
-    "test:unit:watch": "vitest"
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:unit:full": "vitest run",
+    "test:unit:watch": "vitest --config vitest.unit.config.ts",
+    "test:ui-integration": "vitest run src/styleEditors/LayoutSection.test.tsx src/styleEditors/LayoutComboField.test.tsx src/tokens/TokenDropdown.test.tsx src/ui/ui.test.tsx src/styleEditors/LayoutDropdown.test.tsx src/tokens/TokenField.test.tsx src/styleEditors/Typography.test.tsx src/styleEditors/BorderEditor.test.tsx src/styleEditors/AspectRatioField.test.tsx"
   },
   "devDependencies": {
     "@types/react": "19.2.18",

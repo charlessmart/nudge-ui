@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readAuthoredStyleValue } from "./layoutValue.ts";
+import { inlineAuthoredValue, readAuthoredStyleValue } from "./layoutValue.ts";
 
 describe("layout authored values", () => {
   beforeEach(() => {
@@ -106,5 +106,60 @@ describe("layout authored values", () => {
     expect(readAuthoredStyleValue(subject, "row-gap")).toBe("12px");
     expect(readAuthoredStyleValue(subject, "column-gap"))
       .toBe("clamp(48px, 8vw, 140px)");
+  });
+});
+
+describe("inline authored values", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("reports a directly inline-authored property", () => {
+    const subject = document.createElement("div");
+    subject.style.setProperty("column-gap", "16px");
+    document.body.appendChild(subject);
+
+    expect(inlineAuthoredValue(subject, "column-gap")).toBe("column-gap: 16px");
+  });
+
+  it("reports a longhand set through its shorthand", () => {
+    const subject = document.createElement("div");
+    subject.style.setProperty("gap", "16px");
+    document.body.appendChild(subject);
+
+    expect(inlineAuthoredValue(subject, "column-gap")).toBe("gap: 16px");
+    expect(inlineAuthoredValue(subject, "row-gap")).toBe("gap: 16px");
+  });
+
+  it("reports longhands expanded from their shorthand", () => {
+    const subject = document.createElement("div");
+    subject.style.setProperty("margin", "0 auto");
+    subject.style.setProperty("inset", "0");
+    document.body.appendChild(subject);
+
+    // jsdom expands margin but not inset (browsers expand both); either way
+    // the longhand reports as inline-blocked.
+    expect(inlineAuthoredValue(subject, "margin-top")).toBe("margin-top: 0px");
+    expect(inlineAuthoredValue(subject, "left")).toBe("inset: 0");
+  });
+
+  it("returns null when nothing inline sets the property", () => {
+    const subject = document.createElement("div");
+    subject.style.setProperty("display", "flex");
+    document.body.appendChild(subject);
+
+    expect(inlineAuthoredValue(subject, "column-gap")).toBeNull();
+  });
+
+  it("ignores shorthands that do not set the property", () => {
+    const subject = document.createElement("div");
+    subject.style.setProperty("padding", "8px");
+    document.body.appendChild(subject);
+
+    expect(inlineAuthoredValue(subject, "column-gap")).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import type { Rect } from "./overlayGeometry.ts";
+import type { BorderWidths, Rect } from "./overlayGeometry.ts";
 
 export type MeasurementAxis = "horizontal" | "vertical";
 
@@ -14,6 +14,11 @@ export interface MeasurementSegment {
 
 export interface MeasurementGeometry {
   segments: MeasurementSegment[];
+}
+
+export interface MeasurementGeometryOptions {
+  selectedBorders?: BorderWidths;
+  hoveredBorders?: BorderWidths;
 }
 
 interface AxisBounds {
@@ -34,6 +39,14 @@ function bounds(rect: Rect, axis: MeasurementAxis): AxisBounds {
     : { min: rect.top, max: rect.top + rect.height };
 }
 
+function innerBounds(rect: Rect, borders: BorderWidths | undefined, axis: MeasurementAxis): AxisBounds {
+  const outer = bounds(rect, axis);
+  if (!borders) return outer;
+  return axis === "horizontal"
+    ? { min: outer.min + borders.left, max: outer.max - borders.right }
+    : { min: outer.min + borders.top, max: outer.max - borders.bottom };
+}
+
 function center(rect: Rect, axis: MeasurementAxis): number {
   const range = bounds(rect, axis);
   return (range.min + range.max) / 2;
@@ -52,7 +65,12 @@ function hasLength(from: number, to: number): boolean {
  * nearest-edge ruler. On overlap, the measurement changes to the hovered
  * element's far edge; containment has two meaningful inset measurements.
  */
-function getAxisRulers(selected: AxisBounds, hovered: AxisBounds): AxisRuler[] {
+function getAxisRulers(
+  selected: AxisBounds,
+  hovered: AxisBounds,
+  selectedInner: AxisBounds,
+  hoveredInner: AxisBounds,
+): AxisRuler[] {
   if (selected.max < hovered.min - EPSILON) {
     return [{ selectedEdge: selected.max, hoveredEdge: hovered.min }];
   }
@@ -65,10 +83,22 @@ function getAxisRulers(selected: AxisBounds, hovered: AxisBounds): AxisRuler[] {
   const hoveredContainsSelected = hovered.min <= selected.min + EPSILON
     && hovered.max >= selected.max - EPSILON;
 
-  if (selectedContainsHovered || hoveredContainsSelected) {
+  if (selectedContainsHovered && hoveredContainsSelected) {
     return [
       { selectedEdge: selected.min, hoveredEdge: hovered.min },
       { selectedEdge: selected.max, hoveredEdge: hovered.max },
+    ].filter((ruler) => hasLength(ruler.selectedEdge, ruler.hoveredEdge));
+  }
+  if (selectedContainsHovered) {
+    return [
+      { selectedEdge: selectedInner.min, hoveredEdge: hovered.min },
+      { selectedEdge: selectedInner.max, hoveredEdge: hovered.max },
+    ].filter((ruler) => hasLength(ruler.selectedEdge, ruler.hoveredEdge));
+  }
+  if (hoveredContainsSelected) {
+    return [
+      { selectedEdge: selected.min, hoveredEdge: hoveredInner.min },
+      { selectedEdge: selected.max, hoveredEdge: hoveredInner.max },
     ].filter((ruler) => hasLength(ruler.selectedEdge, ruler.hoveredEdge));
   }
 
@@ -109,11 +139,17 @@ function appendPrimaryRulers(
   selected: Rect,
   hovered: Rect,
   axis: MeasurementAxis,
+  options: MeasurementGeometryOptions,
 ): void {
   const crossAxis = axis === "horizontal" ? "vertical" : "horizontal";
   const cross = center(selected, crossAxis);
   const hoveredCross = bounds(hovered, crossAxis);
-  const rulers = getAxisRulers(bounds(selected, axis), bounds(hovered, axis));
+  const rulers = getAxisRulers(
+    bounds(selected, axis),
+    bounds(hovered, axis),
+    innerBounds(selected, options.selectedBorders, axis),
+    innerBounds(hovered, options.hoveredBorders, axis),
+  );
 
   rulers.forEach((ruler, index) => {
     segments.push(createSegment(
@@ -143,9 +179,13 @@ function appendPrimaryRulers(
   });
 }
 
-export function getMeasurementGeometry(selected: Rect, hovered: Rect): MeasurementGeometry {
+export function getMeasurementGeometry(
+  selected: Rect,
+  hovered: Rect,
+  options: MeasurementGeometryOptions = {},
+): MeasurementGeometry {
   const segments: MeasurementSegment[] = [];
-  appendPrimaryRulers(segments, selected, hovered, "horizontal");
-  appendPrimaryRulers(segments, selected, hovered, "vertical");
+  appendPrimaryRulers(segments, selected, hovered, "horizontal", options);
+  appendPrimaryRulers(segments, selected, hovered, "vertical", options);
   return { segments };
 }

@@ -1,3 +1,5 @@
+import { getElementComputedStyle } from "./domRealm.ts";
+
 export interface Rect {
   left: number;
   top: number;
@@ -6,6 +8,13 @@ export interface Rect {
 }
 
 export interface Margins {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+export interface BorderWidths {
   top: number;
   right: number;
   bottom: number;
@@ -47,12 +56,22 @@ function toPixels(value: string): number {
 }
 
 export function readMargins(element: HTMLElement): Margins {
-  const style = getComputedStyle(element);
+  const style = getElementComputedStyle(element);
   return {
     top: toPixels(style.marginTop),
     right: toPixels(style.marginRight),
     bottom: toPixels(style.marginBottom),
     left: toPixels(style.marginLeft),
+  };
+}
+
+export function readBorderWidths(element: HTMLElement): BorderWidths {
+  const style = getElementComputedStyle(element);
+  return {
+    top: toPixels(style.borderTopWidth),
+    right: toPixels(style.borderRightWidth),
+    bottom: toPixels(style.borderBottomWidth),
+    left: toPixels(style.borderLeftWidth),
   };
 }
 

@@ -3,13 +3,14 @@ import { isTextProjectionReport } from "../textProjection.ts";
 import { isStructuralProjectionReport } from "../structuralProjectionBoundary.ts";
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 
-// v13 adds source-parent-aware structural moves and bounded structural failure
-// reasons to the full projection snapshot. v12 added the projection-applied
+// v14 adds border widths to hover geometry so containment measurements can
+// exclude the container border. v13 adds source-parent-aware structural moves
+// and bounded structural failure reasons to the full projection snapshot. v12 added the projection-applied
 // acknowledgement: the controller can avoid
 // rereading a Canvas iframe until the renderer has applied its revision. v11
 // added the renderer-hello handshake solicitation for runtimes whose boot
 // completes after the controller's load-time parent-ready.
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 export interface FrameMessage {
   type: string;
@@ -118,6 +119,7 @@ export interface ElementHoverMessage extends RendererMessage {
   elementId: string;
   rect: { left: number; top: number; width: number; height: number } | null;
   margins: { top: number; right: number; bottom: number; left: number } | null;
+  borders: { top: number; right: number; bottom: number; left: number } | null;
 }
 
 /** Modifier state stays inside one renderer frame; the parent never infers it

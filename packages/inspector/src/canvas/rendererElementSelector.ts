@@ -18,7 +18,7 @@ import {
   hasDifferentRoute,
   shouldPreserveNativeLinkActivation,
 } from "./linkEligibility.ts";
-import { readMargins } from "../overlayGeometry.ts";
+import { readBorderWidths, readMargins } from "../overlayGeometry.ts";
 import { installInteractionStyles } from "../interactionStyles.ts";
 import { createFrameThrottle } from "../frameThrottle.ts";
 import { createCidIndex } from "./rendererCidIndex.ts";
@@ -133,6 +133,7 @@ export function installRendererElementSelector(): void {
         }
         : null,
       margins: rect ? readMargins(element) : null,
+      borders: rect ? readBorderWidths(element) : null,
       ...identity,
     };
 

@@ -1,13 +1,14 @@
 /**
  * Verify the publication boundary without contacting a registry.
  *
- * `pnpm pack` runs each package's prepack build, then this script checks the
- * exact tarball contents and the package metadata that a clean consumer will
- * resolve. Keeping this as a local command makes release regressions visible
- * before a version is published.
+ * `pnpm package:verify` builds the packages once before this script packs them
+ * without rerunning lifecycle scripts. This script then checks the exact
+ * tarball contents and the package metadata that a clean consumer will resolve.
+ * Keeping this as a local command makes release regressions visible before a
+ * version is published.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -22,7 +23,21 @@ const packageDirectories = [
   "standalone",
   "mcp",
 ];
-const outputDirectory = mkdtempSync(join(tmpdir(), "nudge-ui-packages-"));
+const outputArgument = process.argv.indexOf("--output-directory");
+const retainedOutput = outputArgument !== -1;
+const requestedOutput = retainedOutput ? process.argv[outputArgument + 1] : undefined;
+if (retainedOutput && !requestedOutput) {
+  throw new Error("--output-directory requires a path.");
+}
+
+const outputDirectory = requestedOutput
+  ? resolve(repositoryRoot, requestedOutput)
+  : mkdtempSync(join(tmpdir(), "nudge-ui-packages-"));
+
+if (retainedOutput) {
+  mkdirSync(outputDirectory, { recursive: true });
+  assert(readdirSync(outputDirectory).length === 0, `${outputDirectory} must be empty.`);
+}
 
 try {
   for (const directory of packageDirectories) {
@@ -30,7 +45,7 @@ try {
   }
   console.log(`Verified ${packageDirectories.length} publishable packages.`);
 } finally {
-  rmSync(outputDirectory, { recursive: true, force: true });
+  if (!retainedOutput) rmSync(outputDirectory, { recursive: true, force: true });
 }
 
 function verifyPackage(packageRoot) {
@@ -38,7 +53,12 @@ function verifyPackage(packageRoot) {
   const result = spawnSync(
     process.platform === "win32" ? "pnpm.cmd" : "pnpm",
     ["pack", "--pack-destination", outputDirectory, "--silent"],
-    { cwd: packageRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    {
+      cwd: packageRoot,
+      encoding: "utf8",
+      env: { ...process.env, npm_config_ignore_scripts: "true" },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
   );
   if (result.error) throw result.error;
   if (result.status !== 0) {

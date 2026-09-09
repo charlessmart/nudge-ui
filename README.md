@@ -218,12 +218,40 @@ Run the main checks from the repository root:
 
 ```sh
 pnpm install
-pnpm package:verify
 pnpm test:unit
+pnpm test:ui-integration
+pnpm test:full
 pnpm test:e2e
 pnpm typecheck
 pnpm lint
+pnpm package:verify
 ```
+
+`test:unit` is the fast, required suite. `test:ui-integration` exercises the
+real Select, Combobox, and Autocomplete adapters in jsdom and is intended for
+UI adapter work. `test:full` runs both profiles. Browser tests and package
+archive verification remain explicit release or manual checks.
+
+## Releases
+
+All public packages use one version. Update their `package.json` versions,
+merge the change to `main`, then create and push an annotated stable SemVer tag:
+
+```sh
+git tag -a v0.1.3 -m "Release v0.1.3"
+git push origin v0.1.3
+```
+
+The tag starts the npm release workflow. It validates that every public package
+matches the tag, runs the full test suite, builds and verifies the package
+archives once, and submits those exact archives with `npm stage publish`.
+Review the eight entries on npm's **Staged Packages** page and approve them with
+2FA to make the release public.
+
+Each package must trust the `charlessmart/nudge-ui` GitHub repository and the
+`publish.yml` workflow on npm. Configure the trusted publisher for staged
+publishing only; no GitHub environment name is used. npm CLI 11.15 or newer is
+required for local staged-package commands.
 
 ## License
 
