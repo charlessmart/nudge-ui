@@ -54,6 +54,21 @@ describe("detectFrameworks", () => {
     writeFileSync(join(root, "index.html"), "<!doctype html>");
     expect(detectFrameworks(root)).toEqual([]);
   });
+
+  it("detects frameworks declared as optional dependencies", () => {
+    const root = project({ optionalDependencies: { astro: "^7" } });
+    expect(detectFrameworks(root)).toEqual(["astro"]);
+  });
+});
+
+describe("readProjectManifest", () => {
+  it("includes the manifest path when JSON is malformed", () => {
+    const root = mkdtempSync(join(tmpdir(), "create-nudge-ui-"));
+    temporaryDirectories.push(root);
+    const manifestPath = join(root, "package.json");
+    writeFileSync(manifestPath, "{");
+    expect(() => readProjectManifest(root)).toThrow(`Could not parse ${manifestPath}`);
+  });
 });
 
 describe("detectPackageManager", () => {
@@ -94,6 +109,7 @@ interface TestManifest {
   readonly packageManager?: string;
   readonly dependencies?: object;
   readonly devDependencies?: object;
+  readonly optionalDependencies?: object;
 }
 
 function project(manifest: TestManifest): string {

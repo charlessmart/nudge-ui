@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, type Dirent } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Framework, PackageManager, ProjectManifest } from "./types.ts";
 
@@ -13,8 +13,22 @@ export function readProjectManifest(projectRoot: string): ProjectManifest {
     return { dependencies: new Set() };
   }
 
-  // SAFETY: The object shape is validated before any property is consumed.
-  const parsed = JSON.parse(readFileSync(manifestPath, "utf8")) as JsonObject;
+  let source: string;
+  try {
+    source = readFileSync(manifestPath, "utf8");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not read ${manifestPath}: ${message}`, { cause: error });
+  }
+
+  let parsed: JsonObject;
+  try {
+    // SAFETY: The object shape is validated before any property is consumed.
+    parsed = JSON.parse(source) as JsonObject;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not parse ${manifestPath}: ${message}`, { cause: error });
+  }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error(`${manifestPath} must contain a JSON object.`);
   }
@@ -26,6 +40,7 @@ export function readProjectManifest(projectRoot: string): ProjectManifest {
       ...dependencyNames(parsed, "dependencies"),
       ...dependencyNames(parsed, "devDependencies"),
       ...dependencyNames(parsed, "peerDependencies"),
+      ...dependencyNames(parsed, "optionalDependencies"),
     ]),
   };
 }
@@ -67,12 +82,12 @@ export function detectPackageManager(projectRoot: string, manifest = readProject
 
 /** Finds an HTML document root without recursively scanning dependency or build output. */
 export function detectStaticRoot(projectRoot: string): string | undefined {
-  const entries = readdirSync(projectRoot, { withFileTypes: true });
+  const entries = readDirectory(projectRoot);
   if (entries.some((entry) => entry.isFile() && entry.name.endsWith(".html"))) return projectRoot;
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.name.startsWith(".") || ignoredStaticDirectories.has(entry.name)) continue;
     const directory = join(projectRoot, entry.name);
-    const children = readdirSync(directory, { withFileTypes: true });
+    const children = readDirectory(directory);
     if (children.some((child) => child.isFile() && child.name.endsWith(".html"))) return directory;
   }
   return undefined;
@@ -104,6 +119,7 @@ interface JsonObject {
   readonly dependencies?: unknown;
   readonly devDependencies?: unknown;
   readonly peerDependencies?: unknown;
+  readonly optionalDependencies?: unknown;
 }
 
 function stringProperty(value: JsonObject, key: "type" | "packageManager"): string | undefined {
@@ -113,11 +129,18 @@ function stringProperty(value: JsonObject, key: "type" | "packageManager"): stri
 
 function dependencyNames(
   value: JsonObject,
-  key: "dependencies" | "devDependencies" | "peerDependencies",
+  key: "dependencies" | "devDependencies" | "peerDependencies" | "optionalDependencies",
 ): string[] {
-  const dependencies = key === "dependencies"
-    ? value.dependencies
-    : key === "devDependencies" ? value.devDependencies : value.peerDependencies;
+  const dependencies = value[key];
   if (typeof dependencies !== "object" || dependencies === null || Array.isArray(dependencies)) return [];
   return Object.keys(dependencies);
+}
+
+function readDirectory(path: string): Dirent<string>[] {
+  try {
+    return readdirSync(path, { withFileTypes: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not inspect ${path}: ${message}`, { cause: error });
+  }
 }

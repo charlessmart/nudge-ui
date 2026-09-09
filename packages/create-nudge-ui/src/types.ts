@@ -14,4 +14,5 @@ export interface ConfigurationChange {
   readonly path: string;
   readonly content: string;
   readonly created: boolean;
+  readonly originalContent?: string;
 }

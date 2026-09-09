@@ -16,6 +16,16 @@ describe("parseArguments", () => {
     expect(() => parseArguments(["--framework", "react"])).toThrow(/vite-react/);
     expect(() => parseArguments(["--wat"])).toThrow(/Unknown option/);
   });
+
+  it("accepts npm's pass-through separator", () => {
+    expect(parseArguments(["--", "--framework", "astro"]).framework).toBe("astro");
+  });
+
+  it("reports missing option values", () => {
+    expect(() => parseArguments(["--framework"])).toThrow("--framework requires a value.");
+    expect(() => parseArguments(["--package-manager", "--dry-run"]))
+      .toThrow("--package-manager requires a value.");
+  });
 });
 
 describe("installCommand", () => {

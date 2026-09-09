@@ -35,8 +35,10 @@
     "test:unit": "vitest run",
     "test:unit:watch": "vitest"
   },
+  "dependencies": {
+    "typescript": "^5.9.3"
+  },
   "devDependencies": {
-    "typescript": "^5.9.3",
     "vitest": "^2.1.9"
   },
   "engines": {

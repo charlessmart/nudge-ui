@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { basename, relative } from "node:path";
@@ -13,7 +13,7 @@ import {
   readProjectManifest,
 } from "./detection.ts";
 import { formatCommand, installCommand, installPackage } from "./installer.ts";
-import { frameworks, type Framework } from "./types.ts";
+import { frameworks, type ConfigurationChange, type Framework } from "./types.ts";
 
 /** Runs the Nudge UI project initializer. */
 export async function runCli(args = process.argv.slice(2), projectRoot = process.cwd()): Promise<void> {
@@ -41,9 +41,16 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
     return;
   }
 
-  installPackage(command, projectRoot);
   if (change) {
     writeFileSync(change.path, change.content);
+  }
+  try {
+    installPackage(command, projectRoot);
+  } catch (error) {
+    if (change) rollbackConfiguration(change);
+    throw error;
+  }
+  if (change) {
     stdout.write(`${change.created ? "Created" : "Updated"} ${change.path}.\n`);
   }
   if (framework === "standalone") {
@@ -61,13 +68,26 @@ async function selectFramework(detected: readonly Framework[]): Promise<Framewor
   choices.forEach((framework, index) => stdout.write(`  ${index + 1}. ${frameworkDisplayName(framework)}\n`));
   const reader = createInterface({ input: stdin, output: stdout });
   try {
-    const answer = await reader.question("Framework: ");
-    const selected = choices[Number(answer) - 1];
-    if (!selected) throw detectionError(detected);
-    return selected;
+    while (true) {
+      const answer = await reader.question("Framework: ");
+      const selected = choices[Number(answer) - 1];
+      if (selected) return selected;
+      stdout.write(`Enter a number from 1 to ${choices.length}.\n`);
+    }
   } finally {
     reader.close();
   }
+}
+
+function rollbackConfiguration(change: ConfigurationChange): void {
+  if (change.created) {
+    rmSync(change.path, { force: true });
+    return;
+  }
+  if (change.originalContent === undefined) {
+    throw new Error(`Could not restore ${change.path}: original content was not recorded.`);
+  }
+  writeFileSync(change.path, change.originalContent);
 }
 
 function detectionError(detected: readonly Framework[]): Error {

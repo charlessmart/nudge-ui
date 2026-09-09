@@ -16,16 +16,25 @@ export function parseArguments(args: readonly string[]): CliOptions {
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]!;
+    if (argument === "--") continue;
     if (argument === "--dry-run") dryRun = true;
     else if (argument === "--help" || argument === "-h") help = true;
-    else if (argument === "--framework") framework = parseFramework(args[++index]);
+    else if (argument === "--framework") framework = parseFramework(requiredValue(args, ++index, argument));
     else if (argument.startsWith("--framework=")) framework = parseFramework(argument.slice("--framework=".length));
-    else if (argument === "--package-manager") packageManager = parsePackageManager(args[++index]);
+    else if (argument === "--package-manager") {
+      packageManager = parsePackageManager(requiredValue(args, ++index, argument));
+    }
     else if (argument.startsWith("--package-manager=")) {
       packageManager = parsePackageManager(argument.slice("--package-manager=".length));
     } else throw new Error(`Unknown option: ${argument}`);
   }
   return { framework, packageManager, dryRun, help };
+}
+
+function requiredValue(args: readonly string[], index: number, option: string): string {
+  const value = args[index];
+  if (!value || value.startsWith("-")) throw new Error(`${option} requires a value.`);
+  return value;
 }
 
 export const helpText = `Set up Nudge UI in the current project.
