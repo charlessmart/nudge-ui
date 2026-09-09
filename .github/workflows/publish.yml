@@ -49,14 +49,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build packages
+        run: pnpm run build:packages
+
       - name: Typecheck
         run: pnpm run typecheck
 
       - name: Run full test suite
         run: pnpm run test:full
 
-      - name: Build and verify package archives
-        run: pnpm run package:archive
+      - name: Verify package archives
+        run: node scripts/verify-packages.mjs --output-directory .release-packages
 
       - name: Upload verified package archives
         uses: actions/upload-artifact@v4
