@@ -85,12 +85,12 @@ test.describe("Nudge MCP browser bridge", () => {
   test("pairs an idle companion from the connection panel and becomes ready when the agent listens", async ({ page }) => {
     await page.goto("/playground");
     const connectionStatus = page.locator('[data-test="agent-connection-status"]');
-    await expect(connectionStatus).toContainText("Ready to connect");
+    await expect(connectionStatus).toContainText("Ready to connect agent");
     await page.locator('[data-test="settings-button"]').click();
     await page.locator('[data-test="settings-nav-mcp"]').click();
     const dialog = page.locator('[data-test="mcp-connection-dialog"]');
     await expect(dialog).toBeVisible();
-    await expect(dialog.locator('[data-test="mcp-connection-status"]')).toContainText("Ready to connect");
+    await expect(dialog.locator('[data-test="mcp-connection-status"]')).toContainText("Ready to connect agent");
     await page.locator('[data-test="mcp-connect"]').click();
     await expect.poll(() => bridge.getStatus().paired).toBe(true);
     expect(bridge.getStatus().listenerActive).toBe(false);

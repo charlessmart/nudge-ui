@@ -128,13 +128,13 @@ describe("CopyPromptButton agent handoff", () => {
     const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
     const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
     expect(button.textContent).toContain("Copy prompt");
-    expect(status?.textContent).toContain("Ready to connect");
+    expect(status?.textContent).toContain("Ready to connect agent");
     expect(status?.textContent).toContain("Connect");
     expect(status?.className).toContain("status-callout--accent");
 
     act(() => status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.click());
     expect(document.body.querySelector('[data-test="mcp-connection-dialog"]')?.textContent)
-      .toContain("Ready to connect");
+      .toContain("Ready to connect agent");
   });
 
   it("shows no connection status when the companion is not found", async () => {

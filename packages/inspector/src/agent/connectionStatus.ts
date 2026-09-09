@@ -50,7 +50,7 @@ export function getAgentConnectionStatus(snapshot: AgentClientSnapshot): AgentCo
   }
   return {
     kind: "ready-to-connect",
-    label: "Ready to connect",
+    label: "Ready to connect agent",
     tone: "accent",
     action: { kind: "connect", label: "Connect" },
   };

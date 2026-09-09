@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import {
   IconCheck,
-  IconClipboardCheck,
+  IconCopy,
   IconPlugConnected,
   IconSend,
 } from "@tabler/icons-react";
@@ -121,11 +121,13 @@ export function CopyPromptButton({
             ? "Send prompt"
             : "Copy prompt";
 
-  const icon = canConnect || connecting
-    ? <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-    : canSend || working
-      ? <IconSend size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-      : <IconClipboardCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />;
+  const icon = copied
+    ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+    : canConnect || connecting
+      ? <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+      : canSend || working
+        ? <IconSend size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
+        : <IconCopy size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />;
 
   async function onClick(): Promise<void> {
     if (disabled) return;
