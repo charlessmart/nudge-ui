@@ -57,6 +57,8 @@ export function buildManagedStyleRules(changes: ChangeRecord[]): StyleRule[] {
       });
     }
   }
+  // Source-site rules remain the default; exact rendered-instance rules are
+  // emitted afterwards so their additional marker specificity wins.
   return [...sourceRules.values(), ...instanceRules.values()];
 }
 
@@ -64,10 +66,17 @@ export function verifyManagedStyleProjection(
   change: PreviewableChangeRecord,
   selectedElement?: HTMLElement | null,
 ): PreviewableChangeRecord {
+  // Deferred verification must use the selection that existed when the
+  // projection was committed. Reading the live selection here can make a
+  // host-document change verify against a later canvas selection (or vice
+  // versa) and manufacture a conflict for the wrong document.
   const selected = selectedElement === undefined
     ? getSelectedElement()?.domElement ?? null
     : selectedElement;
   const requestedValue = requestedStyleValue(change);
+  // A Canvas-only selection belongs to an iframe. The controller stylesheet
+  // cannot verify it synchronously; leave its result unknown until the frame
+  // has received the canonical projection rather than claiming it is stale.
   if (selected && selected.ownerDocument !== document) {
     return { ...change, previewResult: undefined };
   }
@@ -78,6 +87,11 @@ export function verifyManagedStyleProjection(
   } catch {
     targets = [];
   }
+  // Probe targets lazily in DOM order and stop at the first conflicting
+  // preview: the reported result is exactly "first conflict ?? first target",
+  // so probing the remaining instances cannot change the outcome. A
+  // source-site selector matched by many rendered instances (one callsite,
+  // hundreds of nodes) otherwise pays a probe + important-rule scan per match.
   let firstApplied: PreviewResult | null = null;
   let previewResult: PreviewResult | null = null;
   for (const target of targets) {

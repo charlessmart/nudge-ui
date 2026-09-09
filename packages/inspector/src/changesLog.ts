@@ -6,7 +6,7 @@ import {
 import {
   buildManagedStyleRules,
   verifyManagedStyleProjection,
-} from "./changes/projection.ts";
+} from "./changes/managedStyleProjection.ts";
 import type { StyleRule, PreviewResult } from "./managedStylesheet.ts";
 import { isPreviewableChange } from "./changes/types.ts";
 import type { ChangeRecord } from "./changes/types.ts";

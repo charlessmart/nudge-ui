@@ -17,13 +17,25 @@ import { componentChangeToOverride } from "../componentSemantics/changeModel.ts"
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 import { isComponentChange, type TextContentChangeRecord } from "../changes/types.ts";
 import { buildManagedStyleRules } from "../changes/managedStyleProjection.ts";
-import type { WorkspaceChangesSnapshot } from "../changes/workspaceChanges.ts";
+import type { WorkspaceContents } from "../changes/workspaceChanges.ts";
 
-/** A complete, immutable projection compiled from one canonical workspace snapshot. */
-export interface WorkspaceProjectionPlan {
-  readonly sourceRevision: number;
-  readonly managedRules: readonly StyleRule[];
+export interface WorkspaceProjectionSource extends WorkspaceContents {
+  readonly revision: number;
+}
+
+export interface CompiledManagedStyles {
+  readonly rules: readonly StyleRule[];
   readonly css: string;
+}
+
+export interface SerializedManagedStyles {
+  readonly css: string;
+}
+
+/** A complete, read-only projection for one document-local runtime. */
+export interface WorkspaceProjectionPlan<ManagedStyles> {
+  readonly sourceRevision: number;
+  readonly managedStyles: ManagedStyles;
   readonly instanceOverrides: readonly RenderedInstanceOverride[];
   readonly structuralChanges: readonly StructuralChange[];
   readonly textContentChanges: readonly TextContentChangeRecord[];
@@ -31,23 +43,25 @@ export interface WorkspaceProjectionPlan {
 }
 
 /** Applies every projection dimension to one document-local runtime. */
-export interface DocumentProjectionAdapter {
+export interface DocumentProjectionAdapter<ManagedStyles> {
   applyStructural(changes: readonly StructuralChange[]): void;
   applyRenderedInstances(overrides: readonly RenderedInstanceOverride[]): void;
   applyText(changes: readonly TextContentChangeRecord[]): void;
   applyComponents(overrides: readonly ComponentOverride[]): void;
-  applyManagedStyles(rules: readonly StyleRule[], css: string): void;
+  applyManagedStyles(styles: ManagedStyles): void;
 }
 
 export function compileWorkspaceProjection(
-  snapshot: WorkspaceChangesSnapshot,
-): WorkspaceProjectionPlan {
+  snapshot: WorkspaceProjectionSource,
+): WorkspaceProjectionPlan<CompiledManagedStyles> {
   const changes = [...snapshot.changes];
-  const managedRules = buildManagedStyleRules(changes);
+  const rules = buildManagedStyleRules(changes);
   return {
     sourceRevision: snapshot.revision,
-    managedRules,
-    css: rulesToCssText(managedRules),
+    managedStyles: {
+      rules,
+      css: rulesToCssText(rules),
+    },
     instanceOverrides: collectRenderedInstanceOverrides(changes),
     structuralChanges: [...snapshot.structuralChanges],
     textContentChanges: collectTextContentChanges(changes),
@@ -65,18 +79,18 @@ export function compileWorkspaceProjection(
  * can depend on the restored element order. Managed CSS is applied last so
  * selectors can use the document-local instance markers installed above.
  */
-export function applyWorkspaceProjection(
-  adapter: DocumentProjectionAdapter,
-  plan: WorkspaceProjectionPlan,
+export function applyWorkspaceProjection<ManagedStyles>(
+  adapter: DocumentProjectionAdapter<ManagedStyles>,
+  plan: WorkspaceProjectionPlan<ManagedStyles>,
 ): void {
   adapter.applyStructural(plan.structuralChanges);
   adapter.applyRenderedInstances(plan.instanceOverrides);
   adapter.applyText(plan.textContentChanges);
   adapter.applyComponents(plan.componentOverrides);
-  adapter.applyManagedStyles(plan.managedRules, plan.css);
+  adapter.applyManagedStyles(plan.managedStyles);
 }
 
-const hostDocumentProjectionAdapter: DocumentProjectionAdapter = {
+const hostDocumentProjectionAdapter: DocumentProjectionAdapter<CompiledManagedStyles> = {
   applyStructural: (changes) => {
     applyStructuralProjection(document, changes);
   },
@@ -87,11 +101,13 @@ const hostDocumentProjectionAdapter: DocumentProjectionAdapter = {
     applyTextContentProjection(document, changes);
   },
   applyComponents: replaceComponentOverrideProjection,
-  applyManagedStyles: (rules) => {
-    applyRules([...rules]);
+  applyManagedStyles: (styles) => {
+    applyRules([...styles.rules]);
   },
 };
 
-export function applyHostWorkspaceProjection(plan: WorkspaceProjectionPlan): void {
+export function applyHostWorkspaceProjection(
+  plan: WorkspaceProjectionPlan<CompiledManagedStyles>,
+): void {
   applyWorkspaceProjection(hostDocumentProjectionAdapter, plan);
 }

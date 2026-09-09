@@ -12,6 +12,7 @@ import { clearCanvasStructuralProjectionReports } from "../structuralProjection.
 import {
   applyHostWorkspaceProjection,
   compileWorkspaceProjection,
+  type CompiledManagedStyles,
   type WorkspaceProjectionPlan,
 } from "../projection/workspaceProjection.ts";
 
@@ -38,11 +39,11 @@ const frameProjectionStates = new Map<string, FrameProjectionState>();
 const projectionAcknowledgementListeners = new Set<() => void>();
 let projectionAcknowledgementVersion = 0;
 
-function projectionKey(plan: WorkspaceProjectionPlan): string {
+function projectionKey(plan: WorkspaceProjectionPlan<CompiledManagedStyles>): string {
   // Revision ordering protects every controller-owned projection dimension.
   // In particular, a delete-only snapshot has empty CSS but must still advance
   // past the snapshot already accepted by ready Canvas renderers.
-  return `${plan.css}\u0000${JSON.stringify(plan.instanceOverrides)}\u0000${JSON.stringify(plan.structuralChanges)}\u0000${JSON.stringify(plan.textContentChanges)}\u0000${JSON.stringify(plan.componentOverrides)}`;
+  return `${plan.managedStyles.css}\u0000${JSON.stringify(plan.instanceOverrides)}\u0000${JSON.stringify(plan.structuralChanges)}\u0000${JSON.stringify(plan.textContentChanges)}\u0000${JSON.stringify(plan.componentOverrides)}`;
 }
 
 export function computeProjection() {
@@ -53,7 +54,7 @@ export function computeProjection() {
     lastRulesKey = key;
     revision += 1;
   }
-  return { ...plan, revision };
+  return { ...plan, css: plan.managedStyles.css, revision };
 }
 
 export function resetProjectionRevision(): void {

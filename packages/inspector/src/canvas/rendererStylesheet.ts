@@ -33,6 +33,7 @@ import { isTextContentChangeListValue } from "../changes/types.ts";
 import {
   applyWorkspaceProjection,
   type DocumentProjectionAdapter,
+  type SerializedManagedStyles,
   type WorkspaceProjectionPlan,
 } from "../projection/workspaceProjection.ts";
 
@@ -50,7 +51,7 @@ function replaceRendererCss(css: string): void {
   notifyBrowserStylesheetChange(document);
 }
 
-const rendererDocumentProjectionAdapter: DocumentProjectionAdapter = {
+const rendererDocumentProjectionAdapter: DocumentProjectionAdapter<SerializedManagedStyles> = {
   applyStructural: (changes) => {
     applyStructuralProjection(document, changes);
   },
@@ -61,10 +62,23 @@ const rendererDocumentProjectionAdapter: DocumentProjectionAdapter = {
     applyTextContentProjection(document, changes);
   },
   applyComponents: replaceComponentOverrideProjection,
-  applyManagedStyles: (_rules, css) => {
-    replaceRendererCss(css);
+  applyManagedStyles: (styles) => {
+    replaceRendererCss(styles.css);
   },
 };
+
+function projectionFromReplaceStylesMessage(
+  msg: ReplaceStylesMessage,
+): WorkspaceProjectionPlan<SerializedManagedStyles> {
+  return {
+    sourceRevision: msg.revision,
+    managedStyles: { css: msg.css },
+    instanceOverrides: msg.instanceOverrides,
+    structuralChanges: msg.structuralChanges,
+    textContentChanges: msg.textContentChanges,
+    componentOverrides: msg.componentOverrides,
+  };
+}
 
 let lastAppliedRevision = -1;
 let lastStructuralReportRevision: number | null = null;
@@ -245,16 +259,10 @@ export function handleReplaceStyles(
 
   if (msg.revision <= lastAppliedRevision) return false;
 
-  const plan: WorkspaceProjectionPlan = {
-    sourceRevision: msg.revision,
-    managedRules: [],
-    css: msg.css,
-    instanceOverrides: msg.instanceOverrides,
-    structuralChanges: msg.structuralChanges,
-    textContentChanges: msg.textContentChanges,
-    componentOverrides: msg.componentOverrides,
-  };
-  applyWorkspaceProjection(rendererDocumentProjectionAdapter, plan);
+  applyWorkspaceProjection(
+    rendererDocumentProjectionAdapter,
+    projectionFromReplaceStylesMessage(msg),
+  );
   lastStructuralReportRevision = msg.revision;
   lastRenderedInstanceReportRevision = msg.revision;
   lastTextProjectionReportRevision = msg.revision;
