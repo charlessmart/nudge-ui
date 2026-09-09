@@ -20,7 +20,7 @@ interface HistoryEntry {
   readonly after: WorkspaceContents;
 }
 
-type Projection = (snapshot: WorkspaceChangesSnapshot) => void;
+type WorkspaceProjector = (snapshot: WorkspaceChangesSnapshot) => void;
 
 let contents: WorkspaceContents = { changes: [], structuralChanges: [] };
 let revision = 0;
@@ -46,14 +46,14 @@ function createSnapshot(): WorkspaceChangesSnapshot {
   };
 }
 
-function publish(project: Projection): void {
+function publish(project: WorkspaceProjector): void {
   revision += 1;
   snapshot = createSnapshot();
   project(snapshot);
   for (const listener of listeners) listener();
 }
 
-function commit(next: WorkspaceContents, project: Projection): boolean {
+function commit(next: WorkspaceContents, project: WorkspaceProjector): boolean {
   if (!canWriteWorkspace()) return false;
   const before = cloneContents(contents);
   contents = cloneContents(next);
@@ -74,7 +74,7 @@ export function subscribeWorkspaceChanges(listener: () => void): () => void {
 
 export function commitChangeRecords(
   incoming: readonly ChangeRecord[],
-  project: Projection,
+  project: WorkspaceProjector,
 ): boolean {
   if (incoming.length === 0) return false;
   const nextChanges = incoming.reduce(
@@ -85,7 +85,7 @@ export function commitChangeRecords(
   return commit({ ...contents, changes: nextChanges }, project);
 }
 
-export function revertChangeRecord(change: ChangeRecord, project: Projection): boolean {
+export function revertChangeRecord(change: ChangeRecord, project: WorkspaceProjector): boolean {
   const key = changeKey(change);
   const changes = contents.changes.filter((candidate) => changeKey(candidate) !== key);
   if (changes.length === contents.changes.length) return false;
@@ -94,7 +94,7 @@ export function revertChangeRecord(change: ChangeRecord, project: Projection): b
 
 export function discardChangeRecords(
   target: { kind: "selector"; selector: string } | { kind: "instance-override"; id: string },
-  project: Projection,
+  project: WorkspaceProjector,
 ): boolean {
   const changes = contents.changes.filter((change) => target.kind === "selector"
     ? selectorForChange(change) !== target.selector
@@ -103,28 +103,29 @@ export function discardChangeRecords(
   return commit({ ...contents, changes }, project);
 }
 
-export function commitStructuralChange(change: StructuralChange, project: Projection): boolean {
+export function commitStructuralChange(change: StructuralChange, project: WorkspaceProjector): boolean {
+  if (contents.structuralChanges.some((candidate) => candidate.id === change.id)) return false;
   return commit({
     ...contents,
     structuralChanges: [...contents.structuralChanges, change],
   }, project);
 }
 
-export function revertStructuralChangeRecord(changeId: string, project: Projection): boolean {
+export function revertStructuralChangeRecord(changeId: string, project: WorkspaceProjector): boolean {
   const structuralChanges = contents.structuralChanges.filter((change) => change.id !== changeId);
   if (structuralChanges.length === contents.structuralChanges.length) return false;
   return commit({ ...contents, structuralChanges }, project);
 }
 
 export function reconcileWorkspaceChanges(
-  changeKeys: ReadonlySet<string>,
-  structuralChangeIds: ReadonlySet<string>,
-  project: Projection,
+  verifiedKeys: ReadonlySet<string>,
+  verifiedStructuralIds: ReadonlySet<string>,
+  project: WorkspaceProjector,
 ): number {
   if (!canWriteWorkspace()) return 0;
   const retain = (value: WorkspaceContents): WorkspaceContents => ({
-    changes: value.changes.filter((change) => !changeKeys.has(changeKey(change))),
-    structuralChanges: value.structuralChanges.filter((change) => !structuralChangeIds.has(change.id)),
+    changes: value.changes.filter((change) => !verifiedKeys.has(changeKey(change))),
+    structuralChanges: value.structuralChanges.filter((change) => !verifiedStructuralIds.has(change.id)),
   });
   const next = retain(contents);
   const removed = contents.changes.length - next.changes.length
@@ -142,10 +143,19 @@ export function reconcileWorkspaceChanges(
 
 function sameWorkspaceContents(left: WorkspaceContents, right: WorkspaceContents): boolean {
   return sameEffectiveChanges([...left.changes], [...right.changes])
-    && JSON.stringify(left.structuralChanges) === JSON.stringify(right.structuralChanges);
+    && sameStructuralChanges(left.structuralChanges, right.structuralChanges);
 }
 
-export function undoWorkspaceChange(project: Projection): boolean {
+function sameStructuralChanges(
+  left: readonly StructuralChange[],
+  right: readonly StructuralChange[],
+): boolean {
+  // Structural intent is an ordered list of small, immutable JSON records.
+  // Equality must include operation order and the complete target payload.
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export function undoWorkspaceChange(project: WorkspaceProjector): boolean {
   if (!canWriteWorkspace()) return false;
   const entry = undoStack.at(-1);
   if (!entry) return false;
@@ -156,7 +166,7 @@ export function undoWorkspaceChange(project: Projection): boolean {
   return true;
 }
 
-export function redoWorkspaceChange(project: Projection): boolean {
+export function redoWorkspaceChange(project: WorkspaceProjector): boolean {
   if (!canWriteWorkspace()) return false;
   const entry = redoStack.at(-1);
   if (!entry) return false;
@@ -167,14 +177,14 @@ export function redoWorkspaceChange(project: Projection): boolean {
   return true;
 }
 
-export function restoreWorkspaceChanges(next: WorkspaceContents, project: Projection): void {
+export function restoreWorkspaceChanges(next: WorkspaceContents, project: WorkspaceProjector): void {
   contents = cloneContents(next);
   undoStack = [];
   redoStack = [];
   publish(project);
 }
 
-export function clearWorkspaceChanges(project: Projection): void {
+export function clearWorkspaceChanges(project: WorkspaceProjector): void {
   contents = { changes: [], structuralChanges: [] };
   undoStack = [];
   redoStack = [];
@@ -186,15 +196,16 @@ export function resetWorkspaceChanges(): void {
   contents = { changes: [], structuralChanges: [] };
   undoStack = [];
   redoStack = [];
-  pendingReset();
-}
-
-function pendingReset(): void {
   revision = 0;
   snapshot = createSnapshot();
   for (const listener of listeners) listener();
 }
 
+/**
+ * Publishes updated preview diagnostics without creating user intent, changing
+ * history, or advancing the canonical revision. Subscribers still refresh so
+ * diagnostic UI and durable session metadata observe the latest result.
+ */
 export function replaceChangeRecordsForDiagnostics(
   changes: readonly ChangeRecord[],
 ): void {

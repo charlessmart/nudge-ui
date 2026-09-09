@@ -7,6 +7,7 @@ import {
   commitStructuralChange,
   getWorkspaceChanges,
   redoWorkspaceChange,
+  replaceChangeRecordsForDiagnostics,
   resetWorkspaceChanges,
   restoreWorkspaceChanges,
   subscribeWorkspaceChanges,
@@ -75,6 +76,59 @@ describe("WorkspaceChanges", () => {
     }, project);
 
     expect(observed).toEqual([{ changes: 1, structuralChanges: 1 }]);
+    unsubscribe();
+  });
+
+  it("rejects a duplicate structural id without publishing or adding history", () => {
+    let notifications = 0;
+    const unsubscribe = subscribeWorkspaceChanges(() => {
+      notifications += 1;
+    });
+
+    expect(commitStructuralChange(structuralDelete, project)).toBe(true);
+    expect(commitStructuralChange({
+      ...structuralDelete,
+      target: {
+        ...structuralDelete.target,
+        locator: { ...structuralDelete.target.locator, text: "Different target" },
+      },
+    }, project)).toBe(false);
+
+    expect(getWorkspaceChanges()).toMatchObject({
+      revision: 1,
+      structuralChanges: [structuralDelete],
+    });
+    expect(notifications).toBe(1);
+    expect(undoWorkspaceChange(project)).toBe(true);
+    expect(undoWorkspaceChange(project)).toBe(false);
+    unsubscribe();
+  });
+
+  it("publishes diagnostics without changing canonical revision or history", () => {
+    const change = styleChange("color", "red");
+    commitChangeRecords([change], project);
+    const revision = getWorkspaceChanges().revision;
+    let notifications = 0;
+    const unsubscribe = subscribeWorkspaceChanges(() => {
+      notifications += 1;
+    });
+
+    replaceChangeRecordsForDiagnostics([{
+      ...change,
+      previewResult: {
+        requestedValue: "red",
+        computedValue: "red",
+        status: "applied",
+      },
+    }]);
+
+    expect(getWorkspaceChanges().revision).toBe(revision);
+    expect(getWorkspaceChanges().changes[0]).toMatchObject({
+      previewResult: { status: "applied" },
+    });
+    expect(notifications).toBe(1);
+    expect(undoWorkspaceChange(project)).toBe(true);
+    expect(getWorkspaceChanges().changes).toEqual([]);
     unsubscribe();
   });
 });

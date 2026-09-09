@@ -25,7 +25,7 @@ import {
   type CanvasComparisonGroup,
 } from "./canvasStore.ts";
 import { applyRules } from "../projection/managedStylesheet.ts";
-import { clearChanges as clearChangesLog } from "../changes/changesLog.ts";
+import { clearWorkspace as clearWorkspaceLog } from "../changes/changesLog.ts";
 import { removeManagedSheet } from "../projection/managedStylesheet.ts";
 import { clearInspectorLayout } from "../shell/panelLayout.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
@@ -1096,7 +1096,7 @@ export function clearSession(): void {
     // ignore
   }
 
-  clearChangesLog();
+  clearWorkspaceLog();
   clearClipboardHandoff();
   resetStructuralDeleteProjection();
   removeManagedSheet();

@@ -65,7 +65,7 @@ function sourceFields(el: HTMLElement): {
 }
 
 export type { ChangeRecord } from "../changes/changesLog.ts";
-export { getPendingRules, getChangesList as getChangeRecords, clearChanges as resetPendingRules } from "../changes/changesLog.ts";
+export { getPendingRules, getChangesList as getChangeRecords, clearWorkspace as resetPendingRules } from "../changes/changesLog.ts";
 
 export interface StyleEditMetadata {
   sourceProperty?: string;

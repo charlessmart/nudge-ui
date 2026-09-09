@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { componentContracts } from "virtual:nudge-ui-components";
 import { registerComponentRuntimeAdapter } from "../componentSemantics/adapterRegistry.ts";
 import type { ComponentRuntimeAdapter } from "../componentSemantics/types.ts";
-import { clearChanges, getChangesList, redo, undo } from "../changes/changesLog.ts";
+import { clearWorkspace, getChangesList, redo, undo } from "../changes/changesLog.ts";
 import { serializeSession } from "../canvas/sessionStore.ts";
 import {
   beginInlineTextEdit,
@@ -83,7 +83,7 @@ function renderedFixture(): HTMLElement {
 describe("inlineTextEditor", () => {
   beforeEach(() => {
     getInlineTextSession()?.cancel();
-    clearChanges();
+    clearWorkspace();
     componentContracts.length = 0;
     componentContracts.push({
       componentId: "src/ui/Button#Button",
@@ -681,7 +681,7 @@ describe("inlineTextEditor", () => {
     result.commit();
     expect(document.activeElement).toBe(control);
 
-    clearChanges();
+    clearWorkspace();
     const second = beginInlineTextEdit(element);
     if ("kind" in second) throw new Error(second.message);
     const chooser = document.createElement("button");
@@ -712,7 +712,7 @@ describe("inlineTextEditor", () => {
       if ("kind" in result) throw new Error(result.message);
       result.host.textContent = "Pending draft";
       result.host.dispatchEvent(new FocusEvent("blur"));
-      clearChanges();
+      clearWorkspace();
       vi.runAllTimers();
 
       expect(getInlineTextSession()).toBeNull();

@@ -1,22 +1,19 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
+import { clearWorkspace, loadWorkspaceChanges, redo, undo } from "../changes/changesLog.ts";
 import {
   applyStructuralDeleteProjection,
   applyStructuralProjection,
   createStructuralDelete,
   createStructuralMove,
-  clearStructuralChanges,
   getStructuralChangeDiagnostics,
   getStructuralDeletes,
   getStructuralChanges,
   getStructuralProjectionReports,
-  hydrateStructuralChanges,
   reconcileVerifiedStructuralChanges,
   recordCanvasStructuralProjectionReports,
-  redoStructuralChange,
   resetStructuralDeleteProjection,
   revertStructuralChange,
-  undoStructuralChange,
 } from "./structuralProjection.ts";
 
 function add(text: string): HTMLElement {
@@ -221,9 +218,9 @@ describe("structural delete projection", () => {
     createStructuralMove(target, { parent: destination, before: null }, "move-b-c");
     expect(target.parentElement).toBe(destination);
 
-    expect(undoStructuralChange()).toBe(true);
+    expect(undo()).toBe(true);
     expect(target.parentElement).toBe(middle);
-    expect(redoStructuralChange()).toBe(true);
+    expect(redo()).toBe(true);
     expect(target.parentElement).toBe(destination);
     expect(getStructuralProjectionReports(document)).toEqual([
       { changeId: "move-a-b", status: "applied" },
@@ -295,10 +292,10 @@ describe("structural delete projection", () => {
     expect(reconcileVerifiedStructuralChanges(new Set(["delete-verified"]))).toBe(1);
     expect(getStructuralChanges().map((change) => change.id)).toEqual(["delete-review"]);
 
-    while (undoStructuralChange()) {
+    while (undo()) {
       expect(getStructuralChanges().some((change) => change.id === "delete-verified")).toBe(false);
     }
-    while (redoStructuralChange()) {
+    while (redo()) {
       expect(getStructuralChanges().some((change) => change.id === "delete-verified")).toBe(false);
     }
   });
@@ -316,9 +313,9 @@ describe("structural delete projection", () => {
     applyStructuralProjection(document, getStructuralChanges());
     expect(Array.from(parent.children).map((el) => el.textContent)).toEqual(["0.3", "0.1", "0.2"]);
 
-    expect(undoStructuralChange()).toBe(true);
+    expect(undo()).toBe(true);
     expect(Array.from(parent.children).map((el) => el.textContent)).toEqual(["0.1", "0.2", "0.3"]);
-    expect(redoStructuralChange()).toBe(true);
+    expect(redo()).toBe(true);
     expect(Array.from(parent.children).map((el) => el.textContent)).toEqual(["0.3", "0.1", "0.2"]);
   });
 
@@ -329,11 +326,11 @@ describe("structural delete projection", () => {
     applyStructuralProjection(document, getStructuralChanges());
     expect(target.isConnected).toBe(false);
 
-    clearStructuralChanges();
+    clearWorkspace();
     expect(getStructuralChanges()).toEqual([]);
     expect(document.body.textContent).toContain("0.2");
-    expect(undoStructuralChange()).toBe(false);
-    expect(redoStructuralChange()).toBe(false);
+    expect(undo()).toBe(false);
+    expect(redo()).toBe(false);
   });
 
   it("clears host and Canvas diagnostics with the canonical snapshot", () => {
@@ -343,7 +340,7 @@ describe("structural delete projection", () => {
     recordCanvasStructuralProjectionReports("card-1", 1, [{ changeId: "delete-1", status: "applied" }]);
     expect(getStructuralChangeDiagnostics("delete-1")).toHaveLength(2);
 
-    clearStructuralChanges();
+    clearWorkspace();
 
     expect(getStructuralChangeDiagnostics("delete-1")).toEqual([]);
     expect(target.isConnected).toBe(true);
@@ -353,14 +350,14 @@ describe("structural delete projection", () => {
     add("0.1");
     const target = add("0.2");
     const captured = createStructuralDelete(target, "delete-1")!;
-    clearStructuralChanges();
+    clearWorkspace();
 
-    hydrateStructuralChanges([captured]);
+    loadWorkspaceChanges([], [captured]);
 
     expect(getStructuralChanges()).toEqual([captured]);
     expect(document.body.textContent).toBe("0.1");
-    expect(undoStructuralChange()).toBe(false);
-    expect(redoStructuralChange()).toBe(false);
+    expect(undo()).toBe(false);
+    expect(redo()).toBe(false);
   });
 
   it("accepts only current canvas reports and keeps the newest revision", () => {

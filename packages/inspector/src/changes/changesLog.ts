@@ -12,7 +12,7 @@ import { isPreviewableChange } from "./types.ts";
 import type { ChangeRecord } from "./types.ts";
 import { cancelInlineTextForClear } from "../inline-text/inlineTextLifecycle.ts";
 import {
-  clearWorkspaceChanges,
+  clearWorkspaceChanges as clearCanonicalWorkspace,
   commitChangeRecords,
   discardChangeRecords,
   getWorkspaceChanges,
@@ -23,6 +23,7 @@ import {
   revertChangeRecord,
   subscribeWorkspaceChanges,
   undoWorkspaceChange,
+  type WorkspaceChangesSnapshot,
 } from "./workspaceChanges.ts";
 import { clearStructuralProjectionReports, pruneStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import type { StructuralChange } from "./structuralTypes.ts";
@@ -74,7 +75,7 @@ export function getPendingRules(): StyleRule[] {
   return buildManagedStyleRules(getChangesSnapshot());
 }
 
-function reapply(workspace = getWorkspaceChanges()): void {
+function reapply(workspace: WorkspaceChangesSnapshot): void {
   applyHostWorkspaceProjection(compileWorkspaceProjection(workspace));
 }
 
@@ -217,7 +218,12 @@ export function redo(): boolean {
   return redone;
 }
 
-export function loadChanges(incoming: ChangeRecord[]): void {
+/**
+ * Replaces ordinary records while preserving structural intent. Restoring any
+ * dimension is terminal for the unified workspace timeline, so undo and redo
+ * history are reset for both dimensions.
+ */
+export function restoreChangeRecords(incoming: ChangeRecord[]): void {
   // A restored session replaces the change set and may also switch the active
   // document. Do not let a deferred verification from the previous session
   // inspect a newly loaded record with its old selection context.
@@ -236,12 +242,14 @@ export function loadWorkspaceChanges(
   restoreWorkspaceChanges({ changes: incoming, structuralChanges }, reapply);
 }
 
-export function clearChanges(): void {
+/** Clears all workspace intent and its unified undo/redo timeline. */
+export function clearWorkspace(): void {
   // A pending blur/composition timer must not be able to append a draft after
   // the canonical set has been cleared.
   cancelInlineTextForClear();
   pendingVerificationTargets.clear();
-  clearWorkspaceChanges(reapply);
+  clearStructuralProjectionReports();
+  clearCanonicalWorkspace(reapply);
 }
 
 export function getChangesList(): ChangeRecord[] {

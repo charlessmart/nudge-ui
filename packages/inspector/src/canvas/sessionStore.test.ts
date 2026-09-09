@@ -14,7 +14,7 @@ import {
   clearRestoreCount,
   resetAutoSave,
 } from "./sessionStore.ts";
-import { clearChanges, getChangesList, appendChange } from "../changes/changesLog.ts";
+import { clearWorkspace, getChangesList, appendChange } from "../changes/changesLog.ts";
 import type { ComponentChangeRecord, ElementChangeRecord, TextContentChangeRecord, TokenChangeRecord } from "../changes/changesLog.ts";
 import { makeComponentChange as makeComponentChangeRecord } from "../changes/_testUtils.ts";
 import {
@@ -113,7 +113,7 @@ function makeTextChange(overrides: Partial<TextContentChangeRecord> = {}): TextC
 }
 
 function resetAllState(): void {
-  clearChanges();
+  clearWorkspace();
   clearClipboardHandoff();
   resetStructuralDeleteProjection();
   document.body.replaceChildren();
@@ -162,7 +162,7 @@ describe("sessionStore persistence", () => {
     persistSession();
 
     clearClipboardHandoff();
-    clearChanges();
+    clearWorkspace();
     expect(hydrateSession()).toMatchObject({ restored: true, changeCount: 1 });
 
     expect(getClipboardHandoffSnapshot()).toMatchObject({
@@ -264,7 +264,7 @@ describe("sessionStore persistence", () => {
       after: "Updated",
     });
 
-    clearChanges();
+    clearWorkspace();
     document.body.replaceChildren(element);
     const result = hydrateSession();
     expect(result.restored).toBe(true);
@@ -294,7 +294,7 @@ describe("sessionStore persistence", () => {
     const parsed = JSON.parse(localStorage.getItem(storageKey(nudgeUiProjectId))!);
     expect(parsed.changes[0].target.textNodePath).toEqual([1, 0]);
 
-    clearChanges();
+    clearWorkspace();
     document.body.replaceChildren(element);
     hydrateSession();
     expect(element.querySelector("path")).not.toBeNull();
@@ -383,7 +383,7 @@ describe("sessionStore hydration", () => {
     appendChange(makeTokenChange());
     persistSession();
 
-    clearChanges();
+    clearWorkspace();
     expect(getChangesList()).toHaveLength(0);
 
     const result = hydrateSession();
@@ -464,7 +464,7 @@ describe("sessionStore hydration", () => {
 
     resetStructuralDeleteProjection();
     document.body.replaceChildren(target);
-    clearChanges();
+    clearWorkspace();
     const result = hydrateSession();
 
     expect(result).toMatchObject({ restored: true, changeCount: 2 });
@@ -526,11 +526,11 @@ describe("sessionStore hydration", () => {
     expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
-  it("hydration creates no undo entries (loadChanges clears undo stack)", () => {
+  it("hydration creates no undo entries (restoreChangeRecords clears undo stack)", () => {
     appendChange(makeElementChange());
     persistSession();
 
-    clearChanges();
+    clearWorkspace();
     hydrateSession();
 
     expect(getChangesList()).toHaveLength(1);
@@ -924,7 +924,7 @@ describe("sessionStore round trip", () => {
     }));
     persistSession();
 
-    clearChanges();
+    clearWorkspace();
     hydrateSession();
 
     const restored = getChangesList();
@@ -951,7 +951,7 @@ describe("sessionStore round trip", () => {
     }));
     persistSession();
 
-    clearChanges();
+    clearWorkspace();
     hydrateSession();
 
     expect(getChangesList()).toMatchObject([{
@@ -969,7 +969,7 @@ describe("sessionStore round trip", () => {
     appendChange(makeTokenChange());
     persistSession();
 
-    clearChanges();
+    clearWorkspace();
     hydrateSession();
 
     const restored = getChangesList();
@@ -984,7 +984,7 @@ describe("sessionStore round trip", () => {
     appendChange(makeComponentChange());
     persistSession();
 
-    clearChanges();
+    clearWorkspace();
     hydrateSession();
 
     expect(getChangesList()).toMatchObject([{

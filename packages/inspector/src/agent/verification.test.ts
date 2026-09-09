@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendChange, clearChanges, getChangesList, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { appendChange, clearWorkspace, getChangesList, undo, type ElementChangeRecord } from "../changes/changesLog.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import {
   applyStructuralProjection,
   createStructuralDelete,
   getStructuralChanges,
   resetStructuralDeleteProjection,
-  undoStructuralChange,
 } from "../projection/structuralProjection.ts";
 import {
   recordAgentDispatch,
@@ -43,7 +42,7 @@ function addItem(text: string): HTMLElement {
 describe("agent completion verification", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
-    clearChanges();
+    clearWorkspace();
     resetAgentVerification();
     resetStructuralDeleteProjection();
     document.head.replaceChildren();
@@ -57,7 +56,7 @@ describe("agent completion verification", () => {
   });
 
   afterEach(() => {
-    clearChanges();
+    clearWorkspace();
     resetAgentVerification();
     resetStructuralDeleteProjection();
     vi.unstubAllGlobals();
@@ -114,7 +113,7 @@ describe("agent completion verification", () => {
 
     // Reconciled ids are pruned from history, so undo/redo can never
     // resurrect the source-verified delete preview.
-    while (undoStructuralChange()) {
+    while (undo()) {
       expect(getStructuralChanges().some((change) => change.id === "delete-applied")).toBe(false);
     }
     expect(getStructuralChanges().map((change) => change.id)).toEqual([]);
