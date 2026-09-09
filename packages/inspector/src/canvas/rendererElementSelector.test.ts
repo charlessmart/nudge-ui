@@ -149,3 +149,40 @@ describe("renderer hover scheduling", () => {
     });
   });
 });
+
+describe("renderer keyboard selection", () => {
+  it("forwards Escape to the controller and forgets the renderer selection", () => {
+    const button = trackedElement("button");
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
+
+    const escape = new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true,
+    });
+    button.dispatchEvent(escape);
+
+    expect(escape.defaultPrevented).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "element-deselect",
+      protocolVersion: expect.any(Number),
+      ...identity,
+    }), window.location.origin);
+
+    const deleteKey = new KeyboardEvent("keydown", {
+      key: "Delete",
+      bubbles: true,
+      cancelable: true,
+    });
+    button.dispatchEvent(deleteKey);
+
+    expect(postMessage.mock.calls.some(([message]) => (
+      typeof message === "object"
+      && message !== null
+      && "type" in message
+      && message.type === "element-delete"
+    ))).toBe(false);
+  });
+});

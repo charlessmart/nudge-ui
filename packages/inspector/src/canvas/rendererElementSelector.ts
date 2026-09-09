@@ -3,6 +3,7 @@ import {
   getRendererIdentity,
   sendToParent,
   type ElementClickMessage,
+  type ElementDeselectMessage,
   type ElementHoverMessage,
   type ElementMeasureStateMessage,
   type ElementDeleteMessage,
@@ -247,6 +248,19 @@ export function installRendererElementSelector(): void {
         type: "history-request",
         protocolVersion: PROTOCOL_VERSION,
         action: event.shiftKey ? "redo" : "undo",
+        ...identity,
+      };
+      sendToParent(msg);
+      return;
+    }
+    if (event.key === "Escape" || event.key === "Esc") {
+      event.preventDefault();
+      lastSelected = null;
+      const identity = getRendererIdentity();
+      if (!identity) return;
+      const msg: ElementDeselectMessage = {
+        type: "element-deselect",
+        protocolVersion: PROTOCOL_VERSION,
         ...identity,
       };
       sendToParent(msg);

@@ -198,6 +198,8 @@ export function CanvasElementOverlay(): ReactElement | null {
         const msg = data;
         if (!msg.cid) return;
         handleElementClick(msg, sourceIframe, sourceCardId);
+      } else if (data.type === "element-deselect") {
+        setSelectedElement(null);
       } else if (data.type === "element-drag-start") {
         const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);

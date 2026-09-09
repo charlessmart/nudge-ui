@@ -3,14 +3,15 @@ import { isTextProjectionReport } from "../textProjection.ts";
 import { isStructuralProjectionReport } from "../structuralProjectionBoundary.ts";
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 
-// v14 adds border widths to hover geometry so containment measurements can
-// exclude the container border. v13 adds source-parent-aware structural moves
-// and bounded structural failure reasons to the full projection snapshot. v12 added the projection-applied
-// acknowledgement: the controller can avoid
+// v15 adds renderer-to-controller element deselection for Canvas frames. v14
+// adds border widths to hover geometry so containment measurements can exclude
+// the container border. v13 adds source-parent-aware structural moves and
+// bounded structural failure reasons to the full projection snapshot. v12
+// added the projection-applied acknowledgement: the controller can avoid
 // rereading a Canvas iframe until the renderer has applied its revision. v11
 // added the renderer-hello handshake solicitation for runtimes whose boot
 // completes after the controller's load-time parent-ready.
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 export interface FrameMessage {
   type: string;
@@ -141,6 +142,11 @@ export interface ElementClickMessage extends RendererMessage {
   component: string;
 }
 
+/** Renderer request to clear the controller-owned element selection. */
+export interface ElementDeselectMessage extends RendererMessage {
+  type: "element-deselect";
+}
+
 export interface ElementDragStartMessage extends RendererMessage {
   type: "element-drag-start";
   cid: string;
@@ -227,6 +233,7 @@ export type FrameProtocolMessage =
   | ElementHoverMessage
   | ElementMeasureStateMessage
   | ElementClickMessage
+  | ElementDeselectMessage
   | ElementDragStartMessage
   | ElementDragMoveMessage
   | ElementDragEndMessage
