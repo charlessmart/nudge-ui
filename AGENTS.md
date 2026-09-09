@@ -37,6 +37,8 @@ output, and source maps.
   bootstrap.
 - `packages/compatibility` — cross-browser compatibility manifests and
   Playwright helpers used by the styling-system fixtures.
+- `packages/create-nudge-ui` — framework detection, adapter installation, and
+  host-configuration setup.
 - `packages/css` — browser-safe CSS and token models, value semantics, and
   build-time token inventory.
 - `packages/inspector` — selection, CSS inspection, managed previews, changes,

@@ -10,9 +10,26 @@ attributes, or token data.
 
 ## Install
 
-Install the adapter for the host application. The examples in this repository
-use `workspace:*`; an external project should use the corresponding published
-package or a local package build.
+Run the framework-detecting initializer from the application root:
+
+```sh
+npm create nudge-ui@latest
+```
+
+The initializer detects Next.js, Astro, Vite with React, or static HTML,
+installs the corresponding host adapter, and updates the host configuration.
+Use an explicit framework when detection is ambiguous:
+
+```sh
+npm create nudge-ui@latest -- --framework astro
+```
+
+### Manual installation
+
+Install the adapter for the host application when automatic setup is not
+appropriate. The examples in this repository use `workspace:*`; an external
+project should use the corresponding published package or a local package
+build.
 
 ### Vite and React
 
@@ -189,6 +206,8 @@ The repository separates host integration from shared browser behavior:
 
 - `packages/plugin` — Vite transforms, virtual modules, token discovery, and
   dev HTML bootstrap.
+- `packages/create-nudge-ui` — framework detection, adapter installation, and
+  host-configuration setup.
 - `packages/css` — browser-safe CSS and token models, value semantics, and the
   build-time token inventory.
 - `packages/inspector` — selection, CSS inspection, managed previews, changes,

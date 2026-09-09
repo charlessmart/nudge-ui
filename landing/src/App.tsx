@@ -7,17 +7,13 @@ import syncTokensPoster from "../assets/screen-3.png";
 import syncTokensVideo from "../assets/screen3.mp4";
 import { HeroDemoGrid } from "./components/HeroDemoGrid";
 
-const installCommand = "@nudge-ui/vite-react in this project";
-const installPrompt = `Let's install ${installCommand}`;
+const installPrompt = "Run npm create nudge-ui@latest in this project";
 const OPEN_NUDGE_EVENT = "nudge-ui:open";
-const viteSetupCode = [
-  'import { defineConfig } from "vite";',
-  'import react from "@vitejs/plugin-react";',
-  'import { nudgeUi } from "@nudge-ui/vite-react";',
-  "",
-  "export default defineConfig({",
-  "  plugins: [react(), ...nudgeUi()],",
-  "});",
+const manualSetupCode = [
+  "Vite + React  @nudge-ui/vite-react",
+  "Next.js       @nudge-ui/nextjs",
+  "Astro         @nudge-ui/astro",
+  "Static HTML   @nudge-ui/standalone",
 ].join(String.fromCharCode(10));
 const agentSetupCode = [
   "pnpm add -D @nudge-ui/mcp",
@@ -434,18 +430,18 @@ export function App(): ReactNode {
             <h2 className="landing-content-column" id="landing-setup-title">Installation</h2>
             <div className="landing-setup-content landing-content-column">
               <div className="landing-setup-step">
-                <p className="landing-setup-lead">Install Nudge UI via pnpm:</p>
-                <pre className="landing-setup-code landing-setup-code--command"><code>pnpm add -D @nudge-ui/vite-react</code></pre>
+                <p className="landing-setup-lead">Detect your framework and configure Nudge UI:</p>
+                <pre className="landing-setup-code landing-setup-code--command"><code>npm create nudge-ui@latest</code></pre>
               </div>
 
               <div className="landing-setup-step">
                 <p className="landing-setup-lead">Or just tell your agent to set it up:</p>
-                <pre className="landing-setup-code"><code>Install @nudge-ui/vite-react in this project</code></pre>
+                <pre className="landing-setup-code"><code>{installPrompt}</code></pre>
               </div>
 
               <div className="landing-setup-step">
-                <p className="landing-setup-lead">If installing manually, add the plugin after your React plugin in <code>vite.config.ts</code>:</p>
-                <pre className="landing-setup-code landing-setup-code--large"><code>{viteSetupCode}</code></pre>
+                <p className="landing-setup-lead">Or install the host adapter manually:</p>
+                <pre className="landing-setup-code landing-setup-code--large"><code>{manualSetupCode}</code></pre>
               </div>
 
               <div className="landing-setup-step">

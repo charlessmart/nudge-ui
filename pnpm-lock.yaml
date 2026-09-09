@@ -458,6 +458,15 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
+  packages/create-nudge-ui:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+
   packages/css:
     dependencies:
       postcss:
