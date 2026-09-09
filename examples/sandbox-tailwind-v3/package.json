@@ -8,7 +8,6 @@
     "build": "vite build",
     "preview": "vite preview --port 4175 --strictPort",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:unit": "echo 'compatibility assertions run in Playwright'",
     "test:e2e": "playwright test",
     "test:compat": "playwright test --project=compat-chromium --project=compat-firefox --project=compat-webkit"
   },

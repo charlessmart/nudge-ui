@@ -218,12 +218,19 @@ Run the main checks from the repository root:
 
 ```sh
 pnpm install
-pnpm package:verify
 pnpm test:unit
+pnpm test:ui-integration
+pnpm test:full
 pnpm test:e2e
 pnpm typecheck
 pnpm lint
+pnpm package:verify
 ```
+
+`test:unit` is the fast, required suite. `test:ui-integration` exercises the
+real Select, Combobox, and Autocomplete adapters in jsdom and is intended for
+UI adapter work. `test:full` runs both profiles. Browser tests and package
+archive verification remain explicit release or manual checks.
 
 ## License
 

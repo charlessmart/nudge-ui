@@ -1,28 +1,19 @@
-name: CI
+name: Inspector UI integration
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-  pull_request:
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: inspector-ui-integration-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  verify:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -37,11 +28,5 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build packages
-        run: pnpm run build:packages
-      - name: Typecheck
-        run: pnpm run typecheck
-      - name: Lint
-        run: pnpm run lint
-      - name: Run required unit tests
-        run: pnpm run test:unit
+      - name: Run inspector UI integration tests
+        run: pnpm run test:ui-integration

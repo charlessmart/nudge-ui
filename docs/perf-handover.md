@@ -26,7 +26,7 @@ From `examples/sandbox` (dev server auto-starts; workers: 1):
 npx playwright test --project=perf          # full suite, 11 tests, ~46s
 npx playwright test --project=perf -g "session growth"   # commit outliers
 npx playwright test --project=perf -g "cold selection|warm repeat"  # reveal
-pnpm --filter @nudge-ui/inspector test:unit  # 1184 tests
+pnpm --filter @nudge-ui/inspector test:unit:full  # full unit and UI integration suite
 pnpm --filter @nudge-ui/inspector typecheck
 ```
 

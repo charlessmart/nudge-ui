@@ -8,7 +8,6 @@
     "build": "astro build",
     "preview": "astro preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:unit": "echo 'compatibility assertions run in Playwright'",
     "playwright": "playwright test",
     "test:e2e": "playwright test",
     "test:purity": "node scripts/build-purity.mjs",
