@@ -20,6 +20,9 @@ export async function buildStandaloneClient() {
     define: {
       "import.meta.env.DEV": "true",
     },
+    loader: {
+      ".svg": "dataurl",
+    },
     plugins: [inlineCssPlugin],
     sourcemap: false,
     logLevel: "silent",
