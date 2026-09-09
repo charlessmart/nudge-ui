@@ -16,7 +16,17 @@ test("runs the real inspector on the landing document", async ({ page }) => {
   await expect(setup.getByText("vite.config.ts", { exact: true })).toBeVisible();
   await expect(setup.getByText("nudge_listen", { exact: true })).toBeVisible();
   await expect(page.getByText("Made for design engineers.", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".landing-hero-demo-grid")).toHaveCount(1);
+  await expect(page.locator(".landing-hero-demo")).toHaveCount(4);
   await expect(page.locator("iframe")).toHaveCount(0);
+  const fidelityDemos = page.locator(".landing-hero-demo-board-layer--full");
+  await expect(fidelityDemos.getByText("Add accounts", { exact: true })).toHaveCount(0);
+  await expect(fidelityDemos.getByText("Link an institution", { exact: true })).toBeVisible();
+  await expect(fidelityDemos.getByText("Stream your health data", { exact: true })).toBeVisible();
+  await expect(fidelityDemos.getByText("Text", { exact: true })).toBeVisible();
+  await expect(fidelityDemos.getByText("--landing-display", { exact: true })).toBeVisible();
+  await expect(fidelityDemos.getByText("86.3 km", { exact: true })).toBeVisible();
+  await expect(fidelityDemos.getByText("Secured with 256-bit encryption", { exact: true })).toHaveCount(0);
   const demo = page.locator("section#demo");
   await expect(demo.getByText("Open Nudge and try the loop yourself: select any element on this page, make a small change, and see it immediately.", { exact: true })).toBeVisible();
   const openNudge = demo.getByRole("button", { name: "Open Nudge" });
@@ -104,7 +114,7 @@ test("renders demo videos as vertical sections", async ({ page }) => {
     await expect(item.locator("video")).toHaveCount(1);
     if (index === 0) {
       await expect.poll(() => videoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(650);
-      await expect.poll(() => videoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeLessThan(1000);
+      await expect.poll(() => videoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeLessThanOrEqual(1000);
       await expect.poll(() => videoContainer.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
     }
   }

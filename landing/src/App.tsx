@@ -5,6 +5,7 @@ import exploreCanvasPoster from "../assets/screen-2.png";
 import exploreCanvasVideo from "../assets/screen2.mp4";
 import syncTokensPoster from "../assets/screen-3.png";
 import syncTokensVideo from "../assets/screen3.mp4";
+import { HeroDemoGrid } from "./components/HeroDemoGrid";
 
 const installCommand = "@nudge-ui/vite-react in this project";
 const installPrompt = `Let's install ${installCommand}`;
@@ -30,14 +31,14 @@ const showcaseVideos = [
   {
     id: "edit-directly",
     title: "Edit UI directly",
-    description: "Prompting an agent to center a div feels like backseat driving. Asking an agent for tiny visual changes, waiting for the update, and then finding one more thing to fix. Speed up the iteration loop by adjusting UI directly.",
+    description: "Prompting an agent to center a div feels like backseat driving. You ask an agent for tiny visual changes, wait for the update, only to realise it looked better before. Editing directly gives you the immediate visual feedback that makes design tools good.",
     src: editDirectlyVideo,
     poster: editDirectlyPoster,
   },
   {
     id: "explore-canvas",
     title: "A canvas for exploring variations",
-    description: "Designers long for the canvas. Open different routes and pages in a canvas view to compare agent generated variations, screen sizes or overall flows.",
+    description: "Open different pages in a canvas view to compare variations, screen sizes or overall flows. Generate 3 different options, pick one, refine the details immediately to get it feeling right.",
     src: exploreCanvasVideo,
     poster: exploreCanvasPoster,
   },
@@ -412,13 +413,16 @@ export function App(): ReactNode {
       <div className="landing" id="top">
         <main>
           <section className="landing-hero landing-inner" aria-labelledby="landing-hero-title">
-            <h1 className="landing-content-column" id="landing-hero-title">Nudge is a tool for designing in code.</h1>
-            <div className="landing-hero-side landing-content-column">
-              <p className="landing-hero-intro">
-                Nudge works with your <FrameworkName icon={<ReactMark />}>React</FrameworkName>, <FrameworkName icon={<NextMark />}>Next.js</FrameworkName>, <FrameworkName icon={<HtmlMark />}>HTML</FrameworkName> and <FrameworkName icon={<AstroMark />}>Astro</FrameworkName> code. Adjust styles, move elements, change text and adjust tokens directly, then hand off to an agent.
-              </p>
-              <p className="landing-install-label">Ask your agent to install nudge-ui:</p>
-              <InstallCommand />
+            <HeroDemoGrid variant="hero" />
+            <div className="landing-hero-content landing-content-column">
+              <h1 className="landing-content-column" id="landing-hero-title">Nudge is a tool for designing in code.</h1>
+              <div className="landing-hero-side landing-content-column">
+                <p className="landing-hero-intro">
+                  Nudge works with your <FrameworkName icon={<ReactMark />}>React</FrameworkName>, <FrameworkName icon={<NextMark />}>Next.js</FrameworkName>, <FrameworkName icon={<HtmlMark />}>HTML</FrameworkName> and <FrameworkName icon={<AstroMark />}>Astro</FrameworkName> code. Adjust styles, move elements, change text and adjust tokens directly, then hand off to an agent.
+                </p>
+                <p className="landing-install-label">Ask your agent to install nudge-ui:</p>
+                <InstallCommand />
+              </div>
             </div>
           </section>
 
@@ -452,6 +456,7 @@ export function App(): ReactNode {
               <p className="landing-setup-note">Configure the agent&apos;s MCP host to run this command, reload it, then ask the agent to call <code>nudge_listen</code> and keep the listener active. That&apos;s it — Nudge can now send the current change directly to your agent.</p>
             </div>
           </section>
+
         </main>
 
         <footer className="landing-footer">
