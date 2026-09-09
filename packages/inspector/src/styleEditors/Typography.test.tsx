@@ -4,6 +4,7 @@ import { act, createElement } from "react";
 import { Typography } from "./Typography.tsx";
 import { getChangeRecords, resetPendingRules } from "../tokens/editActions.ts";
 import {
+  makeMixedStyleSelection,
   makeSelected,
   mount,
   setSelectValue,
@@ -76,6 +77,50 @@ describe("Typography", () => {
     setSelectValue(select, "700-italic");
     expect(sheetText()).toContain("font-style: italic;");
     expect(sheetText()).toContain("font-weight: 700;");
+  });
+
+  it("keeps separate source metadata for font style and weight", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({
+      "font-weight": "400",
+      "font-style": "normal",
+    });
+    handle = mount(createElement(Typography, {
+      element: selected,
+      tokenRows: [
+        {
+          property: "font-style",
+          tokenName: null,
+          declaredValue: "normal",
+          authored: "normal",
+          sourceProperty: "font-style",
+          resolvedValue: "normal",
+          confidence: "exact",
+          evidence: { reason: "style fixture" },
+        },
+        {
+          property: "font-weight",
+          tokenName: null,
+          declaredValue: "var(--weight-body)",
+          authored: "var(--weight-body)",
+          sourceProperty: "font-weight",
+          resolvedValue: "400",
+          confidence: "exact",
+          evidence: { reason: "weight fixture" },
+        },
+      ],
+    }));
+
+    setSelectValue(handle.host.querySelector('[data-test="font-style-field"]') as HTMLElement, "700-italic");
+
+    expect(getChangeRecords().find((record) => record.property === "font-style")).toMatchObject({
+      sourceProperty: "font-style",
+      sourceAuthoredValue: "normal",
+    });
+    expect(getChangeRecords().find((record) => record.property === "font-weight")).toMatchObject({
+      sourceProperty: "font-weight",
+      sourceAuthoredValue: "var(--weight-body)",
+    });
   });
 
   it("writes line-height via the raw input", () => {
@@ -180,5 +225,28 @@ describe("Typography", () => {
 
     expect(sheetText()).toContain("font-size: 24px;");
     expect(getChangeRecords().at(-1)).toMatchObject({ sourceProperty: "font", sourceAuthoredValue: "1.25rem" });
+  });
+
+  it("shows Mixed and writes a shared font size to every selected element", () => {
+    const first = makeSelected("Heading", "src/Heading.tsx:1:1");
+    const second = makeSelected("Heading", "src/Heading.tsx:2:1");
+    mockComputedStyle({ "font-size": "24px" });
+    const selection = {
+      ...makeMixedStyleSelection(first.selected, "font-size"),
+      elements: [first.selected, second.selected],
+      domElements: [first.el, second.el],
+      target: [first.el, second.el],
+    };
+    handle = mount(createElement(Typography, {
+      element: first.selected,
+      selection,
+    }));
+
+    const raw = handle.host.querySelector('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]') as HTMLInputElement;
+    expect(raw.value).toBe("Mixed");
+    setInputValue(raw, "28px");
+
+    expect(sheetText()).toContain("font-size: 28px;");
+    expect(getChangeRecords()).toHaveLength(2);
   });
 });

@@ -70,4 +70,5 @@ describe("edit scope", () => {
     expect(countSourceSiteMatches(first)).toBe(2);
     expect(countSourceSiteMatches(add("three"))).toBe(3);
   });
+
 });

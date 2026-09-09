@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   getSelectedElement,
+  getSelectedElements,
   setSelectedElement,
 } from "./selectionStore.ts";
 import { setInspectorOpen } from "./openStore.ts";
@@ -17,6 +18,16 @@ function dispatchClick(target: EventTarget, init: MouseEventInit = {}): MouseEve
     composed: true,
     cancelable: true,
     ...init,
+  });
+  target.dispatchEvent(event);
+  return event;
+}
+
+function dispatchDoubleClick(target: EventTarget): MouseEvent {
+  const event = new MouseEvent("dblclick", {
+    bubbles: true,
+    composed: true,
+    cancelable: true,
   });
   target.dispatchEvent(event);
   return event;
@@ -204,6 +215,52 @@ describe("installElementSelector", () => {
     expect(sel?.line).toBe(12);
     expect(sel?.column).toBe(5);
     expect(sel?.cprops).toBe("variant:primary");
+  });
+
+  it("toggles a group on Shift-click while keeping the last target primary", () => {
+    const first = makeHostElement({
+      "data-cid": "Heading",
+      "data-src": "/path/Heading.tsx:12:5",
+    });
+    const second = makeHostElement({
+      "data-cid": "Heading",
+      "data-src": "/path/Heading.tsx:18:5",
+    });
+    document.body.append(first, second);
+
+    dispatchClick(first);
+    const additive = dispatchClick(second, { shiftKey: true });
+
+    expect(getSelectedElements().map((selected) => selected.domElement)).toEqual([first, second]);
+    expect(getSelectedElement()?.domElement).toBe(second);
+    expect(additive.defaultPrevented).toBe(true);
+
+    dispatchClick(first, { shiftKey: true });
+    expect(getSelectedElements().map((selected) => selected.domElement)).toEqual([second]);
+
+    dispatchClick(first);
+    expect(getSelectedElements().map((selected) => selected.domElement)).toEqual([first]);
+  });
+
+  it("blocks application double-click behavior while a group is selected", () => {
+    const first = makeHostElement({
+      "data-cid": "Heading",
+      "data-src": "/path/Heading.tsx:12:5",
+    });
+    const second = makeHostElement({
+      "data-cid": "Heading",
+      "data-src": "/path/Heading.tsx:18:5",
+    });
+    const onApplicationDoubleClick = vi.fn();
+    second.addEventListener("dblclick", onApplicationDoubleClick);
+    document.body.append(first, second);
+    dispatchClick(first);
+    dispatchClick(second, { shiftKey: true });
+
+    const event = dispatchDoubleClick(second);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(onApplicationDoubleClick).not.toHaveBeenCalled();
   });
 
 

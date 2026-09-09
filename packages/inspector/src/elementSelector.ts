@@ -1,5 +1,4 @@
-import type { SelectedElement } from "./selectionStore.ts";
-import { setSelectedElement } from "./selectionStore.ts";
+import { getSelectedElements, setSelectedElement, toggleSelectedElement } from "./selectionStore.ts";
 import { getOpen } from "./openStore.ts";
 import { resolveSelectionFromEvent } from "./resolveSelection.ts";
 import {
@@ -14,6 +13,11 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
   function onDoubleClick(e: MouseEvent): void {
     if (!getOpen()) return;
     if (isInsideInspectorUi(e)) return;
+    if (getSelectedElements().length > 1) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (isInlineTextEditingActive()) {
       e.preventDefault();
       e.stopPropagation();
@@ -72,11 +76,15 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
 
     // The inspector is an editing surface while open. Capture every ordinary
     // application click so buttons, links, and untracked controls cannot run
-    // alongside selection. Command/Ctrl-click selects the deepest tracked
-    // element; Command/Ctrl+Shift-click is the explicit activation escape hatch.
-    const sel = resolveSelectionFromEvent(e, inspectorHost) as SelectedElement | null;
+    // alongside selection. Shift-click toggles the primary target in the
+    // ordered group; Command/Ctrl-click still selects the deepest tracked
+    // element, and Command/Ctrl+Shift-click remains the activation escape hatch.
+    const sel = resolveSelectionFromEvent(e, inspectorHost);
     blockApplicationClick(e);
-    if (sel) setSelectedElement(sel);
+    if (sel) {
+      if (e.shiftKey && !e.metaKey && !e.ctrlKey) toggleSelectedElement(sel);
+      else setSelectedElement(sel);
+    }
   }
 
   function resolveSelectionTargetForInlineText(target: Element): HTMLElement | null {

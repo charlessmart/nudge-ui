@@ -148,4 +148,20 @@ describe("renderer hover scheduling", () => {
       borders: null,
     });
   });
+
+  it("marks a Shift-click as additive in the element-click protocol", () => {
+    const button = trackedElement("shift-target");
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    button.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      shiftKey: true,
+    }));
+
+    const click = postMessage.mock.calls
+      .map(([message]) => message)
+      .find((message) => typeof message === "object" && message !== null && "type" in message && message.type === "element-click");
+    expect(click).toMatchObject({ type: "element-click", additive: true });
+  });
 });

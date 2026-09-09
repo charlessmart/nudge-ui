@@ -4,9 +4,11 @@ import type { ResolvedProperty } from "@nudge-ui/css/model";
 import type { SelectedElement } from "../selectionStore.ts";
 import { BorderRadiusEditor } from "./BorderRadiusEditor.tsx";
 import { OpacityEditor } from "./OpacityEditor.tsx";
+import type { StyleSelection } from "../styleSelection.ts";
 
 export interface AppearanceSectionProps {
   element: SelectedElement;
+  selection?: StyleSelection | null;
   entries?: TokenEntry[];
   tokenRows?: ResolvedProperty[];
   onAfterEdit?: () => void;

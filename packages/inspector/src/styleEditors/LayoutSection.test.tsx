@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, createElement } from "react";
 import { LayoutSection } from "./LayoutSection.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 import {
   makeSelected,
   mount,
@@ -217,6 +218,46 @@ describe("LayoutSection", () => {
 
     expect(sheetText()).toContain("justify-content: flex-start;");
     expect(sheetText()).toContain("align-items: center;");
+  });
+
+  it("shows both gap axes when selected flex containers use mixed axes", () => {
+    const first = makeSelected("Stack", "src/Stack.tsx:1:1");
+    const second = makeSelected("Stack", "src/Stack.tsx:2:1");
+    mockComputedStyle({ display: "flex", position: "static", "flex-direction": "row", "flex-wrap": "nowrap" });
+    const mixedProperty = (property: string) => ({
+      property,
+      value: { kind: "mixed" as const },
+      token: { kind: "none" as const },
+      primaryRow: null,
+    });
+    const selection = {
+      primary: second.selected,
+      elements: [first.selected, second.selected],
+      domElements: [first.el, second.el],
+      target: [first.el, second.el],
+      primaryRows: [],
+      getProperty: (property: string) => property === "flex-direction"
+        ? mixedProperty(property)
+        : property === "flex-wrap"
+          ? mixedProperty(property)
+          : null,
+      supportsRole: (role: string) => role === "flex-container",
+    } as StyleSelection;
+
+    handle = mount(createElement(LayoutSection, { element: second.selected, selection }));
+
+    expect(handle.host.querySelector('[data-test="layout-combo"][data-property="row-gap"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-combo"][data-property="column-gap"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-flex-axis-mixed"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="layout-direction-row"]')?.getAttribute("aria-pressed")).toBe("false");
+    expect(handle.host.querySelector('[data-test="layout-direction-column"]')?.getAttribute("aria-pressed")).toBe("false");
+    expect(handle.host.querySelector('[data-test="layout-flex-wrap-toggle"]')?.getAttribute("aria-pressed")).toBe("mixed");
+
+    act(() => {
+      (handle.host.querySelector('[data-test="layout-flex-settings"]') as HTMLButtonElement).click();
+    });
+    expect(document.body.querySelector('[data-test="layout-flex-setting-direction-reverse"]')).toBeNull();
+    expect(document.body.querySelector('[data-test="layout-flex-setting-wrap-reverse"]')).toBeNull();
   });
 
   it("supports reverse flex directions through the settings menu", () => {

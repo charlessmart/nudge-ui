@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { getLayoutValue } from "./layoutValue.ts";
 import { setStyles } from "./styleActions.ts";
+import type { EditTarget } from "../editTarget.ts";
 
 export const GRID_PICKER_MAX_COLUMNS = 12;
 export const GRID_PICKER_MAX_ROWS = 8;
@@ -18,6 +19,7 @@ interface PopoverPosition {
 
 export interface GridPickerProps {
   domElement: HTMLElement;
+  editTarget?: EditTarget;
   revision?: number;
   onAfterEdit?: () => void;
 }
@@ -104,7 +106,7 @@ function cells(columns: number, rows: number): Array<{ column: number; row: numb
   }));
 }
 
-export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPickerProps): ReactElement {
+export function GridPicker({ domElement: el, editTarget, revision = 0, onAfterEdit }: GridPickerProps): ReactElement {
   const [dimensions, setDimensions] = useState(() => readDimensions(el));
   const [hovered, setHovered] = useState<GridDimensions | null>(null);
   const [open, setOpen] = useState(false);
@@ -162,7 +164,7 @@ export function GridPicker({ domElement: el, revision = 0, onAfterEdit }: GridPi
     setDimensions(next);
     setHovered(null);
     setOpen(false);
-    if (setStyles(el, [
+    if (setStyles(editTarget ?? el, [
       { property: "grid-template-columns", value: `repeat(${next.columns}, minmax(0, 1fr))` },
       { property: "grid-template-rows", value: `repeat(${next.rows}, minmax(0, 1fr))` },
     ]).length > 0) {

@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { setStyle, swapToken, resetPendingRules, getPendingRules, getChangeRecords } from "../tokens/editActions.ts";
+import { setStyle, setStyles, swapToken, resetPendingRules, getPendingRules, getChangeRecords } from "../tokens/editActions.ts";
+import { redo, undo } from "../changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { getManagedSheetText } from "../managedStylesheet.ts";
+import { resetRenderedInstanceState } from "../renderedInstance.ts";
+import { getEditScope, unlinkElement } from "../editScope.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");
@@ -17,11 +20,13 @@ const COLOR_BLUE: TokenEntry = { name: "--color-blue", value: "#0000ff", source:
 describe("setStyle", () => {
   beforeEach(() => {
     resetPendingRules();
+    resetRenderedInstanceState();
     document.body.innerHTML = "";
     document.getElementById("nudge-ui-styles")?.remove();
   });
   afterEach(() => {
     resetPendingRules();
+    resetRenderedInstanceState();
     document.body.innerHTML = "";
     document.getElementById("nudge-ui-styles")?.remove();
   });
@@ -57,6 +62,15 @@ describe("setStyle", () => {
     expect(rec?.sourceAuthoredValue).toBe("var(--space-4)");
   });
 
+  it("preserves an explicit instance scope for a single-target edit", () => {
+    const button = makeButton();
+    unlinkElement(button);
+
+    const record = setStyle(button, "font-size", "18px");
+
+    expect(record).toMatchObject({ scope: "rendered-instance" });
+  });
+
   it("called twice for the same element+property overwrites (one rule, latest value wins)", () => {
     const btn = makeButton();
     setStyle(btn, "padding", "10px");
@@ -75,6 +89,66 @@ describe("setStyle", () => {
     const text = getManagedSheetText() ;
     expect(text).toContain("padding: 10px;");
     expect(text).toContain("margin: 12px;");
+  });
+
+  it("commits a multi-target edit as one undoable batch", () => {
+    const first = makeButton("Heading", "src/Heading.tsx:1:1");
+    const second = makeButton("Heading", "src/Heading.tsx:2:1");
+
+    setStyle([first, second], "font-size", "24px");
+
+    expect(getChangeRecords()).toHaveLength(2);
+    expect(getPendingRules()).toHaveLength(2);
+    expect(undo()).toBe(true);
+    expect(getChangeRecords()).toHaveLength(0);
+    expect(redo()).toBe(true);
+    expect(getChangeRecords()).toHaveLength(2);
+  });
+
+  it("commits several declarations for multiple targets as one undoable batch", () => {
+    const first = makeButton("Heading", "src/Heading.tsx:1:1");
+    const second = makeButton("Heading", "src/Heading.tsx:2:1");
+
+    setStyles([first, second], [
+      { property: "justify-content", value: "center" },
+      { property: "align-items", value: "center" },
+    ]);
+
+    expect(getChangeRecords()).toHaveLength(4);
+    expect(undo()).toBe(true);
+    expect(getChangeRecords()).toHaveLength(0);
+    expect(redo()).toBe(true);
+    expect(getChangeRecords()).toHaveLength(4);
+  });
+
+  it("limits a partial repeated-source edit to selected rendered instances", () => {
+    const first = makeButton("Heading", "src/Heading.tsx:1:1");
+    const second = makeButton("Heading", "src/Heading.tsx:1:1");
+    const third = makeButton("Heading", "src/Heading.tsx:1:1");
+    first.textContent = "First";
+    second.textContent = "Second";
+    third.textContent = "Third";
+
+    setStyle([first, second], "font-size", "24px");
+
+    const records = getChangeRecords();
+    expect(records).toHaveLength(2);
+    expect(records.every((record) => "scope" in record && record.scope === "rendered-instance")).toBe(true);
+    expect(new Set(records.map((record) => "instanceOverride" in record ? record.instanceOverride?.id : null)).size).toBe(2);
+    expect(getPendingRules()).toHaveLength(2);
+    expect(undo()).toBe(true);
+    expect(getEditScope(first)).toBe("source-site");
+  });
+
+  it("rejects an ambiguous partial repeated-source edit", () => {
+    const first = makeButton("Heading", "src/Heading.tsx:1:1");
+    const second = makeButton("Heading", "src/Heading.tsx:1:1");
+    makeButton("Heading", "src/Heading.tsx:1:1");
+
+    expect(setStyle([first, second], "font-size", "24px")).toBeNull();
+    expect(getChangeRecords()).toHaveLength(0);
+    expect(getPendingRules()).toHaveLength(0);
+    expect(getEditScope(first)).toBe("source-site");
   });
 
   it("setStyle and swapToken for the same element+property share the dedup key", () => {

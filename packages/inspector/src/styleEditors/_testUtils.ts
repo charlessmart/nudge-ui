@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { act } from "react";
 import type { SelectedElement } from "../selectionStore.ts";
+import type { StyleSelection } from "../styleSelection.ts";
 import { getManagedSheetText } from "../managedStylesheet.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -25,6 +26,27 @@ export function makeSelected(
     componentTargets: [],
   };
   return { el, selected };
+}
+
+export function makeMixedStyleSelection(
+  selected: SelectedElement,
+  property: string,
+): StyleSelection {
+  const selectedProperty = {
+    property,
+    value: { kind: "mixed" as const },
+    token: { kind: "none" as const },
+    primaryRow: null,
+  };
+  return {
+    primary: selected,
+    elements: [selected],
+    domElements: [selected.domElement],
+    target: selected.domElement,
+    primaryRows: [],
+    getProperty: (name) => name === property ? selectedProperty : null,
+    supportsRole: () => false,
+  };
 }
 
 export interface MountHandle {

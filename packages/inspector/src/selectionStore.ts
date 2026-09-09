@@ -15,7 +15,14 @@ export interface SelectedElement {
   componentTargets: RuntimeComponentTarget[];
 }
 
-let current: SelectedElement | null = null;
+/** The ordered selection presented to the inspector. */
+export interface Selection {
+  elements: readonly SelectedElement[];
+  primary: SelectedElement;
+}
+
+let currentSelection: Selection | null = null;
+const EMPTY_SELECTION: readonly SelectedElement[] = [];
 let chain: HTMLElement[] = [];
 let index = 0;
 const listeners = new Set<() => void>();
@@ -28,7 +35,15 @@ function subscribe(cb: () => void): () => void {
 }
 
 function getSelectedElement(): SelectedElement | null {
-  return current;
+  return currentSelection?.primary ?? null;
+}
+
+function getSelectedElements(): readonly SelectedElement[] {
+  return currentSelection?.elements ?? EMPTY_SELECTION;
+}
+
+function getSelection(): Selection | null {
+  return currentSelection;
 }
 
 function getHierarchy(): HTMLElement[] {
@@ -90,6 +105,23 @@ function sameResolvedMetadata(a: SelectedElement, b: SelectedElement): boolean {
 }
 
 export function setSelectedElement(el: SelectedElement | null): void {
+  if (!el) {
+    if (!currentSelection) return;
+    currentSelection = null;
+    chain = [];
+    index = 0;
+    notify();
+    return;
+  }
+
+  const current = currentSelection?.primary ?? null;
+  if ((currentSelection?.elements.length ?? 0) > 1) {
+    // setSelectedElement is the replacement API used by an ordinary click,
+    // Canvas selection, and single-target actions. It must collapse a group
+    // even when the clicked node is already the primary target.
+    publishSelection([el], el);
+    return;
+  }
   if (current === el) return;
   // Re-clicks and post-edit refreshes re-resolve a fresh object with the same
   // source-site identity. Keep the existing selection and hierarchy step so
@@ -100,15 +132,116 @@ export function setSelectedElement(el: SelectedElement | null): void {
     && current.src === el.src
     && current.domElement === el.domElement) {
     if (!sameResolvedMetadata(current, el)) {
-      current = el;
+      currentSelection = { elements: [el], primary: el };
       notify();
     }
     return;
   }
-  current = el;
-  chain = el ? computeHierarchy(el.domElement) : [];
+  currentSelection = { elements: [el], primary: el };
+  chain = computeHierarchy(el.domElement);
   index = 0;
   notify();
+}
+
+function sameSelection(left: Selection | null, right: Selection | null): boolean {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  if (left.primary.domElement !== right.primary.domElement) return false;
+  if (left.elements.length !== right.elements.length) return false;
+  return left.elements.every((element, elementIndex) => {
+    const candidate = right.elements[elementIndex];
+    return candidate
+      && candidate.domElement === element.domElement
+      && candidate.cid === element.cid
+      && candidate.src === element.src
+      && sameResolvedMetadata(candidate, element);
+  });
+}
+
+function publishSelection(elements: readonly SelectedElement[], primary: SelectedElement): void {
+  const unique: SelectedElement[] = [];
+  const seen = new Set<HTMLElement>();
+  for (const element of elements) {
+    if (seen.has(element.domElement)) continue;
+    seen.add(element.domElement);
+    unique.push(element);
+  }
+  if (unique.length === 0) {
+    setSelectedElement(null);
+    return;
+  }
+  const nextPrimary = unique.find((element) => element.domElement === primary.domElement) ?? unique.at(-1)!;
+  const next: Selection = { elements: unique, primary: nextPrimary };
+  if (sameSelection(currentSelection, next)) return;
+  currentSelection = next;
+  if (unique.length === 1) {
+    chain = computeHierarchy(nextPrimary.domElement);
+    index = 0;
+  } else {
+    // Hierarchy stepping is a single-element operation. Clearing it here also
+    // prevents a stale parent chain from being rendered for a group.
+    chain = [];
+    index = 0;
+  }
+  notify();
+}
+
+/** Replaces the selection with one or more ordered targets. */
+export function setSelectedElements(elements: readonly SelectedElement[]): void {
+  const primary = elements.at(-1);
+  if (!primary) {
+    setSelectedElement(null);
+    return;
+  }
+  publishSelection(elements, primary);
+}
+
+/** Adds or removes one target while keeping the toggled target primary. */
+export function toggleSelectedElement(el: SelectedElement): void {
+  const selectedElements = getSelectedElements();
+  const existingIndex = selectedElements.findIndex((selected) => selected.domElement === el.domElement);
+  if (existingIndex >= 0) {
+    const remaining = selectedElements.filter((_, index) => index !== existingIndex);
+    if (remaining.length === 0) {
+      setSelectedElement(null);
+      return;
+    }
+    const primary = remaining.at(-1)!;
+    publishSelection(remaining, primary);
+    return;
+  }
+  publishSelection([...selectedElements, el], el);
+}
+
+/** Removes one rendered node from the group, preserving the remaining order. */
+export function removeSelectedElement(el: HTMLElement): void {
+  const selectedElements = getSelectedElements();
+  const remaining = selectedElements.filter((selected) => selected.domElement !== el);
+  if (remaining.length === selectedElements.length) return;
+  if (remaining.length === 0) {
+    setSelectedElement(null);
+    return;
+  }
+  const primary = currentSelection?.primary.domElement === el
+    ? remaining.at(-1)!
+    : currentSelection?.primary ?? remaining.at(-1)!;
+  publishSelection(remaining, primary);
+}
+
+/** Refreshes metadata for one selected DOM node without collapsing a group. */
+export function refreshSelectedElement(el: SelectedElement): void {
+  const selectedElements = getSelectedElements();
+  const targetIndex = selectedElements.findIndex((selected) => selected.domElement === el.domElement);
+  if (targetIndex < 0) {
+    setSelectedElement(el);
+    return;
+  }
+  const refreshed = selectedElements.slice();
+  refreshed[targetIndex] = el;
+  const primary = currentSelection?.primary.domElement === el.domElement
+    ? el
+    : currentSelection?.primary ?? el;
+  publishSelection(refreshed, primary);
 }
 
 function applyStep(newIndex: number): void {
@@ -118,7 +251,7 @@ function applyStep(newIndex: number): void {
   const node = chain[index];
   if (node) {
     const resolved = resolveSelectionFromElement(node);
-    if (resolved) current = resolved;
+    if (resolved) currentSelection = { elements: [resolved], primary: resolved };
   }
   notify();
 }
@@ -135,10 +268,25 @@ export function setHierarchyIndex(i: number): void {
   applyStep(i);
 }
 
-export { subscribe, getSelectedElement, getHierarchy, getHierarchyIndex };
+export {
+  subscribe,
+  getSelectedElement,
+  getSelectedElements,
+  getSelection,
+  getHierarchy,
+  getHierarchyIndex,
+};
 
 export function useSelectedElement(): SelectedElement | null {
   return useSyncExternalStore(subscribe, getSelectedElement, getSelectedElement);
+}
+
+export function useSelectedElements(): readonly SelectedElement[] {
+  return useSyncExternalStore(subscribe, getSelectedElements, getSelectedElements);
+}
+
+export function useSelection(): Selection | null {
+  return useSyncExternalStore(subscribe, getSelection, getSelection);
 }
 
 export function useHierarchy(): HTMLElement[] {

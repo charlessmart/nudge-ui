@@ -5,6 +5,7 @@ import { LayoutComboField } from "./LayoutComboField.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
 import {
   makeSelected,
+  makeMixedStyleSelection,
   mount,
   setInputValue,
   setSelectValue,
@@ -171,6 +172,33 @@ describe("LayoutComboField", () => {
     setInputValue(input, "12");
 
     expect(sheetText()).toContain("column-gap: 12px;");
+  });
+
+  it("keeps a draft visible while replacing a mixed group value", () => {
+    const { el, selected } = makeSelected();
+    mockComputedStyle({ "column-gap": "8px" });
+    const selection = makeMixedStyleSelection(selected, "column-gap");
+    handle = mount(createElement(LayoutComboField, {
+      property: "column-gap",
+      presets: ["0", "1rem"],
+      domElement: el,
+      selection,
+      inputOnly: true,
+    }));
+    const input = handle.host.querySelector('[data-test="layout-combo-input-column-gap"]') as HTMLInputElement;
+
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "1");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(input.value).toBe("1");
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "12");
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(input.value).toBe("12");
   });
 
   it("shows the authored gap expression instead of the resolved pixel value", () => {

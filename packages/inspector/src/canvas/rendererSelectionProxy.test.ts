@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
-import { getSelectedElement, setSelectedElement } from "../selectionStore.ts";
+import { getSelectedElement, getSelectedElements, setSelectedElement } from "../selectionStore.ts";
 import { PROTOCOL_VERSION, type ElementClickMessage } from "./frameProtocol.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
 
@@ -61,7 +61,6 @@ describe("handleElementClick", () => {
 
   it("fails closed when the renderer identity is missing", () => {
     const iframe = createFrame();
-    const frameDocument = iframe.contentDocument!;
     handleElementClick(clickMessage({ elementId: "r404" }), iframe, "card-1");
 
     expect(getSelectedElement()).toBeNull();
@@ -83,6 +82,25 @@ describe("handleElementClick", () => {
     frameDocument.body.prepend(buttons[1]!);
     handleElementClick(clickMessage({ elementId: "r2" }), iframe, "card-1");
 
+    expect(getSelectedElement()?.domElement).toBe(buttons[1]);
+  });
+
+  it("adds a same-frame renderer target on an additive click", () => {
+    const iframe = createFrame();
+    const frameDocument = iframe.contentDocument!;
+    const buttons = ["r1", "r2"].map((elementId) => {
+      const button = frameDocument.createElement("button");
+      button.setAttribute("data-cid", "Button");
+      button.setAttribute("data-src", "/src/Button.tsx:32:5");
+      button.setAttribute("data-renderer-id", elementId);
+      frameDocument.body.appendChild(button);
+      return button;
+    });
+
+    handleElementClick(clickMessage({ elementId: "r1" }), iframe, "card-1");
+    handleElementClick(clickMessage({ elementId: "r2", additive: true }), iframe, "card-1");
+
+    expect(getSelectedElements().map((selected) => selected.domElement)).toEqual(buttons);
     expect(getSelectedElement()?.domElement).toBe(buttons[1]);
   });
 

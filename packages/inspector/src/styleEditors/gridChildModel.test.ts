@@ -9,7 +9,7 @@ import {
   readGridChildAlignment,
   startLineOptions,
 } from "./gridChildModel.ts";
-import { resetPendingRules } from "../tokens/editActions.ts";
+import { getChangeRecords, resetPendingRules } from "../tokens/editActions.ts";
 import {
   makeSelected,
   mockComputedStyle,
@@ -182,6 +182,23 @@ describe("gridChildModel", () => {
 
       expect(commitGridAxisPlacement(el, "column", {})).toEqual([]);
       expect(sheetText()).toBe("");
+    });
+
+    it("preserves each selected item's span when their start lines move", () => {
+      const first = makeSelected("Card", "src/Card.tsx:1:1").el;
+      const second = makeSelected("Card", "src/Card.tsx:2:1").el;
+      first.style.setProperty("grid-column-start", "1");
+      first.style.setProperty("grid-column-end", "span 2");
+      second.style.setProperty("grid-column-start", "2");
+      second.style.setProperty("grid-column-end", "span 3");
+      mockComputedStyle({});
+
+      commitGridAxisPlacement([first, second], "column", { start: "4", span: "keep" });
+
+      const endValues = getChangeRecords()
+        .filter((record) => record.property === "grid-column-end")
+        .map((record) => "rawValue" in record ? record.rawValue : null);
+      expect(endValues).toEqual(["span 2", "span 3"]);
     });
   });
 
