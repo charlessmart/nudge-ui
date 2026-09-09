@@ -11,7 +11,6 @@ import {
 import { isComponentOverrideList } from "./frameProtocol.ts";
 import { isNudgeUiDev } from "../devFlag.ts";
 import { replaceComponentOverrideProjection } from "../componentSemantics/index.ts";
-import { rulesToCssText, type StyleRule } from "../managedStylesheet.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
 import {
   applyRenderedInstanceProjection,
@@ -31,8 +30,41 @@ import {
   subscribeTextProjectionDiagnostics,
 } from "../textProjection.ts";
 import { isTextContentChangeListValue } from "../changes/types.ts";
+import {
+  applyWorkspaceProjection,
+  type DocumentProjectionAdapter,
+  type WorkspaceProjectionPlan,
+} from "../projection/workspaceProjection.ts";
 
 const SHEET_ID = "nudge-ui-styles";
+
+function replaceRendererCss(css: string): void {
+  let sheet = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
+  if (!sheet) {
+    sheet = document.createElement("style");
+    sheet.id = SHEET_ID;
+    sheet.setAttribute("data-nudge-ui", "managed");
+    document.head.appendChild(sheet);
+  }
+  sheet.textContent = css;
+  notifyBrowserStylesheetChange(document);
+}
+
+const rendererDocumentProjectionAdapter: DocumentProjectionAdapter = {
+  applyStructural: (changes) => {
+    applyStructuralProjection(document, changes);
+  },
+  applyRenderedInstances: (overrides) => {
+    applyRenderedInstanceProjection(document, overrides);
+  },
+  applyText: (changes) => {
+    applyTextContentProjection(document, changes);
+  },
+  applyComponents: replaceComponentOverrideProjection,
+  applyManagedStyles: (_rules, css) => {
+    replaceRendererCss(css);
+  },
+};
 
 let lastAppliedRevision = -1;
 let lastStructuralReportRevision: number | null = null;
@@ -213,10 +245,16 @@ export function handleReplaceStyles(
 
   if (msg.revision <= lastAppliedRevision) return false;
 
-  applyStructuralProjection(document, msg.structuralChanges);
-  applyRenderedInstanceProjection(document, msg.instanceOverrides);
-  applyTextContentProjection(document, msg.textContentChanges);
-  replaceComponentOverrideProjection(msg.componentOverrides);
+  const plan: WorkspaceProjectionPlan = {
+    sourceRevision: msg.revision,
+    managedRules: [],
+    css: msg.css,
+    instanceOverrides: msg.instanceOverrides,
+    structuralChanges: msg.structuralChanges,
+    textContentChanges: msg.textContentChanges,
+    componentOverrides: msg.componentOverrides,
+  };
+  applyWorkspaceProjection(rendererDocumentProjectionAdapter, plan);
   lastStructuralReportRevision = msg.revision;
   lastRenderedInstanceReportRevision = msg.revision;
   lastTextProjectionReportRevision = msg.revision;
@@ -224,22 +262,7 @@ export function handleReplaceStyles(
   sendRenderedInstanceProjectionReport(msg.revision);
   sendTextProjectionReport(msg.revision);
 
-  const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
-  if (!el) {
-    const newEl = document.createElement("style");
-    newEl.id = SHEET_ID;
-    newEl.setAttribute("data-nudge-ui", "managed");
-    document.head.appendChild(newEl);
-    newEl.textContent = msg.css;
-    lastAppliedRevision = msg.revision;
-    notifyBrowserStylesheetChange(document);
-    sendProjectionApplied(msg.revision);
-    return true;
-  }
-
-  el.textContent = msg.css;
   lastAppliedRevision = msg.revision;
-  notifyBrowserStylesheetChange(document);
   sendProjectionApplied(msg.revision);
   return true;
 }

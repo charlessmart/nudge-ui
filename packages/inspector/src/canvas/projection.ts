@@ -1,23 +1,19 @@
-import { getChangesList, getPendingRules } from "../changesLog.ts";
 import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
-import { rulesToCssText } from "../managedStylesheet.ts";
 import type { CanvasCard } from "./canvasStore.ts";
 import { getCanvasMode } from "./canvasStore.ts";
 import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
-import { isComponentChange } from "../changes/types.ts";
-import { componentChangeToOverride } from "../componentSemantics/changeModel.ts";
 import {
-  applyRenderedInstanceProjection,
   clearCanvasRenderedInstanceProjectionReports,
-  collectRenderedInstanceOverrides,
 } from "../renderedInstance.ts";
 import {
-  applyTextContentProjection,
   clearCanvasTextProjectionReports,
-  collectTextContentChanges,
 } from "../textProjection.ts";
-import { applyStructuralProjection, getStructuralChanges } from "../structuralProjection.ts";
 import { clearCanvasStructuralProjectionReports } from "../structuralProjection.ts";
+import {
+  applyHostWorkspaceProjection,
+  compileWorkspaceProjection,
+  type WorkspaceProjectionPlan,
+} from "../projection/workspaceProjection.ts";
 
 export const PROJECT_ID = window.location.origin;
 
@@ -42,39 +38,22 @@ const frameProjectionStates = new Map<string, FrameProjectionState>();
 const projectionAcknowledgementListeners = new Set<() => void>();
 let projectionAcknowledgementVersion = 0;
 
-function rulesKey(
-  css: string,
-  structuralChanges: ReturnType<typeof getWorkspaceChanges>["structuralChanges"],
-  overrides: ReturnType<typeof collectRenderedInstanceOverrides>,
-  textContentChanges: ReturnType<typeof collectTextContentChanges>,
-  componentOverrides: ReturnType<typeof componentChangeToOverride>[],
-): string {
+function projectionKey(plan: WorkspaceProjectionPlan): string {
   // Revision ordering protects every controller-owned projection dimension.
   // In particular, a delete-only snapshot has empty CSS but must still advance
   // past the snapshot already accepted by ready Canvas renderers.
-  return `${css}\u0000${JSON.stringify(overrides)}\u0000${JSON.stringify(structuralChanges)}\u0000${JSON.stringify(textContentChanges)}\u0000${JSON.stringify(componentOverrides)}`;
+  return `${plan.css}\u0000${JSON.stringify(plan.instanceOverrides)}\u0000${JSON.stringify(plan.structuralChanges)}\u0000${JSON.stringify(plan.textContentChanges)}\u0000${JSON.stringify(plan.componentOverrides)}`;
 }
 
 export function computeProjection() {
-  const workspace = getWorkspaceChanges();
-  const structuralChanges = workspace.structuralChanges;
-  applyStructuralProjection(document, structuralChanges);
-  const overrides = collectRenderedInstanceOverrides(workspace.changes);
-  applyRenderedInstanceProjection(document, overrides);
-  const textContentChanges = collectTextContentChanges(workspace.changes);
-  const componentOverrides = workspace.changes
-    .filter(isComponentChange)
-    .map(componentChangeToOverride)
-    .filter((override): override is NonNullable<ReturnType<typeof componentChangeToOverride>> => override !== null);
-  applyTextContentProjection(document, textContentChanges);
-  const rules = getPendingRules();
-  const css = rulesToCssText(rules);
-  const key = rulesKey(css, structuralChanges, overrides, textContentChanges, componentOverrides);
+  const plan = compileWorkspaceProjection(getWorkspaceChanges());
+  applyHostWorkspaceProjection(plan);
+  const key = projectionKey(plan);
   if (key !== lastRulesKey) {
     lastRulesKey = key;
     revision += 1;
   }
-  return { css, revision, instanceOverrides: overrides, structuralChanges, textContentChanges, componentOverrides };
+  return { ...plan, revision };
 }
 
 export function resetProjectionRevision(): void {
@@ -103,7 +82,7 @@ export function sendProjectionToCard(
     cardId: card.id,
     css,
     revision: rev,
-    instanceOverrides,
+    instanceOverrides: [...instanceOverrides],
     structuralChanges: [...structuralChanges],
     textContentChanges: [...textContentChanges],
     componentOverrides: [...componentOverrides],
@@ -239,7 +218,7 @@ export function projectToAllReadyCards(): void {
       cardId,
       css,
       revision: rev,
-      instanceOverrides,
+      instanceOverrides: [...instanceOverrides],
       structuralChanges: [...structuralChanges],
       textContentChanges: [...textContentChanges],
       componentOverrides: [...componentOverrides],

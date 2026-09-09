@@ -4,7 +4,6 @@ import {
   changeKey,
 } from "./changes/model.ts";
 import {
-  applyChangeProjections,
   buildManagedStyleRules,
   verifyManagedStyleProjection,
 } from "./changes/projection.ts";
@@ -25,12 +24,12 @@ import {
   subscribeWorkspaceChanges,
   undoWorkspaceChange,
 } from "./changes/workspaceChanges.ts";
-import {
-  applyStructuralProjection,
-  clearStructuralProjectionReports,
-  pruneStructuralProjectionReports,
-} from "./structuralProjection.ts";
+import { clearStructuralProjectionReports, pruneStructuralProjectionReports } from "./structuralProjection.ts";
 import type { StructuralChange } from "./changes/structuralTypes.ts";
+import {
+  applyHostWorkspaceProjection,
+  compileWorkspaceProjection,
+} from "./projection/workspaceProjection.ts";
 
 export {
   isComponentChange,
@@ -75,10 +74,8 @@ export function getPendingRules(): StyleRule[] {
   return buildManagedStyleRules(getChangesSnapshot());
 }
 
-function reapply(): void {
-  const workspace = getWorkspaceChanges();
-  applyStructuralProjection(document, workspace.structuralChanges);
-  applyChangeProjections(workspace.changes as ChangeRecord[]);
+function reapply(workspace = getWorkspaceChanges()): void {
+  applyHostWorkspaceProjection(compileWorkspaceProjection(workspace));
 }
 
 function samePreviewResult(
