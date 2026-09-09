@@ -47,6 +47,7 @@ import { getElementWindow } from "./domRealm.ts";
 import { deleteElement, nudgeElement } from "./structuralGestures.ts";
 import { redoStructuralChange, undoStructuralChange } from "./structuralProjection.ts";
 import { AtRuleContextProvider } from "./ui/AtRuleContext.tsx";
+import { SegmentedControl } from "./ui/SegmentedControl.tsx";
 import { ComponentPropsSection } from "./componentSemantics/ComponentPropsSection.tsx";
 import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "./inlineTextEditor.ts";
 import { useNudgeUiRuntimeConfig } from "./useRuntimeConfig.ts";
@@ -400,25 +401,20 @@ export function InspectorShell(): ReactElement {
                 {showInteractionState ? (
                   <div className="style-state" data-test="style-state">
                     <span className="selection__label">State</span>
-                    <div className="style-state__options" role="group" aria-label="Style State">
-                      {availableInteractionStates.map((state) => (
-                        <Button
-                          key={state}
-                          size="compact"
-                          variant={styleState === state ? "primary" : "quiet"}
-                          className="style-state__option"
-                          data-test={`style-state-${state}`}
-                          data-active={styleState === state ? "true" : "false"}
-                          aria-pressed={styleState === state}
-                          onClick={() => {
-                            setActiveStyleState(state);
-                            setStyleState(state);
-                          }}
-                        >
-                          {formatInspectorLabel(state)}
-                        </Button>
-                      ))}
-                    </div>
+                    <SegmentedControl
+                      value={styleState}
+                      className="style-state__control"
+                      aria-label="Style State"
+                      options={availableInteractionStates.map((state) => ({
+                        value: state,
+                        label: formatInspectorLabel(state),
+                        testId: `style-state-${state}`,
+                      }))}
+                      onChange={(state) => {
+                        setActiveStyleState(state);
+                        setStyleState(state);
+                      }}
+                    />
                   </div>
                 ) : null}
                 {hasEditScopeCallout ? (

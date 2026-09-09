@@ -54,6 +54,7 @@ export function SegmentedControl<T extends string>({
               aria-label={option.label}
               title={option.label}
               data-test={option.testId}
+              data-active={selected ? "true" : "false"}
               onPressedChange={(pressed) => {
                 if (pressed) {
                   onChange(option.value);

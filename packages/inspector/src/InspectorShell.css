@@ -209,16 +209,12 @@
   margin-top: 3px;
 }
 
-.style-state__options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+.style-state__control {
+  min-height: var(--control-height-small);
+  width: 100%;
 }
 
-.style-state__option.button {
-  min-height: 24px;
-  padding: 3px 7px;
-  border-radius: var(--radius-small);
+.style-state__control .segmented-control__button.button {
   font-size: 11px;
   text-transform: capitalize;
 }

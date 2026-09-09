@@ -141,7 +141,7 @@ describe("Typography", () => {
     expect(sheetText()).toContain("text-align: center;");
   });
 
-  it("returns text alignment to its original value when its selected option is clicked again", () => {
+  it("keeps text alignment selected when its active option is clicked again", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "text-align": "left", "vertical-align": "baseline" });
     handle = mount(createElement(Typography, { element: selected }));
@@ -152,8 +152,9 @@ describe("Typography", () => {
 
     act(() => center.click());
 
-    expect(sheetText()).not.toContain("text-align: center;");
-    expect(handle.host.querySelectorAll('[data-test^="typography-align-text-align-"][aria-pressed="true"]')).toHaveLength(0);
+    expect(sheetText()).toContain("text-align: center;");
+    expect(handle.host.querySelector('[data-test="typography-align-text-align-center"]')?.getAttribute("aria-pressed"))
+      .toBe("true");
   });
 
   it("records font shorthand provenance when a decomposed longhand is edited", () => {

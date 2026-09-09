@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   IconTextSize,
   IconAlignCenter,
@@ -278,25 +278,17 @@ interface AlignmentFieldProps {
 
 function AlignmentField({ property, label, element, defaultValue, options, onAfterEdit }: AlignmentFieldProps): ReactElement {
   const atRules = useFieldAtRules(property);
-  const [initialValue] = useState(() => getStateStyleValue(element, property, defaultValue));
-  const initialValueRef = useRef(initialValue);
-  const [current, setCurrent] = useState<string | null>(() => normalizeAlignment(property, initialValue));
+  const [current, setCurrent] = useState(() =>
+    normalizeAlignment(property, getStateStyleValue(element, property, defaultValue)));
 
   useEffect(() => {
     const next = getStateStyleValue(element, property, defaultValue);
-    initialValueRef.current = next;
     setCurrent(normalizeAlignment(property, next));
   }, [defaultValue, element, property]);
 
   function handleChange(value: string): void {
     setCurrent(value);
     setStyle(element, property, value);
-    onAfterEdit?.();
-  }
-
-  function handleDeselect(): void {
-    setCurrent(null);
-    setStyle(element, property, initialValueRef.current);
     onAfterEdit?.();
   }
 
@@ -313,8 +305,6 @@ function AlignmentField({ property, label, element, defaultValue, options, onAft
           testId: `typography-align-${property}-${option.value}`,
         }))}
         onChange={handleChange}
-        allowDeselect
-        onDeselect={handleDeselect}
       />
       <AtRuleIndicator atRules={atRules} />
     </div>
