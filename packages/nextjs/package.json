@@ -1,6 +1,6 @@
 {
   "name": "@nudge-ui/nextjs",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Next.js development integration for the Nudge UI inspector.",
   "license": "MIT",
   "repository": {

@@ -264,7 +264,7 @@ git push origin v0.1.3
 The tag starts the npm release workflow. It validates that every public package
 matches the tag, runs the full test suite, builds and verifies the package
 archives once, and submits those exact archives with `npm stage publish`.
-Review the eight entries on npm's **Staged Packages** page and approve them with
+Review the nine entries on npm's **Staged Packages** page and approve them with
 2FA to make the release public.
 
 Each package must trust the `charlessmart/nudge-ui` GitHub repository and the
