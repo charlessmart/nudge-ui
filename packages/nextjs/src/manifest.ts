@@ -19,6 +19,7 @@ export interface NudgeUiManifestInput {
   root: string;
 }
 
+/** Mutable token fields updated by the sidecar after each settled watcher batch. */
 type MutableRuntime = Omit<
   NudgeUiRuntimeConfig,
   "tokenCatalog" | "tokens" | "tokenDiagnostics" | "componentContracts" | "tokenGeneration"

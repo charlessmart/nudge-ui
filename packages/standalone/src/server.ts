@@ -97,7 +97,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
   }
   const port = options.port ?? DEFAULT_PORT;
   validatePort(port);
-  const clientPath = options.clientPath ?? resolveDefaultClientPath();
+  const clientPath = options.clientPath;
   const projectId = options.projectId ?? createStandaloneProjectId(rootDirectory);
   let revision = 0;
   let manifest = createStandaloneRuntimeManifest(
@@ -433,7 +433,7 @@ async function handleRequest(input: {
   request: IncomingMessage;
   response: ServerResponse;
   rootDirectory: string;
-  clientPath: string;
+  clientPath?: string;
   getManifest: () => StandaloneRuntimeManifest;
   reloadClients: Set<ServerResponse>;
 }): Promise<void> {
@@ -520,7 +520,7 @@ async function handleNudgeUiRoute(
   input: {
     request: IncomingMessage;
     response: ServerResponse;
-    clientPath: string;
+    clientPath?: string;
     getManifest: () => StandaloneRuntimeManifest;
     reloadClients: Set<ServerResponse>;
   },
@@ -535,7 +535,7 @@ async function handleNudgeUiRoute(
   }
   if (pathname === NUDGE_UI_CLIENT_PATH) {
     try {
-      const body = await readFileFromDescriptor(input.clientPath);
+      const body = await readFileFromDescriptor(input.clientPath ?? resolveDefaultClientPath());
       sendBody(input.response, 200, body, "text/javascript; charset=utf-8", {
         "Cache-Control": "no-cache",
       });

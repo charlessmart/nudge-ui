@@ -49,6 +49,14 @@ describe("parseNudgeUiClientManifest", () => {
       ...validManifest,
       document: { runtimeIdentity: "react" },
     })).toBeNull();
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      reload: { endpoint: "/__nudge_ui__/reload", strategy: "refresh-manifest", events: [] },
+    })).toBeNull();
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      reload: { endpoint: "/__nudge_ui__/reload", strategy: "refresh-manifest", events: [""] },
+    })).toBeNull();
   });
 
   it("returns a normalized immutable runtime", () => {

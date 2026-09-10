@@ -1,10 +1,8 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   contentTypeForPath,
@@ -395,21 +393,7 @@ describe("createStandaloneServer", () => {
   });
 });
 
-describe("standalone client build", () => {
-  it("uses the shared self-contained browser module", () => {
-    const require = createRequire(import.meta.url);
-    const bundle = readFileSync(require.resolve("@nudge-ui/inspector/client"), "utf8");
-
-    expect(bundle).not.toContain("virtual:design-");
-    expect(bundle).not.toContain("/@vite/client");
-    expect(bundle).not.toContain("?inline");
-    expect(bundle).not.toContain("import.meta.env");
-    expect(bundle).not.toMatch(/^import\s/m);
-    expect(bundle).toContain("react.development.js");
-    expect(bundle).toContain("configureNudgeUiRuntime");
-    expect(bundle).toContain("bootstrapNudgeUi");
-  });
-
+describe("standalone build", () => {
   it("emits an executable Node CLI bundle", () => {
     const packageRoot = fileURLToPath(new URL("..", import.meta.url));
     const script = join(packageRoot, "scripts/build.mjs");

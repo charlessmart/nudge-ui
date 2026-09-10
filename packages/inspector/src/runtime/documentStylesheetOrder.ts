@@ -54,12 +54,10 @@ export function reconcileDocumentTokenCatalog(
   const diagnostics: TokenCatalogDiagnostic[] = [];
   const resolved = catalog.map((definition) => {
     if (definition.declarations.length < 2) return definition;
-    const declarations = definition.declarations.map((declaration, index) => ({
-      declaration,
-      index,
-      path: sourcePath(declaration),
-      rank: ranks.get(sourcePath(declaration)),
-    }));
+    const declarations = definition.declarations.map((declaration, index) => {
+      const path = sourcePath(declaration);
+      return { declaration, index, path, rank: ranks.get(path) };
+    });
     if (!evidence.complete || declarations.some((entry) => entry.rank === undefined)) {
       diagnostics.push({
         code: "token-order-unresolved",
@@ -68,13 +66,14 @@ export function reconcileDocumentTokenCatalog(
       });
       return definition;
     }
+    // The incomplete-rank branch returned above, so these fallbacks are unreachable.
     declarations.sort((left, right) =>
-      left.rank! - right.rank! || left.index - right.index);
+      (left.rank ?? 0) - (right.rank ?? 0) || left.index - right.index);
     return {
       ...definition,
       declarations: declarations.map(({ declaration, rank }, index): TokenDeclaration => ({
         ...declaration,
-        order: rank! * stride + index,
+        order: (rank ?? 0) * stride + index,
       })),
     };
   });

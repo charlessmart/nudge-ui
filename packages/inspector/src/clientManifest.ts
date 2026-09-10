@@ -59,8 +59,14 @@ interface CandidateManifest {
   readonly runtime?: unknown;
   readonly document?: unknown;
   readonly reload?: unknown;
+}
+
+interface CandidateDocumentOptions {
   readonly runtimeIdentity?: unknown;
   readonly stylesheetOrder?: unknown;
+}
+
+interface CandidateReloadOptions {
   readonly endpoint?: unknown;
   readonly strategy?: unknown;
   readonly events?: unknown;
@@ -72,9 +78,11 @@ function isDocumentOptions(
   value: unknown,
 ): value is NudgeUiClientManifest["document"] {
   if (value === undefined) return true;
-  if (!isRecord(value)) return false;
-  return (value.runtimeIdentity === undefined || value.runtimeIdentity === "static-html")
-    && (value.stylesheetOrder === undefined || value.stylesheetOrder === "browser");
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  // SAFETY: the object check above makes reading optional candidate fields safe.
+  const candidate = value as CandidateDocumentOptions;
+  return (candidate.runtimeIdentity === undefined || candidate.runtimeIdentity === "static-html")
+    && (candidate.stylesheetOrder === undefined || candidate.stylesheetOrder === "browser");
 }
 
 function isReloadOptions(
@@ -83,14 +91,18 @@ function isReloadOptions(
   value: unknown,
 ): value is NudgeUiClientManifest["reload"] {
   if (value === undefined) return true;
-  if (!isRecord(value)
-    || typeof value.endpoint !== "string"
-    || !value.endpoint.startsWith("/__nudge_ui__/")
-    || (value.strategy !== "refresh-manifest" && value.strategy !== "reload-document")) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  // SAFETY: the object check above makes reading optional candidate fields safe.
+  const candidate = value as CandidateReloadOptions;
+  if (typeof candidate.endpoint !== "string"
+    || !candidate.endpoint.startsWith("/__nudge_ui__/")
+    || (candidate.strategy !== "refresh-manifest" && candidate.strategy !== "reload-document")) {
     return false;
   }
-  return value.events === undefined
-    || (Array.isArray(value.events) && value.events.every((event) => typeof event === "string"));
+  return candidate.events === undefined
+    || (Array.isArray(candidate.events)
+      && candidate.events.length > 0
+      && candidate.events.every((event) => typeof event === "string" && event.trim().length > 0));
 }
 
 function isRecord(

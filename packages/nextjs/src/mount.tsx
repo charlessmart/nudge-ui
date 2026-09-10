@@ -12,19 +12,18 @@ import { useEffect } from "react";
  */
 export function NudgeUiMount(): null {
   useEffect(() => {
-    const existingRoot = document.getElementById("nudge-ui-root");
-    if (!existingRoot) {
-      const root = document.createElement("div");
-      root.id = "nudge-ui-root";
-      document.body.appendChild(root);
-    }
-
+    // The module script and inspector mount intentionally live for the page
+    // lifetime. Removing them during a React Strict Mode cleanup would strand
+    // the already-evaluated module when the effect runs again.
     if (document.querySelector("script[data-nudge-ui-client]")) return;
     const script = document.createElement("script");
     script.type = "module";
     script.src = "/__nudge_ui__/client.mjs";
     script.dataset.nudgeUiClient = "";
     script.dataset.nudgeUiManifest = "/__nudge_ui__/manifest";
+    script.onerror = () => {
+      console.warn("[nudge-ui] inspector bootstrap failed to load.");
+    };
     document.body.appendChild(script);
   }, []);
 

@@ -32,7 +32,8 @@ import { createStandaloneTokenSnapshot } from "@nudge-ui/standalone/token-manife
  */
 
 const STATE_DIR_SEGMENT = ".next";
-const inspectorClientPath = createRequire(import.meta.url).resolve("@nudge-ui/inspector/client");
+const packageRequire = createRequire(import.meta.url);
+let inspectorClientPath: string | undefined;
 
 export interface SidecarHandle {
   port: number;
@@ -450,6 +451,7 @@ function respond(
 
   if (url === "/__nudge_ui__/client.mjs") {
     try {
+      inspectorClientPath ??= packageRequire.resolve("@nudge-ui/inspector/client");
       const body = readFileSync(inspectorClientPath);
       res.writeHead(200, {
         "content-type": "text/javascript; charset=utf-8",
