@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:unit": "node --test scripts/*.test.mjs",
-    "test:e2e": "node scripts/run-packed-consumers.mjs"
+    "test:unit": "vitest run scripts/*.test.mjs",
+    "test:e2e": "node scripts/run-packed-consumers.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1"
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
   }
 }

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const suiteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(suiteRoot, "../..");
-const playwrightCli = fileURLToPath(import.meta.resolve("@playwright/test/cli"));
+const maxDiagnosticCharacters = 256_000;
 const adapterPackages = {
   astro: "@nudge-ui/astro",
   nextjs: "@nudge-ui/nextjs",
@@ -120,7 +120,11 @@ export async function runPackedConsumerSuite(selectedAdapterNames = []) {
 }
 
 export function matchesExpectedMountFailure(expectedFailure, diagnostics) {
-  return expectedFailure.pattern.test(diagnostics[expectedFailure.source].join("\n"));
+  return expectedFailure.pattern.test(diagnostics[expectedFailure.source]);
+}
+
+export function appendDiagnostic(diagnostics, source, message) {
+  diagnostics[source] = `${diagnostics[source]}${message}`.slice(-maxDiagnosticCharacters);
 }
 
 function selectConsumers(selectedAdapterNames) {
@@ -135,8 +139,8 @@ function selectConsumers(selectedAdapterNames) {
 }
 
 function packPackages(outputDirectory) {
-  run("pnpm", ["run", "build:packages"], repositoryRoot);
-  run("node", ["scripts/verify-packages.mjs", "--output-directory", outputDirectory], repositoryRoot);
+  runSync("pnpm", ["run", "build:packages"], repositoryRoot);
+  runSync("node", ["scripts/verify-packages.mjs", "--output-directory", outputDirectory], repositoryRoot);
 }
 
 function readPackedPackages(directory) {
@@ -152,9 +156,11 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
   cpSync(join(suiteRoot, "fixtures", consumer.fixture), projectRoot, { recursive: true });
   const manifestPath = join(projectRoot, "package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const initializerPackage = packages.get("create-nudge-ui");
+  if (!initializerPackage) throw new Error("The packed create-nudge-ui package is missing.");
   manifest.devDependencies = {
     ...manifest.devDependencies,
-    "create-nudge-ui": `file:${packages.get("create-nudge-ui").tarball}`,
+    "create-nudge-ui": `file:${initializerPackage.tarball}`,
   };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   writeFileSync(join(projectRoot, ".npmrc"), `@nudge-ui:registry=${registryUrl}\n`);
@@ -170,7 +176,7 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
     throw new Error(`${consumer.adapter} resolved to a workspace link instead of an installed package.`);
   }
 
-  const diagnostics = { server: [], browser: [] };
+  const diagnostics = { server: "", browser: "" };
   const [command, args] = consumer.start(consumer.port);
   const server = spawn(command, args, {
     cwd: projectRoot,
@@ -180,20 +186,21 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
   });
   server.stdout.on("data", (chunk) => {
     const message = chunk.toString();
-    diagnostics.server.push(message);
+    appendDiagnostic(diagnostics, "server", message);
     process.stdout.write(`[${consumer.adapter}] ${message}`);
   });
   server.stderr.on("data", (chunk) => {
     const message = chunk.toString();
-    diagnostics.server.push(message);
+    appendDiagnostic(diagnostics, "server", message);
     process.stderr.write(`[${consumer.adapter}] ${message}`);
   });
+  const serverCleanup = registerProcessCleanup(server);
 
   try {
     const url = `http://127.0.0.1:${consumer.port}/`;
     await waitForUrl(url, server);
     try {
-      await runBrowserSmoke(consumer.adapter, url, diagnostics.browser);
+      await runBrowserSmoke(consumer.adapter, url, diagnostics);
     } catch (error) {
       throw new MountError(
         `${consumer.adapter} did not mount from its packed adapter.\n${formatDiagnostics(diagnostics)}`,
@@ -203,14 +210,18 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
     }
     process.stdout.write(`PASS ${consumer.adapter}: packed adapter installed and mounted.\n`);
   } finally {
-    await stopProcess(server);
+    try {
+      await serverCleanup.stop();
+    } finally {
+      serverCleanup.removeSignalHandlers();
+    }
   }
 }
 
-function runBrowserSmoke(adapter, url, browserDiagnostics) {
+function runBrowserSmoke(adapter, url, diagnostics) {
   return new Promise((resolveRun, rejectRun) => {
     const child = spawn(process.execPath, [
-      playwrightCli,
+      resolvePlaywrightCli(),
       "test",
       "--config",
       join(suiteRoot, "playwright.config.ts"),
@@ -225,12 +236,12 @@ function runBrowserSmoke(adapter, url, browserDiagnostics) {
     });
     child.stdout.on("data", (chunk) => {
       const message = chunk.toString();
-      browserDiagnostics.push(message);
+      appendDiagnostic(diagnostics, "browser", message);
       process.stdout.write(`[${adapter}:browser] ${message}`);
     });
     child.stderr.on("data", (chunk) => {
       const message = chunk.toString();
-      browserDiagnostics.push(message);
+      appendDiagnostic(diagnostics, "browser", message);
       process.stderr.write(`[${adapter}:browser] ${message}`);
     });
     child.once("error", rejectRun);
@@ -242,6 +253,10 @@ function runBrowserSmoke(adapter, url, browserDiagnostics) {
       rejectRun(new Error(`Playwright exited with ${signal ?? `code ${code}`}.`));
     });
   });
+}
+
+function resolvePlaywrightCli() {
+  return fileURLToPath(import.meta.resolve("@playwright/test/cli"));
 }
 
 async function startRegistry(packages) {
@@ -293,7 +308,9 @@ async function waitForUrl(url, processHandle) {
     }
     try {
       const response = await fetch(url);
-      if (response.ok) return;
+      const ready = response.ok;
+      await response.body?.cancel();
+      if (ready) return;
     } catch {
       // The server has not started listening yet.
     }
@@ -306,24 +323,56 @@ export async function stopProcess(
   processHandle,
   { terminateTimeoutMs = 5_000, killTimeoutMs = 5_000 } = {},
 ) {
-  const currentExit = processExit(processHandle);
-  if (currentExit) return currentExit;
   if (processHandle.pid === undefined) throw new Error("Development server has no process ID.");
+  const pid = processHandle.pid;
+  const currentExit = processExit(processHandle);
+  if (currentExit && !processGroupExists(pid)) return currentExit;
 
-  const exited = new Promise((resolveExit) => {
-    processHandle.once("exit", (code, signal) => resolveExit({ code, signal }));
-  });
-  signalProcessGroup(processHandle.pid, "SIGTERM");
-  const gracefulExit = await waitForExit(exited, terminateTimeoutMs);
+  signalProcessGroup(pid, "SIGTERM");
+  const gracefulExit = await waitForProcessGroupExit(processHandle, pid, terminateTimeoutMs);
   if (gracefulExit) return gracefulExit;
 
-  signalProcessGroup(processHandle.pid, "SIGKILL");
-  const forcedExit = await waitForExit(exited, killTimeoutMs);
+  signalProcessGroup(pid, "SIGKILL");
+  const forcedExit = await waitForProcessGroupExit(processHandle, pid, killTimeoutMs);
   if (forcedExit) return forcedExit;
 
   const finalExit = processExit(processHandle);
-  if (finalExit) return finalExit;
-  throw new Error(`Development server process group ${processHandle.pid} did not exit after SIGKILL.`);
+  if (finalExit && !processGroupExists(pid)) return finalExit;
+  throw new Error(`Development server process group ${pid} did not exit after SIGKILL.`);
+}
+
+export function registerProcessCleanup(processHandle) {
+  let stopPromise;
+  let terminationSignal;
+  const stop = () => {
+    stopPromise ??= stopProcess(processHandle);
+    return stopPromise;
+  };
+  const repeatSignal = () => {
+    if (processHandle.pid !== undefined) signalProcessGroup(processHandle.pid, "SIGKILL");
+  };
+  const handleSignal = (signal) => {
+    if (terminationSignal) {
+      repeatSignal();
+      return;
+    }
+    terminationSignal = signal;
+    const terminateHarness = () => {
+      removeSignalHandlers();
+      process.kill(process.pid, signal);
+    };
+    void stop().then(terminateHarness, terminateHarness);
+  };
+  const handleInterrupt = () => handleSignal("SIGINT");
+  const handleTermination = () => handleSignal("SIGTERM");
+  const removeSignalHandlers = () => {
+    process.off("SIGINT", handleInterrupt);
+    process.off("SIGTERM", handleTermination);
+  };
+
+  process.on("SIGINT", handleInterrupt);
+  process.on("SIGTERM", handleTermination);
+  return { removeSignalHandlers, stop };
 }
 
 function signalProcessGroup(pid, signal) {
@@ -339,22 +388,33 @@ function processExit(processHandle) {
   return { code: processHandle.exitCode, signal: processHandle.signalCode };
 }
 
-async function waitForExit(exitPromise, timeoutMs) {
-  let timeout;
+function processGroupExists(pid) {
   try {
-    return await Promise.race([
-      exitPromise,
-      new Promise((resolveTimeout) => {
-        timeout = setTimeout(() => resolveTimeout(null), timeoutMs);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timeout);
+    process.kill(-pid, 0);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ESRCH") return false;
+    if (error instanceof Error && "code" in error && error.code === "EPERM") return true;
+    throw error;
   }
 }
 
+async function waitForProcessGroupExit(processHandle, pid, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    const exit = processExit(processHandle);
+    if (exit && !processGroupExists(pid)) return exit;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+  } while (Date.now() < deadline);
+  return null;
+}
+
 function reportWarning(title, message) {
-  process.stdout.write(`::warning title=${title}::${escapeWorkflowData(message)}\n`);
+  if (process.env.GITHUB_ACTIONS === "true") {
+    process.stdout.write(`::warning title=${title}::${escapeWorkflowData(message)}\n`);
+    return;
+  }
+  process.stdout.write(`WARNING ${title}: ${message}\n`);
 }
 
 function escapeWorkflowData(value) {
@@ -364,13 +424,13 @@ function escapeWorkflowData(value) {
 function formatDiagnostics(diagnostics) {
   return [
     "Server diagnostics:",
-    diagnostics.server.join("\n"),
+    diagnostics.server,
     "Browser diagnostics:",
-    diagnostics.browser.join("\n"),
+    diagnostics.browser,
   ].join("\n");
 }
 
-function run(command, args, cwd) {
+function runSync(command, args, cwd) {
   execFileSync(command, args, { cwd, env: process.env, stdio: "inherit" });
 }
 
