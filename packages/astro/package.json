@@ -1,6 +1,6 @@
 {
   "name": "@nudge-ui/astro",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Astro integration for the Nudge UI development inspector.",
   "license": "MIT",
   "repository": {
