@@ -33,15 +33,6 @@ export function parseNudgeUiClientManifest(
   }
 }
 
-/** Returns whether a value is a valid client manifest. */
-export function isNudgeUiClientManifest(
-  // JSON is untrusted at this I/O boundary and is parsed by the function below.
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters
-  value: unknown,
-): value is NudgeUiClientManifest {
-  return parseNudgeUiClientManifest(value) !== null;
-}
-
 interface CandidateManifest {
   readonly version?: unknown;
   readonly runtime?: unknown;

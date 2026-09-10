@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  isNudgeUiClientManifest,
-  parseNudgeUiClientManifest,
-} from "./clientManifest.ts";
+import { parseNudgeUiClientManifest } from "./clientManifest.ts";
 
 const validManifest = {
   version: 1,
@@ -20,17 +17,17 @@ const validManifest = {
   },
 };
 
-describe("isNudgeUiClientManifest", () => {
+describe("parseNudgeUiClientManifest", () => {
   it("accepts a complete host-neutral runtime document", () => {
-    expect(isNudgeUiClientManifest(validManifest)).toBe(true);
+    expect(parseNudgeUiClientManifest(validManifest)).not.toBeNull();
   });
 
   it("rejects unknown versions and invalid runtime identities", () => {
-    expect(isNudgeUiClientManifest({ ...validManifest, version: 2 })).toBe(false);
-    expect(isNudgeUiClientManifest({
+    expect(parseNudgeUiClientManifest({ ...validManifest, version: 2 })).toBeNull();
+    expect(parseNudgeUiClientManifest({
       ...validManifest,
       runtime: { ...validManifest.runtime, host: "unknown" },
-    })).toBe(false);
+    })).toBeNull();
   });
 
   it("returns a normalized immutable runtime", () => {

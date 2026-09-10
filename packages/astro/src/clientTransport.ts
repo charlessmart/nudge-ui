@@ -1,25 +1,16 @@
-import { readFile } from "node:fs/promises";
-import type { ServerResponse } from "node:http";
-import { createRequire } from "node:module";
 import {
-  detectStylingSystem,
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
 } from "@nudge-ui/inspector/client-manifest";
 import type { Plugin, ViteDevServer } from "vite";
+import { createAstroRuntimeConfig } from "./astroRuntimeConfig.ts";
+import { createAstroClientAssetHandler } from "./clientAsset.ts";
 
 export const ASTRO_ROUTE_PREFIX = "/__nudge_ui__/";
 export const ASTRO_CLIENT_PATH = `${ASTRO_ROUTE_PREFIX}client.mjs`;
 export const ASTRO_MANIFEST_PATH = `${ASTRO_ROUTE_PREFIX}manifest`;
 
-const ASTRO_SCOPING_SELECTOR_PATTERN =
-  "\\[data-astro-cid-[^\\]]*\\]|\\.astro-[a-zA-Z0-9_-]+";
-const ASTRO_SOURCE_COORDINATES = {
-  exactCidPrefixes: ["astro:"],
-  exactFileExtensions: [".astro", ".html", ".htm"],
-} as const;
-const inspectorClientPath = createRequire(import.meta.url).resolve("@nudge-ui/inspector/client");
-let inspectorClientBody: Promise<Buffer> | undefined;
+const serveClient = createAstroClientAssetHandler();
 
 interface TokenModule {
   readonly nudgeUiProjectId: string;
@@ -42,7 +33,7 @@ export function createAstroClientTransportPlugin(): Plugin {
       server.middlewares.use((request, response, next) => {
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         if (pathname === ASTRO_CLIENT_PATH) {
-          void serveClient(response).catch(next);
+          void serveClient(request, response).catch(next);
           return;
         }
         if (pathname === ASTRO_MANIFEST_PATH) {
@@ -62,15 +53,6 @@ export function createAstroClientTransportPlugin(): Plugin {
   };
 }
 
-async function serveClient(response: ServerResponse): Promise<void> {
-  inspectorClientBody ??= readFile(inspectorClientPath);
-  const body = await inspectorClientBody;
-  response.statusCode = 200;
-  response.setHeader("Content-Type", "text/javascript; charset=utf-8");
-  response.setHeader("Cache-Control", "no-cache");
-  response.end(body);
-}
-
 async function createManifest(
   server: ViteDevServer,
 ): Promise<NudgeUiClientManifest> {
@@ -80,25 +62,15 @@ async function createManifest(
     server.ssrLoadModule("virtual:design-tokens") as Promise<TokenModule>,
     server.ssrLoadModule("virtual:nudge-ui-components") as Promise<ComponentModule>,
   ]);
-  const tokens = tokenModule.tokens;
   return {
     version: 1,
-    runtime: {
+    runtime: createAstroRuntimeConfig({
       projectId: tokenModule.nudgeUiProjectId,
-      host: "astro",
-      framework: "Astro",
-      stylingSystem: detectStylingSystem(tokens),
-      capabilities: {
-        canvas: false,
-        componentSemantics: true,
-        sourceCoordinates: ASTRO_SOURCE_COORDINATES,
-        scopingSelectorPattern: ASTRO_SCOPING_SELECTOR_PATTERN,
-      },
       tokenCatalog: tokenModule.tokenCatalog,
-      tokens,
+      tokens: tokenModule.tokens,
       tokenDiagnostics: tokenModule.tokenDiagnostics,
       tokenGeneration: tokenModule.tokenGeneration,
       componentContracts: componentModule.componentContracts,
-    },
+    }),
   };
 }

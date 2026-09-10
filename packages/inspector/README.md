@@ -44,14 +44,15 @@ if (host instanceof HTMLElement) bootstrapNudgeUi(host);
 ```
 
 Custom React hosts that enable component semantics must also load the host
-React Adapter before restoring component overrides:
+React Adapter:
 
 ```ts
 import "@nudge-ui/inspector/component-runtime";
 ```
 
 Nudge UI's framework transforms add this import automatically to instrumented
-React modules.
+React modules. Registration replays the latest component-override projection,
+so the Adapter can load before or after the inspector restores overrides.
 
 The runtime is gated for development use. It mounts its UI in a Shadow DOM,
 uses one managed stylesheet for CSS previews, and does not edit application

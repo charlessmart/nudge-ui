@@ -4,6 +4,7 @@ import type {
   ComponentRuntimeAdapter,
   RuntimeComponentTarget,
 } from "./types.ts";
+import { isComponentFramework } from "./types.ts";
 
 export type {
   ComponentFramework,
@@ -165,7 +166,7 @@ function isHostRuntimeRegistry(
 function assertRuntimeAdapter(adapter: ComponentRuntimeAdapter): void {
   if (adapter === null
     || typeof adapter !== "object"
-    || adapter.framework !== "react"
+    || !isComponentFramework(adapter.framework)
     || typeof adapter.inspect !== "function"
     || typeof adapter.replaceOverrides !== "function") {
     throw new TypeError("Nudge UI received an invalid host runtime Adapter.");
@@ -175,7 +176,7 @@ function assertRuntimeAdapter(adapter: ComponentRuntimeAdapter): void {
 function assertRuntimeTarget(target: RuntimeComponentTarget): void {
   if (target === null
     || typeof target !== "object"
-    || target.framework !== "react"
+    || !isComponentFramework(target.framework)
     || target.meta === null
     || typeof target.meta !== "object"
     || target.props === null
@@ -206,7 +207,7 @@ function assertRuntimeTarget(target: RuntimeComponentTarget): void {
 function assertComponentOverride(override: ComponentOverride): void {
   if (override === null
     || typeof override !== "object"
-    || override.framework !== "react"
+    || !isComponentFramework(override.framework)
     || typeof override.callsiteId !== "string"
     || override.callsiteId.length === 0
     || typeof override.prop !== "string"

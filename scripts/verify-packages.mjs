@@ -105,9 +105,10 @@ function verifyPackage(packageRoot) {
     const clientPath = "package/dist/client.mjs";
     assert(entries.includes(clientPath), "Inspector package is missing its self-contained client.");
     const client = tarFile(tarball, clientPath);
+    const externalSpecifiers = externalModuleSpecifiers(client);
     assert(
-      externalModuleSpecifiers(client).length === 0,
-      "Inspector client contains an external module import.",
+      externalSpecifiers.length === 0,
+      `Inspector client contains external module imports: ${externalSpecifiers.join(", ")}.`,
     );
     assert(!entries.includes("package/dist/client.js"), "Inspector package contains a dead client.js emit.");
     assert(!entries.includes("package/dist/client.d.ts"), "Inspector package contains a dead client declaration emit.");

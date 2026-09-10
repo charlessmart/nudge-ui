@@ -7,6 +7,10 @@ import {
   replaceHostRuntimeAdapterOverrides,
 } from "./runtimeBridge.ts";
 
+type TestGlobalWithHostRuntime = typeof globalThis & {
+  [key: symbol]: unknown;
+};
+
 let unregister: (() => void) | undefined;
 
 afterEach(() => {
@@ -64,7 +68,7 @@ describe("host runtime Adapter bridge", () => {
 
   it("rejects an incompatible page-global registry", () => {
     const key = Symbol.for("nudge-ui.host-runtime.v1");
-    const host = globalThis as unknown as Record<PropertyKey, unknown>;
+    const host = globalThis as TestGlobalWithHostRuntime;
     const current = host[key];
     host[key] = { version: 2, adapters: new Map(), overrides: new Map() };
     try {

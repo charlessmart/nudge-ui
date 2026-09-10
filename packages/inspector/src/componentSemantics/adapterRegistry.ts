@@ -13,6 +13,8 @@ import {
   replaceHostRuntimeAdapterOverrides,
 } from "./runtimeBridge.ts";
 
+const diagnosedAdapters = new WeakSet<ComponentRuntimeAdapter>();
+
 function enabledRuntimeAdapters(): ComponentRuntimeAdapter[] {
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
   return [...getHostRuntimeAdapters()];
@@ -24,15 +26,39 @@ export function registerComponentRuntimeAdapter(adapter: ComponentRuntimeAdapter
 }
 
 export function inspectComponentTargets(element: HTMLElement): RuntimeComponentTarget[] {
-  return enabledRuntimeAdapters().flatMap((adapter) => adapter.inspect(element).map((value) => {
-    const target = copyRuntimeTarget(value);
-    return {
-      ...target,
-      mountedCount: target.mountedCount
-        ?? adapter.getCallsiteMultiplicity?.(target.meta.callsiteId)
-        ?? undefined,
-    };
-  }));
+  const targets: RuntimeComponentTarget[] = [];
+  for (const adapter of enabledRuntimeAdapters()) {
+    let inspected: RuntimeComponentTarget[];
+    try {
+      inspected = adapter.inspect(element);
+      if (!Array.isArray(inspected)) {
+        throw new TypeError("A host runtime Adapter returned a non-array inspection result.");
+      }
+    } catch (error) {
+      diagnoseAdapter(adapter, error instanceof Error ? error.message : String(error));
+      continue;
+    }
+    for (const value of inspected) {
+      try {
+        const target = copyRuntimeTarget(value);
+        targets.push({
+          ...target,
+          mountedCount: target.mountedCount
+            ?? adapter.getCallsiteMultiplicity?.(target.meta.callsiteId)
+            ?? undefined,
+        });
+      } catch (error) {
+        diagnoseAdapter(adapter, error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+  return targets;
+}
+
+function diagnoseAdapter(adapter: ComponentRuntimeAdapter, detail: string): void {
+  if (diagnosedAdapters.has(adapter)) return;
+  diagnosedAdapters.add(adapter);
+  console.warn(`[nudge-ui] Ignored invalid ${adapter.framework} Adapter inspection: ${detail}`);
 }
 
 /**
