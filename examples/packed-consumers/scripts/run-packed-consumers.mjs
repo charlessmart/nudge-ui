@@ -76,7 +76,12 @@ try {
   if (failures.length > 0) throw new AggregateError(failures, "Packed consumer smoke tests failed.");
 } finally {
   await registry?.close();
-  rmSync(temporaryRoot, { recursive: true, force: true });
+  rmSync(temporaryRoot, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 100,
+  });
 }
 
 function packPackages(outputDirectory) {
@@ -119,6 +124,7 @@ async function runConsumer(consumer, packages, registryUrl) {
   const [command, args] = consumer.start;
   const server = spawn(command, args, {
     cwd: projectRoot,
+    detached: true,
     env: { ...process.env, NODE_ENV: "development" },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -220,8 +226,10 @@ async function waitForUrl(url, processHandle) {
 
 async function stopProcess(processHandle) {
   if (processHandle.exitCode !== null || processHandle.signalCode !== null) return;
-  processHandle.kill("SIGTERM");
-  await new Promise((resolveExit) => processHandle.once("exit", resolveExit));
+  if (processHandle.pid === undefined) throw new Error("Development server has no process ID.");
+  const exited = new Promise((resolveExit) => processHandle.once("exit", resolveExit));
+  process.kill(-processHandle.pid, "SIGTERM");
+  await exited;
 }
 
 function run(command, args, cwd) {
