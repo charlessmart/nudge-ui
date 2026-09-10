@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import type { ComponentRuntimeAdapter } from "@nudge-ui/inspector/host-runtime";
 
 test("dev: prebuilt client and host React Adapter meet at the runtime seam", async ({ page }) => {
   await page.goto("/");
@@ -17,20 +18,14 @@ test("dev: prebuilt client and host React Adapter meet at the runtime seam", asy
     runtime: { host: "astro", framework: "Astro" },
   });
 
-  const target = await page.evaluate((): {
-    framework: string;
-    meta: { callsiteId: string; componentName: string };
-    props: Record<string, unknown>;
-  } | null => {
+  const target = await page.evaluate(() => {
     const registry = (globalThis as unknown as Record<PropertyKey, {
-      adapters: Map<string, {
-        inspect(element: Element): unknown[];
-        replaceOverrides(overrides: unknown[]): void;
-      }>;
+      adapters: Map<string, ComponentRuntimeAdapter>;
     }>)[Symbol.for("nudge-ui.host-runtime.v1")];
-    const element = document.querySelector(".counter-label");
-    if (!registry || !element) return null;
-    return registry.adapters.get("react")?.inspect(element)[0] ?? null;
+    const adapter = registry?.adapters.get("react");
+    const element = document.querySelector<HTMLElement>(".counter-label");
+    if (!adapter || !element) return null;
+    return adapter.inspect(element)[0] ?? null;
   });
   expect(target).toMatchObject({
     framework: "react",
@@ -41,9 +36,11 @@ test("dev: prebuilt client and host React Adapter meet at the runtime seam", asy
   if (!target) throw new Error("The React Adapter did not return a target.");
   await page.evaluate((callsiteId) => {
     const registry = (globalThis as unknown as Record<PropertyKey, {
-      adapters: Map<string, { replaceOverrides(overrides: unknown[]): void }>;
+      adapters: Map<string, ComponentRuntimeAdapter>;
     }>)[Symbol.for("nudge-ui.host-runtime.v1")];
-    registry.adapters.get("react")?.replaceOverrides([{
+    const adapter = registry?.adapters.get("react");
+    if (!adapter) throw new Error("The React Adapter is not registered.");
+    adapter.replaceOverrides([{
       framework: "react",
       callsiteId,
       prop: "variant",
