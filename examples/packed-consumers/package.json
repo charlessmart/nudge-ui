@@ -1,0 +1,12 @@
+{
+  "name": "packed-consumers",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "node scripts/run-packed-consumers.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
+  }
+}

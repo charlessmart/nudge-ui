@@ -14,12 +14,13 @@
   "homepage": "https://github.com/charlessmart/nudge-ui#readme",
   "type": "module",
   "files": [
+    "bin",
     "dist"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "nudge-ui": "./dist/nudge-ui.mjs"
+    "nudge-ui": "./bin/nudge-ui.mjs"
   },
   "exports": {
     ".": {

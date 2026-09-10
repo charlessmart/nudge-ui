@@ -52,7 +52,7 @@ export async function runServeCommand(options: ServeCommandOptions): Promise<voi
   await waitForTermination(server);
 }
 
-/** Runs the command when the bundled CLI is invoked by Node. */
+/** Runs the standalone command. */
 export async function main(args = process.argv.slice(2)): Promise<void> {
   const options = parseServeArguments(args);
   await runServeCommand(options);
@@ -83,11 +83,4 @@ function parsePort(value: string | undefined): number {
 function parseHost(value: string | undefined): ServeCommandOptions["host"] {
   if (value === "127.0.0.1" || value === "::1" || value === "localhost") return value;
   throw new Error(`Host must be loopback (127.0.0.1, ::1, or localhost); received ${value ?? ""}.`);
-}
-
-if (process.argv[1]?.endsWith("nudge-ui.mjs")) {
-  void main().catch((error: unknown) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exitCode = 1;
-  });
 }

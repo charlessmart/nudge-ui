@@ -90,7 +90,10 @@ function verifyPackage(packageRoot) {
     for (const path of targetPaths(target)) assertPackageTarget(entries, path, `${packageJson.name} export ${subpath}`);
   }
   for (const [name, target] of Object.entries(packageJson.bin ?? {})) {
-    assert(target.startsWith("./dist/"), `${packageJson.name} bin ${name} must point into dist.`);
+    assert(
+      target.startsWith("./dist/") || target.startsWith("./bin/"),
+      `${packageJson.name} bin ${name} must point into dist or bin.`,
+    );
     assertPackageTarget(entries, target, `${packageJson.name} bin ${name}`);
   }
 
