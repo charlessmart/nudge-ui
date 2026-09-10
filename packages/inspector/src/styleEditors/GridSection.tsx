@@ -11,8 +11,8 @@ import { IconButton } from "../ui/IconButton.tsx";
 import { InspectorPopover } from "../ui/InspectorPopover.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 const GRID_AUTO_FLOW_OPTIONS = ["row", "column", "row dense", "column dense"];
 const GRID_CONTENT_ALIGNMENT_OPTIONS = [

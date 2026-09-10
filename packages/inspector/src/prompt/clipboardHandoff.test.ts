@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendChange, clearChanges, getChangesList, type ElementChangeRecord } from "../changesLog.ts";
-import { setNudgeUiHostDevFlag } from "../devFlag.ts";
+import { appendChange, clearWorkspace, getChangesList, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import {
   clearClipboardHandoff,
   getClipboardHandoffSnapshot,
@@ -30,7 +30,7 @@ function styleChange(rawValue = "rgb(255, 0, 0)"): ElementChangeRecord {
 describe("clipboard prompt handoff", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
-    clearChanges();
+    clearWorkspace();
     clearClipboardHandoff();
     document.head.replaceChildren();
     const card = document.createElement("div");
@@ -44,7 +44,7 @@ describe("clipboard prompt handoff", () => {
 
   afterEach(() => {
     clearClipboardHandoff();
-    clearChanges();
+    clearWorkspace();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });

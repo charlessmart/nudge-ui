@@ -5,7 +5,7 @@ import type {
   EditableComponentTarget,
   RuntimeComponentTarget,
 } from "./types.ts";
-import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 const runtimeAdapters: ComponentRuntimeAdapter[] = [reactComponentRuntimeAdapter];
 

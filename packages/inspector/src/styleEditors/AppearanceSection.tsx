@@ -1,10 +1,10 @@
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
-import type { SelectedElement } from "../selectionStore.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
 import { BorderRadiusEditor } from "./BorderRadiusEditor.tsx";
 import { OpacityEditor } from "./OpacityEditor.tsx";
-import type { StyleSelection } from "../styleSelection.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 export interface AppearanceSectionProps {
   element: SelectedElement;

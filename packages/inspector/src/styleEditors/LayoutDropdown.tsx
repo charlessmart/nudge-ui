@@ -4,10 +4,10 @@ import { setStyle } from "./styleActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
-import { getStateStyleValue } from "../stateValue.ts";
+import { getStateStyleValue } from "../shell/stateValue.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 export interface LayoutDropdownProps {
   property: string;

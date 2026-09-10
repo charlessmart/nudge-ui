@@ -16,8 +16,8 @@ import {
   getCanvasProjectionStatus,
   subscribeCanvasProjectionAcknowledgements,
 } from "../canvas/projection.ts";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 const CUSTOM_KEY = "__custom__";
 

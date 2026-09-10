@@ -22,7 +22,7 @@ import {
   type GridAxis,
   type GridAxisPlacement,
 } from "./gridChildModel.ts";
-import type { EditTarget } from "../editTarget.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
 
 export interface GridChildSectionProps {
   domElement: HTMLElement;

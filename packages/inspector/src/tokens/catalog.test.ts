@@ -12,7 +12,7 @@ import {
   humanizeSelector,
   type TokenRuntime,
 } from "./catalog.ts";
-import { configureNudgeUiRuntime } from "../runtimeConfig.ts";
+import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 
 /**
  * Configures the runtime the way the Astro host Adapter declares it

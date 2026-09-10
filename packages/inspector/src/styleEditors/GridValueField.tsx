@@ -6,8 +6,8 @@ import { getLayoutValue } from "./layoutValue.ts";
 import { setStyle } from "./styleActions.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import type { StringRecord } from "./stringRecord.ts";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 const DEFAULT_GRID_VALUES: StringRecord = {
   "grid-template-columns": "none",

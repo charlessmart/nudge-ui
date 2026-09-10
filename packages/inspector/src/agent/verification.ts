@@ -1,28 +1,31 @@
 import { changeKey, tokenReference } from "../changes/model.ts";
-import { applyChangeProjections, selectorForManagedChange } from "../changes/projection.ts";
+import { selectorForManagedChange } from "../changes/managedStyleProjection.ts";
+import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import {
   getChangesList,
   isComponentChange,
   isTextContentChange,
   isTokenChange,
-  reconcileVerifiedChanges,
+  reconcileVerifiedWorkspaceChanges,
   type ChangeRecord,
   type PreviewableChangeRecord,
-} from "../changesLog.ts";
-import { verifyPreview } from "../managedStylesheet.ts";
-import { resolveRenderedInstance } from "../renderedInstance.ts";
+} from "../changes/changesLog.ts";
+import { verifyPreview } from "../projection/managedStylesheet.ts";
+import { resolveRenderedInstance } from "../projection/renderedInstance.ts";
 import {
-  applyStructuralProjection,
   getStructuralChanges,
-  reconcileVerifiedStructuralChanges,
   type StructuralChange,
   type StructuralDelete,
   type StructuralMove,
-} from "../structuralProjection.ts";
+} from "../projection/structuralProjection.ts";
 import {
   resolveTextProjectionTarget,
   resolveTextProjectionTextNode,
-} from "../textProjection.ts";
+} from "../projection/textProjection.ts";
+import {
+  applyHostWorkspaceProjection,
+  compileWorkspaceProjection,
+} from "../projection/workspaceProjection.ts";
 
 export interface HandoffSnapshot {
   readonly changes: readonly ChangeRecord[];
@@ -211,11 +214,12 @@ export async function verifyAndReconcileHandoff(snapshot: HandoffSnapshot): Prom
   const remainingStructural = currentStructural.filter((change) => !eligibleStructuralIds.has(change.id));
 
   try {
-    applyChangeProjections(remaining);
-    // Lifting the eligible structural previews rebuilds each known document
-    // from the remaining intent, which returns every under-test element to
-    // the document before verification looks for it.
-    applyStructuralProjection(document, remainingStructural);
+    const currentWorkspace = getWorkspaceChanges();
+    applyHostWorkspaceProjection(compileWorkspaceProjection({
+      revision: currentWorkspace.revision,
+      changes: remaining,
+      structuralChanges: remainingStructural,
+    }));
     await afterBrowserPaint();
     const verified = verifiedChangeKeys(eligible);
     const verifiedStructural = verifiedStructuralChangeIds(eligibleStructural, document);
@@ -236,14 +240,12 @@ export async function verifyAndReconcileHandoff(snapshot: HandoffSnapshot): Prom
         (id) => currentStructuralById.get(id) === sentStructural.get(id),
       ),
     );
-    const removedChanges = reconcileVerifiedChanges(stillVerified);
-    const removedStructural = reconcileVerifiedStructuralChanges(stillVerifiedStructural);
-    return removedChanges + removedStructural;
+    return reconcileVerifiedWorkspaceChanges(stillVerified, stillVerifiedStructural);
   } finally {
     // Reconciliation reapplies the canonical set. If it was unable to write
     // (for example, a read-only Canvas lease), restore the untouched set here.
-    applyChangeProjections(getChangesList());
-    applyStructuralProjection(document, getStructuralChanges());
+    const canonicalWorkspace = getWorkspaceChanges();
+    applyHostWorkspaceProjection(compileWorkspaceProjection(canonicalWorkspace));
   }
 }
 

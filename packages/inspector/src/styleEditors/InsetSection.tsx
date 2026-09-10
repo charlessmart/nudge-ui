@@ -1,8 +1,8 @@
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
-import type { SelectedElement } from "../selectionStore.ts";
-import { getStateStyleValue } from "../stateValue.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
+import { getStateStyleValue } from "../shell/stateValue.ts";
 import { projectInspectorValues } from "../spacing/projection.ts";
 import { SpacingField } from "./SpacingBox.tsx";
 

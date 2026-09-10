@@ -6,7 +6,7 @@ import { createElement, type ReactElement } from "react";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { PROTOCOL_VERSION } from "./frameProtocol.ts";
 import { getCanvasCards, hydrateCanvasStore, resizeCard, type CanvasCard as CanvasCardData, useCanvasCards } from "./canvasStore.ts";
-import { configureNudgeUiRuntime } from "../runtimeConfig.ts";
+import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

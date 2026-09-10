@@ -2,7 +2,7 @@ import type { ComponentContract } from "../componentSemantics/types.ts";
 import {
   configureNudgeUiRuntime,
   getNudgeUiRuntimeConfig,
-} from "../runtimeConfig.ts";
+} from "../runtime/runtimeConfig.ts";
 
 /**
  * Vitest uses this module in place of the host-generated virtual module.

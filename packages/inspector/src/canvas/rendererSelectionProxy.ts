@@ -1,5 +1,5 @@
-import type { SelectedElement } from "../selectionStore.ts";
-import { getSelectedElements, setSelectedElement, toggleSelectedElement } from "../selectionStore.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
+import { getSelectedElements, setSelectedElement, toggleSelectedElement } from "../selection/selectionStore.ts";
 import type { ElementClickMessage } from "./frameProtocol.ts";
 import { selectCard } from "./canvasStore.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";

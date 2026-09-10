@@ -11,15 +11,15 @@ import { ToggleButton } from "../ui/ToggleButton.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
-import type { SelectedElement } from "../selectionStore.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
 import { setStyle } from "./styleActions.ts";
 import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
+import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 const BORDER_RADIUS_CORNERS = [
   "border-top-left-radius",

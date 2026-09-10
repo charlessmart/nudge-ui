@@ -1,6 +1,6 @@
 import type { ResolvedProperty } from "@nudge-ui/css/model";
-import { getStateStyleValue } from "../stateValue.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import { getStateStyleValue } from "../shell/stateValue.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 export type ProjectionSide = "top" | "right" | "bottom" | "left";
 export type ProjectionGroup = "padding" | "margin" | "inset";

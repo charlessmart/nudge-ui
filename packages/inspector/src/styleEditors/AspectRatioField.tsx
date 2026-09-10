@@ -5,9 +5,9 @@ import { FieldRow } from "../ui/FieldRow.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
-import { getNudgeUiTokenEntries } from "../runtimeConfig.ts";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 export const ASPECT_RATIO_PRESETS = ["auto", "1 / 1", "4 / 3", "3 / 2", "16 / 9", "21 / 9"];
 

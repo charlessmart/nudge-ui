@@ -21,9 +21,9 @@ import type {
 import { handleReplaceStyles, startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
 import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./linkEligibility.ts";
 import { installRendererElementSelector } from "./rendererElementSelector.ts";
-import { createFrameThrottle } from "../frameThrottle.ts";
-import { isNudgeUiDev } from "../devFlag.ts";
-import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import { createFrameThrottle } from "../overlay/frameThrottle.ts";
+import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 let rendererBootstrapped = false;
 function sendFrameReady(): void {

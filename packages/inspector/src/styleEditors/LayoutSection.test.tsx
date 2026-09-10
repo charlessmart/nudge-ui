@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { act, createElement } from "react";
 import { LayoutSection } from "./LayoutSection.tsx";
 import { resetPendingRules } from "../tokens/editActions.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 import {
   makeSelected,
   mount,

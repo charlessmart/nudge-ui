@@ -17,15 +17,15 @@ import {
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { SelectedElement } from "../selectionStore.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
 import { Select } from "../ui/Select.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
-import { getStateStyleValue } from "../stateValue.ts";
+import { getStateStyleValue } from "../shell/stateValue.ts";
 import { setStyle, setStyles } from "./styleActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 function findTokenRow(rows: readonly ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;

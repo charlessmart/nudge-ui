@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 const repositoryRoot = resolve(new URL("..", import.meta.url).pathname);
 const packageDirectories = [
   "agent-protocol",
+  "create-nudge-ui",
   "css",
   "inspector",
   "plugin",

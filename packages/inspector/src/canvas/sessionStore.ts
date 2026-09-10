@@ -1,7 +1,8 @@
-import type { ChangeRecord } from "../changesLog.ts";
+import type { ChangeRecord } from "../changes/changesLog.ts";
+import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import {
   getChangesList,
-  loadChanges,
+  loadWorkspaceChanges,
   isComponentChange,
   isTokenChange,
   isTextContentChangeValue,
@@ -9,7 +10,7 @@ import {
   type ElementChangeRecord,
   type TextContentChangeRecord,
   type TokenChangeRecord,
-} from "../changesLog.ts";
+} from "../changes/changesLog.ts";
 import {
   getCanvasMode,
   setCanvasMode,
@@ -23,32 +24,30 @@ import {
   type CanvasMode,
   type CanvasComparisonGroup,
 } from "./canvasStore.ts";
-import { applyRules } from "../managedStylesheet.ts";
-import { clearChanges as clearChangesLog } from "../changesLog.ts";
-import { removeManagedSheet } from "../managedStylesheet.ts";
-import { clearInspectorLayout } from "../panelLayout.ts";
-import { setSelectedElement } from "../selectionStore.ts";
+import { applyRules } from "../projection/managedStylesheet.ts";
+import { clearWorkspace as clearWorkspaceLog } from "../changes/changesLog.ts";
+import { removeManagedSheet } from "../projection/managedStylesheet.ts";
+import { clearInspectorLayout } from "../shell/panelLayout.ts";
+import { setSelectedElement } from "../selection/selectionStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { canWriteWorkspace } from "./workspaceLease.ts";
-import type { StyleRuleContext } from "../managedStylesheet.ts";
+import type { StyleRuleContext } from "../projection/managedStylesheet.ts";
 import {
   isRenderedInstanceOverride,
   isRenderedInstanceRef,
   resolveRenderedInstance,
   type RenderedInstanceOverride,
   type RenderedInstanceRef,
-} from "../renderedInstance.ts";
+} from "../projection/renderedInstance.ts";
 import {
   getStructuralChanges,
-  hydrateStructuralChanges,
   isStructuralChange,
-  clearStructuralChanges,
   resetStructuralDeleteProjection,
   type StructuralChange,
-} from "../structuralProjection.ts";
+} from "../projection/structuralProjection.ts";
 import { projectToAllReadyCards } from "./projection.ts";
-import type { TextProjectionTarget } from "../textChangeBoundary.ts";
-import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   clearClipboardHandoff,
   getClipboardHandoffSnapshot,
@@ -764,7 +763,8 @@ export interface HydrationResult {
 }
 
 function buildSession(): DurableSession {
-  const changes = getChangesList();
+  const workspace = getWorkspaceChanges();
+  const changes = workspace.changes;
   const serializableChanges: SerializableChange[] = [];
   for (const change of changes) {
     const serialized = serializeChange(change);
@@ -805,7 +805,7 @@ function buildSession(): DurableSession {
     })),
     camera: { x: camera.x, y: camera.y, zoom: camera.zoom },
     changes: serializableChanges,
-    structuralChanges: getStructuralChanges().map((change) => ({ ...change })),
+    structuralChanges: workspace.structuralChanges.map((change) => ({ ...change })),
     clipboardHandoff: getClipboardHandoffSnapshot(),
   };
 }
@@ -1060,10 +1060,9 @@ export function hydrateSession(): HydrationResult {
     camera,
     serializableComparisonGroups as CanvasComparisonGroup[],
   );
-  hydrateStructuralChanges(structuralChanges);
-  // Instance evidence captured after a move must resolve against the restored
-  // structural order, not the application's pre-move baseline.
-  loadChanges(deserializedChanges);
+  // Structural intent and instance evidence become visible atomically. The
+  // projection layer preserves structural-first document application order.
+  loadWorkspaceChanges(deserializedChanges, structuralChanges);
   hydrateClipboardHandoff(clipboardHandoff);
   // A different URL means the user intentionally navigated while Inspect was
   // active. Keep the durable edits, but adopt the new route instead of
@@ -1097,8 +1096,7 @@ export function clearSession(): void {
     // ignore
   }
 
-  clearChangesLog();
-  clearStructuralChanges();
+  clearWorkspaceLog();
   clearClipboardHandoff();
   resetStructuralDeleteProjection();
   removeManagedSheet();

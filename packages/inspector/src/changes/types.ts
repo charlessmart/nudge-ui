@@ -1,8 +1,8 @@
 import type { TokenEntry } from "virtual:design-tokens";
-import type { PreviewResult, StyleRuleContext } from "../managedStylesheet.ts";
+import type { PreviewResult, StyleRuleContext } from "../projection/managedStylesheet.ts";
 import type { ComponentChangeRecord } from "../componentSemantics/types.ts";
-import type { RenderedInstanceOverride } from "../renderedInstance.ts";
-import type { TextContentChangeRecord } from "../textChangeBoundary.ts";
+import type { RenderedInstanceOverride } from "../projection/renderedInstance.ts";
+import type { TextContentChangeRecord } from "../inline-text/textChangeBoundary.ts";
 
 /** Bounded rendered facts retained for one element without an authored source location. */
 export interface RuntimeElementEvidence {
@@ -94,9 +94,9 @@ export function isPreviewableChange(
 }
 
 export type { ComponentChangeRecord } from "../componentSemantics/types.ts";
-export type { TextContentChangeRecord, TextProjectionTarget, TextProjectionScope, TextBindingEvidence } from "../textChangeBoundary.ts";
+export type { TextContentChangeRecord, TextProjectionTarget, TextProjectionScope, TextBindingEvidence } from "../inline-text/textChangeBoundary.ts";
 export {
   isTextContentChangeListValue,
   isTextContentChangeValue,
   isTextProjectionTargetValue,
-} from "../textChangeBoundary.ts";
+} from "../inline-text/textChangeBoundary.ts";

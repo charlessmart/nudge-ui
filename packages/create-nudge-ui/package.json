@@ -1,0 +1,50 @@
+{
+  "name": "create-nudge-ui",
+  "version": "0.1.2",
+  "description": "Framework-detecting installer for Nudge UI.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/charlessmart/nudge-ui.git",
+    "directory": "packages/create-nudge-ui"
+  },
+  "bugs": {
+    "url": "https://github.com/charlessmart/nudge-ui/issues"
+  },
+  "homepage": "https://github.com/charlessmart/nudge-ui#readme",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "create-nudge-ui": "./dist/entry.js"
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-package.mjs",
+    "prepack": "pnpm run build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest"
+  },
+  "dependencies": {
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

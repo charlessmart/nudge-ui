@@ -1,5 +1,5 @@
-import type { MeasurementSegment } from "../measurementGeometry.ts";
-import type { Rect } from "../overlayGeometry.ts";
+import type { MeasurementSegment } from "../overlay/measurementGeometry.ts";
+import type { Rect } from "../overlay/overlayGeometry.ts";
 
 /**
  * Maps iframe-local measurement geometry into the Canvas board's screen
