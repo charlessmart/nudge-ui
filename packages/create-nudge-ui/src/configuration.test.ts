@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { configureSource } from "./configuration.ts";
 
 describe("configureSource", () => {
-  it("adds the Astro adapter to an existing integrations array", () => {
+  it("wraps an Astro configuration without inspecting its integrations", () => {
     const source = `import { defineConfig } from "astro/config";
 
 export default defineConfig({
@@ -10,9 +10,21 @@ export default defineConfig({
 });
 `;
     const configured = configureSource(source, "astro", "astro.config.ts");
-    expect(configured).toContain('import { nudgeUiAstro } from "@nudge-ui/astro";');
-    expect(configured).toContain("integrations: [\n    nudgeUiAstro(),");
+    expect(configured).toContain('import { withNudgeUi } from "@nudge-ui/astro";');
+    expect(configured).toContain("export default withNudgeUi(defineConfig({");
     expect(configureSource(configured, "astro", "astro.config.ts")).toBe(configured);
+  });
+
+  it("wraps Astro shorthand, variable, and spread integration lists", () => {
+    const source = `import { defineConfig } from "astro/config";
+import mdx from "@astrojs/mdx";
+
+const integrations = [mdx()];
+export default defineConfig({ integrations, ...getOverrides() });
+`;
+    const configured = configureSource(source, "astro", "astro.config.mjs");
+    expect(configured).toContain("withNudgeUi(defineConfig({ integrations, ...getOverrides() }))");
+    expect(configureSource(configured, "astro", "astro.config.mjs")).toBe(configured);
   });
 
   it("adds the Vite adapter after existing plugins", () => {
@@ -91,10 +103,10 @@ export default defineConfig({
     expect(configureSource(source, "astro", "astro.config.ts")).toBe(source);
   });
 
-  it("adds missing array properties to conventional defineConfig calls", () => {
+  it("wraps Astro configs that omit integrations", () => {
     const astro = 'import { defineConfig } from "astro/config";\nexport default defineConfig({});\n';
     expect(configureSource(astro, "astro", "astro.config.mjs")).toContain(
-      "integrations: [nudgeUiAstro()]",
+      "export default withNudgeUi(defineConfig({}))",
     );
   });
 

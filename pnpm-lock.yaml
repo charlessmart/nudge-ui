@@ -505,6 +505,9 @@ importers:
       '@types/react-dom':
         specifier: 19.2.5
         version: 19.2.5(@types/react@19.2.18)
+      esbuild:
+        specifier: ^0.21.5
+        version: 0.21.5
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1

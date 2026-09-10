@@ -35,7 +35,7 @@ export function planConfiguration(projectRoot: string, framework: Framework): Co
 export function configureSource(source: string, framework: Exclude<Framework, "standalone">, fileName: string): string {
   const sourceFile = parseSource(source, fileName);
   if (framework === "astro") {
-    return configureArrayHost(source, sourceFile, "@nudge-ui/astro", "nudgeUiAstro", "integrations", "nudgeUiAstro()");
+    return configureAstroSource(source, sourceFile);
   }
   if (framework === "vite-react") {
     return configureArrayHost(source, sourceFile, "@nudge-ui/vite-react", "nudgeUi", "plugins", "...nudgeUi()");
@@ -46,9 +46,9 @@ export function configureSource(source: string, framework: Exclude<Framework, "s
 function configureArrayHost(
   source: string,
   sourceFile: ts.SourceFile,
-  packageName: "@nudge-ui/astro" | "@nudge-ui/vite-react",
-  importName: "nudgeUiAstro" | "nudgeUi",
-  propertyName: "integrations" | "plugins",
+  packageName: "@nudge-ui/vite-react",
+  importName: "nudgeUi",
+  propertyName: "plugins",
   expression: string,
 ): string {
   const bindings = importedBindings(sourceFile, packageName, importName);
@@ -75,6 +75,32 @@ function configureArrayHost(
   const edits: TextEdit[] = configurationEdit ? [configurationEdit] : [];
   if (bindings.length === 0) {
     edits.push(importEdit(sourceFile, `import { ${importName} } from "${packageName}";`, false));
+  }
+  return applyEdits(source, edits);
+}
+
+function configureAstroSource(source: string, sourceFile: ts.SourceFile): string {
+  const explicitBindings = new Set([
+    ...importedBindings(sourceFile, "@nudge-ui/astro", "nudgeUiAstro"),
+    "nudgeUiAstro",
+  ]);
+  if (containsCall(sourceFile, explicitBindings)) return source;
+
+  const target = findDefaultExport(sourceFile, "Astro");
+  const bindings = importedBindings(sourceFile, "@nudge-ui/astro", "withNudgeUi");
+  const callableBindings = new Set([...bindings, "withNudgeUi"]);
+  const edits: TextEdit[] = [];
+  if (!containsCall(target, callableBindings)) {
+    const start = target.getStart(sourceFile);
+    const end = target.getEnd();
+    edits.push({ start, end, text: `withNudgeUi(${source.slice(start, end)})` });
+  }
+  if (bindings.length === 0) {
+    edits.push(importEdit(
+      sourceFile,
+      'import { withNudgeUi } from "@nudge-ui/astro";',
+      false,
+    ));
   }
   return applyEdits(source, edits);
 }
@@ -139,6 +165,22 @@ function findNextExport(sourceFile: ts.SourceFile): NextExport {
   }
   if (exports.length !== 1) {
     throw new Error("Could not update the Next.js configuration: expected exactly one default or module.exports assignment.");
+  }
+  return exports[0]!;
+}
+
+function findDefaultExport(
+  sourceFile: ts.SourceFile,
+  frameworkName: string,
+): ts.Expression {
+  const exports = sourceFile.statements
+    .filter((statement): statement is ts.ExportAssignment =>
+      ts.isExportAssignment(statement) && !statement.isExportEquals)
+    .map((statement) => statement.expression);
+  if (exports.length !== 1) {
+    throw new Error(
+      `Could not update the ${frameworkName} configuration: expected exactly one default export.`,
+    );
   }
   return exports[0]!;
 }

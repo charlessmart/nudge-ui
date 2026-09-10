@@ -1,4 +1,3 @@
-import { reactComponentRuntimeAdapter } from "./reactRuntime.tsx";
 import type {
   ComponentOverride,
   ComponentRuntimeAdapter,
@@ -6,12 +5,21 @@ import type {
   RuntimeComponentTarget,
 } from "./types.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import {
+  copyComponentOverrides,
+  copyRuntimeTarget,
+  getHostRuntimeAdapters,
+} from "./runtimeBridge.ts";
 
-const runtimeAdapters: ComponentRuntimeAdapter[] = [reactComponentRuntimeAdapter];
+const runtimeAdapters: ComponentRuntimeAdapter[] = [];
 
 function enabledRuntimeAdapters(): ComponentRuntimeAdapter[] {
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
-  return runtimeAdapters;
+  const adapters = new Map(
+    getHostRuntimeAdapters().map((adapter) => [adapter.framework, adapter]),
+  );
+  for (const adapter of runtimeAdapters) adapters.set(adapter.framework, adapter);
+  return [...adapters.values()];
 }
 
 /** Register a framework adapter without coupling semantic resolution to React. */
@@ -24,12 +32,15 @@ export function registerComponentRuntimeAdapter(adapter: ComponentRuntimeAdapter
 }
 
 export function inspectComponentTargets(element: HTMLElement): RuntimeComponentTarget[] {
-  return enabledRuntimeAdapters().flatMap((adapter) => adapter.inspect(element).map((target) => ({
-    ...target,
-    mountedCount: target.mountedCount
-      ?? adapter.getCallsiteMultiplicity?.(target.meta.callsiteId)
-      ?? undefined,
-  })));
+  return enabledRuntimeAdapters().flatMap((adapter) => adapter.inspect(element).map((value) => {
+    const target = copyRuntimeTarget(value);
+    return {
+      ...target,
+      mountedCount: target.mountedCount
+        ?? adapter.getCallsiteMultiplicity?.(target.meta.callsiteId)
+        ?? undefined,
+    };
+  }));
 }
 
 /**
@@ -58,7 +69,7 @@ export function editableComponentTargets(
 
 export function replaceComponentOverrideProjection(overrides: ComponentOverride[]): void {
   for (const adapter of enabledRuntimeAdapters()) {
-    adapter.replaceOverrides(overrides.filter((override) =>
-      override.framework === adapter.framework));
+    adapter.replaceOverrides(copyComponentOverrides(overrides.filter((override) =>
+      override.framework === adapter.framework)));
   }
 }

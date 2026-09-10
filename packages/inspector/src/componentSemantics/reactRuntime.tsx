@@ -17,7 +17,7 @@ import type {
   ComponentRuntimeAdapter,
   RuntimeComponentTarget,
 } from "./types.ts";
-import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import { registerHostRuntimeAdapter } from "./runtimeBridge.ts";
 
 const BOUNDARY_MARKER = Symbol.for("nudge-ui.react-component-boundary");
 const EMPTY_OVERRIDE: Readonly<Record<string, unknown>> = Object.freeze({});
@@ -201,7 +201,6 @@ export function instrumentReactComponent(
 }
 
 export function inspectReactComponentTargets(element: HTMLElement): RuntimeComponentTarget[] {
-  if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
   const targets: RuntimeComponentTarget[] = [];
   let fiber = findFiber(element);
   while (fiber) {
@@ -223,7 +222,6 @@ export function inspectReactComponentTargets(element: HTMLElement): RuntimeCompo
 }
 
 export function replaceReactComponentOverrides(overrides: ComponentOverride[]): void {
-  if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return;
   const next = new Map<string, Record<string, unknown>>();
   for (const override of overrides) {
     if (override.framework !== "react") continue;
@@ -242,3 +240,5 @@ export const reactComponentRuntimeAdapter: ComponentRuntimeAdapter = {
   replaceOverrides: replaceReactComponentOverrides,
   getCallsiteMultiplicity: getReactCallsiteMultiplicity,
 };
+
+registerHostRuntimeAdapter(reactComponentRuntimeAdapter);

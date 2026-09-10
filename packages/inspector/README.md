@@ -5,6 +5,17 @@ inspector. It selects rendered elements, reads the browser CSSOM, previews CSS
 and component changes, records immutable change revisions, and prepares the
 prompt or agent handoff.
 
+Host Adapters serve `@nudge-ui/inspector/client` as an external,
+self-contained development asset and provide a versioned JSON document shaped
+by `@nudge-ui/inspector/client-manifest`. The client owns its React and UI
+dependencies; consumers do not bundle them.
+
+Framework semantics stay in the host graph. The React component runtime uses
+the host's React installation and registers through
+`@nudge-ui/inspector/host-runtime`. Values crossing that seam are bounded to
+DOM inspection inputs and plain component metadata, scalar props, and override
+commands.
+
 ## Install
 
 ```sh

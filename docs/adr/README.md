@@ -21,3 +21,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0015: Browser pairing and agent readiness](./0015-browser-pairing-and-agent-readiness.md)
 - [ADR-0016: Single-document public landing demo](./0016-single-document-public-landing-demo.md)
 - [ADR-0017: Keep the public landing package outside examples](./0017-landing-package-location.md)
+- [ADR-0018: Self-contained inspector client and host runtime Adapters](./0018-self-contained-client-and-host-runtime-adapters.md)

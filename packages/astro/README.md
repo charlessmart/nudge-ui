@@ -19,13 +19,13 @@ Register the integration in `astro.config.ts`:
 
 ```ts
 import { defineConfig } from "astro/config";
-import { nudgeUiAstro } from "@nudge-ui/astro";
+import { withNudgeUi } from "@nudge-ui/astro";
 
-export default defineConfig({
-  integrations: [nudgeUiAstro()],
-});
+export default withNudgeUi(defineConfig({}));
 ```
 
 The integration is active only for `astro dev`. Production builds do not
-receive Nudge UI bootstrap, identity attributes, or token data. Pass the
-shared Vite options, such as `debug`, to `nudgeUiAstro()` when needed.
+receive Nudge UI bootstrap, identity attributes, or token data. The wrapper
+preserves existing integration lists regardless of whether they are inline,
+stored in a variable, or assembled with spreads. Pass shared Vite options,
+such as `debug`, as the second argument to `withNudgeUi(config, options)`.

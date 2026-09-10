@@ -13,6 +13,7 @@ import {
   getInlineTextSession,
 } from "./inlineTextEditor.ts";
 import { getTextProjectionReports, TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
+import "../componentSemantics/reactRuntime.tsx";
 
 function boundary(meta: Record<string, unknown>, props: Record<string, unknown>) {
   const type = Object.assign(() => null, {
