@@ -89,8 +89,10 @@ test.describe("Canvas workspace lease — single ownership", () => {
     const lockedNotice = page2.locator('[data-test="locked-workspace-notice"]');
     await expect(lockedNotice).toBeVisible();
     const noticeText = await lockedNotice.textContent();
-    expect(noticeText).toContain("Nudge UI writes are disabled");
-    expect(noticeText).toContain("Another workspace is active");
+    expect(noticeText).toContain("Nudge UI is open in another tab");
+    expect(noticeText).not.toContain("Nudge UI writes are disabled");
+    expect(noticeText).not.toContain("Active workspace");
+    await expect(lockedNotice.locator(".locked-notice__detail")).toHaveCount(0);
 
     // Takeover button should exist
     const takeoverBtn = page2.locator('[data-test="takeover-here"]');

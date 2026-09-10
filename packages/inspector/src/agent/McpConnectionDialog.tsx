@@ -43,6 +43,13 @@ export function createMcpSetupCommand(projectId: string, origin: string): string
   return `npx add-mcp ${shellQuote(serverCommand)} --name nudge_ui`;
 }
 
+function formatMcpSetupCommand(command: string): string {
+  return command
+    .replace(" --project-id ", "\n  --project-id ")
+    .replace(" --origin ", "\n  --origin ")
+    .replace(" --workspace-root ", "\n  --workspace-root ");
+}
+
 export interface McpConnectionContentProps {
   readonly projectId: string;
   readonly origin: string;
@@ -101,13 +108,14 @@ export function McpConnectionContent({
   onCheckAgain,
 }: McpConnectionContentProps): ReactElement {
   const [checking, setChecking] = useState(false);
-  const [setupMethod, setSetupMethod] = useState<"terminal" | "ai">("terminal");
+  const [setupMethod, setSetupMethod] = useState<"terminal" | "ai">("ai");
   const [copiedCommand, setCopiedCommand] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedListener, setCopiedListener] = useState(false);
   const [copyError, setCopyError] = useState<string | undefined>();
   const [checkError, setCheckError] = useState<string | undefined>();
   const setupCommand = useMemo(() => createMcpSetupCommand(projectId, origin), [origin, projectId]);
+  const displaySetupCommand = useMemo(() => formatMcpSetupCommand(setupCommand), [setupCommand]);
   const setupPrompt = useMemo(() => [
     "Please configure the Nudge MCP companion for this project.",
     "",
@@ -203,8 +211,8 @@ export function McpConnectionContent({
             data-test="mcp-setup-tabs"
             value={setupMethod}
             options={[
-              { value: "terminal", label: "Terminal command", testId: "mcp-setup-tab-terminal" },
               { value: "ai", label: "AI instructions", testId: "mcp-setup-tab-ai" },
+              { value: "terminal", label: "Terminal command", testId: "mcp-setup-tab-terminal" },
             ]}
             onChange={setSetupMethod}
           />
@@ -213,7 +221,7 @@ export function McpConnectionContent({
               <p className="mcp-connection__copy">
                 Run this command from your project root.
               </p>
-              <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{setupCommand}</code></pre>
+              <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{displaySetupCommand}</code></pre>
               <div className="mcp-connection__command-actions">
                 <Button
                   variant="secondary"
@@ -225,9 +233,6 @@ export function McpConnectionContent({
                   {copiedCommand ? "Copied" : "Copy command"}
                 </Button>
               </div>
-              <p className="mcp-connection__note">
-                After running the command, restart or refresh your coding agent's MCP server, then check again.
-              </p>
             </>
           ) : (
             <>

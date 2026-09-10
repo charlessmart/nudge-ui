@@ -57,8 +57,7 @@ export function TokensPanel({ rows }: { rows: readonly TokenCatalogRow[] }): Rea
         return (
           <section className="token-group" data-test="token-group" data-group={group} key={group}>
             <div className="token-group__heading">
-              <span>{TOKEN_GROUP_LABELS[group]}</span>
-              <span className="token-group__count" data-test="token-group-count">{groupedRows.length}</span>
+              {TOKEN_GROUP_LABELS[group]}
             </div>
             {groupedRows.map((row) => (
               <TokenCatalogItem key={row.definition.cssName} row={row} rows={rows} entries={entries} />

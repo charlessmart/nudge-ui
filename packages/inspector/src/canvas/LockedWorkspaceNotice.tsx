@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { requestTakeover, getActiveLeaseOwner } from "./workspaceLease.ts";
+import { requestTakeover } from "./workspaceLease.ts";
 import { Button } from "../ui/Button.tsx";
 import { UI_STYLES } from "../ui/styles.ts";
 import lockedWorkspaceStyles from "./LockedWorkspaceNotice.css?inline";
@@ -10,7 +10,6 @@ interface LockedWorkspaceNoticeProps {
 }
 
 export function LockedWorkspaceNotice({ onTakeover }: LockedWorkspaceNoticeProps): ReactElement {
-  const owner = getActiveLeaseOwner();
   const [takingOver, setTakingOver] = useState(false);
 
   function handleTakeover(): void {
@@ -25,10 +24,6 @@ export function LockedWorkspaceNotice({ onTakeover }: LockedWorkspaceNoticeProps
       <aside className="locked-notice" data-test="locked-workspace-notice" aria-live="polite">
         <div className="locked-notice__message">
           Nudge UI is open in another tab
-        </div>
-        <div className="locked-notice__detail">
-          Another workspace is active. Nudge UI writes are disabled in this tab to protect it from conflicting edits.
-          {owner ? ` Active workspace: ${owner.ownerId.slice(0, 8)}...` : ""}
         </div>
         <Button
           data-test="takeover-here"

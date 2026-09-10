@@ -82,6 +82,13 @@ describe("McpConnectionDialog", () => {
     expect(document.body.querySelector('[data-test="mcp-project-id"]')?.textContent).toBe("fixture-project");
     expect(document.body.querySelector('[data-test="mcp-origin"]')?.textContent).toBe("http://localhost:5173");
     expect(document.body.textContent).toContain("call nudge_listen");
+    expect(document.body.querySelector('[data-test="mcp-setup-tab-ai"]')?.getAttribute("data-active")).toBe("true");
+    expect(document.body.querySelector('[data-test="mcp-setup-tab-terminal"]')?.getAttribute("data-active")).toBe("false");
+    expect(document.body.querySelector('[data-test="mcp-setup-tabs"]')?.firstElementChild?.getAttribute("data-test"))
+      .toBe("mcp-setup-tab-ai");
+    expect(document.body.querySelector('[data-test="mcp-setup-prompt"]')).not.toBeNull();
+    expect(document.body.querySelector('[data-test="mcp-setup-command"]')).toBeNull();
+    expect(document.body.querySelector(".mcp-connection__note")).toBeNull();
     expect(document.body.querySelectorAll('[data-test^="mcp-step-"]')).toHaveLength(3);
     expect(document.body.querySelector('[data-test="mcp-step-2"]')?.getAttribute("data-complete")).toBe("true");
     expect(document.body.querySelector('[data-test="mcp-step-2"] svg')).not.toBeNull();
@@ -128,6 +135,7 @@ describe("McpConnectionDialog", () => {
     await flush();
     expect(onCheckAgain).toHaveBeenCalledOnce();
 
+    act(() => document.body.querySelector<HTMLButtonElement>('[data-test="mcp-setup-tab-terminal"]')!.click());
     act(() => document.body.querySelector<HTMLButtonElement>('[data-test="mcp-copy-command"]')!.click());
     await flush();
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("--project-id fixture-project"));
