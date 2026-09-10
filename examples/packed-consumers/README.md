@@ -7,10 +7,11 @@ installs each Adapter with the published `create-nudge-ui` executable in a clean
 npm project.
 
 Each smoke test starts the installed development server in Chromium and passes
-only after `#nudge-ui-root` has a shadow root and the `window.__nudgeUi` bridge is
-available. The fixture projects are copied to a temporary directory, so their
-installer changes, lockfiles, dependency trees, and Vite caches never affect the
-workspace examples.
+only after `#nudge-ui-root` has a shadow root and `window.__nudgeUi.version` is
+`1`. Browser assertions live in `tests/` and use the repository's standard
+Playwright configuration. The fixture projects are copied to a temporary
+directory, so their installer changes, lockfiles, dependency trees, and Vite
+caches never affect the workspace examples.
 
 Run all Adapter fixtures:
 
@@ -24,9 +25,13 @@ Run one or more fixtures while iterating:
 pnpm --filter packed-consumers test:e2e -- vite-react standalone
 ```
 
-The Astro 5 and Vite 6 fixture currently records the known
+Astro 5 is intentional because `@nudge-ui/astro` supports Astro 5 and this stack
+reproduces the external-consumer regression that the suite must retain. The
+fixture currently records the known
 `virtual:design-tokens` dependency-optimization failure as `XFAIL`. The
-allowance is limited to that module-resolution error; installer, package,
-server, or unrelated mount failures still fail the suite. Remove
+allowance is limited to the exact server-side module-resolution error;
+installer, package, browser, and unrelated mount failures still fail the suite.
+CI reports the expected failure as a warning and also warns if it unexpectedly
+passes. Remove
 `expectedMountFailure` from the Astro fixture after the shared client work
 lands.

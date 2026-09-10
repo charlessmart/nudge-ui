@@ -3,4 +3,9 @@ import { defineConfig } from "astro/config";
 
 export default defineConfig({
   integrations: [react()],
+  vite: {
+    server: {
+      strictPort: true,
+    },
+  },
 });
