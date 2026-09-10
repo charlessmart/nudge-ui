@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type RefObject } from "react";
 import editDirectlyPoster from "../assets/screen-1.png";
 import editDirectlyVideo from "../assets/screen-1.mp4";
 import exploreCanvasPoster from "../assets/screen-2.png";
@@ -368,8 +368,9 @@ function InstallCommand(): ReactNode {
   return (
     <div className="landing-install">
       <span className="landing-install-command">{installPrompt}</span>
-      <button
+      <LandingButton
         type="button"
+        variant="primary"
         className="landing-install-copy"
         data-copied={copied}
         aria-label={copied ? "Install prompt copied" : "Copy install prompt"}
@@ -380,8 +381,23 @@ function InstallCommand(): ReactNode {
           <CopyIcon />
           <DoneIcon />
         </span>
-      </button>
+      </LandingButton>
     </div>
+  );
+}
+
+type LandingButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "secondary" | "tertiary";
+};
+
+function LandingButton({ children, className, variant = "primary", ...props }: LandingButtonProps): ReactNode {
+  return (
+    <button
+      {...props}
+      className={`landing-button landing-button--${variant}${className ? ` ${className}` : ""}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -391,17 +407,35 @@ function DemoIntro(): ReactNode {
       <h2 className="landing-content-column" id="landing-demo-title">Demo</h2>
       <div className="landing-demo-content landing-content-column">
         <p className="landing-demo-description">Open Nudge and try the loop yourself: select any element on this page, make a small change, and see it immediately.</p>
-        <button
+        <LandingButton
           type="button"
-          className="landing-demo-button"
+          variant="primary"
           aria-controls="nudge-ui-root"
           onClick={() => window.dispatchEvent(new Event(OPEN_NUDGE_EVENT))}
         >
           Open Nudge
-          <svg className="landing-demo-button-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <svg className="landing-button-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M3 8h9M8 4l4 4-4 4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-        </button>
+        </LandingButton>
+
+        <div className="landing-demo-examples" aria-label="Editable examples">
+          <div className="landing-demo-example">
+            <p className="landing-demo-example-text">Edit me</p>
+          </div>
+
+          <div className="landing-demo-example">
+            <span className="landing-demo-example-badge">Adjust me</span>
+          </div>
+
+          <div className="landing-demo-example">
+            <div className="landing-demo-example-buttons">
+              <LandingButton type="button" variant="primary">Primary</LandingButton>
+              <LandingButton type="button" variant="secondary">Secondary</LandingButton>
+              <LandingButton type="button" variant="tertiary">Tertiary</LandingButton>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

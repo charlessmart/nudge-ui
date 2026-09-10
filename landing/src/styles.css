@@ -170,9 +170,9 @@ a {
 }
 
 .landing-hero-intro {
-  padding: var(--space-4) var(--space-0) var(--space-12);
+  padding: var(--space-4) var(--space-0) var(--space-16);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
 }
 
@@ -240,7 +240,7 @@ a {
 .landing-showcase-item-title {
   max-width: 100%;
   color: var(--text-primary);
-  font-size: clamp(22px, 1.8vw, 24px);
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -249,7 +249,7 @@ a {
 .landing-showcase-item-description {
   max-width: 100%;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
 }
 
@@ -306,7 +306,7 @@ a {
 
 .landing-install-label {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .landing-install {
@@ -324,7 +324,7 @@ a {
   flex: 1;
   overflow: hidden;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 15px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -407,7 +407,7 @@ a {
 }
 
 .landing-demo h2 {
-  font-size: clamp(24px, 16px + 0.9vw, 24px);
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -421,38 +421,120 @@ a {
 
 .landing-demo-description {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
 }
 
-.landing-demo-button {
+.landing-button {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-12);
-  padding: var(--space-12) var(--space-16);
-  border: 0;
+  justify-content: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: var(--surface-inverse);
-  color: var(--text-inverse);
   font: inherit;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.4;
   cursor: pointer;
 }
 
-.landing-demo-button:hover,
-.landing-demo-button:focus-visible {
+.landing-button--primary {
+  background: var(--surface-inverse);
+  color: var(--text-inverse);
+}
+
+.landing-button--secondary {
+  border-color: var(--border-subtle);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+}
+
+.landing-button--tertiary {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.landing-button--primary:hover,
+.landing-button--primary:focus-visible {
   background: #343532;
 }
 
-.landing-demo-button:focus-visible {
+.landing-button--secondary:hover,
+.landing-button--secondary:focus-visible {
+  border-color: var(--border-strong);
+  background: var(--surface-sunken);
+}
+
+.landing-button--tertiary:hover,
+.landing-button--tertiary:focus-visible {
+  background: var(--surface-well);
+  color: var(--text-primary);
+}
+
+.landing-button:focus-visible {
   outline: 2px solid var(--text-primary);
   outline-offset: var(--space-4);
 }
 
-.landing-demo-button-icon {
+.landing-button-icon {
   width: 14px;
   height: 14px;
+}
+
+.landing-install-copy {
+  padding: var(--space-8) var(--space-16);
+  border: 0;
+  line-height: 1.2;
+}
+
+.landing-demo-examples {
+  display: flex;
+  width: 100%;
+  gap: var(--space-16);
+  align-items: stretch;
+}
+
+.landing-demo-example {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-16);
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  text-align: center;
+}
+
+.landing-demo-example-text {
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.landing-demo-example-badge {
+  padding: var(--space-8) var(--space-12);
+  border-radius: 9999px;
+  background: rgb(37 99 235 / 10%);
+  color: rgb(37 99 235 / 80%);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.landing-demo-example-buttons {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.landing-demo-example-buttons .landing-button {
+  width: 100%;
 }
 
 .landing-setup {
@@ -463,7 +545,7 @@ a {
 }
 
 .landing-setup h2 {
-  font-size: clamp(24px, 16px + 0.9vw, 24px);
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -486,14 +568,14 @@ a {
 
 .landing-setup-lead {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.45;
 }
 
 .landing-setup-code {
   overflow: auto;
   padding: var(--space-16);
-  border: 1px solid var(--border-subtle);
+  border: 0 solid;
   border-radius: 12px;
   background: var(--surface-sunken);
   color: var(--text-primary);
@@ -508,7 +590,7 @@ a {
 }
 
 .landing-setup-code code {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .landing-setup-code--large {
@@ -517,7 +599,7 @@ a {
 
 .landing-setup-note {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.6;
 }
 
@@ -545,7 +627,7 @@ a {
   gap: var(--space-16);
   padding: var(--space-28) var(--space-0) var(--space-36);
   color: var(--text-tertiary);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .landing-footer-content.landing-inner {
@@ -637,6 +719,10 @@ a {
 
   .landing-setup-content {
     gap: var(--space-32);
+  }
+
+  .landing-demo-examples {
+    flex-direction: column;
   }
 
   .landing-setup-code {

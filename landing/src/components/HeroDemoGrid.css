@@ -918,8 +918,9 @@
   content: "";
   position: absolute;
   z-index: 2;
-  inset: var(--space-24);
-  border: 1px dashed rgb(220 38 38 / 28%);
+  inset: calc(var(--space-24) - 1px);
+  box-sizing: border-box;
+  border: 1px dashed rgb(220 38 38 / 38%);
   pointer-events: none;
 }
 
@@ -940,10 +941,21 @@
 .landing-hero-demo-board--wireframe .landing-hero-demo-type-field,
 .landing-hero-demo-board--wireframe .landing-hero-demo-type-value,
 .landing-hero-demo-board--wireframe .landing-hero-demo-type-alignment,
-.landing-hero-demo-board--wireframe .landing-hero-demo-type-alignment-option,
 .landing-hero-demo-board--wireframe .landing-hero-demo-day-labels span {
   color: transparent;
   background: var(--landing-wireframe-blue-surface);
+  outline: 1px solid var(--landing-wireframe-blue);
+}
+
+.landing-hero-demo-board--wireframe .landing-hero-demo-type-alignment-option {
+  color: transparent;
+  background: transparent;
+  outline: 0;
+}
+
+.landing-hero-demo-board--wireframe .landing-hero-demo-type-alignment-option--selected {
+  background: var(--landing-wireframe-blue-surface);
+  box-shadow: none;
   outline: 1px solid var(--landing-wireframe-blue);
 }
 
@@ -961,8 +973,9 @@
   content: "";
   position: absolute;
   z-index: 2;
-  inset: var(--space-16);
-  border: 1px dashed rgb(220 38 38 / 28%);
+  inset: calc(var(--space-16) - 1px);
+  box-sizing: border-box;
+  border: 1px dashed rgb(220 38 38 / 38%);
   pointer-events: none;
 }
 
