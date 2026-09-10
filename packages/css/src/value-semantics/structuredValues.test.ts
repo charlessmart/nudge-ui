@@ -114,6 +114,17 @@ describe("interpretStructuredValue — box/spacing expansion", () => {
     expect(fields.map((field) => field.sourceProperty)).toEqual(["gap", "gap"]);
   });
 
+  it("preserves token attribution when expanding a gap token", () => {
+    const fields = interpretStructuredValue("gap", "var(--space-4)", ctx(table([
+      entry("--space-4", "16px"),
+    ])));
+
+    expect(fields).toHaveLength(2);
+    expect(fields.every((field) => field.tokenName === "--space-4")).toBe(true);
+    expect(fields.every((field) => field.declaredValue === "var(--space-4)")).toBe(true);
+    expect(fields.map((field) => field.resolvedValue)).toEqual(["16px", "16px"]);
+  });
+
   it.each([
     ["inset", "0", ["top", "right", "bottom", "left"], ["0", "0", "0", "0"]],
     ["inset", "0 4px", ["top", "right", "bottom", "left"], ["0", "4px", "0", "4px"]],

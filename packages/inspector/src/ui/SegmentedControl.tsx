@@ -63,7 +63,7 @@ export function SegmentedControl<T extends string>({
                 }
               }}
             >
-              {option.icon ?? option.label}
+              {option.icon ?? <span className="segmented-control__label">{option.label}</span>}
             </Toggle>
           );
         })}

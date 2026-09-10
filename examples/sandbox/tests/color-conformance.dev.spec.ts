@@ -185,7 +185,7 @@ test("dev: separable color-mix tokens render as a chip with opacity", async ({ p
   await expect(bg.locator('[data-test="raw-input"]'))
     .toHaveValue("color-mix(in srgb, var(--color-primary) 10%, white)");
   await expect(bg.locator('[data-test="color-opacity-input"]')).toHaveCount(0);
-  await expect(bg.locator('[data-test="token-attribution"]')).toContainText("--color-primary");
+  await expect(bg.locator('[data-test="token-attribution"]')).toHaveCount(0);
   await expect(bg.locator('[data-test="token-chip"]')).toHaveCount(0);
 });
 

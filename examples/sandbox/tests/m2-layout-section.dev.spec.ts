@@ -509,9 +509,14 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
     await expect(surface).toHaveClass(/layout__spacing-field/);
     await expect(surface).toHaveCSS("height", "32px");
     await expect(surface.locator(`[data-test="layout-spacing-icon-${property}"]`)).toHaveCount(1);
-    const input = surface.locator(`[data-test="layout-combo-input-${property}"]`);
-    await expect(input).toHaveCSS("height", "32px");
-    await expect(input).not.toHaveClass(/text-input--compact/);
+    const token = surface.locator(`[data-test="token-field"][data-property="${property}"] [data-test="token-chip"]`);
+    await expect(token).toBeVisible();
+    await expect(token).toHaveAttribute("aria-label", `Change ${property} token`);
+    await expect(token.locator(".token-chip__label")).toHaveAttribute(
+      "title",
+      property === "row-gap" ? "--space-2" : "--space-3",
+    );
+    await expect(surface.locator(`[data-test="layout-combo-input-${property}"]`)).toHaveCount(0);
   }
   const picker = page.locator('[data-test="layout-grid-picker-trigger"]');
   await expect(picker).toBeVisible();

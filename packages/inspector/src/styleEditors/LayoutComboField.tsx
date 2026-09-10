@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { Tooltip } from "@base-ui/react/tooltip";
 import { setStyle } from "./styleActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { nudgeCssValue } from "./nudgeValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
 import { inlineAuthoredValue, meaningfulLayoutValue } from "./layoutValue.ts";
+import { LayoutBlockedIndicator } from "./LayoutBlockedIndicator.tsx";
 import { Select } from "../ui/Select.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
@@ -218,32 +218,7 @@ export function LayoutComboField(props: LayoutComboFieldProps): ReactElement {
         </>
       )}
       <AtRuleIndicator atRules={atRules} />
-      {blockedBy ? (
-        <Tooltip.Provider>
-          <Tooltip.Root disableHoverablePopup>
-            <Tooltip.Trigger
-              type="button"
-              delay={0}
-              className="layout-combo-blocked"
-              data-test="layout-combo-blocked"
-              aria-label={`Blocked by inline style: ${blockedBy}`}
-            >
-              <span className="layout-combo-blocked__symbol" aria-hidden="true">!</span>
-            </Tooltip.Trigger>
-            <Tooltip.Portal container={document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body}>
-              <Tooltip.Positioner className="at-rule-tooltip-positioner" side="top" align="end" sideOffset={7}>
-                <Tooltip.Popup className="at-rule-tooltip" data-test="layout-combo-blocked-tooltip">
-                  <div className="at-rule-tooltip__rules">
-                    <div className="at-rule-tooltip__rule at-rule-tooltip__rule--active">
-                      Set inline (<code>{blockedBy}</code>). Previews can&apos;t beat inline styles — move it to a stylesheet to edit it here.
-                    </div>
-                  </div>
-                </Tooltip.Popup>
-              </Tooltip.Positioner>
-            </Tooltip.Portal>
-          </Tooltip.Root>
-        </Tooltip.Provider>
-      ) : null}
+      {blockedBy ? <LayoutBlockedIndicator blockedBy={blockedBy} /> : null}
     </span>
   );
 }

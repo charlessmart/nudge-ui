@@ -2,13 +2,15 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { IconSettings, IconSpacingHorizontal, IconSpacingVertical } from "@tabler/icons-react";
 import { GridPicker } from "./GridPicker.tsx";
-import { LayoutComboField } from "./LayoutComboField.tsx";
+import { GapField } from "./GapField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { GridValueField } from "./GridValueField.tsx";
 import { GridChildSection } from "./GridChildSection.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { InspectorPopover } from "../ui/InspectorPopover.tsx";
+import type { TokenEntry } from "virtual:design-tokens";
+import type { ResolvedProperty } from "@nudge-ui/css/model";
 import type { EditTarget } from "../editTarget.ts";
 import type { StyleSelection } from "../styleSelection.ts";
 
@@ -24,12 +26,12 @@ const GRID_CONTENT_ALIGNMENT_OPTIONS = [
   "space-evenly",
 ];
 const GRID_ITEM_ALIGNMENT_OPTIONS = ["normal", "stretch", "start", "end", "center", "self-start", "self-end"];
-const GAP_PRESETS = ["0", "0.25rem", "0.5rem", "0.75rem", "1rem", "1.5rem", "2rem", "3rem"];
-
 export interface GridSectionProps {
   domElement: HTMLElement;
   editTarget?: EditTarget;
   selection?: StyleSelection | null;
+  entries: TokenEntry[];
+  tokenRows: ResolvedProperty[];
   showContainer: boolean;
   showChild: boolean;
   revision?: number;
@@ -40,6 +42,8 @@ export function GridSection({
   domElement: el,
   editTarget,
   selection,
+  entries,
+  tokenRows,
   showContainer,
   showChild,
   revision = 0,
@@ -148,15 +152,13 @@ export function GridSection({
                   aria-hidden="true"
                   data-test="layout-spacing-icon-row-gap"
                 />
-                <LayoutComboField
+                <GapField
                   property="row-gap"
-                  presets={GAP_PRESETS}
                   domElement={el}
                   editTarget={editTarget}
                   selection={selection}
-                  inputOnly
-                  appearance="embedded"
-                  revision={revision}
+                  entries={entries}
+                  tokenRows={tokenRows}
                   onAfterEdit={onAfterEdit}
                 />
               </ControlSurface>
@@ -168,15 +170,13 @@ export function GridSection({
                   aria-hidden="true"
                   data-test="layout-spacing-icon-column-gap"
                 />
-                <LayoutComboField
+                <GapField
                   property="column-gap"
-                  presets={GAP_PRESETS}
                   domElement={el}
                   editTarget={editTarget}
                   selection={selection}
-                  inputOnly
-                  appearance="embedded"
-                  revision={revision}
+                  entries={entries}
+                  tokenRows={tokenRows}
                   onAfterEdit={onAfterEdit}
                 />
               </ControlSurface>

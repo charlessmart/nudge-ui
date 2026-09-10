@@ -435,7 +435,7 @@ export function InspectorShell(): ReactElement {
                     ) : null}
                     {showInteractionState ? (
                       <div className="style-state" data-test="style-state">
-                        <span className="selection__label">State</span>
+                        <div className="editor__title">State</div>
                         <SegmentedControl
                           value={styleState}
                           className="style-state__control"

@@ -42,6 +42,7 @@ export interface TokenValueFieldProps {
   onCommitRaw(value: string): void;
   onSelectToken(token: TokenEntry): boolean | void;
   onUnlink(value: string): void;
+  /** Referenced tokens used for raw color-field behavior; not rendered inline. */
   attributionTokens?: string[];
   leading?: ReactNode;
   trailing?: ReactNode;
@@ -79,7 +80,7 @@ export interface TokenFieldProps {
   disabled?: boolean;
   /** Shows a mixed value without accidentally committing the placeholder. */
   mixed?: boolean;
-  /** Extra provenance labels shown beside a raw aggregate value. */
+  /** Referenced tokens used for raw color-field behavior; not rendered inline. */
   attributionTokens?: string[];
 }
 
@@ -581,11 +582,6 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         }}
       />
       {opacityControl}
-      {attributionTokens.length > 0 ? (
-        <span className="token-field__attribution" data-test="token-attribution" title="Referenced tokens">
-          {attributionTokens.join(" · ")}
-        </span>
-      ) : null}
       <AtRuleIndicator atRules={fieldAtRules} />
       {trailing ? <span className="token-field__trailing">{trailing}</span> : null}
     </span>

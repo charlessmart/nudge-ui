@@ -43,3 +43,10 @@
 .segmented-control__button svg {
   flex-shrink: 0;
 }
+
+.segmented-control__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

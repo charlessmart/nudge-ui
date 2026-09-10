@@ -467,7 +467,7 @@ describe("TokenField", () => {
     expect(suggestions[0]?.textContent).toContain(alternate.name);
   });
 
-  it("shows authored functional CSS and token attribution instead of computed pixels", () => {
+  it("shows authored functional CSS without an inline token attribution label", () => {
     const { selected } = makeSelected();
     handle = mount(createElement(TokenField, {
       property: "width",
@@ -487,10 +487,8 @@ describe("TokenField", () => {
       entries: [FONT_SIZE],
     }));
     const rawInput = handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement;
-    const attribution = handle.host.querySelector('[data-test="token-attribution"]') as HTMLElement;
     expect(rawInput.value).toBe("calc(var(--space-4) * 2)");
-    expect(attribution.textContent).toContain("--space-4");
-    expect(rawInput.compareDocumentPosition(attribution) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="token-attribution"]')).toBeNull();
     expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
   });
 

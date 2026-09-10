@@ -108,9 +108,15 @@ test("dev: swapping a token writes a managed-stylesheet rule and changes backgro
 
 test("dev: selection defaults to Base and can target an authored hover state", async ({ page }) => {
   await page.goto("/playground");
-  await page.addStyleTag({ content: ".btn:focus { outline-color: transparent; } .btn:active { transform: none; }" });
+  await page.addStyleTag({ content: ".btn:focus { outline-color: transparent; } .btn:focus-visible { outline-color: transparent; } .btn:active { transform: none; }" });
   await page.click("text=Save");
   await waitForRow(page);
+
+  const state = page.locator('[data-test="style-state"]');
+  await expect(state.locator(".editor__title")).toHaveText("State");
+  await expect(state.locator(".selection__label")).toHaveCount(0);
+  await expect(state.locator('[data-test="style-state-focus-visible"] .segmented-control__label'))
+    .toHaveCSS("white-space", "nowrap");
 
   await expect(page.locator('[data-test="style-state-base"]')).toHaveAttribute("data-active", "true");
   await expect(page.locator('[data-test="style-state-hover"]')).toHaveCount(1);

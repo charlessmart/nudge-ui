@@ -7,6 +7,7 @@ import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField } from "../tokens/TokenField.tsx";
 import { LayoutDropdown } from "./LayoutDropdown.tsx";
 import { LayoutComboField } from "./LayoutComboField.tsx";
+import { GapField } from "./GapField.tsx";
 import { AspectRatioField } from "./AspectRatioField.tsx";
 import { PositionInsets } from "./PositionInsets.tsx";
 import { GridSection } from "./GridSection.tsx";
@@ -35,7 +36,6 @@ const FLEX_GROW_PRESETS = ["0", "1", "2", "3"];
 const FLEX_SHRINK_PRESETS = ["0", "1"];
 const FLEX_BASIS_PRESETS = ["auto", "0", "0%", "100%", "50%", "fit-content"];
 const ORDER_PRESETS = ["-1", "0", "1", "2", "3"];
-const GAP_PRESETS = ["0", "0.25rem", "0.5rem", "0.75rem", "1rem", "1.5rem", "2rem", "3rem"];
 const FLEX_ALIGNMENT_OPTIONS = ["flex-start", "center", "flex-end"];
 const FLEX_DISTRIBUTION_OPTIONS = ["space-between", "space-around", "space-evenly"];
 const SIZE_PRESETS = ["auto", "0", "100%", "fit-content"];
@@ -187,7 +187,8 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                       domElement={el}
                       editTarget={editTarget}
                       selection={selection}
-                      revision={layoutRevision}
+                      entries={allEntries}
+                      tokenRows={tokenRows}
                       onAfterEdit={notifyAfterEdit}
                     />
                     <FlexDistributionControl domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
@@ -198,7 +199,8 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                       domElement={el}
                       editTarget={editTarget}
                       selection={selection}
-                      revision={layoutRevision}
+                      entries={allEntries}
+                      tokenRows={tokenRows}
                       onAfterEdit={notifyAfterEdit}
                     />
                   ) : null}
@@ -263,6 +265,8 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             showChild={isGridChild}
             editTarget={editTarget}
             selection={selection}
+            entries={allEntries}
+            tokenRows={tokenRows}
             revision={layoutRevision}
             onAfterEdit={notifyAfterEdit}
           />
@@ -464,19 +468,19 @@ function FlexChildSettingsMenu({ domElement, editTarget, selection, revision = 0
 
 interface FlexGapFieldProps extends FlexControlProps {
   property: "row-gap" | "column-gap";
+  entries: TokenEntry[];
+  tokenRows: ResolvedProperty[];
 }
 
-function FlexGapField({ property, domElement, editTarget, selection, revision = 0, onAfterEdit }: FlexGapFieldProps): ReactElement {
+function FlexGapField({ property, domElement, editTarget, selection, entries, tokenRows, onAfterEdit }: FlexGapFieldProps): ReactElement {
   const field = (
-    <LayoutComboField
+    <GapField
       property={property}
-      presets={GAP_PRESETS}
       domElement={domElement}
       editTarget={editTarget}
       selection={selection}
-      inputOnly
-      appearance="embedded"
-      revision={revision}
+      entries={entries}
+      tokenRows={tokenRows}
       onAfterEdit={onAfterEdit}
     />
   );

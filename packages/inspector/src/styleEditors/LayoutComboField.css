@@ -10,6 +10,10 @@
   display: flex;
 }
 
+.layout-combo > .token-field {
+  width: 100%;
+}
+
 .layout-combo > .at-rule-indicator {
   position: absolute;
   z-index: 1;
@@ -26,6 +30,11 @@
 .layout-combo--blocked > .select:disabled,
 .layout-combo--blocked > .text-input:disabled,
 .layout-combo--blocked .layout-combo__custom > .text-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.layout-combo--blocked > .token-field {
   opacity: 0.55;
   cursor: not-allowed;
 }
