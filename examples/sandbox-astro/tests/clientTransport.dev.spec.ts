@@ -3,8 +3,19 @@ import type { ComponentRuntimeAdapter } from "@nudge-ui/inspector/host-runtime";
 
 test("dev: prebuilt client and host React Adapter meet at the runtime seam", async ({ page }) => {
   await page.goto("/");
-  await expect.poll(() => page.evaluate(() =>
-    Boolean(document.getElementById("nudge-ui-root")?.shadowRoot))).toBe(true);
+  await expect.poll(() => page.evaluate(() => {
+    const registry = (globalThis as unknown as Record<PropertyKey, {
+      adapters: Map<string, ComponentRuntimeAdapter>;
+    }>)[Symbol.for("nudge-ui.host-runtime.v1")];
+    const adapter = registry?.adapters.get("react");
+    const element = document.querySelector<HTMLElement>(".counter-label");
+    return Boolean(
+      document.getElementById("nudge-ui-root")?.shadowRoot
+      && adapter
+      && element
+      && adapter.inspect(element)[0],
+    );
+  })).toBe(true);
 
   const manifest = await page.evaluate(async () => {
     const response = await fetch("/__nudge_ui__/manifest");

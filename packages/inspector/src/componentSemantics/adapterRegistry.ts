@@ -9,26 +9,18 @@ import {
   copyComponentOverrides,
   copyRuntimeTarget,
   getHostRuntimeAdapters,
+  registerHostRuntimeAdapter,
+  replaceHostRuntimeAdapterOverrides,
 } from "./runtimeBridge.ts";
-
-const runtimeAdapters: ComponentRuntimeAdapter[] = [];
 
 function enabledRuntimeAdapters(): ComponentRuntimeAdapter[] {
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
-  const adapters = new Map(
-    getHostRuntimeAdapters().map((adapter) => [adapter.framework, adapter]),
-  );
-  for (const adapter of runtimeAdapters) adapters.set(adapter.framework, adapter);
-  return [...adapters.values()];
+  return [...getHostRuntimeAdapters()];
 }
 
 /** Register a framework adapter without coupling semantic resolution to React. */
 export function registerComponentRuntimeAdapter(adapter: ComponentRuntimeAdapter): () => void {
-  runtimeAdapters.push(adapter);
-  return () => {
-    const index = runtimeAdapters.indexOf(adapter);
-    if (index >= 0) runtimeAdapters.splice(index, 1);
-  };
+  return registerHostRuntimeAdapter(adapter);
 }
 
 export function inspectComponentTargets(element: HTMLElement): RuntimeComponentTarget[] {
@@ -68,8 +60,6 @@ export function editableComponentTargets(
 }
 
 export function replaceComponentOverrideProjection(overrides: ComponentOverride[]): void {
-  for (const adapter of enabledRuntimeAdapters()) {
-    adapter.replaceOverrides(copyComponentOverrides(overrides.filter((override) =>
-      override.framework === adapter.framework)));
-  }
+  if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return;
+  replaceHostRuntimeAdapterOverrides(copyComponentOverrides(overrides));
 }

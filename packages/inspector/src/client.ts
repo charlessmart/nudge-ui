@@ -2,8 +2,7 @@ import {
   bootstrapNudgeUi,
   configureNudgeUiRuntime,
 } from "./index.ts";
-import { isNudgeUiClientManifest } from "./clientManifest.ts";
-import { setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
+import { parseNudgeUiClientManifest } from "./clientManifest.ts";
 
 const DEFAULT_MANIFEST_PATH = "/__nudge_ui__/manifest";
 const MOUNT_ID = "nudge-ui-root";
@@ -14,17 +13,19 @@ export async function bootstrapNudgeUiClient(): Promise<void> {
     "script[data-nudge-ui-client]",
   );
   const manifestUrl = script?.dataset.nudgeUiManifest ?? DEFAULT_MANIFEST_PATH;
-  const response = await fetch(manifestUrl, { cache: "no-store" });
+  const response = await fetch(manifestUrl, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  });
   if (!response.ok) {
     throw new Error(`Nudge UI manifest request failed with HTTP ${response.status}.`);
   }
-  const payload: unknown = await response.json();
-  if (!isNudgeUiClientManifest(payload)) {
+  const manifest = parseNudgeUiClientManifest(await response.json());
+  if (!manifest) {
     throw new Error("Nudge UI manifest did not contain a valid runtime configuration.");
   }
 
-  setNudgeUiHostDevFlag(true);
-  configureNudgeUiRuntime(payload.runtime);
+  configureNudgeUiRuntime(manifest.runtime);
   bootstrapNudgeUi(createMountElement());
 }
 

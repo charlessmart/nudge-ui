@@ -43,6 +43,16 @@ const host = document.getElementById("nudge-ui-root");
 if (host instanceof HTMLElement) bootstrapNudgeUi(host);
 ```
 
+Custom React hosts that enable component semantics must also load the host
+React Adapter before restoring component overrides:
+
+```ts
+import "@nudge-ui/inspector/component-runtime";
+```
+
+Nudge UI's framework transforms add this import automatically to instrumented
+React modules.
+
 The runtime is gated for development use. It mounts its UI in a Shadow DOM,
 uses one managed stylesheet for CSS previews, and does not edit application
 source files.

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isNudgeUiClientManifest } from "./clientManifest.ts";
+import {
+  isNudgeUiClientManifest,
+  parseNudgeUiClientManifest,
+} from "./clientManifest.ts";
 
 const validManifest = {
   version: 1,
-  revision: 0,
   runtime: {
     projectId: "site",
     host: "astro",
@@ -29,5 +31,22 @@ describe("isNudgeUiClientManifest", () => {
       ...validManifest,
       runtime: { ...validManifest.runtime, host: "unknown" },
     })).toBe(false);
+  });
+
+  it("returns a normalized immutable runtime", () => {
+    const manifest = parseNudgeUiClientManifest({
+      version: 1,
+      runtime: {
+        projectId: "site",
+        host: "astro",
+        framework: "Astro",
+      },
+    });
+    expect(manifest?.runtime).toMatchObject({
+      stylingSystem: "",
+      capabilities: { canvas: false, componentSemantics: false },
+      tokens: [],
+    });
+    expect(Object.isFrozen(manifest?.runtime)).toBe(true);
   });
 });

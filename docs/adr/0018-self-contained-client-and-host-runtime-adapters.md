@@ -29,7 +29,9 @@ Ship the inspector UI as one prebuilt, self-contained ES module. The client
 owns its private React, React DOM, Base UI, icons, and styles. A host Adapter
 serves that immutable asset and a versioned, plain-data runtime manifest from
 development-only routes. The client dependency graph does not pass through the
-consumer's optimizer.
+consumer's optimizer. The asset is compiled with its development gate enabled;
+production safety comes from host Adapters registering no routes or injection
+hooks outside development.
 
 Keep framework semantics in small host runtime Adapters. The React Adapter uses
 the host's React instance to install component boundaries, inspect the host

@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ComponentRuntimeAdapter } from "./types.ts";
 import {
   copyRuntimeTarget,
   getHostRuntimeAdapters,
   registerHostRuntimeAdapter,
+  replaceHostRuntimeAdapterOverrides,
 } from "./runtimeBridge.ts";
 
 let unregister: (() => void) | undefined;
@@ -42,6 +43,43 @@ describe("host runtime Adapter bridge", () => {
       },
     });
     expect(target.props).toEqual({ label: "Save", disabled: false });
+  });
+
+  it("replays the latest override projection when an Adapter registers", () => {
+    replaceHostRuntimeAdapterOverrides([{
+      framework: "react",
+      callsiteId: "src/App.tsx:1:1",
+      prop: "disabled",
+      value: true,
+    }]);
+    const replaceOverrides = vi.fn();
+    unregister = registerHostRuntimeAdapter({ ...adapter(), replaceOverrides });
+    expect(replaceOverrides).toHaveBeenCalledWith([{
+      framework: "react",
+      callsiteId: "src/App.tsx:1:1",
+      prop: "disabled",
+      value: true,
+    }]);
+  });
+
+  it("rejects an incompatible page-global registry", () => {
+    const key = Symbol.for("nudge-ui.host-runtime.v1");
+    const host = globalThis as unknown as Record<PropertyKey, unknown>;
+    const current = host[key];
+    host[key] = { version: 2, adapters: new Map(), overrides: new Map() };
+    try {
+      expect(() => getHostRuntimeAdapters()).toThrow(/incompatible with version 1/);
+    } finally {
+      host[key] = current;
+    }
+  });
+
+  it("rejects malformed component targets from an Adapter", () => {
+    expect(() => copyRuntimeTarget({
+      framework: "react",
+      meta: null,
+      props: {},
+    } as never)).toThrow(/invalid component target/);
   });
 });
 

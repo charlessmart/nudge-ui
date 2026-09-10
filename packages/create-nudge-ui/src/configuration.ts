@@ -38,19 +38,19 @@ export function configureSource(source: string, framework: Exclude<Framework, "s
     return configureAstroSource(source, sourceFile);
   }
   if (framework === "vite-react") {
-    return configureArrayHost(source, sourceFile, "@nudge-ui/vite-react", "nudgeUi", "plugins", "...nudgeUi()");
+    return configureViteSource(source, sourceFile);
   }
   return configureNextSource(source, sourceFile);
 }
 
-function configureArrayHost(
+function configureViteSource(
   source: string,
   sourceFile: ts.SourceFile,
-  packageName: "@nudge-ui/vite-react",
-  importName: "nudgeUi",
-  propertyName: "plugins",
-  expression: string,
 ): string {
+  const packageName = "@nudge-ui/vite-react";
+  const importName = "nudgeUi";
+  const propertyName = "plugins";
+  const expression = "...nudgeUi()";
   const bindings = importedBindings(sourceFile, packageName, importName);
   const callableBindings = new Set([...bindings, importName]);
   const configObject = findDefineConfigObject(sourceFile, propertyName);
@@ -80,25 +80,22 @@ function configureArrayHost(
 }
 
 function configureAstroSource(source: string, sourceFile: ts.SourceFile): string {
-  const explicitBindings = new Set([
-    ...importedBindings(sourceFile, "@nudge-ui/astro", "nudgeUiAstro"),
-    "nudgeUiAstro",
-  ]);
-  if (containsCall(sourceFile, explicitBindings)) return source;
-
   const target = findDefaultExport(sourceFile, "Astro");
   const bindings = importedBindings(sourceFile, "@nudge-ui/astro", "withNudgeUi");
-  const callableBindings = new Set([...bindings, "withNudgeUi"]);
+  const wrapperBinding = bindings[0] ?? unusedBindingName(sourceFile, "withNudgeUi");
   const edits: TextEdit[] = [];
-  if (!containsCall(target, callableBindings)) {
+  if (!containsCall(target, new Set(bindings))) {
     const start = target.getStart(sourceFile);
     const end = target.getEnd();
-    edits.push({ start, end, text: `withNudgeUi(${source.slice(start, end)})` });
+    edits.push({ start, end, text: `${wrapperBinding}(${source.slice(start, end)})` });
   }
   if (bindings.length === 0) {
+    const importedName = wrapperBinding === "withNudgeUi"
+      ? "withNudgeUi"
+      : `withNudgeUi as ${wrapperBinding}`;
     edits.push(importEdit(
       sourceFile,
-      'import { withNudgeUi } from "@nudge-ui/astro";',
+      `import { ${importedName} } from "@nudge-ui/astro";`,
       false,
     ));
   }
@@ -246,6 +243,17 @@ function containsCall(root: ts.Node, bindingNames: ReadonlySet<string>): boolean
     }
   });
   return found;
+}
+
+function unusedBindingName(sourceFile: ts.SourceFile, preferred: string): string {
+  const identifiers = new Set<string>();
+  visit(sourceFile, (node) => {
+    if (ts.isIdentifier(node)) identifiers.add(node.text);
+  });
+  if (!identifiers.has(preferred)) return preferred;
+  let suffix = 2;
+  while (identifiers.has(`${preferred}${suffix}`)) suffix += 1;
+  return `${preferred}${suffix}`;
 }
 
 function visit(root: ts.Node, visitor: (node: ts.Node) => void): void {

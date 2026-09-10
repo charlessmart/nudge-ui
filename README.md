@@ -92,6 +92,9 @@ export default defineConfig({
 });
 ```
 
+Automated installs use `withNudgeUi(defineConfig(...))`; the explicit
+`nudgeUiAstro()` form above remains supported.
+
 ### Static HTML
 
 ```sh
