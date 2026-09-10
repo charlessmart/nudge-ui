@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 test("runs the real inspector on the landing document", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Nudge is a tool for designing in code." })).toBeVisible();
-  await expect(page.getByText("Let's install @nudge-ui/vite-react in this project", { exact: true })).toBeVisible();
+  const hero = page.getByRole("region", { name: "Nudge is a tool for designing in code." });
+  await expect(hero.getByText("Run npm create nudge-ui@latest in this project", { exact: true })).toBeVisible();
   await expect(page.getByText("Try the demo", { exact: true })).toHaveCount(0);
   await expect(page.getByText("localhost:5173/sandbox", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Try the real thing", { exact: true })).toHaveCount(0);
@@ -11,9 +12,9 @@ test("runs the real inspector on the landing document", async ({ page }) => {
   const setup = page.getByRole("region", { name: "Installation" });
   await expect(setup).toBeVisible();
   await expect(setup.locator("pre")).toHaveCount(4);
-  await expect(setup.getByText("pnpm add -D @nudge-ui/vite-react", { exact: true })).toBeVisible();
-  await expect(setup.getByText("Install @nudge-ui/vite-react in this project", { exact: true })).toBeVisible();
-  await expect(setup.getByText("vite.config.ts", { exact: true })).toBeVisible();
+  await expect(setup.getByText("npm create nudge-ui@latest", { exact: true })).toBeVisible();
+  await expect(setup.getByText("Run npm create nudge-ui@latest in this project", { exact: true })).toBeVisible();
+  await expect(setup.locator("pre").filter({ hasText: "@nudge-ui/astro" })).toBeVisible();
   await expect(setup.getByText("nudge_listen", { exact: true })).toBeVisible();
   await expect(page.getByText("Made for design engineers.", { exact: true })).toHaveCount(0);
   await expect(page.locator(".landing-hero-demo-grid")).toHaveCount(1);
@@ -35,7 +36,7 @@ test("runs the real inspector on the landing document", async ({ page }) => {
   const copyInstallPrompt = page.getByRole("button", { name: "Copy install prompt" });
   await copyInstallPrompt.click();
   await expect(page.getByRole("button", { name: "Install prompt copied" })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("Let's install @nudge-ui/vite-react in this project");
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("Run npm create nudge-ui@latest in this project");
   await expect(page.locator("header.landing-nav")).toHaveCount(0);
   const footer = page.locator("footer.landing-footer");
   await expect(footer.getByText("Nudge UI", { exact: true })).toBeVisible();
@@ -87,8 +88,8 @@ test("renders demo videos as vertical sections", async ({ page }) => {
   await expect(items.nth(0).getByRole("heading", { name: "Edit UI directly" })).toBeVisible();
   await expect(items.nth(1).getByRole("heading", { name: "A canvas for exploring variations" })).toBeVisible();
   await expect(items.nth(2).getByRole("heading", { name: "Keep tokens and components in sync" })).toBeVisible();
-  await expect(items.nth(0).getByText("Prompting an agent to center a div feels like backseat driving. Asking an agent for tiny visual changes, waiting for the update, and then finding one more thing to fix. Speed up the iteration loop by adjusting UI directly.", { exact: true })).toBeVisible();
-  await expect(items.nth(1).getByText("Designers long for the canvas. Open different routes and pages in a canvas view to compare agent generated variations, screen sizes or overall flows.", { exact: true })).toBeVisible();
+  await expect(items.nth(0).getByText("Prompting an agent to center a div feels like backseat driving. You ask an agent for tiny visual changes, wait for the update, only to realise it looked better before. Editing directly gives you the immediate visual feedback that makes design tools good.", { exact: true })).toBeVisible();
+  await expect(items.nth(1).getByText("Open different pages in a canvas view to compare variations, screen sizes or overall flows. Generate 3 different options, pick one, refine the details immediately to get it feeling right.", { exact: true })).toBeVisible();
   await expect(items.nth(2).getByText("It's your real codebase, so you need to use the tokens and components that exist. See them directly here, and avoid agents churning out custom CSS for every button.", { exact: true })).toBeVisible();
   await expect(showcase.getByText("Share and review changes", { exact: true })).toHaveCount(0);
   await expect(items.locator("video")).toHaveCount(0);
