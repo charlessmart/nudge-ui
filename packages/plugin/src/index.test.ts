@@ -1359,6 +1359,8 @@ describe("nudgeUi token catalog compiler", () => {
         modules: [],
         timestamp: 1,
       });
+      expect(reloads).toEqual(["full-reload"]);
+
       await plugin.handleHotUpdate({
         file: componentFile,
         read: async () => [
