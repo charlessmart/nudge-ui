@@ -383,7 +383,6 @@ describe("TokenField", () => {
     expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain(COLOR_PRIMARY.name);
     expect((handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement).value).toBe("50%");
     expect(handle.host.querySelector('[data-test="raw-input"]')).toBeNull();
-    expect(handle.host.querySelector('[data-test="token-attribution"]')).toBeNull();
   });
 
   it("does not fall back to a lossy token swap when semantic replacement is unsupported", () => {

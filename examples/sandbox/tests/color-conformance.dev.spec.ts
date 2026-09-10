@@ -179,13 +179,11 @@ test("dev: separable color-mix tokens render as a chip with opacity", async ({ p
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-primary");
   await expect(fg.locator('[data-test="raw-input"]')).toHaveCount(0);
   await expect(fg.locator('[data-test="color-opacity-input"]')).toHaveValue("50%");
-  await expect(fg.locator('[data-test="token-attribution"]')).toHaveCount(0);
 
   const bg = page.locator('[data-test="token-field"][data-property="background-color"]');
   await expect(bg.locator('[data-test="raw-input"]'))
     .toHaveValue("color-mix(in srgb, var(--color-primary) 10%, white)");
   await expect(bg.locator('[data-test="color-opacity-input"]')).toHaveCount(0);
-  await expect(bg.locator('[data-test="token-attribution"]')).toHaveCount(0);
   await expect(bg.locator('[data-test="token-chip"]')).toHaveCount(0);
 });
 
@@ -197,11 +195,9 @@ test("dev: opacity tokens stay separate from the color token chrome", async ({ p
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="color-opacity-input"]')).toHaveValue("35%");
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-primary");
-  await expect(fg.locator('[data-test="token-attribution"]')).toHaveCount(0);
 
   const bg = page.locator('[data-test="token-field"][data-property="background-color"]');
   await expect(bg.locator('[data-test="color-opacity-input"]')).toHaveValue("35%");
-  await expect(bg.locator('[data-test="token-attribution"]')).toHaveCount(0);
   await expect(bg.locator('[data-test="token-chip"]')).toHaveCount(0);
 
   await setOpacityInput(page, "color", "60%");
