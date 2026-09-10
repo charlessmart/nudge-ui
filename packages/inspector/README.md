@@ -19,8 +19,11 @@ commands.
 ## Install
 
 ```sh
-pnpm add @nudge-ui/inspector react react-dom
+pnpm add @nudge-ui/inspector
 ```
+
+Custom React hosts also provide `react` and `react-dom` for the
+`component-runtime` Adapter. Framework-free hosts do not need them.
 
 Most projects should install a host adapter instead:
 

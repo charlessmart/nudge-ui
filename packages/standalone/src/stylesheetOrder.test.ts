@@ -42,7 +42,7 @@ describe("reconcileStandaloneTokenCatalog", () => {
     expect(diagnostics).toEqual([
       expect.objectContaining({
         code: "token-order-unresolved",
-        module: "standalone-css",
+        module: "document-css",
       }),
     ]);
     expect(diagnostics[0]?.message).toContain("--surface");

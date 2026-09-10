@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   contentTypeForPath,
@@ -172,6 +173,15 @@ describe("createStandaloneServer", () => {
     };
     expect(manifestResponse.status).toBe(200);
     expect(manifest).toMatchObject({ revision: 0 });
+    expect(manifest).toMatchObject({
+      version: 1,
+      document: { runtimeIdentity: "static-html", stylesheetOrder: "browser" },
+      reload: {
+        endpoint: NUDGE_UI_RELOAD_PATH,
+        strategy: "reload-document",
+        events: ["ready", "reload"],
+      },
+    });
     expect(manifest.runtime).toMatchObject({
       projectId: runningServer.projectId,
       host: "static-html",
@@ -386,11 +396,9 @@ describe("createStandaloneServer", () => {
 });
 
 describe("standalone client build", () => {
-  it("emits a self-contained browser module", () => {
-    const packageRoot = fileURLToPath(new URL("..", import.meta.url));
-    const script = join(packageRoot, "scripts/build-client.mjs");
-    execFileSync(process.execPath, [script], { cwd: packageRoot, stdio: "pipe" });
-    const bundle = readFileSync(join(packageRoot, "dist/client.mjs"), "utf8");
+  it("uses the shared self-contained browser module", () => {
+    const require = createRequire(import.meta.url);
+    const bundle = readFileSync(require.resolve("@nudge-ui/inspector/client"), "utf8");
 
     expect(bundle).not.toContain("virtual:design-");
     expect(bundle).not.toContain("/@vite/client");

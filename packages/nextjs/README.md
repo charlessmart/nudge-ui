@@ -12,6 +12,10 @@ pnpm add -D @nudge-ui/nextjs
 
 The package supports Next.js 15.3 through 16.x and React 18 or 19.
 
+The development sidecar serves the shared, self-contained inspector client.
+Next.js compiles only the mount and host React Adapter; it does not compile the
+inspector UI dependency graph.
+
 ## Configure Next.js
 
 Wrap the existing configuration in `next.config.ts`:

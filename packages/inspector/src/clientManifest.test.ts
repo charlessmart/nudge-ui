@@ -3,6 +3,7 @@ import { parseNudgeUiClientManifest } from "./clientManifest.ts";
 
 const validManifest = {
   version: 1,
+  revision: 0,
   runtime: {
     projectId: "site",
     host: "astro",
@@ -20,6 +21,15 @@ const validManifest = {
 describe("parseNudgeUiClientManifest", () => {
   it("accepts a complete host-neutral runtime document", () => {
     expect(parseNudgeUiClientManifest(validManifest)).not.toBeNull();
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      document: { runtimeIdentity: "static-html", stylesheetOrder: "browser" },
+      reload: {
+        endpoint: "/__nudge_ui__/reload",
+        strategy: "reload-document",
+        events: ["ready", "reload"],
+      },
+    })).not.toBeNull();
   });
 
   it("rejects unknown versions and invalid runtime identities", () => {
@@ -30,9 +40,21 @@ describe("parseNudgeUiClientManifest", () => {
     })).toBeNull();
   });
 
+  it("rejects external reload endpoints and unknown document strategies", () => {
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      reload: { endpoint: "https://example.com/events", strategy: "reload-document" },
+    })).toBeNull();
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      document: { runtimeIdentity: "react" },
+    })).toBeNull();
+  });
+
   it("returns a normalized immutable runtime", () => {
     const manifest = parseNudgeUiClientManifest({
       version: 1,
+      revision: 0,
       runtime: {
         projectId: "site",
         host: "astro",

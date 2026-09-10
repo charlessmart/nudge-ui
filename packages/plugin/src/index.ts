@@ -37,6 +37,7 @@ import {
   extractPackageComponentContractCatalog,
 } from "./components/extractPackageContracts.ts";
 import type { ComponentContract } from "./components/types.ts";
+import type { NudgeUiClientManifest } from "@nudge-ui/inspector/client-manifest";
 
 export interface NudgeUiOptions {
   enabled?: boolean;
@@ -51,10 +52,8 @@ export interface NudgeUiOptions {
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
   /**
-   * Skip the react / react-dom / jsx-runtime dedupe aliases. Hosts whose own
-   * pipeline already resolves React correctly (Astro's SSR module runner
-   * chokes on the raw CJS entry) must set this; the Vite-React host keeps the
-   * default behaviour.
+   * Skip the React aliases used only by the legacy bundled landing demo.
+   * @deprecated Normal development clients no longer add React aliases.
    */
   skipReactAliases?: boolean;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
@@ -78,10 +77,14 @@ const VIRTUAL_COMPONENTS_ID = "virtual:nudge-ui-components";
 const RESOLVED_COMPONENTS_ID = "\0" + VIRTUAL_COMPONENTS_ID;
 const CSS_EXT = /\.css(?:$|[?#])/;
 const COMPONENT_EXT = /\.(?:tsx|jsx)(?:$|[?#])/;
+const CLIENT_PATH = "/__nudge_ui__/client.mjs";
+const MANIFEST_PATH = "/__nudge_ui__/manifest";
+const inspectorClientPath = createRequire(import.meta.url).resolve("@nudge-ui/inspector/client");
 
 const MOUNT_DIV = `<div id="nudge-ui-root"></div>`;
 const DEBUG_MOUNT_DIV = `<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>`;
-const INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:nudge-ui-inspector"></script>`;
+const INSPECTOR_SCRIPT = `<script type="module" src="${CLIENT_PATH}" data-nudge-ui-client data-nudge-ui-manifest="${MANIFEST_PATH}"></script>`;
+const LEGACY_INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:nudge-ui-inspector"></script>`;
 
 /**
  * Extracts the stylesheet string Vite embeds in dev CSS-module JS wrappers
@@ -105,6 +108,15 @@ function relativePath(id: string, root?: string): string {
     if (id.startsWith(rootPrefix)) return id.slice(rootPrefix.length);
   }
   return id.replace(/^\//, "");
+}
+
+function stylingSystemForTokens(tokens: readonly { readonly adapter?: string }[]): string {
+  for (const token of tokens) {
+    if (token.adapter === "vanilla-extract") return "vanilla-extract (sprinkles)";
+    if (token.adapter === "tailwind-v3") return "Tailwind v3";
+    if (token.adapter === "tailwind-v4") return "Tailwind v4";
+  }
+  return "CSS custom properties";
 }
 
 
@@ -191,15 +203,18 @@ export interface TransformIndexHtmlOptions {
   debug?: boolean;
   /** Keep the injection in a `build` command (explicit demo builds only). */
   demoBuild?: boolean;
+  /** Keep the route-sensitive landing demo on its build-time virtual module. */
+  demo?: boolean;
 }
 
 export function transformIndexHtmlHtml(
   html: string,
   command: "serve" | "build",
-  { debug = false, demoBuild = false }: TransformIndexHtmlOptions = {},
+  { debug = false, demoBuild = false, demo = false }: TransformIndexHtmlOptions = {},
 ): string | null {
   if (command === "build" && !demoBuild) return null;
-  const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${INSPECTOR_SCRIPT}\n`;
+  const script = demo || demoBuild ? LEGACY_INSPECTOR_SCRIPT : INSPECTOR_SCRIPT;
+  const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${script}\n`;
   if (html.includes("</body>")) {
     return html.replace("</body>", `${inject}</body>`);
   }
@@ -639,11 +654,45 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     return postTransformPromise;
   }
 
+  async function buildClientManifest(): Promise<NudgeUiClientManifest> {
+    await ensurePostTransformCss();
+    await ensurePublishedThemeContract();
+    syncInventoryContributions();
+    const snapshot = inventory.snapshot();
+    lastPublishedGeneration = snapshot.generation;
+    const tokenDiagnostics: TokenCatalogDiagnostic[] = snapshot.diagnostics.map((diagnostic) => ({
+      code: diagnostic.code,
+      message: diagnostic.message,
+      module: diagnostic.module ?? diagnostic.artifact ?? "token-inventory",
+      ...(diagnostic.exportName !== undefined ? { exportName: diagnostic.exportName } : {}),
+    }));
+    return {
+      version: 1,
+      revision: 0,
+      runtime: {
+        projectId: options.projectId ?? (root ? basename(root) : "vite"),
+        host: "vite-react",
+        framework: "React",
+        stylingSystem: stylingSystemForTokens(snapshot.tokens),
+        capabilities: { canvas: true, componentSemantics: true },
+        tokenCatalog: snapshot.definitions.map((definition) => ({
+          ...definition,
+          declarations: definition.declarations.map((declaration) => ({ ...declaration })),
+        })),
+        tokens: snapshot.tokens,
+        tokenDiagnostics,
+        tokenGeneration: snapshot.generation,
+        componentContracts: [...componentContracts.values()].flat(),
+      },
+    };
+  }
+
   const plugin: Plugin = {
     name: "nudge-ui",
     enforce: "pre",
     config(userConfig, env) {
       if (!enabled || env.command !== "serve") return;
+      if (options.demo !== true) return;
       if (options.skipReactAliases) return;
       const projectRoot = userConfig.root ?? process.cwd();
       const aliases = resolveReactAliases(projectRoot);
@@ -661,6 +710,33 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     configureServer(server) {
       if (!enabled || command !== "serve") return;
       devServer = server;
+      server.middlewares?.use(async (request, response, next) => {
+        const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
+        if (pathname === CLIENT_PATH) {
+          try {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "text/javascript; charset=utf-8");
+            response.setHeader("Cache-Control", "no-cache");
+            response.end(readFileSync(inspectorClientPath));
+          } catch {
+            response.statusCode = 503;
+            response.end("Nudge UI client has not been built.");
+          }
+          return;
+        }
+        if (pathname === MANIFEST_PATH) {
+          try {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "application/json; charset=utf-8");
+            response.setHeader("Cache-Control", "no-store");
+            response.end(JSON.stringify(await buildClientManifest()));
+          } catch (error) {
+            next(error);
+          }
+          return;
+        }
+        next();
+      });
       server.watcher?.on("add", (file) => handleStylesheetWatchEvent(server, file, "add"));
       server.watcher?.on("unlink", (file) => handleStylesheetWatchEvent(server, file, "unlink"));
     },
@@ -811,7 +887,11 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
       // the app entry instead, because Vite cannot preserve the development
       // HTML virtual-module URL in a static build.
       if (!enabled || demoBuild) return;
-      const out = transformIndexHtmlHtml(html, command, { debug: options.debug === true, demoBuild });
+      const out = transformIndexHtmlHtml(html, command, {
+        debug: options.debug === true,
+        demoBuild,
+        demo: options.demo === true,
+      });
       return out === null ? undefined : out;
     },
     async handleHotUpdate(ctx) {

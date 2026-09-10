@@ -14,6 +14,12 @@ The adapter supports Vite 5 or newer and React projects. It is intentionally
 React-specific; use a framework adapter for Next.js or Astro, or a different
 adapter when one becomes available for another UI runtime.
 
+In development, the adapter serves Nudge UI's self-contained client and a
+plain-data manifest from `/__nudge_ui__/`. The inspector UI does not enter the
+application's Vite dependency graph and the adapter does not alias the
+application's React packages. Only the small React component Adapter compiles
+with the host application.
+
 ## Configure Vite
 
 Add Nudge UI after the React plugin in `vite.config.ts`:

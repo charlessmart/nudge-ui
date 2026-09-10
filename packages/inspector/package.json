@@ -42,6 +42,11 @@
       "types": "./dist/componentSemantics/runtimeBridge.d.ts",
       "import": "./dist/componentSemantics/runtimeBridge.js",
       "default": "./dist/componentSemantics/runtimeBridge.js"
+    },
+    "./document-runtime": {
+      "types": "./dist/runtime/documentStylesheetOrder.d.ts",
+      "import": "./dist/runtime/documentStylesheetOrder.js",
+      "default": "./dist/runtime/documentStylesheetOrder.js"
     }
   },
   "scripts": {

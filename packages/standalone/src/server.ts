@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { open, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { instrumentHtml } from "./html/identity.ts";
 import { injectStandaloneBootstrap } from "./html/bootstrap.ts";
 import {
@@ -35,7 +35,7 @@ import { isSensitiveProjectPath } from "./pathPolicy.ts";
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const HTML_EXTENSIONS = new Set([".html", ".htm"]);
 const DEFAULT_PORT = 4173;
-const DEFAULT_CLIENT_FILE_NAMES = ["client.mjs", "../dist/client.mjs"] as const;
+const packageRequire = createRequire(import.meta.url);
 
 /** Options for the loopback-only standalone static server. */
 export interface StandaloneServerOptions {
@@ -604,9 +604,7 @@ async function readFileFromDescriptor(
 }
 
 function resolveDefaultClientPath(): string {
-  const candidates = DEFAULT_CLIENT_FILE_NAMES.map((fileName) =>
-    fileURLToPath(new URL(`./${fileName}`, import.meta.url)));
-  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]!;
+  return packageRequire.resolve("@nudge-ui/inspector/client");
 }
 
 function readAddress(server: Server, host: string): StandaloneServerAddress {

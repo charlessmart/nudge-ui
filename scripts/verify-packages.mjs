@@ -116,6 +116,16 @@ function verifyPackage(packageRoot) {
     assert(!entries.includes("package/dist/client.js"), "Inspector package contains a dead client.js emit.");
     assert(!entries.includes("package/dist/client.d.ts"), "Inspector package contains a dead client declaration emit.");
   }
+  if (packageJson.name === "@nudge-ui/standalone") {
+    assert(
+      !entries.includes("package/dist/client.mjs"),
+      "Standalone package must serve the shared inspector client instead of publishing a copy.",
+    );
+    assert(
+      !packageJson.devDependencies?.react && !packageJson.devDependencies?.["react-dom"],
+      "Standalone package must not require React to build its host Adapter.",
+    );
+  }
   if (packageJson.name === "@nudge-ui/mcp") {
     assert(!entries.includes("package/scripts/postinstall.mjs"), "MCP package must not ship an install-time postinstall script.");
     assert(!entries.some((entry) => entry === "package/dist/registrar.mjs"), "MCP package must not ship the obsolete registrar artifact.");

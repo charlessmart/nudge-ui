@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
+import type {
+  NudgeUiClientManifest,
+  NudgeUiRuntimeConfig,
+} from "@nudge-ui/inspector/client-manifest";
 
 /**
  * Builds the frozen runtime snapshot served over the loopback manifest
@@ -15,21 +19,19 @@ export interface NudgeUiManifestInput {
   root: string;
 }
 
-export interface NudgeUiManifest {
-  /** Monotonic knowledge revision; bumps on every settled token/contract update. */
-  revision: number;
-  projectId: string;
-  host: "nextjs-react";
-  promptHostLabel?: string;
-  /** Runtime host identity forwarded with prompt-generation hints. */
-  framework: "React";
-  stylingSystem: string;
-  capabilities: { canvas: boolean; componentSemantics: boolean };
-  tokenCatalog: readonly unknown[];
-  tokens: readonly unknown[];
-  tokenDiagnostics: readonly unknown[];
+type MutableRuntime = Omit<
+  NudgeUiRuntimeConfig,
+  "tokenCatalog" | "tokens" | "tokenDiagnostics" | "componentContracts" | "tokenGeneration"
+> & {
+  tokenCatalog: NudgeUiRuntimeConfig["tokenCatalog"];
+  tokens: NudgeUiRuntimeConfig["tokens"];
+  tokenDiagnostics: NudgeUiRuntimeConfig["tokenDiagnostics"];
   tokenGeneration: string;
-  componentContracts: readonly unknown[];
+  componentContracts: NudgeUiRuntimeConfig["componentContracts"];
+};
+
+export interface NudgeUiManifest extends Omit<NudgeUiClientManifest, "runtime"> {
+  readonly runtime: MutableRuntime;
 }
 
 /**
@@ -37,9 +39,9 @@ export interface NudgeUiManifest {
  * the standalone adapter's snapshot so the shared scanner feeds both hosts.
  */
 export interface NudgeUiTokenSnapshot {
-  tokenCatalog: readonly unknown[];
-  tokens: readonly unknown[];
-  tokenDiagnostics: readonly unknown[];
+  tokenCatalog: NudgeUiRuntimeConfig["tokenCatalog"];
+  tokens: NudgeUiRuntimeConfig["tokens"];
+  tokenDiagnostics: NudgeUiRuntimeConfig["tokenDiagnostics"];
   tokenGeneration: string;
 }
 
@@ -60,18 +62,25 @@ export function nextjsProjectId(root: string): string {
 
 export function buildManifest(input: NudgeUiManifestInput): NudgeUiManifest {
   return {
+    version: 1,
     revision: 0,
-    projectId: nextjsProjectId(input.root),
-    host: "nextjs-react",
-    framework: "React",
-    stylingSystem: "CSS custom properties",
-    // Canvas shares the Vite host's controller/renderer runtime (ADR-0006);
-    // the mount in every document bootstraps as a renderer inside cards.
-    capabilities: { canvas: true, componentSemantics: true },
-    tokenCatalog: [],
-    tokens: [],
-    tokenDiagnostics: [],
-    tokenGeneration: "",
-    componentContracts: [],
+    runtime: {
+      projectId: nextjsProjectId(input.root),
+      host: "nextjs-react",
+      framework: "React",
+      stylingSystem: "CSS custom properties",
+      // Canvas shares the Vite host's controller/renderer runtime (ADR-0006);
+      // the mount in every document bootstraps as a renderer inside cards.
+      capabilities: { canvas: true, componentSemantics: true },
+      tokenCatalog: [],
+      tokens: [],
+      tokenDiagnostics: [],
+      tokenGeneration: "",
+      componentContracts: [],
+    },
+    reload: {
+      endpoint: "/__nudge_ui__/reload",
+      strategy: "refresh-manifest",
+    },
   };
 }

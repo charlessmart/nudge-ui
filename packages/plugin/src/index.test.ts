@@ -73,7 +73,7 @@ describe("transformIndexHtmlHtml", () => {
     expect(out).not.toBeNull();
     expect(out!).toContain('<div id="nudge-ui-root"></div>');
     expect(out!).toContain(
-      '<script type="module" src="/@id/__x00__virtual:nudge-ui-inspector"></script>',
+      '<script type="module" src="/__nudge_ui__/client.mjs" data-nudge-ui-client data-nudge-ui-manifest="/__nudge_ui__/manifest"></script>',
     );
     expect(out!.indexOf("<body>")).toBeLessThan(out!.indexOf('id="nudge-ui-root"'));
     expect(out!.indexOf('id="nudge-ui-root"')).toBeLessThan(out!.lastIndexOf("</body>"));
@@ -103,7 +103,7 @@ describe("transformIndexHtmlHtml", () => {
     const out = transformIndexHtmlHtml(noBody, "serve");
     expect(out).not.toBeNull();
     expect(out!).toContain('<div id="nudge-ui-root"></div>');
-    expect(out!.endsWith("<div id=\"nudge-ui-root\"></div>\n<script type=\"module\" src=\"/@id/__x00__virtual:nudge-ui-inspector\"></script>\n")).toBe(true);
+    expect(out!.endsWith("<div id=\"nudge-ui-root\"></div>\n<script type=\"module\" src=\"/__nudge_ui__/client.mjs\" data-nudge-ui-client data-nudge-ui-manifest=\"/__nudge_ui__/manifest\"></script>\n")).toBe(true);
   });
 });
 
@@ -267,8 +267,13 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
     env: { command: string },
   ) => { resolve: { alias: unknown[] } } | undefined;
 
-  it("aliases React to one instance by default in dev", () => {
+  it("does not alias React for the shared external client", () => {
     const plugin = nudgeUi() as unknown as { config?: ConfigHook };
+    expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toBeUndefined();
+  });
+
+  it("retains React aliases for the bundled landing demo", () => {
+    const plugin = nudgeUi({ demo: true }) as unknown as { config?: ConfigHook };
     const result = plugin.config?.({ root: sandboxRoot }, serveEnv);
     expect(result?.resolve.alias.length ?? 0).toBeGreaterThan(0);
   });
