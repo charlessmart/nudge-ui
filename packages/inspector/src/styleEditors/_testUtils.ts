@@ -1,9 +1,9 @@
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { act } from "react";
-import type { SelectedElement } from "../selectionStore.ts";
-import type { StyleSelection } from "../styleSelection.ts";
-import { getManagedSheetText } from "../managedStylesheet.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
+import { getManagedSheetText } from "../projection/managedStylesheet.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

@@ -1,4 +1,4 @@
-import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 export interface WorkspaceLease {
   ownerId: string;

@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
-import type { SelectedElement } from "../selectionStore.ts";
-import { isComponentChange, useChanges } from "../changesLog.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
+import { isComponentChange, useChanges } from "../changes/changesLog.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";

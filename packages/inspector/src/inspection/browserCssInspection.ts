@@ -1,7 +1,7 @@
 import type { TokenDefinition, TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty, TokenTable } from "@nudge-ui/css/model";
-import { isNudgeUiDev } from "../devFlag.ts";
-import type { InteractionState } from "../styleState.ts";
+import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import type { InteractionState } from "../shell/styleState.ts";
 import {
   buildTokenTable,
   getAvailableInteractionStates,

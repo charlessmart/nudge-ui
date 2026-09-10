@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import type { TokenEntry } from "virtual:design-tokens";
-import { isTokenChange, useChanges } from "../changesLog.ts";
-import type { TokenChangeRecord } from "../changesLog.ts";
+import { isTokenChange, useChanges } from "../changes/changesLog.ts";
+import type { TokenChangeRecord } from "../changes/changesLog.ts";
 import { TextInput } from "../ui/TextInput.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { TokenValueField } from "./TokenField.tsx";

@@ -4,7 +4,7 @@ import { IconPlus } from "@tabler/icons-react";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { TokenField, TokenValueField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
-import type { SelectedElement } from "../selectionStore.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import {
   SideValuesField,
@@ -24,9 +24,9 @@ import {
   type InspectorSpacingProjection,
   projectInspectorValuesForSelection,
 } from "../spacing/projection.ts";
-import { getStateStyleValue } from "../stateValue.ts";
-import type { EditTarget } from "../editTarget.ts";
-import type { StyleSelection } from "../styleSelection.ts";
+import { getStateStyleValue } from "../shell/stateValue.ts";
+import type { EditTarget } from "../selection/editTarget.ts";
+import type { StyleSelection } from "../selection/styleSelection.ts";
 
 function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
   return rows.find((r) => r.property === prop) ?? null;

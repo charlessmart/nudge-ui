@@ -1,8 +1,8 @@
 import type { ReactElement } from "react";
-import type { ChangeRecord } from "../changesLog.ts";
-import { isPreviewableChange, isTokenChange } from "../changesLog.ts";
+import type { ChangeRecord } from "../changes/changesLog.ts";
+import { isPreviewableChange, isTokenChange } from "../changes/changesLog.ts";
 import { humanizeSelector } from "../tokens/catalog.ts";
-import { getScopingSelectorPattern } from "../runtimeConfig.ts";
+import { getScopingSelectorPattern } from "../runtime/runtimeConfig.ts";
 import { isVerificationPending } from "./staleChangeDetector.ts";
 
 interface Props {

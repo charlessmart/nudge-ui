@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { setStyle, setStyles, swapToken, resetPendingRules, getPendingRules, getChangeRecords } from "../tokens/editActions.ts";
-import { redo, undo } from "../changesLog.ts";
+import { redo, undo } from "../changes/changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
-import { getManagedSheetText } from "../managedStylesheet.ts";
-import { resetRenderedInstanceState } from "../renderedInstance.ts";
-import { getEditScope, unlinkElement } from "../editScope.ts";
+import { getManagedSheetText } from "../projection/managedStylesheet.ts";
+import { resetRenderedInstanceState } from "../projection/renderedInstance.ts";
+import { getEditScope, unlinkElement } from "../selection/editScope.ts";
 
 function makeButton(cid = "Button", src = "src/Button.tsx:1:1"): HTMLButtonElement {
   const btn = document.createElement("button");

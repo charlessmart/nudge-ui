@@ -2,8 +2,8 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { SelectedElement } from "../selectionStore.ts";
-import type { InteractionState } from "../styleState.ts";
+import type { SelectedElement } from "../selection/selectionStore.ts";
+import type { InteractionState } from "../shell/styleState.ts";
 import type {
   BrowserCssInspection,
   InspectionSnapshot,

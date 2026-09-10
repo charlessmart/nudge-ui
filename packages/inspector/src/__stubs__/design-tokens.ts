@@ -10,7 +10,7 @@ import type {
 import {
   configureNudgeUiRuntime,
   getNudgeUiRuntimeConfig,
-} from "../runtimeConfig.ts";
+} from "../runtime/runtimeConfig.ts";
 
 export type {
   TokenCatalogDiagnostic,

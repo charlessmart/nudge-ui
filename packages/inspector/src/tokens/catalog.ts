@@ -3,9 +3,9 @@ import type {
   TokenDeclaration,
   TokenDefinition,
 } from "virtual:design-tokens";
-import type { StyleRuleContext } from "../managedStylesheet.ts";
-import { getScopingSelectorPattern } from "../runtimeConfig.ts";
-import { getElementComputedStyle, getElementWindow } from "../domRealm.ts";
+import type { StyleRuleContext } from "../projection/managedStylesheet.ts";
+import { getScopingSelectorPattern } from "../runtime/runtimeConfig.ts";
+import { getElementComputedStyle, getElementWindow } from "../runtime/domRealm.ts";
 import {
   selectTokens,
   TOKEN_GROUP_LABELS,

@@ -8,8 +8,8 @@ import {
   type CanvasGroup,
   type CanvasState,
 } from "@nudge-ui/agent-protocol";
-import { isNudgeUiDev } from "../devFlag.ts";
-import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { canWriteWorkspace } from "./workspaceLease.ts";
 import {
   appendCanvasComparisonGroup,

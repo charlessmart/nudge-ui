@@ -9,9 +9,9 @@ import { selectTokens } from "@nudge-ui/css/value-semantics";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { getChangeRecords, resetPendingRules } from "./editActions.ts";
-import { isElementChange } from "../changesLog.ts";
+import { isElementChange } from "../changes/changesLog.ts";
 import { selectOptionValues, setSelectValue } from "../styleEditors/_testUtils.ts";
-import { getManagedSheetText } from "../managedStylesheet.ts";
+import { getManagedSheetText } from "../projection/managedStylesheet.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

@@ -15,16 +15,16 @@ import {
   sendProjectionToCard,
   WORKSPACE_ID,
 } from "./projection.ts";
-import { appendChange, clearChanges, getPendingRules } from "../changesLog.ts";
+import { appendChange, clearWorkspace, getPendingRules } from "../changes/changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
-import { createStructuralDelete, createStructuralMove, resetStructuralDeleteProjection } from "../structuralProjection.ts";
+import { createStructuralDelete, createStructuralMove, resetStructuralDeleteProjection } from "../projection/structuralProjection.ts";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
 
 describe("projection", () => {
   beforeEach(() => {
-    clearChanges();
+    clearWorkspace();
     resetStructuralDeleteProjection();
     resetProjectionRevision();
     document.getElementById("nudge-ui-styles")?.remove();
@@ -113,7 +113,7 @@ describe("projection", () => {
     expect(css).toContain("--color-text: #eeeeee");
   });
 
-  it("clearChanges produces empty projection", () => {
+  it("clearWorkspace produces empty projection", () => {
     appendChange({
       cid: "Button",
       file: "src/Button.tsx",
@@ -128,7 +128,7 @@ describe("projection", () => {
 
     expect(computeProjection().css).not.toBe("");
 
-    clearChanges();
+    clearWorkspace();
     expect(computeProjection().css).toBe("");
   });
 
@@ -145,7 +145,7 @@ describe("projection", () => {
     });
 
     expect(computeProjection().revision).toBe(1);
-    clearChanges();
+    clearWorkspace();
     expect(computeProjection().revision).toBe(2);
     expect(computeProjection().revision).toBe(2);
   });

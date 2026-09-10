@@ -19,15 +19,15 @@ import {
   hasDifferentRoute,
   shouldPreserveNativeLinkActivation,
 } from "./linkEligibility.ts";
-import { readBorderWidths, readMargins } from "../overlayGeometry.ts";
-import { installInteractionStyles } from "../interactionStyles.ts";
-import { createFrameThrottle } from "../frameThrottle.ts";
+import { readBorderWidths, readMargins } from "../overlay/overlayGeometry.ts";
+import { installInteractionStyles } from "../overlay/interactionStyles.ts";
+import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { createCidIndex } from "./rendererCidIndex.ts";
-import { isNudgeUiDev } from "../devFlag.ts";
-import { isEditableEvent } from "../shortcuts.ts";
-import { resolveSelectionTarget, selectionTargetMode } from "../selectionTarget.ts";
-import { escapeCssString } from "../cssEscapes.ts";
-import { blockApplicationClick, isApplicationActivationClick } from "../clickPolicy.ts";
+import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { isEditableEvent } from "../shell/shortcuts.ts";
+import { resolveSelectionTarget, selectionTargetMode } from "../selection/selectionTarget.ts";
+import { escapeCssString } from "../projection/cssEscapes.ts";
+import { blockApplicationClick, isApplicationActivationClick } from "../overlay/clickPolicy.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;

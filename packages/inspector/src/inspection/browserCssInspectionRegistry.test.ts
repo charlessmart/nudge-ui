@@ -9,7 +9,7 @@ import { setDesignTokensStub } from "../__stubs__/design-tokens.ts";
 import {
   configureNudgeUiRuntime,
   getNudgeUiRuntimeConfig,
-} from "../runtimeConfig.ts";
+} from "../runtime/runtimeConfig.ts";
 
 afterEach(() => {
   setDesignTokensStub([], "");

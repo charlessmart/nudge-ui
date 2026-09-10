@@ -4,7 +4,7 @@ import {
   type BrowserCssInspection,
   type BrowserTokenKnowledge,
 } from "./browserCssInspection.ts";
-import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 interface DocumentSession {
   session: BrowserCssInspection;

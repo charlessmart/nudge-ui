@@ -41,3 +41,23 @@ source files.
 The package also exports `mountInspector`, `unmountInspector`, inspector
 controls, browser inspection helpers, runtime configuration, and the React
 component-runtime entry at `@nudge-ui/inspector/component-runtime`.
+
+## Source layout
+
+The package entry point remains at `src/index.ts`. Implementation modules are
+grouped by the behavior they own:
+
+- `runtime/` owns bootstrap configuration, development gating, host identity,
+  and browser-realm helpers.
+- `shell/` owns the inspector panel and its presentation state.
+- `selection/` owns selected-element identity, hierarchy, and edit scope.
+- `overlay/` owns document interaction, geometry, measurement, and structural
+  gestures.
+- `changes/` owns canonical workspace intent and history.
+- `projection/` compiles and applies document-local previews.
+- `inline-text/` owns the temporary native text-editing session.
+- `inspection/` owns browser CSS inspection and the external inspection bridge.
+
+Host and Canvas renderer code consume the same workspace snapshot and document
+projection interfaces. Keep browser-local nodes, markers, and observers inside
+the projection and overlay modules; they must not become canonical change data.

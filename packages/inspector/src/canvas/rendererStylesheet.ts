@@ -9,30 +9,76 @@ import {
   type TextProjectionReportMessage,
 } from "./frameProtocol.ts";
 import { isComponentOverrideList } from "./frameProtocol.ts";
-import { isNudgeUiDev } from "../devFlag.ts";
+import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { replaceComponentOverrideProjection } from "../componentSemantics/index.ts";
-import { rulesToCssText, type StyleRule } from "../managedStylesheet.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
 import {
   applyRenderedInstanceProjection,
   getRenderedInstanceProjectionReports,
   isRenderedInstanceOverride,
   subscribeRenderedInstanceDiagnostics,
-} from "../renderedInstance.ts";
+} from "../projection/renderedInstance.ts";
 import {
   applyStructuralProjection,
   getStructuralProjectionReports,
   isStructuralChange,
   subscribeStructuralDiagnostics,
-} from "../structuralProjection.ts";
+} from "../projection/structuralProjection.ts";
 import {
   applyTextContentProjection,
   getTextProjectionReports,
   subscribeTextProjectionDiagnostics,
-} from "../textProjection.ts";
+} from "../projection/textProjection.ts";
 import { isTextContentChangeListValue } from "../changes/types.ts";
+import {
+  applyWorkspaceProjection,
+  type DocumentProjectionAdapter,
+  type SerializedManagedStyles,
+  type WorkspaceProjectionPlan,
+} from "../projection/workspaceProjection.ts";
 
 const SHEET_ID = "nudge-ui-styles";
+
+function replaceRendererCss(css: string): void {
+  let sheet = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
+  if (!sheet) {
+    sheet = document.createElement("style");
+    sheet.id = SHEET_ID;
+    sheet.setAttribute("data-nudge-ui", "managed");
+    document.head.appendChild(sheet);
+  }
+  sheet.textContent = css;
+  notifyBrowserStylesheetChange(document);
+}
+
+const rendererDocumentProjectionAdapter: DocumentProjectionAdapter<SerializedManagedStyles> = {
+  applyStructural: (changes) => {
+    applyStructuralProjection(document, changes);
+  },
+  applyRenderedInstances: (overrides) => {
+    applyRenderedInstanceProjection(document, overrides);
+  },
+  applyText: (changes) => {
+    applyTextContentProjection(document, changes);
+  },
+  applyComponents: replaceComponentOverrideProjection,
+  applyManagedStyles: (styles) => {
+    replaceRendererCss(styles.css);
+  },
+};
+
+function projectionFromReplaceStylesMessage(
+  msg: ReplaceStylesMessage,
+): WorkspaceProjectionPlan<SerializedManagedStyles> {
+  return {
+    sourceRevision: msg.revision,
+    managedStyles: { css: msg.css },
+    instanceOverrides: msg.instanceOverrides,
+    structuralChanges: msg.structuralChanges,
+    textContentChanges: msg.textContentChanges,
+    componentOverrides: msg.componentOverrides,
+  };
+}
 
 let lastAppliedRevision = -1;
 let lastStructuralReportRevision: number | null = null;
@@ -213,10 +259,10 @@ export function handleReplaceStyles(
 
   if (msg.revision <= lastAppliedRevision) return false;
 
-  applyStructuralProjection(document, msg.structuralChanges);
-  applyRenderedInstanceProjection(document, msg.instanceOverrides);
-  applyTextContentProjection(document, msg.textContentChanges);
-  replaceComponentOverrideProjection(msg.componentOverrides);
+  applyWorkspaceProjection(
+    rendererDocumentProjectionAdapter,
+    projectionFromReplaceStylesMessage(msg),
+  );
   lastStructuralReportRevision = msg.revision;
   lastRenderedInstanceReportRevision = msg.revision;
   lastTextProjectionReportRevision = msg.revision;
@@ -224,22 +270,7 @@ export function handleReplaceStyles(
   sendRenderedInstanceProjectionReport(msg.revision);
   sendTextProjectionReport(msg.revision);
 
-  const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
-  if (!el) {
-    const newEl = document.createElement("style");
-    newEl.id = SHEET_ID;
-    newEl.setAttribute("data-nudge-ui", "managed");
-    document.head.appendChild(newEl);
-    newEl.textContent = msg.css;
-    lastAppliedRevision = msg.revision;
-    notifyBrowserStylesheetChange(document);
-    sendProjectionApplied(msg.revision);
-    return true;
-  }
-
-  el.textContent = msg.css;
   lastAppliedRevision = msg.revision;
-  notifyBrowserStylesheetChange(document);
   sendProjectionApplied(msg.revision);
   return true;
 }

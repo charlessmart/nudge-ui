@@ -1,14 +1,12 @@
 import { changeKey } from "../changes/model.ts";
 import {
-  getChangesList,
   subscribeChanges,
   type ChangeRecord,
-} from "../changesLog.ts";
+} from "../changes/changesLog.ts";
 import {
-  getStructuralChanges,
-  subscribeStructuralChanges,
   type StructuralChange,
-} from "../structuralProjection.ts";
+} from "../projection/structuralProjection.ts";
+import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import { documentRevisions, subscribeDocumentRevision } from "../tokens/resolution/cssomCollector.ts";
 import {
   handoffChangeFingerprint,
@@ -134,7 +132,7 @@ export function getLastClipboardReconciledCount(): number {
 
 function matchingChanges(snapshot: ClipboardHandoffSnapshot): ChangeRecord[] {
   const expected = new Map(snapshot.changes.map((entry) => [entry.key, entry.fingerprint]));
-  return getChangesList().filter(
+  return getWorkspaceChanges().changes.filter(
     (change) => expected.get(changeKey(change)) === handoffChangeFingerprint(change),
   );
 }
@@ -143,7 +141,7 @@ function matchingStructuralChanges(snapshot: ClipboardHandoffSnapshot): Structur
   const expected = new Map(
     snapshot.structuralChanges.map((entry) => [entry.key, entry.fingerprint]),
   );
-  return getStructuralChanges().filter(
+  return getWorkspaceChanges().structuralChanges.filter(
     (change) => expected.get(change.id) === handoffStructuralFingerprint(change),
   );
 }
@@ -235,7 +233,6 @@ export function startClipboardHandoffController(doc: Document = document): () =>
   documentRevisions(doc);
   const unsubscribeRevision = subscribeDocumentRevision(doc, schedule);
   const unsubscribeChanges = subscribeChanges(onCanonicalChange);
-  const unsubscribeStructural = subscribeStructuralChanges(onCanonicalChange);
   ownerWindow?.addEventListener("focus", schedule);
   ownerWindow?.addEventListener("pageshow", schedule);
   doc.addEventListener("visibilitychange", onVisibilityChange);
@@ -246,7 +243,6 @@ export function startClipboardHandoffController(doc: Document = document): () =>
     if (timer !== null) clearTimeout(timer);
     unsubscribeRevision();
     unsubscribeChanges();
-    unsubscribeStructural();
     ownerWindow?.removeEventListener("focus", schedule);
     ownerWindow?.removeEventListener("pageshow", schedule);
     doc.removeEventListener("visibilitychange", onVisibilityChange);

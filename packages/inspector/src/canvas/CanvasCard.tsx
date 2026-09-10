@@ -10,10 +10,10 @@ import {
 import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Button } from "../ui/Button.tsx";
-import { setSelectedElement } from "../selectionStore.ts";
-import { clearCanvasStructuralProjectionReports } from "../structuralProjection.ts";
-import { clearCanvasRenderedInstanceProjectionReports } from "../renderedInstance.ts";
-import { clearCanvasTextProjectionReports } from "../textProjection.ts";
+import { setSelectedElement } from "../selection/selectionStore.ts";
+import { clearCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
+import { clearCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
+import { clearCanvasTextProjectionReports } from "../projection/textProjection.ts";
 import { getCanvasToolbarScale } from "./toolbarScale.ts";
 import { getCanvasResizeHandleScale } from "./resizeHandleScale.ts";
 

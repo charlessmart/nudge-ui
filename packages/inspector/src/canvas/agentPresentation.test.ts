@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { setNudgeUiHostDevFlag } from "../devFlag.ts";
+import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import {
   acknowledgeAgentRendererReady,
   createAgentPresentationAdapter,

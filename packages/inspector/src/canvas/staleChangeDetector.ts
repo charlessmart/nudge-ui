@@ -2,19 +2,19 @@ import type {
   ChangeRecord,
   PreviewableChangeRecord,
   TokenChangeRecord,
-} from "../changesLog.ts";
+} from "../changes/changesLog.ts";
 import {
   isPreviewableChange,
   isTokenChange,
   touchChanges,
-} from "../changesLog.ts";
-import type { PreviewResult } from "../managedStylesheet.ts";
+} from "../changes/changesLog.ts";
+import type { PreviewResult } from "../projection/managedStylesheet.ts";
 import { getRegisteredFrames } from "./projection.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { getCanvasCards } from "./canvasStore.ts";
 import { isRendererMessageFor } from "./frameProtocol.ts";
 import type { TokenDefinition } from "@nudge-ui/css/model";
-import { getNudgeUiRuntimeConfig } from "../runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 const VERIFICATION_TIMEOUT_MS = 5000;
 const STALE_CHECK_DEBOUNCE_MS = 100;
