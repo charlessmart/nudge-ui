@@ -4,6 +4,12 @@
   min-width: 0;
 }
 
+.landing-hero-demo-card {
+  display: grid;
+  min-width: 0;
+  animation: landing-hero-demo-card-enter 500ms ease-out both;
+}
+
 .landing-hero-demo-board-layer {
   position: relative;
   grid-area: 1 / 1;
@@ -15,24 +21,13 @@
 
 .landing-hero-demo-board-layer--wireframe {
   z-index: 2;
-  animation: landing-hero-demo-wireframe-out 700ms ease forwards;
-  animation-delay: var(--landing-hero-demo-reveal-delay);
+  opacity: 0;
+  animation: landing-hero-demo-wireframe-pulse 700ms ease both;
+  animation-delay: var(--landing-hero-demo-wireframe-delay);
 }
 
 .landing-hero-demo-board-layer--full {
-  opacity: 0;
-  animation: landing-hero-demo-full-in 700ms ease forwards;
-  animation-delay: var(--landing-hero-demo-reveal-delay);
-}
-
-.landing-hero-demo--revealed .landing-hero-demo-board-layer--wireframe {
-  opacity: 0;
-  animation: none;
-}
-
-.landing-hero-demo--revealed .landing-hero-demo-board-layer--full {
   opacity: 1;
-  animation: none;
 }
 
 .landing-hero-demo:has(.landing-hero-demo-board:hover) .landing-hero-demo-board-layer--wireframe {
@@ -41,26 +36,30 @@
 }
 
 .landing-hero-demo:has(.landing-hero-demo-board:hover) .landing-hero-demo-board-layer--full {
-  opacity: 0;
+  opacity: 1;
   animation: none;
 }
 
-@keyframes landing-hero-demo-wireframe-out {
+@keyframes landing-hero-demo-card-enter {
   from {
-    opacity: 1;
+    filter: blur(16px);
+    opacity: 0;
   }
 
   to {
-    opacity: 0;
+    filter: blur(0);
+    opacity: 1;
   }
 }
 
-@keyframes landing-hero-demo-full-in {
-  from {
+@keyframes landing-hero-demo-wireframe-pulse {
+  0%,
+  100% {
     opacity: 0;
   }
 
-  to {
+  24%,
+  76% {
     opacity: 1;
   }
 }
@@ -119,6 +118,11 @@
 }
 
 .landing-hero-demo-grid--hero .landing-hero-demo-board-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.landing-hero-demo-grid--hero .landing-hero-demo-card {
   position: absolute;
   inset: 0;
 }
@@ -1029,6 +1033,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .landing-hero-demo-card {
+    animation: none;
+  }
+
   .landing-hero-demo-board-layer--wireframe {
     display: none;
   }

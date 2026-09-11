@@ -1,5 +1,4 @@
 import type { CSSProperties, ReactNode } from "react";
-import { useState } from "react";
 import {
   IconAlignCenter,
   IconAlignLeft,
@@ -441,29 +440,21 @@ const heroDemos = [
 ] as const;
 
 export function HeroDemoGrid({ variant = "hero" }: { variant?: "hero" | "review" }): ReactNode {
-  const [revealedDemos, setRevealedDemos] = useState<Set<string>>(() => new Set());
-
   return (
     <div className={`landing-hero-demo-grid landing-hero-demo-grid--${variant}`} aria-hidden="true">
       {heroDemos.map(({ id, render: Demo, wireframe: Wireframe }, index) => (
         <div
-          className={`landing-hero-demo landing-hero-demo--${id}${revealedDemos.has(id) ? " landing-hero-demo--revealed" : ""}`}
+          className={`landing-hero-demo landing-hero-demo--${id}`}
           key={id}
-          style={{ "--landing-hero-demo-reveal-delay": `${900 + index * 520}ms` } as CSSProperties}
+          style={{ "--landing-hero-demo-wireframe-delay": `${1400 + index * 600}ms` } as CSSProperties}
         >
-          <div className="landing-hero-demo-board-layer landing-hero-demo-board-layer--wireframe">
-            <Wireframe />
-          </div>
-          <div
-            className="landing-hero-demo-board-layer landing-hero-demo-board-layer--full"
-            onAnimationEnd={() => setRevealedDemos((current) => {
-              if (current.has(id)) return current;
-              const next = new Set(current);
-              next.add(id);
-              return next;
-            })}
-          >
-            <Demo />
+          <div className="landing-hero-demo-card">
+            <div className="landing-hero-demo-board-layer landing-hero-demo-board-layer--wireframe">
+              <Wireframe />
+            </div>
+            <div className="landing-hero-demo-board-layer landing-hero-demo-board-layer--full">
+              <Demo />
+            </div>
           </div>
         </div>
       ))}

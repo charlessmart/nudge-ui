@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type RefObject } from "react";
 import editDirectlyPoster from "../assets/screen-1.png";
 import editDirectlyVideo from "../assets/screen-1.mp4";
+import inspectorArrowHead from "../assets/arrow-head.svg";
+import inspectorArrowTail from "../assets/arrow-tail.svg";
 import exploreCanvasPoster from "../assets/screen-2.png";
 import exploreCanvasVideo from "../assets/screen2.mp4";
 import syncTokensPoster from "../assets/screen-3.png";
@@ -28,6 +30,11 @@ const showcaseVideos = [
     id: "edit-directly",
     title: "Edit UI directly",
     description: "Prompting an agent to center a div feels like backseat driving. You ask an agent for tiny visual changes, wait for the update, only to realise it looked better before. Editing directly gives you the immediate visual feedback that makes design tools good.",
+    bullets: [
+      "Change styles",
+      "Move and delete elements",
+      "Edit text",
+    ],
     src: editDirectlyVideo,
     poster: editDirectlyPoster,
   },
@@ -322,6 +329,11 @@ function DemoShowcase({ controls }: { controls: ShowcaseControls }): ReactNode {
               <div className="landing-showcase-item-header landing-content-column">
                 <h2 className="landing-showcase-item-title">{video.title}</h2>
                 <p className="landing-showcase-item-description">{video.description}</p>
+                {"bullets" in video ? (
+                  <ul className="landing-showcase-item-bullets">
+                    {video.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
+                  </ul>
+                ) : null}
               </div>
             </article>
           );
@@ -398,8 +410,46 @@ function LandingButton({ children, className, variant = "primary", ...props }: L
 }
 
 function DemoIntro(): ReactNode {
+  const demoRef = useRef<HTMLElement>(null);
+  const [isDemoPastTrigger, setIsDemoPastTrigger] = useState(false);
+
+  useEffect(() => {
+    const element = demoRef.current;
+    if (!element) return;
+
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const triggerY = element.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.3;
+      const nextValue = window.scrollY >= triggerY;
+      setIsDemoPastTrigger((current) => current === nextValue ? current : nextValue);
+    };
+    const scheduleUpdate = () => {
+      if (frame === 0) frame = window.requestAnimationFrame(update);
+    };
+
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    return () => {
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
   return (
-    <section className="landing-demo landing-inner" id="demo" aria-labelledby="landing-demo-title">
+    <section
+      className="landing-demo landing-inner"
+      id="demo"
+      ref={demoRef}
+      data-arrow-visible={isDemoPastTrigger}
+      aria-labelledby="landing-demo-title"
+    >
+      <span className="landing-demo-arrow" aria-hidden="true">
+        <img className="landing-demo-arrow-tail" src={inspectorArrowTail} alt="" />
+        <img className="landing-demo-arrow-head" src={inspectorArrowHead} alt="" />
+      </span>
       <h2 className="landing-content-column" id="landing-demo-title">Demo</h2>
       <div className="landing-demo-content landing-content-column">
         <p className="landing-demo-description">Open Nudge and try the loop yourself: select any element on this page, make a small change, and see it immediately.</p>
@@ -485,6 +535,17 @@ export function App(): ReactNode {
 
               <p className="landing-setup-note">Configure the agent&apos;s MCP host to run this command, reload it, then ask the agent to call <code>nudge_listen</code> and keep the listener active. That&apos;s it — Nudge can now send the current change directly to your agent.</p>
             </div>
+          </section>
+
+          <section className="landing-open-source landing-inner" aria-labelledby="landing-open-source-title">
+            <h2 className="landing-content-column" id="landing-open-source-title">Open source</h2>
+            <p className="landing-open-source-description landing-content-column">
+              Open source because there are more front-end frameworks and libraries than atoms in the universe. I&apos;ve tried to make Nudge feel good out of the box, but if yours is not supported yet, extend it, fork it, and DIY your own Figma in the browser.
+            </p>
+            <a className="landing-open-source-link landing-content-column" href="https://github.com/charlessmart/nudge-ui" target="_blank" rel="noreferrer">
+              <GitHubIcon />
+              <span>View on GitHub</span>
+            </a>
           </section>
 
         </main>

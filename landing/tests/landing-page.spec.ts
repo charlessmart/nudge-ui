@@ -16,6 +16,10 @@ test("runs the real inspector on the landing document", async ({ page }) => {
   await expect(setup.getByText("Run npm create nudge-ui@latest in this project", { exact: true })).toBeVisible();
   await expect(setup.locator("pre").filter({ hasText: "@nudge-ui/astro" })).toBeVisible();
   await expect(setup.getByText("nudge_listen", { exact: true })).toBeVisible();
+  const openSource = page.getByRole("region", { name: "Open source" });
+  await expect(openSource).toBeVisible();
+  await expect(openSource.getByText("Open source because there are more front-end frameworks and libraries than atoms in the universe. I've tried to make Nudge feel good out of the box, but if yours is not supported yet, extend it, fork it, and DIY your own Figma in the browser.", { exact: true })).toBeVisible();
+  await expect(openSource.getByRole("link", { name: "View on GitHub" })).toHaveAttribute("href", "https://github.com/charlessmart/nudge-ui");
   await expect(page.getByText("Made for design engineers.", { exact: true })).toHaveCount(0);
   await expect(page.locator(".landing-hero-demo-grid")).toHaveCount(1);
   await expect(page.locator(".landing-hero-demo")).toHaveCount(4);
@@ -77,6 +81,31 @@ test("keeps the unflagged demo route disabled during development", async ({ page
   }
 });
 
+test("reveals the inspector arrow when the demo enters the viewport", async ({ page }) => {
+  await page.goto("/");
+
+  const demo = page.locator("section#demo");
+  const arrow = page.locator(".landing-demo-arrow");
+  const tail = arrow.locator(".landing-demo-arrow-tail");
+  const head = arrow.locator(".landing-demo-arrow-head");
+  await expect(tail).toHaveAttribute("src", /arrow-tail\.svg/);
+  await expect(head).toHaveAttribute("src", /arrow-head\.svg/);
+  await expect(tail).toHaveCSS("clip-path", "inset(100% 0px 0px)");
+  await expect(head).toHaveCSS("clip-path", "inset(0px 100% 0px 0px)");
+
+  await demo.scrollIntoViewIfNeeded();
+  await expect(tail).toHaveCSS("clip-path", "inset(0px)");
+  await expect(head).toHaveCSS("clip-path", "inset(0px)");
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect(tail).toHaveCSS("clip-path", "inset(0px)");
+  await expect(head).toHaveCSS("clip-path", "inset(0px)");
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(tail).toHaveCSS("clip-path", "inset(100% 0px 0px)");
+  await expect(head).toHaveCSS("clip-path", "inset(0px 100% 0px 0px)");
+});
+
 test("renders demo videos as vertical sections", async ({ page }) => {
   await page.goto("/");
 
@@ -89,6 +118,7 @@ test("renders demo videos as vertical sections", async ({ page }) => {
   await expect(items.nth(1).getByRole("heading", { name: "A canvas for exploring variations" })).toBeVisible();
   await expect(items.nth(2).getByRole("heading", { name: "Keep tokens and components in sync" })).toBeVisible();
   await expect(items.nth(0).getByText("Prompting an agent to center a div feels like backseat driving. You ask an agent for tiny visual changes, wait for the update, only to realise it looked better before. Editing directly gives you the immediate visual feedback that makes design tools good.", { exact: true })).toBeVisible();
+  await expect(items.nth(0).locator(".landing-showcase-item-bullets")).toHaveText("Change stylesMove and delete elementsEdit text");
   await expect(items.nth(1).getByText("Open different pages in a canvas view to compare variations, screen sizes or overall flows. Generate 3 different options, pick one, refine the details immediately to get it feeling right.", { exact: true })).toBeVisible();
   await expect(items.nth(2).getByText("It's your real codebase, so you need to use the tokens and components that exist. See them directly here, and avoid agents churning out custom CSS for every button.", { exact: true })).toBeVisible();
   await expect(showcase.getByText("Share and review changes", { exact: true })).toHaveCount(0);
