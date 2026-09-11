@@ -33,6 +33,21 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
+  examples/packed-consumers:
+    devDependencies:
+      '@playwright/test':
+        specifier: ^1.62.1
+        version: 1.62.1
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+
   examples/sandbox:
     dependencies:
       '@nudge-ui/css':
@@ -8102,6 +8117,7 @@ snapshots:
   '@types/node@26.4.1':
     dependencies:
       undici-types: 8.3.0
+    optional: true
 
   '@types/react-dom@19.2.5(@types/react@19.2.18)':
     dependencies:
@@ -9117,7 +9133,7 @@ snapshots:
 
   eval@0.1.8:
     dependencies:
-      '@types/node': 26.4.1
+      '@types/node': 22.20.1
       require-like: 0.1.2
 
   eventemitter3@5.0.4: {}
@@ -10953,7 +10969,8 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici-types@8.3.0: {}
+  undici-types@8.3.0:
+    optional: true
 
   undici@7.29.0: {}
 

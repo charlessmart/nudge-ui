@@ -406,13 +406,14 @@ describe("standalone client build", () => {
     const packageRoot = fileURLToPath(new URL("..", import.meta.url));
     const script = join(packageRoot, "scripts/build.mjs");
     execFileSync(process.execPath, [script], { cwd: packageRoot, stdio: "pipe" });
+    const cli = join(packageRoot, "bin/nudge-ui.mjs");
 
-    const result = spawnSync(
-      process.execPath,
-      [join(packageRoot, "dist/nudge-ui.mjs"), "unknown"],
-      { cwd: packageRoot, encoding: "utf8" },
-    );
+    const result = spawnSync(process.execPath, [cli, "unknown"], {
+      cwd: packageRoot,
+      encoding: "utf8",
+    });
 
+    expect(readFileSync(cli, "utf8").startsWith("#!/usr/bin/env node\n")).toBe(true);
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Usage: nudge-ui serve");
     expect(result.stderr).not.toContain("Dynamic require");
