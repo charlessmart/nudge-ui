@@ -1,0 +1,79 @@
+import { describe, expect, it } from "vitest";
+import { parseNudgeUiClientManifest } from "./clientManifest.ts";
+
+const validManifest = {
+  version: 1,
+  revision: 0,
+  runtime: {
+    projectId: "site",
+    host: "astro",
+    framework: "Astro",
+    stylingSystem: "CSS custom properties",
+    capabilities: { canvas: false, componentSemantics: true },
+    tokenCatalog: [],
+    tokens: [],
+    tokenDiagnostics: [],
+    tokenGeneration: "generation",
+    componentContracts: [],
+  },
+};
+
+describe("parseNudgeUiClientManifest", () => {
+  it("accepts a complete host-neutral runtime document", () => {
+    expect(parseNudgeUiClientManifest(validManifest)).not.toBeNull();
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      document: { runtimeIdentity: "static-html", stylesheetOrder: "browser" },
+      reload: {
+        endpoint: "/__nudge_ui__/reload",
+        strategy: "reload-document",
+        events: ["ready", "reload"],
+      },
+    })).not.toBeNull();
+  });
+
+  it("rejects unknown versions and invalid runtime identities", () => {
+    expect(parseNudgeUiClientManifest({ ...validManifest, version: 2 })).toBeNull();
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      runtime: { ...validManifest.runtime, host: "unknown" },
+    })).toBeNull();
+  });
+
+  it("rejects external reload endpoints and unknown document strategies", () => {
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      reload: { endpoint: "https://example.com/events", strategy: "reload-document" },
+    })).toBeNull();
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      document: { runtimeIdentity: "react" },
+    })).toBeNull();
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      reload: { endpoint: "/__nudge_ui__/reload", strategy: "refresh-manifest", events: [] },
+    })).toBeNull();
+    expect(parseNudgeUiClientManifest({
+      ...validManifest,
+      reload: { endpoint: "/__nudge_ui__/reload", strategy: "refresh-manifest", events: [""] },
+    })).toBeNull();
+  });
+
+  it("returns a normalized immutable runtime", () => {
+    const manifest = parseNudgeUiClientManifest({
+      version: 1,
+      revision: 0,
+      runtime: {
+        projectId: "site",
+        host: "astro",
+        framework: "Astro",
+      },
+    });
+    expect(manifest?.runtime).toMatchObject({
+      stylingSystem: "",
+      capabilities: { canvas: false, componentSemantics: false },
+      tokens: [],
+    });
+    expect(Object.isFrozen(manifest?.runtime)).toBe(true);
+  });
+});

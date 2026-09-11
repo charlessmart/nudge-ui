@@ -239,9 +239,11 @@ describe("withNudgeUi — development output shape", () => {
     // The transport is live end-to-end.
     const port = Number(proxy!.destination.match(/:(\d+)/)?.[1]);
     const response = await fetch(`http://127.0.0.1:${port}/__nudge_ui__/manifest`);
-    const manifest = (await response.json()) as { projectId?: string; host?: string };
-    expect(manifest.host).toBe("nextjs-react");
-    expect(manifest.projectId).toMatch(/^nextjs:[0-9a-f]{12}$/);
+    const manifest = (await response.json()) as {
+      runtime?: { projectId?: string; host?: string };
+    };
+    expect(manifest.runtime?.host).toBe("nextjs-react");
+    expect(manifest.runtime?.projectId).toMatch(/^nextjs:[0-9a-f]{12}$/);
   });
 
   it("shadows reserved-namespace user rewrites and keeps their other entries", async () => {
@@ -301,10 +303,10 @@ describe("manifest builder", () => {
 
     // Canvas shares the Vite host's controller/renderer runtime; semantic
     // component props cover client components only.
-    expect(manifest.capabilities).toEqual({ canvas: true, componentSemantics: true });
-    expect(manifest.tokenCatalog).toEqual([]);
-    expect(manifest.componentContracts).toEqual([]);
-    expect(manifest.framework).toBe("React");
+    expect(manifest.runtime.capabilities).toEqual({ canvas: true, componentSemantics: true });
+    expect(manifest.runtime.tokenCatalog).toEqual([]);
+    expect(manifest.runtime.componentContracts).toEqual([]);
+    expect(manifest.runtime.framework).toBe("React");
   });
 });
 

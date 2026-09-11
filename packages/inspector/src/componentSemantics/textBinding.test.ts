@@ -4,6 +4,7 @@ import { componentContracts } from "virtual:nudge-ui-components";
 import { registerComponentRuntimeAdapter } from "./adapterRegistry.ts";
 import { resolveTextBinding } from "./textBinding.ts";
 import type { ComponentRuntimeAdapter } from "./types.ts";
+import "./reactRuntime.tsx";
 
 function boundary(meta: Record<string, unknown>, props: Record<string, unknown>) {
   const type = Object.assign(() => null, {

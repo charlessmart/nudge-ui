@@ -28,10 +28,29 @@
       "types": "./dist/componentSemantics/reactRuntime.d.ts",
       "import": "./dist/componentSemantics/reactRuntime.js",
       "default": "./dist/componentSemantics/reactRuntime.js"
+    },
+    "./client": {
+      "import": "./dist/client.mjs",
+      "default": "./dist/client.mjs"
+    },
+    "./client-manifest": {
+      "types": "./dist/clientManifest.d.ts",
+      "import": "./dist/clientManifest.js",
+      "default": "./dist/clientManifest.js"
+    },
+    "./host-runtime": {
+      "types": "./dist/componentSemantics/runtimeBridge.d.ts",
+      "import": "./dist/componentSemantics/runtimeBridge.js",
+      "default": "./dist/componentSemantics/runtimeBridge.js"
+    },
+    "./document-runtime": {
+      "types": "./dist/runtime/documentStylesheetOrder.d.ts",
+      "import": "./dist/runtime/documentStylesheetOrder.js",
+      "default": "./dist/runtime/documentStylesheetOrder.js"
     }
   },
   "scripts": {
-    "build": "node ../../scripts/build-package.mjs",
+    "build": "node ../../scripts/build-package.mjs && node scripts/build-client.mjs",
     "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run --config vitest.unit.config.ts",
@@ -42,6 +61,7 @@
   "devDependencies": {
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
+    "esbuild": "^0.21.5",
     "jsdom": "^25.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -51,6 +71,14 @@
   "peerDependencies": {
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

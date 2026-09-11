@@ -2,8 +2,14 @@ import type { RuntimeProps } from "./runtimeTypes.ts";
 
 export type ComponentPropValue = string | number | boolean;
 export type AuthoredPropKind = "literal" | "expression" | "spread" | "default";
-export type ComponentFramework = "react";
+export const COMPONENT_FRAMEWORKS = ["react"] as const;
+export type ComponentFramework = (typeof COMPONENT_FRAMEWORKS)[number];
 export type ComponentChangeScope = "source-site" | "rendered-instance";
+
+/** Returns whether a host value names a supported component framework. */
+export function isComponentFramework(value: string): value is ComponentFramework {
+  return COMPONENT_FRAMEWORKS.some((framework) => framework === value);
+}
 
 /**
  * Bounded evidence for the rendered invocation that a text edit started from.

@@ -129,6 +129,15 @@ const RUNTIME_FRAMEWORKS: readonly NudgeUiRuntimeFramework[] = [
   "HTML",
   "Astro",
 ];
+const normalizedRuntimeConfigs = new WeakSet<object>();
+
+function isNormalizedRuntimeConfig(
+  // Callers first narrow this value to a non-null object at the runtime boundary.
+  // oxlint-disable-next-line anti-slop/no-object-parameters
+  value: object,
+): value is NudgeUiRuntimeConfig {
+  return normalizedRuntimeConfigs.has(value);
+}
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -271,8 +280,9 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
   if (!isPlainRecord(input)) {
     throw new TypeError("Nudge UI runtime configuration must be an object.");
   }
+  if (isNormalizedRuntimeConfig(input)) return input;
   const demo = optionalDemoFlag(input);
-  return {
+  const normalized = cloneAndFreeze<NudgeUiRuntimeConfig>({
     projectId: requireString(input, "projectId"),
     host: requireEnum(input, "host", RUNTIME_HOSTS) as NudgeUiRuntimeHost,
     framework: requireEnum(input, "framework", RUNTIME_FRAMEWORKS) as NudgeUiRuntimeFramework,
@@ -290,7 +300,9 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
       "componentContracts",
     ) as NudgeUiRuntimeConfig["componentContracts"],
     ...(demo === true ? { demo: true } : {}),
-  };
+  });
+  normalizedRuntimeConfigs.add(normalized);
+  return normalized;
 }
 
 let activeRuntimeConfig: NudgeUiRuntimeConfig = DEFAULT_RUNTIME_CONFIG;
@@ -307,7 +319,7 @@ const runtimeListeners = new Set<() => void>();
  * or freezing caller-owned values.
  */
 export function configureNudgeUiRuntime(config: NudgeUiRuntimeConfig): void {
-  activeRuntimeConfig = cloneAndFreeze(normalizeNudgeUiRuntimeConfig(config));
+  activeRuntimeConfig = normalizeNudgeUiRuntimeConfig(config);
   for (const listener of runtimeListeners) {
     try {
       listener();
@@ -368,6 +380,16 @@ export function getScopingSelectorPattern(): RegExp | null {
 export function subscribeNudgeUiRuntime(listener: () => void): () => void {
   runtimeListeners.add(listener);
   return () => runtimeListeners.delete(listener);
+}
+
+/** Returns the styling-system label represented by a token inventory. */
+export function detectStylingSystem(tokens: readonly TokenEntry[]): string {
+  for (const token of tokens) {
+    if (token.adapter === "vanilla-extract") return "vanilla-extract (sprinkles)";
+    if (token.adapter === "tailwind-v3") return "Tailwind v3";
+    if (token.adapter === "tailwind-v4") return "Tailwind v4";
+  }
+  return "CSS custom properties";
 }
 
 /** Returns a mutable container for UI controls that require array props. */

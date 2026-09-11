@@ -17,6 +17,7 @@ import type {
   ComponentRuntimeAdapter,
   RuntimeComponentTarget,
 } from "./types.ts";
+import { registerHostRuntimeAdapter } from "./runtimeBridge.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 const BOUNDARY_MARKER = Symbol.for("nudge-ui.react-component-boundary");
@@ -242,3 +243,5 @@ export const reactComponentRuntimeAdapter: ComponentRuntimeAdapter = {
   replaceOverrides: replaceReactComponentOverrides,
   getCallsiteMultiplicity: getReactCallsiteMultiplicity,
 };
+
+registerHostRuntimeAdapter(reactComponentRuntimeAdapter);

@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createRequire } from "node:module";
 import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
@@ -8,7 +9,8 @@ import {
   type NudgeUiTokenSnapshot,
 } from "./manifest.ts";
 import { extractComponentContracts } from "@nudge-ui/vite-react/component-contracts";
-import { createStandaloneFileWatcher } from "@nudge-ui/standalone/watcher";import { createStandaloneTokenSnapshot } from "@nudge-ui/standalone/token-manifest";
+import { createStandaloneFileWatcher } from "@nudge-ui/standalone/watcher";
+import { createStandaloneTokenSnapshot } from "@nudge-ui/standalone/token-manifest";
 
 /**
  * Loopback-only manifest/reload sidecar (ADR-0010).
@@ -20,6 +22,7 @@ import { createStandaloneFileWatcher } from "@nudge-ui/standalone/watcher";impor
  * at one line.
  *
  * Routes:
+ * - GET /__nudge_ui__/client.mjs — the shared self-contained inspector client.
  * - GET /__nudge_ui__/manifest — the frozen runtime snapshot, including
  *   the Stage 4 token lifecycle when `tokens` is enabled: scanned project CSS
  *   feeds a deterministic generation, and each settled watcher batch bumps
@@ -29,6 +32,8 @@ import { createStandaloneFileWatcher } from "@nudge-ui/standalone/watcher";impor
  */
 
 const STATE_DIR_SEGMENT = ".next";
+const packageRequire = createRequire(import.meta.url);
+let inspectorClientPath: string | undefined;
 
 export interface SidecarHandle {
   port: number;
@@ -205,8 +210,6 @@ export async function ensureSidecar(
 
     // Token knowledge lives in a mutable holder so settled batches can swap
     // the snapshot without rebuilding the rest of the manifest.
-    let tokens: NudgeUiTokenSnapshot | null = null;
-
     // Component contracts aggregate across loader postings, keyed by file so
     // recompiles replace rather than duplicate (Stage 5). A debounced flush
     // publishes one revision per settled burst of compilations.
@@ -216,7 +219,9 @@ export async function ensureSidecar(
       contractsTimer = null;
       const flat: unknown[] = [];
       for (const list of contractsByFile.values()) flat.push(...list);
-      manifest.componentContracts = flat;
+      // SAFETY: contracts come from the shared extractor or the loader's
+      // serialized output of that same extractor contract.
+      manifest.runtime.componentContracts = flat as NudgeUiManifest["runtime"]["componentContracts"];
       generation += 1;
       for (const stream of streams) {
         stream.write(`data: ${JSON.stringify({ revision: generation })}\n\n`);
@@ -226,13 +231,12 @@ export async function ensureSidecar(
     const manifest: NudgeUiManifest = options.manifest ?? buildManifest({ root });
 
     const applySnapshot = (snapshot: NudgeUiTokenSnapshot): void => {
-      tokens = snapshot;
-      manifest.tokenCatalog = snapshot.tokenCatalog;
-      manifest.tokens = snapshot.tokens;
-      manifest.tokenDiagnostics = snapshot.tokenDiagnostics;
+      manifest.runtime.tokenCatalog = snapshot.tokenCatalog;
+      manifest.runtime.tokens = snapshot.tokens;
+      manifest.runtime.tokenDiagnostics = snapshot.tokenDiagnostics;
       // The shared scanner labels its digest static-html:<digest>; this host
       // publishes the same deterministic digest under its own namespace.
-      manifest.tokenGeneration = snapshot.tokenGeneration.replace(
+      manifest.runtime.tokenGeneration = snapshot.tokenGeneration.replace(
         /^static-html:/,
         "nextjs-token:",
       );
@@ -442,6 +446,21 @@ function respond(
       "cache-control": "no-store",
     });
     res.end(body);
+    return;
+  }
+
+  if (url === "/__nudge_ui__/client.mjs") {
+    try {
+      inspectorClientPath ??= packageRequire.resolve("@nudge-ui/inspector/client");
+      const body = readFileSync(inspectorClientPath);
+      res.writeHead(200, {
+        "content-type": "text/javascript; charset=utf-8",
+        "cache-control": "no-cache",
+      });
+      res.end(body);
+    } catch {
+      res.writeHead(503).end("Nudge UI client has not been built.");
+    }
     return;
   }
 

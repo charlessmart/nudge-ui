@@ -3,99 +3,28 @@
 import { useEffect } from "react";
 
 /**
- * Dev-only inspector bootstrap for the Next.js host Adapter (ADR-0010).
+ * Adds the development-only shared inspector client to a Next.js document.
  *
- * The Stage 2 layout loader appends this component as the last child of the
- * rendered `<html>`. It renders `null` everywhere. The inspector is imported
- * dynamically inside the effect: `"use client"` components are still
- * evaluated on the server for SSR, and the shared inspector runtime touches
- * browser globals at module scope. Lazy import keeps that evaluation
- * browser-only while Next compiles it into the client bundle.
- *
- * Because the dynamic module is compiled by Next's own compiler inside the
- * host application, `@nudge-ui/inspector` resolves the app's React
- * instance naturally — ADR-0004's single-React-instance goal through module
- * resolution instead of Vite aliasing.
- *
- * Revision reconciliation: the manifest carries its own revision and every
- * SSE frame announces one. A frame newer than the snapshot we hold triggers
- * a refetch; frames arriving DURING a refetch are never dropped — the newest
- * observed revision wins and a trailing fetch reconciles anything the
- * in-flight request missed.
+ * Next compiles this small host component with the application. The inspector
+ * UI and its private React graph remain in the external client served by the
+ * sidecar, while transformed application components register the host React
+ * Adapter through the page-global runtime seam.
  */
 export function NudgeUiMount(): null {
   useEffect(() => {
-    let disposed = false;
-    let unsubscribeReload: (() => void) | undefined;
-
-    const root = document.createElement("div");
-    root.id = "nudge-ui-root";
-    document.body.appendChild(root);
-
-    async function activate(): Promise<void> {
-      const inspector = await import("@nudge-ui/inspector");
-      if (disposed) return;
-
-      inspector.setNudgeUiHostDevFlag(true);
-
-      const initial = await fetch("/__nudge_ui__/manifest", { cache: "no-store" }).then(
-        (response) => response.json(),
-      );
-      if (disposed) return;
-      inspector.configureNudgeUiRuntime(
-        initial as Parameters<typeof inspector.configureNudgeUiRuntime>[0],
-      );
-      inspector.bootstrapNudgeUi(root);
-
-      let seenRevision = Number((initial as { revision?: number }).revision ?? 0);
-      let latestObserved = seenRevision;
-      let refreshInFlight = false;
-
-      async function reconcile(): Promise<void> {
-        const refreshed = await fetch("/__nudge_ui__/manifest", { cache: "no-store" }).then(
-          (response) => response.json(),
-        );
-        if (!disposed) {
-          inspector.configureNudgeUiRuntime(
-            refreshed as Parameters<typeof inspector.configureNudgeUiRuntime>[0],
-          );
-        }
-        seenRevision = Math.max(
-          seenRevision,
-          Number((refreshed as { revision?: number }).revision ?? seenRevision),
-        );
-      }
-
-      const source = new EventSource("/__nudge_ui__/reload");
-      source.onmessage = (event: MessageEvent<string>) => {
-        const revision = Number((JSON.parse(event.data) as { revision?: number }).revision);
-        if (Number.isNaN(revision)) return;
-        latestObserved = Math.max(latestObserved, revision);
-        if (refreshInFlight || latestObserved <= seenRevision) return;
-        refreshInFlight = true;
-        void reconcile()
-          .catch(() => {
-            // A failed refresh keeps the last good snapshot; the next
-            // revision retries.
-          })
-          .finally(() => {
-            refreshInFlight = false;
-            // A frame landing mid-refetch must not be lost.
-            if (latestObserved > seenRevision) void reconcile();
-          });
-      };
-      unsubscribeReload = () => source.close();
-    }
-
-    void activate().catch((error: unknown) => {
-      console.warn("[nudge-ui] inspector bootstrap failed:", error);
-    });
-
-    return () => {
-      disposed = true;
-      unsubscribeReload?.();
-      root.remove();
+    // The module script and inspector mount intentionally live for the page
+    // lifetime. Removing them during a React Strict Mode cleanup would strand
+    // the already-evaluated module when the effect runs again.
+    if (document.querySelector("script[data-nudge-ui-client]")) return;
+    const script = document.createElement("script");
+    script.type = "module";
+    script.src = "/__nudge_ui__/client.mjs";
+    script.dataset.nudgeUiClient = "";
+    script.dataset.nudgeUiManifest = "/__nudge_ui__/manifest";
+    script.onerror = () => {
+      console.warn("[nudge-ui] inspector bootstrap failed to load.");
     };
+    document.body.appendChild(script);
   }, []);
 
   return null;

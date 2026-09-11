@@ -4,6 +4,11 @@
 serves a directory on loopback, instruments HTML responses in memory, watches
 source files, and reloads the browser after changes.
 
+The host serves the same self-contained inspector client used by framework
+adapters. Static-HTML identity, browser stylesheet ordering, and document
+reload are selected through the shared runtime manifest, so this package does
+not build or depend on a separate React client.
+
 ## Install
 
 ```sh

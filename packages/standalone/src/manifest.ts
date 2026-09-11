@@ -1,4 +1,4 @@
-import type { NudgeUiRuntimeConfig } from "@nudge-ui/inspector";
+import type { NudgeUiClientManifest } from "@nudge-ui/inspector/client-manifest";
 import type { StandaloneTokenSnapshot } from "./tokenManifest.ts";
 
 /** The reserved URL namespace owned by the standalone Nudge UI host. */
@@ -17,17 +17,7 @@ export const NUDGE_UI_CLIENT_PATH = `${NUDGE_UI_ROUTE_PREFIX}client.mjs`;
 export const NUDGE_UI_RELOAD_PATH = `${NUDGE_UI_ROUTE_PREFIX}reload`;
 
 /** The serializable runtime document sent to a standalone client. */
-export interface StandaloneRuntimeManifest {
-  readonly version: 1;
-  /** Monotonically increasing document revision for reload coordination. */
-  readonly revision: number;
-  readonly runtime: NudgeUiRuntimeConfig;
-  readonly endpoints: {
-    readonly manifest: string;
-    readonly client: string;
-    readonly reload: string;
-  };
-}
+export interface StandaloneRuntimeManifest extends NudgeUiClientManifest {}
 
 /**
  * Creates the first valid static-HTML runtime snapshot.
@@ -63,10 +53,14 @@ export function createStandaloneRuntimeManifest(
       tokenGeneration: tokenSnapshot.tokenGeneration,
       componentContracts: [],
     },
-    endpoints: {
-      manifest: NUDGE_UI_MANIFEST_PATH,
-      client: NUDGE_UI_CLIENT_PATH,
-      reload: NUDGE_UI_RELOAD_PATH,
+    document: {
+      runtimeIdentity: "static-html",
+      stylesheetOrder: "browser",
+    },
+    reload: {
+      endpoint: NUDGE_UI_RELOAD_PATH,
+      strategy: "reload-document",
+      events: ["ready", "reload"],
     },
   };
 }

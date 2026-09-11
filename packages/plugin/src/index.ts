@@ -37,6 +37,11 @@ import {
   extractPackageComponentContractCatalog,
 } from "./components/extractPackageContracts.ts";
 import type { ComponentContract } from "./components/types.ts";
+import {
+  detectStylingSystem,
+  type NudgeUiClientManifest,
+  type NudgeUiRuntimeConfig,
+} from "@nudge-ui/inspector/client-manifest";
 
 export interface NudgeUiOptions {
   enabled?: boolean;
@@ -51,10 +56,8 @@ export interface NudgeUiOptions {
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
   /**
-   * Skip the react / react-dom / jsx-runtime dedupe aliases. Hosts whose own
-   * pipeline already resolves React correctly (Astro's SSR module runner
-   * chokes on the raw CJS entry) must set this; the Vite-React host keeps the
-   * default behaviour.
+   * Skip the React aliases used only by the legacy bundled landing demo.
+   * @deprecated Normal development clients no longer add React aliases.
    */
   skipReactAliases?: boolean;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
@@ -78,10 +81,15 @@ const VIRTUAL_COMPONENTS_ID = "virtual:nudge-ui-components";
 const RESOLVED_COMPONENTS_ID = "\0" + VIRTUAL_COMPONENTS_ID;
 const CSS_EXT = /\.css(?:$|[?#])/;
 const COMPONENT_EXT = /\.(?:tsx|jsx)(?:$|[?#])/;
+const CLIENT_PATH = "/__nudge_ui__/client.mjs";
+const MANIFEST_PATH = "/__nudge_ui__/manifest";
+const packageRequire = createRequire(import.meta.url);
+let inspectorClientPath: string | undefined;
 
 const MOUNT_DIV = `<div id="nudge-ui-root"></div>`;
 const DEBUG_MOUNT_DIV = `<div id="nudge-ui-root" data-nudge-ui-debug="true"></div>`;
-const INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:nudge-ui-inspector"></script>`;
+const INSPECTOR_SCRIPT = `<script type="module" src="${CLIENT_PATH}" data-nudge-ui-client data-nudge-ui-manifest="${MANIFEST_PATH}"></script>`;
+const LEGACY_INSPECTOR_SCRIPT = `<script type="module" src="/@id/__x00__virtual:nudge-ui-inspector"></script>`;
 
 /**
  * Extracts the stylesheet string Vite embeds in dev CSS-module JS wrappers
@@ -105,6 +113,11 @@ function relativePath(id: string, root?: string): string {
     if (id.startsWith(rootPrefix)) return id.slice(rootPrefix.length);
   }
   return id.replace(/^\//, "");
+}
+
+function readInspectorClient(): Buffer {
+  inspectorClientPath ??= packageRequire.resolve("@nudge-ui/inspector/client");
+  return readFileSync(inspectorClientPath);
 }
 
 
@@ -191,15 +204,18 @@ export interface TransformIndexHtmlOptions {
   debug?: boolean;
   /** Keep the injection in a `build` command (explicit demo builds only). */
   demoBuild?: boolean;
+  /** Keep the route-sensitive landing demo on its build-time virtual module. */
+  demo?: boolean;
 }
 
 export function transformIndexHtmlHtml(
   html: string,
   command: "serve" | "build",
-  { debug = false, demoBuild = false }: TransformIndexHtmlOptions = {},
+  { debug = false, demoBuild = false, demo = false }: TransformIndexHtmlOptions = {},
 ): string | null {
   if (command === "build" && !demoBuild) return null;
-  const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${INSPECTOR_SCRIPT}\n`;
+  const script = demo || demoBuild ? LEGACY_INSPECTOR_SCRIPT : INSPECTOR_SCRIPT;
+  const inject = `\n${debug ? DEBUG_MOUNT_DIV : MOUNT_DIV}\n${script}\n`;
   if (html.includes("</body>")) {
     return html.replace("</body>", `${inject}</body>`);
   }
@@ -511,13 +527,17 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
    * compares against the same facts load() would serialize (idempotent).
    */
   function invalidateTokensIfChanged(server: ViteDevServer) {
-    syncInventoryContributions();
-    const generation = inventory.snapshot().generation;
-    if (generation === lastPublishedGeneration) return { changed: false };
+    const generation = currentTokenGeneration();
+    if (generation === lastPublishedGeneration) return { changed: false, generation };
     lastPublishedGeneration = generation;
     const virtual = server.moduleGraph.getModuleById(RESOLVED_TOKENS_ID);
     if (virtual) server.moduleGraph.invalidateModule(virtual);
-    return virtual ? { changed: true, virtual } : { changed: true };
+    return virtual ? { changed: true, generation, virtual } : { changed: true, generation };
+  }
+
+  function currentTokenGeneration(): string {
+    syncInventoryContributions();
+    return inventory.snapshot().generation;
   }
 
   async function handleStylesheetWatchEvent(
@@ -526,7 +546,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     event: "add" | "unlink",
   ): Promise<void> {
     if (!enabled || command !== "serve" || !CSS_EXT.test(file)) return;
-    const hadPublishedSnapshot = lastPublishedGeneration !== null;
+    const previousGeneration = currentTokenGeneration();
     postTransformPromise = null;
 
     if (event === "unlink") {
@@ -559,8 +579,8 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
       }
     }
 
-    const { changed } = invalidateTokensIfChanged(server);
-    if (hadPublishedSnapshot && changed) {
+    const { generation } = invalidateTokensIfChanged(server);
+    if (generation !== previousGeneration) {
       server.ws.send({ type: "full-reload", path: "*" });
     }
   }
@@ -639,11 +659,52 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     return postTransformPromise;
   }
 
+  async function buildClientManifest(): Promise<NudgeUiClientManifest> {
+    await ensurePostTransformCss();
+    await ensurePublishedThemeContract();
+    return {
+      version: 1,
+      revision: 0,
+      runtime: buildRuntimeSnapshot(),
+    };
+  }
+
+  function buildRuntimeSnapshot(): NudgeUiRuntimeConfig {
+    syncInventoryContributions();
+    const snapshot = inventory.snapshot();
+    const tokenDiagnostics: TokenCatalogDiagnostic[] = snapshot.diagnostics.map((diagnostic) => ({
+      code: diagnostic.code,
+      message: diagnostic.message,
+      module: diagnostic.module ?? diagnostic.artifact ?? "token-inventory",
+      ...(diagnostic.exportName !== undefined ? { exportName: diagnostic.exportName } : {}),
+    }));
+    return {
+      projectId: options.projectId ?? (root ? basename(root) : "vite"),
+      host: "vite-react",
+      framework: "React",
+      stylingSystem: detectStylingSystem(snapshot.tokens),
+      capabilities: { canvas: true, componentSemantics: true },
+      tokenCatalog: snapshot.definitions.map((definition) => ({
+        ...definition,
+        declarations: definition.declarations.map((declaration) => ({ ...declaration })),
+      })),
+      tokens: snapshot.tokens,
+      tokenDiagnostics,
+      tokenGeneration: snapshot.generation,
+      componentContracts: componentContractCatalog(),
+    };
+  }
+
+  function componentContractCatalog(): ComponentContract[] {
+    return [...componentContracts.values()].flat();
+  }
+
   const plugin: Plugin = {
     name: "nudge-ui",
     enforce: "pre",
     config(userConfig, env) {
       if (!enabled || env.command !== "serve") return;
+      if (options.demo !== true) return;
       if (options.skipReactAliases) return;
       const projectRoot = userConfig.root ?? process.cwd();
       const aliases = resolveReactAliases(projectRoot);
@@ -661,6 +722,38 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     configureServer(server) {
       if (!enabled || command !== "serve") return;
       devServer = server;
+      server.middlewares?.use(async (request, response, next) => {
+        const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
+        if ((pathname === CLIENT_PATH || pathname === MANIFEST_PATH) && request.method !== "GET") {
+          response.statusCode = 405;
+          response.end();
+          return;
+        }
+        if (pathname === CLIENT_PATH) {
+          try {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "text/javascript; charset=utf-8");
+            response.setHeader("Cache-Control", "no-cache");
+            response.end(readInspectorClient());
+          } catch {
+            response.statusCode = 503;
+            response.end("Nudge UI client has not been built.");
+          }
+          return;
+        }
+        if (pathname === MANIFEST_PATH) {
+          try {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "application/json; charset=utf-8");
+            response.setHeader("Cache-Control", "no-store");
+            response.end(JSON.stringify(await buildClientManifest()));
+          } catch (error) {
+            next(error);
+          }
+          return;
+        }
+        next();
+      });
       server.watcher?.on("add", (file) => handleStylesheetWatchEvent(server, file, "add"));
       server.watcher?.on("unlink", (file) => handleStylesheetWatchEvent(server, file, "unlink"));
     },
@@ -711,19 +804,9 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
         // `syncInventoryContributions`). load() takes ONE immutable snapshot
         // and serializes it verbatim — there is no post-snapshot enrichment and
         // no TOCTOU between the snapshot call and serialization.
-        syncInventoryContributions();
-        const snapshot = inventory.snapshot();
-        lastPublishedGeneration = snapshot.generation;
-        // Inventory diagnostics carry the offending artifact id; the virtual
-        // transport's diagnostic shape calls that field `module`.
-        const diagnostics: TokenCatalogDiagnostic[] = snapshot.diagnostics.map((diagnostic) => ({
-          code: diagnostic.code,
-          message: diagnostic.message,
-          module: diagnostic.module ?? diagnostic.artifact ?? "token-inventory",
-          ...(diagnostic.exportName !== undefined ? { exportName: diagnostic.exportName } : {}),
-        }));
-        const projectId = JSON.stringify(options.projectId ?? (root ? basename(root) : ""));
-        return `export const tokenCatalog = ${JSON.stringify(snapshot.definitions)};\nexport const tokens = ${JSON.stringify(snapshot.tokens)};\nexport const tokenDiagnostics = ${JSON.stringify(diagnostics)};\nexport const tokenGeneration = ${JSON.stringify(snapshot.generation)};\nexport const nudgeUiProjectId = ${projectId};\nexport default tokens;\n`;
+        const runtime = buildRuntimeSnapshot();
+        lastPublishedGeneration = runtime.tokenGeneration;
+        return `export const tokenCatalog = ${JSON.stringify(runtime.tokenCatalog)};\nexport const tokens = ${JSON.stringify(runtime.tokens)};\nexport const tokenDiagnostics = ${JSON.stringify(runtime.tokenDiagnostics)};\nexport const tokenGeneration = ${JSON.stringify(runtime.tokenGeneration)};\nexport const nudgeUiProjectId = ${JSON.stringify(runtime.projectId)};\nexport default tokens;\n`;
       }
       if (id === RESOLVED_INSPECTOR_ID) {
         // ADR-0002: normal production builds receive no inspector bootstrap.
@@ -766,11 +849,11 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
             '}',
           ].join("\n");
         }
-        return `import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework } from "@nudge-ui/inspector";\nimport { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";\nimport { componentContracts } from "virtual:nudge-ui-components";\nconfigureNudgeUiRuntime({\n  projectId: nudgeUiProjectId,\n  host: "vite-react",\n  framework: "React",\n  stylingSystem: detectFramework(tokens).stylingSystem,\n  capabilities: { canvas: true, componentSemantics: true },\n  tokenCatalog,\n  tokens,\n  tokenDiagnostics,\n  tokenGeneration,\n  componentContracts,\n});\nconst __dt_root = document.getElementById("nudge-ui-root");\nif (__dt_root) bootstrapNudgeUi(__dt_root);\n`;
+        return null;
       }
       if (id === RESOLVED_COMPONENTS_ID) {
         if (command === "build" && !demoBuild) return "export const componentContracts = [];\nexport default componentContracts;\n";
-        const catalog = [...componentContracts.values()].flat();
+        const catalog = componentContractCatalog();
         return `export const componentContracts = ${JSON.stringify(catalog)};\nexport default componentContracts;\n`;
       }
       return null;
@@ -811,22 +894,32 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
       // the app entry instead, because Vite cannot preserve the development
       // HTML virtual-module URL in a static build.
       if (!enabled || demoBuild) return;
-      const out = transformIndexHtmlHtml(html, command, { debug: options.debug === true, demoBuild });
+      const out = transformIndexHtmlHtml(html, command, {
+        debug: options.debug === true,
+        demoBuild,
+        demo: options.demo === true,
+      });
       return out === null ? undefined : out;
     },
     async handleHotUpdate(ctx) {
       if (!enabled || command !== "serve") return;
       if (publishedThemeContractModuleId && stripCssQuery(ctx.file) === publishedThemeContractModuleId) {
+        const previousGeneration = currentTokenGeneration();
         invalidateHmrModules(ctx.server, ctx.modules, ctx.timestamp);
         publishedThemeContractLoaded = false;
         await ensurePublishedThemeContract();
         // Same exactly-once path as the CSS branch: invalidate the virtual
         // module only when the refreshed contract changed the snapshot.
-        const { changed, virtual } = invalidateTokensIfChanged(ctx.server);
+        const { changed, generation, virtual } = invalidateTokensIfChanged(ctx.server);
         if (changed && virtual) return [...ctx.modules, virtual];
+        if (generation !== previousGeneration) {
+          ctx.server.ws.send({ type: "full-reload", path: "*" });
+        }
         return;
       }
       if (COMPONENT_EXT.test(ctx.file)) {
+        const previousGeneration = currentTokenGeneration();
+        const previousContracts = JSON.stringify(componentContractCatalog());
         try {
           cacheComponentsForFile(ctx.file, await ctx.read());
         } catch {
@@ -848,18 +941,24 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
         await ensurePostTransformCss();
 
         const virtualComponents = ctx.server.moduleGraph.getModuleById(RESOLVED_COMPONENTS_ID);
-        const { changed, virtual: virtualTokens } = invalidateTokensIfChanged(ctx.server);
+        const { changed, generation, virtual: virtualTokens } = invalidateTokensIfChanged(ctx.server);
+        const contractsChanged = JSON.stringify(componentContractCatalog()) !== previousContracts;
         const modules = [...ctx.modules];
-        if (virtualComponents) {
+        if (contractsChanged && virtualComponents) {
           ctx.server.moduleGraph.invalidateModule(virtualComponents);
           modules.push(virtualComponents);
         }
         if (changed && virtualTokens) {
           modules.push(virtualTokens);
         }
+        const tokensChanged = generation !== previousGeneration;
+        if ((contractsChanged && !virtualComponents) || (tokensChanged && !virtualTokens)) {
+          ctx.server.ws.send({ type: "full-reload", path: "*" });
+        }
         return modules.length > 0 ? [...new Set(modules)] : undefined;
       }
       if (!CSS_EXT.test(ctx.file)) return;
+      const previousGeneration = currentTokenGeneration();
 
       // Refresh the token inventory immediately so the next virtual-module load
       // sees the updated tokens (Vite's own CSS reload happens in parallel).
@@ -902,7 +1001,10 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
       // the virtual module only when the snapshot generation actually changed.
       // A no-op follow-up (identical facts) is a no-op here too, while Vite's
       // own CSS update below still refreshes the edited stylesheet visually.
-      const { changed, virtual } = invalidateTokensIfChanged(ctx.server);
+      const { changed, generation, virtual } = invalidateTokensIfChanged(ctx.server);
+      if (generation !== previousGeneration && !virtual) {
+        ctx.server.ws.send({ type: "full-reload", path: "*" });
+      }
       const modules: NonNullable<ReturnType<typeof ctx.server.moduleGraph.getModuleById>>[] = [];
       if (changed && virtual) modules.push(virtual);
       for (const m of ctx.modules) {

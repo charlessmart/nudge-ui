@@ -3,28 +3,26 @@ import type {
   TokenDeclaration,
   TokenDefinition,
 } from "@nudge-ui/css/model";
-import type { NudgeUiRuntimeConfig } from "@nudge-ui/inspector";
+import type { NudgeUiRuntimeConfig } from "./runtimeConfig.ts";
 
 /** Evidence collected from the browser's current stylesheet order. */
-export interface StandaloneStylesheetOrderEvidence {
+export interface DocumentStylesheetOrderEvidence {
   readonly projectPaths: readonly string[];
   /** False when a sheet is cross-origin, inline, unloaded, or duplicated. */
   readonly complete: boolean;
 }
 
 /** Reads same-origin stylesheet order without making directory order authoritative. */
-export function collectStandaloneStylesheetOrder(
+export function collectDocumentStylesheetOrder(
   document: Document,
-): StandaloneStylesheetOrderEvidence {
+): DocumentStylesheetOrderEvidence {
   const projectPaths: string[] = [];
   let complete = true;
-
   for (let index = 0; index < document.styleSheets.length; index += 1) {
+    // SAFETY: CSSStyleSheetList.item() returns a CSSStyleSheet or null.
     const sheet = document.styleSheets.item(index) as CSSStyleSheet | null;
     if (!sheet) continue;
     try {
-      // Accessing cssRules is the loaded/accessibility check. Cross-origin and
-      // still-loading sheets throw and must not be treated as ordered evidence.
       void sheet.cssRules;
     } catch {
       complete = false;
@@ -37,80 +35,60 @@ export function collectStandaloneStylesheetOrder(
     }
     projectPaths.push(projectPath);
   }
-
   return { projectPaths, complete };
 }
 
-/** The catalog plus diagnostics produced by one reconciliation pass. */
-export interface StandaloneTokenCatalogReconciliation {
-  /** Definitions whose declaration order is honest given the evidence. */
+/** Token catalog plus diagnostics produced by document-order reconciliation. */
+export interface DocumentTokenCatalogReconciliation {
   readonly catalog: readonly TokenDefinition[];
-  /** Explanations for definitions left in discovery order. */
   readonly diagnostics: readonly TokenCatalogDiagnostic[];
 }
 
-/**
- * Reorders declarations using CSSOM stylesheet order when that evidence is
- * complete.
- *
- * A duplicate definition with incomplete order evidence keeps its discovery
- * order — directory order is honest inventory evidence — instead of hiding
- * the duplicate entirely, and the unresolved ordering is reported as a
- * diagnostic so consumers know the winner was not proven from the browser.
- */
-export function reconcileStandaloneTokenCatalog(
+/** Reorders duplicate declarations only when browser order evidence is complete. */
+export function reconcileDocumentTokenCatalog(
   catalog: readonly TokenDefinition[],
-  evidence: StandaloneStylesheetOrderEvidence,
-): StandaloneTokenCatalogReconciliation {
+  evidence: DocumentStylesheetOrderEvidence,
+): DocumentTokenCatalogReconciliation {
   const ranks = new Map(evidence.projectPaths.map((path, index) => [path, index]));
   const stride = Math.max(1, ...catalog.map((definition) => definition.declarations.length)) + 1;
   const diagnostics: TokenCatalogDiagnostic[] = [];
-
   const resolved = catalog.map((definition) => {
     if (definition.declarations.length < 2) return definition;
-    const declarations = definition.declarations.map((declaration, index) => ({
-      declaration,
-      index,
-      path: sourcePath(declaration),
-      rank: ranks.get(sourcePath(declaration)),
-    }));
+    const declarations = definition.declarations.map((declaration, index) => {
+      const path = sourcePath(declaration);
+      return { declaration, index, path, rank: ranks.get(path) };
+    });
     if (!evidence.complete || declarations.some((entry) => entry.rank === undefined)) {
-      // Incomplete browser order never picks a winner; keep discovery order
-      // (already present on each declaration) and say so.
       diagnostics.push({
         code: "token-order-unresolved",
         message: `Kept ${definition.declarations.length} declarations of "${declarationName(definition)}" in discovery order because browser stylesheet order evidence was incomplete.`,
-        module: declarations.find((entry) => entry.rank === undefined)?.path || "standalone-css",
+        module: declarations.find((entry) => entry.rank === undefined)?.path || "document-css",
       });
       return definition;
     }
-
+    // The incomplete-rank branch returned above, so these fallbacks are unreachable.
     declarations.sort((left, right) =>
-      left.rank! - right.rank! || left.index - right.index);
+      (left.rank ?? 0) - (right.rank ?? 0) || left.index - right.index);
     return {
       ...definition,
       declarations: declarations.map(({ declaration, rank }, index): TokenDeclaration => ({
         ...declaration,
-        order: rank! * stride + index,
+        order: (rank ?? 0) * stride + index,
       })),
     };
   });
-
   const changed = resolved.some((definition, index) => definition !== catalog[index]);
-  return {
-    catalog: changed ? resolved : catalog,
-    diagnostics,
-  };
+  return { catalog: changed ? resolved : catalog, diagnostics };
 }
 
-/** Applies the standalone host's browser stylesheet evidence before bootstrap. */
-export function reconcileStandaloneRuntime(
+/** Applies browser stylesheet evidence to a host runtime before bootstrap. */
+export function reconcileRuntimeWithDocumentStylesheets(
   runtime: NudgeUiRuntimeConfig,
   document: Document,
 ): NudgeUiRuntimeConfig {
-  const { catalog: tokenCatalog, diagnostics } = reconcileStandaloneTokenCatalog(
+  const { catalog: tokenCatalog, diagnostics } = reconcileDocumentTokenCatalog(
     runtime.tokenCatalog,
-    collectStandaloneStylesheetOrder(document),
+    collectDocumentStylesheetOrder(document),
   );
   const tokenDiagnostics = diagnostics.length === 0
     ? runtime.tokenDiagnostics
