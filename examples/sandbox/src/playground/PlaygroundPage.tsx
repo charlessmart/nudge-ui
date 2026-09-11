@@ -124,6 +124,32 @@ function CssOpacityExamples() {
   );
 }
 
+function InteractionStateExamples() {
+  return (
+    <section className="interaction-fixtures" aria-labelledby="interaction-fixtures-title">
+      <div className="interaction-fixtures__header">
+        <div>
+          <p className="eyebrow">Interaction states worth inspecting</p>
+          <h2 id="interaction-fixtures-title">One button, more than one state.</h2>
+        </div>
+        <p className="interaction-fixtures__intro">
+          Select this button to inspect its authored Base, Hover, and Focus Visible styles in the panel.
+        </p>
+      </div>
+      <div className="interaction-fixtures__stage">
+        <button
+          className="interaction-state-button"
+          type="button"
+          {...(import.meta.env.DEV ? { "data-test": "stateful-button" } : {})}
+        >
+          Inspect interaction states
+        </button>
+        <code>:hover · :focus-visible</code>
+      </div>
+    </section>
+  );
+}
+
 /**
  * PlaygroundPage — dev-only fixture surface preserved from the previous
  * landing page. The Playwright suite drives the inspector against its
@@ -207,6 +233,8 @@ function App() {
             </div>
           </div>
         </section>
+
+        <InteractionStateExamples />
 
         <section className="feature-section" id="features" aria-labelledby="features-title">
           <div className="section-heading">

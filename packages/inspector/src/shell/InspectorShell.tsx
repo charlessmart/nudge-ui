@@ -43,12 +43,13 @@ import type { InteractionState } from "./styleState.ts";
 import { isEditableEvent } from "./shortcuts.ts";
 import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
+import { FieldRow } from "../ui/FieldRow.tsx";
+import { Select } from "../ui/Select.tsx";
 import { enterCanvas, useCanvasMode } from "../canvas/canvasStore.ts";
 import { getRestoreCount, clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
-import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { ComponentPropsSection } from "../componentSemantics/ComponentPropsSection.tsx";
 import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
@@ -432,25 +433,6 @@ export function InspectorShell(): ReactElement {
                         <span className="selection__count">{selectedElements.length} elements selected</span>
                       </div>
                     ) : null}
-                    {showInteractionState ? (
-                      <div className="style-state" data-test="style-state">
-                        <div className="editor__title">State</div>
-                        <SegmentedControl
-                          value={styleState}
-                          className="style-state__control"
-                          aria-label="Style State"
-                          options={availableInteractionStates.map((state) => ({
-                            value: state,
-                            label: formatInspectorLabel(state),
-                            testId: `style-state-${state}`,
-                          }))}
-                          onChange={(state) => {
-                            setActiveStyleState(state);
-                            setStyleState(state);
-                          }}
-                        />
-                      </div>
-                    ) : null}
                     {hasEditScopeCallout ? (
                       <StatusCallout
                         tone={editScope === "rendered-instance" ? "neutral" : "accent"}
@@ -458,8 +440,8 @@ export function InspectorShell(): ReactElement {
                         data-lost="false"
                       >
                         {editScope === "rendered-instance" ? (
-                          <>
-                            <span>Editing only this rendered item.</span>
+                          <div className="scope__unlinked">
+                            <span>Element unlinked</span>
                             <Button
                               size="compact"
                               className="scope__action"
@@ -470,9 +452,9 @@ export function InspectorShell(): ReactElement {
                                 refreshScopeState();
                               }}
                             >
-                              Relink To Source
+                              Relink
                             </Button>
-                          </>
+                          </div>
                         ) : (
                           <div className="scope__linked">
                             <span>Affects {sourceSiteMatchCount} elements.</span>
@@ -490,6 +472,25 @@ export function InspectorShell(): ReactElement {
                           </div>
                         )}
                       </StatusCallout>
+                    ) : null}
+                    {showInteractionState ? (
+                      <FieldRow label="State" className="style-state" data-test="style-state">
+                        <Select
+                          value={styleState}
+                          data-test="style-state-select"
+                          aria-label="Style State"
+                          options={availableInteractionStates.map((state) => ({
+                            value: state,
+                            label: formatInspectorLabel(state),
+                          }))}
+                          onValueChange={(state) => {
+                            const nextState = availableInteractionStates.find((candidate) => candidate === state);
+                            if (!nextState) return;
+                            setActiveStyleState(nextState);
+                            setStyleState(nextState);
+                          }}
+                        />
+                      </FieldRow>
                     ) : null}
                 </div>
               ) : null}

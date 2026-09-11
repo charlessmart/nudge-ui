@@ -852,6 +852,46 @@ describe("interaction-state resolution", () => {
     expect(getResolvedPropertiesForState(button, table, "hover").find((row) => row.property === "background")?.resolvedValue).toBe("#c4f36b");
   });
 
+  it("keeps an authored interaction token separate from the currently painted value", () => {
+    const style = document.createElement("style");
+    style.textContent = ".button { background: var(--surface); } .button:hover { background: var(--accent); }";
+    document.head.appendChild(style);
+    const button = document.createElement("button");
+    button.className = "button";
+    document.body.appendChild(button);
+    const table = makeTable([
+      { name: "--surface", value: "#ffffff", source: "styles.css:1" },
+      { name: "--accent", value: "#54718e", source: "styles.css:2" },
+    ]);
+    const original = window.getComputedStyle.bind(window);
+    (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = ((element: Element) => {
+      const base = original(element);
+      return new Proxy(base, {
+        get(target, key: string) {
+          if (key === "getPropertyValue") {
+            return (property: string) => property === "background"
+              ? "rgb(255, 255, 255)"
+              : target.getPropertyValue(property);
+          }
+          return Reflect.get(target, key);
+        },
+      });
+    }) as typeof getComputedStyle;
+
+    try {
+      const row = getResolvedPropertiesForState(button, table, "hover")
+        .find((candidate) => candidate.property === "background");
+
+      expect(row).toMatchObject({
+        tokenName: "--accent",
+        resolvedValue: "#54718e",
+        computed: "rgb(255, 255, 255)",
+      });
+    } finally {
+      (window as unknown as { getComputedStyle: typeof getComputedStyle }).getComputedStyle = original;
+    }
+  });
+
   it("stable resolution keeps the token under transient hover rules", () => {
     const style = document.createElement("style");
     style.textContent = ".button { background: var(--surface); } .button:hover { background: #c4f36b; }";

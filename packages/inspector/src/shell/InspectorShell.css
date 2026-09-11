@@ -205,22 +205,8 @@
 }
 
 .style-state {
-  display: grid;
-  gap: var(--space-8);
-  margin-top: 3px;
-}
-
-.style-state__control {
-  min-height: var(--control-height-small);
-  width: 100%;
-}
-
-.style-state__control .segmented-control__button.button {
-  overflow: hidden;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  text-transform: capitalize;
-  white-space: nowrap;
+  grid-template-columns: var(--label-column) minmax(0, 1fr);
+  column-gap: 6px;
 }
 
 .scope {
@@ -228,9 +214,10 @@
 }
 
 .scope__action {
-  margin-top: 6px;
+  margin-top: 0;
 }
 
+.scope__unlinked,
 .scope__linked {
   display: flex;
   align-items: center;

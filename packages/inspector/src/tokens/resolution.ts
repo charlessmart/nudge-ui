@@ -1448,7 +1448,11 @@ export function getResolvedPropertiesForState(
   for (const prop of result) {
     const cv = computed.getPropertyValue(prop.property);
     if (cv && !/\b(?:var|calc)\s*\(/.test(cv)) {
-      prop.resolvedValue = cv;
+      // A selected interaction state is hypothetical: the element may still
+      // be painting its Base styles. `rowsFromMatches` has already resolved
+      // the authored declaration for the requested state, so preserve that
+      // value for editor controls and keep the live CSSOM value in `computed`.
+      if (state === "base" || !prop.resolvedValue) prop.resolvedValue = cv;
       prop.computed = cv;
       const validated = candidateMatchesPainted(el, prop, cv);
       prop.confidence = validated && !inaccessible && !prop.evidence.layer ? "exact" : prop.tokenName ? "probable" : "unknown";

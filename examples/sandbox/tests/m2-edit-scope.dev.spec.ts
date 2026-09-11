@@ -35,6 +35,9 @@ test("dev: non-forwarding repeated component defaults to source scope and can ed
   await expect.poll(() => page.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(Array(6).fill("18px"));
   await shadowClick(page, "unlink-element");
 
+  await expect(page.locator('[data-test="edit-scope"]')).toContainText("Element unlinked");
+  await expect(page.locator('[data-test="relink-element"]')).toHaveText("Relink");
+  await expect(page.locator('[data-test="edit-scope"] .scope__unlinked')).toHaveCSS("display", "flex");
   expect(await page.locator(".repeated-item[data-instance]").count()).toBe(0);
   await setRaw(page, "font-size", "24px");
   await expect.poll(() => page.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);

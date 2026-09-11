@@ -568,6 +568,7 @@ a {
 .showcase-section,
 .type-section,
 .handoff-section,
+.interaction-fixtures,
 .border-fixtures,
 .opacity-fixtures,
 .conformance-links,
@@ -647,6 +648,76 @@ h2 {
 
 .showcase-section {
   padding: 0 0 144px;
+}
+
+.interaction-fixtures {
+  padding: 0 0 144px;
+  border-top: 1px solid var(--color-border-strong);
+}
+
+.interaction-fixtures__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 60px;
+  padding-top: 88px;
+}
+
+.interaction-fixtures__header h2 {
+  max-width: 560px;
+}
+
+.interaction-fixtures__intro {
+  max-width: 300px;
+  margin: 0 0 4px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.interaction-fixtures__stage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  min-height: 180px;
+  margin-top: 52px;
+  padding: 32px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+.interaction-state-button {
+  min-width: 230px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.interaction-state-button:hover {
+  background: var(--color-accent);
+  color: var(--color-surface-sunken);
+  transform: translateY(-2px);
+}
+
+.interaction-state-button:focus-visible {
+  outline: 2px solid var(--color-accent-subtle);
+  outline-offset: 4px;
+}
+
+.interaction-fixtures__stage code {
+  color: var(--color-text-secondary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
 }
 
 .showcase-heading {
@@ -1584,6 +1655,7 @@ h2 {
   .showcase-section,
   .type-section,
   .handoff-section,
+  .interaction-fixtures,
   .border-fixtures,
   .opacity-fixtures,
   .conformance-links,
@@ -1607,6 +1679,7 @@ h2 {
   .feature-section,
   .showcase-section,
   .type-section,
+  .interaction-fixtures,
   .border-fixtures,
   .conformance-links { padding-bottom: 90px; }
   .feature-section { padding-top: 90px; }
@@ -1616,6 +1689,8 @@ h2 {
   .feature-item { min-height: 185px; }
   .feature-item h3 { margin-top: 30px; }
   .showcase-heading { align-items: flex-start; flex-direction: column; margin-bottom: 35px; gap: 25px; }
+  .interaction-fixtures__header { align-items: flex-start; flex-direction: column; gap: 25px; }
+  .interaction-fixtures__stage { align-items: flex-start; flex-direction: column; }
   .demo-panel { min-height: 350px; padding: 23px 20px; }
   .layout-title { font-size: 28px; }
   .flex-row {

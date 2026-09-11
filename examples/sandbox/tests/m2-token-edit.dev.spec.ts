@@ -108,23 +108,46 @@ test("dev: swapping a token writes a managed-stylesheet rule and changes backgro
 
 test("dev: selection defaults to Base and can target an authored hover state", async ({ page }) => {
   await page.goto("/playground");
-  await page.addStyleTag({ content: ".btn:focus { outline-color: transparent; } .btn:focus-visible { outline-color: transparent; } .btn:active { transform: none; }" });
-  await page.click("text=Save");
+  await page.locator('[data-test="stateful-button"]').click();
   await waitForRow(page);
 
   const state = page.locator('[data-test="style-state"]');
-  await expect(state.locator(".editor__title")).toHaveText("State");
-  await expect(state.locator(".selection__label")).toHaveCount(0);
-  await expect(state.locator('[data-test="style-state-focus-visible"] .segmented-control__label'))
-    .toHaveCSS("white-space", "nowrap");
+  await expect(state.locator(".field-row__label")).toHaveText("State");
+  await expect(state.locator(".field-row__label")).toHaveCSS("font-weight", "400");
+  await expect(state.locator("[data-test=\"style-state-select\"]")).toHaveCSS("height", "32px");
+  const stateGrid = await state.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" "));
+  expect(stateGrid).toHaveLength(2);
+  const stateAlignment = await page.evaluate(() => {
+    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
+    const stateSelect = shadow?.querySelector<HTMLElement>('[data-test="style-state-select"]');
+    const panelBody = shadow?.querySelector<HTMLElement>(".panel__body");
+    if (!stateSelect || !panelBody) return null;
+    const panelBodyStyle = getComputedStyle(panelBody);
+    return {
+      stateRight: stateSelect.getBoundingClientRect().right,
+      contentRight: panelBody.getBoundingClientRect().right - Number.parseFloat(panelBodyStyle.paddingRight),
+    };
+  });
+  expect(stateAlignment).not.toBeNull();
+  expect(Math.abs(stateAlignment!.stateRight - stateAlignment!.contentRight)).toBeLessThanOrEqual(1);
 
-  await expect(page.locator('[data-test="style-state-base"]')).toHaveAttribute("data-active", "true");
-  await expect(page.locator('[data-test="style-state-hover"]')).toHaveCount(1);
+  const stateSelect = state.locator('[data-test="style-state-select"]');
+  await expect(stateSelect).toHaveAttribute("role", "combobox");
+  await expect(stateSelect).toContainText("Base");
   await expect(page.locator('[data-test="token-field"][data-property="background-color"]'))
     .toContainText("--color-surface-raised");
+  const backgroundSwatch = page.locator(
+    '[data-test="token-field"][data-property="background-color"] [data-test="token-color-swatch"]',
+  );
+  const baseSwatchStyle = await backgroundSwatch.getAttribute("style");
 
-  await page.locator('[data-test="style-state-hover"]').click();
+  await stateSelect.click();
+  await page.locator('[data-value="hover"]').click();
   const backgroundField = page.locator('[data-test="token-field"][data-property="background-color"]');
+  await expect(backgroundField).toContainText("--color-accent");
+  await expect
+    .poll(async () => backgroundSwatch.getAttribute("style"), { timeout: 5000 })
+    .not.toBe(baseSwatchStyle);
   const picker = backgroundField.locator('[data-test="token-color-input"]');
   await expect(picker).toBeVisible();
   // Use a concrete value that is not one of the sandbox's token values.
