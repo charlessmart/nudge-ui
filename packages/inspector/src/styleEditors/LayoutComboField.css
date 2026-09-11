@@ -1,5 +1,4 @@
 .layout-combo {
-  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -12,19 +11,6 @@
 
 .layout-combo > .token-field {
   width: 100%;
-}
-
-.layout-combo > .at-rule-indicator {
-  position: absolute;
-  z-index: 1;
-  top: calc(var(--control-height-large) / 2);
-  right: 8px;
-  transform: translateY(-50%);
-}
-
-.layout-combo:has(> .at-rule-indicator) > .select,
-.layout-combo:has(> .at-rule-indicator) > .text-input {
-  padding-right: 32px;
 }
 
 .layout-combo--blocked > .select:disabled,
@@ -69,9 +55,4 @@
 .layout-combo-blocked__symbol {
   display: block;
   line-height: 1;
-}
-
-/* Keep the two indicators side by side when both are present. */
-.layout-combo:has(> .layout-combo-blocked) > .at-rule-indicator {
-  right: 28px;
 }
