@@ -12,7 +12,7 @@ import {
   undo,
   redo,
 } from "./changesLog.ts";
-import type { ChangeRecord, ComponentChangeRecord, ElementChangeRecord } from "./changesLog.ts";
+import type { ComponentChangeRecord, ElementChangeRecord } from "./changesLog.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "./_testUtils.ts";
 import { changeKey } from "./model.ts";
@@ -74,9 +74,15 @@ describe("changesLog", () => {
 
   it("appendChange adds one record and getChangesList returns it", () => {
     const rec = makeRecord("background", COLOR_B, COLOR_A);
-    appendChange(rec);
+    expect(appendChange(rec)).toBe(true);
     expect(getChangesList()).toHaveLength(1);
     expect(getChangesList()[0]).toMatchObject(rec);
+  });
+
+  it("reports when an append has no canonical effect", () => {
+    const rec = makeRecord("background", COLOR_B, COLOR_A);
+    expect(appendChange(rec)).toBe(true);
+    expect(appendChange({ ...rec })).toBe(false);
   });
 
   it("subscribe fires when a change is appended", () => {

@@ -2,8 +2,7 @@ import { getSelectedElements, setSelectedElement, toggleSelectedElement } from "
 import { getOpen } from "../shell/openStore.ts";
 import { resolveSelectionFromEvent } from "../selection/resolveSelection.ts";
 import {
-  beginInlineTextEditFromEmptyProjection,
-  beginInlineTextEdit,
+  handleInlineTextEditIntent,
   isInlineTextEditingActive,
 } from "../inline-text/inlineTextEditor.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
@@ -18,26 +17,28 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
       e.stopPropagation();
       return;
     }
-    if (isInlineTextEditingActive()) {
+    if (!(e.target instanceof Element)) return;
+    if (inspectorHost === e.target || inspectorHost.contains(e.target)) return;
+    const result = handleInlineTextEditIntent({
+      kind: "double-click",
+      target: e.target,
+      point: { x: e.clientX, y: e.clientY },
+    });
+    if (result.kind === "native-editor") {
+      // The text-edit module deliberately passes through double-clicks inside
+      // its native host. Stop application handlers without cancelling the
+      // browser's native word-selection behavior.
+      e.stopPropagation();
+      return;
+    }
+    if (result.kind !== "rejected" && result.kind !== "pass-through") {
       e.preventDefault();
       e.stopPropagation();
       return;
     }
-    if (!(e.target instanceof Element)) return;
-    if (inspectorHost === e.target || inspectorHost.contains(e.target)) return;
-    const emptyProjectionMarker = e.target.closest<HTMLElement>(`[${EMPTY_TEXT_PROJECTION_ATTR}]`);
-    if (emptyProjectionMarker) {
-      const result = beginInlineTextEditFromEmptyProjection(emptyProjectionMarker);
-      if (!("kind" in result) || result.kind !== "rejected") {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      return;
-    }
-    const target = resolveSelectionTargetForInlineText(e.target);
-    if (!target) return;
-    const result = beginInlineTextEdit(target, { x: e.clientX, y: e.clientY });
-    if (!("kind" in result) || result.kind !== "rejected") {
+    if (result.kind === "pass-through" && isInlineTextEditingActive()) {
+      // Non-editable application targets remain inert while a draft is
+      // waiting for an explicit binding or scope decision.
       e.preventDefault();
       e.stopPropagation();
     }
@@ -87,26 +88,25 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
     }
   }
 
-  function resolveSelectionTargetForInlineText(target: Element): HTMLElement | null {
-    // Inline editing starts from the deepest visible text host. Holding the
-    // modifier still opts into the normal deep selection semantics, but the
-    // text editor itself resolves its own component boundary from that host.
-    const stack = trackedTextHostStack(target);
-    return stack[0] ?? null;
+  function onMouseDown(e: MouseEvent): void {
+    if (!getOpen() || isInsideInspectorUi(e)) return;
+    if (!(e.target instanceof Element)) return;
+    const result = handleInlineTextEditIntent({
+      kind: "pointer-down",
+      target: e.target,
+      point: { x: e.clientX, y: e.clientY },
+      clickCount: e.detail,
+    });
+    if (result.kind === "pass-through" || result.kind === "rejected") return;
+    if (result.kind !== "guarded" && result.kind !== "native-editor") e.preventDefault();
+    e.stopPropagation();
   }
 
-  function trackedTextHostStack(target: Element): HTMLElement[] {
-    const stack: HTMLElement[] = [];
-    let current: Element | null = target;
-    while (current) {
-      if (current instanceof HTMLElement && current.hasAttribute("data-cid")) stack.push(current);
-      current = current.parentElement;
-    }
-    return stack;
-  }
+  document.addEventListener("mousedown", onMouseDown, true);
   document.addEventListener("dblclick", onDoubleClick, true);
   document.addEventListener("click", onClick, true);
   return () => {
+    document.removeEventListener("mousedown", onMouseDown, true);
     document.removeEventListener("dblclick", onDoubleClick, true);
     document.removeEventListener("click", onClick, true);
   };

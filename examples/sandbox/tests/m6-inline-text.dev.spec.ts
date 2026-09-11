@@ -304,6 +304,25 @@ test("uses before-text evidence to edit one of distinct repeated rendered roots"
   await expect(second).toHaveText("Distinct B");
 });
 
+test("hands an active draft directly to the next double-clicked text target", async ({ page }) => {
+  await page.goto("/component-props");
+  const roots = page.locator('[data-test="distinct-rendered-root"]');
+  const first = roots.nth(0);
+  const second = roots.nth(1);
+
+  await first.dblclick();
+  const host = page.locator('[data-inline-editor="true"]');
+  await host.fill("First handoff edit");
+
+  await second.dblclick();
+
+  await expect(first).toHaveText("First handoff edit");
+  await expect(host).toHaveText("Distinct B");
+  await host.fill("Second handoff edit");
+  await host.press("Enter");
+  await expect(second).toHaveText("Second handoff edit");
+});
+
 test("edits an exact nested icon label, pastes plaintext, and suppresses the app action", async ({ page }) => {
   await page.goto("/component-props");
   const button = page.locator('[data-test="nested-icon-label"]');

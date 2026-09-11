@@ -68,6 +68,8 @@ function subscribe(cb: () => void): () => void {
 }
 
 function getChangesSnapshot(): ChangeRecord[] {
+  // SAFETY: The public change model is the concrete record union stored by
+  // the workspace snapshot; this module preserves the mutable array facade.
   return getWorkspaceChanges().changes as ChangeRecord[];
 }
 
@@ -155,13 +157,14 @@ function markForVerification(
 }
 
 /** Append several records as one projection and one undoable history entry. */
-export function appendChanges(incoming: ChangeRecord[], options: AppendChangesOptions = {}): void {
-  if (!commitChangeRecords(incoming, reapply)) return;
+export function appendChanges(incoming: ChangeRecord[], options: AppendChangesOptions = {}): boolean {
+  if (!commitChangeRecords(incoming, reapply)) return false;
   markForVerification(incoming.map(changeKey), options.verificationTargets);
+  return true;
 }
 
-export function appendChange(change: ChangeRecord): void {
-  appendChanges([change]);
+export function appendChange(change: ChangeRecord): boolean {
+  return appendChanges([change]);
 }
 
 export function revertChange(change: ChangeRecord): void {

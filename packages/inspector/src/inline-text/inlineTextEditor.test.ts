@@ -4,13 +4,16 @@ import { componentContracts } from "virtual:nudge-ui-components";
 import { registerComponentRuntimeAdapter } from "../componentSemantics/adapterRegistry.ts";
 import type { ComponentRuntimeAdapter } from "../componentSemantics/types.ts";
 import { clearWorkspace, getChangesList, redo, undo } from "../changes/changesLog.ts";
+import * as changesLog from "../changes/changesLog.ts";
 import { serializeSession } from "../canvas/sessionStore.ts";
 import {
   beginInlineTextEdit,
   beginInlineTextEditFromEmptyProjection,
+  cancelInlineTextEdit,
   disposeInlineTextEdit,
   getInlineTextDiagnostic,
   getInlineTextSession,
+  handleInlineTextEditIntent,
 } from "./inlineTextEditor.ts";
 import { getTextProjectionReports, TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import "../componentSemantics/reactRuntime.tsx";
@@ -408,6 +411,46 @@ describe("inlineTextEditor", () => {
       expect(getChangesList()).toMatchObject([{ kind: "component-prop", after: "公開中" }]);
       expect(getInlineTextSession()).toBeNull();
     } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("defers target handoff until IME composition finishes", async () => {
+    vi.useFakeTimers();
+    try {
+      const first = fixture();
+      const second = renderedFixture();
+      expect(handleInlineTextEditIntent({
+        kind: "double-click",
+        target: first,
+        point: { x: 10, y: 10 },
+      }).kind).toBe("started");
+      const firstSession = getInlineTextSession();
+      if (!firstSession) throw new Error("first inline text session did not start");
+      firstSession.host.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+      firstSession.host.textContent = "公開";
+
+      expect(handleInlineTextEditIntent({
+        kind: "double-click",
+        target: second,
+        point: { x: 20, y: 20 },
+      }).kind).toBe("pending");
+      expect(getInlineTextSession()).toBe(firstSession);
+      expect(getChangesList()).toEqual([]);
+
+      firstSession.host.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+      firstSession.host.textContent = "公開中";
+      firstSession.host.dispatchEvent(new InputEvent("input", {
+        inputType: "insertCompositionText",
+        bubbles: true,
+      }));
+      vi.runAllTimers();
+      await Promise.resolve();
+
+      expect(getChangesList()).toMatchObject([{ kind: "component-prop", after: "公開中" }]);
+      expect(getInlineTextSession()?.before).toBe("Original copy");
+    } finally {
+      cancelInlineTextEdit();
       vi.useRealTimers();
     }
   });
@@ -896,8 +939,29 @@ describe("inlineTextEditor", () => {
       result.host.textContent = "Edited item";
       expect(result.commit()).toBeNull();
       expect(getChangesList()).toEqual([]);
+      expect(getInlineTextSession()).toBe(result);
+      expect(result.host.isConnected).toBe(true);
+      expect(result.host.textContent).toBe("Edited item");
     } finally {
       unregister();
+    }
+  });
+
+  it("restores the active draft when the canonical append is rejected", () => {
+    const element = renderedFixture();
+    const result = beginInlineTextEdit(element);
+    if ("kind" in result) throw new Error(result.message);
+    result.host.textContent = "Uncommitted draft";
+    const append = vi.spyOn(changesLog, "appendChange")
+      .mockReturnValue(false);
+    try {
+      expect(result.commit()).toBeNull();
+      expect(getInlineTextSession()).toBe(result);
+      expect(result.host.isConnected).toBe(true);
+      expect(result.host.textContent).toBe("Uncommitted draft");
+    } finally {
+      append.mockRestore();
+      result.cancel();
     }
   });
 
@@ -1098,6 +1162,126 @@ describe("inlineTextEditor", () => {
         evidence: { mountedCount: 2, beforeText: "Repeated literal" },
       });
     } finally {
+      unregister();
+    }
+  });
+
+  it("re-resolves the requested target after the current commit replaces its DOM", () => {
+    const first = renderedFixture();
+    const second = document.createElement("p");
+    second.dataset.cid = "SecondCopy";
+    second.dataset.src = "src/Copy.tsx:18:3";
+    second.textContent = "Second copy";
+    document.body.append(second);
+    let replacement: HTMLElement = second;
+    const elementFromPoint = Object.getOwnPropertyDescriptor(document, "elementFromPoint");
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => replacement,
+    });
+    const started = handleInlineTextEditIntent({
+      kind: "double-click",
+      target: first,
+      point: { x: 10, y: 10 },
+    });
+    expect(started.kind).toBe("started");
+    const unregister = registerComponentRuntimeAdapter({
+      framework: "react",
+      inspect: () => [],
+      replaceOverrides: () => {
+        if (!replacement.isConnected) return;
+        const next = replacement.cloneNode(true) as HTMLElement;
+        replacement.replaceWith(next);
+        replacement = next;
+      },
+    });
+    try {
+      const firstSession = getInlineTextSession();
+      if (!firstSession) throw new Error("first inline text session did not start");
+      firstSession.host.textContent = "First copy after rerender";
+
+      const handedOff = handleInlineTextEditIntent({
+        kind: "double-click",
+        target: second,
+        point: { x: 20, y: 20 },
+      });
+
+      expect(handedOff.kind).toBe("started");
+      expect(second.isConnected).toBe(false);
+      expect(getInlineTextSession()?.before).toBe("Second copy");
+      expect(replacement.contains(getInlineTextSession()?.host ?? null)).toBe(true);
+    } finally {
+      cancelInlineTextEdit();
+      if (elementFromPoint) Object.defineProperty(document, "elementFromPoint", elementFromPoint);
+      else Reflect.deleteProperty(document, "elementFromPoint");
+      unregister();
+    }
+  });
+
+  it("retains an ambiguous draft and opens the pending target after a binding is chosen", async () => {
+    componentContracts.length = 0;
+    componentContracts.push({
+      componentId: "custom/Ambiguous#Ambiguous",
+      name: "Ambiguous",
+      file: "custom/Ambiguous.tsx",
+      provenance: "package-manifest",
+      props: [
+        { name: "first", control: "text", options: [], optional: false },
+        { name: "second", control: "text", options: [], optional: false },
+      ],
+    });
+    const first = document.createElement("span");
+    first.dataset.cid = "Ambiguous";
+    first.dataset.src = "src/App.tsx:20:5";
+    first.textContent = "Ambiguous copy";
+    const second = document.createElement("p");
+    second.dataset.cid = "NextCopy";
+    second.dataset.src = "src/App.tsx:24:5";
+    second.textContent = "Next copy";
+    document.body.append(first, second);
+    const unregister = registerComponentRuntimeAdapter({
+      framework: "react",
+      inspect: (element) => element === first ? [{
+        framework: "react",
+        meta: {
+          callsiteId: "src/App.tsx:20:5",
+          componentId: "custom/Ambiguous#Ambiguous",
+          componentName: "Ambiguous",
+          file: "src/App.tsx",
+          line: 20,
+          column: 5,
+          authoredProps: { first: "literal", second: "literal" },
+        },
+        props: { first: "Ambiguous copy", second: "Ambiguous copy" },
+      }] : [],
+      replaceOverrides: () => undefined,
+      getCallsiteMultiplicity: () => 1,
+    });
+    try {
+      expect(handleInlineTextEditIntent({
+        kind: "double-click",
+        target: first,
+        point: { x: 10, y: 10 },
+      }).kind).toBe("started");
+      const ambiguousSession = getInlineTextSession();
+      if (!ambiguousSession) throw new Error("ambiguous inline text session did not start");
+      ambiguousSession.host.textContent = "Chosen copy";
+
+      expect(handleInlineTextEditIntent({
+        kind: "double-click",
+        target: second,
+        point: { x: 20, y: 20 },
+      }).kind).toBe("pending");
+      expect(getInlineTextSession()).toBe(ambiguousSession);
+
+      ambiguousSession.chooseBinding(0);
+      ambiguousSession.commit();
+      await Promise.resolve();
+
+      expect(getInlineTextSession()?.before).toBe("Next copy");
+      expect(second.contains(getInlineTextSession()?.host ?? null)).toBe(true);
+    } finally {
+      cancelInlineTextEdit();
       unregister();
     }
   });

@@ -11,6 +11,11 @@ import {
   parseDataSrc,
   resolveSelectionFromEvent,
 } from "../selection/resolveSelection.ts";
+import {
+  cancelInlineTextEdit,
+  getInlineTextSession,
+} from "../inline-text/inlineTextEditor.ts";
+import { clearWorkspace } from "../changes/changesLog.ts";
 
 function dispatchClick(target: EventTarget, init: MouseEventInit = {}): MouseEvent {
   const event = new MouseEvent("click", {
@@ -67,6 +72,7 @@ describe("resolveSelectionFromEvent", () => {
   let host: HTMLDivElement;
 
   beforeEach(() => {
+    clearWorkspace();
     host = document.createElement("div");
     host.id = "nudge-ui-root";
     document.body.appendChild(host);
@@ -195,6 +201,8 @@ describe("installElementSelector", () => {
     uninstall = installElementSelector(host);
   });
   afterEach(() => {
+    cancelInlineTextEdit();
+    clearWorkspace();
     uninstall();
     document.body.innerHTML = "";
     setSelectedElement(null);
@@ -263,7 +271,63 @@ describe("installElementSelector", () => {
     expect(onApplicationDoubleClick).not.toHaveBeenCalled();
   });
 
+  it("hands an active inline edit to the next double-clicked text target", () => {
+    vi.useFakeTimers();
+    try {
+      const first = makeHostElement({
+        "data-cid": "FirstCopy",
+        "data-src": "/path/Page.tsx:12:5",
+      });
+      first.textContent = "First copy";
+      const second = makeHostElement({
+        "data-cid": "SecondCopy",
+        "data-src": "/path/Page.tsx:18:5",
+      });
+      second.textContent = "Second copy";
+      document.body.append(first, second);
 
+      dispatchDoubleClick(first);
+      const firstSession = getInlineTextSession();
+      if (!firstSession) throw new Error("first inline text session did not start");
+      firstSession.host.textContent = "Edited first copy";
+
+      firstSession.host.dispatchEvent(new FocusEvent("blur"));
+      dispatchDoubleClick(second);
+      vi.runAllTimers();
+
+      const secondSession = getInlineTextSession();
+      expect(secondSession?.before).toBe("Second copy");
+      expect(second.contains(secondSession?.host ?? null)).toBe(true);
+      expect(first.textContent).toBe("Edited first copy");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not activate the application when a handoff target rejects editing", () => {
+    const first = makeHostElement({
+      "data-cid": "FirstCopy",
+      "data-src": "/path/Page.tsx:12:5",
+    });
+    first.textContent = "First copy";
+    const rejected = makeHostElement({
+      "data-cid": "EmptyCopy",
+      "data-src": "/path/Page.tsx:18:5",
+    });
+    const onApplicationDoubleClick = vi.fn();
+    rejected.addEventListener("dblclick", onApplicationDoubleClick);
+    document.body.append(first, rejected);
+
+    dispatchDoubleClick(first);
+    const session = getInlineTextSession();
+    if (!session) throw new Error("first inline text session did not start");
+    session.host.textContent = "Edited first copy";
+
+    dispatchDoubleClick(rejected);
+
+    expect(onApplicationDoubleClick).not.toHaveBeenCalled();
+    expect(getInlineTextSession()).toBeNull();
+  });
 
   it("does not select or interfere with clicks inside the inspector host", () => {
     const inner = document.createElement("button");
