@@ -64,6 +64,7 @@ async function createManifest(
   ]);
   return {
     version: 1,
+    revision: 0,
     runtime: createAstroRuntimeConfig({
       projectId: tokenModule.nudgeUiProjectId,
       tokenCatalog: tokenModule.tokenCatalog,
