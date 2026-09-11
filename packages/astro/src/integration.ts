@@ -56,9 +56,7 @@ const MIDDLEWARE_ENTRYPOINT = new URL(
  */
 export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegration {
   const enabled = options.enabled ?? true;
-  // Astro's SSR module runner requires externalized React resolution; the
-  // shared plugin's react dedupe aliases would feed it the raw CJS entry.
-  const sharedOptions: NudgeUiOptions = { ...options, skipReactAliases: true };
+  const sharedOptions: NudgeUiOptions = { ...options };
 
   return {
     name: "nudge-ui",

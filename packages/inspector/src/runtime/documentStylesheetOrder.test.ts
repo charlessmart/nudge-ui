@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TokenDefinition } from "@nudge-ui/css/model";
-import { reconcileStandaloneTokenCatalog } from "./stylesheetOrder.ts";
+import { reconcileDocumentTokenCatalog } from "./documentStylesheetOrder.ts";
 
 const duplicateToken: TokenDefinition = {
   cssName: "--surface",
@@ -11,9 +11,9 @@ const duplicateToken: TokenDefinition = {
   ],
 };
 
-describe("reconcileStandaloneTokenCatalog", () => {
-  it("uses reverse CSSOM stylesheet order instead of directory discovery order", () => {
-    const { catalog, diagnostics } = reconcileStandaloneTokenCatalog([duplicateToken], {
+describe("reconcileDocumentTokenCatalog", () => {
+  it("uses browser stylesheet order instead of directory discovery order", () => {
+    const { catalog, diagnostics } = reconcileDocumentTokenCatalog([duplicateToken], {
       projectPaths: ["theme.css", "base.css"],
       complete: true,
     });
@@ -28,7 +28,7 @@ describe("reconcileStandaloneTokenCatalog", () => {
   });
 
   it("keeps discovery order and reports diagnostics when stylesheet evidence is incomplete", () => {
-    const { catalog, diagnostics } = reconcileStandaloneTokenCatalog([duplicateToken], {
+    const { catalog, diagnostics } = reconcileDocumentTokenCatalog([duplicateToken], {
       projectPaths: ["theme.css", "base.css"],
       complete: false,
     });
@@ -42,14 +42,14 @@ describe("reconcileStandaloneTokenCatalog", () => {
     expect(diagnostics).toEqual([
       expect.objectContaining({
         code: "token-order-unresolved",
-        module: "standalone-css",
+        module: "document-css",
       }),
     ]);
     expect(diagnostics[0]?.message).toContain("--surface");
   });
 
   it("names the unmatched source path when browser evidence misses one sheet", () => {
-    const { catalog, diagnostics } = reconcileStandaloneTokenCatalog([duplicateToken], {
+    const { catalog, diagnostics } = reconcileDocumentTokenCatalog([duplicateToken], {
       projectPaths: ["theme.css"],
       complete: true,
     });
@@ -72,7 +72,7 @@ describe("reconcileStandaloneTokenCatalog", () => {
         { value: "4px", source: "base.css:1", order: 0, important: false, context: {} },
       ],
     };
-    const { catalog: result, diagnostics } = reconcileStandaloneTokenCatalog([singleton], {
+    const { catalog: result, diagnostics } = reconcileDocumentTokenCatalog([singleton], {
       projectPaths: [],
       complete: false,
     });

@@ -44,9 +44,18 @@ describe("sidecar transport", () => {
 
     const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
     expect(response.headers.get("content-type")).toContain("application/json");
-    const manifest = (await response.json()) as Record<string, unknown>;
-    expect(manifest.host).toBe("nextjs-react");
-    expect(manifest.projectId).toMatch(/^nextjs:[0-9a-f]{12}$/);
+    const manifest = (await response.json()) as {
+      version: number;
+      runtime: { host: string; projectId: string };
+      reload: { endpoint: string; strategy: string };
+    };
+    expect(manifest.version).toBe(1);
+    expect(manifest.runtime.host).toBe("nextjs-react");
+    expect(manifest.runtime.projectId).toMatch(/^nextjs:[0-9a-f]{12}$/);
+    expect(manifest.reload).toEqual({
+      endpoint: "/__nudge_ui__/reload",
+      strategy: "refresh-manifest",
+    });
 
     // The port file records this process for diagnostics.
     const record = JSON.parse(
@@ -69,6 +78,15 @@ describe("sidecar transport", () => {
       body: "{}",
     });
     expect(response.status).toBe(405);
+  });
+
+  it("serves the shared self-contained client", async () => {
+    const { handle } = await sidecar();
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/client.mjs`);
+    const body = await response.text();
+    expect(response.headers.get("content-type")).toContain("text/javascript");
+    expect(body).not.toMatch(/^import\s/m);
+    expect(body).toContain("bootstrapNudgeUiClient");
   });
 
   it("streams SSE reload notifications with revision coalescing", async () => {
@@ -142,12 +160,14 @@ async function waitForBadgeProps(
   for (;;) {
     const response = await fetch(`http://127.0.0.1:${port}/__nudge_ui__/manifest`);
     const manifest = (await response.json()) as {
-      componentContracts: Array<{
-        componentId: string;
-        props: Array<{ name: string }>;
-      }>;
+      runtime: {
+        componentContracts: Array<{
+          componentId: string;
+          props: Array<{ name: string }>;
+        }>;
+      };
     };
-    const badge = manifest.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
+    const badge = manifest.runtime.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
     const names = badge?.props.map((p) => p.name);
     if (names && predicate(names)) return names;
 
@@ -167,7 +187,9 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     handles.push(handle);
 
     const before = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
-    const emptyBefore = ((await before.json()) as { componentContracts: unknown[] }).componentContracts;
+    const emptyBefore = ((await before.json()) as {
+      runtime: { componentContracts: unknown[] };
+    }).runtime.componentContracts;
     expect(emptyBefore).toEqual([]);
 
     const post = (file: string, contracts: unknown[]) =>
@@ -184,8 +206,10 @@ describe("sidecar contract aggregation (Stage 5)", () => {
 
     await settle(400);
     const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
-    const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string }> };
-    const ids = manifest.componentContracts.map((c) => c.componentId);
+    const manifest = (await response.json()) as {
+      runtime: { componentContracts: Array<{ componentId: string }> };
+    };
+    const ids = manifest.runtime.componentContracts.map((c) => c.componentId);
     expect(ids).toContain("app/ClientBadge#ClientBadge");
     expect(ids).toContain("app/HeroCard#HeroCard");
     expect(ids.filter((id) => id === "app/ClientBadge#ClientBadge")).toHaveLength(1);
@@ -214,7 +238,9 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     await settle(300);
     let ids = ((await (
       await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`)
-    ).json()) as { componentContracts: Array<{ componentId: string }> }).componentContracts;
+    ).json()) as {
+      runtime: { componentContracts: Array<{ componentId: string }> };
+    }).runtime.componentContracts;
     expect(ids).toHaveLength(1);
 
     // The component was deleted; the loader reposts an EMPTY contract list.
@@ -222,7 +248,9 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     await settle(300);
     ids = ((await (
       await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`)
-    ).json()) as { componentContracts: Array<{ componentId: string }> }).componentContracts;
+    ).json()) as {
+      runtime: { componentContracts: Array<{ componentId: string }> };
+    }).runtime.componentContracts;
     expect(ids).toHaveLength(0);
   });
 
@@ -247,8 +275,10 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     await settle(1200);
 
     const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
-    const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string }> };
-    expect(manifest.componentContracts.map((c) => c.componentId)).not.toContain("app/Gone#Gone");
+    const manifest = (await response.json()) as {
+      runtime: { componentContracts: Array<{ componentId: string }> };
+    };
+    expect(manifest.runtime.componentContracts.map((c) => c.componentId)).not.toContain("app/Gone#Gone");
   });
 });
 
@@ -264,14 +294,16 @@ describe("sidecar token lifecycle (Stage 4)", () => {
 
     const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
     const manifest = (await response.json()) as {
-      tokenGeneration: string;
-      tokens: Array<{ name: string; source?: string }>;
-      tokenCatalog: Array<{ cssName: string; declarations: Array<{ source: string }> }>;
+      runtime: {
+        tokenGeneration: string;
+        tokens: Array<{ name: string; source?: string }>;
+        tokenCatalog: Array<{ cssName: string; declarations: Array<{ source: string }> }>;
+      };
     };
 
-    expect(manifest.tokenGeneration).toMatch(/^nextjs-token:/);
-    expect(manifest.tokens.map((t) => t.name)).toContain("--accent");
-    const declaration = manifest.tokenCatalog[0]?.declarations[0];
+    expect(manifest.runtime.tokenGeneration).toMatch(/^nextjs-token:/);
+    expect(manifest.runtime.tokens.map((t) => t.name)).toContain("--accent");
+    const declaration = manifest.runtime.tokenCatalog[0]?.declarations[0];
     expect(declaration?.source).toContain("app/theme.css");
   });
 
@@ -329,8 +361,8 @@ describe("sidecar token lifecycle (Stage 4)", () => {
 
     const names = async (): Promise<string[]> => {
       const r = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
-      const m = (await r.json()) as { tokens: Array<{ name: string }> };
-      return m.tokens.map((t) => t.name);
+      const m = (await r.json()) as { runtime: { tokens: Array<{ name: string }> } };
+      return m.runtime.tokens.map((t) => t.name);
     };
 
     expect(await names()).toEqual([]);
@@ -359,14 +391,16 @@ describe("sidecar token lifecycle (Stage 4)", () => {
 
       const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
       const manifest = (await response.json()) as {
-        tokenDiagnostics: Array<{ code: string; module: string }>;
-        tokens: Array<{ name: string }>;
+        runtime: {
+          tokenDiagnostics: Array<{ code: string; module: string }>;
+          tokens: Array<{ name: string }>;
+        };
       };
       // The readable sheet still feeds inspection...
-      expect(manifest.tokens.map((t) => t.name)).toContain("--good");
+      expect(manifest.runtime.tokens.map((t) => t.name)).toContain("--good");
       // ...and the unreadable one surfaces as a diagnostic.
       expect(
-        manifest.tokenDiagnostics.some((d) => d.module.includes("locked.css")),
+        manifest.runtime.tokenDiagnostics.some((d) => d.module.includes("locked.css")),
       ).toBe(true);
     } finally {
       chmodSync(locked, 0o644);
@@ -399,8 +433,15 @@ describe("sidecar source contract scan", () => {
     handles.push(handle);
 
     const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
-    const manifest = (await response.json()) as { componentContracts: Array<{ componentId: string; props: Array<{ name: string }> }> };
-    const badge = manifest.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
+    const manifest = (await response.json()) as {
+      runtime: {
+        componentContracts: Array<{
+          componentId: string;
+          props: Array<{ name: string }>;
+        }>;
+      };
+    };
+    const badge = manifest.runtime.componentContracts.find((c) => c.componentId === "app/Badge#Badge");
     expect(badge).toBeTruthy();
     expect(badge!.props.map((p) => p.name)).toEqual(["label", "tone", "disabled"]);
   });

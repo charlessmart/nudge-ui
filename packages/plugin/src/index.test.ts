@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -73,7 +73,7 @@ describe("transformIndexHtmlHtml", () => {
     expect(out).not.toBeNull();
     expect(out!).toContain('<div id="nudge-ui-root"></div>');
     expect(out!).toContain(
-      '<script type="module" src="/@id/__x00__virtual:nudge-ui-inspector"></script>',
+      '<script type="module" src="/__nudge_ui__/client.mjs" data-nudge-ui-client data-nudge-ui-manifest="/__nudge_ui__/manifest"></script>',
     );
     expect(out!.indexOf("<body>")).toBeLessThan(out!.indexOf('id="nudge-ui-root"'));
     expect(out!.indexOf('id="nudge-ui-root"')).toBeLessThan(out!.lastIndexOf("</body>"));
@@ -103,7 +103,35 @@ describe("transformIndexHtmlHtml", () => {
     const out = transformIndexHtmlHtml(noBody, "serve");
     expect(out).not.toBeNull();
     expect(out!).toContain('<div id="nudge-ui-root"></div>');
-    expect(out!.endsWith("<div id=\"nudge-ui-root\"></div>\n<script type=\"module\" src=\"/@id/__x00__virtual:nudge-ui-inspector\"></script>\n")).toBe(true);
+    expect(out!.endsWith("<div id=\"nudge-ui-root\"></div>\n<script type=\"module\" src=\"/__nudge_ui__/client.mjs\" data-nudge-ui-client data-nudge-ui-manifest=\"/__nudge_ui__/manifest\"></script>\n")).toBe(true);
+  });
+});
+
+describe("nudgeUi client transport", () => {
+  it("rejects non-GET requests to reserved client routes", async () => {
+    type Middleware = (
+      request: { url: string; method: string },
+      response: { statusCode: number; end(): void },
+      next: () => void,
+    ) => Promise<void>;
+    let middleware: Middleware | undefined;
+    const plugin = nudgeUi() as unknown as {
+      configResolved(config: { root: string; command: "serve" }): void;
+      configureServer(server: unknown): void;
+    };
+    plugin.configResolved({ root: "/project", command: "serve" });
+    plugin.configureServer({
+      middlewares: { use: (handler: Middleware) => { middleware = handler; } },
+      watcher: { on: () => undefined },
+    });
+    const response = { statusCode: 0, end: vi.fn() };
+    const next = vi.fn();
+
+    await middleware!({ url: "/__nudge_ui__/manifest", method: "POST" }, response, next);
+
+    expect(response.statusCode).toBe(405);
+    expect(response.end).toHaveBeenCalledOnce();
+    expect(next).not.toHaveBeenCalled();
   });
 });
 
@@ -129,40 +157,6 @@ describe("nudgeUi plugin virtual inspector module", () => {
     );
     expect(plugin.resolveId!("\0virtual:nudge-ui-inspector")).toBe(
       "\0virtual:nudge-ui-inspector",
-    );
-  });
-
-  it("load emits a bootstrap that calls bootstrapNudgeUi (default command is serve)", async () => {
-    const plugin = nudgeUi() as unknown as {
-      load?: (id: string) => string | null | Promise<string | null>;
-    };
-    const code = await plugin.load!("\0virtual:nudge-ui-inspector");
-    expect(code).not.toBeNull();
-    expect(code!).toContain('from "@nudge-ui/inspector"');
-    expect(code!).toContain("bootstrapNudgeUi");
-    expect(code!).toContain('getElementById("nudge-ui-root")');
-  });
-
-  it("configures the inspector from live Vite virtual modules before mounting", async () => {
-    const plugin = nudgeUi() as unknown as {
-      load?: (id: string) => string | null | Promise<string | null>;
-    };
-    const code = await plugin.load!("\0virtual:nudge-ui-inspector");
-    expect(code).toContain("configureNudgeUiRuntime({");
-    expect(code).toContain('from "virtual:design-tokens"');
-    expect(code).toContain('from "virtual:nudge-ui-components"');
-    expect(code).toContain('host: "vite-react"');
-    expect(code).toContain('framework: "React"');
-    expect(code).toContain("capabilities: { canvas: true, componentSemantics: true }");
-    expect(code).toContain("stylingSystem: detectFramework(tokens).stylingSystem");
-    expect(code).toContain("projectId: nudgeUiProjectId");
-    expect(code).toContain("tokenCatalog,");
-    expect(code).toContain("tokens,");
-    expect(code).toContain("tokenDiagnostics,");
-    expect(code).toContain("tokenGeneration,");
-    expect(code).toContain("componentContracts,");
-    expect(code!.indexOf("configureNudgeUiRuntime({")).toBeLessThan(
-      code!.indexOf("bootstrapNudgeUi(__dt_root)"),
     );
   });
 
@@ -267,8 +261,13 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
     env: { command: string },
   ) => { resolve: { alias: unknown[] } } | undefined;
 
-  it("aliases React to one instance by default in dev", () => {
+  it("does not alias React for the shared external client", () => {
     const plugin = nudgeUi() as unknown as { config?: ConfigHook };
+    expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toBeUndefined();
+  });
+
+  it("retains React aliases for the bundled landing demo", () => {
+    const plugin = nudgeUi({ demo: true }) as unknown as { config?: ConfigHook };
     const result = plugin.config?.({ root: sandboxRoot }, serveEnv);
     expect(result?.resolve.alias.length ?? 0).toBeGreaterThan(0);
   });
@@ -1312,6 +1311,70 @@ describe("nudgeUi token catalog compiler", () => {
       expect(bumped).not.toBe(first);
     } finally {
       rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("reloads an external-client page when token or component knowledge changes", async () => {
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-external-client-hmr-"));
+    const cssFile = join(root, "app.css");
+    const componentFile = join(root, "App.tsx");
+    try {
+      writeFileSync(cssFile, ":root { --tone: red; }");
+      writeFileSync(componentFile, [
+        'export interface AppProps { tone?: "quiet" | "loud"; }',
+        'export function App({ tone = "quiet" }: AppProps) { return <button>{tone}</button>; }',
+      ].join("\n"));
+      const reloads: string[] = [];
+      const server = {
+        pluginContainer: { resolveId: async () => null },
+        transformRequest: async () => null,
+        ws: { send: (message: { type: string }) => reloads.push(message.type) },
+        moduleGraph: {
+          idToModuleMap: new Map(),
+          getModuleById: () => undefined,
+          invalidateModule: () => undefined,
+        },
+      };
+      const plugin = nudgeUi() as unknown as {
+        configResolved(config: { root: string; command: "serve" }): void;
+        configureServer(server: unknown): void;
+        buildStart(): void;
+        handleHotUpdate(context: {
+          file: string;
+          read(): Promise<string>;
+          server: unknown;
+          modules: unknown[];
+          timestamp: number;
+        }): Promise<unknown>;
+      };
+      plugin.configResolved({ root, command: "serve" });
+      plugin.configureServer(server);
+      plugin.buildStart();
+
+      writeFileSync(cssFile, ":root { --tone: blue; }");
+      await plugin.handleHotUpdate({
+        file: cssFile,
+        read: async () => ":root { --tone: blue; }",
+        server,
+        modules: [],
+        timestamp: 1,
+      });
+      expect(reloads).toEqual(["full-reload"]);
+
+      await plugin.handleHotUpdate({
+        file: componentFile,
+        read: async () => [
+          'export interface AppProps { tone?: "quiet" | "loud"; size?: "small" | "large"; }',
+          'export function App({ tone = "quiet", size = "small" }: AppProps) { return <button>{tone} {size}</button>; }',
+        ].join("\n"),
+        server,
+        modules: [],
+        timestamp: 2,
+      });
+
+      expect(reloads).toEqual(["full-reload", "full-reload"]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 

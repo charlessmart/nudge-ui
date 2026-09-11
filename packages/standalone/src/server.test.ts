@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
+import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -172,6 +172,15 @@ describe("createStandaloneServer", () => {
     };
     expect(manifestResponse.status).toBe(200);
     expect(manifest).toMatchObject({ revision: 0 });
+    expect(manifest).toMatchObject({
+      version: 1,
+      document: { runtimeIdentity: "static-html", stylesheetOrder: "browser" },
+      reload: {
+        endpoint: NUDGE_UI_RELOAD_PATH,
+        strategy: "reload-document",
+        events: ["ready", "reload"],
+      },
+    });
     expect(manifest.runtime).toMatchObject({
       projectId: runningServer.projectId,
       host: "static-html",
@@ -385,23 +394,7 @@ describe("createStandaloneServer", () => {
   });
 });
 
-describe("standalone client build", () => {
-  it("emits a self-contained browser module", () => {
-    const packageRoot = fileURLToPath(new URL("..", import.meta.url));
-    const script = join(packageRoot, "scripts/build-client.mjs");
-    execFileSync(process.execPath, [script], { cwd: packageRoot, stdio: "pipe" });
-    const bundle = readFileSync(join(packageRoot, "dist/client.mjs"), "utf8");
-
-    expect(bundle).not.toContain("virtual:design-");
-    expect(bundle).not.toContain("/@vite/client");
-    expect(bundle).not.toContain("?inline");
-    expect(bundle).not.toContain("import.meta.env");
-    expect(bundle).not.toMatch(/^import\s/m);
-    expect(bundle).toContain("react.development.js");
-    expect(bundle).toContain("configureNudgeUiRuntime");
-    expect(bundle).toContain("bootstrapNudgeUi");
-  });
-
+describe("standalone build", () => {
   it("emits an executable Node CLI bundle", () => {
     const packageRoot = fileURLToPath(new URL("..", import.meta.url));
     const script = join(packageRoot, "scripts/build.mjs");
