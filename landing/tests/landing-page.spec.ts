@@ -18,7 +18,7 @@ test("runs the real inspector on the landing document", async ({ page }) => {
   await expect(setup.getByText("nudge_listen", { exact: true })).toBeVisible();
   const openSource = page.getByRole("region", { name: "Open source" });
   await expect(openSource).toBeVisible();
-  await expect(openSource.getByText("Open source because there are more front-end frameworks and libraries than atoms in the universe. I've tried to make Nudge feel good out of the box, but if yours is not supported yet, extend it, fork it, and DIY your own Figma in the browser.", { exact: true })).toBeVisible();
+  await expect(openSource.getByText("Open source because there are more front-end frameworks and libraries than atoms in the universe. If your project setup isn't supported yet, you can customise and extend to your needs - DIY your own Figma in the browser.", { exact: true })).toBeVisible();
   await expect(openSource.getByRole("link", { name: "View on GitHub" })).toHaveAttribute("href", "https://github.com/charlessmart/nudge-ui");
   await expect(page.getByText("Made for design engineers.", { exact: true })).toHaveCount(0);
   await expect(page.locator(".landing-hero-demo-grid")).toHaveCount(1);
@@ -117,14 +117,19 @@ test("renders demo videos as vertical sections", async ({ page }) => {
   await expect(items.nth(0).getByRole("heading", { name: "Edit UI directly" })).toBeVisible();
   await expect(items.nth(1).getByRole("heading", { name: "A canvas for exploring variations" })).toBeVisible();
   await expect(items.nth(2).getByRole("heading", { name: "Keep tokens and components in sync" })).toBeVisible();
-  await expect(items.nth(0).getByText("Prompting an agent to center a div feels like backseat driving. You ask an agent for tiny visual changes, wait for the update, only to realise it looked better before. Editing directly gives you the immediate visual feedback that makes design tools good.", { exact: true })).toBeVisible();
+  await expect(items.nth(0).getByText("Prompting an agent to make UI changes feels like backseat driving. You ask for a tiny visual change, wait for the update, only to realise it looked better before. Editing directly gives you the immediate feedback so that you know if you're making the right decision.", { exact: true })).toBeVisible();
   await expect(items.nth(0).locator(".landing-showcase-item-bullets")).toHaveText("Change stylesMove and delete elementsEdit text");
-  await expect(items.nth(1).getByText("Open different pages in a canvas view to compare variations, screen sizes or overall flows. Generate 3 different options, pick one, refine the details immediately to get it feeling right.", { exact: true })).toBeVisible();
-  await expect(items.nth(2).getByText("It's your real codebase, so you need to use the tokens and components that exist. See them directly here, and avoid agents churning out custom CSS for every button.", { exact: true })).toBeVisible();
+  await expect(items.nth(0).locator(".landing-showcase-item-bullets svg")).toHaveCount(3);
+  await expect(items.nth(1).getByText("Open different pages in a canvas view to compare variations, screen sizes or overall flows. Generate 3 different options, pick one, refine the details immediately to get it feeling right.\n\nDesigning in a terminal? No, you can pry canvas UX out of my cold, dead hands.", { exact: true })).toBeVisible();
+  await expect(items.nth(2).getByText("It's your real code base, so use the tokens and components that exist already. Avoid agents churning out custom CSS for every button.", { exact: true })).toBeVisible();
   await expect(showcase.getByText("Share and review changes", { exact: true })).toHaveCount(0);
   await expect(items.locator("video")).toHaveCount(0);
   await expect(items.locator(".landing-showcase-placeholder")).toHaveCount(3);
   await expect(items.locator(".landing-showcase-placeholder-image")).toHaveCount(3);
+  await expect(items.nth(0).locator(".landing-showcase-placeholder")).toHaveCSS("transition-duration", "0.5s");
+  await expect(items.locator(".landing-showcase-browser-bar")).toHaveCount(3);
+  await expect(items.locator(".landing-showcase-browser-dot")).toHaveCount(9);
+  await expect(items.locator(".landing-showcase-browser-url")).toHaveText(["localhost", "localhost", "localhost"]);
   await expect(showcase.getByText("Recording coming soon", { exact: true })).toHaveCount(0);
   await expect(items.nth(0).locator(".landing-showcase-placeholder-image")).toHaveAttribute("src", /screen-1/);
   await expect(items.nth(1).locator(".landing-showcase-placeholder-image")).toHaveAttribute("src", /screen-2/);
@@ -147,6 +152,7 @@ test("renders demo videos as vertical sections", async ({ page }) => {
       await expect.poll(() => videoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(650);
       await expect.poll(() => videoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeLessThanOrEqual(1000);
       await expect.poll(() => videoContainer.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
+      await expect(item.locator(".landing-showcase-video-element")).toHaveCSS("transition-duration", "0.5s");
     }
   }
 

@@ -31,8 +31,8 @@
 }
 
 .landing-hero-demo:has(.landing-hero-demo-board:hover) .landing-hero-demo-board-layer--wireframe {
-  opacity: 1;
-  animation: none;
+  /* Keep the one-shot pulse running so hover-out cannot restart it. */
+  opacity: 1 !important;
 }
 
 .landing-hero-demo:has(.landing-hero-demo-board:hover) .landing-hero-demo-board-layer--full {

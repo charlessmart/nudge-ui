@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { IconArrowsMove, IconEdit, IconPalette } from "@tabler/icons-react";
 import editDirectlyPoster from "../assets/screen-1.png";
 import editDirectlyVideo from "../assets/screen-1.mp4";
 import inspectorArrowHead from "../assets/arrow-head.svg";
@@ -29,11 +30,11 @@ const showcaseVideos = [
   {
     id: "edit-directly",
     title: "Edit UI directly",
-    description: "Prompting an agent to center a div feels like backseat driving. You ask an agent for tiny visual changes, wait for the update, only to realise it looked better before. Editing directly gives you the immediate visual feedback that makes design tools good.",
+    description: "Prompting an agent to make UI changes feels like backseat driving. You ask for a tiny visual change, wait for the update, only to realise it looked better before. Editing directly gives you the immediate feedback so that you know if you're making the right decision.",
     bullets: [
-      "Change styles",
-      "Move and delete elements",
-      "Edit text",
+      { Icon: IconPalette, label: "Change styles" },
+      { Icon: IconArrowsMove, label: "Move and delete elements" },
+      { Icon: IconEdit, label: "Edit text" },
     ],
     src: editDirectlyVideo,
     poster: editDirectlyPoster,
@@ -41,14 +42,14 @@ const showcaseVideos = [
   {
     id: "explore-canvas",
     title: "A canvas for exploring variations",
-    description: "Open different pages in a canvas view to compare variations, screen sizes or overall flows. Generate 3 different options, pick one, refine the details immediately to get it feeling right.",
+    description: "Open different pages in a canvas view to compare variations, screen sizes or overall flows. Generate 3 different options, pick one, refine the details immediately to get it feeling right.\n\nDesigning in a terminal? No, you can pry canvas UX out of my cold, dead hands.",
     src: exploreCanvasVideo,
     poster: exploreCanvasPoster,
   },
   {
     id: "sync-tokens-components",
     title: "Keep tokens and components in sync",
-    description: "It's your real codebase, so you need to use the tokens and components that exist. See them directly here, and avoid agents churning out custom CSS for every button.",
+    description: "It's your real code base, so use the tokens and components that exist already. Avoid agents churning out custom CSS for every button.",
     src: syncTokensVideo,
     poster: syncTokensPoster,
   },
@@ -289,27 +290,37 @@ function ShowcaseVideo({
       ref={ref}
       style={{ "--landing-showcase-video-width": width, opacity } as CSSProperties}
     >
-      <div className="landing-showcase-placeholder" data-visible={!isVideoVisible || !videoReady}>
-        <img className="landing-showcase-placeholder-image" src={video.poster} alt="" aria-hidden="true" />
+      <div className="landing-showcase-browser-bar" aria-hidden="true">
+        <div className="landing-showcase-browser-controls">
+          <span className="landing-showcase-browser-dot landing-showcase-browser-dot--red" />
+          <span className="landing-showcase-browser-dot landing-showcase-browser-dot--yellow" />
+          <span className="landing-showcase-browser-dot landing-showcase-browser-dot--green" />
+        </div>
+        <span className="landing-showcase-browser-url">localhost</span>
       </div>
-      {isInView ? (
-        <video
-          className="landing-showcase-video-element"
-          ref={videoRef}
-          data-ready={isVideoVisible && videoReady}
-          aria-label={video.title}
-          autoPlay={isVideoVisible}
-          muted
-          playsInline
-          poster={video.poster}
-          preload="metadata"
-          onError={() => setVideoReady(false)}
-          onLoadedData={() => setVideoReady(true)}
-          onEnded={handleVideoEnded}
-        >
-          <source src={video.src} type="video/mp4" />
-        </video>
-      ) : null}
+      <div className="landing-showcase-video-frame">
+        <div className="landing-showcase-placeholder" data-visible={!isVideoVisible || !videoReady}>
+          <img className="landing-showcase-placeholder-image" src={video.poster} alt="" aria-hidden="true" />
+        </div>
+        {isInView ? (
+          <video
+            className="landing-showcase-video-element"
+            ref={videoRef}
+            data-ready={isVideoVisible && videoReady}
+            aria-label={video.title}
+            autoPlay={isVideoVisible}
+            muted
+            playsInline
+            poster={video.poster}
+            preload="metadata"
+            onError={() => setVideoReady(false)}
+            onLoadedData={() => setVideoReady(true)}
+            onEnded={handleVideoEnded}
+          >
+            <source src={video.src} type="video/mp4" />
+          </video>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -331,7 +342,12 @@ function DemoShowcase({ controls }: { controls: ShowcaseControls }): ReactNode {
                 <p className="landing-showcase-item-description">{video.description}</p>
                 {"bullets" in video ? (
                   <ul className="landing-showcase-item-bullets">
-                    {video.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
+                    {video.bullets.map(({ Icon, label }) => (
+                      <li key={label}>
+                        <Icon size={18} stroke={1.6} aria-hidden="true" />
+                        <span>{label}</span>
+                      </li>
+                    ))}
                   </ul>
                 ) : null}
               </div>
@@ -540,7 +556,7 @@ export function App(): ReactNode {
           <section className="landing-open-source landing-inner" aria-labelledby="landing-open-source-title">
             <h2 className="landing-content-column" id="landing-open-source-title">Open source</h2>
             <p className="landing-open-source-description landing-content-column">
-              Open source because there are more front-end frameworks and libraries than atoms in the universe. I&apos;ve tried to make Nudge feel good out of the box, but if yours is not supported yet, extend it, fork it, and DIY your own Figma in the browser.
+              Open source because there are more front-end frameworks and libraries than atoms in the universe. If your project setup isn&apos;t supported yet, you can customise and extend to your needs - DIY your own Figma in the browser.
             </p>
             <a className="landing-open-source-link landing-content-column" href="https://github.com/charlessmart/nudge-ui" target="_blank" rel="noreferrer">
               <GitHubIcon />
