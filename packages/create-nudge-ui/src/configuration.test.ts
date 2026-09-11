@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { configureSource } from "./configuration.ts";
 
 describe("configureSource", () => {
-  it("adds the Astro adapter to an existing integrations array", () => {
+  it("wraps an Astro configuration without inspecting its integrations", () => {
     const source = `import { defineConfig } from "astro/config";
 
 export default defineConfig({
@@ -10,9 +10,37 @@ export default defineConfig({
 });
 `;
     const configured = configureSource(source, "astro", "astro.config.ts");
-    expect(configured).toContain('import { nudgeUiAstro } from "@nudge-ui/astro";');
-    expect(configured).toContain("integrations: [\n    nudgeUiAstro(),");
+    expect(configured).toContain('import { withNudgeUi } from "@nudge-ui/astro";');
+    expect(configured).toContain("export default withNudgeUi(defineConfig({");
     expect(configureSource(configured, "astro", "astro.config.ts")).toBe(configured);
+  });
+
+  it("wraps Astro shorthand, variable, and spread integration lists", () => {
+    const source = `import { defineConfig } from "astro/config";
+import mdx from "@astrojs/mdx";
+
+const integrations = [mdx()];
+export default defineConfig({ integrations, ...getOverrides() });
+`;
+    const configured = configureSource(source, "astro", "astro.config.mjs");
+    expect(configured).toContain("withNudgeUi(defineConfig({ integrations, ...getOverrides() }))");
+    expect(configureSource(configured, "astro", "astro.config.mjs")).toBe(configured);
+  });
+
+  it("uses the local name of a renamed Astro wrapper import", () => {
+    const source = 'import { withNudgeUi as withInspector } from "@nudge-ui/astro";\nexport default {};\n';
+    const configured = configureSource(source, "astro", "astro.config.mjs");
+    expect(configured).toContain("export default withInspector({})");
+    expect(configured).not.toContain("withNudgeUi({})");
+  });
+
+  it("avoids local binding collisions when importing the Astro wrapper", () => {
+    const source = "const withNudgeUi = () => 'local';\nexport default {};\n";
+    const configured = configureSource(source, "astro", "astro.config.mjs");
+    expect(configured).toContain(
+      'import { withNudgeUi as withNudgeUi2 } from "@nudge-ui/astro";',
+    );
+    expect(configured).toContain("export default withNudgeUi2({})");
   });
 
   it("adds the Vite adapter after existing plugins", () => {
@@ -88,13 +116,22 @@ export default defineConfig({
   integrations: [nudgeUiAstro({ debug: true })],
 });
 `;
-    expect(configureSource(source, "astro", "astro.config.ts")).toBe(source);
+    const configured = configureSource(source, "astro", "astro.config.ts");
+    expect(configured).toContain("export default withNudgeUi(defineConfig({");
+    expect(configureSource(configured, "astro", "astro.config.ts")).toBe(configured);
   });
 
-  it("adds missing array properties to conventional defineConfig calls", () => {
+  it("does not mistake an unrelated nudgeUiAstro call for configuration", () => {
+    const source = "function preview() { nudgeUiAstro(); }\nexport default {};\n";
+    expect(configureSource(source, "astro", "astro.config.mjs")).toContain(
+      "export default withNudgeUi({})",
+    );
+  });
+
+  it("wraps Astro configs that omit integrations", () => {
     const astro = 'import { defineConfig } from "astro/config";\nexport default defineConfig({});\n';
     expect(configureSource(astro, "astro", "astro.config.mjs")).toContain(
-      "integrations: [nudgeUiAstro()]",
+      "export default withNudgeUi(defineConfig({}))",
     );
   });
 

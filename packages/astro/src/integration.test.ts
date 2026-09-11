@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AstroIntegration } from "astro";
-import { nudgeUiAstro } from "./integration.ts";
+import { nudgeUiAstro, withNudgeUi } from "./integration.ts";
 
 type ConfigSetupParameters = Parameters<
   NonNullable<AstroIntegration["hooks"]["astro:config:setup"]>
@@ -39,26 +39,17 @@ describe("nudgeUiAstro", () => {
     const plugins = (
       updateConfig.mock.calls[0]?.[0] as { vite: { plugins: unknown[] } }
     ).vite.plugins;
-    // Shared plugin + transformed-CSS observer + project-context provider.
-    expect(plugins).toHaveLength(3);
+    // Shared plugin + transformed-CSS observer + client transport + context.
+    expect(plugins).toHaveLength(4);
 
     expect(injectScript).toHaveBeenCalledTimes(1);
     const [stage, content] = injectScript.mock.calls[0] as unknown as [string, string];
     expect(stage).toBe("page");
-    // The refresh baseline is installed synchronously — before the dynamic
-    // imports — so the inspector graph (loaded via the dynamic bootstrap
-    // import, whose continuation always runs after this script's body) can
-    // never evaluate against a missing `$RefreshReg$`.
-    expect(content.indexOf("window.$RefreshReg$ = () => {};"))
-      .toBeLessThan(content.indexOf('import("/@react-refresh")'));
-    expect(content.indexOf("window.$RefreshReg$ = () => {};"))
-      .toBeLessThan(content.indexOf('import("@nudge-ui/astro/bootstrap")'));
-    expect(content).toContain("window.$RefreshSig$ = () => (type) => type;");
-    expect(content).toContain("window.__vite_plugin_react_preamble_installed__ = true;");
-    expect(content).toContain('import("/@react-refresh")');
-    // The bootstrap loads dynamically so the synchronous baseline cannot be
-    // hoisted away (ESM semantics), and does not wait on the refresh chain.
-    expect(content).toContain('import("@nudge-ui/astro/bootstrap")');
+    expect(content).toContain('/__nudge_ui__/client.mjs');
+    expect(content).toContain('/__nudge_ui__/manifest');
+    expect(content).toContain("data-nudge-ui-client");
+    expect(content).not.toContain("@nudge-ui/inspector");
+    expect(content).not.toContain("@react-refresh");
 
     expect(addMiddleware).toHaveBeenCalledTimes(1);
     const registration = addMiddleware.mock.calls[0]?.[0] as {
@@ -68,6 +59,25 @@ describe("nudgeUiAstro", () => {
     expect(registration.order).toBe("pre");
     expect(registration.entrypoint).toBeInstanceOf(URL);
     expect(registration.entrypoint?.pathname).toContain("middleware.ts");
+  });
+
+  it("wraps arbitrary integration lists without mutating the input", () => {
+    const existing = {
+      integrations: [{ name: "docs", hooks: {} }],
+      output: "static" as const,
+    };
+    const configured = withNudgeUi(existing, { projectId: "site" });
+
+    expect(configured).not.toBe(existing);
+    expect(existing.integrations).toHaveLength(1);
+    expect(configured.integrations).toHaveLength(2);
+    expect((configured.integrations as Array<{ name: string }>)[1]?.name).toBe("nudge-ui");
+  });
+
+  it("does not add a duplicate integration", () => {
+    const integration = nudgeUiAstro();
+    const config = { integrations: [integration] };
+    expect(withNudgeUi(config)).toBe(config);
   });
 
   it("registers nothing for build commands (ADR-0002)", () => {

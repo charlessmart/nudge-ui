@@ -1,4 +1,3 @@
-import { reactComponentRuntimeAdapter } from "./reactRuntime.tsx";
 import type {
   ComponentOverride,
   ComponentRuntimeAdapter,
@@ -6,30 +5,60 @@ import type {
   RuntimeComponentTarget,
 } from "./types.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import {
+  copyComponentOverrides,
+  copyRuntimeTarget,
+  getHostRuntimeAdapters,
+  registerHostRuntimeAdapter,
+  replaceHostRuntimeAdapterOverrides,
+} from "./runtimeBridge.ts";
 
-const runtimeAdapters: ComponentRuntimeAdapter[] = [reactComponentRuntimeAdapter];
+const diagnosedAdapters = new WeakSet<ComponentRuntimeAdapter>();
 
 function enabledRuntimeAdapters(): ComponentRuntimeAdapter[] {
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
-  return runtimeAdapters;
+  return [...getHostRuntimeAdapters()];
 }
 
 /** Register a framework adapter without coupling semantic resolution to React. */
 export function registerComponentRuntimeAdapter(adapter: ComponentRuntimeAdapter): () => void {
-  runtimeAdapters.push(adapter);
-  return () => {
-    const index = runtimeAdapters.indexOf(adapter);
-    if (index >= 0) runtimeAdapters.splice(index, 1);
-  };
+  return registerHostRuntimeAdapter(adapter);
 }
 
 export function inspectComponentTargets(element: HTMLElement): RuntimeComponentTarget[] {
-  return enabledRuntimeAdapters().flatMap((adapter) => adapter.inspect(element).map((target) => ({
-    ...target,
-    mountedCount: target.mountedCount
-      ?? adapter.getCallsiteMultiplicity?.(target.meta.callsiteId)
-      ?? undefined,
-  })));
+  const targets: RuntimeComponentTarget[] = [];
+  for (const adapter of enabledRuntimeAdapters()) {
+    let inspected: RuntimeComponentTarget[];
+    try {
+      inspected = adapter.inspect(element);
+      if (!Array.isArray(inspected)) {
+        throw new TypeError("A host runtime Adapter returned a non-array inspection result.");
+      }
+    } catch (error) {
+      diagnoseAdapter(adapter, error instanceof Error ? error.message : String(error));
+      continue;
+    }
+    for (const value of inspected) {
+      try {
+        const target = copyRuntimeTarget(value);
+        targets.push({
+          ...target,
+          mountedCount: target.mountedCount
+            ?? adapter.getCallsiteMultiplicity?.(target.meta.callsiteId)
+            ?? undefined,
+        });
+      } catch (error) {
+        diagnoseAdapter(adapter, error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+  return targets;
+}
+
+function diagnoseAdapter(adapter: ComponentRuntimeAdapter, detail: string): void {
+  if (diagnosedAdapters.has(adapter)) return;
+  diagnosedAdapters.add(adapter);
+  console.warn(`[nudge-ui] Ignored invalid ${adapter.framework} Adapter inspection: ${detail}`);
 }
 
 /**
@@ -57,8 +86,6 @@ export function editableComponentTargets(
 }
 
 export function replaceComponentOverrideProjection(overrides: ComponentOverride[]): void {
-  for (const adapter of enabledRuntimeAdapters()) {
-    adapter.replaceOverrides(overrides.filter((override) =>
-      override.framework === adapter.framework));
-  }
+  if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return;
+  replaceHostRuntimeAdapterOverrides(copyComponentOverrides(overrides));
 }

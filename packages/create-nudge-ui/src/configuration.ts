@@ -35,22 +35,22 @@ export function planConfiguration(projectRoot: string, framework: Framework): Co
 export function configureSource(source: string, framework: Exclude<Framework, "standalone">, fileName: string): string {
   const sourceFile = parseSource(source, fileName);
   if (framework === "astro") {
-    return configureArrayHost(source, sourceFile, "@nudge-ui/astro", "nudgeUiAstro", "integrations", "nudgeUiAstro()");
+    return configureAstroSource(source, sourceFile);
   }
   if (framework === "vite-react") {
-    return configureArrayHost(source, sourceFile, "@nudge-ui/vite-react", "nudgeUi", "plugins", "...nudgeUi()");
+    return configureViteSource(source, sourceFile);
   }
   return configureNextSource(source, sourceFile);
 }
 
-function configureArrayHost(
+function configureViteSource(
   source: string,
   sourceFile: ts.SourceFile,
-  packageName: "@nudge-ui/astro" | "@nudge-ui/vite-react",
-  importName: "nudgeUiAstro" | "nudgeUi",
-  propertyName: "integrations" | "plugins",
-  expression: string,
 ): string {
+  const packageName = "@nudge-ui/vite-react";
+  const importName = "nudgeUi";
+  const propertyName = "plugins";
+  const expression = "...nudgeUi()";
   const bindings = importedBindings(sourceFile, packageName, importName);
   const callableBindings = new Set([...bindings, importName]);
   const configObject = findDefineConfigObject(sourceFile, propertyName);
@@ -75,6 +75,29 @@ function configureArrayHost(
   const edits: TextEdit[] = configurationEdit ? [configurationEdit] : [];
   if (bindings.length === 0) {
     edits.push(importEdit(sourceFile, `import { ${importName} } from "${packageName}";`, false));
+  }
+  return applyEdits(source, edits);
+}
+
+function configureAstroSource(source: string, sourceFile: ts.SourceFile): string {
+  const target = findDefaultExport(sourceFile, "Astro");
+  const bindings = importedBindings(sourceFile, "@nudge-ui/astro", "withNudgeUi");
+  const wrapperBinding = bindings[0] ?? unusedBindingName(sourceFile, "withNudgeUi");
+  const edits: TextEdit[] = [];
+  if (!containsCall(target, new Set(bindings))) {
+    const start = target.getStart(sourceFile);
+    const end = target.getEnd();
+    edits.push({ start, end, text: `${wrapperBinding}(${source.slice(start, end)})` });
+  }
+  if (bindings.length === 0) {
+    const importedName = wrapperBinding === "withNudgeUi"
+      ? "withNudgeUi"
+      : `withNudgeUi as ${wrapperBinding}`;
+    edits.push(importEdit(
+      sourceFile,
+      `import { ${importedName} } from "@nudge-ui/astro";`,
+      false,
+    ));
   }
   return applyEdits(source, edits);
 }
@@ -143,6 +166,22 @@ function findNextExport(sourceFile: ts.SourceFile): NextExport {
   return exports[0]!;
 }
 
+function findDefaultExport(
+  sourceFile: ts.SourceFile,
+  frameworkName: string,
+): ts.Expression {
+  const exports = sourceFile.statements
+    .filter((statement): statement is ts.ExportAssignment =>
+      ts.isExportAssignment(statement) && !statement.isExportEquals)
+    .map((statement) => statement.expression);
+  if (exports.length !== 1) {
+    throw new Error(
+      `Could not update the ${frameworkName} configuration: expected exactly one default export.`,
+    );
+  }
+  return exports[0]!;
+}
+
 function isModuleExports(expression: ts.Expression): boolean {
   return ts.isPropertyAccessExpression(expression)
     && ts.isIdentifier(expression.expression)
@@ -204,6 +243,17 @@ function containsCall(root: ts.Node, bindingNames: ReadonlySet<string>): boolean
     }
   });
   return found;
+}
+
+function unusedBindingName(sourceFile: ts.SourceFile, preferred: string): string {
+  const identifiers = new Set<string>();
+  visit(sourceFile, (node) => {
+    if (ts.isIdentifier(node)) identifiers.add(node.text);
+  });
+  if (!identifiers.has(preferred)) return preferred;
+  let suffix = 2;
+  while (identifiers.has(`${preferred}${suffix}`)) suffix += 1;
+  return `${preferred}${suffix}`;
 }
 
 function visit(root: ts.Node, visitor: (node: ts.Node) => void): void {
