@@ -43,15 +43,3 @@
   position: relative;
   min-width: 0;
 }
-
-.typography__alignment-field > .at-rule-indicator {
-  position: absolute;
-  z-index: 2;
-  top: 50%;
-  right: 8px;
-  transform: translateY(-50%);
-}
-
-.typography__alignment-field:has(> .at-rule-indicator) .segmented-control {
-  padding-right: 32px;
-}

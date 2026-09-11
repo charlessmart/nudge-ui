@@ -23,7 +23,7 @@ test("dev: a winning media-query declaration has a compact context indicator", a
   await page.click("text=Save");
 
   const indicator = await waitForAtRuleIndicator(page, "font-size");
-  await expect(indicator).toHaveText("@");
+  await expect(indicator).toHaveText("3");
   await indicator.hover();
   await expect(page.locator(".at-rule-tooltip-positioner")).toHaveCSS("z-index", "3");
   const activeRule = page.locator('[data-test="at-rule-tooltip"] [data-active="true"]');
@@ -58,7 +58,7 @@ test("dev: a matching container-query declaration is shown in the context popove
   await page.click("text=Save");
 
   const indicator = await waitForAtRuleIndicator(page, "font-size");
-  await expect(indicator).toHaveText("@");
+  await expect(indicator).toHaveText("1");
   await indicator.hover();
   await expect(page.locator('[data-test="at-rule-tooltip"] [data-active="true"]')).toHaveText("(width > 100px)");
 });

@@ -762,10 +762,15 @@ function FlexAlignmentGrid({ domElement, editTarget, revision = 0, onAfterEdit }
     : FLEX_ALIGNMENT_OPTIONS;
 
   function selectAlignment(nextJustify: string, nextAlign: string): void {
-    setJustify(nextJustify);
+    // Keep an explicit distribution choice when the grid is used to change
+    // the cross-axis alignment. The distribution control owns values such as
+    // `space-between`; a grid click should not silently replace them with the
+    // packed default.
+    const resolvedJustify = distributed ? justify : nextJustify;
+    setJustify(resolvedJustify);
     setAlign(nextAlign);
     setStyles(editTarget ?? domElement, [
-      { property: "justify-content", value: nextJustify },
+      { property: "justify-content", value: resolvedJustify },
       { property: "align-items", value: nextAlign },
     ]);
     onAfterEdit?.();

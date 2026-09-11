@@ -264,19 +264,20 @@
   background: var(--accent);
 }
 
+/* Match the centers of the 32px controls in the padded 3x3 grid. */
 .layout__alignment-grid[data-direction="row"] .layout__distribution-preview {
-  top: calc(50% - 1px);
-  right: 10px;
-  left: 10px;
+  top: calc((100% - 14px) / 3 + 22px);
+  right: calc((100% - 14px) / 6 - 2px);
+  left: calc((100% - 14px) / 6 - 2px);
 }
 
 .layout__alignment-grid[data-direction="row"][data-align="flex-start"] .layout__distribution-preview {
-  top: 14px;
+  top: 20px;
 }
 
 .layout__alignment-grid[data-direction="row"][data-align="flex-end"] .layout__distribution-preview {
   top: auto;
-  bottom: 14px;
+  bottom: calc((100% - 14px) / 3 - 12px);
 }
 
 .layout__alignment-grid[data-direction="row"][data-justify="space-around"] .layout__distribution-preview {
@@ -285,18 +286,18 @@
 }
 
 .layout__alignment-grid[data-direction="column"] .layout__distribution-preview {
-  top: 10px;
-  bottom: 10px;
+  top: 20px;
+  bottom: calc((100% - 14px) / 3 - 12px);
   left: calc(50% - 7px);
   flex-direction: column;
 }
 
 .layout__alignment-grid[data-direction="column"][data-align="flex-start"] .layout__distribution-preview {
-  left: 14px;
+  left: calc((100% - 14px) / 6 - 2px);
 }
 
 .layout__alignment-grid[data-direction="column"][data-align="flex-end"] .layout__distribution-preview {
-  right: 14px;
+  right: calc((100% - 14px) / 6 - 2px);
   left: auto;
 }
 

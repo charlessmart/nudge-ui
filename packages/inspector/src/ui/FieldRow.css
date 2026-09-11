@@ -26,6 +26,7 @@
 }
 
 .field-row__control {
+  position: relative;
   display: block;
   min-width: 0;
 }
@@ -38,18 +39,8 @@
 }
 
 .field-row__control[data-has-at-rule="true"] {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.field-row__control[data-has-at-rule="true"] > :not(.at-rule-indicator):not(.field-row__hint) {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.field-row__control[data-has-at-rule="true"] > .at-rule-indicator {
-  margin-left: auto;
+  /* Keep the badge out of the control's horizontal layout. */
+  isolation: isolate;
 }
 
 .field-row--stacked {

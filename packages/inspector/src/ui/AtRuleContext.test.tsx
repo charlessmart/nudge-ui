@@ -42,9 +42,9 @@ describe("AtRuleIndicator", () => {
     );
 
     const indicator = handle.host.querySelector('[data-test="at-rule-indicator"]');
-    expect(indicator?.textContent).toBe("");
+    expect(indicator?.textContent).toBe("1");
     expect(indicator?.querySelector(".at-rule-indicator__symbol")).not.toBeNull();
-    expect(indicator?.getAttribute("aria-label")).toBe("Active media query");
+    expect(indicator?.getAttribute("aria-label")).toBe("Active 1 media query");
   });
 
   it("does not render when no responsive context applies", () => {

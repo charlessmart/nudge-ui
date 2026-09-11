@@ -1,17 +1,22 @@
 .at-rule-indicator {
-  position: relative;
+  position: absolute;
+  z-index: 2;
+  top: -4px;
+  left: -4px;
   display: inline-flex;
-  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 8px;
-  height: 8px;
-  padding: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
   border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised-2x);
+  color: var(--content-primary, var(--text-primary));
+  box-shadow: var(--shadow-outline);
   font: inherit;
+  font-size: 10px;
+  font-weight: 700;
   line-height: 1;
   white-space: nowrap;
   cursor: help;
@@ -24,16 +29,12 @@
 }
 
 .at-rule-indicator:hover {
-  color: var(--accent);
-  background: var(--accent);
+  color: var(--content-primary, var(--text-primary));
+  background: var(--surface-raised-2x);
 }
 
 .at-rule-indicator__symbol {
   display: block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
 }
 
 .at-rule-indicator:focus-visible {

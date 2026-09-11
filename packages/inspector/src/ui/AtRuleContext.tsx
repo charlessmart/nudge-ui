@@ -49,6 +49,11 @@ function labelFor(atRules: readonly (AtRuleContext | AtRuleCandidate)[]): string
   return "Conditional query";
 }
 
+function countLabel(label: string, count: number): string {
+  const noun = label.toLowerCase().replace(/query$/, count === 1 ? "query" : "queries");
+  return `${count} ${noun}`;
+}
+
 function portalContainer(): HTMLElement | ShadowRoot | null {
   return document.getElementById("nudge-ui-root")?.shadowRoot ?? document.body;
 }
@@ -63,6 +68,7 @@ export function AtRuleIndicator({ atRules = EMPTY_AT_RULES, className }: AtRuleI
   if (atRules.length === 0) return null;
   const label = labelFor(atRules);
   const activeCount = atRules.filter((atRule) => !("active" in atRule) || atRule.active).length;
+  const count = countLabel(label, atRules.length);
 
   return (
     <Tooltip.Provider>
@@ -72,9 +78,9 @@ export function AtRuleIndicator({ atRules = EMPTY_AT_RULES, className }: AtRuleI
           delay={0}
           className={`at-rule-indicator${className ? ` ${className}` : ""}`}
           data-test="at-rule-indicator"
-          aria-label={activeCount > 0 ? `Active ${label.toLowerCase()}` : `${label}s`}
+          aria-label={activeCount > 0 ? `Active ${count}` : count}
         >
-          <span className="at-rule-indicator__symbol" aria-hidden="true" />
+          <span className="at-rule-indicator__symbol" aria-hidden="true">{atRules.length}</span>
         </Tooltip.Trigger>
         <Tooltip.Portal container={portalContainer()}>
           <Tooltip.Positioner className="at-rule-tooltip-positioner" side="top" align="end" sideOffset={7}>
