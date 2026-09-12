@@ -117,6 +117,18 @@ describe("transformNextModuleSource — client-component policy", () => {
     expect(result!.code).toContain('data-cid="Button"');
   });
 
+  it("keeps semantic instrumentation outside an Adapter-owned source scope disabled", () => {
+    const result = transformNextModuleSource(
+      CLIENT_BUTTON,
+      "/workspace/packages/unowned/Button.tsx",
+      { root: ROOT, instrumentComponents: false },
+    );
+
+    expect(result!.clientComponent).toBe(true);
+    expect(result!.code).not.toContain("@nudge-ui/inspector/component-runtime");
+    expect(result!.code).not.toContain("__nudgeUiInstrumentComponent(");
+  });
+
   it("keeps the use client directive in prologue position when injecting the runtime import", () => {
     const result = transform(CLIENT_BUTTON, `${ROOT}/src/Button.tsx`);
 

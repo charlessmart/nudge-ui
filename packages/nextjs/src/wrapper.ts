@@ -1,9 +1,10 @@
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import type { ComponentModuleProtocols } from "@nudge-ui/compiler/component-policy";
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
+import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
 
 /**
  * `withNudgeUi(nextConfig)` — the single user touchpoint (ADR-0010).
@@ -32,6 +33,13 @@ export interface NudgeUiNextConfig {
   ) => Record<string, unknown>;
   rewrites?: (() => Promise<RewritesShape> | RewritesShape) | RewritesShape;
   transpilePackages?: string[];
+}
+
+/** Host-specific policy additions passed to the shared source compiler. */
+export interface NudgeUiNextOptions {
+  readonly componentProtocols?: ComponentModuleProtocols;
+  /** Authored workspace directories outside the Next.js application root. */
+  readonly sourceRoots?: readonly string[];
 }
 
 export interface RewritesSource {
@@ -75,6 +83,15 @@ function hostPackageDir(root: string, name: string): string | null {
   try {
     const require = createRequire(join(root, "package.json"));
     return dirname(require.resolve(`${name}/package.json`));
+  } catch {
+    return null;
+  }
+}
+
+/** Absolute path for an Adapter-owned package export, resolved beside this package. */
+function adapterPackageExport(specifier: string): string | null {
+  try {
+    return createRequire(import.meta.url).resolve(specifier);
   } catch {
     return null;
   }
@@ -160,11 +177,16 @@ function isDevelopmentEvaluation(phase: string): boolean {
 /** Function form: gates instrumentation on PHASE_DEVELOPMENT_SERVER. */
 export function withNudgeUi<T extends object>(
   factory: (phase: string) => T,
+  options?: NudgeUiNextOptions,
 ): (phase: string) => T;
 /** Object form: returns a phase-aware Next.js config factory. */
-export function withNudgeUi<T extends object>(config: T): (phase: string) => T;
+export function withNudgeUi<T extends object>(
+  config: T,
+  options?: NudgeUiNextOptions,
+): (phase: string) => T;
 export function withNudgeUi<T extends object>(
   config: T | ((phase: string) => T) = {} as T,
+  options: NudgeUiNextOptions = {},
 ): (phase: string) => T {
   const factory = typeof config === "function"
     ? config as (phase: string) => T
@@ -172,11 +194,11 @@ export function withNudgeUi<T extends object>(
   return (phase: string): T => {
     const resolved = factory(phase);
     if (!isDevelopmentEvaluation(phase)) return resolved;
-    return instrumentConfig(resolved);
+    return instrumentConfig(resolved, options);
   };
 }
 
-function instrumentConfig<T extends object>(config: T): T {
+function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptions): T {
 
   // Consumers pass their real NextConfig object; the structural subset is an
   // internal view so this package stays typecheckable without next installed.
@@ -221,9 +243,18 @@ function instrumentConfig<T extends object>(config: T): T {
     ...((source.turbopack?.rules as Record<string, unknown> | undefined) ?? {}),
   };
   const paths = loaderPaths();
+  const sourceRoots = options.sourceRoots?.map((sourceRoot) => resolve(root, sourceRoot));
+  const loaderOptions = {
+    root,
+    ...(options.componentProtocols ? { componentProtocols: options.componentProtocols } : {}),
+    ...(sourceRoots ? { sourceRoots } : {}),
+  };
   if (process.env.NUDGE_UI_NEXT_TURBOPACK_RULES !== "0") {
     const identityRule = {
-      loaders: [{ loader: paths.plugin, options: { root } }],
+      loaders: [{
+        loader: paths.plugin,
+        options: loaderOptions,
+      }],
       // 'foreign' is Turbopack's builtin condition for dependency code, so
       // `not: foreign` confines the loader to first-party sources. The path
       // guard additionally keeps build output (.next) out of scope.
@@ -235,9 +266,10 @@ function instrumentConfig<T extends object>(config: T): T {
           // the Nudge UI packages themselves must be excluded explicitly:
           // instrumenting the inspector's own UI would wrap every control in
           // override boundaries and pollute the panel with identity attrs.
+          // The list is shared with the loader's runtime scope check.
           {
             not: {
-              path: "[\\/]packages[\\/](inspector|nextjs|plugin|css|standalone|compatibility|package-css-fixture)[\\/]",
+              path: nudgeUiRepositoryPackagePath,
             },
           },
         ],
@@ -269,13 +301,17 @@ function instrumentConfig<T extends object>(config: T): T {
   // to the host project's copies pins one instance for every compilation.
   const hostReact = hostPackageDir(root, "react");
   const hostReactDom = hostPackageDir(root, "react-dom");
-  if (hostReact || hostReactDom) {
+  const componentRuntime = adapterPackageExport("@nudge-ui/inspector/component-runtime");
+  if (hostReact || hostReactDom || componentRuntime) {
     const userAlias = (source.turbopack?.resolveAlias as Record<string, unknown> | undefined) ?? {};
     nextConfig.turbopack = {
       ...nextConfig.turbopack,
       resolveAlias: {
         ...(hostReact ? { react: hostReact } : {}),
         ...(hostReactDom ? { "react-dom": hostReactDom } : {}),
+        ...(componentRuntime
+          ? { "@nudge-ui/inspector/component-runtime": componentRuntime }
+          : {}),
         ...userAlias,
       },
     };
@@ -292,6 +328,8 @@ function instrumentConfig<T extends object>(config: T): T {
     const merged = userWebpack ? userWebpack(webpackConfig, context) : webpackConfig;
     if (!context.dev) return merged;
     const module = (merged.module ?? {}) as Record<string, unknown>;
+    const resolveConfig = (merged.resolve ?? {}) as Record<string, unknown>;
+    const userAlias = (resolveConfig.alias ?? {}) as Record<string, unknown>;
     const rules = Array.isArray(module.rules) ? [...(module.rules as unknown[])] : [];
     const paths = loaderPaths();
     // Next 16 removed the webpack CSS pipeline entirely
@@ -311,9 +349,24 @@ function instrumentConfig<T extends object>(config: T): T {
       test: /\.(tsx|jsx)$/,
       exclude: /node_modules/,
       enforce: "pre",
-      use: [{ loader: paths.identity, options: { root } }],
+      use: [{
+        loader: paths.identity,
+        options: loaderOptions,
+      }],
     });
-    return { ...merged, module: { ...module, rules } };
+    return {
+      ...merged,
+      resolve: {
+        ...resolveConfig,
+        alias: {
+          ...(componentRuntime
+            ? { "@nudge-ui/inspector/component-runtime": componentRuntime }
+            : {}),
+          ...userAlias,
+        },
+      },
+      module: { ...module, rules },
+    };
   };
 
   // --- Manifest transport rewrite ----------------------------------------

@@ -1,6 +1,7 @@
 export {
   withNudgeUi,
   type NudgeUiNextConfig,
+  type NudgeUiNextOptions,
   type RewritesShape,
   type RewritesSource,
 } from "./wrapper.ts";

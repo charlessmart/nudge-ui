@@ -42,19 +42,25 @@ Add the Vite React adapter after the React plugin in `vite.config.ts`:
 ```ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { nudgeUi } from "@nudge-ui/vite-react";
+import { withNudgeUi } from "@nudge-ui/vite-react";
 
-export default defineConfig({
-  plugins: [react(), ...nudgeUi()],
-});
+export default withNudgeUi(defineConfig({
+  plugins: [react()],
+}));
 ```
 
 Pass `debug: true` to enable experimental Inspector features such as DOM
 parent and child navigation:
 
 ```ts
-plugins: [react(), ...nudgeUi({ debug: true })]
+export default withNudgeUi(defineConfig({
+  plugins: [react()],
+}), { debug: true });
 ```
+
+For a monorepo, pass authored workspace package directories explicitly with
+`sourceRoots`. Dependency and generated-output paths remain outside the
+adapter's source scope.
 
 ### Next.js
 
@@ -213,6 +219,8 @@ The repository separates host integration from shared browser behavior:
 
 - `packages/plugin` — Vite transforms, virtual modules, token discovery, and
   dev HTML bootstrap.
+- `packages/compiler` — host-neutral development source compilers used by
+  framework adapters.
 - `packages/create-nudge-ui` — framework detection, adapter installation, and
   host-configuration setup.
 - `packages/css` — browser-safe CSS and token models, value semantics, and the

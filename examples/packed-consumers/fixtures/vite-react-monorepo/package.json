@@ -1,0 +1,10 @@
+{
+  "name": "nudge-ui-packed-vite-react-monorepo",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/web", "packages/ui"],
+  "scripts": {
+    "dev": "pnpm --dir apps/web run dev"
+  }
+}

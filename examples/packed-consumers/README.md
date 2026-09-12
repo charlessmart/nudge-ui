@@ -4,7 +4,7 @@ This suite verifies the publication and installation seam that workspace-linked
 examples do not exercise. It builds the publishable packages, packs their exact
 tarballs, exposes the scoped packages through a temporary local registry, and
 installs each Adapter with the published `create-nudge-ui` executable in a clean
-npm project.
+npm or pnpm project.
 
 Each smoke test starts the installed development server in Chromium and passes
 only after `#nudge-ui-root` has a shadow root and `window.__nudgeUi.version` is
@@ -25,16 +25,22 @@ Run one or more fixtures while iterating:
 pnpm --filter packed-consumers test:e2e -- vite-react standalone
 ```
 
+The packed matrix covers Vite 6 with React 18, Vite 8 with React 19 and a
+declarative React Router tree, Next.js 16.1 and 16.3, Astro 5, npm and pnpm,
+and flat and workspace-monorepo layouts. The current Vite fixtures use
+callback-form configuration exports, and the workspace fixture declares the
+copied `packages/ui` directory through `sourceRoots`.
+
+Every entry must mount the Nudge bridge. The two Vite React 19 fixtures also
+declare `expectedApplicationText`, so for those a mounted inspector cannot hide
+a host render failure; the remaining entries assert the bridge alone.
+
 Astro 5 is intentional because `@nudge-ui/astro` supports Astro 5 and this stack
-reproduces the external-consumer regression that the suite must retain. The
-fixture currently records the known
-`virtual:design-tokens` dependency-optimization failure as `XFAIL`. The
-allowance is limited to the exact server-side module-resolution error;
-installer, package, browser, and unrelated mount failures still fail the suite.
-CI reports the expected failure as a warning and also warns if it unexpectedly
-passes. Remove
-`expectedMountFailure` from the Astro fixture after the shared client work
-lands.
+reproduces the external-consumer regression that the suite must retain: a
+`virtual:design-tokens` dependency-optimization failure during server-side
+module resolution. The shared client work fixed that regression, so the Astro
+entry is a required PASS. The suite keeps it, unsuppressed, as a permanent guard
+against the regression returning.
 
 The `nextjs-16.1` fixture keeps the earliest supported Next.js 16 minor in the
 packed development path. It intentionally imports a regular application CSS

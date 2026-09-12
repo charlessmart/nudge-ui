@@ -81,6 +81,8 @@ jobs:
         include:
           - name: "@nudge-ui/agent-protocol"
             archive: nudge-ui-agent-protocol
+          - name: "@nudge-ui/compiler"
+            archive: nudge-ui-compiler
           - name: "create-nudge-ui"
             archive: create-nudge-ui
           - name: "@nudge-ui/css"
@@ -139,4 +141,4 @@ jobs:
       - name: Write approval instructions
         run: |
           echo "### $RELEASE_TAG is staged on npm" >> "$GITHUB_STEP_SUMMARY"
-          echo "Review all nine packages in npm's Staged Packages page, then approve them with 2FA." >> "$GITHUB_STEP_SUMMARY"
+          echo "Review all ten packages in npm's Staged Packages page, then approve them with 2FA." >> "$GITHUB_STEP_SUMMARY"
