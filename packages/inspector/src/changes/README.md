@@ -1,9 +1,10 @@
 # Inspector edit model contract
 
-This document is the Phase 0 specification for the current inspector edit
-model. The record definitions are in [`types.ts`](./types.ts) and
-[`structuralTypes.ts`](./structuralTypes.ts). This document describes existing
-fields and behavior; it does not add a runtime interface.
+This document is the Phase 0 specification and implementation map for the
+inspector edit model. The record definitions are in [`types.ts`](./types.ts)
+and [`structuralTypes.ts`](./structuralTypes.ts). Current behavior and target
+ownership boundaries are labeled separately; this document does not add a
+runtime interface.
 
 ## Model dimensions
 
@@ -20,10 +21,12 @@ Every canonical record has four separate concerns:
   target. Evidence is not a live DOM node, React object, preview result, or
   timer state.
 
-Canonical intent is the `ChangeRecord` or `StructuralChange` payload. Preview
-and verification data is document- or attempt-specific. `previewResult` is
-still attached to element and token records in memory, but session serialization
-excludes it and handoff fingerprints exclude it for those style records.
+Canonical intent is the `ChangeRecord` or `StructuralChange` payload. Current
+preview and verification data is split between document-scoped projection
+reports and a single `previewResult` field on element and token records. The
+field is transient: session serialization excludes it and handoff fingerprints
+exclude it for those style records. Phase 2 moves that remaining field into an
+explicit document/attempt diagnostic store.
 
 ## Current record mapping
 
@@ -31,8 +34,8 @@ excludes it and handoff fingerprints exclude it for those style records.
 
 | Variant | Operation | Target and scope | Evidence and baseline |
 | --- | --- | --- | --- |
-| `ElementChangeRecord` | Change one CSS property using a raw value or token value. `state` selects the supported interaction state when present. | Source-site identity is represented by `cid`, `file`, `line`, and `selector`. A rendered-instance edit uses `scope: "rendered-instance"` and `instanceOverride.target`; omitted scope and `scope: "source-site"` use the source-site selector. | `oldToken`/`oldRawValue` are the baseline; `newToken`/`rawValue` are the requested value. `sourceProperty` and `sourceAuthoredValue` preserve CSSOM source context. `runtimeEvidence` and the instance override retain bounded rendered facts. `previewResult` is a preview diagnostic, not evidence. |
-| `TokenChangeRecord` | Change a token value in the managed stylesheet and in the eventual source token definition. | The token is identified by `tokenName`, source file/line, `selector`, and `context`. This variant has no `scope`, `cid`, or rendered-instance target. | `oldRawValue` is the baseline and `rawValue` is the requested value. `context` and `contextLabel` preserve conditional CSS context; `source` identifies the authored token location. `previewResult` is a preview diagnostic. |
+| `ElementChangeRecord` | Change one CSS property using a raw value or token value. `state` selects the supported interaction state when present. | Source-site identity is represented by the instrumentation `cid` (component/site id), `file`, `line`, and `selector`. A rendered-instance edit uses `scope: "rendered-instance"` and `instanceOverride.target`; omitted scope and `scope: "source-site"` use the source-site selector. | `oldToken`/`oldRawValue` are the baseline; `newToken`/`rawValue` are the requested value. `sourceProperty` and `sourceAuthoredValue` preserve CSSOM source context. `runtimeEvidence` and the instance override retain bounded rendered facts. `previewResult` is a preview diagnostic, not evidence. |
+| `TokenChangeRecord` | Change a token value in the managed stylesheet and in the eventual source token definition. | The token is identified by `tokenName`, source file/line, `selector`, and `context`. This variant has no `scope`, instrumentation `cid`, or rendered-instance target. | `oldRawValue` is the baseline and `rawValue` is the requested value. `context` and `contextLabel` preserve conditional CSS context; `source` identifies the authored token location. `previewResult` is a preview diagnostic. |
 | `ComponentChangeRecord` | Change one component prop. | `target` identifies the framework, component definition, callsite, component name, and source location. `scope` is `source-site` or `rendered-instance`; `createComponentPropChange` defaults it to `source-site`. | `before` is a value or default baseline; `after` is the requested value; `authoredAs` describes the authored prop form. Optional `evidence` records the rendered invocation, including occurrence, props, accessible name, original text, and mounted count. |
 | `TextContentChangeRecord` | Replace rendered text with `after`. | `target.sourceSite` identifies the instrumented site. `scope` is `source-site` or `rendered-instance`; `id` identifies the text change. `selector` is the source-site projection selector, not a complete rendered identity. | `before` and `target.beforeText` are the baseline. `target` also carries bounded props, accessible name, occurrence, and optional `textNodePath`; the path is document-local evidence. Optional `evidence` records the semantic component binding. `authoredAs` describes the source text form. |
 
@@ -46,7 +49,21 @@ current type-shape constraints, not additional operation kinds.
 | Variant | Operation | Target and scope | Evidence and preview meaning |
 | --- | --- | --- | --- |
 | `StructuralDelete` | Remove one rendered element from the document. | `target` is a `RenderedInstanceRef` containing a source site and bounded rendered evidence. The operation is inherently one rendered instance; there is no separate scope field. | The rendered-instance reference is the evidence. The `id` is the structural history identity. DOM nodes and deletion placeholders belong to `projection/structuralProjection.ts`, not the record. |
-| `StructuralMove` | Move one rendered element to a destination relationship. | `target` identifies the element; `source.parent`, `destination.parent`, and optional `destination.before` identify the source parent, destination parent, and anchor. The relationship is inherently rendered-instance scoped. | All four rendered-instance references are durable evidence for resolving the relationship. `presentation` currently stores source/destination tags and pre/post indices captured by the gesture. Structural projection does not use those fields to resolve or apply the move; `prompt/generatePrompt.ts` uses the indices to collapse move history and detect a return to the starting position. They are therefore gesture-history metadata, not target identity. Any later removal must preserve that prompt behavior and structural undo behavior with tests. |
+| `StructuralMove` | Move one rendered element to a destination relationship. | `target` identifies the element; `source.parent`, `destination.parent`, and optional `destination.before` identify the source parent, destination parent, and anchor. The relationship is inherently rendered-instance scoped. | All four rendered-instance references are durable evidence for resolving the relationship. The `presentation` fields are classified individually below. |
+
+`StructuralMove.presentation` is currently durable record data, but it is not
+used by document projection to choose or move a DOM node:
+
+- `sourceParentTag` and `destinationParentTag` are bounded descriptive evidence
+  used by the change log and prompt. They help a consumer explain the source
+  and destination relationship after serialization.
+- `fromIndex` and `toIndex` are bounded relationship evidence currently used by
+  `prompt/generatePrompt.ts` to collapse move history and detect a return to the
+  starting position. They are not DOM replay instructions.
+
+Phase 2 may move fields that are only presentation data after replacing those
+consumers with derived or explicit handoff data. Until then, preserve the
+prompt and undo behavior with tests.
 
 Structural intent describes the requested relationship without claiming which
 source mechanism will implement it. A missing or ambiguous parent or anchor is
@@ -115,23 +132,23 @@ unsent intent remains in the workspace.
 | Structural capture and projection | `projection/structuralProjection.ts`, `projection/structuralProjectionBoundary.ts` | Every target, parent, and anchor must resolve exactly and satisfy the shared containment rules. DOM placeholders, observers, and applied nodes remain document-local. |
 | Persistence and handoff | `canvas/sessionStore.ts`, `prompt/generatePrompt.ts`, `agent/verification.ts` | Session data and handoff fingerprints carry durable intent, not preview diagnostics or DOM artifacts. Handoff reconciliation preserves newer unsent edits. |
 
-## Ownership and disposal
+## Ownership and disposal contract
 
-The lifetimes below are the ownership contract for the rearchitecture. The
-current implementation still has module-level state and reset helpers; those
-are implementation details to replace or narrow in the ownership work.
+The lifetimes below are the Phase 0 target boundaries for the rearchitecture.
+The current implementation still has module-level state and reset helpers;
+known mismatches are called out so the ownership work has a concrete scope.
 
 | Lifetime | State that belongs to it | Disposal expectation |
 | --- | --- | --- |
-| Workspace | Canonical change contents, revision, undo/redo, workspace subscriptions, and persisted Canvas card/camera state (`workspaceChanges.ts`, `canvasStore.ts`, `sessionStore.ts`) | Survives an inspector React remount. It is cleared only by an explicit workspace clear/restore or host teardown. Disposal stops workspace subscriptions and pending persistence work after the final write. `unmountInspector()` currently calls `clearWorkspace()`, which is a known mismatch with this contract. |
+| Workspace | Canonical change contents, revision, undo/redo, workspace subscriptions, persisted Canvas card/camera state (`workspaceChanges.ts`, `canvasStore.ts`, `sessionStore.ts`), and the workspace write lease/guard (`canvas/workspaceLease.ts`) | Survives an inspector React remount. It is cleared only by an explicit workspace clear/restore or host teardown. Disposal stops workspace subscriptions, pending persistence work, and the lease heartbeat after the final write. `unmountInspector()` currently calls `clearWorkspace()`, which is a known mismatch with this contract. |
 | Mounted inspector | React roots, host keyboard listeners, selection/UI state, inspection bridge, clipboard handoff controller, stale-detection timers, and mounted shell resources (`index.ts` and shell modules) | `unmountInspector()` owns stopping these resources: unmount roots, remove listeners, cancel controllers/timers, clear selection/layout, and remove inspector-owned host projection. It must not dispose workspace intent merely because the UI remounted. |
-| Inspected document session | Managed stylesheet state, rendered-instance/text/structural applied state and reports, CSSOM resolution caches and observers, renderer selectors, and document-local DOM markers/placeholders | The host document and each Canvas iframe/reload have independent lifetimes. Disposal disconnects observers, cancels queued validation, removes only inspector-owned DOM artifacts, invalidates late callbacks/reports, and releases document caches. A Canvas card ID is not a sufficient identity for a live document after reload or replacement. |
+| Inspected document session | Managed stylesheet state, rendered-instance/text/structural applied state and reports, CSSOM resolution caches and observers, renderer selectors, document-local DOM markers/placeholders, and renderer history patches (`canvas/rendererBootstrap.ts`) | The host document and each Canvas iframe/reload have independent lifetimes. Disposal disconnects observers, cancels queued validation, restores only patches still owned by the session, removes only inspector-owned DOM artifacts, invalidates late callbacks/reports, and releases document caches. A Canvas card ID is not a sufficient identity for a live document after reload or replacement. |
 
 React context may deliver these owners to editors, but it is not the domain
 model. Subscriptions should remain focused so a document diagnostic does not
 rerender unrelated workspace or shell state.
 
-## Test coverage and first-slice gaps
+## Test coverage and first-slice roadmap
 
 Current coverage includes:
 
@@ -157,7 +174,7 @@ Current coverage includes:
   `prompt/clipboardHandoff.test.ts`, `agent/verification.test.ts`, and
   `canvas/staleChangeDetector.test.ts`.
 
-The first implementation slices still need focused coverage for:
+The first implementation slices need focused coverage for:
 
 1. A complete operation/target/scope/evidence matrix, including invalid
    combinations and the optional `ElementChangeRecord.kind` compatibility
