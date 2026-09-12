@@ -1,8 +1,6 @@
-/** The subset of Babel nodes needed by the host-neutral identity transform. */
-export type SyntaxNode = {
-  type: string;
-  [key: string]: unknown;
-};
+import { childNodes, identifier, isNode, type SyntaxNode } from "./ast.ts";
+
+export type { SyntaxNode } from "./ast.ts";
 
 export interface ComponentInstrumentationOptions {
   /**
@@ -29,23 +27,6 @@ export interface ComponentInstrumentationPolicy {
   rendersChildren(componentName: string): boolean;
   rendersProp(componentName: string, prop: string): boolean;
   componentId(componentName: string): string | null;
-}
-
-function isNode(value: unknown): value is SyntaxNode {
-  return typeof value === "object" && value !== null && typeof Reflect.get(value, "type") === "string";
-}
-
-function identifier(node: unknown): string | null {
-  if (!isNode(node) || (node.type !== "Identifier" && node.type !== "StringLiteral")) return null;
-  return typeof node.name === "string" ? node.name : typeof node.value === "string" ? node.value : null;
-}
-
-function children(node: SyntaxNode): SyntaxNode[] {
-  return Object.entries(node).flatMap(([key, value]) => {
-    if (["loc", "extra", "leadingComments", "trailingComments", "innerComments"].includes(key)) return [];
-    if (isNode(value)) return [value];
-    return Array.isArray(value) ? value.filter(isNode) : [];
-  });
 }
 
 /**
@@ -129,14 +110,14 @@ export function createComponentInstrumentationPolicy(
     }
     if (Array.isArray(node.params)) node.params.forEach(recordPattern);
     if (node.type === "CatchClause") recordPattern(node.param);
-    children(node).forEach(visit);
+    childNodes(node).forEach(visit);
   };
   visit(program);
 
   // A definition authored in this module is project-owned by construction: no
   // host resolution applies, and its JSX children are authored here rather
   // than handed to an opaque third-party interface.
-  const isProjectLocalDefinition = (componentName: string): boolean => {
+  const isProjectLocalComponent = (componentName: string): boolean => {
     const [root, ...members] = componentName.split(".");
     if (!root || ambiguous.has(root)) return false;
     return members.length === 0 && imported(componentName) === null && locals.has(root);
@@ -145,10 +126,8 @@ export function createComponentInstrumentationPolicy(
   return {
     bindings,
     canWrap(componentName) {
-      const [root, ...members] = componentName.split(".");
-      if (!root || ambiguous.has(root)) return false;
       const binding = imported(componentName);
-      if (!binding) return members.length === 0 && locals.has(root);
+      if (!binding) return isProjectLocalComponent(componentName);
       const resolved = options.hostPolicy?.components[componentName];
       if (resolved) return resolved.wrap;
       // No host policy: this is the direct-compiler path, where a package
@@ -160,7 +139,7 @@ export function createComponentInstrumentationPolicy(
     rendersChildren(componentName) {
       const resolved = options.hostPolicy?.components[componentName];
       if (resolved) return resolved.slots?.children === "rendered";
-      return isProjectLocalDefinition(componentName);
+      return isProjectLocalComponent(componentName);
     },
     rendersProp(componentName, prop) {
       return options.hostPolicy?.components[componentName]?.slots?.[prop] === "rendered";

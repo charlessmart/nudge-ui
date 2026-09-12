@@ -1,6 +1,5 @@
 import {
   isAbsolute,
-  posix,
   relative,
   resolve,
   sep,
@@ -9,6 +8,7 @@ import type {
   ArtifactStage,
   StylesheetArtifact,
 } from "@nudge-ui/css/token-inventory";
+import { relativePath } from "@nudge-ui/compiler";
 import { detectTailwindV4 } from "../adapters/tailwindV4.ts";
 import type { CssImportGraph } from "./activeStylesheets.ts";
 import { stripCssQuery } from "./activeStylesheets.ts";
@@ -37,25 +37,6 @@ const GENERATED_DIRECTORY_NAMES = new Set([
   "out",
   "storybook-static",
 ]);
-
-/**
- * Project-relative source path for identity and catalog keys.
- *
- * A file outside the project root keeps a `../`-prefixed relative path rather
- * than a machine path, so an authored workspace package stays unique and
- * readable. This matches the Next Adapter's `sourcePath`.
- */
-function relativePath(id: string, root?: string): string {
-  if (root) {
-    const rootPrefix = root.endsWith("/") ? root : `${root}/`;
-    if (id.startsWith(rootPrefix)) return id.slice(rootPrefix.length);
-    if (id.startsWith("/") && root.startsWith("/")) {
-      const relativeId = posix.relative(root, id);
-      if (relativeId && relativeId !== ".") return relativeId;
-    }
-  }
-  return id.replace(/^\//, "");
-}
 
 export function isHostApplicationSource(
   id: string,
@@ -137,10 +118,8 @@ export function createViteStylesheetArtifact(
   input: ViteStylesheetArtifactInput,
 ): StylesheetArtifact {
   const fileId = stripCssQuery(input.id);
-  const sourceScope = {
-    ...(input.sourceRoots ? { sourceRoots: input.sourceRoots } : {}),
-    ...(input.generatedRoots ? { generatedRoots: input.generatedRoots } : {}),
-  } satisfies ViteSourceScopeOptions;
+  // The artifact input already carries the scope fields, so it is the scope.
+  const sourceScope: ViteSourceScopeOptions = input;
   return {
     buildTool: "vite",
     id: catalogSourcePath(fileId, input.projectRoot, sourceScope),

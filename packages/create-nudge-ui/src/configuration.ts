@@ -26,11 +26,6 @@ interface TextEdit {
   readonly text: string;
 }
 
-interface NextExport {
-  readonly expression: ts.Expression;
-  readonly commonJs: boolean;
-}
-
 interface ConfigExport {
   readonly expression: ts.Expression;
   readonly commonJs: boolean;
@@ -113,7 +108,7 @@ function configureAstroSource(source: string, sourceFile: ts.SourceFile): string
 }
 
 function configureNextSource(source: string, sourceFile: ts.SourceFile): string {
-  const target = findNextExport(sourceFile);
+  const target = findConfigExport(sourceFile, "Next.js");
   const bindings = target.commonJs
     ? requiredBindings(sourceFile, "@nudge-ui/nextjs", "withNudgeUi")
     : importedBindings(sourceFile, "@nudge-ui/nextjs", "withNudgeUi");
@@ -139,24 +134,6 @@ function parseSource(source: string, fileName: string): ts.SourceFile {
     ? ts.ScriptKind.TS
     : ts.ScriptKind.JS;
   return ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, scriptKind);
-}
-
-function findNextExport(sourceFile: ts.SourceFile): NextExport {
-  const exports: NextExport[] = [];
-  for (const statement of sourceFile.statements) {
-    if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
-      exports.push({ expression: statement.expression, commonJs: false });
-      continue;
-    }
-    if (!ts.isExpressionStatement(statement) || !ts.isBinaryExpression(statement.expression)) continue;
-    const assignment = statement.expression;
-    if (assignment.operatorToken.kind !== ts.SyntaxKind.EqualsToken || !isModuleExports(assignment.left)) continue;
-    exports.push({ expression: assignment.right, commonJs: true });
-  }
-  if (exports.length !== 1) {
-    throw new Error("Could not update the Next.js configuration: expected exactly one default or module.exports assignment.");
-  }
-  return exports[0]!;
 }
 
 function findConfigExport(sourceFile: ts.SourceFile, frameworkName: string): ConfigExport {

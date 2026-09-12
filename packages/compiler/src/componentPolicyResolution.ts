@@ -1,4 +1,12 @@
-import { parse } from "@babel/parser";
+import {
+  childNodes,
+  identifier,
+  isNode,
+  jsxMemberName,
+  parseModule,
+  type SyntaxNode,
+} from "./ast.ts";
+import { stripModuleExtension } from "./sourcePaths.ts";
 
 /** Whether replacing a JSX element type with the semantic boundary is safe. */
 export interface ComponentProtocol {
@@ -49,7 +57,6 @@ export interface ComponentPolicyDiagnostic {
   readonly componentName: string;
   readonly source: string;
   readonly exportName: string;
-  readonly message: string;
 }
 
 /** Data-only policy consumed by the source compiler after a host resolves imports. */
@@ -86,11 +93,6 @@ export function mergeComponentModuleProtocols(
   return merged;
 }
 
-type SyntaxNode = {
-  type: string;
-  [key: string]: unknown;
-};
-
 interface ImportBinding {
   readonly source: string;
   readonly exportName: string;
@@ -113,28 +115,16 @@ type ExportTarget =
 
 type TraceResult =
   | { readonly resolved: true; readonly protocol: ResolvedComponentProtocol }
-  | {
-      readonly resolved: false;
-      readonly code: ComponentPolicyDiagnosticCode;
-      readonly source: string;
-      readonly exportName: string;
-    };
+  | { readonly resolved: false; readonly code: ComponentPolicyDiagnosticCode };
+
+/** A resolution failure that carries only the reason a host reports. */
+function unresolved(code: ComponentPolicyDiagnosticCode): TraceResult {
+  return { resolved: false, code };
+}
 
 type ExpressionReference =
   | { readonly kind: "local"; readonly localName: string }
   | { readonly kind: "request"; readonly source: string; readonly exportName: string };
-
-const SKIP_KEYS = new Set([
-  "type",
-  "loc",
-  "range",
-  "start",
-  "end",
-  "extra",
-  "leadingComments",
-  "trailingComments",
-  "innerComments",
-]);
 
 const MAX_REEXPORT_DEPTH = 24;
 
@@ -180,19 +170,12 @@ export async function resolveHostComponentPolicy(
 
   const components: Record<string, ResolvedComponentProtocol> = {};
   const diagnostics: ComponentPolicyDiagnostic[] = [];
+  const tracer = createTracer(adapter, options);
 
   for (const componentName of analysis.importedJsxNames) {
     const reference = importedReference(componentName, analysis.imports);
     if (!reference) continue;
-    const result = await traceRequest(
-      reference.source,
-      reference.exportName,
-      importer,
-      adapter,
-      options,
-      new Set(),
-      0,
-    );
+    const result = await tracer.request(reference.source, reference.exportName, importer);
     if (result.resolved) {
       components[componentName] = result.protocol;
       continue;
@@ -202,49 +185,16 @@ export async function resolveHostComponentPolicy(
       componentName,
       source: reference.source,
       exportName: reference.exportName,
-      message: diagnosticMessage(result.code, componentName, reference.source, reference.exportName),
     });
   }
 
   return { components, diagnostics };
 }
 
-function parseModule(code: string): SyntaxNode | null {
-  try {
-    return parse(code, {
-      sourceType: "module",
-      plugins: ["jsx", "typescript"],
-    }) as unknown as SyntaxNode;
-  } catch {
-    return null;
-  }
-}
-
-function isNode(value: unknown): value is SyntaxNode {
-  return typeof value === "object" && value !== null && typeof Reflect.get(value, "type") === "string";
-}
-
-function identifier(node: unknown): string | null {
-  if (!isNode(node) || (node.type !== "Identifier" && node.type !== "StringLiteral")) return null;
-  return typeof node.name === "string" ? node.name : typeof node.value === "string" ? node.value : null;
-}
-
-function jsxName(node: unknown): string | null {
-  if (!isNode(node)) return null;
-  if (node.type === "JSXIdentifier") return typeof node.name === "string" ? node.name : null;
-  if (node.type !== "JSXMemberExpression") return null;
-  const object = jsxName(node.object);
-  const property = jsxName(node.property);
-  return object && property ? `${object}.${property}` : null;
-}
-
+/** Depth-first pre-order traversal of every node in a tree. */
 function visit(node: SyntaxNode, callback: (node: SyntaxNode) => void): void {
   callback(node);
-  for (const [key, value] of Object.entries(node)) {
-    if (SKIP_KEYS.has(key)) continue;
-    if (isNode(value)) visit(value, callback);
-    else if (Array.isArray(value)) value.filter(isNode).forEach((child) => visit(child, callback));
-  }
+  for (const child of childNodes(node)) visit(child, callback);
 }
 
 function analyseModule(ast: SyntaxNode): ModuleAnalysis {
@@ -346,7 +296,7 @@ function collectImportedJsxNames(ast: SyntaxNode, imports: ReadonlyMap<string, I
   const names = new Set<string>();
   visit(ast, (node) => {
     if (node.type !== "JSXOpeningElement") return;
-    const name = jsxName(node.name);
+    const name = jsxMemberName(node.name);
     const root = name?.split(".")[0];
     if (name && root && /^[A-Z]/.test(root) && imports.has(root)) names.add(name);
   });
@@ -367,179 +317,137 @@ function importedReference(
   return { source: binding.source, exportName };
 }
 
-async function traceRequest(
-  source: string,
-  exportName: string,
-  importer: string,
-  adapter: ComponentModuleAdapter,
-  options: ResolveHostComponentPolicyOptions,
-  visited: Set<string>,
-  depth: number,
-): Promise<TraceResult> {
-  const declared = declaredProtocol(source, exportName, options);
-  if (declared) return resolvedProtocol(source, exportName, declared);
-  if (depth >= MAX_REEXPORT_DEPTH) {
-    return { resolved: false, code: "component-export-unresolved", source, exportName };
-  }
-
-  let resolvedId: string | null;
-  try {
-    resolvedId = await adapter.resolve(source, importer);
-  } catch {
-    resolvedId = null;
-  }
-  if (!resolvedId) {
-    return { resolved: false, code: "component-import-unresolved", source, exportName };
-  }
-  if (!adapter.isProjectSource(resolvedId)) {
-    return { resolved: false, code: "component-protocol-unknown", source, exportName };
-  }
-
-  const canonicalSource = stripModuleExtension(adapter.sourcePath(resolvedId));
-  const canonicalProtocol = declaredProtocol(canonicalSource, exportName, options);
-  if (canonicalProtocol) return resolvedProtocol(canonicalSource, exportName, canonicalProtocol);
-
-  const visitKey = `${resolvedId}\0${exportName}`;
-  if (visited.has(visitKey)) {
-    return { resolved: false, code: "component-export-unresolved", source, exportName };
-  }
-  const nextVisited = new Set(visited).add(visitKey);
-  const moduleSource = await adapter.read(resolvedId);
-  if (moduleSource === null) {
-    return { resolved: false, code: "component-export-unresolved", source, exportName };
-  }
-  const analysis = analyseModuleSource(moduleSource);
-  if (!analysis) {
-    return { resolved: false, code: "component-export-unresolved", source, exportName };
-  }
-  return traceProjectExport(
-    analysis,
-    resolvedId,
-    canonicalSource,
-    exportName,
-    adapter,
-    options,
-    nextVisited,
-    depth + 1,
-  );
+/** Where one trace stands: what it has visited and how deep it has gone. */
+interface TraceState {
+  readonly visited: ReadonlySet<string>;
+  readonly depth: number;
 }
 
-async function traceProjectExport(
-  analysis: ModuleAnalysis,
-  moduleId: string,
-  canonicalSource: string,
-  exportName: string,
-  adapter: ComponentModuleAdapter,
-  options: ResolveHostComponentPolicyOptions,
-  visited: Set<string>,
-  depth: number,
-): Promise<TraceResult> {
-  const target = analysis.exports.get(exportName);
-  if (target?.kind === "request") {
-    return traceRequest(target.source, target.exportName, moduleId, adapter, options, visited, depth);
-  }
-  if (target?.kind === "definition") {
-    return traceDefinition(
-      analysis,
-      moduleId,
-      canonicalSource,
-      target.node,
+/** One parsed module participating in a trace. */
+interface TracedModule {
+  readonly analysis: ModuleAnalysis;
+  /** Build-tool id used to resolve further requests from this module. */
+  readonly moduleId: string;
+  /** Stable source path recorded in resolved component ids. */
+  readonly canonicalSource: string;
+}
+
+/**
+ * Trace authored imports to the protocol of the component they name.
+ *
+ * The tracer closes over the host Adapter and the protocol catalog, so each
+ * step carries only its request, the module it sits in, and its trace state.
+ */
+function createTracer(adapter: ComponentModuleAdapter, options: ResolveHostComponentPolicyOptions) {
+  async function request(
+    source: string,
+    exportName: string,
+    importer: string,
+    state: TraceState,
+  ): Promise<TraceResult> {
+    const declared = declaredProtocol(source, exportName, options);
+    if (declared) return resolvedProtocol(source, exportName, declared);
+    if (state.depth >= MAX_REEXPORT_DEPTH) return unresolved("component-export-unresolved");
+
+    let resolvedId: string | null;
+    try {
+      resolvedId = await adapter.resolve(source, importer);
+    } catch {
+      resolvedId = null;
+    }
+    if (!resolvedId) return unresolved("component-import-unresolved");
+    if (!adapter.isProjectSource(resolvedId)) return unresolved("component-protocol-unknown");
+
+    const canonicalSource = stripModuleExtension(adapter.sourcePath(resolvedId));
+    const canonicalProtocol = declaredProtocol(canonicalSource, exportName, options);
+    if (canonicalProtocol) return resolvedProtocol(canonicalSource, exportName, canonicalProtocol);
+
+    const visitKey = `${resolvedId}\0${exportName}`;
+    if (state.visited.has(visitKey)) return unresolved("component-export-unresolved");
+    const moduleSource = await adapter.read(resolvedId);
+    if (moduleSource === null) return unresolved("component-export-unresolved");
+    const analysis = analyseModuleSource(moduleSource);
+    if (!analysis) return unresolved("component-export-unresolved");
+
+    return resolveExport(
+      { analysis, moduleId: resolvedId, canonicalSource },
       exportName,
-      adapter,
-      options,
-      visited,
-      depth,
-    );
-  }
-  if (target?.kind === "local") {
-    return traceLocal(
-      analysis,
-      moduleId,
-      canonicalSource,
-      target.localName,
-      exportName,
-      adapter,
-      options,
-      visited,
-      depth,
+      { visited: new Set(state.visited).add(visitKey), depth: state.depth + 1 },
     );
   }
 
-  const candidates: TraceResult[] = [];
-  for (const source of analysis.exportAll) {
-    const candidate = await traceRequest(source, exportName, moduleId, adapter, options, visited, depth);
-    if (candidate.resolved) candidates.push(candidate);
-  }
-  if (candidates.length === 1) return candidates[0]!;
-  return { resolved: false, code: "component-export-unresolved", source: canonicalSource, exportName };
-}
+  async function resolveExport(
+    module: TracedModule,
+    exportName: string,
+    state: TraceState,
+  ): Promise<TraceResult> {
+    const target = module.analysis.exports.get(exportName);
+    if (target?.kind === "request") {
+      return request(target.source, target.exportName, module.moduleId, state);
+    }
+    if (target?.kind === "definition") {
+      return followReference(
+        expressionReference(target.node, module.analysis.imports),
+        module,
+        exportName,
+        state,
+      );
+    }
+    if (target?.kind === "local") {
+      return resolveLocal(module, target.localName, exportName, state);
+    }
 
-function traceDefinition(
-  analysis: ModuleAnalysis,
-  moduleId: string,
-  canonicalSource: string,
-  definition: SyntaxNode,
-  exportedName: string,
-  adapter: ComponentModuleAdapter,
-  options: ResolveHostComponentPolicyOptions,
-  visited: Set<string>,
-  depth: number,
-): Promise<TraceResult> | TraceResult {
-  const reference = expressionReference(definition, analysis.imports);
-  if (!reference) return projectProtocol(canonicalSource, exportedName);
-  if (reference.kind === "local") {
-    return traceLocal(
-      analysis,
-      moduleId,
-      canonicalSource,
-      reference.localName,
+    const candidates: TraceResult[] = [];
+    for (const source of module.analysis.exportAll) {
+      const candidate = await request(source, exportName, module.moduleId, state);
+      if (candidate.resolved) candidates.push(candidate);
+    }
+    if (candidates.length === 1) return candidates[0]!;
+    return unresolved("component-export-unresolved");
+  }
+
+  async function resolveLocal(
+    module: TracedModule,
+    localName: string,
+    exportedName: string,
+    state: TraceState,
+  ): Promise<TraceResult> {
+    const imported = module.analysis.imports.get(localName);
+    if (imported && !imported.namespace) {
+      return request(imported.source, imported.exportName, module.moduleId, state);
+    }
+
+    const declaration = module.analysis.declarations.get(localName);
+    if (!declaration) return unresolved("component-export-unresolved");
+    if (declaration.type !== "VariableDeclarator") {
+      return projectProtocol(module.canonicalSource, exportedName);
+    }
+    return followReference(
+      expressionReference(declaration.init, module.analysis.imports),
+      module,
       exportedName,
-      adapter,
-      options,
-      visited,
-      depth,
+      state,
     );
   }
-  return traceRequest(reference.source, reference.exportName, moduleId, adapter, options, visited, depth);
-}
 
-async function traceLocal(
-  analysis: ModuleAnalysis,
-  moduleId: string,
-  canonicalSource: string,
-  localName: string,
-  exportedName: string,
-  adapter: ComponentModuleAdapter,
-  options: ResolveHostComponentPolicyOptions,
-  visited: Set<string>,
-  depth: number,
-): Promise<TraceResult> {
-  const imported = analysis.imports.get(localName);
-  if (imported && !imported.namespace) {
-    return traceRequest(imported.source, imported.exportName, moduleId, adapter, options, visited, depth);
+  function followReference(
+    reference: ExpressionReference | null,
+    module: TracedModule,
+    exportedName: string,
+    state: TraceState,
+  ): Promise<TraceResult> | TraceResult {
+    if (!reference) return projectProtocol(module.canonicalSource, exportedName);
+    if (reference.kind === "local") {
+      return resolveLocal(module, reference.localName, exportedName, state);
+    }
+    return request(reference.source, reference.exportName, module.moduleId, state);
   }
 
-  const declaration = analysis.declarations.get(localName);
-  if (!declaration) {
-    return { resolved: false, code: "component-export-unresolved", source: canonicalSource, exportName: exportedName };
-  }
-  if (declaration.type !== "VariableDeclarator") return projectProtocol(canonicalSource, exportedName);
-  const reference = expressionReference(declaration.init, analysis.imports);
-  if (!reference) return projectProtocol(canonicalSource, exportedName);
-  if (reference.kind === "local") {
-    return traceLocal(
-      analysis,
-      moduleId,
-      canonicalSource,
-      reference.localName,
-      exportedName,
-      adapter,
-      options,
-      visited,
-      depth,
-    );
-  }
-  return traceRequest(reference.source, reference.exportName, moduleId, adapter, options, visited, depth);
+  return {
+    /** Resolve one authored import to the protocol of the component it names. */
+    request: (source: string, exportName: string, importer: string) =>
+      request(source, exportName, importer, { visited: new Set(), depth: 0 }),
+  };
 }
 
 function expressionReference(
@@ -613,10 +521,6 @@ function projectProtocol(source: string, exportName: string): TraceResult {
   return resolvedProtocol(source, exportName, { wrap: true, slots: { children: "rendered" } });
 }
 
-function stripModuleExtension(value: string): string {
-  return value.replace(/\.(?:d\.)?[cm]?[jt]sx?$/, "");
-}
-
 /** One actionable message per diagnostic code and source. */
 export interface GroupedComponentPolicyDiagnostic {
   /** Stable dedupe key for host-side "warn once" tracking. */
@@ -661,19 +565,4 @@ export function formatComponentPolicyWarning(
     : "";
   return `[nudge-ui] Semantic instrumentation skipped ${grouped.source} in ${location} `
     + `(${names}${remainder}). ${hint}`;
-}
-
-function diagnosticMessage(
-  code: ComponentPolicyDiagnosticCode,
-  componentName: string,
-  source: string,
-  exportName: string,
-): string {
-  if (code === "component-import-unresolved") {
-    return `Semantic instrumentation skipped ${componentName}: ${source} could not be resolved by the host Adapter.`;
-  }
-  if (code === "component-protocol-unknown") {
-    return `Semantic instrumentation skipped ${componentName}: ${source}#${exportName} has no compatible component protocol.`;
-  }
-  return `Semantic instrumentation skipped ${componentName}: ${source}#${exportName} could not be traced to a component definition.`;
 }

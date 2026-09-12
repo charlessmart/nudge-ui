@@ -53,7 +53,6 @@ import {
   type NudgeUiRuntimeConfig,
 } from "@nudge-ui/inspector/client-manifest";
 import {
-  DEFAULT_COMPONENT_RUNTIME_MODULE,
   defaultReactComponentProtocols,
   formatComponentPolicyWarning,
   groupComponentPolicyDiagnostics,
@@ -123,9 +122,6 @@ export function withNudgeUi(
   if (typeof config === "function") {
     const resolveConfig = config as (env: ConfigEnv) => UserConfig | Promise<UserConfig>;
     return (env: ConfigEnv) => appendNudgeUi(resolveConfig(env), options);
-  }
-  if (isPromiseLike<UserConfig>(config)) {
-    return Promise.resolve(config).then((resolved) => appendNudgeUi(resolved, options));
   }
   return appendNudgeUi(config, options);
 }
@@ -401,12 +397,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
   function createStylesheetArtifact(
     input: Parameters<typeof createViteStylesheetArtifact>[0],
   ): ReturnType<typeof createViteStylesheetArtifact> {
-    const scope = sourceScope();
-    return createViteStylesheetArtifact({
-      ...input,
-      ...(scope.sourceRoots ? { sourceRoots: scope.sourceRoots } : {}),
-      ...(scope.generatedRoots ? { generatedRoots: scope.generatedRoots } : {}),
-    });
+    return createViteStylesheetArtifact({ ...input, ...sourceScope() });
   }
 
   function isGeneratedBuildOutput(id: string): boolean {
@@ -1031,14 +1022,15 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
           return null; // let Vite's CSS pipeline handle the actual stylesheet
         }
         const instrumentComponents = isHostSource(id);
-        if (COMPONENT_EXT.test(id) && instrumentComponents) {
+        const isComponentModule = COMPONENT_EXT.test(id);
+        if (isComponentModule && instrumentComponents) {
           cacheComponentsForFile(id, code);
         }
-        const hostPolicy = instrumentComponents && COMPONENT_EXT.test(id)
+        const hostPolicy = isComponentModule && instrumentComponents
           ? await resolveHostComponentPolicy(code, id, {
               resolve: async (specifier, importer) => {
                 const resolved = await this.resolve(specifier, importer, { skipSelf: true });
-                return resolved?.id.split(/[?#]/, 1)[0] ?? null;
+                return resolved ? stripCssQuery(resolved.id) : null;
               },
               read: async (resolvedId) => {
                 try {
@@ -1067,9 +1059,9 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
           // Workspace packages are included only when sourceRoots declares
           // them. Inspector and generated sources remain outside host scope.
           instrumentComponents,
-          compatibleComponentImports: options.compatibleComponentImports,
+          // The resolved policy already folds compatibleComponentImports in, so
+          // identity reads one policy rather than two possible sources of truth.
           hostPolicy,
-          componentRuntimeModule: DEFAULT_COMPONENT_RUNTIME_MODULE,
         });
       },
     },

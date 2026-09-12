@@ -231,21 +231,18 @@ describe("host component policy resolution", () => {
         componentName: "Alpha",
         source: "acme-ui",
         exportName: "Alpha",
-        message: "",
       },
       {
         code: "component-protocol-unknown",
         componentName: "Beta",
         source: "acme-ui",
         exportName: "Beta",
-        message: "",
       },
       {
         code: "component-import-unresolved",
         componentName: "Gamma",
         source: "acme-ui",
         exportName: "Gamma",
-        message: "",
       },
     ]);
 

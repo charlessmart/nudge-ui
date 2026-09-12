@@ -1,12 +1,19 @@
-import { parse } from "@babel/parser";
 import MagicString, { type SourceMap } from "magic-string";
 import { posix } from "node:path";
+import {
+  elementName,
+  isNode,
+  jsxMemberName,
+  parseModule,
+  SKIP_KEYS,
+  type SyntaxNode as Node,
+} from "./ast.ts";
 import {
   createComponentInstrumentationPolicy,
   type ComponentInstrumentationOptions,
   type ComponentInstrumentationPolicy,
-  type SyntaxNode as Node,
 } from "./componentInstrumentation.ts";
+import { relativePath, stripModuleExtension } from "./sourcePaths.ts";
 
 export type { ComponentInstrumentationOptions } from "./componentInstrumentation.ts";
 
@@ -61,66 +68,14 @@ function hasAttr(attrs: Node[], attrName: string): boolean {
   );
 }
 
-function getMemberExpressionName(node: Node): string | null {
-  if (node.type === "JSXIdentifier") {
-    return (node as { name?: string }).name ?? null;
-  }
-  if (node.type === "JSXMemberExpression") {
-    const objName = getMemberExpressionName(node.object as Node);
-    const propName =
-      (node.property as { name?: string } | undefined)?.name ?? null;
-    return objName && propName ? `${objName}.${propName}` : null;
-  }
-  return null;
-}
-
 function resolveCid(openingName: Node, scopeStack: string[]): string {
-  const elementName = getMemberExpressionName(openingName);
-  if (elementName && isComponentName(elementName)) return elementName;
+  const name = jsxMemberName(openingName);
+  if (name && isComponentName(name)) return name;
   for (let i = scopeStack.length - 1; i >= 0; i--) {
     const scope = scopeStack[i];
     if (scope && isComponentName(scope)) return scope;
   }
   return "Anonymous";
-}
-
-function isNode(value: unknown): value is Node {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as { type?: unknown }).type === "string"
-  );
-}
-
-const SKIP_KEYS = new Set([
-  "type",
-  "loc",
-  "range",
-  "start",
-  "end",
-  "extra",
-  "leadingComments",
-  "trailingComments",
-  "innerComments",
-]);
-
-/**
- * Project-relative source path used by `data-src` and callsite identity.
- *
- * A module outside the project root (an authored workspace package) keeps a
- * `../`-prefixed relative path so identity stays unique across packages and
- * machine paths never reach the DOM or a prompt.
- */
-function relativePath(id: string, root?: string): string {
-  if (root) {
-    const rootPrefix = root.endsWith("/") ? root : root + "/";
-    if (id.startsWith(rootPrefix)) return id.slice(rootPrefix.length);
-    if (id.startsWith("/") && root.startsWith("/")) {
-      const relativeId = posix.relative(root, id);
-      if (relativeId && relativeId !== ".") return relativeId;
-    }
-  }
-  return id.replace(/^\//, "");
 }
 
 function serialiseAttribute(attr: Node): string | null {
@@ -194,7 +149,7 @@ function authoredPropKinds(attrs: Node[], children: Node[] = []) {
       continue;
     }
     if (attr.type !== "JSXAttribute") continue;
-    const name = nodeName(attr.name as Node);
+    const name = elementName(attr.name);
     if (!name || IDENTITY_ATTRS.has(name) || name === "key" || name === "ref") continue;
     const value = attr.value as Node | null | undefined;
     result[name] = value === null || value === undefined
@@ -242,22 +197,10 @@ function authoredChildrenKind(children: Node[]): "literal" | "expression" | "spr
   return kind;
 }
 
-function nodeName(node: Node | null | undefined): string | null {
-  if (!node) return null;
-  if (node.type === "Identifier") {
-    return typeof node.name === "string" ? node.name : null;
-  }
-  return getMemberExpressionName(node);
-}
-
 interface WalkState {
   changed: boolean;
   instrumentedComponents: boolean;
   componentPolicy: ComponentInstrumentationPolicy;
-}
-
-function stripModuleExtension(value: string): string {
-  return value.replace(/\.(?:d\.)?[cm]?[jt]sx?$/, "");
 }
 
 function componentIdFor(
@@ -287,7 +230,7 @@ function walkChildren(
   allowComponentWrapping: boolean,
 ): void {
   const opening = node.type === "JSXElement" ? node.openingElement as Node : node;
-  const componentName = opening.type === "JSXOpeningElement" ? nodeName(opening.name as Node) : null;
+  const componentName = opening.type === "JSXOpeningElement" ? elementName(opening.name) : null;
   const customElement = componentName !== null && (isComponentName(componentName) || componentName.includes("."));
   for (const key of Object.keys(node)) {
     if (SKIP_KEYS.has(key)) continue;
@@ -300,7 +243,7 @@ function walkChildren(
           // interface explicitly promises to render them.
           const renderedChild = !customElement
             || (key === "children" && state.componentPolicy.rendersChildren(componentName!))
-            || (key === "attributes" && state.componentPolicy.rendersProp(componentName!, nodeName(child.name as Node) ?? ""))
+            || (key === "attributes" && state.componentPolicy.rendersProp(componentName!, elementName(child.name) ?? ""))
             || (key !== "children" && key !== "attributes");
           walk(child, node, scopeStack, ms, relPath, options, state, allowComponentWrapping && renderedChild);
         }
@@ -346,7 +289,7 @@ function walk(
   if (node.type === "JSXElement" && options.instrumentComponents && allowComponentWrapping) {
     const opening = node.openingElement as Node | undefined;
     const openingName = opening?.name as Node | undefined;
-    const componentName = nodeName(openingName);
+    const componentName = elementName(openingName);
     const start = node.start as number | undefined;
     const end = node.end as number | undefined;
     const loc = openingName?.loc as { start?: { line?: number; column?: number } } | undefined;
@@ -442,15 +385,8 @@ export function injectIdentity(
   if (id.includes("/node_modules/")) return null;
   if (!PARSEABLE_EXT.test(id)) return null;
 
-  let ast: Node;
-  try {
-    ast = parse(code, {
-      sourceType: "module",
-      plugins: ["jsx", "typescript"],
-    }) as unknown as Node;
-  } catch {
-    return null;
-  }
+  const ast = parseModule(code);
+  if (!ast) return null;
 
   const ms = new MagicString(code);
   const relPath = relativePath(id, root);
