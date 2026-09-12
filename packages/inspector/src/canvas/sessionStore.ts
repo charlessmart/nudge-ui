@@ -132,31 +132,6 @@ function isRuntimeElementEvidence(value: unknown): value is NonNullable<ElementC
     && (typeof value.ariaLabel === "string" || value.ariaLabel === null);
 }
 
-/** Durable instance records must not smuggle document-local projection state. */
-function isStrictRenderedInstanceOverride(value: unknown): value is RenderedInstanceOverride {
-  if (!isRenderedInstanceOverride(value) || !value || typeof value !== "object") return false;
-  const override = value as unknown as Record<string, unknown>;
-  const target = override.target as Record<string, unknown>;
-  const source = target.sourceSite as Record<string, unknown>;
-  const locator = target.locator as Record<string, unknown>;
-  if (!hasOnlyKeys(override, ["id", "target"])
-    || !hasOnlyKeys(target, ["sourceSite", "locator"])
-    || !hasOnlyKeys(source, ["cid", "src"])) return false;
-  return locator.kind === "evidence"
-    && hasOnlyKeys(locator, ["kind", "occurrence", "props", "text", "ariaLabel"]);
-}
-
-function isStrictRenderedInstanceRef(value: unknown): value is RenderedInstanceRef {
-  if (!isRenderedInstanceRef(value) || !value || typeof value !== "object") return false;
-  const ref = value as unknown as Record<string, unknown>;
-  const source = ref.sourceSite as Record<string, unknown>;
-  const locator = ref.locator as Record<string, unknown>;
-  return hasOnlyKeys(ref, ["sourceSite", "locator"])
-    && hasOnlyKeys(source, ["cid", "src"])
-    && locator.kind === "evidence"
-    && hasOnlyKeys(locator, ["kind", "occurrence", "props", "text", "ariaLabel"]);
-}
-
 interface LegacyStructuralDelete {
   id: string;
   kind: "delete";
@@ -186,17 +161,17 @@ function isLegacyStructuralChange(value: unknown): value is LegacyStructuralChan
   if (change.kind === "delete") {
     return hasOnlyKeys(change, ["id", "kind", "target"])
       && typeof change.id === "string"
-      && isStrictRenderedInstanceRef(change.target);
+      && isRenderedInstanceRef(change.target);
   }
   if (change.kind !== "move" || !change.destination || typeof change.destination !== "object") return false;
   const destination = change.destination as Record<string, unknown>;
   const presentation = change.presentation;
   return hasOnlyKeys(change, ["id", "kind", "target", "destination", "presentation"])
     && typeof change.id === "string"
-    && isStrictRenderedInstanceRef(change.target)
+    && isRenderedInstanceRef(change.target)
     && hasOnlyKeys(destination, ["parent", "before"])
-    && isStrictRenderedInstanceRef(destination.parent)
-    && (destination.before === null || isStrictRenderedInstanceRef(destination.before))
+    && isRenderedInstanceRef(destination.parent)
+    && (destination.before === null || isRenderedInstanceRef(destination.before))
     && (presentation === undefined || isLegacyStructuralPresentation(presentation));
 }
 
@@ -378,7 +353,7 @@ function isSerializableChange(value: unknown): value is SerializableChange {
     && isTokenRef(change.oldToken)
     && isTokenRef(change.newToken)
     && (change.scope === undefined || change.scope === "source-site" || change.scope === "rendered-instance")
-    && (change.scope !== "rendered-instance" || isStrictRenderedInstanceOverride(change.instanceOverride));
+    && (change.scope !== "rendered-instance" || isRenderedInstanceOverride(change.instanceOverride));
 }
 
 function isSerializableComparisonGroup(value: unknown): value is SerializableComparisonGroup {

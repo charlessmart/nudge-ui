@@ -1,10 +1,7 @@
 import { escapeAttrValue } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { sourceSiteSelector } from "../selection/sourceSite.ts";
-import {
-  isRenderedInstanceOverride,
-  isRenderedInstanceRef,
-} from "../changes/editModel.ts";
+import { isRenderedInstanceOverride } from "../changes/editModel.ts";
 import type { RenderedInstanceOverride, RenderedInstanceRef, SourceSiteRef } from "../changes/editModel.ts";
 
 export { isRenderedInstanceOverride, isRenderedInstanceRef } from "../changes/editModel.ts";

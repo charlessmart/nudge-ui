@@ -26,11 +26,15 @@ export interface RenderedInstanceOverride {
 }
 
 export function isRenderedInstanceRef(value: unknown): value is RenderedInstanceRef {
-  if (!value || typeof value !== "object") return false;
-  const ref = value as Record<string, unknown>;
-  const source = ref.sourceSite as Record<string, unknown> | undefined;
-  const locator = ref.locator as Record<string, unknown> | undefined;
-  if (!source || typeof source.cid !== "string" || typeof source.src !== "string" || !locator) return false;
+  if (!isRecord(value) || !hasOnlyKeys(value, ["sourceSite", "locator"])) return false;
+  const source = value.sourceSite;
+  const locator = value.locator;
+  if (!isRecord(source)
+    || !hasOnlyKeys(source, ["cid", "src"])
+    || typeof source.cid !== "string"
+    || typeof source.src !== "string"
+    || !isRecord(locator)
+    || !hasOnlyKeys(locator, ["kind", "occurrence", "props", "text", "ariaLabel"])) return false;
   return locator.kind === "evidence"
     && Number.isSafeInteger(locator.occurrence) && (locator.occurrence as number) >= 0
     && (typeof locator.props === "string" || locator.props === null)
@@ -39,7 +43,16 @@ export function isRenderedInstanceRef(value: unknown): value is RenderedInstance
 }
 
 export function isRenderedInstanceOverride(value: unknown): value is RenderedInstanceOverride {
-  return Boolean(value && typeof value === "object"
-    && typeof (value as { id?: unknown }).id === "string"
-    && isRenderedInstanceRef((value as { target?: unknown }).target));
+  return isRecord(value)
+    && hasOnlyKeys(value, ["id", "target"])
+    && typeof value.id === "string"
+    && isRenderedInstanceRef(value.target);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(value).every((key) => allowed.includes(key));
 }
