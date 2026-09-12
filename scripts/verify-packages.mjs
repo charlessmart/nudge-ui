@@ -16,6 +16,7 @@ import ts from "typescript";
 const repositoryRoot = resolve(new URL("..", import.meta.url).pathname);
 const packageDirectories = [
   "agent-protocol",
+  "compiler",
   "create-nudge-ui",
   "css",
   "inspector",
@@ -156,6 +157,7 @@ function verifyPackedAstroConsumers() {
   }
   const requiredPackages = [
     "@nudge-ui/agent-protocol",
+    "@nudge-ui/compiler",
     "@nudge-ui/css",
     "@nudge-ui/inspector",
     "@nudge-ui/vite-react",

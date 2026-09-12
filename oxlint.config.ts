@@ -38,6 +38,7 @@ export default {
   overrides: [
     {
       files: [
+        "packages/compiler/src/**",
         "packages/plugin/src/transform/**",
         "packages/plugin/src/components/**",
         "packages/plugin/src/adapters/**",

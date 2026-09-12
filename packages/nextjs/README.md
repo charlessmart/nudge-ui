@@ -32,6 +32,32 @@ The wrapper preserves the application's configuration and instruments only
 the Next.js development server. `next build` and production runtime paths do
 not receive Nudge UI bootstrap or identity transforms.
 
+Semantic instrumentation resolves aliases and re-export chains through the
+Next.js loader. Unknown package components fail closed. Add protocol metadata
+for a compatible structural library as the second wrapper argument:
+
+```ts
+export default withNudgeUi(nextConfig, {
+  sourceRoots: ["../../packages/ui"],
+  componentProtocols: {
+    "@acme/layout": {
+      exports: {
+        Provider: { wrap: false, slots: { children: "rendered" } },
+      },
+    },
+  },
+});
+```
+
+`sourceRoots` explicitly marks authored workspace packages as project-owned;
+unlisted files outside the Next.js root remain fail closed. Project-owned
+definitions are wrapped and their authored `children` are traversed by default,
+while a named JSX prop stays opaque until a protocol declares that slot. The
+same options are accepted by the Vite Adapter, and both Adapters record project
+identity as a project-root relative path (`../packages/ui/src/Button.tsx` for a
+declared workspace package) so it is unique and portable. React Router uses the
+built-in catalog rather than a framework-specific compiler branch.
+
 ## Additional exports
 
 The package exports the manifest helpers, mount helper, sidecar lifecycle, and
