@@ -60,9 +60,9 @@ export default withNudgeUi(defineConfig({
 });
 ```
 
-Semantic previews fail closed for package components because a package export
-may treat `children` or prop values as opaque data. Opt a known-compatible
-package export into callsite instrumentation explicitly:
+Semantic previews fail closed for unknown package components because a package
+export may inspect its JSX children or treat prop values as opaque data. For a
+leaf component with no rendered JSX slots, use the compatibility shorthand:
 
 ```ts
 export default withNudgeUi(defineConfig({
@@ -74,9 +74,31 @@ export default withNudgeUi(defineConfig({
 });
 ```
 
-Local relative component imports remain eligible automatically. React and
-React Router structural exports are always preserved, even when metadata lists
-them.
+For a structural library, declare its complete protocol instead. `wrap`
+controls whether Nudge may replace the component callsite with its semantic
+boundary. A `rendered` slot allows the compiler to continue safely into JSX
+received by that slot:
+
+```ts
+export default withNudgeUi(defineConfig({
+  plugins: [react()],
+}), {
+  componentProtocols: {
+    "@acme/layout": {
+      exports: {
+        Provider: { wrap: false, slots: { children: "rendered" } },
+        Item: { wrap: false, slots: { content: "rendered" } },
+      },
+    },
+  },
+});
+```
+
+The host Adapter resolves aliases and project barrels before applying these
+protocols. Project-owned definitions remain eligible; unknown package
+subtrees stay unchanged and emit a build diagnostic. React Router support is
+provided by the default compatibility catalog and uses the same mechanism as
+any other structural library.
 
 The adapter exposes optional `tokens`, `identity`, `component-contracts`, and
 `vanilla-extract-runtime` subpaths for host integrations. Application projects

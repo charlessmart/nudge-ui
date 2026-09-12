@@ -9,5 +9,16 @@ The React identity compiler adds stable `data-cid`, `data-src`, and
 metadata. It does not write application files or run in production builds.
 
 Host adapters should import the public package entry point or the documented
-`./react-identity` subpath. The Vite adapter continues to expose its legacy
+`./react-identity` subpath. For semantic component callsites, adapters resolve
+each JSX binding through `resolveHostComponentPolicy`. The Adapter supplies
+build-tool resolution, project-source ownership, and stable source paths; the
+compiler follows aliases and re-export chains and returns a data-only policy.
+Unknown package protocols fail closed and produce diagnostics.
+
+Compatibility knowledge is catalog data, not compiler control flow. The
+default React catalog includes React Router's structural elements. Hosts can
+merge additional package protocols with `mergeComponentModuleProtocols` and
+declare which JSX-valued slots render their contents.
+
+The Vite adapter continues to expose its legacy
 `@nudge-ui/vite-react/identity` subpath as a compatibility re-export.

@@ -151,6 +151,55 @@ describe("withNudgeUi — development output shape", () => {
       });
     }
     expect(rules["*.css"]).toBeUndefined();
+    expect(config.turbopack?.resolveAlias).toEqual(expect.objectContaining({
+      "@nudge-ui/inspector/component-runtime": expect.stringMatching(/reactRuntime\.(?:js|tsx)$/),
+    }));
+  });
+
+  it("passes host component protocols to both compiler integrations", () => {
+    const root = makeProject();
+    projectRoots.push(root);
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+    const componentProtocols = {
+      "structural-library": {
+        exports: { Provider: { wrap: false, slots: { children: "rendered" } } },
+      },
+    } as const;
+    const config = withNudgeUi({} as NudgeUiNextConfig, { componentProtocols })(
+      DEVELOPMENT_SERVER_PHASE,
+    );
+    const rules = config.turbopack?.rules as Record<
+      string,
+      { loaders: Array<{ options: { componentProtocols?: unknown } }> }
+    >;
+
+    expect(rules["*.tsx"]?.loaders[0]?.options.componentProtocols).toBe(componentProtocols);
+
+    const webpackHook = config.webpack;
+    expect(webpackHook).toBeTypeOf("function");
+    if (!webpackHook) throw new Error("Expected the Next Adapter to install a webpack hook.");
+    const webpackOut = webpackHook({ module: {} }, { dev: true });
+    const webpackRules = (webpackOut.module as { rules?: Array<{
+      use: Array<{ options: { componentProtocols?: unknown } }>;
+    }> }).rules;
+    expect(webpackRules?.[0]?.use[0]?.options.componentProtocols).toBe(componentProtocols);
+  });
+
+  it("resolves explicit workspace source roots for the loader Adapter", () => {
+    const root = makeProject();
+    projectRoots.push(root);
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+    const config = withNudgeUi({} as NudgeUiNextConfig, {
+      sourceRoots: ["../design-system/src"],
+    })(DEVELOPMENT_SERVER_PHASE);
+    const rules = config.turbopack?.rules as Record<
+      string,
+      { loaders: Array<{ options: { sourceRoots?: readonly string[] } }> }
+    >;
+
+    expect(rules["*.tsx"]?.loaders[0]?.options.sourceRoots).toEqual([
+      join(root, "../design-system/src"),
+    ]);
   });
 
   it("preserves user turbopack rules alongside the injected one", () => {
@@ -198,6 +247,11 @@ describe("withNudgeUi — development output shape", () => {
     // as a prebuilt asset, so Next must not receive a CSS query rule.
     expect(rules[0]?.test).toEqual(/\.(tsx|jsx)$/);
     expect((rules[0]?.use as Array<{ loader: string }>)[0]?.loader).toMatch(/identity-loader\.cjs$/);
+    expect((devOut.resolve as { alias?: Record<string, unknown> }).alias).toEqual(
+      expect.objectContaining({
+        "@nudge-ui/inspector/component-runtime": expect.stringMatching(/reactRuntime\.(?:js|tsx)$/),
+      }),
+    );
 
     // Production context must stay untouched.
     const prodConfig: Record<string, unknown> = { module: { rules: ["keep"] } };

@@ -9,10 +9,12 @@ export interface ComponentInstrumentationOptions {
    * Package exports whose element type can be replaced by a semantic preview
    * wrapper. Keys are exact import specifiers; values are exported names
    * (`default` for a default import). Discovery of a prop contract does not
-   * imply compatibility. React and React Router structural exports are never
-   * wrapped, including when listed here.
+   * imply compatibility. Prefer `hostPolicy` when the host can resolve import
+   * provenance and rendered slots.
    */
   compatibleComponentImports?: Readonly<Record<string, readonly string[]>>;
+  /** Data-only import provenance and slot semantics resolved by the host Adapter. */
+  hostPolicy?: import("./componentPolicyResolution.ts").HostComponentPolicy;
 }
 
 export interface ComponentBinding {
@@ -26,14 +28,7 @@ export interface ComponentInstrumentationPolicy {
   canWrap(componentName: string): boolean;
   rendersChildren(componentName: string): boolean;
   rendersProp(componentName: string, prop: string): boolean;
-}
-
-const REACT_RENDER_CONTAINERS = new Set(["Fragment", "StrictMode", "Suspense", "Profiler"]);
-const ROUTER_MODULES = new Set(["react-router", "react-router-dom"]);
-const ROUTE_RENDER_PROPS = new Set(["element", "errorElement", "hydrateFallbackElement"]);
-
-function isRouterModule(source: string): boolean {
-  return ROUTER_MODULES.has(source) || source.startsWith("react-router/");
+  componentId(componentName: string): string | null;
 }
 
 function isNode(value: unknown): value is SyntaxNode {
@@ -117,16 +112,13 @@ export function createComponentInstrumentationPolicy(
   };
   const isLocalDefinition = (value: unknown): boolean => {
     if (!isNode(value)) return false;
-    if (["ArrowFunctionExpression", "FunctionExpression", "ClassExpression"].includes(value.type)) return true;
-    if (value.type !== "CallExpression" || !isNode(value.callee)) return false;
-    const callee = value.callee;
-    const name = callee.type === "MemberExpression"
-      ? `${identifier(callee.object) ?? ""}.${identifier(callee.property) ?? ""}`
-      : identifier(callee);
-    const binding = name ? imported(name) : null;
-    return binding?.source === "react"
-      && ["memo", "forwardRef", "default.memo", "default.forwardRef"].includes(binding.exportName)
-      && isLocalDefinition((value.arguments as unknown[] | undefined)?.[0]);
+    return [
+      "ArrowFunctionExpression",
+      "FunctionExpression",
+      "ClassExpression",
+      "CallExpression",
+      "TaggedTemplateExpression",
+    ].includes(value.type);
   };
   const visit = (node: SyntaxNode): void => {
     if (node.type === "ImportDeclaration") return;
@@ -148,32 +140,18 @@ export function createComponentInstrumentationPolicy(
       if (!root || ambiguous.has(root)) return false;
       const binding = imported(componentName);
       if (!binding) return members.length === 0 && locals.has(root);
-      // Framework values include structural elements and context objects. Their
-      // identity is part of their interface, even when their props are known.
-      if (binding.source === "react" || isRouterModule(binding.source)) return false;
-      if (binding.source.startsWith(".")) return true;
+      const resolved = options.hostPolicy?.components[componentName];
+      if (resolved) return resolved.wrap;
       return options.compatibleComponentImports?.[binding.source]?.includes(binding.exportName) === true;
     },
     rendersChildren(componentName) {
-      const binding = imported(componentName);
-      if (!binding) return false;
-      if (binding.source === "react") {
-        return REACT_RENDER_CONTAINERS.has(binding.exportName.replace(/^default\./, ""));
-      }
-      // React Router's structural elements must remain the original element
-      // types, but their authored children still need to be traversed. In
-      // particular, a route's `element` prop contains the project component
-      // that Nudge should instrument.
-      return isRouterModule(binding.source)
-        && ["Routes", "Route"].includes(binding.exportName);
+      return options.hostPolicy?.components[componentName]?.slots?.children === "rendered";
     },
     rendersProp(componentName, prop) {
-      const binding = imported(componentName);
-      if (!binding) return false;
-      if (isRouterModule(binding.source) && binding.exportName === "Route") return ROUTE_RENDER_PROPS.has(prop);
-      return binding.source === "react"
-        && binding.exportName.replace(/^default\./, "") === "Suspense"
-        && prop === "fallback";
+      return options.hostPolicy?.components[componentName]?.slots?.[prop] === "rendered";
+    },
+    componentId(componentName) {
+      return options.hostPolicy?.components[componentName]?.componentId ?? null;
     },
   };
 }

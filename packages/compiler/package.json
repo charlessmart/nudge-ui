@@ -28,6 +28,16 @@
       "types": "./dist/reactIdentity.d.ts",
       "import": "./dist/reactIdentity.js",
       "default": "./dist/reactIdentity.js"
+    },
+    "./component-policy": {
+      "types": "./dist/componentPolicyResolution.d.ts",
+      "import": "./dist/componentPolicyResolution.js",
+      "default": "./dist/componentPolicyResolution.js"
+    },
+    "./react-component-protocols": {
+      "types": "./dist/reactComponentProtocols.d.ts",
+      "import": "./dist/reactComponentProtocols.js",
+      "default": "./dist/reactComponentProtocols.js"
     }
   },
   "scripts": {

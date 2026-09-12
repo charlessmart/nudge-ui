@@ -17,7 +17,11 @@ export interface InjectResult {
 
 export interface InjectIdentityOptions extends ComponentInstrumentationOptions {
   instrumentComponents?: boolean;
+  /** Module specifier emitted for the host-owned semantic runtime. */
+  componentRuntimeModule?: string;
 }
+
+export const DEFAULT_COMPONENT_RUNTIME_MODULE = "@nudge-ui/inspector/component-runtime";
 
 const PARSEABLE_EXT = /\.(tsx|jsx)$/;
 
@@ -349,7 +353,8 @@ function walk(
       const attrs = (opening?.attributes as Node[] | undefined) ?? [];
       const meta = {
         callsiteId: `${relPath}:${line}:${column + 1}`,
-        componentId: componentIdFor(componentName, relPath, state.componentPolicy.bindings),
+        componentId: state.componentPolicy.componentId(componentName)
+          ?? componentIdFor(componentName, relPath, state.componentPolicy.bindings),
         componentName,
         file: relPath,
         line,
@@ -446,8 +451,9 @@ export function injectIdentity(
   walk(ast, null, [], ms, relPath, options, state, true);
   if (!state.changed) return null;
   if (state.instrumentedComponents) {
+    const runtimeModule = options.componentRuntimeModule ?? DEFAULT_COMPONENT_RUNTIME_MODULE;
     ms.prepend(
-      'import { instrumentReactComponent as __nudgeUiInstrumentComponent } from "@nudge-ui/inspector/component-runtime";\n',
+      `import { instrumentReactComponent as __nudgeUiInstrumentComponent } from ${JSON.stringify(runtimeModule)};\n`,
     );
   }
 

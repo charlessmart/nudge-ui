@@ -1,6 +1,36 @@
 import { describe, it, expect } from "vitest";
 import { parse } from "@babel/parser";
+import {
+  defaultReactComponentProtocols,
+  resolveHostComponentPolicy,
+  type ResolveHostComponentPolicyOptions,
+} from "@nudge-ui/compiler";
 import { injectDataCid, injectIdentity } from "./injectDataCid";
+
+async function resolveTestPolicy(
+  code: string,
+  resolutions: Readonly<Record<string, string>>,
+  files: Readonly<Record<string, string>>,
+  options: ResolveHostComponentPolicyOptions = {},
+) {
+  return resolveHostComponentPolicy(code, "/project/src/App.tsx", {
+    async resolve(specifier) {
+      return resolutions[specifier] ?? null;
+    },
+    async read(id) {
+      return files[id] ?? null;
+    },
+    isProjectSource(id) {
+      return id.startsWith("/project/src/");
+    },
+    sourcePath(id) {
+      return id.slice("/project/".length);
+    },
+  }, {
+    moduleProtocols: defaultReactComponentProtocols,
+    ...options,
+  });
+}
 
 describe("injectDataCid", () => {
   it("injects data-cid from arrow-function component name", () => {
@@ -360,12 +390,19 @@ describe("injectIdentity — React component invocation instrumentation", () => 
     expect(result?.code).not.toContain("@nudge-ui/inspector/component-runtime");
   });
 
-  it("qualifies imported components by local module or package export", () => {
+  it("qualifies imported components by local module or package export", async () => {
+    const localSource =
+      `import { Button as Action } from "./ui/Button"; export const App = () => <Action />;`;
+    const hostPolicy = await resolveTestPolicy(localSource, {
+      "./ui/Button": "/project/src/ui/Button.tsx",
+    }, {
+      "/project/src/ui/Button.tsx": "export function Button() { return <button />; }",
+    });
     const local = injectIdentity(
-      `import { Button as Action } from "./ui/Button"; export const App = () => <Action />;`,
+      localSource,
       "/project/src/App.tsx",
       "/project",
-      { instrumentComponents: true },
+      { instrumentComponents: true, hostPolicy },
     );
     expect(local?.code).toContain('"componentId":"src/ui/Button#Button"');
 
@@ -378,11 +415,20 @@ describe("injectIdentity — React component invocation instrumentation", () => 
     expect(packaged?.code).toContain('"componentId":"@work/design-system#Button"');
   });
 
-  it("preserves React Router structural exports and instruments the page rendered by a route", () => {
+  it("preserves React Router structural exports and instruments the page rendered by a route", async () => {
     const code = `import { Routes as RouteList, Route as Entry } from "react-router-dom";
 import { Dashboard } from "./Dashboard";
 export const App = () => <RouteList><Entry path="/" element={<Dashboard />} /></RouteList>;`;
-    const result = injectIdentity(code, "/project/src/App.tsx", "/project", { instrumentComponents: true });
+    const hostPolicy = await resolveTestPolicy(code, {
+      "react-router-dom": "/project/node_modules/react-router-dom/index.js",
+      "./Dashboard": "/project/src/Dashboard.tsx",
+    }, {
+      "/project/src/Dashboard.tsx": "export function Dashboard() { return <main />; }",
+    });
+    const result = injectIdentity(code, "/project/src/App.tsx", "/project", {
+      instrumentComponents: true,
+      hostPolicy,
+    });
 
     expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<RouteList");
     expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<Entry");
@@ -390,12 +436,17 @@ export const App = () => <RouteList><Entry path="/" element={<Dashboard />} /></
     expect(result?.code).toContain('data-src="src/App.tsx:3:');
   });
 
-  it("preserves namespace Router exports even when a compatibility entry is provided", () => {
+  it("preserves namespace Router exports even when a compatibility entry is provided", async () => {
     const code = `import * as Router from "react-router";
 export const App = () => <Router.Routes><Router.Route path="/" element={<main>Home</main>} /></Router.Routes>;`;
+    const hostPolicy = await resolveTestPolicy(code, {
+      "react-router": "/project/node_modules/react-router/index.js",
+    }, {}, {
+      compatibleComponentImports: { "react-router": ["Routes", "Route"] },
+    });
     const result = injectIdentity(code, "/src/App.tsx", undefined, {
       instrumentComponents: true,
-      compatibleComponentImports: { "react-router": ["Routes", "Route"] },
+      hostPolicy,
     });
 
     expect(result?.code).not.toContain("__nudgeUiInstrumentComponent");
@@ -437,11 +488,23 @@ export const App = () => <Slot icon={<Button />}>{true && <><Button /><span>Labe
     expect(result?.code).toContain('<span data-cid="App"');
   });
 
-  it("retains component semantics through transparent React render containers", () => {
+  it("retains component semantics through transparent React render containers", async () => {
     const code = `import React, { Suspense as Pending } from "react";
 import { Button, Loading } from "./ui";
 export const App = () => <React.Fragment><Pending fallback={<Loading />}><Button /></Pending></React.Fragment>;`;
-    const result = injectIdentity(code, "/src/App.tsx", undefined, { instrumentComponents: true });
+    const hostPolicy = await resolveTestPolicy(code, {
+      react: "/project/node_modules/react/index.js",
+      "./ui": "/project/src/ui.tsx",
+    }, {
+      "/project/src/ui.tsx": [
+        "export function Button() { return <button />; }",
+        "export function Loading() { return <p />; }",
+      ].join("\n"),
+    });
+    const result = injectIdentity(code, "/src/App.tsx", undefined, {
+      instrumentComponents: true,
+      hostPolicy,
+    });
 
     expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<React.Fragment");
     expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<Pending");

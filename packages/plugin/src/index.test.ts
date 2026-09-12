@@ -69,20 +69,24 @@ describe("isHostApplicationSource", () => {
 });
 
 describe("Vite workspace source scope", () => {
-  it("enables semantic callsite instrumentation only for explicitly owned workspace files", () => {
-    const source = `import { Button } from "./Button";
+  it("enables semantic callsite instrumentation only for explicitly owned workspace files", async () => {
+    const source = `function Button() { return <button />; }
 export const App = () => <Button />;`;
-    const createPlugin = (sourceRoots?: readonly string[]) => {
+    const createPlugin = async (sourceRoots?: readonly string[]) => {
       const [plugin] = createNudgeUiPlugins({ sourceRoots }) as unknown as [{
         configResolved?: (config: { root: string; command: "serve"; build?: { outDir?: string } }) => void;
-        transform?: { handler?: (code: string, id: string) => { code?: string } | null };
+        transform?: { handler?: (code: string, id: string) => Promise<{ code?: string } | null> };
       }];
       plugin.configResolved?.({ root: "/repo/apps/web", command: "serve" });
-      return plugin.transform?.handler?.(source, "/repo/packages/ui/src/App.tsx")?.code ?? "";
+      const result = await plugin.transform?.handler?.call({
+        resolve: async () => null,
+        warn: () => undefined,
+      }, source, "/repo/packages/ui/src/App.tsx");
+      return result?.code ?? "";
     };
 
-    expect(createPlugin()).not.toContain("__nudgeUiInstrumentComponent");
-    const transformed = createPlugin(["../../packages/ui"]);
+    expect(await createPlugin()).not.toContain("__nudgeUiInstrumentComponent");
+    const transformed = await createPlugin(["../../packages/ui"]);
     expect(transformed).toContain("__nudgeUiInstrumentComponent");
     expect(transformed).toContain('data-src="src/App.tsx:2:27"');
   });

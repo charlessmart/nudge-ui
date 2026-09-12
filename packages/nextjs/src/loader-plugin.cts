@@ -18,8 +18,8 @@
  *   rendered DOM (`data-src`), not in devtools mappings, so the tracer
  *   bullet ships code-only output.
  *
- * Deliberately boring body: synchronous transform, byte-preserved
- * passthrough when nothing applies.
+ * Deliberately boring body: byte-preserved passthrough when nothing applies;
+ * asynchronous only while the host resolves component provenance.
  */
 
 interface NudgeUiLoaderContext {
@@ -28,23 +28,44 @@ interface NudgeUiLoaderContext {
   getOptions?: () => Record<string, unknown>;
   callback?: (error: Error | null, content?: string | Buffer) => void;
   rootContext?: string;
+  async?: () => (error: Error | null, content?: string | Buffer) => void;
+  getResolve?: (options: Record<string, unknown>) => (
+    context: string,
+    request: string,
+  ) => Promise<string>;
+  addDependency?: (path: string) => void;
+  emitWarning?: (warning: Error) => void;
 }
 
 interface LoaderOptions {
   root?: string;
   pagesDir?: string;
+  componentProtocols?: import("@nudge-ui/compiler").ComponentModuleProtocols;
+  sourceRoots?: readonly string[];
 }
 
 const { transformNextModuleSource } = require("./loader.ts") as {
   transformNextModuleSource: (
     source: string,
     moduleId: string,
-    options?: { root?: string; pagesDir?: string },
+    options?: {
+      root?: string;
+      pagesDir?: string;
+      hostPolicy?: import("@nudge-ui/compiler").HostComponentPolicy;
+      instrumentComponents?: boolean;
+      componentRuntimeModule?: string;
+    },
   ) => { code: string } | null;
 };
 const { extractComponentContracts } = require("@nudge-ui/vite-react/component-contracts") as {
   extractComponentContracts: (source: string, file: string) => unknown[];
 };
+const {
+  DEFAULT_COMPONENT_RUNTIME_MODULE,
+  defaultReactComponentProtocols,
+  mergeComponentModuleProtocols,
+  resolveHostComponentPolicy,
+} = require("@nudge-ui/compiler") as typeof import("@nudge-ui/compiler");
 
 const nodePath = require("node:path");
 const nodeFs = require("node:fs");
@@ -58,6 +79,7 @@ const nodeFs = require("node:fs");
  * sidecar's aggregation key — identical to what the scanner and watcher use.
  */
 const canonicalRootCache = new Map<string, string>();
+const reportedComponentPolicyDiagnostics = new Set<string>();
 
 function canonicalProjectRoot(root: string): string {
   const cached = canonicalRootCache.get(root);
@@ -70,6 +92,22 @@ function canonicalProjectRoot(root: string): string {
   }
   canonicalRootCache.set(root, realRoot);
   return realRoot;
+}
+
+function canonicalSourceFile(file: string): string {
+  try {
+    return nodeFs.realpathSync(file);
+  } catch {
+    return nodePath.resolve(file);
+  }
+}
+
+function isInsideSourceRoot(file: string, root: string): boolean {
+  const relativeFile = nodePath.relative(root, file);
+  return relativeFile === ""
+    || (relativeFile !== ".."
+      && !relativeFile.startsWith(`..${nodePath.sep}`)
+      && !nodePath.isAbsolute(relativeFile));
 }
 
 /**
@@ -127,6 +165,23 @@ function nudgeUiLoader(
   const options = readOptions(this);
   const moduleId = this.resourcePath ?? "";
   const root = options.root ?? this.rootContext;
+  const canonicalRoot = canonicalProjectRoot(
+    root ?? this.rootContext ?? nodePath.dirname(moduleId || process.cwd()),
+  );
+  const sourceRoots = [
+    canonicalRoot,
+    ...(options.sourceRoots ?? []).map(canonicalProjectRoot),
+  ];
+  const isProjectSource = (resolvedId: string): boolean => {
+    const canonicalFile = canonicalSourceFile(resolvedId);
+    const normalized = canonicalFile.split("\\").join("/");
+    return sourceRoots.some((sourceRoot) => isInsideSourceRoot(canonicalFile, sourceRoot))
+      && !normalized.includes("/node_modules/")
+      && !normalized.includes("/.next/")
+      && !/[\\/]packages[\\/](?:compiler|inspector|nextjs|plugin)[\\/]/.test(canonicalFile);
+  };
+  const sourcePath = (resolvedId: string): string =>
+    nodePath.relative(canonicalRoot, canonicalSourceFile(resolvedId)).split("\\").join("/");
 
   // Contracts are extracted from the AUTHORED source so line/column
   // provenance matches what prompts will name.
@@ -145,10 +200,80 @@ function nudgeUiLoader(
     }
   }
 
-  const result = transformNextModuleSource(source, moduleId, {
-    root,
-    pagesDir: options.pagesDir,
+  const instrumentComponents = isProjectSource(moduleId);
+  const transform = (hostPolicy?: import("@nudge-ui/compiler").HostComponentPolicy) =>
+    transformNextModuleSource(source, moduleId, {
+      root,
+      pagesDir: options.pagesDir,
+      hostPolicy,
+      instrumentComponents,
+      componentRuntimeModule: DEFAULT_COMPONENT_RUNTIME_MODULE,
+    });
+
+  const resolveImport = this.getResolve?.({
+    dependencyType: "esm",
+    extensions: [".tsx", ".ts", ".jsx", ".js", ".mjs", ".cjs", ".json", "..."],
   });
+  const asyncCallback = resolveImport && instrumentComponents ? this.async?.() : undefined;
+  if (resolveImport && asyncCallback) {
+    void resolveHostComponentPolicy(source, moduleId, {
+      resolve: async (specifier: string, importer: string) => {
+        try {
+          return await resolveImport(nodePath.dirname(importer), specifier);
+        } catch {
+          return null;
+        }
+      },
+      read: async (resolvedId: string) => {
+        try {
+          this.addDependency?.(resolvedId);
+          return nodeFs.readFileSync(resolvedId, "utf8");
+        } catch {
+          return null;
+        }
+      },
+      isProjectSource,
+      sourcePath,
+    }, {
+      moduleProtocols: mergeComponentModuleProtocols(
+        defaultReactComponentProtocols,
+        options.componentProtocols,
+      ),
+    }).then((hostPolicy: import("@nudge-ui/compiler").HostComponentPolicy) => {
+      const diagnosticsBySource = new Map<
+        string,
+        Array<(typeof hostPolicy.diagnostics)[number]>
+      >();
+      for (const diagnostic of hostPolicy.diagnostics) {
+        const key = `${diagnostic.code}\0${diagnostic.source}`;
+        const group = diagnosticsBySource.get(key) ?? [];
+        group.push(diagnostic);
+        diagnosticsBySource.set(key, group);
+      }
+      for (const [key, diagnostics] of diagnosticsBySource) {
+        if (reportedComponentPolicyDiagnostics.has(key)) continue;
+        reportedComponentPolicyDiagnostics.add(key);
+        const first = diagnostics[0]!;
+        const names = diagnostics
+          .slice(0, 5)
+          .map((diagnostic) => diagnostic.componentName)
+          .join(", ");
+        const remainder = diagnostics.length > 5 ? ` and ${diagnostics.length - 5} more` : "";
+        const relativeModule = nodePath.relative(canonicalRoot, moduleId).split("\\").join("/");
+        this.emitWarning?.(new Error(
+          `[nudge-ui] Semantic instrumentation skipped ${first.source} in ${relativeModule} `
+            + `(${names}${remainder}). Add component protocol metadata to opt in compatible package exports.`,
+        ));
+      }
+      const result = transform(hostPolicy);
+      asyncCallback(null, result?.code ?? source);
+    }).catch((error: unknown) => {
+      asyncCallback(error instanceof Error ? error : new Error(String(error)));
+    });
+    return undefined;
+  }
+
+  const result = transform();
 
   if (!result) {
     // Byte-preservation contract: untouched modules fall through unchanged.

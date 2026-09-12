@@ -53,7 +53,14 @@ import {
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
 } from "@nudge-ui/inspector/client-manifest";
-import type { ComponentInstrumentationOptions } from "@nudge-ui/compiler";
+import {
+  DEFAULT_COMPONENT_RUNTIME_MODULE,
+  defaultReactComponentProtocols,
+  mergeComponentModuleProtocols,
+  resolveHostComponentPolicy,
+  type ComponentInstrumentationOptions,
+  type ComponentModuleProtocols,
+} from "@nudge-ui/compiler";
 
 export interface NudgeUiOptions {
   enabled?: boolean;
@@ -83,10 +90,13 @@ export interface NudgeUiOptions {
   componentMetadata?: ComponentContract[];
   /**
    * Package exports whose component protocol is explicitly compatible with
-   * semantic preview instrumentation. Local relative imports are trusted by
-   * the compiler; package imports remain fail-closed unless listed here.
+   * semantic preview instrumentation. The host resolves project imports;
+   * package imports remain fail-closed unless listed here or described by a
+   * component protocol.
    */
   compatibleComponentImports?: ComponentInstrumentationOptions["compatibleComponentImports"];
+  /** Additional package or project component protocols resolved by the host Adapter. */
+  componentProtocols?: ComponentModuleProtocols;
   /**
    * Authored workspace directories outside Vite's resolved root.
    *
@@ -351,6 +361,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     })));
   }
   const packageComponentModulesByFile = new Map<string, string[]>();
+  const reportedComponentPolicyDiagnostics = new Set<string>();
   let packageComponentFingerprint = "";
   const adapterRegistry = createTokenAdapterRegistry([
     ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config, options.tailwindV3.source)] : []),
@@ -1005,7 +1016,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     // prepends refresh helpers and shifts the AST locations used by data-src.
     transform: {
       order: "pre",
-      handler(code, id) {
+      async handler(code, id) {
         if (!enabled) return null;
         if (command === "build" && !demoBuild) return null; // dev-only per ADR-0002; explicit demo builds are opt-in
         if (CSS_EXT.test(id)) {
@@ -1021,12 +1032,62 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
         if (COMPONENT_EXT.test(id) && instrumentComponents) {
           cacheComponentsForFile(id, code);
         }
+        const hostPolicy = instrumentComponents && COMPONENT_EXT.test(id)
+          ? await resolveHostComponentPolicy(code, id, {
+              resolve: async (specifier, importer) => {
+                const resolved = await this.resolve(specifier, importer, { skipSelf: true });
+                return resolved?.id.split(/[?#]/, 1)[0] ?? null;
+              },
+              read: async (resolvedId) => {
+                try {
+                  return readFileSync(resolvedId, "utf8");
+                } catch {
+                  return null;
+                }
+              },
+              isProjectSource: isHostSource,
+              sourcePath: catalogPath,
+            }, {
+              moduleProtocols: mergeComponentModuleProtocols(
+                defaultReactComponentProtocols,
+                options.componentProtocols,
+              ),
+              compatibleComponentImports: options.compatibleComponentImports,
+            })
+          : undefined;
+        const policyDiagnostics = hostPolicy?.diagnostics ?? [];
+        const diagnosticsBySource = new Map<
+          string,
+          Array<(typeof policyDiagnostics)[number]>
+        >();
+        for (const diagnostic of policyDiagnostics) {
+          const key = `${diagnostic.code}\0${diagnostic.source}`;
+          const group = diagnosticsBySource.get(key) ?? [];
+          group.push(diagnostic);
+          diagnosticsBySource.set(key, group);
+        }
+        for (const [key, diagnostics] of diagnosticsBySource) {
+          if (reportedComponentPolicyDiagnostics.has(key)) continue;
+          reportedComponentPolicyDiagnostics.add(key);
+          const first = diagnostics[0]!;
+          const names = diagnostics
+            .slice(0, 5)
+            .map((diagnostic) => diagnostic.componentName)
+            .join(", ");
+          const remainder = diagnostics.length > 5 ? ` and ${diagnostics.length - 5} more` : "";
+          this.warn(
+            `[nudge-ui] Semantic instrumentation skipped ${first.source} in ${catalogPath(id)} `
+              + `(${names}${remainder}). Add componentProtocols metadata to opt in compatible package exports.`,
+          );
+        }
         return injectIdentity(code, id, identityRootFor(id), {
           // Runtime component boundaries belong to host application callsites.
-          // Workspace packages and the inspector itself sit outside the Vite
-          // application root and are therefore excluded without layout knowledge.
+          // Workspace packages are included only when sourceRoots declares
+          // them. Inspector and generated sources remain outside host scope.
           instrumentComponents,
           compatibleComponentImports: options.compatibleComponentImports,
+          hostPolicy,
+          componentRuntimeModule: DEFAULT_COMPONENT_RUNTIME_MODULE,
         });
       },
     },
