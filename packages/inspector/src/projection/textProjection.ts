@@ -9,7 +9,6 @@ import {
   type TextBindingEvidence,
 } from "../inline-text/textChangeBoundary.ts";
 import { isInteractionStylesInstalled } from "../overlay/interactionStyles.ts";
-import type { TargetResolutionStatus } from "../changes/editModel.ts";
 
 /** Strict JSON boundary guard for a text projection target. */
 export const isTextProjectionTarget = isTextProjectionTargetValue;
@@ -159,8 +158,8 @@ interface CanvasReports {
 }
 
 export type TextProjectionResolution =
-  | { status: Extract<TargetResolutionStatus, "resolved">; element: HTMLElement }
-  | { status: Exclude<TargetResolutionStatus, "resolved"> };
+  | { status: "resolved"; element: HTMLElement }
+  | { status: "missing" | "ambiguous" };
 
 let canonicalChanges = new Map<string, TextContentChangeRecord>();
 let documentStates = new Map<Document, DocumentProjectionState>();
