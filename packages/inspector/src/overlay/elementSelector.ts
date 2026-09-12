@@ -2,14 +2,23 @@ import { getSelectedElements, setSelectedElement, toggleSelectedElement } from "
 import { getOpen } from "../shell/openStore.ts";
 import { resolveSelectionFromEvent } from "../selection/resolveSelection.ts";
 import {
-  beginInlineTextEditFromEmptyProjection,
-  beginInlineTextEdit,
+  handleInlineTextEditIntent,
   isInlineTextEditingActive,
+  type InlineTextInteractionDisposition,
 } from "../inline-text/inlineTextEditor.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import { blockApplicationClick, isApplicationActivationClick } from "./clickPolicy.ts";
 
 export function installElementSelector(inspectorHost: HTMLElement): () => void {
+  function applyInlineTextDisposition(
+    event: MouseEvent,
+    disposition: InlineTextInteractionDisposition,
+  ): void {
+    if (disposition === "pass-through") return;
+    if (disposition === "suppress") event.preventDefault();
+    event.stopPropagation();
+  }
+
   function onDoubleClick(e: MouseEvent): void {
     if (!getOpen()) return;
     if (isInsideInspectorUi(e)) return;
@@ -18,29 +27,12 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
       e.stopPropagation();
       return;
     }
-    if (isInlineTextEditingActive()) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
     if (!(e.target instanceof Element)) return;
-    if (inspectorHost === e.target || inspectorHost.contains(e.target)) return;
-    const emptyProjectionMarker = e.target.closest<HTMLElement>(`[${EMPTY_TEXT_PROJECTION_ATTR}]`);
-    if (emptyProjectionMarker) {
-      const result = beginInlineTextEditFromEmptyProjection(emptyProjectionMarker);
-      if (!("kind" in result) || result.kind !== "rejected") {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      return;
-    }
-    const target = resolveSelectionTargetForInlineText(e.target);
-    if (!target) return;
-    const result = beginInlineTextEdit(target, { x: e.clientX, y: e.clientY });
-    if (!("kind" in result) || result.kind !== "rejected") {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+    applyInlineTextDisposition(e, handleInlineTextEditIntent({
+      kind: "double-click",
+      target: e.target,
+      point: { x: e.clientX, y: e.clientY },
+    }));
   }
 
   function isInsideInspectorUi(event: MouseEvent): boolean {
@@ -87,26 +79,22 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
     }
   }
 
-  function resolveSelectionTargetForInlineText(target: Element): HTMLElement | null {
-    // Inline editing starts from the deepest visible text host. Holding the
-    // modifier still opts into the normal deep selection semantics, but the
-    // text editor itself resolves its own component boundary from that host.
-    const stack = trackedTextHostStack(target);
-    return stack[0] ?? null;
+  function onMouseDown(e: MouseEvent): void {
+    if (!getOpen() || isInsideInspectorUi(e)) return;
+    if (!(e.target instanceof Element)) return;
+    applyInlineTextDisposition(e, handleInlineTextEditIntent({
+      kind: "pointer-down",
+      target: e.target,
+      point: { x: e.clientX, y: e.clientY },
+      clickCount: e.detail,
+    }));
   }
 
-  function trackedTextHostStack(target: Element): HTMLElement[] {
-    const stack: HTMLElement[] = [];
-    let current: Element | null = target;
-    while (current) {
-      if (current instanceof HTMLElement && current.hasAttribute("data-cid")) stack.push(current);
-      current = current.parentElement;
-    }
-    return stack;
-  }
+  document.addEventListener("mousedown", onMouseDown, true);
   document.addEventListener("dblclick", onDoubleClick, true);
   document.addEventListener("click", onClick, true);
   return () => {
+    document.removeEventListener("mousedown", onMouseDown, true);
     document.removeEventListener("dblclick", onDoubleClick, true);
     document.removeEventListener("click", onClick, true);
   };

@@ -23,3 +23,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0017: Keep the public landing package outside examples](./0017-landing-package-location.md)
 - [ADR-0018: Self-contained inspector client and host runtime Adapters](./0018-self-contained-client-and-host-runtime-adapters.md)
 - [ADR-0019: Shared client transport capabilities](./0019-shared-client-transport-capabilities.md)
+- [ADR-0020: Inline text editing owns interaction handoff](./0020-inline-text-interaction-handoff.md)

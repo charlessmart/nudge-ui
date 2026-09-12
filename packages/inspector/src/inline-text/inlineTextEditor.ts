@@ -49,6 +49,11 @@ export interface InlineTextEditor {
   ): InlineTextSession | TextEditRejection;
 }
 
+export type InlineTextInteractionDisposition =
+  | "pass-through"
+  | "stop-propagation"
+  | "suppress";
+
 export type InlineTextSessionEndReason =
   | "start"
   | "commit"
@@ -80,9 +85,21 @@ export interface InlineTextDiagnostic {
 const listeners = new Set<() => void>();
 let activeSession: InlineTextSession | null = null;
 let activeSessionDocument: Document | null = null;
+let pendingEditIntent: InlineTextTargetIntent | null = null;
+// This remains armed if blur replaces the DOM between the second pointer-down
+// and dblclick; only the next handoff attempt or explicit teardown consumes it.
+let handoffPointerArmed = false;
+let pendingReplayScheduled = false;
 let sessionRevision = 0;
 let inlineTextDiagnostics: InlineTextDiagnostic[] = [];
 const diagnosticListeners = new Set<() => void>();
+
+function discardPendingInlineTextEdit(ownerDocument?: Document): void {
+  if (!ownerDocument || pendingEditIntent?.ownerDocument === ownerDocument) {
+    pendingEditIntent = null;
+  }
+  if (!pendingEditIntent) handoffPointerArmed = false;
+}
 
 function subscribe(listener: () => void): () => void {
   listeners.add(listener);
@@ -130,6 +147,7 @@ export function isInlineTextEditingActive(): boolean {
 }
 
 export function cancelInlineTextEdit(): void {
+  discardPendingInlineTextEdit();
   activeSession?.cancel("cancel");
 }
 
@@ -138,8 +156,150 @@ export function disposeInlineTextEdit(
   reason: "frame-disposed" | "route-disposed" = "frame-disposed",
   ownerDocument?: Document,
 ): void {
-  if (ownerDocument && activeSessionDocument !== ownerDocument) return;
-  activeSession?.cancel(reason);
+  if (!ownerDocument) {
+    discardPendingInlineTextEdit();
+    activeSession?.cancel(reason);
+    return;
+  }
+  discardPendingInlineTextEdit(ownerDocument);
+  if (activeSessionDocument === ownerDocument) activeSession?.cancel(reason);
+}
+
+interface InlineTextTargetIntent {
+  readonly ownerDocument: Document;
+  readonly target: Element;
+  readonly point: { x: number; y: number };
+}
+
+type ResolvedInlineTextEditIntent =
+  | { kind: "element"; target: HTMLElement }
+  | { kind: "empty-projection"; marker: HTMLElement };
+
+function ownerHTMLElement(element: Element): HTMLElement | null {
+  const OwnerHTMLElement = element.ownerDocument.defaultView?.HTMLElement;
+  // SAFETY: The owning realm's HTMLElement constructor proves that this DOM
+  // element satisfies the HTMLElement interface, including iframe elements.
+  return OwnerHTMLElement && element instanceof OwnerHTMLElement
+    ? element as HTMLElement
+    : null;
+}
+
+function currentIntentTarget(intent: InlineTextTargetIntent): Element | null {
+  if (intent.target.isConnected) return intent.target;
+  return intent.ownerDocument.elementFromPoint?.(intent.point.x, intent.point.y) ?? null;
+}
+
+function resolveInlineTextEditIntent(
+  intent: InlineTextTargetIntent,
+): ResolvedInlineTextEditIntent | null {
+  const eventTarget = currentIntentTarget(intent);
+  if (!eventTarget) return null;
+  const marker = eventTarget.closest(`[${EMPTY_TEXT_PROJECTION_ATTR}]`);
+  if (marker) {
+    const htmlMarker = ownerHTMLElement(marker);
+    if (htmlMarker) return { kind: "empty-projection", marker: htmlMarker };
+  }
+  let current: Element | null = eventTarget;
+  while (current) {
+    const htmlElement = ownerHTMLElement(current);
+    if (htmlElement?.hasAttribute("data-cid")) {
+      return { kind: "element", target: htmlElement };
+    }
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function beginInlineTextEditIntent(
+  intent: InlineTextTargetIntent,
+): InlineTextSession | TextEditRejection | null {
+  const resolved = resolveInlineTextEditIntent(intent);
+  if (!resolved) return null;
+  return resolved.kind === "empty-projection"
+    ? beginInlineTextEditFromEmptyProjection(resolved.marker)
+    : beginInlineTextEdit(resolved.target, intent.point);
+}
+
+function drainPendingInlineTextEdit(): InlineTextSession | TextEditRejection | null {
+  if (activeSession || !pendingEditIntent) return null;
+  const intent = pendingEditIntent;
+  pendingEditIntent = null;
+  return beginInlineTextEditIntent(intent);
+}
+
+function schedulePendingInlineTextEdit(): void {
+  if (!pendingEditIntent || pendingReplayScheduled) return;
+  pendingReplayScheduled = true;
+  queueMicrotask(() => {
+    pendingReplayScheduled = false;
+    drainPendingInlineTextEdit();
+  });
+}
+
+/**
+ * Request inline editing from a document gesture. This is the interaction
+ * seam: it owns active-session handoff so gesture routers never discard a
+ * valid target switch merely because another draft is settling.
+ */
+function requestInlineTextEdit(
+  target: Element,
+  point: { x: number; y: number },
+): InlineTextInteractionDisposition {
+  if (activeSession) {
+    const hitTarget = target.ownerDocument.elementFromPoint?.(point.x, point.y);
+    if (activeSession.host.contains(target)
+      || (hitTarget && activeSession.host.contains(hitTarget))) {
+      return "stop-propagation";
+    }
+  }
+  const intent: InlineTextTargetIntent = {
+    ownerDocument: target.ownerDocument,
+    target,
+    point,
+  };
+  if (!resolveInlineTextEditIntent(intent)) return activeSession ? "suppress" : "pass-through";
+  if (!activeSession) {
+    const result = beginInlineTextEditIntent(intent);
+    return result && !("kind" in result) ? "suppress" : "pass-through";
+  }
+
+  pendingEditIntent = intent;
+  activeSession.commit("blur");
+  if (!activeSession) drainPendingInlineTextEdit();
+  return "suppress";
+}
+
+export type InlineTextEditIntent =
+  | {
+    kind: "pointer-down";
+    target: Element;
+    point: { x: number; y: number };
+    clickCount: number;
+  }
+  | {
+    kind: "double-click";
+    target: Element;
+    point: { x: number; y: number };
+  };
+
+/**
+ * Handle one native interaction while keeping session-transition policy
+ * local. Pointer-down preserves double-click intent across the first click's
+ * blur commit, even when canonical projection replaces the target DOM.
+ */
+export function handleInlineTextEditIntent(
+  intent: InlineTextEditIntent,
+): InlineTextInteractionDisposition {
+  if (intent.kind === "double-click") {
+    return requestInlineTextEdit(intent.target, intent.point);
+  }
+  if (intent.clickCount <= 1) {
+    handoffPointerArmed = activeSession !== null;
+    return activeSession ? "stop-propagation" : "pass-through";
+  }
+  if (!activeSession && !handoffPointerArmed) return "pass-through";
+  handoffPointerArmed = false;
+  return requestInlineTextEdit(intent.target, intent.point);
 }
 
 function isTextEditRejection(
@@ -506,9 +666,97 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     return candidate.scopeChoices ?? [];
   }
 
+  function choiceForCommit(): TextBindingChoice | null {
+    const choice = selectedChoice ?? candidate.bindingChoices?.[0];
+    const target = candidate.editableTarget;
+    if (choice || !target || candidate.mountedCount === undefined) return choice ?? null;
+    const property = candidate.binding.kind === "component-prop"
+      ? candidate.binding.property
+      : "children";
+    return {
+      binding: candidate.binding.kind === "component-prop"
+        ? candidate.binding
+        : {
+          kind: "component-prop",
+          property,
+          target: {
+            framework: target.framework,
+            componentId: target.contract.componentId,
+            callsiteId: target.meta.callsiteId,
+            componentName: target.meta.componentName,
+            file: target.meta.file,
+            line: target.meta.line,
+            column: target.meta.column,
+          },
+        },
+      editableTarget: target,
+      mountedCount: candidate.mountedCount,
+      authoredAs: target.meta.authoredProps[property] ?? "default",
+      renderedTarget: candidate.renderedTarget ?? null,
+      renderedSource: candidate.renderedSource,
+    };
+  }
+
+  function prepareChange(
+    after: string,
+    binding: TextEditBinding,
+    choice: TextBindingChoice | null,
+  ): ChangeRecord | null {
+    if (binding.kind === "component-prop" && selectedScope === "source-site") {
+      const editableTarget = choice?.editableTarget ?? candidate.editableTarget;
+      const prop = editableTarget?.contract.props.find((item) =>
+        item.name === binding.property && item.control === "text");
+      if (!editableTarget || !prop) return null;
+      return createComponentPropChange(editableTarget, prop, after, {
+        scope: "source-site",
+        evidence: choice && choice.mountedCount > 1
+          ? componentEvidence(candidate, choice)
+          : undefined,
+      });
+    }
+    const textTarget = textTargetFor(candidate, binding, choice);
+    const source = sourceForChoice(candidate, choice);
+    const renderedSource = source.selector || !textTarget
+      ? source
+      : { ...source, selector: textProjectionSelector(textTarget) ?? "" };
+    if (!textTarget || !renderedSource.selector) return null;
+    return {
+      kind: "text-content",
+      id: `text-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
+      target: textTarget,
+      source: {
+        file: renderedSource.file,
+        line: renderedSource.line,
+        column: renderedSource.column,
+        component: renderedSource.component,
+      },
+      selector: renderedSource.selector,
+      before: candidate.before,
+      after,
+      authoredAs: renderedSource.authoredAs,
+      scope: selectedScope,
+      evidence: renderedSource.evidence,
+    } satisfies TextContentChangeRecord;
+  }
+
   function restoreHostText(text: string): void {
     host.replaceChildren(doc.createTextNode(text));
     lastSafeText = text;
+  }
+
+  function resumeDraft(text: string): boolean {
+    const original = candidate.textNode;
+    if (original.parentNode !== ownership.parent
+      || original.nextSibling !== ownership.nextSibling) return false;
+    original.replaceWith(host);
+    restoreHostText(text);
+    try {
+      host.focus({ preventScroll: true });
+    } catch {
+      host.focus();
+    }
+    selectAll(host);
+    return true;
   }
 
   function rejectInput(reason: InlineTextInputRejectionReason): void {
@@ -526,13 +774,13 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     return active === host || (active instanceof Node && host.contains(active));
   }
 
-  function cancelForReconciliation(): void {
+  function cancelForReconciliation(discardedDraft?: string): void {
     if (finished) return;
     const restoreFocus = editorOwnsFocus();
     // A moved/reordered host has no safe insertion point. Remove only the
     // temporary wrapper; never reinsert the original node into a new tree.
     if (host.isConnected) host.remove();
-    finish("app-reconciled", "cancelled", undefined, restoreFocus);
+    finish("app-reconciled", "cancelled", discardedDraft, restoreFocus);
   }
 
   function finish(
@@ -556,7 +804,6 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     host.removeEventListener("pointerup", suppressHostPointer);
     doc.removeEventListener("selectionchange", onSelectionChange);
     doc.removeEventListener("click", suppressInteractiveAction, true);
-    doc.removeEventListener("dblclick", suppressInteractiveAction, true);
     doc.removeEventListener("mousedown", suppressInteractiveAction, true);
     doc.removeEventListener("mouseup", suppressInteractiveAction, true);
     doc.removeEventListener("pointerdown", suppressInteractiveAction, true);
@@ -607,6 +854,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
       candidate.emptyProjectionMarker.hidden = false;
     }
     recordDiagnostic({ kind: "inline-text", status, reason, before: candidate.before, after });
+    schedulePendingInlineTextEdit();
   }
 
   function onKeyDown(event: KeyboardEvent): void {
@@ -870,8 +1118,12 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     }
   }
 
-  function endLifecycle(reason: Exclude<InlineTextSessionEndReason, "commit" | "cancel" | "blur">): void {
+  function endLifecycle(
+    reason: Exclude<InlineTextSessionEndReason, "commit" | "cancel" | "blur">,
+    discardedDraft?: string,
+  ): void {
     if (finished) return;
+    discardPendingInlineTextEdit(doc);
     const restoreFocus = editorOwnsFocus();
     if (hostIsOwned(candidate, host, ownership)) {
       if (!restoreDraft(candidate, host, candidate.before, ownership)) {
@@ -884,7 +1136,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
       // the wrapper rather than leaking an editor into the new tree.
       host.remove();
     }
-    finish(reason, "cancelled", undefined, restoreFocus);
+    finish(reason, "cancelled", discardedDraft, restoreFocus);
   }
 
   session = {
@@ -923,6 +1175,10 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     },
     commit(reason: InlineTextSessionEndReason = "commit"): ChangeRecord | null {
       if (finished) return null;
+      if (composing) {
+        blurPending = true;
+        return null;
+      }
       if ((candidate.bindingChoices?.length ?? 0) > 1 && !selectedChoice) return null;
       if (!hostIsOwned(candidate, host, ownership)) {
         endLifecycle(!candidate.element.isConnected ? "app-reconciled" : "host-removed");
@@ -935,34 +1191,13 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
         return null;
       }
       const binding = currentBinding();
-      const choice = selectedChoice
-        ?? (candidate.bindingChoices?.[0]
-          ?? (candidate.editableTarget && candidate.mountedCount !== undefined
-            ? {
-              binding: candidate.binding.kind === "component-prop"
-                ? candidate.binding
-                : {
-                  kind: "component-prop" as const,
-                  property: "children",
-                  target: {
-                    framework: candidate.editableTarget.framework,
-                    componentId: candidate.editableTarget.contract.componentId,
-                    callsiteId: candidate.editableTarget.meta.callsiteId,
-                    componentName: candidate.editableTarget.meta.componentName,
-                    file: candidate.editableTarget.meta.file,
-                    line: candidate.editableTarget.meta.line,
-                    column: candidate.editableTarget.meta.column,
-                  },
-                },
-              editableTarget: candidate.editableTarget,
-              mountedCount: candidate.mountedCount,
-              authoredAs: candidate.editableTarget.meta.authoredProps[candidate.binding.kind === "component-prop" ? candidate.binding.property : "children"]
-                ?? "default",
-              renderedTarget: candidate.renderedTarget ?? null,
-              renderedSource: candidate.renderedSource,
-            }
-            : null));
+      const choice = choiceForCommit();
       const unchanged = after === candidate.before;
+      const change = unchanged ? null : prepareChange(after, binding, choice);
+      if (!unchanged && !change) {
+        endLifecycle("app-reconciled", after);
+        return null;
+      }
       // Always remove the temporary host before appending the canonical
       // change. The React Adapter must own the permanent preview.
       const restoreFocus = editorOwnsFocus();
@@ -970,58 +1205,28 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
         cancelForReconciliation();
         return null;
       }
+      if (change?.kind === "text-content" && selectedScope === "rendered-instance") {
+        // The second text value is alternate evidence for re-entry after a
+        // previous projection. Validation happens after unwrapping because a
+        // mounted draft can make another identical root look unique.
+        const resolved = resolveTextProjectionTarget(doc, change.target, candidate.before);
+        if (resolved.status !== "resolved") {
+          if (!resumeDraft(after)) cancelForReconciliation(after);
+          return null;
+        }
+      }
+      if (change) {
+        try {
+          if (appendChange(change) === "blocked") {
+            if (!resumeDraft(after)) cancelForReconciliation(after);
+            return null;
+          }
+        } catch (error) {
+          if (!resumeDraft(after)) cancelForReconciliation(after);
+          throw error;
+        }
+      }
       finish(reason, "committed", after, restoreFocus);
-      if (unchanged) return null;
-      if (binding.kind === "component-prop" && selectedScope === "source-site") {
-        const editableTarget = choice?.editableTarget ?? candidate.editableTarget;
-        if (!editableTarget) return null;
-        const prop = editableTarget.contract.props.find((item) =>
-          item.name === binding.property && item.control === "text");
-        if (!prop) return null;
-        const change = createComponentPropChange(editableTarget, prop, after, {
-          scope: "source-site",
-          evidence: choice && choice.mountedCount > 1
-            ? componentEvidence(candidate, choice)
-            : undefined,
-        });
-        appendChange(change);
-        return change;
-      }
-      const textTarget = textTargetFor(candidate, binding, choice);
-      const source = sourceForChoice(candidate, choice);
-      const renderedSource = source.selector || !textTarget
-        ? source
-        : { ...source, selector: textProjectionSelector(textTarget) ?? "" };
-      if (!textTarget || !renderedSource.selector) return null;
-      // Before appending an instance projection, prove the selected rendered
-      // root remains unique using before-text evidence. Identical roots must
-      // reject; occurrence is presentation metadata only.
-      if (selectedScope === "rendered-instance") {
-        // Re-entry candidates have a durable target whose original `beforeText`
-        // is no longer present: the current canonical value is the empty
-        // string. Use the candidate's current draft baseline as bounded
-        // evidence while still requiring one source/evidence root.
-        const resolved = resolveTextProjectionTarget(doc, textTarget, candidate.before);
-        if (resolved.status !== "resolved") return null;
-      }
-      const change: TextContentChangeRecord = {
-        kind: "text-content",
-        id: `text-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
-        target: textTarget,
-        source: {
-          file: renderedSource.file,
-          line: renderedSource.line,
-          column: renderedSource.column,
-          component: renderedSource.component,
-        },
-        selector: renderedSource.selector,
-        before: candidate.before,
-        after,
-        authoredAs: renderedSource.authoredAs,
-        scope: selectedScope,
-        evidence: renderedSource.evidence,
-      };
-      appendChange(change);
       return change;
     },
     cancel(reason: InlineTextSessionEndReason = "cancel"): void {
@@ -1051,7 +1256,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   host.addEventListener("pointerdown", suppressHostPointer);
   host.addEventListener("pointerup", suppressHostPointer);
   doc.addEventListener("selectionchange", onSelectionChange);
-  for (const eventName of ["click", "dblclick", "mousedown", "mouseup", "pointerdown", "pointerup", "submit"] as const) {
+  for (const eventName of ["click", "mousedown", "mouseup", "pointerdown", "pointerup", "submit"] as const) {
     doc.addEventListener(eventName, suppressInteractiveAction, true);
   }
   patchRouteHistory();
@@ -1070,7 +1275,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   }
   activeSession = session;
   activeSessionDocument = doc;
-  unregisterClearHandler = registerInlineTextClearHandler(() => session.cancel("cancel"));
+  unregisterClearHandler = registerInlineTextClearHandler(cancelInlineTextEdit);
   notify();
   recordDiagnostic({ kind: "inline-text", status: "started", reason: "start", before: candidate.before });
 
