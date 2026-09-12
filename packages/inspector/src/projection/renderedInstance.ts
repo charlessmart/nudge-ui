@@ -1,6 +1,7 @@
 import { escapeAttrValue } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { sourceSiteSelector } from "../selection/sourceSite.ts";
+import type { TargetResolutionStatus } from "../changes/editModel.ts";
 
 /** A JSX instrumentation site. This is stable across documents. */
 export interface SourceSiteRef {
@@ -30,9 +31,8 @@ export interface RenderedInstanceOverride {
 }
 
 export type ResolutionResult =
-  | { status: "resolved"; element: HTMLElement }
-  | { status: "missing" }
-  | { status: "ambiguous" };
+  | { status: Extract<TargetResolutionStatus, "resolved">; element: HTMLElement }
+  | { status: Exclude<TargetResolutionStatus, "resolved"> };
 
 export type DocumentProjectionStatus = "applied" | "missing" | "ambiguous" | "overridden";
 

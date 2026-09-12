@@ -3,6 +3,8 @@
  * has no dependency on canonical history or document projection code.
  */
 
+import type { EditScope } from "../changes/editModel.ts";
+
 export interface TextProjectionSourceSite {
   cid: string;
   src: string;
@@ -23,7 +25,7 @@ export interface TextProjectionTarget {
   textNodePath?: readonly number[];
 }
 
-export type TextProjectionScope = "source-site" | "rendered-instance";
+export type TextProjectionScope = EditScope;
 
 /** Bounded semantic evidence retained alongside an instance projection. */
 export interface TextBindingEvidence {

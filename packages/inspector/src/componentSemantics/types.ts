@@ -1,10 +1,11 @@
 import type { RuntimeProps } from "./runtimeTypes.ts";
+import type { EditScope } from "../changes/editModel.ts";
 
 export type ComponentPropValue = string | number | boolean;
 export type AuthoredPropKind = "literal" | "expression" | "spread" | "default";
 export const COMPONENT_FRAMEWORKS = ["react"] as const;
 export type ComponentFramework = (typeof COMPONENT_FRAMEWORKS)[number];
-export type ComponentChangeScope = "source-site" | "rendered-instance";
+export type ComponentChangeScope = EditScope;
 
 /** Returns whether a host value names a supported component framework. */
 export function isComponentFramework(value: string): value is ComponentFramework {
