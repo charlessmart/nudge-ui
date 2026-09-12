@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
-import { cpSync, lstatSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, lstatSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -15,12 +15,23 @@ const adapterPackages = {
   "nextjs-16.1": "@nudge-ui/nextjs",
   standalone: "@nudge-ui/standalone",
   "vite-react": "@nudge-ui/vite-react",
+  "vite-react-current": "@nudge-ui/vite-react",
+  "vite-react-monorepo": "@nudge-ui/vite-react",
 };
 
-const consumers = [
+/**
+ * The packed compatibility matrix deliberately varies one seam at a time:
+ * minimum/current framework versions, React major, package manager, project
+ * topology, callback configuration, and a structural-child library.
+ */
+export const PACKED_CONSUMER_MATRIX = [
   {
     adapter: "vite-react",
     fixture: "vite-react",
+    frameworkVersion: "vite@6.4.3",
+    reactVersion: "18.3.1",
+    packageManager: "npm",
+    topology: "flat",
     port: 5611,
     start: (port) => [
       "npm",
@@ -30,19 +41,23 @@ const consumers = [
   {
     adapter: "astro",
     fixture: "astro",
+    frameworkVersion: "astro@5.18.2",
+    reactVersion: "18.3.1",
+    packageManager: "npm",
+    topology: "flat",
     port: 5612,
     start: (port) => [
       "npm",
       ["run", "dev", "--", "--host", "127.0.0.1", "--port", String(port)],
     ],
-    expectedMountFailure: {
-      source: "server",
-      pattern: /Could not resolve "virtual:design-tokens"/,
-    },
   },
   {
     adapter: "nextjs",
     fixture: "nextjs",
+    frameworkVersion: "next@16.3.4",
+    reactVersion: "19.2.8",
+    packageManager: "npm",
+    topology: "flat",
     port: 5613,
     start: (port) => [
       "npm",
@@ -53,6 +68,10 @@ const consumers = [
     adapter: "nextjs-16.1",
     installerFramework: "nextjs",
     fixture: "nextjs-16-1",
+    frameworkVersion: "next@16.1.0",
+    reactVersion: "19.2.8",
+    packageManager: "npm",
+    topology: "flat",
     port: 5615,
     start: (port) => [
       "npm",
@@ -62,13 +81,53 @@ const consumers = [
   {
     adapter: "standalone",
     fixture: "standalone",
+    frameworkVersion: "static-html",
+    reactVersion: null,
+    packageManager: "npm",
+    topology: "flat",
     port: 5614,
     start: (port) => [
       join("node_modules", ".bin", "nudge-ui"),
       ["serve", "prototype", "--host", "127.0.0.1", "--port", String(port)],
     ],
   },
+  {
+    adapter: "vite-react-current",
+    installerFramework: "vite-react",
+    fixture: "vite-react-current",
+    frameworkVersion: "vite@8.2.2",
+    reactVersion: "19.2.8",
+    packageManager: "npm",
+    topology: "flat",
+    structuralChildLibrary: "react-router-dom@7.18.3",
+    expectedApplicationText: "Packed Vite React current consumer",
+    port: 5616,
+    start: (port) => [
+      "npm",
+      ["run", "dev", "--", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    ],
+  },
+  {
+    adapter: "vite-react-monorepo",
+    installerFramework: "vite-react",
+    fixture: "vite-react-monorepo",
+    frameworkVersion: "vite@8.2.2",
+    reactVersion: "19.2.8",
+    packageManager: "pnpm",
+    topology: "monorepo",
+    installDirectory: "apps/web",
+    packageManagerRoot: ".",
+    serverDirectory: "apps/web",
+    expectedApplicationText: "Packed Vite React workspace consumer",
+    port: 5617,
+    start: (port) => [
+      "pnpm",
+      ["run", "dev", "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    ],
+  },
 ];
+
+const consumers = PACKED_CONSUMER_MATRIX;
 
 class MountError extends Error {
   constructor(message, diagnostics, options) {
@@ -165,7 +224,9 @@ function readPackedPackages(directory) {
 async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
   const projectRoot = join(temporaryRoot, consumer.fixture);
   cpSync(join(suiteRoot, "fixtures", consumer.fixture), projectRoot, { recursive: true });
-  const manifestPath = join(projectRoot, "package.json");
+  const installDirectory = join(projectRoot, consumer.installDirectory ?? ".");
+  const packageManagerRoot = join(projectRoot, consumer.packageManagerRoot ?? consumer.installDirectory ?? ".");
+  const manifestPath = join(installDirectory, "package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const initializerPackage = packages.get("create-nudge-ui");
   if (!initializerPackage) throw new Error("The packed create-nudge-ui package is missing.");
@@ -174,23 +235,44 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
     "create-nudge-ui": `file:${initializerPackage.tarball}`,
   };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  writeFileSync(join(projectRoot, ".npmrc"), `@nudge-ui:registry=${registryUrl}\n`);
+  const registryConfig = `@nudge-ui:registry=${registryUrl}\n`;
+  writeFileSync(join(projectRoot, ".npmrc"), registryConfig);
+  if (installDirectory !== projectRoot) writeFileSync(join(installDirectory, ".npmrc"), registryConfig);
 
-  await runAsync("npm", ["install", "--no-audit", "--no-fund"], projectRoot);
-  await runAsync(
+  const packageManager = consumer.packageManager ?? "npm";
+  const installArgs = packageManager === "pnpm"
+    ? ["install", "--no-frozen-lockfile", "--ignore-scripts"]
+    : ["install", "--no-audit", "--no-fund"];
+  await runAsync(packageManager, installArgs, packageManagerRoot);
+  const initializerCandidates = [
+    join(installDirectory, "node_modules", ".bin", "create-nudge-ui"),
     join(projectRoot, "node_modules", ".bin", "create-nudge-ui"),
-    ["--framework", consumer.installerFramework ?? consumer.adapter, "--package-manager", "npm"],
-    projectRoot,
+  ];
+  const initializer = initializerCandidates.find((candidate) => lstatSync(candidate, { throwIfNoEntry: false }));
+  if (!initializer) throw new Error(`The ${packageManager} install did not provide create-nudge-ui.`);
+  await runAsync(
+    initializer,
+    ["--framework", consumer.installerFramework ?? consumer.adapter, "--package-manager", packageManager],
+    installDirectory,
   );
-  const installedAdapter = join(projectRoot, "node_modules", ...adapterPackages[consumer.adapter].split("/"));
+  const adapterRoots = [installDirectory, projectRoot];
+  const installedAdapter = adapterRoots
+    .map((directory) => join(directory, "node_modules", ...adapterPackages[consumer.adapter].split("/")))
+    .find((candidate) => lstatSync(candidate, { throwIfNoEntry: false }));
+  if (!installedAdapter) throw new Error(`${consumer.adapter} was not installed.`);
   if (lstatSync(installedAdapter).isSymbolicLink()) {
-    throw new Error(`${consumer.adapter} resolved to a workspace link instead of an installed package.`);
+    const resolvedAdapter = realpathSync(installedAdapter);
+    const resolvedProjectRoot = realpathSync(projectRoot);
+    if (!resolvedAdapter.startsWith(`${resolvedProjectRoot}/`)) {
+      throw new Error(`${consumer.adapter} resolved to a workspace link instead of an installed package (${resolvedAdapter}).`);
+    }
   }
 
   const diagnostics = { server: "", browser: "" };
   const [command, args] = consumer.start(consumer.port);
+  const serverDirectory = join(projectRoot, consumer.serverDirectory ?? ".");
   const server = spawn(command, args, {
-    cwd: projectRoot,
+    cwd: serverDirectory,
     detached: true,
     env: { ...process.env, NODE_ENV: "development" },
     stdio: ["ignore", "pipe", "pipe"],
@@ -211,7 +293,7 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
     const url = `http://127.0.0.1:${consumer.port}/`;
     await waitForUrl(url, server);
     try {
-      await runBrowserSmoke(consumer.adapter, url, diagnostics);
+      await runBrowserSmoke(consumer, url, diagnostics);
     } catch (error) {
       throw new MountError(
         `${consumer.adapter} did not mount from its packed adapter.\n${formatDiagnostics(diagnostics)}`,
@@ -229,7 +311,8 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
   }
 }
 
-function runBrowserSmoke(adapter, url, diagnostics) {
+function runBrowserSmoke(consumer, url, diagnostics) {
+  const adapter = consumer.adapter;
   return new Promise((resolveRun, rejectRun) => {
     const child = spawn(process.execPath, [
       resolvePlaywrightCli(),
@@ -242,6 +325,9 @@ function runBrowserSmoke(adapter, url, diagnostics) {
         ...process.env,
         NUDGE_UI_PACKED_ADAPTER: adapter,
         NUDGE_UI_PACKED_URL: url,
+        ...(consumer.expectedApplicationText
+          ? { NUDGE_UI_PACKED_EXPECTED_TEXT: consumer.expectedApplicationText }
+          : {}),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

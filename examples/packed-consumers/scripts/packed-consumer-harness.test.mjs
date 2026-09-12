@@ -4,8 +4,19 @@ import { expect, test } from "vitest";
 import {
   appendDiagnostic,
   matchesExpectedMountFailure,
+  PACKED_CONSUMER_MATRIX,
   stopProcess,
 } from "./packed-consumer-harness.mjs";
+
+test("packed compatibility matrix covers the planned host seams", () => {
+  expect(PACKED_CONSUMER_MATRIX).toEqual(expect.arrayContaining([
+    expect.objectContaining({ frameworkVersion: "vite@6.4.3", reactVersion: "18.3.1", packageManager: "npm", topology: "flat" }),
+    expect.objectContaining({ frameworkVersion: "vite@8.2.2", reactVersion: "19.2.8", structuralChildLibrary: "react-router-dom@7.18.3" }),
+    expect.objectContaining({ frameworkVersion: "vite@8.2.2", reactVersion: "19.2.8", packageManager: "pnpm", topology: "monorepo" }),
+    expect.objectContaining({ frameworkVersion: "next@16.1.0" }),
+    expect.objectContaining({ frameworkVersion: "next@16.3.4" }),
+  ]));
+});
 
 test("matchesExpectedMountFailure only accepts the configured diagnostic source", () => {
   const expectedFailure = {

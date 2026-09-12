@@ -25,6 +25,13 @@ Run one or more fixtures while iterating:
 pnpm --filter packed-consumers test:e2e -- vite-react standalone
 ```
 
+The packed matrix covers Vite 6 with React 18, Vite 8 with React 19 and a
+declarative React Router tree, Next.js 16.1 and 16.3, Astro 5, npm and pnpm,
+and flat and workspace-monorepo layouts. The current Vite fixtures use
+callback-form configuration exports. Browser smoke assertions require both
+the Nudge bridge and an application marker, so a mounted inspector cannot hide
+a host render failure.
+
 Astro 5 is intentional because `@nudge-ui/astro` supports Astro 5 and this stack
 reproduces the external-consumer regression that the suite must retain. The
 fixture currently records the known
