@@ -35,3 +35,8 @@ CI reports the expected failure as a warning and also warns if it unexpectedly
 passes. Remove
 `expectedMountFailure` from the Astro fixture after the shared client work
 lands.
+
+The `nextjs-16.1` fixture keeps the earliest supported Next.js 16 minor in the
+packed development path. It intentionally imports a regular application CSS
+file so the test also proves that removing Nudge UI's obsolete CSS query rule
+does not affect the host application's stylesheet pipeline.

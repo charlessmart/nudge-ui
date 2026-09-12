@@ -63,11 +63,10 @@ const SUPPORTED_NEXT_RANGE = ">=15.3 <17";
  * The bundles are fully self-contained (plugin modules inlined), so no
  * runtime resolution of raw TypeScript happens on any supported Node.
  */
-function loaderPaths(): { identity: string; cssInline: string; plugin: string } {
+function loaderPaths(): { identity: string; plugin: string } {
   return {
     plugin: fileURLToPath(new URL("../dist/loaders/loader-plugin.cjs", import.meta.url)),
     identity: fileURLToPath(new URL("../dist/loaders/identity-loader.cjs", import.meta.url)),
-    cssInline: fileURLToPath(new URL("../dist/loaders/css-inline-loader.cjs", import.meta.url)),
   };
 }
 
@@ -261,17 +260,6 @@ function instrumentConfig<T extends object>(config: T): T {
     compose("*.tsx", { ...identityRule });
     compose("*.jsx", { ...identityRule });
 
-    // Vite's `*.css?inline` convention: the inspector imports its shadow
-    // stylesheets as TEXT. Under Next, a loaders rule keyed on the query
-    // turns those requests into default-export string modules; unqueried
-    // CSS flows through Next's normal pipeline untouched.
-    compose("*.css", {
-      loaders: [{ loader: paths.cssInline }],
-      condition: { query: /[?&]inline(?=&|$)/ },
-      // The loader emits a JavaScript string module; without the rename the
-      // result is still routed through PostCSS and fails to parse.
-      as: "*.js",
-    });
   }
   // --- Single React instance (ADR-0004 via module resolution) -------------
   // Nudge UI packages carry their own react dependency for standalone
@@ -324,15 +312,6 @@ function instrumentConfig<T extends object>(config: T): T {
       exclude: /node_modules/,
       enforce: "pre",
       use: [{ loader: paths.identity, options: { root } }],
-    });
-    // Vite's ?inline convention for the inspector shadow stylesheets; output
-    // is a JS string module, so the rule must override the CSS module type.
-    rules.push({
-      test: /\.css$/,
-      resourceQuery: /inline/,
-      type: "javascript/auto",
-      enforce: "pre",
-      use: [{ loader: paths.cssInline }],
     });
     return { ...merged, module: { ...module, rules } };
   };

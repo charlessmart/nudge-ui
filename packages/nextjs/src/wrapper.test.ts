@@ -150,6 +150,7 @@ describe("withNudgeUi — development output shape", () => {
         ],
       });
     }
+    expect(rules["*.css"]).toBeUndefined();
   });
 
   it("preserves user turbopack rules alongside the injected one", () => {
@@ -192,13 +193,11 @@ describe("withNudgeUi — development output shape", () => {
     expect(userHook).toHaveBeenCalled();
 
     const rules = ((devOut.module as { rules?: unknown[] }).rules ?? []) as Array<Record<string, unknown>>;
-    expect(rules).toHaveLength(2);
-    // Identity rule for first-party TSX/JSX...
+    expect(rules).toHaveLength(1);
+    // Identity rule for first-party TSX/JSX. The inspector client is served
+    // as a prebuilt asset, so Next must not receive a CSS query rule.
     expect(rules[0]?.test).toEqual(/\.(tsx|jsx)$/);
     expect((rules[0]?.use as Array<{ loader: string }>)[0]?.loader).toMatch(/identity-loader\.cjs$/);
-    // ...and the ?inline CSS rule feeding the shadow stylesheets.
-    expect(rules[1]?.resourceQuery).toEqual(/inline/);
-    expect((rules[1]?.use as Array<{ loader: string }>)[0]?.loader).toMatch(/css-inline-loader\.cjs$/);
 
     // Production context must stay untouched.
     const prodConfig: Record<string, unknown> = { module: { rules: ["keep"] } };
