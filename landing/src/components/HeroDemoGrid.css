@@ -183,10 +183,6 @@
   transform: translateY(calc(var(--space-80) + var(--space-24)));
 }
 
-.landing-hero-demo--connect-modal .landing-hero-demo-board {
-  width: 800px;
-}
-
 .landing-hero-demo--health-stream .landing-hero-demo-board {
   gap: var(--space-40);
 }
@@ -352,10 +348,6 @@
   line-height: 24px;
 }
 
-.landing-hero-demo-connect-option .landing-hero-demo-heading--small {
-  font-size: 16px;
-}
-
 .landing-hero-demo-body {
   font-size: 14px;
   font-weight: 400;
@@ -412,26 +404,6 @@
   color: var(--text-secondary);
 }
 
-.landing-hero-demo-connect-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-16);
-  width: 100%;
-}
-
-.landing-hero-demo-connect-option {
-  display: flex;
-  min-width: 0;
-  height: 168px;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: var(--space-16);
-  padding: var(--space-16);
-  border: 1px solid var(--border-subtle);
-  border-radius: 16px;
-  background: var(--surface-raised);
-}
-
 .landing-hero-demo-bank-marks {
   display: flex;
   align-items: center;
@@ -484,28 +456,6 @@
 .landing-hero-demo-bank-mark--large > svg {
   width: 20px;
   height: 20px;
-}
-
-.landing-hero-demo-connect-option-footer {
-  align-items: flex-end;
-}
-
-.landing-hero-demo-connect-option-footer > .landing-hero-demo-icon {
-  color: var(--text-secondary);
-}
-
-.landing-hero-demo-security {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.landing-hero-demo-security .landing-hero-demo-icon {
-  width: 14px;
-  height: 14px;
 }
 
 .landing-hero-demo-chip-list {
@@ -938,7 +888,6 @@
 .landing-hero-demo-board--wireframe .landing-hero-demo-caption,
 .landing-hero-demo-board--wireframe .landing-hero-demo-popular-type,
 .landing-hero-demo-board--wireframe .landing-hero-demo-search > span,
-.landing-hero-demo-board--wireframe .landing-hero-demo-security > span,
 .landing-hero-demo-board--wireframe .landing-hero-demo-button,
 .landing-hero-demo-board--wireframe .landing-hero-demo-text-button,
 .landing-hero-demo-board--wireframe .landing-hero-demo-metric,
@@ -965,7 +914,6 @@
 
 .landing-hero-demo-board--wireframe .landing-hero-demo-search,
 .landing-hero-demo-board--wireframe .landing-hero-demo-icon-button,
-.landing-hero-demo-board--wireframe .landing-hero-demo-connect-option,
 .landing-hero-demo-board--wireframe .landing-hero-demo-chip,
 .landing-hero-demo-board--wireframe .landing-hero-demo-panel,
 .landing-hero-demo-board--wireframe .landing-hero-demo-positive {

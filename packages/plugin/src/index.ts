@@ -120,6 +120,7 @@ export function withNudgeUi(
   options: NudgeUiOptions = {},
 ): UserConfigExport {
   if (typeof config === "function") {
+    // SAFETY: The typeof guard above selects the function form of UserConfigExport, whose signature this cast states.
     const resolveConfig = config as (env: ConfigEnv) => UserConfig | Promise<UserConfig>;
     return (env: ConfigEnv) => appendNudgeUi(resolveConfig(env), options);
   }

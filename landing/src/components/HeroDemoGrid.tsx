@@ -45,16 +45,6 @@ function ChevronRightIcon(): ReactNode {
   );
 }
 
-function UploadIcon(): ReactNode {
-  return (
-    <svg className="landing-hero-demo-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-      <path d="m7 9 5-5 5 5" />
-      <path d="M12 4v12" />
-    </svg>
-  );
-}
-
 type TypographyGlyphKind = "font-family" | "font-style" | "font-size" | "line-height" | "letter-spacing";
 
 function TypographyGlyph({ kind }: { kind: TypographyGlyphKind }): ReactNode {
