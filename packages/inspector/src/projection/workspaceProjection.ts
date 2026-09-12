@@ -2,8 +2,8 @@ import { applyRules, rulesToCssText, type StyleRule } from "./managedStylesheet.
 import {
   applyRenderedInstanceProjection,
   collectRenderedInstanceOverrides,
-  type RenderedInstanceOverride,
 } from "./renderedInstance.ts";
+import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import {
   applyStructuralProjection,
   type StructuralChange,

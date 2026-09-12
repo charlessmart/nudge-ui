@@ -17,7 +17,7 @@ import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "./_testUtils.ts";
 import { changeKey } from "./model.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
-import type { RenderedInstanceOverride } from "../projection/renderedInstance.ts";
+import type { RenderedInstanceOverride } from "./editModel.ts";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };

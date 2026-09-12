@@ -33,9 +33,10 @@ import type { StyleRuleContext } from "../projection/managedStylesheet.ts";
 import {
   isRenderedInstanceOverride,
   isRenderedInstanceRef,
+} from "../changes/editModel.ts";
+import type { RenderedInstanceOverride, RenderedInstanceRef } from "../changes/editModel.ts";
+import {
   resolveRenderedInstance,
-  type RenderedInstanceOverride,
-  type RenderedInstanceRef,
 } from "../projection/renderedInstance.ts";
 import {
   isStructuralChange,
