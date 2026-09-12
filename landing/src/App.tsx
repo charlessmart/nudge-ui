@@ -511,7 +511,7 @@ export function App(): ReactNode {
           <section className="landing-hero landing-inner" aria-labelledby="landing-hero-title">
             <HeroDemoGrid variant="hero" />
             <div className="landing-hero-content landing-content-column">
-              <h1 className="landing-content-column" id="landing-hero-title">Nudge is a tool for designing in code.</h1>
+              <h1 className="landing-content-column" id="landing-hero-title">Nudge, a design panel for your codebase.</h1>
               <div className="landing-hero-side landing-content-column">
                 <p className="landing-hero-intro">
                   Nudge works with your <FrameworkName icon={<ReactMark />}>React</FrameworkName>, <FrameworkName icon={<NextMark />}>Next.js</FrameworkName>, <FrameworkName icon={<HtmlMark />}>HTML</FrameworkName> and <FrameworkName icon={<AstroMark />}>Astro</FrameworkName> code. Adjust styles, move elements, change text and adjust tokens directly, then hand off to an agent.
