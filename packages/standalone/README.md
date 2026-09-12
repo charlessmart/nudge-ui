@@ -9,6 +9,13 @@ adapters. Static-HTML identity, browser stylesheet ordering, and document
 reload are selected through the shared runtime manifest, so this package does
 not build or depend on a separate React client.
 
+The CSS token scanner remains in this host package. Its interface includes
+filesystem traversal, symlink confinement, sensitive-path policy, static-HTML
+provenance, and generation semantics that a Vite or framework Adapter cannot
+share safely. The shared source compiler seam is provided by
+`@nudge-ui/compiler`; moving this scanner would widen the public API without
+removing host-specific policy.
+
 ## Install
 
 ```sh

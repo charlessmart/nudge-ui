@@ -12,6 +12,31 @@ import { detectTailwindV4 } from "../adapters/tailwindV4.ts";
 import type { CssImportGraph } from "./activeStylesheets.ts";
 import { stripCssQuery } from "./activeStylesheets.ts";
 
+/**
+ * Source directories that a Vite host explicitly owns.
+ *
+ * Vite's resolved root is always included by the adapter. `sourceRoots` lets a
+ * monorepo host add authored workspace packages without treating every file
+ * reachable through Vite's module graph as application code. Generated roots
+ * are excluded even when a caller accidentally includes them in a source
+ * root.
+ */
+export interface ViteSourceScopeOptions {
+  readonly sourceRoots?: readonly string[];
+  readonly generatedRoots?: readonly string[];
+}
+
+const GENERATED_DIRECTORY_NAMES = new Set([
+  ".astro",
+  ".next",
+  ".svelte-kit",
+  "build",
+  "coverage",
+  "dist",
+  "out",
+  "storybook-static",
+]);
+
 function relativePath(id: string, root?: string): string {
   if (root) {
     const rootPrefix = root.endsWith("/") ? root : `${root}/`;
@@ -23,37 +48,56 @@ function relativePath(id: string, root?: string): string {
 export function isHostApplicationSource(
   id: string,
   projectRoot: string | undefined,
+  options: ViteSourceScopeOptions = {},
 ): boolean {
   if (!projectRoot || id.startsWith("\0")) return false;
-  const fileId = stripCssQuery(id);
-  if (fileId.includes("/node_modules/") || fileId.includes("\\node_modules\\")) {
+  const fileId = stripCssQuery(id).replace(/\\/g, "/");
+  if (fileId.split("/").includes("node_modules")) {
     return false;
   }
   const absoluteFile = isAbsolute(fileId)
     ? resolve(fileId)
     : resolve(projectRoot, fileId);
-  const relativeFile = relative(resolve(projectRoot), absoluteFile);
-  return relativeFile !== ""
-    && relativeFile !== ".."
-    && !relativeFile.startsWith(`..${sep}`)
-    && !isAbsolute(relativeFile);
+  const roots = [projectRoot, ...(options.sourceRoots ?? [])]
+    .map((sourceRoot) => resolve(projectRoot, sourceRoot));
+  const generatedRoots = (options.generatedRoots ?? [])
+    .map((generatedRoot) => resolve(projectRoot, generatedRoot));
+  if (isInsideAnyRoot(absoluteFile, generatedRoots)) return false;
+
+  const sourceRoot = roots.find((candidate) => isInsideRoot(absoluteFile, candidate));
+  if (!sourceRoot) return false;
+
+  // A generated directory can be nested in an authored workspace package.
+  // Keep this guard conservative and name-based so it works before a path
+  // exists on disk and across Vite's virtual query suffixes.
+  const pathSegments = relative(sourceRoot, absoluteFile).split(sep).filter(Boolean);
+  if (pathSegments.some((segment) => GENERATED_DIRECTORY_NAMES.has(segment))) {
+    return false;
+  }
+
+  return true;
 }
 
 export function isPackageStylesheet(
   id: string,
   projectRoot: string | undefined,
+  options: ViteSourceScopeOptions = {},
 ): boolean {
-  return !isHostApplicationSource(id, projectRoot);
+  return !isHostApplicationSource(id, projectRoot, options);
 }
 
 /** Keep package sources useful to people without serialising machine paths. */
 export function catalogSourcePath(
   id: string,
   projectRoot: string | undefined,
+  options: ViteSourceScopeOptions = {},
 ): string {
   const fileId = stripCssQuery(id).replace(/\\/g, "/");
-  if (!isPackageStylesheet(fileId, projectRoot)) {
-    return relativePath(fileId, projectRoot);
+  if (!isPackageStylesheet(fileId, projectRoot, options)) {
+    const sourceRoot = (projectRoot ? [projectRoot, ...(options.sourceRoots ?? [])] : options.sourceRoots ?? [])
+      .map((candidate) => resolve(projectRoot ?? process.cwd(), candidate))
+      .find((candidate) => isInsideAnyRoot(resolve(fileId), [candidate]));
+    return relativePath(fileId, sourceRoot ?? projectRoot);
   }
   const nodeModules = fileId.lastIndexOf("/node_modules/");
   if (nodeModules >= 0) return fileId.slice(nodeModules + "/node_modules/".length);
@@ -64,6 +108,8 @@ export function catalogSourcePath(
 export interface ViteStylesheetArtifactInput {
   readonly id: string;
   readonly projectRoot: string | undefined;
+  readonly sourceRoots?: readonly string[];
+  readonly generatedRoots?: readonly string[];
   readonly stage: ArtifactStage;
   readonly content?: string;
   readonly failed?: boolean;
@@ -78,11 +124,15 @@ export function createViteStylesheetArtifact(
   input: ViteStylesheetArtifactInput,
 ): StylesheetArtifact {
   const fileId = stripCssQuery(input.id);
+  const sourceScope = {
+    ...(input.sourceRoots ? { sourceRoots: input.sourceRoots } : {}),
+    ...(input.generatedRoots ? { generatedRoots: input.generatedRoots } : {}),
+  } satisfies ViteSourceScopeOptions;
   return {
     buildTool: "vite",
-    id: catalogSourcePath(fileId, input.projectRoot),
+    id: catalogSourcePath(fileId, input.projectRoot, sourceScope),
     stage: input.stage,
-    provenance: isHostApplicationSource(fileId, input.projectRoot) ? "project" : "package",
+    provenance: isHostApplicationSource(fileId, input.projectRoot, sourceScope) ? "project" : "package",
     ...(input.order !== undefined ? { order: input.order } : {}),
     ...(input.discoveryOrder !== undefined ? { discoveryOrder: input.discoveryOrder } : {}),
     ...(input.content !== undefined ? {
@@ -91,6 +141,18 @@ export function createViteStylesheetArtifact(
     } : {}),
     ...(input.failed ? { failed: true } : {}),
   };
+}
+
+function isInsideAnyRoot(file: string, roots: readonly string[]): boolean {
+  return roots.some((root) => isInsideRoot(file, root));
+}
+
+function isInsideRoot(file: string, root: string): boolean {
+  const relativeFile = relative(resolve(root), resolve(file));
+  return relativeFile !== ""
+    && relativeFile !== ".."
+    && !relativeFile.startsWith(`..${sep}`)
+    && !isAbsolute(relativeFile);
 }
 
 export interface OrderedViteStylesheet {

@@ -83,7 +83,11 @@ describe("npm package component contracts", () => {
     writeFileSync(join(appRoot, "App.tsx"), appSource);
 
     try {
-      const [rawPlugin] = nudgeUi();
+      const [rawPlugin] = nudgeUi({
+        compatibleComponentImports: {
+          "@fixture/design-system/components": ["Button"],
+        },
+      });
       const plugin = rawPlugin as unknown as TestPlugin;
       plugin.configResolved({ root, command: "serve" });
       plugin.buildStart();

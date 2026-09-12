@@ -18,6 +18,11 @@ interface NextExport {
   readonly commonJs: boolean;
 }
 
+interface ConfigExport {
+  readonly expression: ts.Expression;
+  readonly commonJs: boolean;
+}
+
 /** Plans an idempotent host-configuration edit without writing to the project. */
 export function planConfiguration(projectRoot: string, framework: Framework): ConfigurationChange | undefined {
   if (framework === "standalone") return undefined;
@@ -48,33 +53,25 @@ function configureViteSource(
   sourceFile: ts.SourceFile,
 ): string {
   const packageName = "@nudge-ui/vite-react";
-  const importName = "nudgeUi";
-  const propertyName = "plugins";
-  const expression = "...nudgeUi()";
-  const bindings = importedBindings(sourceFile, packageName, importName);
-  const callableBindings = new Set([...bindings, importName]);
-  const configObject = findDefineConfigObject(sourceFile, propertyName);
-  const matchingProperties = configObject.properties.filter((property) => propertyText(property.name) === propertyName);
-  if (matchingProperties.length > 1) {
-    throw new Error(`Could not update ${propertyName}: the configuration contains duplicate ${propertyName} properties.`);
-  }
+  const importName = "withNudgeUi";
+  const target = findConfigExport(sourceFile, "Vite");
+  const bindings = target.commonJs
+    ? requiredBindings(sourceFile, packageName, importName)
+    : importedBindings(sourceFile, packageName, importName);
+  const wrapperBinding = bindings[0] ?? unusedBindingName(sourceFile, importName);
+  const callableBindings = new Set([...bindings, wrapperBinding]);
+  const edits: TextEdit[] = [];
 
-  const property = matchingProperties[0];
-  let configurationEdit: TextEdit | undefined;
-  if (property) {
-    if (!ts.isPropertyAssignment(property) || !ts.isArrayLiteralExpression(property.initializer)) {
-      throw new Error(`Could not update ${propertyName}: expected ${propertyName} to be an array.`);
-    }
-    if (!containsCall(property.initializer, callableBindings)) {
-      configurationEdit = insertArrayElement(source, sourceFile, property, expression);
-    }
-  } else {
-    configurationEdit = insertObjectProperty(source, sourceFile, configObject, propertyName, expression);
+  if (!containsCall(target.expression, callableBindings)) {
+    const start = target.expression.getStart(sourceFile);
+    const end = target.expression.getEnd();
+    edits.push({ start, end, text: `${wrapperBinding}(${source.slice(start, end)})` });
   }
-
-  const edits: TextEdit[] = configurationEdit ? [configurationEdit] : [];
   if (bindings.length === 0) {
-    edits.push(importEdit(sourceFile, `import { ${importName} } from "${packageName}";`, false));
+    const statement = target.commonJs
+      ? `const { ${importName}${wrapperBinding === importName ? "" : `: ${wrapperBinding}`} } = require("${packageName}");`
+      : `import { ${importName}${wrapperBinding === importName ? "" : ` as ${wrapperBinding}`} } from "${packageName}";`;
+    edits.push(importEdit(sourceFile, statement, target.commonJs));
   }
   return applyEdits(source, edits);
 }
@@ -131,23 +128,6 @@ function parseSource(source: string, fileName: string): ts.SourceFile {
   return ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, scriptKind);
 }
 
-function findDefineConfigObject(sourceFile: ts.SourceFile, propertyName: string): ts.ObjectLiteralExpression {
-  const candidates: ts.ObjectLiteralExpression[] = [];
-  visit(sourceFile, (node) => {
-    if (
-      ts.isCallExpression(node)
-      && ts.isIdentifier(node.expression)
-      && node.expression.text === "defineConfig"
-      && node.arguments[0]
-      && ts.isObjectLiteralExpression(node.arguments[0])
-    ) candidates.push(node.arguments[0]);
-  });
-  if (candidates.length !== 1) {
-    throw new Error(`Could not update ${propertyName}: expected exactly one defineConfig({ ... }) call.`);
-  }
-  return candidates[0]!;
-}
-
 function findNextExport(sourceFile: ts.SourceFile): NextExport {
   const exports: NextExport[] = [];
   for (const statement of sourceFile.statements) {
@@ -162,6 +142,26 @@ function findNextExport(sourceFile: ts.SourceFile): NextExport {
   }
   if (exports.length !== 1) {
     throw new Error("Could not update the Next.js configuration: expected exactly one default or module.exports assignment.");
+  }
+  return exports[0]!;
+}
+
+function findConfigExport(sourceFile: ts.SourceFile, frameworkName: string): ConfigExport {
+  const exports: ConfigExport[] = [];
+  for (const statement of sourceFile.statements) {
+    if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
+      exports.push({ expression: statement.expression, commonJs: false });
+      continue;
+    }
+    if (!ts.isExpressionStatement(statement) || !ts.isBinaryExpression(statement.expression)) continue;
+    const assignment = statement.expression;
+    if (assignment.operatorToken.kind !== ts.SyntaxKind.EqualsToken || !isModuleExports(assignment.left)) continue;
+    exports.push({ expression: assignment.right, commonJs: true });
+  }
+  if (exports.length !== 1) {
+    throw new Error(
+      `Could not update the ${frameworkName} configuration: expected exactly one default or module.exports assignment.`,
+    );
   }
   return exports[0]!;
 }
@@ -261,52 +261,6 @@ function visit(root: ts.Node, visitor: (node: ts.Node) => void): void {
   ts.forEachChild(root, (child) => visit(child, visitor));
 }
 
-function propertyText(name: ts.PropertyName | undefined): string | undefined {
-  if (!name) return undefined;
-  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) return name.text;
-  if (ts.isComputedPropertyName(name) && ts.isStringLiteral(name.expression)) return name.expression.text;
-  return undefined;
-}
-
-function insertArrayElement(
-  source: string,
-  sourceFile: ts.SourceFile,
-  property: ts.PropertyAssignment,
-  expression: string,
-): TextEdit {
-  const array = property.initializer;
-  if (!ts.isArrayLiteralExpression(array)) throw new Error("Expected an array property.");
-  const start = array.getStart(sourceFile) + 1;
-  const end = array.getEnd() - 1;
-  const indentation = lineIndentation(source, property.getStart(sourceFile));
-  const elementIndentation = `${indentation}  `;
-  const interior = source.slice(start, end);
-  if (interior.trim() === "") {
-    return { start, end, text: `\n${elementIndentation}${expression},\n${indentation}` };
-  }
-  const text = interior.startsWith("\n")
-    ? `\n${elementIndentation}${expression},`
-    : `\n${elementIndentation}${expression},\n${elementIndentation}`;
-  return { start, end: start, text };
-}
-
-function insertObjectProperty(
-  source: string,
-  sourceFile: ts.SourceFile,
-  object: ts.ObjectLiteralExpression,
-  propertyName: string,
-  expression: string,
-): TextEdit {
-  const start = object.getStart(sourceFile) + 1;
-  const indentation = lineIndentation(source, object.getStart(sourceFile));
-  const propertyIndentation = `${indentation}  `;
-  const empty = object.properties.length === 0;
-  const text = empty
-    ? `\n${propertyIndentation}${propertyName}: [${expression}],\n${indentation}`
-    : `\n${propertyIndentation}${propertyName}: [${expression}],`;
-  return { start, end: start, text };
-}
-
 function importEdit(sourceFile: ts.SourceFile, statement: string, commonJs: boolean): TextEdit {
   const imports = sourceFile.statements.filter(ts.isImportDeclaration);
   const lastImport = imports.at(-1);
@@ -322,12 +276,6 @@ function importEdit(sourceFile: ts.SourceFile, statement: string, commonJs: bool
   const firstStatement = sourceFile.statements[0];
   const start = firstStatement?.getStart(sourceFile) ?? sourceFile.getEnd();
   return { start, end: start, text: `${statement}\n` };
-}
-
-function lineIndentation(source: string, position: number): string {
-  const lineStart = source.lastIndexOf("\n", position - 1) + 1;
-  const match = /^[ \t]*/.exec(source.slice(lineStart, position));
-  return match?.[0] ?? "";
 }
 
 function applyEdits(source: string, edits: readonly TextEdit[]): string {

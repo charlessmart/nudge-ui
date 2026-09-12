@@ -9,6 +9,7 @@ import {
   extractViteModuleCss,
   isHostApplicationSource,
   transformIndexHtmlHtml,
+  withNudgeUi,
 } from "./index.ts";
 import { createTailwindV4NamingContribution } from "./adapters/tailwindV4.ts";
 import { materializeVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
@@ -64,6 +65,26 @@ describe("isHostApplicationSource", () => {
     )).toBe(false);
     expect(isHostApplicationSource("\0virtual:nudge-ui-inspector", root))
       .toBe(false);
+  });
+});
+
+describe("Vite workspace source scope", () => {
+  it("enables semantic callsite instrumentation only for explicitly owned workspace files", () => {
+    const source = `import { Button } from "./Button";
+export const App = () => <Button />;`;
+    const createPlugin = (sourceRoots?: readonly string[]) => {
+      const [plugin] = createNudgeUiPlugins({ sourceRoots }) as unknown as [{
+        configResolved?: (config: { root: string; command: "serve"; build?: { outDir?: string } }) => void;
+        transform?: { handler?: (code: string, id: string) => { code?: string } | null };
+      }];
+      plugin.configResolved?.({ root: "/repo/apps/web", command: "serve" });
+      return plugin.transform?.handler?.(source, "/repo/packages/ui/src/App.tsx")?.code ?? "";
+    };
+
+    expect(createPlugin()).not.toContain("__nudgeUiInstrumentComponent");
+    const transformed = createPlugin(["../../packages/ui"]);
+    expect(transformed).toContain("__nudgeUiInstrumentComponent");
+    expect(transformed).toContain('data-src="src/App.tsx:2:27"');
   });
 });
 
@@ -259,24 +280,36 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
   type ConfigHook = (
     config: unknown,
     env: { command: string },
-  ) => { resolve: { alias: unknown[] } } | undefined;
+  ) => { resolve: { alias?: unknown[]; dedupe?: string[] } } | undefined;
 
-  it("does not alias React for the shared external client", () => {
+  it("dedupes React for the shared external client without aliasing it", () => {
     const plugin = nudgeUi() as unknown as { config?: ConfigHook };
-    expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toBeUndefined();
+    const result = plugin.config?.({ root: sandboxRoot }, serveEnv);
+    expect(result?.resolve.dedupe).toEqual(["react", "react-dom"]);
+    expect(result?.resolve.alias).toEqual(expect.arrayContaining([
+      expect.objectContaining({ find: "@nudge-ui/inspector/component-runtime" }),
+    ]));
   });
 
   it("retains React aliases for the bundled landing demo", () => {
     const plugin = nudgeUi({ demo: true }) as unknown as { config?: ConfigHook };
     const result = plugin.config?.({ root: sandboxRoot }, serveEnv);
-    expect(result?.resolve.alias.length ?? 0).toBeGreaterThan(0);
+    expect(result?.resolve.alias?.length ?? 0).toBeGreaterThan(0);
+    expect(result?.resolve.dedupe).toEqual(["react", "react-dom"]);
   });
 
   it("returns no alias configuration when skipReactAliases is set (Astro SSR)", () => {
     const plugin = nudgeUi({ skipReactAliases: true }) as unknown as {
       config?: ConfigHook;
     };
-    expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toBeUndefined();
+    expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toEqual({
+      resolve: {
+        alias: expect.arrayContaining([
+          expect.objectContaining({ find: "@nudge-ui/inspector/component-runtime" }),
+        ]),
+        dedupe: ["react", "react-dom"],
+      },
+    });
   });
 
   it("returns no alias configuration during production builds", () => {
@@ -284,6 +317,56 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
     expect(
       plugin.config?.({ root: sandboxRoot }, { command: "build" }),
     ).toBeUndefined();
+  });
+});
+
+describe("withNudgeUi Vite configuration wrapper", () => {
+  it("appends the host Adapter without mutating an object export", () => {
+    const existing = { plugins: [{ name: "react" }] };
+    const wrapped = withNudgeUi(existing);
+
+    expect(existing.plugins).toEqual([{ name: "react" }]);
+    expect(wrapped).toMatchObject({
+      plugins: [
+        { name: "react" },
+        { name: "nudge-ui" },
+        { name: "nudge-ui:transformed-css" },
+      ],
+    });
+  });
+
+  it("resolves callback exports with the Vite command environment", () => {
+    const wrapped = withNudgeUi((env) => ({
+      root: env.mode === "test" ? "/tmp/test-root" : "/tmp/dev-root",
+      plugins: [],
+    }));
+
+    expect(typeof wrapped).toBe("function");
+    const resolved = (wrapped as (env: { command: "serve"; mode: string }) => unknown)({
+      command: "serve",
+      mode: "test",
+    }) as { root: string; plugins: Array<{ name: string }> };
+    expect(resolved.root).toBe("/tmp/test-root");
+    expect(resolved.plugins.map((plugin) => plugin.name)).toEqual([
+      "nudge-ui",
+      "nudge-ui:transformed-css",
+    ]);
+  });
+
+  it("resolves promise exports", async () => {
+    const wrapped = withNudgeUi(Promise.resolve({ plugins: [] }));
+    const resolved = await wrapped as { plugins: Array<{ name: string }> };
+    expect(resolved.plugins.map((plugin) => plugin.name)).toEqual([
+      "nudge-ui",
+      "nudge-ui:transformed-css",
+    ]);
+  });
+
+  it("does not add duplicate plugins when a config is already wrapped", () => {
+    const existing = { plugins: [createNudgeUiPlugins()[0]!] };
+    const wrapped = withNudgeUi(existing) as { plugins: unknown[] };
+    expect(wrapped).toBe(existing);
+    expect(wrapped.plugins).toHaveLength(1);
   });
 });
 

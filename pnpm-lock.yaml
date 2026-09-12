@@ -513,6 +513,25 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
+  packages/compiler:
+    dependencies:
+      '@babel/parser':
+        specifier: ^7.29.8
+        version: 7.29.8
+      magic-string:
+        specifier: ^0.30.21
+        version: 0.30.21
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+
   packages/create-nudge-ui:
     dependencies:
       typescript:
@@ -609,6 +628,9 @@ importers:
       '@babel/parser':
         specifier: ^7.29.8
         version: 7.29.8
+      '@nudge-ui/compiler':
+        specifier: workspace:*
+        version: link:../compiler
       '@nudge-ui/css':
         specifier: workspace:*
         version: link:../css
@@ -660,6 +682,9 @@ importers:
       '@babel/parser':
         specifier: ^7.29.8
         version: 7.29.8
+      '@nudge-ui/compiler':
+        specifier: workspace:*
+        version: link:../compiler
       '@nudge-ui/css':
         specifier: workspace:*
         version: link:../css

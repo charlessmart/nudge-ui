@@ -285,7 +285,7 @@ describe("injectIdentity — data-cprops", () => {
 
 describe("injectIdentity — React component invocation instrumentation", () => {
   it("wraps custom component invocations with dev runtime metadata", () => {
-    const code = `function App() { return <Button variant="primary" disabled={false}>Save</Button>; }`;
+    const code = `function App() { return <Button variant="primary" disabled={false}>Save</Button>; } function Button() { return null; }`;
     const result = injectIdentity(code, "/project/src/App.tsx", "/project", {
       instrumentComponents: true,
     });
@@ -302,7 +302,7 @@ describe("injectIdentity — React component invocation instrumentation", () => 
   });
 
   it("uses an expression container when instrumenting a JSX child", () => {
-    const code = `function App() { return <main><Button /></main>; }`;
+    const code = `function App() { return <main><Button /></main>; } function Button() { return null; }`;
     const result = injectIdentity(code, "/src/App.tsx", undefined, {
       instrumentComponents: true,
     });
@@ -313,7 +313,7 @@ describe("injectIdentity — React component invocation instrumentation", () => 
 
   it("records primitive children authorship in component invocation metadata", () => {
     const literal = injectIdentity(
-      `function App() { return <Button>Save</Button>; }`,
+      `function App() { return <Button>Save</Button>; } function Button() { return null; }`,
       "/src/App.tsx",
       undefined,
       { instrumentComponents: true },
@@ -321,7 +321,7 @@ describe("injectIdentity — React component invocation instrumentation", () => 
     expect(literal?.code).toContain('"children":"literal"');
 
     const expression = injectIdentity(
-      `function App({ label }: { label: string }) { return <Button>{label}</Button>; }`,
+      `function App({ label }: { label: string }) { return <Button>{label}</Button>; } function Button() { return null; }`,
       "/src/App.tsx",
       undefined,
       { instrumentComponents: true },
@@ -329,7 +329,7 @@ describe("injectIdentity — React component invocation instrumentation", () => 
     expect(expression?.code).toContain('"children":"expression"');
 
     const spread = injectIdentity(
-      `function App({ children }: { children: string[] }) { return <Button>{...children}</Button>; }`,
+      `function App({ children }: { children: string[] }) { return <Button>{...children}</Button>; } function Button() { return null; }`,
       "/src/App.tsx",
       undefined,
       { instrumentComponents: true },
@@ -338,7 +338,7 @@ describe("injectIdentity — React component invocation instrumentation", () => 
   });
 
   it("keeps adjacent component siblings parseable without whitespace", () => {
-    const code = `function App() { return <><Meta/><Links/></>; }`;
+    const code = `function App() { return <><Meta/><Links/></>; } function Meta() { return null; } function Links() { return null; }`;
     const result = injectIdentity(code, "/src/App.tsx", undefined, {
       instrumentComponents: true,
     });
@@ -373,8 +373,89 @@ describe("injectIdentity — React component invocation instrumentation", () => 
       `import { Button } from "@work/design-system"; export const App = () => <Button />;`,
       "/project/src/App.tsx",
       "/project",
-      { instrumentComponents: true },
+      { instrumentComponents: true, compatibleComponentImports: { "@work/design-system": ["Button"] } },
     );
     expect(packaged?.code).toContain('"componentId":"@work/design-system#Button"');
+  });
+
+  it("preserves React Router structural exports and instruments the page rendered by a route", () => {
+    const code = `import { Routes as RouteList, Route as Entry } from "react-router-dom";
+import { Dashboard } from "./Dashboard";
+export const App = () => <RouteList><Entry path="/" element={<Dashboard />} /></RouteList>;`;
+    const result = injectIdentity(code, "/project/src/App.tsx", "/project", { instrumentComponents: true });
+
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<RouteList");
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<Entry");
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Dashboard");
+    expect(result?.code).toContain('data-src="src/App.tsx:3:');
+  });
+
+  it("preserves namespace Router exports even when a compatibility entry is provided", () => {
+    const code = `import * as Router from "react-router";
+export const App = () => <Router.Routes><Router.Route path="/" element={<main>Home</main>} /></Router.Routes>;`;
+    const result = injectIdentity(code, "/src/App.tsx", undefined, {
+      instrumentComponents: true,
+      compatibleComponentImports: { "react-router": ["Routes", "Route"] },
+    });
+
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent");
+    expect(result?.code).toContain('<main data-cid="App"');
+    expect(result?.code).toContain("Home</main>");
+  });
+
+  it("requires exact compatibility metadata for package exports", () => {
+    const code = `import { Button as Action, Menu } from "@ui/components";
+import * as Other from "@other/components";
+export const App = () => <main><Action /><Menu /><Other.Button /></main>;`;
+    const result = injectIdentity(code, "/src/App.tsx", undefined, {
+      instrumentComponents: true,
+      compatibleComponentImports: { "@ui/components": ["Button"] },
+    });
+
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Action");
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<Menu");
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<Other.Button");
+  });
+
+  it("does not infer safety for an unresolved or shadowed component binding", () => {
+    const code = `import { Button } from "./Button";
+export function App({ Button }) { return <main><Button /><Unknown /></main>; }`;
+    const result = injectIdentity(code, "/src/App.tsx", undefined, { instrumentComponents: true });
+
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent");
+    expect(result?.code).toContain('data-cid="Button"');
+    expect(result?.code).toContain('data-cid="Unknown"');
+  });
+
+  it("preserves component values passed as unverified children or slot props", () => {
+    const code = `import { Slot } from "unknown-library";
+import { Button } from "./Button";
+export const App = () => <Slot icon={<Button />}>{true && <><Button /><span>Label</span></>}</Slot>;`;
+    const result = injectIdentity(code, "/src/App.tsx", undefined, { instrumentComponents: true });
+
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent");
+    expect(result?.code).toContain('<span data-cid="App"');
+  });
+
+  it("retains component semantics through transparent React render containers", () => {
+    const code = `import React, { Suspense as Pending } from "react";
+import { Button, Loading } from "./ui";
+export const App = () => <React.Fragment><Pending fallback={<Loading />}><Button /></Pending></React.Fragment>;`;
+    const result = injectIdentity(code, "/src/App.tsx", undefined, { instrumentComponents: true });
+
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<React.Fragment");
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<Pending");
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Loading");
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Button");
+  });
+
+  it("recognizes locally defined React memo and forwardRef components", () => {
+    const code = `import { forwardRef, memo } from "react";
+const Button = memo(forwardRef((props, ref) => <button ref={ref} />));
+export const App = () => <Button />;`;
+    const result = injectIdentity(code, "/src/App.tsx", undefined, { instrumentComponents: true });
+
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Button");
+    expect(result?.code).toContain('<button data-cid=');
   });
 });

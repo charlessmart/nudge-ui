@@ -1,10 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "paths": {
-      "@nudge-ui/compiler": ["../compiler/src/index.ts"],
-      "@nudge-ui/compiler/react-identity": ["../compiler/src/reactIdentity.ts"]
-    },
     "outDir": "dist",
     "noEmit": true,
     "allowImportingTsExtensions": true

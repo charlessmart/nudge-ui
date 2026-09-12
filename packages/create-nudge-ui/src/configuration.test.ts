@@ -43,7 +43,7 @@ export default defineConfig({ integrations, ...getOverrides() });
     expect(configured).toContain("export default withNudgeUi2({})");
   });
 
-  it("adds the Vite adapter after existing plugins", () => {
+  it("wraps a Vite configuration export without inspecting its shape", () => {
     const source = `import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -52,9 +52,58 @@ export default defineConfig({
 });
 `;
     const configured = configureSource(source, "vite-react", "vite.config.ts");
-    expect(configured).toContain('import { nudgeUi } from "@nudge-ui/vite-react";');
-    expect(configured).toContain("plugins: [\n    ...nudgeUi(),\n    react()]");
+    expect(configured).toContain('import { withNudgeUi } from "@nudge-ui/vite-react";');
+    expect(configured).toContain("export default withNudgeUi(defineConfig({");
     expect(configureSource(configured, "vite-react", "vite.config.ts")).toBe(configured);
+  });
+
+  it("wraps callback, spread, and computed Vite configurations", () => {
+    const source = `import { defineConfig } from "vite";
+
+const shared = { plugins: [] };
+export default defineConfig(({ mode }) => ({
+  ...shared,
+  root: mode === "test" ? "test" : undefined,
+}));
+`;
+    const configured = configureSource(source, "vite-react", "vite.config.ts");
+    expect(configured).toContain("export default withNudgeUi(defineConfig(({ mode }) => ({");
+    expect(configured).toContain("const shared = { plugins: [] };");
+    expect(configured).toContain('import { withNudgeUi } from "@nudge-ui/vite-react";');
+  });
+
+  it("wraps CommonJS Vite exports", () => {
+    const source = `const { defineConfig } = require("vite");
+module.exports = defineConfig(() => ({ plugins: [] }));
+`;
+    const configured = configureSource(source, "vite-react", "vite.config.cjs");
+    expect(configured).toContain(
+      'const { withNudgeUi } = require("@nudge-ui/vite-react");',
+    );
+    expect(configured).toContain(
+      "module.exports = withNudgeUi(defineConfig(() => ({ plugins: [] })));",
+    );
+    expect(configureSource(configured, "vite-react", "vite.config.cjs")).toBe(configured);
+  });
+
+  it("avoids a local Vite wrapper binding collision", () => {
+    const source = `const withNudgeUi = (config) => config;
+export default { root: "app" };
+`;
+    const configured = configureSource(source, "vite-react", "vite.config.ts");
+    expect(configured).toContain(
+      'import { withNudgeUi as withNudgeUi2 } from "@nudge-ui/vite-react";',
+    );
+    expect(configured).toContain("export default withNudgeUi2({ root: \"app\" });");
+  });
+
+  it("preserves an aliased CommonJS Vite wrapper binding", () => {
+    const source = `const { withNudgeUi: withInspector } = require("@nudge-ui/vite-react");
+module.exports = {};
+`;
+    const configured = configureSource(source, "vite-react", "vite.config.cjs");
+    expect(configured).toContain("module.exports = withInspector({});");
+    expect(configured.match(/require\("@nudge-ui\/vite-react"\)/g)).toHaveLength(1);
   });
 
   it("wraps ESM and CommonJS Next.js configuration exports", () => {
@@ -102,11 +151,9 @@ export default defineConfig({
     expect(configureSource(source, "nextjs", "next.config.mjs")).toBe(source);
   });
 
-  it("updates quoted array properties without creating duplicates", () => {
-    const source = 'import { defineConfig } from "vite";\nexport default defineConfig({ "plugins": [] });\n';
-    const configured = configureSource(source, "vite-react", "vite.config.ts");
-    expect(configured).toMatch(/"plugins": \[\n\s+\.\.\.nudgeUi\(\),/);
-    expect(configured.match(/plugins/g)).toHaveLength(1);
+  it("recognizes an already wrapped Vite export without adding another wrapper", () => {
+    const source = 'import { withNudgeUi } from "@nudge-ui/vite-react";\nexport default withNudgeUi({});\n';
+    expect(configureSource(source, "vite-react", "vite.config.ts")).toBe(source);
   });
 
   it("recognizes adapter calls with options as already configured", () => {
@@ -135,12 +182,8 @@ export default defineConfig({
     );
   });
 
-  it("rejects configuration shapes it cannot update safely", () => {
-    expect(() => configureSource("export default getConfig();", "vite-react", "vite.config.ts"))
-      .toThrow(/Could not update plugins/);
-    expect(() => configureSource('export default defineConfig({ plugins: getPlugins() });', "vite-react", "vite.config.ts"))
-      .toThrow(/plugins to be an array/);
-    expect(() => configureSource('export default defineConfig({ plugins: [], "plugins": [] });', "vite-react", "vite.config.ts"))
-      .toThrow(/duplicate plugins/);
+  it("rejects Vite sources without a single export", () => {
+    expect(() => configureSource("const config = {};", "vite-react", "vite.config.ts"))
+      .toThrow(/Could not update the Vite configuration/);
   });
 });
