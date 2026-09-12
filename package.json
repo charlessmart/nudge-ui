@@ -37,9 +37,11 @@
     "package:archive": "pnpm run build:packages && node scripts/verify-packages.mjs --output-directory .release-packages",
     "release:validate": "node scripts/validate-release.mjs",
     "dev:sandbox": "pnpm --filter sandbox dev",
-    "dev:sandbox:remote": "pnpm --filter sandbox dev:remote"
+    "dev:sandbox:remote": "pnpm --filter sandbox dev:remote",
+    "dev:mockups": "nudge-ui serve docs/mockups"
   },
   "devDependencies": {
+    "@nudge-ui/standalone": "workspace:*",
     "@oxlint/plugins": "1.78.0",
     "@types/node": "^22.20.1",
     "@typescript-eslint/parser": "^8.69.0",

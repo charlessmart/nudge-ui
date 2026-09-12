@@ -1,0 +1,28 @@
+{
+  "name": "mockup-cards",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "React mockups of the account-card layouts, used to demonstrate component and token editing.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nudge-ui/inspector": "workspace:*",
+    "@nudge-ui/vite-react": "workspace:*",
+    "@tabler/icons-react": "3.46.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^4.7.0",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21"
+  }
+}

@@ -1,0 +1,102 @@
+/* --------------------------------------------------------------------------
+   Button component
+
+   This is the stylesheet half of the Button component. Every value it uses
+   comes from a --button-* token below, so the inspector can drive the whole
+   component from the token panel, and the prop contract can drive the variant.
+   -------------------------------------------------------------------------- */
+
+:root {
+  --button-radius: var(--radius-tile);
+  --button-font-size: 14px;
+  --button-font-weight: 600;
+  --button-line-height: 1.2;
+  --button-padding-block: var(--space-8);
+  --button-padding-inline: var(--space-16);
+  --button-gap: var(--space-8);
+
+  /* primary — the one filled action on a surface */
+  --button-primary-bg: var(--accent-primary);
+  --button-primary-bg-hover: var(--accent-primary-strong);
+  --button-primary-fg: var(--text-inverse);
+  --button-primary-border: transparent;
+
+  /* secondary — outlined, sits beside a primary */
+  --button-secondary-bg: var(--surface-raised);
+  --button-secondary-bg-hover: var(--surface-sunken);
+  --button-secondary-fg: var(--text-primary);
+  --button-secondary-border: var(--border-strong);
+
+  /* tertiary — text only, lowest emphasis */
+  --button-tertiary-bg: transparent;
+  --button-tertiary-bg-hover: var(--surface-well);
+  --button-tertiary-fg: var(--text-secondary);
+  --button-tertiary-border: transparent;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--button-gap);
+  padding: var(--button-padding-block) var(--button-padding-inline);
+  border: 1px solid transparent;
+  border-radius: var(--button-radius);
+  font-family: var(--font-display);
+  font-size: var(--button-font-size);
+  font-weight: var(--button-font-weight);
+  line-height: var(--button-line-height);
+  cursor: pointer;
+  transition: background-color var(--ease), border-color var(--ease), color var(--ease);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.button--primary {
+  border-color: var(--button-primary-border);
+  background: var(--button-primary-bg);
+  color: var(--button-primary-fg);
+}
+
+.button--primary:hover:not(:disabled),
+.button--primary:focus-visible:not(:disabled) {
+  background: var(--button-primary-bg-hover);
+}
+
+.button--secondary {
+  border-color: var(--button-secondary-border);
+  background: var(--button-secondary-bg);
+  color: var(--button-secondary-fg);
+}
+
+.button--secondary:hover:not(:disabled),
+.button--secondary:focus-visible:not(:disabled) {
+  background: var(--button-secondary-bg-hover);
+}
+
+.button--tertiary {
+  border-color: var(--button-tertiary-border);
+  background: var(--button-tertiary-bg);
+  color: var(--button-tertiary-fg);
+}
+
+.button--tertiary:hover:not(:disabled),
+.button--tertiary:focus-visible:not(:disabled) {
+  background: var(--button-tertiary-bg-hover);
+  color: var(--text-primary);
+}
+
+.button-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}

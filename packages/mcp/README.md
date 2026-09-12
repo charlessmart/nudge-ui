@@ -1,5 +1,9 @@
 # `@nudge-ui/mcp`
 
+> **Early alpha:** This integration is still under heavy testing. Expect
+> breaking changes, incomplete host compatibility, and other rough edges. Do
+> not rely on it for production workflows yet.
+
 `@nudge-ui/mcp` connects a local Nudge UI inspector to an MCP-capable coding
 agent. It combines a standard MCP stdio server with a project-scoped loopback
 browser bridge. The browser does not speak MCP directly.

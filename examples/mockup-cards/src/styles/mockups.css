@@ -1,0 +1,1034 @@
+
+      /* ------------------------------------------------------------------
+         Tokens
+
+         Spacing stays locked to 4 / 8 / 12 / 16 / 24 / 32 / 40 / 64 / 128.
+         Text uses exactly two greys per surface. Colour is systematic:
+         every category owns one accent, every accent has a 600 mark and a
+         matching 50 tint, and each accent is reused for the same meaning
+         everywhere it appears.
+         ------------------------------------------------------------------ */
+      :root {
+        color-scheme: light;
+
+        /* Neutrals (Tailwind neutral) remain the primary palette. */
+        --neutral-50: #fafafa;
+        --neutral-100: #f5f5f5;
+        --neutral-200: #e5e5e5;
+        --neutral-300: #d4d4d4;
+        --neutral-400: #a3a3a3;
+        --neutral-500: #737373;
+        --neutral-900: #171717;
+        --white: #ffffff;
+
+        /* Surfaces */
+        --surface-canvas: var(--neutral-100);
+        --surface-raised: var(--white);
+        --surface-sunken: var(--neutral-50);
+        --surface-inverse: var(--neutral-900);
+        --surface-well: hsla(0, 0%, 0%, 0.05);
+
+        /* Text — two greys per surface, two roles. */
+        --text-primary: var(--neutral-900);
+        --text-secondary: var(--neutral-500);
+        --text-inverse: var(--white);
+        --text-inverse-secondary: rgb(255 255 255 / 78%);
+
+        /* Borders — two weights, two roles. */
+        --border-subtle: var(--neutral-200);
+        --border-strong: var(--neutral-300);
+        --icon-muted: var(--neutral-400);
+        --icon-default: var(--neutral-500);
+
+        /* Category accents. 600 for the mark, 50 for the tinted well. */
+        --accent-blue: #2563eb;
+        --accent-blue-tint: #eff6ff;
+        --accent-emerald: #059669;
+        --accent-emerald-tint: #ecfdf5;
+        --accent-amber: #d97706;
+        --accent-amber-tint: #fffbeb;
+        --accent-violet: #7c3aed;
+        --accent-violet-tint: #f5f3ff;
+        --accent-cyan: #0891b2;
+        --accent-cyan-tint: #ecfeff;
+        --accent-slate: #525252;
+        --accent-slate-tint: #f5f5f5;
+
+        /* Primary action — one colour for every primary affordance. */
+        --accent-primary: var(--accent-blue);
+        --accent-primary-strong: #1d4ed8;
+
+        /* Institution circles. Brand-neutral 600 ramp so white marks
+           always clear contrast, whatever the real brand colour is. */
+        --circle-blue: #2563eb;
+        --circle-red: #dc2626;
+        --circle-cyan: #0891b2;
+        --circle-violet: #7c3aed;
+        --circle-teal: #0d9488;
+        --circle-green: #16a34a;
+
+        /* Spacing */
+        --space-0: 0px;
+        --space-4: 4px;
+        --space-8: 8px;
+        --space-12: 12px;
+        --space-16: 16px;
+        --space-24: 24px;
+        --space-32: 32px;
+        --space-40: 40px;
+        --space-64: 64px;
+        --space-128: 128px;
+
+        --radius-card: 12px;
+        --radius-surface: 16px;
+        --radius-tile: 10px;
+
+        --font-display: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system,
+          BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+        --ease: 160ms ease;
+
+        /* ------------------------------------------------------------------
+           Card component API
+
+           Every sub-card in these mockups — the "Connect a bank" grid cards,
+           the institution cards, the list rows, the photo cards — is built
+           from the same shared rules. These tokens are that shared surface:
+           change one here (or from the inspector's token panel) and every
+           card that consumes it updates at once.
+
+           Defaults are the values the mockups were designed with, so the
+           tokens are a no-op until you move them.
+           ------------------------------------------------------------------ */
+        --card-radius: var(--radius-card);
+        --card-border-color: var(--border-subtle);
+        --card-border-width: 1px;
+
+        /* Roomier cards (grid, institution, photo, primary) */
+        --card-padding: var(--space-24);
+        --card-gap: var(--space-24);
+        --card-min-height: 168px;
+
+        /* Denser cards (list rows, secondary cards) */
+        --card-padding-compact: var(--space-16);
+        --card-gap-compact: var(--space-16);
+
+        /* Tightest pair (secondary card mark to label) */
+        --card-gap-dense: var(--space-12);
+
+        /* Inside a card */
+        --card-copy-gap: var(--space-4);
+        --card-title-size: 14px;
+        --card-title-weight: 600;
+        --card-title-line-height: 1.35;
+        --card-desc-size: 14px;
+        --card-desc-line-height: 1.5;
+        --card-mark-size: 40px;
+        --card-icon-size: 20px;
+        --card-mark-radius: var(--radius-tile);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: var(--space-0);
+        background: var(--surface-canvas);
+        color: var(--text-primary);
+        font-family: var(--font-display);
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ------------------------------------------------------------------
+         Type scale — five styles, no more.
+         ------------------------------------------------------------------ */
+      .t-display {
+        margin: var(--space-0);
+        font-size: 40px;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        line-height: 1.15;
+      }
+
+      .t-title {
+        margin: var(--space-0);
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+
+      .t-section {
+        margin: var(--space-0);
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+        line-height: 1.3;
+      }
+
+      /* Card title. Every .t-label in these mockups is a sub-card title, so
+         it reads the card tokens rather than hard-coded type values. */
+      .t-label {
+        font-size: var(--card-title-size);
+        font-weight: var(--card-title-weight);
+        line-height: var(--card-title-line-height);
+      }
+
+      .t-body {
+        margin: var(--space-0);
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1.5;
+      }
+
+      .t-muted {
+        color: var(--text-secondary);
+      }
+
+      /* Icon sprite host — present in the DOM, never painted. */
+      .icon-sprite {
+        position: absolute;
+        width: var(--space-0);
+        height: var(--space-0);
+        overflow: hidden;
+      }
+
+      /* Tabler outline icons: stroked. */
+      .icon {
+        display: block;
+        width: 20px;
+        height: 20px;
+        flex: none;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.75;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .icon--16 {
+        width: 16px;
+        height: 16px;
+        stroke-width: 1.9;
+      }
+
+      .icon--24 {
+        width: 24px;
+        height: 24px;
+        stroke-width: 1.6;
+      }
+
+      /* Bank marks: filled paths, not strokes. */
+      .logo-mark {
+        display: block;
+        width: 22px;
+        height: 22px;
+        fill: currentColor;
+        stroke: none;
+      }
+
+      /* ------------------------------------------------------------------
+         Page
+         ------------------------------------------------------------------ */
+      .page {
+        max-width: 1080px;
+        margin: var(--space-0) auto;
+        padding: var(--space-64) var(--space-24) var(--space-128);
+      }
+
+      .page-head {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-16);
+        max-width: 640px;
+        margin-bottom: var(--space-64);
+      }
+
+      .page-eyebrow {
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .page-lede {
+        margin: var(--space-0);
+        color: var(--text-secondary);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .page-contract {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-16) var(--space-24);
+        margin-top: var(--space-8);
+        padding-top: var(--space-24);
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .contract-item {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+      }
+
+      .contract-term {
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      /* Swatch row so the accent system is legible at a glance. */
+      .swatches {
+        display: flex;
+        gap: var(--space-8);
+        padding-top: var(--space-4);
+      }
+
+      .swatch {
+        width: 16px;
+        height: 16px;
+        border-radius: 9999px;
+      }
+
+      /* ------------------------------------------------------------------
+         Variation scaffolding
+         ------------------------------------------------------------------ */
+      .variation {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-24);
+      }
+
+      .variation + .variation {
+        margin-top: var(--space-64);
+      }
+
+      .variation-head {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-8);
+        max-width: 640px;
+      }
+
+      .variation-title {
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-16);
+      }
+
+      .variation-index {
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .variation-note {
+        margin: var(--space-0);
+        color: var(--text-secondary);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .stage {
+        display: flex;
+        justify-content: center;
+        padding: var(--space-40);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-surface);
+        background: var(--surface-canvas);
+      }
+
+      .surface {
+        display: flex;
+        width: min(680px, 100%);
+        flex-direction: column;
+        gap: var(--space-24);
+        padding: var(--space-24);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-surface);
+        background: var(--surface-raised);
+        box-shadow: 0 12px 32px rgb(23 23 23 / 6%);
+      }
+
+      .surface--wide {
+        width: min(880px, 100%);
+      }
+
+      .surface-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: var(--space-16);
+      }
+
+      .surface-head-copy {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+      }
+
+      .icon-button {
+        display: inline-flex;
+        width: 32px;
+        height: 32px;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-tile);
+        color: var(--icon-default);
+      }
+
+      .search {
+        display: flex;
+        align-items: center;
+        gap: var(--space-8);
+        padding: var(--space-8) var(--space-12);
+        border-radius: var(--radius-tile);
+        background: var(--surface-canvas);
+        color: var(--text-secondary);
+      }
+
+      .footnote {
+        display: flex;
+        align-items: center;
+        gap: var(--space-8);
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+
+      /* ------------------------------------------------------------------
+         Card primitives
+         ------------------------------------------------------------------ */
+      .card {
+        display: flex;
+        color: inherit;
+        text-decoration: none;
+        background: var(--surface-raised);
+        border: var(--card-border-width) solid var(--card-border-color);
+        border-radius: var(--card-radius);
+        transition: border-color var(--ease), background-color var(--ease), box-shadow var(--ease);
+      }
+
+      .card:hover,
+      .card:focus-visible {
+        border-color: var(--border-strong);
+        background: var(--surface-sunken);
+      }
+
+      .card:focus-visible {
+        outline: 2px solid var(--accent-primary);
+        outline-offset: 2px;
+      }
+
+      /* Tinted accent wells — the default way colour enters a card. */
+      .icon-tile {
+        display: inline-flex;
+        width: var(--card-mark-size);
+        height: var(--card-mark-size);
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--card-mark-radius);
+        background: var(--accent-slate-tint);
+        color: var(--accent-slate);
+      }
+
+      .icon-tile--violet {
+        background: var(--accent-violet-tint);
+        color: var(--accent-violet);
+      }
+
+      /* Solid circle for marks that must read at a glance. */
+      .avatar {
+        display: inline-flex;
+        width: var(--card-mark-size);
+        height: var(--card-mark-size);
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        color: var(--white);
+      }
+
+      .avatar--blue {
+        background: var(--circle-blue);
+      }
+
+      .avatar--red {
+        background: var(--circle-red);
+      }
+
+      /* Reuses the category accent so a list avatar and an icon well for the
+         same category are always the same colour. */
+      .avatar--emerald {
+        background: var(--accent-emerald);
+      }
+
+      .avatar--amber {
+        background: var(--accent-amber);
+      }
+
+      .avatar--cyan {
+        background: var(--circle-cyan);
+      }
+
+      .avatar--violet {
+        background: var(--circle-violet);
+      }
+
+      .avatar--teal {
+        background: var(--circle-teal);
+      }
+
+      .avatar--green {
+        background: var(--circle-green);
+      }
+
+      /* Overlapping cluster. Each circle gets a white ring so adjacent marks
+         stay separate, and earlier marks sit in front. */
+      .avatar-stack {
+        display: flex;
+        align-items: center;
+      }
+
+      .avatar-stack .avatar {
+        border: 2px solid var(--surface-raised);
+        box-shadow: 0 1px 2px rgb(23 23 23 / 10%);
+      }
+
+      .avatar-stack .avatar + .avatar {
+        margin-left: -12px;
+      }
+
+      .avatar-stack .avatar:nth-child(1) {
+        z-index: 3;
+      }
+
+      .avatar-stack .avatar:nth-child(2) {
+        z-index: 2;
+      }
+
+      .avatar-stack .avatar:nth-child(3) {
+        z-index: 1;
+      }
+
+      .card-copy {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: var(--card-copy-gap);
+      }
+
+      .card-desc {
+        color: var(--text-secondary);
+        font-size: var(--card-desc-size);
+        font-weight: 400;
+        line-height: var(--card-desc-line-height);
+      }
+
+      .chevron {
+        display: inline-flex;
+        flex: none;
+        color: var(--icon-muted);
+      }
+
+      /* ------------------------------------------------------------------
+         01 — Bordered grid
+         ------------------------------------------------------------------ */
+      .card-grid {
+        display: grid;
+        grid-auto-rows: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-16);
+      }
+
+      .card--grid {
+        min-height: var(--card-min-height);
+        flex-direction: column;
+        justify-content: space-between;
+        gap: var(--card-gap);
+        padding: var(--card-padding);
+      }
+
+      .card-footer {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: var(--space-16);
+      }
+
+      /* ------------------------------------------------------------------
+         02 — Divided list
+         ------------------------------------------------------------------ */
+      .list-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-8);
+      }
+
+      .list-group-label {
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .list {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-card);
+      }
+
+      .list-row {
+        display: flex;
+        align-items: center;
+        gap: var(--card-gap-compact);
+        padding: var(--card-padding-compact);
+        color: inherit;
+        background: var(--surface-raised);
+        text-decoration: none;
+        transition: background-color var(--ease);
+      }
+
+      .list-row + .list-row {
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .list-row:hover,
+      .list-row:focus-visible {
+        background: var(--surface-sunken);
+      }
+
+      .list-row:focus-visible {
+        outline: 2px solid var(--accent-primary);
+        outline-offset: -2px;
+      }
+
+      .list-row .card-copy {
+        flex: 1;
+      }
+
+      /* ------------------------------------------------------------------
+         03 — Institution grid (real brand marks on coloured circles)
+         ------------------------------------------------------------------ */
+      .institution-grid {
+        display: grid;
+        grid-auto-rows: 1fr;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-16);
+      }
+
+      .card--institution {
+        flex-direction: column;
+        gap: var(--card-gap-compact);
+        padding: var(--card-padding-compact);
+      }
+
+      .institution-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: var(--space-8);
+      }
+
+      /* ------------------------------------------------------------------
+         04 — Photographic cards
+         ------------------------------------------------------------------ */
+      .photo-grid {
+        display: grid;
+        grid-auto-rows: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-16);
+      }
+
+      .card--photo {
+        position: relative;
+        min-height: 232px;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: var(--space-16);
+        overflow: hidden;
+        padding: var(--space-24);
+        border-color: transparent;
+        /* Flat fallback keeps the card readable if the image never loads. */
+        background-color: #262626;
+        background-image: var(--card-photo);
+        background-position: center;
+        background-size: cover;
+        box-shadow: 0 8px 24px rgb(23 23 23 / 12%);
+      }
+
+      .card--photo:hover,
+      .card--photo:focus-visible {
+        border-color: transparent;
+        background-color: #262626;
+      }
+
+      .card--photo:focus-visible {
+        outline: 2px solid var(--accent-primary);
+        outline-offset: 2px;
+      }
+
+      .photo-chip {
+        position: absolute;
+        top: var(--space-16);
+        left: var(--space-16);
+        display: inline-flex;
+        width: 32px;
+        height: 32px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: var(--white);
+      }
+
+      .photo-chip--blue {
+        color: var(--accent-blue);
+      }
+
+      .photo-chip--emerald {
+        color: var(--accent-emerald);
+      }
+
+      .photo-chip--amber {
+        color: var(--accent-amber);
+      }
+
+      .photo-chip--violet {
+        color: var(--accent-violet);
+      }
+
+      .photo-footer {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: var(--space-16);
+      }
+
+      .card--photo .t-label,
+      .card--photo .card-desc {
+        color: var(--text-inverse);
+      }
+
+      .card--photo .card-desc {
+        color: var(--text-inverse-secondary);
+      }
+
+      .photo-arrow {
+        display: inline-flex;
+        width: 32px;
+        height: 32px;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        background: rgb(255 255 255 / 18%);
+        color: var(--text-inverse);
+        backdrop-filter: blur(4px);
+      }
+
+      /* ------------------------------------------------------------------
+         05 — Emphasis split
+         ------------------------------------------------------------------ */
+      .emphasis {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-16);
+      }
+
+      .card--primary {
+        align-items: center;
+        gap: var(--card-gap);
+        padding: var(--card-padding);
+        border-color: transparent;
+        background-color: var(--accent-primary-strong);
+        background-image: linear-gradient(135deg, #1d4ed8 0%, #2563eb 55%, #3b82f6 100%);
+        color: var(--text-inverse);
+        box-shadow: 0 12px 28px rgb(37 99 235 / 28%);
+      }
+
+      .card--primary:hover,
+      .card--primary:focus-visible {
+        border-color: transparent;
+        background-color: var(--accent-primary-strong);
+      }
+
+      .card--primary .card-copy {
+        flex: 1;
+      }
+
+      .card--primary .card-desc {
+        color: var(--text-inverse-secondary);
+      }
+
+      .primary-mark {
+        display: inline-flex;
+        width: 40px;
+        height: 40px;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-tile);
+        background: rgb(255 255 255 / 18%);
+        color: var(--text-inverse);
+      }
+
+      .button-primary {
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        gap: var(--space-8);
+        padding: var(--space-8) var(--space-16);
+        border-radius: var(--radius-tile);
+        background: var(--white);
+        color: var(--accent-primary-strong);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .secondary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-16);
+      }
+
+      .card--secondary {
+        align-items: center;
+        gap: var(--card-gap-dense);
+        padding: var(--card-padding-compact);
+      }
+
+      /* ------------------------------------------------------------------
+         Footer
+         ------------------------------------------------------------------ */
+      .page-footer {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-8);
+        max-width: 640px;
+        margin-top: var(--space-64);
+        padding-top: var(--space-24);
+        border-top: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      /* ------------------------------------------------------------------
+         Responsive
+         ------------------------------------------------------------------ */
+      @media (max-width: 720px) {
+        .page {
+          padding: var(--space-40) var(--space-16) var(--space-64);
+        }
+
+        .page-contract,
+        .card-grid,
+        .institution-grid,
+        .photo-grid,
+        .secondary-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .stage {
+          padding: var(--space-24);
+        }
+
+        .card--primary {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .button-primary {
+          width: 100%;
+          justify-content: center;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .card,
+        .list-row {
+          transition: none;
+        }
+      }
+
+      /* ------------------------------------------------------------------
+         Index and per-variant navigation
+         ------------------------------------------------------------------ */
+      .page-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-16);
+        margin-bottom: var(--space-40);
+        padding-bottom: var(--space-16);
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .page-nav-link {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-8);
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: color var(--ease);
+      }
+
+      .page-nav-link .icon {
+        transform: rotate(180deg);
+      }
+
+      .page-nav-link:hover,
+      .page-nav-link:focus-visible {
+        color: var(--text-primary);
+      }
+
+      .page-nav-link:focus-visible {
+        outline: 2px solid var(--accent-primary);
+        outline-offset: 4px;
+      }
+
+      .page-nav-current {
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .index-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-16);
+        margin: var(--space-0);
+        padding: var(--space-0);
+        list-style: none;
+      }
+
+      .index-card {
+        display: flex;
+        align-items: center;
+        gap: var(--space-16);
+        padding: var(--space-24);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-card);
+        background: var(--surface-raised);
+        color: inherit;
+        text-decoration: none;
+        transition: border-color var(--ease), background-color var(--ease), box-shadow var(--ease);
+      }
+
+      .index-card:hover,
+      .index-card:focus-visible {
+        border-color: var(--border-strong);
+        background: var(--surface-sunken);
+      }
+
+      .index-card:focus-visible {
+        outline: 2px solid var(--accent-primary);
+        outline-offset: 2px;
+      }
+
+      .index-card .card-copy {
+        flex: 1;
+        gap: var(--space-4);
+      }
+
+      .index-number {
+        flex: none;
+        min-width: 24px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .variant-pager {
+        display: flex;
+        justify-content: space-between;
+        gap: var(--space-16);
+        margin-top: var(--space-64);
+        padding-top: var(--space-24);
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .pager-link {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-4);
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .pager-link--next {
+        text-align: right;
+      }
+
+      .pager-dir {
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+
+      .pager-name {
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .pager-link:hover .pager-name,
+      .pager-link:focus-visible .pager-name {
+        color: var(--accent-primary);
+      }
+
+      .pager-link:focus-visible {
+        outline: 2px solid var(--accent-primary);
+        outline-offset: 4px;
+      }
+
+      /* ------------------------------------------------------------------
+         Focus mode
+
+         Standalone variant pages carry no chrome: the card UI is the only
+         thing on the page, centred in the viewport. Declared last so it wins
+         over the page and stage rules above at every breakpoint.
+         ------------------------------------------------------------------ */
+      .page--focus {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-width: none;
+        min-height: 100vh;
+        min-height: 100dvh;
+        margin: var(--space-0);
+        padding: var(--space-40);
+      }
+
+      /* The section must claim a definite width, otherwise the surface's
+         percentage width resolves against an indefinite box and the card
+         collapses to its content instead of its designed width. */
+      .page--focus .variation {
+        width: 100%;
+        max-width: 960px;
+      }
+
+      .page--focus .stage {
+        width: 100%;
+        padding: var(--space-0);
+        border: 0;
+        border-radius: var(--radius-surface);
+        background: transparent;
+      }
+
+      @media (max-width: 720px) {
+        .page--focus {
+          padding: var(--space-24);
+        }
+      }

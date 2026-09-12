@@ -108,6 +108,10 @@ not serve dot-prefixed files or directories, including `.env` files.
 
 ## Connect a coding agent
 
+> **Early alpha:** The MCP integration is still under heavy testing. Expect
+> breaking changes, incomplete host compatibility, and other rough edges. Do
+> not rely on it for production workflows yet.
+
 ### Configure the MCP host automatically
 
 From the application project root, use [`add-mcp`](https://github.com/neon-solutions/add-mcp) to detect supported coding agents and write each host's native configuration format:
@@ -182,10 +186,6 @@ The companion binds only to loopback, keeps pairings and prompts in memory,
 and does not edit source itself. File changes and approvals continue through
 the connected coding agent's normal workflow.
 
-Nudge UI also keeps development-only inspector state in origin-scoped browser
-storage. See [Browser storage](docs/browser-storage.md) for the key
-formats, project scoping, sensitive values, and clearing instructions.
-
 ## Implementation
 
 The Vite plugin runs only during development. It transforms JSX and TSX to add
@@ -217,7 +217,7 @@ The repository separates host integration from shared browser behavior:
   prompts, and the React runtime.
 - `packages/agent-protocol` — host-neutral browser bridge and Canvas command
   contracts.
-- `packages/mcp` — the standard MCP stdio server and authenticated local
+- `packages/mcp` — the early-alpha MCP stdio server and authenticated local
   browser companion.
 - `packages/nextjs`, `packages/astro`, and `packages/standalone` — host
   adapters that publish one runtime configuration contract.
@@ -236,23 +236,40 @@ Tailwind 3 and 4, vanilla-extract/Sprinkles, static HTML, Next.js, and Astro.
 The browser suites cover identity, selection, CSS and token previews, semantic
 component behavior, reloads, Canvas where supported, and production stripping.
 
-Run the main checks from the repository root:
+Run the fast checks from the repository root:
 
 ```sh
 pnpm install
+pnpm build:packages
+pnpm typecheck
+pnpm lint
 pnpm test:unit
+```
+
+The default CI verification job runs `build:packages`, `typecheck`, `lint`,
+and `test:unit`. `test:unit` is the fast, required suite; it does not run the
+inspector UI-integration profile or consumer browser suites. CI also runs the
+packed-consumer smoke tests in a separate job:
+
+```sh
+pnpm test:packed-consumers
+```
+
+Run the slower or targeted profiles explicitly when needed:
+
+```sh
 pnpm test:ui-integration
 pnpm test:full
 pnpm test:e2e
-pnpm typecheck
-pnpm lint
+pnpm test:e2e:standalone
+pnpm test:compat
 pnpm package:verify
 ```
 
-`test:unit` is the fast, required suite. `test:ui-integration` exercises the
-real Select, Combobox, and Autocomplete adapters in jsdom and is intended for
-UI adapter work. `test:full` runs both profiles. Browser tests and package
-archive verification remain explicit release or manual checks.
+`test:ui-integration` exercises the real Select, Combobox, and Autocomplete
+adapters in jsdom. `test:full` combines the unit and UI-integration profiles.
+The full consumer E2E, compatibility, and package-archive checks remain
+explicit release or manual checks.
 
 ## Releases
 
@@ -265,7 +282,7 @@ git push origin v0.1.3
 ```
 
 The tag starts the npm release workflow. It validates that every public package
-matches the tag, runs the full test suite, builds and verifies the package
+matches the tag, runs the required unit suite, builds and verifies the package
 archives once, and submits those exact archives with `npm stage publish`.
 Review the nine entries on npm's **Staged Packages** page and approve them with
 2FA to make the release public.

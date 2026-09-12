@@ -1,0 +1,57 @@
+/* --------------------------------------------------------------------------
+   App-level layout.
+
+   Kept out of mockups.css so that file stays a faithful port of the static
+   mockups and can be re-synced from docs/mockups without merge noise.
+   -------------------------------------------------------------------------- */
+
+/*
+ * All five variations are stacked rather than switched by a click.
+ *
+ * While the inspector is open it captures ordinary application clicks so
+ * selection and app activation cannot both fire (see clickPolicy: the escape
+ * hatch is Cmd/Ctrl+Shift+click). A click-driven nav would therefore be dead
+ * until you held a modifier, so the whole set is simply laid out to scroll.
+ */
+.page--stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-64);
+  width: 100%;
+  max-width: none;
+  margin: var(--space-0);
+  padding: var(--space-64) var(--space-40) var(--space-128);
+}
+
+.variation-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-16);
+  width: 100%;
+}
+
+.variation-label {
+  margin: var(--space-0);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Action row added to the bottom of variation 01's surface. */
+.surface-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+@media (max-width: 720px) {
+  .page--stack {
+    padding: var(--space-40) var(--space-16) var(--space-64);
+  }
+
+  .surface-actions .button {
+    flex: 1;
+  }
+}
