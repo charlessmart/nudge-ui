@@ -74,15 +74,15 @@ describe("changesLog", () => {
 
   it("appendChange adds one record and getChangesList returns it", () => {
     const rec = makeRecord("background", COLOR_B, COLOR_A);
-    expect(appendChange(rec)).toBe(true);
+    expect(appendChange(rec)).toBe("applied");
     expect(getChangesList()).toHaveLength(1);
     expect(getChangesList()[0]).toMatchObject(rec);
   });
 
   it("reports when an append has no canonical effect", () => {
     const rec = makeRecord("background", COLOR_B, COLOR_A);
-    expect(appendChange(rec)).toBe(true);
-    expect(appendChange({ ...rec })).toBe(false);
+    expect(appendChange(rec)).toBe("applied");
+    expect(appendChange({ ...rec })).toBe("unchanged");
   });
 
   it("subscribe fires when a change is appended", () => {

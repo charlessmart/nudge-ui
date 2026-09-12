@@ -57,7 +57,9 @@ ADR-0018, and ADR-0019 do not change.
   inspector client.
 - Deferred blur, Escape, and IME behavior remain intact.
 - Commit settlement is transactional from the user's perspective: either a
-  canonical change is appended or the editable draft remains available.
+  canonical change is appended or the editable draft remains available while
+  its owned DOM insertion point exists. Reconciliation that destroys that
+  point cancels the session and records the discarded draft.
 - The selector no longer resolves text hosts or decides how one edit session
   transitions to another.
 - Pointer-down is part of the text-edit interaction interface because browser

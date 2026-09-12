@@ -4,11 +4,21 @@ import { resolveSelectionFromEvent } from "../selection/resolveSelection.ts";
 import {
   handleInlineTextEditIntent,
   isInlineTextEditingActive,
+  type InlineTextInteractionDisposition,
 } from "../inline-text/inlineTextEditor.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import { blockApplicationClick, isApplicationActivationClick } from "./clickPolicy.ts";
 
 export function installElementSelector(inspectorHost: HTMLElement): () => void {
+  function applyInlineTextDisposition(
+    event: MouseEvent,
+    disposition: InlineTextInteractionDisposition,
+  ): void {
+    if (disposition === "pass-through") return;
+    if (disposition === "suppress") event.preventDefault();
+    event.stopPropagation();
+  }
+
   function onDoubleClick(e: MouseEvent): void {
     if (!getOpen()) return;
     if (isInsideInspectorUi(e)) return;
@@ -18,30 +28,11 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
       return;
     }
     if (!(e.target instanceof Element)) return;
-    if (inspectorHost === e.target || inspectorHost.contains(e.target)) return;
-    const result = handleInlineTextEditIntent({
+    applyInlineTextDisposition(e, handleInlineTextEditIntent({
       kind: "double-click",
       target: e.target,
       point: { x: e.clientX, y: e.clientY },
-    });
-    if (result.kind === "native-editor") {
-      // The text-edit module deliberately passes through double-clicks inside
-      // its native host. Stop application handlers without cancelling the
-      // browser's native word-selection behavior.
-      e.stopPropagation();
-      return;
-    }
-    if (result.kind !== "rejected" && result.kind !== "pass-through") {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
-    if (result.kind === "pass-through" && isInlineTextEditingActive()) {
-      // Non-editable application targets remain inert while a draft is
-      // waiting for an explicit binding or scope decision.
-      e.preventDefault();
-      e.stopPropagation();
-    }
+    }));
   }
 
   function isInsideInspectorUi(event: MouseEvent): boolean {
@@ -91,15 +82,12 @@ export function installElementSelector(inspectorHost: HTMLElement): () => void {
   function onMouseDown(e: MouseEvent): void {
     if (!getOpen() || isInsideInspectorUi(e)) return;
     if (!(e.target instanceof Element)) return;
-    const result = handleInlineTextEditIntent({
+    applyInlineTextDisposition(e, handleInlineTextEditIntent({
       kind: "pointer-down",
       target: e.target,
       point: { x: e.clientX, y: e.clientY },
       clickCount: e.detail,
-    });
-    if (result.kind === "pass-through" || result.kind === "rejected") return;
-    if (result.kind !== "guarded" && result.kind !== "native-editor") e.preventDefault();
-    e.stopPropagation();
+    }));
   }
 
   document.addEventListener("mousedown", onMouseDown, true);

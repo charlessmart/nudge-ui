@@ -23,6 +23,7 @@ import {
   revertChangeRecord,
   subscribeWorkspaceChanges,
   undoWorkspaceChange,
+  type CommitResult,
   type WorkspaceChangesSnapshot,
 } from "./workspaceChanges.ts";
 import { clearStructuralProjectionReports, pruneStructuralProjectionReports } from "../projection/structuralProjection.ts";
@@ -156,14 +157,15 @@ function markForVerification(
   if (added) scheduleVerification();
 }
 
-/** Append several records as one projection and one undoable history entry. */
-export function appendChanges(incoming: ChangeRecord[], options: AppendChangesOptions = {}): boolean {
-  if (!commitChangeRecords(incoming, reapply)) return false;
+/** Append records and report whether canonical workspace state changed. */
+export function appendChanges(incoming: ChangeRecord[], options: AppendChangesOptions = {}): CommitResult {
+  const result = commitChangeRecords(incoming, reapply);
+  if (result !== "applied") return result;
   markForVerification(incoming.map(changeKey), options.verificationTargets);
-  return true;
+  return result;
 }
 
-export function appendChange(change: ChangeRecord): boolean {
+export function appendChange(change: ChangeRecord): CommitResult {
   return appendChanges([change]);
 }
 

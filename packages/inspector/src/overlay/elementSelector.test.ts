@@ -271,39 +271,6 @@ describe("installElementSelector", () => {
     expect(onApplicationDoubleClick).not.toHaveBeenCalled();
   });
 
-  it("hands an active inline edit to the next double-clicked text target", () => {
-    vi.useFakeTimers();
-    try {
-      const first = makeHostElement({
-        "data-cid": "FirstCopy",
-        "data-src": "/path/Page.tsx:12:5",
-      });
-      first.textContent = "First copy";
-      const second = makeHostElement({
-        "data-cid": "SecondCopy",
-        "data-src": "/path/Page.tsx:18:5",
-      });
-      second.textContent = "Second copy";
-      document.body.append(first, second);
-
-      dispatchDoubleClick(first);
-      const firstSession = getInlineTextSession();
-      if (!firstSession) throw new Error("first inline text session did not start");
-      firstSession.host.textContent = "Edited first copy";
-
-      firstSession.host.dispatchEvent(new FocusEvent("blur"));
-      dispatchDoubleClick(second);
-      vi.runAllTimers();
-
-      const secondSession = getInlineTextSession();
-      expect(secondSession?.before).toBe("Second copy");
-      expect(second.contains(secondSession?.host ?? null)).toBe(true);
-      expect(first.textContent).toBe("Edited first copy");
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
   it("does not activate the application when a handoff target rejects editing", () => {
     const first = makeHostElement({
       "data-cid": "FirstCopy",

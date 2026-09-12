@@ -21,6 +21,7 @@ interface HistoryEntry {
 }
 
 type WorkspaceProjector = (snapshot: WorkspaceChangesSnapshot) => void;
+export type CommitResult = "applied" | "unchanged" | "blocked";
 
 let contents: WorkspaceContents = { changes: [], structuralChanges: [] };
 let revision = 0;
@@ -75,14 +76,14 @@ export function subscribeWorkspaceChanges(listener: () => void): () => void {
 export function commitChangeRecords(
   incoming: readonly ChangeRecord[],
   project: WorkspaceProjector,
-): boolean {
-  if (incoming.length === 0) return false;
+): CommitResult {
+  if (incoming.length === 0) return "unchanged";
   const nextChanges = incoming.reduce(
     (current, change) => mergeChange(current, change),
     [...contents.changes],
   );
-  if (sameEffectiveChanges([...contents.changes], nextChanges)) return false;
-  return commit({ ...contents, changes: nextChanges }, project);
+  if (sameEffectiveChanges([...contents.changes], nextChanges)) return "unchanged";
+  return commit({ ...contents, changes: nextChanges }, project) ? "applied" : "blocked";
 }
 
 export function revertChangeRecord(change: ChangeRecord, project: WorkspaceProjector): boolean {

@@ -1,6 +1,5 @@
 import { appendChange } from "../changes/changesLog.ts";
 import type {
-  ComponentChangeRecord,
   ComponentPropContract,
   ComponentPropValue,
   EditableComponentTarget,
@@ -13,8 +12,6 @@ export function setComponentProp(
   target: EditableComponentTarget,
   prop: ComponentPropContract,
   value: ComponentPropValue,
-): ComponentChangeRecord {
-  const change = createComponentPropChange(target, prop, value);
-  appendChange(change);
-  return change;
+): void {
+  appendChange(createComponentPropChange(target, prop, value));
 }
