@@ -1,10 +1,13 @@
 # Inspector edit model contract
 
 This document is the Phase 0 specification and implementation map for the
-inspector edit model. The record definitions are in [`types.ts`](./types.ts)
-and [`structuralTypes.ts`](./structuralTypes.ts). Current behavior and target
-ownership boundaries are labeled separately; this document does not add a
-runtime interface.
+inspector edit model. The record definitions are in [`types.ts`](./types.ts),
+[`structuralTypes.ts`](./structuralTypes.ts), and the shared identity model in
+[`editModel.ts`](./editModel.ts). `projection/renderedInstance.ts` re-exports
+the shared rendered-instance types and guards for compatibility while owning
+DOM resolution and projection state. Current behavior and target ownership
+boundaries are labeled separately; this document does not add a runtime
+interface.
 
 ## Model dimensions
 
@@ -122,11 +125,11 @@ unsent intent remains in the workspace.
 
 | Responsibility | Current owner | Invariants |
 | --- | --- | --- |
-| Record shapes and type guards | `changes/types.ts`, `changes/structuralTypes.ts`, `inline-text/textChangeBoundary.ts`, `componentSemantics/types.ts` | Canonical records contain serializable intent and bounded evidence, never live DOM or framework objects. Operation, target, scope, and evidence remain distinguishable. |
+| Record shapes and type guards | `changes/types.ts`, `changes/structuralTypes.ts`, `changes/editModel.ts`, `inline-text/textChangeBoundary.ts`, `componentSemantics/types.ts` | Canonical records contain serializable intent and bounded evidence, never live DOM or framework objects. Operation, target, scope, and evidence remain distinguishable. Shared rendered-instance guards reject document-local fields. |
 | Canonical keys, baselines, and merge rules | `changes/model.ts` | A merge preserves the first baseline and latest requested value. Returning to the baseline removes the canonical delta. Text records only merge when their stable evidence and before/after chain are compatible. |
 | Workspace history and revision | `changes/workspaceChanges.ts` | Only canonical mutations advance revision or enter undo/redo. Diagnostic publication does neither. `CommitResult` remains three-valued. Reconciliation removes only positively verified records and cannot resurrect them through history. |
 | Public change orchestration | `changes/changesLog.ts` | Subscribers observe a complete workspace snapshot. CSS projection is derived from canonical records. Deferred verification is bound to the document captured at commit time. |
-| Source-site and instance scope | `selection/editScope.ts`, `projection/renderedInstance.ts` | Missing or ambiguous rendered evidence fails closed. A partial repeated-source edit must not silently broaden to every output. |
+| Source-site and instance scope | `selection/editScope.ts`, `changes/editModel.ts`, `projection/renderedInstance.ts` | Missing or ambiguous rendered evidence fails closed. A partial repeated-source edit must not silently broaden to every output. The projection module re-exports the shared model while owning resolution. |
 | Component intent and runtime override | `componentSemantics/changeModel.ts`, `componentSemantics/textBinding.ts` | A rendered-instance component record is not converted into a callsite-wide override. Repeated expression and spread props are not broadened without proof. |
 | Text target resolution and projection | `inline-text/textChangeBoundary.ts`, `projection/textProjection.ts` | Before text is part of identity. Text-node paths are bounded document evidence. Projection restores only its own marker and value. |
 | Structural capture and projection | `projection/structuralProjection.ts`, `projection/structuralProjectionBoundary.ts` | Every target, parent, and anchor must resolve exactly and satisfy the shared containment rules. DOM placeholders, observers, and applied nodes remain document-local. |

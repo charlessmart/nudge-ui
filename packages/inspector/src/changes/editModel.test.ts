@@ -45,11 +45,21 @@ describe("rendered instance edit model guards", () => {
       ...validRef,
       locator: { ...validRef.locator, ariaLabel: 42 },
     })).toBe(false);
+    expect(isRenderedInstanceRef({ ...validRef, projectionMarker: "stale" })).toBe(false);
+    expect(isRenderedInstanceRef({
+      ...validRef,
+      locator: { ...validRef.locator, projectionMarker: "stale" },
+    })).toBe(false);
   });
 
   it("rejects an override without a string id or valid target", () => {
     expect(isRenderedInstanceOverride({ id: 1, target: validRef })).toBe(false);
     expect(isRenderedInstanceOverride({ id: "override-1" })).toBe(false);
     expect(isRenderedInstanceOverride({ id: "override-1", target: { ...validRef, locator: null } })).toBe(false);
+    expect(isRenderedInstanceOverride({
+      id: "override-1",
+      target: validRef,
+      elementId: "document-local",
+    })).toBe(false);
   });
 });
