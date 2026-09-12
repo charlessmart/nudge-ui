@@ -37,7 +37,7 @@
     "release:validate": "node scripts/validate-release.mjs",
     "dev:sandbox": "pnpm --filter sandbox dev",
     "dev:sandbox:remote": "pnpm --filter sandbox dev:remote",
-    "dev:mockups": "nudge-ui serve docs/mockups"
+    "dev:mockups": "pnpm --filter mockup-cards dev"
   },
   "devDependencies": {
     "@nudge-ui/standalone": "workspace:*",

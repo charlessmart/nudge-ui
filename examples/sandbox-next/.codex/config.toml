@@ -2,7 +2,7 @@
 command = "npx"
 args = [
   "-y",
-  "@nudge-ui/mcp@latest",
+  "@nudge-ui/mcp@0.1.3",
   "--project-id",
   "nextjs:ba0ff3704a65",
   "--origin",

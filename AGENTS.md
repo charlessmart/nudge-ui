@@ -46,6 +46,8 @@ inspect package manifests for package-specific commands. The default CI path
 runs package builds, type checking, linting, and the fast unit suite;
 packed-consumer smoke tests run in a separate job, while UI integration,
 browser, compatibility, and package verification remain targeted checks.
+`pnpm lint:oxlint` is an optional, non-gating anti-slop lint for particularly
+risky or low-signal code patterns.
 
 Keep generated output out of changes. Build output (`dist/`, `build/`, and
 `.next/`), Playwright output (`test-results/`), coverage, dependency folders,

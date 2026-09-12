@@ -118,7 +118,7 @@ From the application project root, use [`add-mcp`](https://github.com/neon-solut
 
 ```sh
 npx add-mcp \
-  'npx -y @nudge-ui/mcp@latest --project-id my-app --origin http://localhost:5173 --workspace-root .' \
+  'npx -y @nudge-ui/mcp@0.1.3 --project-id my-app --origin http://localhost:5173 --workspace-root .' \
   --name nudge_ui
 ```
 
@@ -133,17 +133,17 @@ For standard Vite and Astro projects, `my-app` normally matches the project
 directory name. Next.js and standalone HTML projects use host-specific IDs, so
 retain the explicit ID from their integration configuration.
 
-The generated command uses the published `@nudge-ui/mcp` package through
-`npx`. Pin the package version instead of `@latest` when reproducible tool
-versions are required. After configuration, restart or reload the agent host
-so it refreshes its MCP tool catalog.
+The generated command pins the published `@nudge-ui/mcp@0.1.3` package through
+`npx` for reproducible tool versions. Update the version deliberately when
+upgrading the MCP integration. After configuration, restart or reload the
+agent host so it refreshes its MCP tool catalog.
 
 ### Install the companion locally
 
 You can also install the optional local companion in the application project:
 
 ```sh
-pnpm add -D @nudge-ui/mcp
+pnpm add -D @nudge-ui/mcp@0.1.3
 ```
 
 Installation does not modify project or global tool configuration. Configure
@@ -185,6 +185,10 @@ closed, a re-armed agent can reopen only the last paired, reachable page.
 The companion binds only to loopback, keeps pairings and prompts in memory,
 and does not edit source itself. File changes and approvals continue through
 the connected coding agent's normal workflow.
+
+Nudge UI stores development-only inspector state in origin-scoped browser
+storage. See [Browser storage](docs/browser-storage.md) for the stored data,
+retention, transport caveats, and clearing instructions.
 
 ## Implementation
 
@@ -271,6 +275,9 @@ adapters in jsdom. `test:full` combines the unit and UI-integration profiles.
 The full consumer E2E, compatibility, and package-archive checks remain
 explicit release or manual checks.
 
+`pnpm lint:oxlint` is an optional, non-gating anti-slop lint. Use it to catch
+particularly risky or low-signal code patterns; its findings do not block CI.
+
 ## Releases
 
 All public packages use one version. Update their `package.json` versions,
@@ -294,4 +301,6 @@ required for local staged-package commands.
 
 ## License
 
-Nudge UI is available under the [MIT License](LICENSE).
+Nudge UI is available under the [MIT License](LICENSE). See [Contributing](CONTRIBUTING.md),
+[Security](SECURITY.md), and [Code of Conduct](CODE_OF_CONDUCT.md) for
+community guidance.
