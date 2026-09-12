@@ -28,6 +28,13 @@ export interface InstrumentedAstroResponse {
 }
 
 /**
+ * The identity transform applied to an eligible HTML body. Injectable so the
+ * failure-tolerance suite can drive the catch branch through a real seam
+ * instead of replacing the identity module wholesale.
+ */
+export type AstroHtmlInstrumenter = typeof instrumentAstroHtml;
+
+/**
  * Instruments one rendered dev response at the Astro middleware seam
  * (ADR-0011).
  *
@@ -43,10 +50,14 @@ export interface InstrumentedAstroResponse {
  *
  * @param response The response produced downstream (the rendered page).
  * @param projectRoot Project root used to relativize annotation paths.
+ * @param instrument Identity transform to apply; defaults to the real
+ *   `instrumentAstroHtml`. Tests inject a failing implementation to exercise
+ *   the catch branch.
  */
 export async function instrumentAstroResponse(
   response: Response,
   projectRoot: string | undefined,
+  instrument: AstroHtmlInstrumenter = instrumentAstroHtml,
 ): Promise<InstrumentedAstroResponse> {
   const contentType = response.headers.get("content-type") ?? undefined;
   if (!isHtmlContentType(contentType)) return { response, diagnostics: [] };
@@ -62,7 +73,7 @@ export async function instrumentAstroResponse(
     return { response, diagnostics: [] };
   }
   try {
-    const result = instrumentAstroHtml(source, { projectRoot });
+    const result = instrument(source, { projectRoot });
     const headers = new Headers(response.headers);
     headers.set(
       "content-length",

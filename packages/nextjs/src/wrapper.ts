@@ -71,7 +71,13 @@ const SUPPORTED_NEXT_RANGE = ">=15.3 <17";
  * The bundles are fully self-contained (plugin modules inlined), so no
  * runtime resolution of raw TypeScript happens on any supported Node.
  */
-function loaderPaths(): { identity: string; plugin: string } {
+/** Absolute paths to the bundled loader entrypoints the host config must reference. */
+interface LoaderPaths {
+  identity: string;
+  plugin: string;
+}
+
+function loaderPaths(): LoaderPaths {
   return {
     plugin: fileURLToPath(new URL("../dist/loaders/loader-plugin.cjs", import.meta.url)),
     identity: fileURLToPath(new URL("../dist/loaders/identity-loader.cjs", import.meta.url)),

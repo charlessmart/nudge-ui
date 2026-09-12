@@ -102,6 +102,7 @@ export function parseCliArguments(
   const root = resolve(environment.NUDGE_UI_WORKSPACE_ROOT ?? environment.INIT_CWD ?? process.cwd());
   let projectId = environment.NUDGE_UI_PROJECT_ID ?? projectIdFor(root);
   let origin = environment.NUDGE_UI_ORIGIN;
+  // SAFETY: CliOptions is the tokenized owner of this env var, and its host domain is the only accepted set.
   let host = (environment.NUDGE_UI_BRIDGE_HOST ?? "127.0.0.1") as CliOptions["host"];
   let port = environment.NUDGE_UI_BRIDGE_PORT === undefined
     ? DEFAULT_PORT

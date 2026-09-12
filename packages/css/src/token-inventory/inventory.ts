@@ -5,7 +5,6 @@
 import type { TokenDefinition, TokenEntry } from "../model/index.ts";
 import { parseStylesheetArtifact, type ParsedContribution } from "./parseStylesheet.ts";
 import type {
-  InventoryContribution,
   InventoryDiagnostic,
   InventoryOrderEvidence,
   InventorySnapshot,

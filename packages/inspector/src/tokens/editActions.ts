@@ -21,12 +21,15 @@ function boundedRenderedText(el: HTMLElement): string | null {
   return normalizeRuntimeText(el.textContent);
 }
 
-function sourceFields(el: HTMLElement): {
+/** Authored source location plus runtime provenance for one rendered element. */
+interface SourceFields {
   file: string;
   line: number;
   column: number;
   runtimeEvidence?: ElementChangeRecord["runtimeEvidence"];
-} {
+}
+
+function sourceFields(el: HTMLElement): SourceFields {
   const src = el.getAttribute("data-src") ?? "";
   const parsed = parseDataSrc(src);
   const evidence = (reason: NonNullable<

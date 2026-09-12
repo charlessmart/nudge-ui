@@ -1,7 +1,6 @@
 import type { ChangeRecord } from "../changes/changesLog.ts";
 import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import {
-  getChangesList,
   loadWorkspaceChanges,
   isComponentChange,
   isTokenChange,
@@ -13,7 +12,6 @@ import {
 } from "../changes/changesLog.ts";
 import {
   getCanvasMode,
-  setCanvasMode,
   getCanvasCards,
   getCanvasComparisonGroups,
   getBoardCamera,
@@ -40,7 +38,6 @@ import {
   type RenderedInstanceRef,
 } from "../projection/renderedInstance.ts";
 import {
-  getStructuralChanges,
   isStructuralChange,
   resetStructuralDeleteProjection,
   type StructuralChange,

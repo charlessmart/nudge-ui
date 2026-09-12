@@ -18,6 +18,7 @@ const BANK_MARKS = {
 
 export type BankId = keyof typeof BANK_MARKS;
 
+// SAFETY: BANK_MARKS is `as const`, so its keys are exactly the BankId union this cast asserts.
 export const BANK_IDS = Object.keys(BANK_MARKS) as BankId[];
 
 export function BankMark({ bank }: { bank: BankId }): ReactNode {

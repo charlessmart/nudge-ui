@@ -102,6 +102,7 @@ function readStoredSession(projectId: string, origin: string): string | null {
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    // SAFETY: The isRecord guard above proves parsed is a non-array object with string keys.
     const value = parsed as Record<string, unknown>;
     if (value.projectId !== projectId || value.origin !== origin || typeof value.sessionToken !== "string" || value.sessionToken.length === 0) {
       localStorage.removeItem(sessionStorageKey(projectId));

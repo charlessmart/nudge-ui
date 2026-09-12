@@ -185,6 +185,7 @@ export function extractViteModuleCss(code: string): string | null {
   const match = /(?:^|;)\s*(?:const|let|var)\s+__vite__css\s*=\s*("(?:[^"\\]|\\.)*")/m.exec(code);
   if (!match) return null;
   try {
+    // SAFETY: match[1] is the quoted string literal captured by the regex above, and JSON.parse is wrapped in try/catch.
     const value = JSON.parse(match[1]!) as unknown;
     return typeof value === "string" ? value : null;
   } catch {

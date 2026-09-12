@@ -8,7 +8,6 @@ console.log(await page.evaluate(() => {
   const sr = document.getElementById("nudge-ui-root").shadowRoot;
   const panel = sr.querySelector(".panel");
   const cs = getComputedStyle(panel);
-  const host = document.getElementById("nudge-ui-root");
   return JSON.stringify({
     panelRect: panel.getBoundingClientRect().toJSON(),
     panelPos: cs.position, panelOverflow: cs.overflow, panelDisplay: cs.display,

@@ -168,6 +168,7 @@ function selectionSpacing(
   selection: StyleSelection,
   property: ProjectionGroup,
 ): InspectorSpacingProjection {
+  // SAFETY: SIDES supplies exactly the ProjectionSide keys, so fromEntries yields that exact record shape.
   const fields = Object.fromEntries(SIDES.map((side) => {
     const field = selectionField(selection, property === "inset" ? side : `${property}-${side}`);
     return [side, field];

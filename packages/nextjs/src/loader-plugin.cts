@@ -44,6 +44,7 @@ interface LoaderOptions {
   sourceRoots?: readonly string[];
 }
 
+// SAFETY: A local require of the sibling loader module, whose export shape is asserted by its own module contract.
 const { transformNextModuleSource } = require("./loader.ts") as {
   transformNextModuleSource: (
     source: string,
@@ -57,6 +58,7 @@ const { transformNextModuleSource } = require("./loader.ts") as {
     },
   ) => { code: string } | null;
 };
+// SAFETY: A local require of the workspace component-contracts module, whose export shape is asserted by its own contract.
 const { extractComponentContracts } = require("@nudge-ui/vite-react/component-contracts") as {
   extractComponentContracts: (source: string, file: string) => unknown[];
 };
@@ -152,6 +154,7 @@ function postContracts(root: string, relativeFile: string, source: string): void
   const contracts = extractComponentContracts(source, relativeFile);
   let port = 0;
   try {
+    // SAFETY: The JSON.parse result is validated by the typeof/Array.isArray guards below before use.
     const raw = JSON.parse(
       nodeFs.readFileSync(nodePath.join(root, ".next", "nudge-ui-sidecar.json"), "utf8"),
     ) as { port?: number };
@@ -170,10 +173,12 @@ function postContracts(root: string, relativeFile: string, source: string): void
 
 function readOptions(context: NudgeUiLoaderContext): LoaderOptions {
   if (typeof context.getOptions === "function") {
+    // SAFETY: getOptions() is the loader API's own typed accessor for configure() options.
     return context.getOptions() as LoaderOptions;
   }
   // Older/Turbopack-subset contexts may expose webpack's legacy `query`.
   if (context.query && typeof context.query === "object") {
+    // SAFETY: webpack's legacy `query` field carries the same options object as getOptions().
     return context.query as LoaderOptions;
   }
   return {};

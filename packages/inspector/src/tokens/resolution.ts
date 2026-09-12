@@ -45,7 +45,6 @@ export function prewarmCssomRuleSnapshot(doc: Document): void {
 }
 
 const MAX_PROPERTIES = 100;
-const VAR_REF = /var\(\s*(--[\w-]+)/g;
 const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
 
 const tokenTableMemo = new WeakMap<readonly TokenEntry[], TokenTable>();
@@ -62,13 +61,9 @@ export function buildTokenTable(entries: readonly TokenEntry[]): TokenTable {
   return table;
 }
 
-function tokenVariableName(entry: TokenEntry): string {
-  return entry.cssName ?? entry.name;
-}
-
 /**
  * Returns true when a `calc()` expression is safe to treat as a simple
- * numeric value.  We exclude percentages, viewport units, and font-relative
+ * numeric value. We exclude percentages, viewport units, and font-relative
  * units because those depend on context the browser cannot freeze into a
  * single pixel value safely.
  */

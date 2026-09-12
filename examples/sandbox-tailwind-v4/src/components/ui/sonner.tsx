@@ -7,6 +7,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
 
   return (
     <Sonner
+      // SAFETY: useTheme constrains its return to the theme union Sonner accepts, so the value is already in range.
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
       icons={{
@@ -27,6 +28,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         ),
       }}
       style={
+        // SAFETY: Custom property keys are absent from React's CSSProperties, so object literals carrying them require a cast.
         {
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
