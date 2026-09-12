@@ -100,9 +100,13 @@ function verifyPackage(packageRoot) {
   }
 
   if (packageJson.name === "@nudge-ui/nextjs") {
-    for (const loader of ["loader-plugin.cjs", "identity-loader.cjs", "css-inline-loader.cjs"]) {
+    for (const loader of ["loader-plugin.cjs", "identity-loader.cjs"]) {
       assert(entries.includes(`package/dist/loaders/${loader}`), `Next.js package is missing dist/loaders/${loader}.`);
     }
+    assert(
+      !entries.includes("package/dist/loaders/css-inline-loader.cjs"),
+      "Next.js package must not publish the obsolete CSS query loader.",
+    );
   }
   if (packageJson.name === "@nudge-ui/inspector") {
     const clientPath = "package/dist/client.mjs";

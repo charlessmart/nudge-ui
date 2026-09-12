@@ -6,11 +6,6 @@
  * the same vocabulary.
  */
 
-declare module "*.css?inline" {
-  const css: string;
-  export default css;
-}
-
 /** The dev-flag seam reads a bundler-defined flag; see inspector vite-env.d.ts. */
 interface ImportMetaEnv {
   readonly DEV: boolean;

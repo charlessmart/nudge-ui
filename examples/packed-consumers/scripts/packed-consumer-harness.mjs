@@ -12,6 +12,7 @@ const maxDiagnosticCharacters = 256_000;
 const adapterPackages = {
   astro: "@nudge-ui/astro",
   nextjs: "@nudge-ui/nextjs",
+  "nextjs-16.1": "@nudge-ui/nextjs",
   standalone: "@nudge-ui/standalone",
   "vite-react": "@nudge-ui/vite-react",
 };
@@ -43,6 +44,16 @@ const consumers = [
     adapter: "nextjs",
     fixture: "nextjs",
     port: 5613,
+    start: (port) => [
+      "npm",
+      ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", String(port)],
+    ],
+  },
+  {
+    adapter: "nextjs-16.1",
+    installerFramework: "nextjs",
+    fixture: "nextjs-16-1",
+    port: 5615,
     start: (port) => [
       "npm",
       ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", String(port)],
@@ -168,7 +179,7 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
   await runAsync("npm", ["install", "--no-audit", "--no-fund"], projectRoot);
   await runAsync(
     join(projectRoot, "node_modules", ".bin", "create-nudge-ui"),
-    ["--framework", consumer.adapter, "--package-manager", "npm"],
+    ["--framework", consumer.installerFramework ?? consumer.adapter, "--package-manager", "npm"],
     projectRoot,
   );
   const installedAdapter = join(projectRoot, "node_modules", ...adapterPackages[consumer.adapter].split("/"));

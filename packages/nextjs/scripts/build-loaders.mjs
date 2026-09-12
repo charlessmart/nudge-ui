@@ -26,16 +26,6 @@ await Promise.all([
     sourcemap: false,
     logLevel: "silent",
   }),
-  build({
-    entryPoints: [resolve(packageRoot, "src/css-inline-loader.cts")],
-    outfile: resolve(outdir, "css-inline-loader.cjs"),
-    bundle: true,
-    format: "cjs",
-    platform: "node",
-    target: "node20",
-    sourcemap: false,
-    logLevel: "silent",
-  }),
   // Webpack-mode alias of the identity loader (same bundle, distinct path so
   // webpack rule matching and turbopack rules never share a cache entry).
   build({
