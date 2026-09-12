@@ -129,13 +129,6 @@ export const PACKED_CONSUMER_MATRIX = [
 
 const consumers = PACKED_CONSUMER_MATRIX;
 
-class MountError extends Error {
-  constructor(message, diagnostics, options) {
-    super(message, options);
-    this.diagnostics = diagnostics;
-  }
-}
-
 export async function runPackedConsumerSuite(selectedAdapterNames = []) {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "nudge-ui-packed-consumers-"));
   const tarballRoot = join(temporaryRoot, "packages");
@@ -151,25 +144,7 @@ export async function runPackedConsumerSuite(selectedAdapterNames = []) {
     for (const consumer of selectedConsumers) {
       try {
         await runConsumer(consumer, packages, registry.url, temporaryRoot);
-        if (consumer.expectedMountFailure) {
-          reportWarning(
-            `XPASS ${consumer.adapter}`,
-            "Packed adapter mounted successfully. Remove its stale expected-failure allowance.",
-          );
-        }
       } catch (error) {
-        if (
-          error instanceof MountError
-          && consumer.expectedMountFailure
-          && matchesExpectedMountFailure(consumer.expectedMountFailure, error.diagnostics)
-        ) {
-          reportWarning(
-            `XFAIL ${consumer.adapter}`,
-            "Known packed-adapter virtual:design-tokens resolution failure reproduced.",
-          );
-          continue;
-        }
-
         const message = error instanceof Error ? error.message : String(error);
         failures.push(new Error(`${consumer.adapter}: ${message}`, { cause: error }));
       }
@@ -187,10 +162,6 @@ export async function runPackedConsumerSuite(selectedAdapterNames = []) {
       retryDelay: 100,
     });
   }
-}
-
-export function matchesExpectedMountFailure(expectedFailure, diagnostics) {
-  return expectedFailure.pattern.test(diagnostics[expectedFailure.source]);
 }
 
 export function appendDiagnostic(diagnostics, source, message) {
@@ -295,9 +266,8 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
     try {
       await runBrowserSmoke(consumer, url, diagnostics);
     } catch (error) {
-      throw new MountError(
+      throw new Error(
         `${consumer.adapter} did not mount from its packed adapter.\n${formatDiagnostics(diagnostics)}`,
-        diagnostics,
         { cause: error },
       );
     }
@@ -504,18 +474,6 @@ async function waitForProcessGroupExit(processHandle, pid, timeoutMs) {
     await new Promise((resolveWait) => setTimeout(resolveWait, 10));
   } while (Date.now() < deadline);
   return null;
-}
-
-function reportWarning(title, message) {
-  if (process.env.GITHUB_ACTIONS === "true") {
-    process.stdout.write(`::warning title=${title}::${escapeWorkflowData(message)}\n`);
-    return;
-  }
-  process.stdout.write(`WARNING ${title}: ${message}\n`);
-}
-
-function escapeWorkflowData(value) {
-  return value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 }
 
 function formatDiagnostics(diagnostics) {
