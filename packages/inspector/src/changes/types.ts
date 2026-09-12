@@ -1,7 +1,7 @@
 import type { TokenEntry } from "virtual:design-tokens";
 import type { PreviewResult, StyleRuleContext } from "../projection/managedStylesheet.ts";
 import type { ComponentChangeRecord } from "../componentSemantics/types.ts";
-import type { RenderedInstanceOverride } from "../projection/renderedInstance.ts";
+import type { RenderedInstanceOverride } from "./editModel.ts";
 import type { TextContentChangeRecord } from "../inline-text/textChangeBoundary.ts";
 import type { EditScope } from "../editScope.ts";
 

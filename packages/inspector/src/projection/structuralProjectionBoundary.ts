@@ -1,4 +1,4 @@
-import { isRenderedInstanceRef } from "./renderedInstance.ts";
+import { isRenderedInstanceRef } from "../changes/editModel.ts";
 import type {
   StructuralChange,
   StructuralDelete,

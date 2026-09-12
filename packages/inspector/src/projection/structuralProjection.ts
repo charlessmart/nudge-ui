@@ -2,8 +2,8 @@ import {
   captureRenderedInstance,
   matchesRenderedInstanceEvidence,
   resolveRenderedInstance,
-  type RenderedInstanceRef,
 } from "./renderedInstance.ts";
+import type { RenderedInstanceRef } from "../changes/editModel.ts";
 import {
   isStructuralChange,
   isStructuralDelete,

@@ -2,6 +2,7 @@ import { isDocumentProjectionReport } from "../projection/renderedInstance.ts";
 import { isTextProjectionReport } from "../projection/textProjection.ts";
 import { isStructuralProjectionReport } from "../projection/structuralProjectionBoundary.ts";
 import type { ComponentOverride } from "../componentSemantics/types.ts";
+import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 
 // v15 adds renderer-to-controller element deselection for Canvas frames. v14
 // adds border widths to hover geometry so containment measurements can exclude
@@ -68,7 +69,7 @@ export interface ReplaceStylesMessage extends FrameMessage {
   css: string;
   revision: number;
   /** Controller-owned durable targets; the renderer derives local markers. */
-  instanceOverrides: import("../projection/renderedInstance.ts").RenderedInstanceOverride[];
+  instanceOverrides: RenderedInstanceOverride[];
   /** Controller-owned structural intent; renderers never own this change log. */
   structuralChanges: import("../projection/structuralProjection.ts").StructuralChange[];
   /** Controller-owned durable rendered text intent. */

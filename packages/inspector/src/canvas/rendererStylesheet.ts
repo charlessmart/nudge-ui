@@ -12,10 +12,10 @@ import { isComponentOverrideList } from "./frameProtocol.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { replaceComponentOverrideProjection } from "../componentSemantics/index.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
+import { isRenderedInstanceOverride } from "../changes/editModel.ts";
 import {
   applyRenderedInstanceProjection,
   getRenderedInstanceProjectionReports,
-  isRenderedInstanceOverride,
   subscribeRenderedInstanceDiagnostics,
 } from "../projection/renderedInstance.ts";
 import {

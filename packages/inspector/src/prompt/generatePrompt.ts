@@ -7,7 +7,7 @@ import type {
   TokenChangeRecord,
   TextContentChangeRecord,
 } from "../changes/changesLog.ts";
-import type { RenderedInstanceOverride, RenderedInstanceRef } from "../projection/renderedInstance.ts";
+import type { RenderedInstanceOverride, RenderedInstanceRef } from "../changes/editModel.ts";
 import type { StructuralChange } from "../projection/structuralProjection.ts";
 import type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
 import { canonicalizeChanges, tokenReference } from "../changes/model.ts";
