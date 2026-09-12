@@ -63,9 +63,14 @@ const { extractComponentContracts } = require("@nudge-ui/vite-react/component-co
 const {
   DEFAULT_COMPONENT_RUNTIME_MODULE,
   defaultReactComponentProtocols,
+  formatComponentPolicyWarning,
+  groupComponentPolicyDiagnostics,
   mergeComponentModuleProtocols,
   resolveHostComponentPolicy,
 } = require("@nudge-ui/compiler") as typeof import("@nudge-ui/compiler");
+const { nudgeUiRepositoryPackagePattern } = require("./repositoryScope.ts") as {
+  nudgeUiRepositoryPackagePattern: RegExp;
+};
 
 const nodePath = require("node:path");
 const nodeFs = require("node:fs");
@@ -79,7 +84,27 @@ const nodeFs = require("node:fs");
  * sidecar's aggregation key — identical to what the scanner and watcher use.
  */
 const canonicalRootCache = new Map<string, string>();
+// Import provenance checks canonicalise the same files once per trace step and
+// once per module, so memoise them for the loader process.
+const canonicalFileCache = new Map<string, string>();
 const reportedComponentPolicyDiagnostics = new Set<string>();
+let reportedMissingResolver = false;
+
+/**
+ * Report a loader runner that cannot resolve import provenance. Without host
+ * resolution the shared compiler can only add identity attributes, so the
+ * semantic component layer would be off with no other signal.
+ */
+function warnMissingResolver(context: NudgeUiLoaderContext): void {
+  if (reportedMissingResolver) return;
+  reportedMissingResolver = true;
+  const message =
+    "[nudge-ui] The Next.js loader runner exposed no import resolver (getResolve/async), so "
+    + "semantic component callsites fall back to identity attributes only. Turbopack and "
+    + "webpack provide one; custom runners must implement both.";
+  if (context.emitWarning) context.emitWarning(new Error(message));
+  else process.emitWarning(message);
+}
 
 function canonicalProjectRoot(root: string): string {
   const cached = canonicalRootCache.get(root);
@@ -95,11 +120,16 @@ function canonicalProjectRoot(root: string): string {
 }
 
 function canonicalSourceFile(file: string): string {
+  const cached = canonicalFileCache.get(file);
+  if (cached !== undefined) return cached;
+  let canonical = nodePath.resolve(file);
   try {
-    return nodeFs.realpathSync(file);
+    canonical = nodeFs.realpathSync(file);
   } catch {
-    return nodePath.resolve(file);
+    /* an unresolvable file keeps its resolved form */
   }
+  canonicalFileCache.set(file, canonical);
+  return canonical;
 }
 
 function isInsideSourceRoot(file: string, root: string): boolean {
@@ -168,35 +198,38 @@ function nudgeUiLoader(
   const canonicalRoot = canonicalProjectRoot(
     root ?? this.rootContext ?? nodePath.dirname(moduleId || process.cwd()),
   );
-  const sourceRoots = [
-    canonicalRoot,
-    ...(options.sourceRoots ?? []).map(canonicalProjectRoot),
-  ];
+  const declaredSourceRoots = (options.sourceRoots ?? []).map(canonicalProjectRoot);
+  const sourceRoots = [canonicalRoot, ...declaredSourceRoots];
+  const matchedSourceRoot = (canonicalFile: string): string | null =>
+    sourceRoots.find((sourceRoot) => isInsideSourceRoot(canonicalFile, sourceRoot)) ?? null;
+  const isExplicitlyOwned = (canonicalFile: string): boolean =>
+    declaredSourceRoots.some((sourceRoot) => isInsideSourceRoot(canonicalFile, sourceRoot));
   const isProjectSource = (resolvedId: string): boolean => {
     const canonicalFile = canonicalSourceFile(resolvedId);
     const normalized = canonicalFile.split("\\").join("/");
-    return sourceRoots.some((sourceRoot) => isInsideSourceRoot(canonicalFile, sourceRoot))
-      && !normalized.includes("/node_modules/")
-      && !normalized.includes("/.next/")
-      && !/[\\/]packages[\\/](?:compiler|inspector|nextjs|plugin)[\\/]/.test(canonicalFile);
+    if (normalized.includes("/node_modules/") || normalized.includes("/.next/")) return false;
+    if (!matchedSourceRoot(canonicalFile)) return false;
+    // An explicit sourceRoots entry outranks the repository-tooling exclusion so
+    // a consumer's own package is instrumentable even when its directory name
+    // matches one of Nudge UI's own packages.
+    return isExplicitlyOwned(canonicalFile) || !nudgeUiRepositoryPackagePattern.test(canonicalFile);
   };
+  // Identity paths are always project-root relative: a file outside the root
+  // keeps a `../`-prefixed relative path rather than serialising a machine
+  // path. This matches the Vite Adapter and keeps sourceRoots identities
+  // unique across packages.
   const sourcePath = (resolvedId: string): string =>
     nodePath.relative(canonicalRoot, canonicalSourceFile(resolvedId)).split("\\").join("/");
 
   // Contracts are extracted from the AUTHORED source so line/column
-  // provenance matches what prompts will name.
-  if (root && moduleId) {
-    const canonicalRoot = canonicalProjectRoot(root);
-    const resolved = nodePath.resolve(moduleId);
-    // Confined to first-party sources exactly like identity injection:
-    // workspace tooling components must never enter the contract catalog.
-    const relativeFile = nodePath.relative(canonicalRoot, resolved).split("\\").join("/");
-    if (relativeFile.length > 0 && !relativeFile.startsWith("../")) {
-      try {
-        postContracts(root, relativeFile, source);
-      } catch {
-        /* never break compilation for knowledge transport */
-      }
+  // provenance matches what prompts will name. Confined to first-party
+  // sources exactly like identity injection: workspace tooling components
+  // must never enter the contract catalog.
+  if (root && moduleId && isProjectSource(moduleId)) {
+    try {
+      postContracts(root, sourcePath(moduleId), source);
+    } catch {
+      /* never break compilation for knowledge transport */
     }
   }
 
@@ -240,30 +273,14 @@ function nudgeUiLoader(
         options.componentProtocols,
       ),
     }).then((hostPolicy: import("@nudge-ui/compiler").HostComponentPolicy) => {
-      const diagnosticsBySource = new Map<
-        string,
-        Array<(typeof hostPolicy.diagnostics)[number]>
-      >();
-      for (const diagnostic of hostPolicy.diagnostics) {
-        const key = `${diagnostic.code}\0${diagnostic.source}`;
-        const group = diagnosticsBySource.get(key) ?? [];
-        group.push(diagnostic);
-        diagnosticsBySource.set(key, group);
-      }
-      for (const [key, diagnostics] of diagnosticsBySource) {
-        if (reportedComponentPolicyDiagnostics.has(key)) continue;
-        reportedComponentPolicyDiagnostics.add(key);
-        const first = diagnostics[0]!;
-        const names = diagnostics
-          .slice(0, 5)
-          .map((diagnostic) => diagnostic.componentName)
-          .join(", ");
-        const remainder = diagnostics.length > 5 ? ` and ${diagnostics.length - 5} more` : "";
-        const relativeModule = nodePath.relative(canonicalRoot, moduleId).split("\\").join("/");
-        this.emitWarning?.(new Error(
-          `[nudge-ui] Semantic instrumentation skipped ${first.source} in ${relativeModule} `
-            + `(${names}${remainder}). Add component protocol metadata to opt in compatible package exports.`,
-        ));
+      for (const grouped of groupComponentPolicyDiagnostics(hostPolicy.diagnostics)) {
+        if (reportedComponentPolicyDiagnostics.has(grouped.key)) continue;
+        reportedComponentPolicyDiagnostics.add(grouped.key);
+        this.emitWarning?.(new Error(formatComponentPolicyWarning(
+          grouped,
+          sourcePath(moduleId),
+          "Add component protocol metadata to opt in compatible package exports.",
+        )));
       }
       const result = transform(hostPolicy);
       asyncCallback(null, result?.code ?? source);
@@ -271,6 +288,13 @@ function nudgeUiLoader(
       asyncCallback(error instanceof Error ? error : new Error(String(error)));
     });
     return undefined;
+  }
+
+  if (instrumentComponents && !asyncCallback) {
+    // Semantic callsites need host resolution of import provenance. Without it
+    // every imported component would silently degrade to identity attributes
+    // alone, so report the missing capability once per loader process.
+    warnMissingResolver(this);
   }
 
   const result = transform();

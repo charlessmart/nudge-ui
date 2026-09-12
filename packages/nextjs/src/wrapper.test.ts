@@ -8,6 +8,7 @@ import {
   type NudgeUiNextConfig,
 } from "./wrapper.ts";
 import { buildManifest, nextjsProjectId } from "./manifest.ts";
+import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
 
 function makeProject(): string {
   const root = mkdtempSync(join(tmpdir(), "next-wrapper-"));
@@ -143,8 +144,7 @@ describe("withNudgeUi — development output shape", () => {
           { not: { path: "(**/)?\\.next/**" } },
           {
             not: {
-              path:
-                "[\\/]packages[\\/](inspector|nextjs|plugin|css|standalone|compatibility|package-css-fixture)[\\/]",
+              path: nudgeUiRepositoryPackagePath,
             },
           },
         ],

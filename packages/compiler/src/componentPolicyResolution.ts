@@ -3,7 +3,12 @@ import { parse } from "@babel/parser";
 /** Whether replacing a JSX element type with the semantic boundary is safe. */
 export interface ComponentProtocol {
   readonly wrap: boolean;
-  /** JSX-valued slots where the compiler may apply each descendant's resolved protocol. */
+  /**
+   * JSX-valued slots where the compiler may apply each descendant's resolved
+   * protocol. A component that resolves to project-owned source defaults to
+   * `wrap: true` with `children: "rendered"`; every other slot stays opaque
+   * until a host declares it.
+   */
   readonly slots?: Readonly<Record<string, "rendered" | "opaque">>;
 }
 
@@ -97,6 +102,8 @@ interface ModuleAnalysis {
   readonly declarations: Map<string, SyntaxNode>;
   readonly exports: Map<string, ExportTarget>;
   readonly exportAll: string[];
+  /** Imported JSX component names used by this module, sorted for determinism. */
+  readonly importedJsxNames: string[];
 }
 
 type ExportTarget =
@@ -132,6 +139,29 @@ const SKIP_KEYS = new Set([
 const MAX_REEXPORT_DEPTH = 24;
 
 /**
+ * Analyses are a pure function of module source, so a content-addressed cache
+ * is correct across HMR without host-specific invalidation: an edited file
+ * simply misses and is re-analysed, while every unchanged re-export target
+ * skips its parse. Without this, policy resolution reparses every reachable
+ * module on every transform.
+ */
+const ANALYSIS_CACHE_LIMIT = 128;
+const analysisCache = new Map<string, ModuleAnalysis | null>();
+
+function analyseModuleSource(code: string): ModuleAnalysis | null {
+  const cached = analysisCache.get(code);
+  if (cached !== undefined) return cached;
+  const ast = parseModule(code);
+  const analysis = ast ? analyseModule(ast) : null;
+  if (analysisCache.size >= ANALYSIS_CACHE_LIMIT) {
+    const oldest = analysisCache.keys().next();
+    if (!oldest.done) analysisCache.delete(oldest.value);
+  }
+  analysisCache.set(code, analysis);
+  return analysis;
+}
+
+/**
  * Resolve the imported JSX values used by one source file.
  *
  * The compiler owns syntax and re-export traversal. The host Adapter owns all
@@ -143,17 +173,15 @@ export async function resolveHostComponentPolicy(
   adapter: ComponentModuleAdapter,
   options: ResolveHostComponentPolicyOptions = {},
 ): Promise<HostComponentPolicy> {
-  const ast = parseModule(code);
-  if (!ast) {
+  const analysis = analyseModuleSource(code);
+  if (!analysis) {
     return { components: {}, diagnostics: [] };
   }
 
-  const analysis = analyseModule(ast);
   const components: Record<string, ResolvedComponentProtocol> = {};
   const diagnostics: ComponentPolicyDiagnostic[] = [];
-  const componentNames = collectImportedJsxNames(ast, analysis.imports);
 
-  for (const componentName of componentNames) {
+  for (const componentName of analysis.importedJsxNames) {
     const reference = importedReference(componentName, analysis.imports);
     if (!reference) continue;
     const result = await traceRequest(
@@ -266,7 +294,13 @@ function analyseModule(ast: SyntaxNode): ModuleAnalysis {
     }
   }
 
-  return { imports, declarations, exports, exportAll };
+  return {
+    imports,
+    declarations,
+    exports,
+    exportAll,
+    importedJsxNames: collectImportedJsxNames(ast, imports),
+  };
 }
 
 function recordImports(statement: SyntaxNode, imports: Map<string, ImportBinding>): void {
@@ -371,11 +405,13 @@ async function traceRequest(
   }
   const nextVisited = new Set(visited).add(visitKey);
   const moduleSource = await adapter.read(resolvedId);
-  const moduleAst = moduleSource ? parseModule(moduleSource) : null;
-  if (!moduleAst) {
+  if (moduleSource === null) {
     return { resolved: false, code: "component-export-unresolved", source, exportName };
   }
-  const analysis = analyseModule(moduleAst);
+  const analysis = analyseModuleSource(moduleSource);
+  if (!analysis) {
+    return { resolved: false, code: "component-export-unresolved", source, exportName };
+  }
   return traceProjectExport(
     analysis,
     resolvedId,
@@ -565,12 +601,66 @@ function resolvedProtocol(
   };
 }
 
+/**
+ * Default protocol for a component that resolves to project-owned source.
+ *
+ * The inspected codebase owns the definition, so replacing the element type is
+ * safe and its authored `children` may be traversed. Named JSX props stay
+ * opaque: only a host-declared protocol can promise that a named slot renders
+ * its contents.
+ */
 function projectProtocol(source: string, exportName: string): TraceResult {
-  return resolvedProtocol(source, exportName, { wrap: true });
+  return resolvedProtocol(source, exportName, { wrap: true, slots: { children: "rendered" } });
 }
 
 function stripModuleExtension(value: string): string {
   return value.replace(/\.(?:d\.)?[cm]?[jt]sx?$/, "");
+}
+
+/** One actionable message per diagnostic code and source. */
+export interface GroupedComponentPolicyDiagnostic {
+  /** Stable dedupe key for host-side "warn once" tracking. */
+  readonly key: string;
+  readonly source: string;
+  readonly componentNames: readonly string[];
+  readonly total: number;
+}
+
+/**
+ * Roll per-component diagnostics up so a host emits one warning per package
+ * instead of one per skipped export.
+ */
+export function groupComponentPolicyDiagnostics(
+  diagnostics: readonly ComponentPolicyDiagnostic[],
+  maxNames = 5,
+): GroupedComponentPolicyDiagnostic[] {
+  const groups = new Map<string, ComponentPolicyDiagnostic[]>();
+  for (const diagnostic of diagnostics) {
+    const key = `${diagnostic.code}\0${diagnostic.source}`;
+    const group = groups.get(key);
+    if (group) group.push(diagnostic);
+    else groups.set(key, [diagnostic]);
+  }
+  return [...groups].map(([key, group]) => ({
+    key,
+    source: group[0]!.source,
+    componentNames: group.slice(0, maxNames).map((diagnostic) => diagnostic.componentName),
+    total: group.length,
+  }));
+}
+
+/** Host-facing warning text for one grouped diagnostic. */
+export function formatComponentPolicyWarning(
+  grouped: GroupedComponentPolicyDiagnostic,
+  location: string,
+  hint = "Add componentProtocols metadata to opt in compatible package exports.",
+): string {
+  const names = grouped.componentNames.join(", ");
+  const remainder = grouped.total > grouped.componentNames.length
+    ? ` and ${grouped.total - grouped.componentNames.length} more`
+    : "";
+  return `[nudge-ui] Semantic instrumentation skipped ${grouped.source} in ${location} `
+    + `(${names}${remainder}). ${hint}`;
 }
 
 function diagnosticMessage(

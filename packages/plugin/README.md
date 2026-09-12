@@ -94,12 +94,19 @@ export default withNudgeUi(defineConfig({
 });
 ```
 
-The host Adapter resolves aliases and project barrels before applying these
-protocols. Project-owned definitions remain eligible; unknown package
-subtrees stay unchanged and emit a build diagnostic. React Router support is
-provided by the default compatibility catalog and uses the same mechanism as
-any other structural library.
+The host Adapter resolves aliases, workspace packages, project barrels, and
+factory or tagged-template definitions before applying these protocols.
+Project-owned definitions are wrapped and their authored `children` are
+traversed by default; a named JSX prop stays opaque until a protocol declares
+that slot as `rendered`. Unknown package subtrees stay unchanged and emit a
+build diagnostic. React Router support is provided by the default compatibility
+catalog and uses the same mechanism as any other structural library.
+
+Source identity is project-root relative. A file in a declared `sourceRoots`
+package records a `../`-prefixed path, so it stays unique against the
+application's own files and never serialises a machine path into a prompt or a
+DOM attribute.
 
 The adapter exposes optional `tokens`, `identity`, `component-contracts`, and
 `vanilla-extract-runtime` subpaths for host integrations. Application projects
-normally need only the root `nudgeUi` export.
+normally need only the root `withNudgeUi` export.

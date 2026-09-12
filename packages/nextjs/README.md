@@ -50,9 +50,13 @@ export default withNudgeUi(nextConfig, {
 ```
 
 `sourceRoots` explicitly marks authored workspace packages as project-owned;
-unlisted files outside the Next.js root remain fail closed. The same options
-are accepted by the Vite Adapter. React Router uses the built-in catalog rather
-than a framework-specific compiler branch.
+unlisted files outside the Next.js root remain fail closed. Project-owned
+definitions are wrapped and their authored `children` are traversed by default,
+while a named JSX prop stays opaque until a protocol declares that slot. The
+same options are accepted by the Vite Adapter, and both Adapters record project
+identity as a project-root relative path (`../packages/ui/src/Button.tsx` for a
+declared workspace package) so it is unique and portable. React Router uses the
+built-in catalog rather than a framework-specific compiler branch.
 
 ## Additional exports
 

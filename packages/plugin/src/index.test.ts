@@ -88,7 +88,9 @@ export const App = () => <Button />;`;
     expect(await createPlugin()).not.toContain("__nudgeUiInstrumentComponent");
     const transformed = await createPlugin(["../../packages/ui"]);
     expect(transformed).toContain("__nudgeUiInstrumentComponent");
-    expect(transformed).toContain('data-src="src/App.tsx:2:27"');
+    // Project-root relative, so a workspace package never collides with the
+    // application's own `src/App.tsx` and no machine path is serialised.
+    expect(transformed).toContain('data-src="../../packages/ui/src/App.tsx:2:27"');
   });
 });
 

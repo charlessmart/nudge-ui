@@ -1,5 +1,6 @@
 import {
   isAbsolute,
+  posix,
   relative,
   resolve,
   sep,
@@ -37,10 +38,21 @@ const GENERATED_DIRECTORY_NAMES = new Set([
   "storybook-static",
 ]);
 
+/**
+ * Project-relative source path for identity and catalog keys.
+ *
+ * A file outside the project root keeps a `../`-prefixed relative path rather
+ * than a machine path, so an authored workspace package stays unique and
+ * readable. This matches the Next Adapter's `sourcePath`.
+ */
 function relativePath(id: string, root?: string): string {
   if (root) {
     const rootPrefix = root.endsWith("/") ? root : `${root}/`;
     if (id.startsWith(rootPrefix)) return id.slice(rootPrefix.length);
+    if (id.startsWith("/") && root.startsWith("/")) {
+      const relativeId = posix.relative(root, id);
+      if (relativeId && relativeId !== ".") return relativeId;
+    }
   }
   return id.replace(/^\//, "");
 }
@@ -58,8 +70,9 @@ export function isHostApplicationSource(
   const absoluteFile = isAbsolute(fileId)
     ? resolve(fileId)
     : resolve(projectRoot, fileId);
-  const roots = [projectRoot, ...(options.sourceRoots ?? [])]
-    .map((sourceRoot) => resolve(projectRoot, sourceRoot));
+  const primaryRoot = resolve(projectRoot);
+  const roots = [primaryRoot, ...(options.sourceRoots ?? [])
+    .map((sourceRoot) => resolve(projectRoot, sourceRoot))];
   const generatedRoots = (options.generatedRoots ?? [])
     .map((generatedRoot) => resolve(projectRoot, generatedRoot));
   if (isInsideAnyRoot(absoluteFile, generatedRoots)) return false;
@@ -67,12 +80,15 @@ export function isHostApplicationSource(
   const sourceRoot = roots.find((candidate) => isInsideRoot(absoluteFile, candidate));
   if (!sourceRoot) return false;
 
-  // A generated directory can be nested in an authored workspace package.
-  // Keep this guard conservative and name-based so it works before a path
-  // exists on disk and across Vite's virtual query suffixes.
-  const pathSegments = relative(sourceRoot, absoluteFile).split(sep).filter(Boolean);
-  if (pathSegments.some((segment) => GENERATED_DIRECTORY_NAMES.has(segment))) {
-    return false;
+  // A generated directory can be nested in an authored workspace package, so a
+  // declared source root keeps a conservative name-based guard. The primary
+  // root does not: there, a directory named `build` may be ordinary authored
+  // source, and the resolved output directory is already excluded above.
+  if (sourceRoot !== primaryRoot) {
+    const pathSegments = relative(sourceRoot, absoluteFile).split(sep).filter(Boolean);
+    if (pathSegments.some((segment) => GENERATED_DIRECTORY_NAMES.has(segment))) {
+      return false;
+    }
   }
 
   return true;
@@ -94,10 +110,7 @@ export function catalogSourcePath(
 ): string {
   const fileId = stripCssQuery(id).replace(/\\/g, "/");
   if (!isPackageStylesheet(fileId, projectRoot, options)) {
-    const sourceRoot = (projectRoot ? [projectRoot, ...(options.sourceRoots ?? [])] : options.sourceRoots ?? [])
-      .map((candidate) => resolve(projectRoot ?? process.cwd(), candidate))
-      .find((candidate) => isInsideAnyRoot(resolve(fileId), [candidate]));
-    return relativePath(fileId, sourceRoot ?? projectRoot);
+    return relativePath(fileId, projectRoot);
   }
   const nodeModules = fileId.lastIndexOf("/node_modules/");
   if (nodeModules >= 0) return fileId.slice(nodeModules + "/node_modules/".length);

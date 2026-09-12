@@ -2,7 +2,6 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import {
   basename,
-  isAbsolute,
   join,
   relative,
   resolve,
@@ -56,6 +55,8 @@ import {
 import {
   DEFAULT_COMPONENT_RUNTIME_MODULE,
   defaultReactComponentProtocols,
+  formatComponentPolicyWarning,
+  groupComponentPolicyDiagnostics,
   mergeComponentModuleProtocols,
   resolveHostComponentPolicy,
   type ComponentInstrumentationOptions,
@@ -362,6 +363,11 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
   }
   const packageComponentModulesByFile = new Map<string, string[]>();
   const reportedComponentPolicyDiagnostics = new Set<string>();
+  // The Adapter's own copy of the semantic runtime, used to alias the specifier
+  // the compiler injects into instrumented callsites. A packed install cannot
+  // resolve that specifier from the application's own dependency graph, so the
+  // Adapter pins it once per plugin instance.
+  const inspectorComponentRuntimePath = resolveInspectorComponentRuntime();
   let packageComponentFingerprint = "";
   const adapterRegistry = createTokenAdapterRegistry([
     ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config, options.tailwindV3.source)] : []),
@@ -386,19 +392,6 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
 
   function isPackageSource(id: string): boolean {
     return isPackageStylesheet(id, root, sourceScope());
-  }
-
-  function identityRootFor(id: string): string | undefined {
-    if (!root || !isHostSource(id)) return root;
-    const absoluteFile = resolve(stripCssQuery(id));
-    return [root, ...(options.sourceRoots ?? []).map((sourceRoot) => resolve(root!, sourceRoot))]
-      .find((sourceRoot) => {
-        const relativeFile = relative(sourceRoot, absoluteFile);
-        return relativeFile !== ""
-          && relativeFile !== ".."
-          && !relativeFile.startsWith(`..${sep}`)
-          && !isAbsolute(relativeFile);
-      }) ?? root;
   }
 
   function catalogPath(id: string): string {
@@ -846,9 +839,8 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
         ? resolveReactAliases(projectRoot)
         : [];
       const existingDedupe = userConfig.resolve?.dedupe ?? [];
-      const componentRuntime = resolveInspectorComponentRuntime();
-      const runtimeAliases: Alias[] = componentRuntime
-        ? [{ find: "@nudge-ui/inspector/component-runtime", replacement: componentRuntime }]
+      const runtimeAliases: Alias[] = inspectorComponentRuntimePath
+        ? [{ find: "@nudge-ui/inspector/component-runtime", replacement: inspectorComponentRuntimePath }]
         : [];
       return {
         resolve: {
@@ -874,6 +866,16 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     configureServer(server) {
       if (!enabled || command !== "serve") return;
       devServer = server;
+      if (!inspectorComponentRuntimePath) {
+        // Not fatal: a host that depends on @nudge-ui/inspector directly can
+        // still resolve the injected specifier itself. Packed installs that do
+        // not will fail at the importing module, so say so before that happens.
+        server.config.logger.warn(
+          "[nudge-ui] Could not resolve @nudge-ui/inspector/component-runtime from the "
+            + "Vite adapter. Semantic component callsites will fall back to application "
+            + "resolution of that specifier.",
+        );
+      }
       server.middlewares?.use(async (request, response, next) => {
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         if ((pathname === CLIENT_PATH || pathname === MANIFEST_PATH) && request.method !== "GET") {
@@ -1055,32 +1057,12 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
               compatibleComponentImports: options.compatibleComponentImports,
             })
           : undefined;
-        const policyDiagnostics = hostPolicy?.diagnostics ?? [];
-        const diagnosticsBySource = new Map<
-          string,
-          Array<(typeof policyDiagnostics)[number]>
-        >();
-        for (const diagnostic of policyDiagnostics) {
-          const key = `${diagnostic.code}\0${diagnostic.source}`;
-          const group = diagnosticsBySource.get(key) ?? [];
-          group.push(diagnostic);
-          diagnosticsBySource.set(key, group);
+        for (const grouped of groupComponentPolicyDiagnostics(hostPolicy?.diagnostics ?? [])) {
+          if (reportedComponentPolicyDiagnostics.has(grouped.key)) continue;
+          reportedComponentPolicyDiagnostics.add(grouped.key);
+          this.warn(formatComponentPolicyWarning(grouped, catalogPath(id)));
         }
-        for (const [key, diagnostics] of diagnosticsBySource) {
-          if (reportedComponentPolicyDiagnostics.has(key)) continue;
-          reportedComponentPolicyDiagnostics.add(key);
-          const first = diagnostics[0]!;
-          const names = diagnostics
-            .slice(0, 5)
-            .map((diagnostic) => diagnostic.componentName)
-            .join(", ");
-          const remainder = diagnostics.length > 5 ? ` and ${diagnostics.length - 5} more` : "";
-          this.warn(
-            `[nudge-ui] Semantic instrumentation skipped ${first.source} in ${catalogPath(id)} `
-              + `(${names}${remainder}). Add componentProtocols metadata to opt in compatible package exports.`,
-          );
-        }
-        return injectIdentity(code, id, identityRootFor(id), {
+        return injectIdentity(code, id, root, {
           // Runtime component boundaries belong to host application callsites.
           // Workspace packages are included only when sourceRoots declares
           // them. Inspector and generated sources remain outside host scope.

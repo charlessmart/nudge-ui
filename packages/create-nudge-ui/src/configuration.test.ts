@@ -1,5 +1,44 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { configureSource } from "./configuration.ts";
+import { configureSource, planConfiguration } from "./configuration.ts";
+
+describe("planConfiguration", () => {
+  const withProject = (files: Readonly<Record<string, string>>, run: (root: string) => void) => {
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-config-"));
+    try {
+      for (const [name, content] of Object.entries(files)) writeFileSync(join(root, name), content);
+      run(root);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  };
+
+  it("updates an existing CommonJS Vite config instead of creating a shadowing ESM one", () => {
+    withProject({ "vite.config.cjs": 'module.exports = { plugins: [] };\n' }, (root) => {
+      const change = planConfiguration(root, "vite-react");
+
+      expect(change?.created).toBe(false);
+      expect(change?.path).toBe(join(root, "vite.config.cjs"));
+      expect(change?.content).toContain(
+        'const { withNudgeUi } = require("@nudge-ui/vite-react");',
+      );
+      expect(change?.content).toContain("module.exports = withNudgeUi({ plugins: [] });");
+    });
+  });
+
+  it("prefers the config file Vite itself would load", () => {
+    withProject({
+      "vite.config.js": "export default { plugins: [] };\n",
+      "vite.config.ts": "export default { plugins: [] };\n",
+    }, (root) => {
+      // Vite's DEFAULT_CONFIG_FILES order puts .js first, so editing .ts would
+      // silently no-op against the configuration Vite actually loads.
+      expect(planConfiguration(root, "vite-react")?.path).toBe(join(root, "vite.config.js"));
+    });
+  });
+});
 
 describe("configureSource", () => {
   it("wraps an Astro configuration without inspecting its integrations", () => {

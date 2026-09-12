@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import type { ComponentModuleProtocols } from "@nudge-ui/compiler/component-policy";
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
+import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
 
 /**
  * `withNudgeUi(nextConfig)` — the single user touchpoint (ADR-0010).
@@ -265,9 +266,10 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
           // the Nudge UI packages themselves must be excluded explicitly:
           // instrumenting the inspector's own UI would wrap every control in
           // override boundaries and pollute the panel with identity attrs.
+          // The list is shared with the loader's runtime scope check.
           {
             not: {
-              path: "[\\/]packages[\\/](inspector|nextjs|plugin|css|standalone|compatibility|package-css-fixture)[\\/]",
+              path: nudgeUiRepositoryPackagePath,
             },
           },
         ],

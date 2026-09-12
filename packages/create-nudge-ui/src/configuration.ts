@@ -5,7 +5,20 @@ import type { ConfigurationChange, Framework } from "./types.ts";
 
 const nextConfigNames = ["next.config.ts", "next.config.mts", "next.config.mjs", "next.config.js", "next.config.cjs"];
 const astroConfigNames = ["astro.config.ts", "astro.config.mts", "astro.config.mjs", "astro.config.js"];
-const viteConfigNames = ["vite.config.ts", "vite.config.mts", "vite.config.mjs", "vite.config.js"];
+/**
+ * Vite's own `DEFAULT_CONFIG_FILES` order. The list is order-sensitive: the
+ * first existing file wins for Vite, so it must win here too, or the installer
+ * edits a configuration Vite never loads (and creating a new `vite.config.mjs`
+ * beside a `vite.config.cjs` would silently shadow it).
+ */
+const viteConfigNames = [
+  "vite.config.js",
+  "vite.config.mjs",
+  "vite.config.ts",
+  "vite.config.cjs",
+  "vite.config.mts",
+  "vite.config.cts",
+];
 
 interface TextEdit {
   readonly start: number;
@@ -122,7 +135,7 @@ function configureNextSource(source: string, sourceFile: ts.SourceFile): string 
 }
 
 function parseSource(source: string, fileName: string): ts.SourceFile {
-  const scriptKind = fileName.endsWith(".ts") || fileName.endsWith(".mts")
+  const scriptKind = /\.(?:ts|mts|cts)$/.test(fileName)
     ? ts.ScriptKind.TS
     : ts.ScriptKind.JS;
   return ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, scriptKind);

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatComponentPolicyWarning,
+  groupComponentPolicyDiagnostics,
   resolveHostComponentPolicy,
   type ComponentModuleAdapter,
   type ComponentModuleProtocols,
@@ -21,6 +23,8 @@ function moduleAdapter(files: Readonly<Record<string, string>>): ComponentModule
   return {
     async resolve(specifier, importer) {
       if (specifier === "@/Button") return "/project/src/Button.tsx";
+      if (specifier === "@/Card") return "/project/src/Card.tsx";
+      if (specifier === "./Button") return "/project/src/Button.tsx";
       if (specifier === "./structural") return "/project/src/structural.ts";
       if (specifier === "./Page") return "/project/src/Page.tsx";
       if (specifier === "structural-library") return "/project/node_modules/structural-library/index.js";
@@ -176,5 +180,82 @@ describe("host component policy resolution", () => {
 
     expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Card");
     expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<Page");
+  });
+
+  it("traverses children of project-owned components by default", async () => {
+    const source = [
+      'import { Card } from "@/Card";',
+      'import { Button } from "./Button";',
+      "export const App = () => <Card><Button /></Card>;",
+    ].join("\n");
+    const hostPolicy = await resolveHostComponentPolicy(source, "/project/src/App.tsx", moduleAdapter({
+      "/project/src/Card.tsx": "export function Card({ children }) { return <section>{children}</section>; }",
+      "/project/src/Button.tsx": "export function Button() { return <button />; }",
+    }));
+
+    const result = injectIdentity(source, "/project/src/App.tsx", "/project", {
+      instrumentComponents: true,
+      hostPolicy,
+    });
+
+    expect(hostPolicy.components.Card).toMatchObject({
+      wrap: true,
+      slots: { children: "rendered" },
+      componentId: "src/Card#Card",
+    });
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Card");
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Button");
+  });
+
+  it("lets a host protocol override the project-owned default", async () => {
+    const source = 'import { Card } from "@/Card"; export const App = () => <Card />;';
+    const hostPolicy = await resolveHostComponentPolicy(source, "/project/src/App.tsx", moduleAdapter({
+      "/project/src/Card.tsx": "export function Card() { return <section />; }",
+    }), {
+      moduleProtocols: { "src/Card": { default: { wrap: false } } },
+    });
+
+    const result = injectIdentity(source, "/project/src/App.tsx", "/project", {
+      instrumentComponents: true,
+      hostPolicy,
+    });
+
+    expect(hostPolicy.components.Card?.wrap).toBe(false);
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent");
+  });
+
+  it("groups diagnostics once per source with stable dedupe keys", () => {
+    const grouped = groupComponentPolicyDiagnostics([
+      {
+        code: "component-protocol-unknown",
+        componentName: "Alpha",
+        source: "acme-ui",
+        exportName: "Alpha",
+        message: "",
+      },
+      {
+        code: "component-protocol-unknown",
+        componentName: "Beta",
+        source: "acme-ui",
+        exportName: "Beta",
+        message: "",
+      },
+      {
+        code: "component-import-unresolved",
+        componentName: "Gamma",
+        source: "acme-ui",
+        exportName: "Gamma",
+        message: "",
+      },
+    ]);
+
+    expect(grouped).toHaveLength(2);
+    expect(grouped[0]).toMatchObject({
+      source: "acme-ui",
+      componentNames: ["Alpha", "Beta"],
+      total: 2,
+    });
+    expect(formatComponentPolicyWarning(grouped[0]!, "src/App.tsx"))
+      .toContain("Semantic instrumentation skipped acme-ui in src/App.tsx (Alpha, Beta)");
   });
 });

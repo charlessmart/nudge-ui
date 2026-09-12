@@ -104,10 +104,21 @@ const SKIP_KEYS = new Set([
   "innerComments",
 ]);
 
+/**
+ * Project-relative source path used by `data-src` and callsite identity.
+ *
+ * A module outside the project root (an authored workspace package) keeps a
+ * `../`-prefixed relative path so identity stays unique across packages and
+ * machine paths never reach the DOM or a prompt.
+ */
 function relativePath(id: string, root?: string): string {
   if (root) {
     const rootPrefix = root.endsWith("/") ? root : root + "/";
     if (id.startsWith(rootPrefix)) return id.slice(rootPrefix.length);
+    if (id.startsWith("/") && root.startsWith("/")) {
+      const relativeId = posix.relative(root, id);
+      if (relativeId && relativeId !== ".") return relativeId;
+    }
   }
   return id.replace(/^\//, "");
 }

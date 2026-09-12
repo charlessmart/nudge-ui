@@ -133,6 +133,15 @@ export function createComponentInstrumentationPolicy(
   };
   visit(program);
 
+  // A definition authored in this module is project-owned by construction: no
+  // host resolution applies, and its JSX children are authored here rather
+  // than handed to an opaque third-party interface.
+  const isProjectLocalDefinition = (componentName: string): boolean => {
+    const [root, ...members] = componentName.split(".");
+    if (!root || ambiguous.has(root)) return false;
+    return members.length === 0 && imported(componentName) === null && locals.has(root);
+  };
+
   return {
     bindings,
     canWrap(componentName) {
@@ -142,10 +151,16 @@ export function createComponentInstrumentationPolicy(
       if (!binding) return members.length === 0 && locals.has(root);
       const resolved = options.hostPolicy?.components[componentName];
       if (resolved) return resolved.wrap;
+      // No host policy: this is the direct-compiler path, where a package
+      // export is only compatible when the caller names it explicitly. The
+      // host-resolved policy traces re-exports and namespace members, so this
+      // fallback deliberately matches on the authored import alone.
       return options.compatibleComponentImports?.[binding.source]?.includes(binding.exportName) === true;
     },
     rendersChildren(componentName) {
-      return options.hostPolicy?.components[componentName]?.slots?.children === "rendered";
+      const resolved = options.hostPolicy?.components[componentName];
+      if (resolved) return resolved.slots?.children === "rendered";
+      return isProjectLocalDefinition(componentName);
     },
     rendersProp(componentName, prop) {
       return options.hostPolicy?.components[componentName]?.slots?.[prop] === "rendered";

@@ -20,5 +20,18 @@ default React catalog includes React Router's structural elements. Hosts can
 merge additional package protocols with `mergeComponentModuleProtocols` and
 declare which JSX-valued slots render their contents.
 
+A component that traces to project-owned source — including a definition
+authored in the same module — defaults to `wrap: true` with
+`children: "rendered"`. Its authored children are traversed, while every named
+JSX prop stays opaque until a host protocol declares that slot. A component
+that resolves to an unknown package protocol is left untouched and reported
+through `ComponentPolicyDiagnostic`; `groupComponentPolicyDiagnostics` and
+`formatComponentPolicyWarning` render those for host loggers.
+
+Identity paths (`data-src`, `callsiteId`, `componentId`) are relative to the
+identity root a host supplies. A module outside it keeps a `../`-prefixed
+relative path rather than a machine path, so workspace packages stay unique
+across roots and portable across machines.
+
 The Vite adapter continues to expose its legacy
 `@nudge-ui/vite-react/identity` subpath as a compatibility re-export.

@@ -60,4 +60,31 @@ export const App = () => <main><Panel /><Button /></main>;`;
     expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Panel");
     expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Button");
   });
+
+  it("keeps out-of-root identity project-relative instead of machine-absolute", () => {
+    const result = injectIdentity(
+      "export function Button() { return <button />; }",
+      "/repo/packages/ui/src/Button.tsx",
+      "/repo/apps/web",
+    );
+
+    expect(result?.code).toContain('data-src="../../packages/ui/src/Button.tsx:1:');
+    expect(result?.code).not.toContain("/repo/packages/ui/src/Button.tsx");
+  });
+
+  it("traverses children of definitions authored in the same module", () => {
+    const code = `import { External } from "@acme/ui";
+function Card({ children }: { children: React.ReactNode }) { return <section>{children}</section>; }
+function Button() { return <button />; }
+export const App = () => <Card><Button /><External><Button /></External></Card>;`;
+    const result = injectIdentity(code, "/project/src/App.tsx", "/project", {
+      instrumentComponents: true,
+    });
+
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Card");
+    expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Button");
+    // The unknown package boundary stays opaque, so its subtree is preserved.
+    expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<External");
+    expect(result?.code.match(/__nudgeUiInstrumentComponent\(<Button/g)).toHaveLength(1);
+  });
 });
