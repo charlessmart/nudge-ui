@@ -25,7 +25,6 @@
     "test:e2e": "pnpm --filter sandbox test:e2e && pnpm --filter sandbox-tailwind-v4 test:e2e && pnpm --filter sandbox-tailwind-v3 test:e2e && pnpm --filter sandbox-sprinkles test:e2e && pnpm --filter standalone-html test:e2e && pnpm --filter sandbox-next test:e2e && pnpm --filter sandbox-astro test:purity && pnpm --filter sandbox-astro test:e2e",
     "test:packed-consumers": "pnpm --filter packed-consumers test:e2e",
     "test:e2e:standalone": "pnpm --filter standalone-html test:e2e",
-    "test:newvato": "node examples/sandbox/scripts/run-newvato-consumer.mjs",
     "perf": "pnpm --filter sandbox perf",
     "perf:baseline": "pnpm --filter sandbox perf:baseline",
     "dev:landing": "pnpm --filter nudge-ui-landing dev",

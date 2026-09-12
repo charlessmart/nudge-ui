@@ -8,7 +8,6 @@
     "src",
     "tests",
     "playwright.config.ts",
-    "playwright.newvato.config.ts",
     "vite.config.ts"
   ]
 }
