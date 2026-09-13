@@ -125,7 +125,7 @@ function isSerializableChange(value: unknown): value is SerializableChange {
   if (!value || typeof value !== "object") return false;
   const change = value as Record<string, unknown>;
   if (change.kind === "component-prop") {
-    const target = change.target as Record<string, unknown> | undefined;
+    const target = isRecord(change.target) ? change.target : undefined;
     const before = change.before as Record<string, unknown> | undefined;
     const validBefore = before?.kind === "default"
       || (before?.kind === "value"
@@ -744,26 +744,24 @@ export function hydrateSession(): HydrationResult {
   }
 
   const comparisonGroupsRaw = s.comparisonGroups;
+  if (!Array.isArray(comparisonGroupsRaw) || comparisonGroupsRaw.length > 128) {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
   const serializableComparisonGroups: SerializableComparisonGroup[] = [];
-  if (comparisonGroupsRaw !== undefined) {
-    if (!Array.isArray(comparisonGroupsRaw) || comparisonGroupsRaw.length > 128) {
+  for (const group of comparisonGroupsRaw) {
+    if (!isSerializableComparisonGroup(group)) {
       safeDiscard();
       return { restored: false, changeCount: 0 };
     }
-    for (const group of comparisonGroupsRaw) {
-      if (!isSerializableComparisonGroup(group)) {
-        safeDiscard();
-        return { restored: false, changeCount: 0 };
-      }
-      serializableComparisonGroups.push({
-        id: group.id,
-        label: group.label,
-        owner: "agent",
-        agentId: group.agentId,
-        cardIds: [...group.cardIds],
-        routes: group.routes.map((route) => ({ ...route })),
-      });
-    }
+    serializableComparisonGroups.push({
+      id: group.id,
+      label: group.label,
+      owner: "agent",
+      agentId: group.agentId,
+      cardIds: [...group.cardIds],
+      routes: group.routes.map((route) => ({ ...route })),
+    });
   }
 
   if (new Set(serializableComparisonGroups.map((group) => group.id)).size
@@ -808,7 +806,11 @@ export function hydrateSession(): HydrationResult {
     return { restored: false, changeCount: 0 };
   }
 
-  const changesRaw = Array.isArray(s.changes) ? s.changes : [];
+  const changesRaw = s.changes;
+  if (!Array.isArray(changesRaw)) {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
   const deserializedChanges: ChangeRecord[] = [];
   const textChangeIds = new Set<string>();
   for (const c of changesRaw) {

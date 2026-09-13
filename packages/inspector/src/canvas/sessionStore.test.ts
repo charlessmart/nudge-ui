@@ -124,6 +124,8 @@ function resetAllState(): void {
   setBoardCamera({ x: 0, y: 0, zoom: 1 });
   try {
     localStorage.removeItem(storageKey(nudgeUiProjectId));
+    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v3`);
+    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v${SCHEMA_VERSION - 1}`);
   } catch {
     // ignore
   }
@@ -497,6 +499,43 @@ describe("sessionStore hydration", () => {
     localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
     expect(result.restored).toBe(false);
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
+  });
+
+  it.each(["changes", "comparisonGroups"] as const)("discards a current session without %s", (field) => {
+    const session = serializeSession() as unknown as Record<string, unknown>;
+    delete session[field];
+    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
+
+    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
+  });
+
+  it("ignores legacy versioned keys instead of migrating them", () => {
+    const legacyKey = `nudge-ui:${nudgeUiProjectId}:v${SCHEMA_VERSION - 1}`;
+    const legacySession = serializeSession() as unknown as Record<string, unknown>;
+    legacySession.schemaVersion = SCHEMA_VERSION - 1;
+    localStorage.setItem(legacyKey, JSON.stringify(legacySession));
+
+    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
+    expect(localStorage.getItem(legacyKey)).not.toBeNull();
+  });
+
+  it("discards a current session with a non-array changes field", () => {
+    const session = serializeSession() as unknown as Record<string, unknown>;
+    session.changes = {};
+    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
+
+    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
+  });
+
+  it("discards a component change with a null target", () => {
+    const session = serializeSession() as unknown as Record<string, unknown>;
+    session.changes = [{ ...makeComponentChange(), target: null }];
+    localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify(session));
+
+    expect(hydrateSession()).toEqual({ restored: false, changeCount: 0 });
     expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
