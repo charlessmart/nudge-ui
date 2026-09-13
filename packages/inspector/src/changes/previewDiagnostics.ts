@@ -113,6 +113,15 @@ export function beginPreviewAttempt(
   }
   const attempt = (attemptsBySession.get(sessionKey(document)) ?? 0) + 1;
   attemptsBySession.set(sessionKey(document), attempt);
+  let changed = false;
+  for (const [key, diagnostic] of diagnostics) {
+    if (diagnostic.logicalDocument === document.logicalDocument
+      && diagnostic.sessionId === document.sessionId) {
+      diagnostics.delete(key);
+      changed = true;
+    }
+  }
+  if (changed) notify();
   return { ...document, workspaceRevision: revision, attempt };
 }
 

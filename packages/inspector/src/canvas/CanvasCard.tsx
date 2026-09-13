@@ -7,7 +7,7 @@ import {
   isRendererMessageFor,
   type FrameProtocolMessage,
 } from "./frameProtocol.ts";
-import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
+import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, invalidateCanvasPreviewDocument, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { Button } from "../ui/Button.tsx";
 import { setSelectedElement } from "../selection/selectionStore.ts";
@@ -160,6 +160,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
       if (getSelectedCardId() === card.id) setSelectedElement(null);
       // A reload creates a new renderer document; do not show diagnostics
       // produced by the old frame while its replacement is handshaking.
+      invalidateCanvasPreviewDocument(card.id);
       clearCanvasStructuralProjectionReports(card.id);
       clearCanvasRenderedInstanceProjectionReports(card.id);
       clearCanvasTextProjectionReports(card.id);

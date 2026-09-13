@@ -11,8 +11,11 @@ import {
   startPreviewDocumentSession,
 } from "./previewDiagnostics.ts";
 import {
+  commitChangeRecords,
+  getWorkspaceChanges,
   resetWorkspaceChanges,
   restoreWorkspaceChanges,
+  undoWorkspaceChange,
 } from "./workspaceChanges.ts";
 
 const change: ElementChangeRecord = {
@@ -60,6 +63,7 @@ describe("preview diagnostics", () => {
     const first = beginPreviewAttempt(document)!;
     const second = beginPreviewAttempt(document)!;
 
+    expect(getPreviewDiagnostic(changeKey(change))).toBeUndefined();
     expect(publishPreviewDiagnostic(first, changeKey(change), result)).toBe(false);
     expect(publishPreviewDiagnostic(second, changeKey(change), result)).toBe(true);
     expect(getPreviewDiagnostic(changeKey(change))?.attempt).toBe(2);
@@ -74,6 +78,16 @@ describe("preview diagnostics", () => {
 
     expect(getPreviewDiagnostic(changeKey(change))).toBeUndefined();
     expect(publishPreviewDiagnostic(attempt, changeKey(change), result)).toBe(false);
+  });
+
+  it("publishes diagnostics without changing canonical state or history", () => {
+    expect(commitChangeRecords([change], () => undefined)).toBe("applied");
+    const before = getWorkspaceChanges();
+    const attempt = beginPreviewAttempt(getHostPreviewDocument())!;
+
+    expect(publishPreviewDiagnostic(attempt, changeKey(change), result)).toBe(true);
+    expect(getWorkspaceChanges()).toEqual(before);
+    expect(undoWorkspaceChange(() => undefined)).toBe(true);
   });
 
   it("invalidates late results when a logical document receives a new session", () => {

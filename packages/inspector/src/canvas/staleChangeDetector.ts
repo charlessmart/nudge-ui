@@ -15,10 +15,11 @@ import {
   notifyPreviewDiagnostics,
   publishPreviewDiagnostic,
   type PreviewAttempt,
+  type PreviewDocument,
 } from "../changes/previewDiagnostics.ts";
 import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import type { PreviewResult } from "../projection/managedStylesheet.ts";
-import { getRegisteredFrames } from "./projection.ts";
+import { getCanvasPreviewDocument, getRegisteredFrames } from "./projection.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { getCanvasCards } from "./canvasStore.ts";
 import { isRendererMessageFor } from "./frameProtocol.ts";
@@ -31,7 +32,7 @@ const STALE_CHECK_DEBOUNCE_MS = 100;
 let verificationTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingChanges: PreviewableChangeRecord[] | null = null;
-let pendingAttempt: PreviewAttempt | null = null;
+let pendingAttempts = new Map<string, PreviewAttempt>();
 
 export type StaleChangeStatus = "unverified" | "verified" | "stale" | "token-drift";
 
@@ -113,10 +114,30 @@ function checkTokenDrift(change: TokenChangeRecord): PreviewResult | null {
   return null;
 }
 
+function getPreviewDocuments(): PreviewDocument[] {
+  const documents = [getHostPreviewDocument()];
+  const frames = getRegisteredFrames();
+  for (const card of getCanvasCards()) {
+    if (frames.has(card.id)) documents.push(getCanvasPreviewDocument(card.id));
+  }
+  return documents;
+}
+
+function beginPreviewAttempts(): Map<string, PreviewAttempt> {
+  const attempts = new Map<string, PreviewAttempt>();
+  const revision = getWorkspaceChanges().revision;
+  for (const document of getPreviewDocuments()) {
+    const attempt = beginPreviewAttempt(document, revision);
+    if (attempt) attempts.set(document.logicalDocument, attempt);
+  }
+  return attempts;
+}
+
 function gatherMatchEvidence(
   changes: PreviewableChangeRecord[],
-): Map<number, string[]> {
-  const evidence = new Map<number, string[]>();
+): Map<number, PreviewDocument[]> {
+  const evidence = new Map<number, PreviewDocument[]>();
+  const hostDocument = getHostPreviewDocument();
 
   for (let i = 0; i < changes.length; i++) {
     const change = changes[i]!;
@@ -124,7 +145,7 @@ function gatherMatchEvidence(
 
     if (checkSelectorInDocument(document, change.selector)) {
       const routes = evidence.get(i) ?? [];
-      routes.push(window.location.href);
+      routes.push(hostDocument);
       evidence.set(i, routes);
     }
   }
@@ -140,7 +161,7 @@ function gatherMatchEvidence(
 
       if (checkSelectorInFrame(frame, change.selector)) {
         const routes = evidence.get(i) ?? [];
-        routes.push(card.url);
+        routes.push(getCanvasPreviewDocument(card.id));
         evidence.set(i, routes);
       }
     }
@@ -149,8 +170,10 @@ function gatherMatchEvidence(
   return evidence;
 }
 
-function applyStaleResults(changes: PreviewableChangeRecord[], attempt: PreviewAttempt | null): void {
-  if (!attempt) return;
+function applyStaleResults(
+  changes: PreviewableChangeRecord[],
+  attempts: ReadonlyMap<string, PreviewAttempt>,
+): void {
   const evidence = gatherMatchEvidence(changes);
 
   for (let i = 0; i < changes.length; i++) {
@@ -158,13 +181,13 @@ function applyStaleResults(changes: PreviewableChangeRecord[], attempt: PreviewA
 
     if (isTokenChange(change)) {
       const drift = checkTokenDrift(change);
-      if (drift) {
-        publishPreviewDiagnostic(attempt, changeKey(change), drift);
-      }
+      const hostAttempt = attempts.get(getHostPreviewDocument().logicalDocument);
+      if (drift && hostAttempt) publishPreviewDiagnostic(hostAttempt, changeKey(change), drift);
       continue;
     }
     const routes = evidence.get(i);
-    if (!routes || routes.length === 0) {
+    for (const [logicalDocument, attempt] of attempts) {
+      if (routes?.some((route) => route.logicalDocument === logicalDocument)) continue;
       publishPreviewDiagnostic(attempt, changeKey(change), buildStaleResult(
         change.selector,
         getRequestedValue(change),
@@ -177,12 +200,9 @@ function scheduleStaleCheck(): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     if (pendingChanges) {
-      const nextAttempt = beginPreviewAttempt(getHostPreviewDocument(), getWorkspaceChanges().revision);
-      if (nextAttempt) {
-        pendingAttempt = nextAttempt;
-        clearPreviewDiagnostics(pendingChanges.map(changeKey));
-      }
-      applyStaleResults(pendingChanges, pendingAttempt);
+      pendingAttempts = beginPreviewAttempts();
+      clearPreviewDiagnostics(pendingChanges.map(changeKey));
+      applyStaleResults(pendingChanges, pendingAttempts);
     }
   }, STALE_CHECK_DEBOUNCE_MS);
 }
@@ -192,17 +212,17 @@ export function startStaleDetection(changes: ChangeRecord[]): void {
   if (previewableChanges.length === 0) return;
 
   clearPreviewDiagnostics(previewableChanges.map(changeKey));
-  pendingAttempt = beginPreviewAttempt(getHostPreviewDocument(), getWorkspaceChanges().revision);
+  pendingAttempts = beginPreviewAttempts();
 
   pendingChanges = previewableChanges;
 
   if (verificationTimer) clearTimeout(verificationTimer);
   verificationTimer = setTimeout(() => {
     if (pendingChanges) {
-      applyStaleResults(pendingChanges, pendingAttempt);
+      applyStaleResults(pendingChanges, pendingAttempts);
       pendingChanges = null;
     }
-    pendingAttempt = null;
+    pendingAttempts = new Map();
     verificationTimer = null;
     notifyPreviewDiagnostics();
   }, VERIFICATION_TIMEOUT_MS);
@@ -234,7 +254,7 @@ export function cancelStaleDetection(): void {
     debounceTimer = null;
   }
   pendingChanges = null;
-  pendingAttempt = null;
+  pendingAttempts = new Map();
   window.removeEventListener("message", handleFrameReady);
   notifyPreviewDiagnostics();
 }

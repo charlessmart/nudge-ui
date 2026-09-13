@@ -2,6 +2,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   computeProjection,
+  getCanvasPreviewDocument,
+  invalidateCanvasPreviewDocument,
   resetProjectionRevision,
   registerCardFrame,
   registerCardFrameSource,
@@ -222,6 +224,16 @@ describe("projection", () => {
     expect(getRegisteredFrames().has("card-1")).toBe(true);
     expect(findCanvasFrameBySource(window)).toBeNull();
     unregisterCardFrame("card-1");
+  });
+
+  it("rotates the value-based preview session when a Canvas document is replaced", () => {
+    const first = getCanvasPreviewDocument("card-session");
+
+    invalidateCanvasPreviewDocument("card-session");
+
+    const second = getCanvasPreviewDocument("card-session");
+    expect(second.logicalDocument).toBe(first.logicalDocument);
+    expect(second.sessionId).not.toBe(first.sessionId);
   });
 
   it("tracks sent and acknowledged revisions for each frame document", () => {

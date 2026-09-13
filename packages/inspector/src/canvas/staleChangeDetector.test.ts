@@ -13,7 +13,7 @@ import {
   isPreviewableChange,
   restoreChangeRecords,
 } from "../changes/changesLog.ts";
-import { getRegisteredFrames } from "./projection.ts";
+import { getCanvasPreviewDocument, getRegisteredFrames } from "./projection.ts";
 import { addCanvasCard, removeCanvasCard as removeCanvasCardStore, getCanvasCards } from "./canvasStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "../changes/_testUtils.ts";
@@ -196,7 +196,9 @@ describe("staleChangeDetector", () => {
       vi.advanceTimersByTime(6000);
 
       const updated = getPreviewableChanges();
-      expect(getPreviewDiagnostic(changeKey(updated[0]!))).toBeUndefined();
+      const key = changeKey(updated[0]!);
+      expect(getPreviewDiagnostic(key)?.result.reason).toBe("target-missing");
+      expect(getPreviewDiagnostic(key, getCanvasPreviewDocument(card.id).logicalDocument)).toBeUndefined();
 
       frameMap.delete(card.id);
       vi.useRealTimers();
@@ -229,6 +231,10 @@ describe("staleChangeDetector", () => {
       const diagnostic = getPreviewDiagnostic(changeKey(updated[0]!));
       expect(diagnostic?.result.status).toBe("conflict");
       expect(diagnostic?.result.reason).toBe("target-missing");
+      expect(getPreviewDiagnostic(
+        changeKey(updated[0]!),
+        getCanvasPreviewDocument(card.id).logicalDocument,
+      )?.result.reason).toBe("target-missing");
 
       frameMap.delete(card.id);
       vi.useRealTimers();
