@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ElementChangeRecord } from "./types.ts";
 import type { StructuralDelete } from "./structuralTypes.ts";
+import * as workspaceLease from "../canvas/workspaceLease.ts";
 import {
   commitChangeRecords,
   commitStructuralChange,
   getWorkspaceChanges,
   redoWorkspaceChange,
-  replaceChangeRecordsForDiagnostics,
   resetWorkspaceChanges,
   restoreWorkspaceChanges,
   subscribeWorkspaceChanges,
   undoWorkspaceChange,
+  workspaceChangeStore,
 } from "./workspaceChanges.ts";
 
 const project = (): void => undefined;
@@ -79,6 +80,60 @@ describe("WorkspaceChanges", () => {
     unsubscribe();
   });
 
+  it("exposes the complete snapshot and preserves commit and undo results", () => {
+    expect(workspaceChangeStore.getSnapshot()).toEqual({
+      revision: 0,
+      changes: [],
+      structuralChanges: [],
+      canUndo: false,
+      canRedo: false,
+    });
+
+    const change = styleChange("color", "red");
+    expect(workspaceChangeStore.commitChangeRecords([])).toBe("unchanged");
+    expect(workspaceChangeStore.commitChangeRecords([change])).toBe("applied");
+    expect(workspaceChangeStore.commitChangeRecords([change])).toBe("unchanged");
+    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+      revision: 1,
+      changes: [change],
+      structuralChanges: [],
+      canUndo: true,
+      canRedo: false,
+    });
+
+    expect(workspaceChangeStore.undoWorkspaceChange()).toBe(true);
+    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+      revision: 2,
+      changes: [],
+      canUndo: false,
+      canRedo: true,
+    });
+    expect(workspaceChangeStore.redoWorkspaceChange()).toBe(true);
+    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+      revision: 3,
+      changes: [change],
+      canUndo: true,
+      canRedo: false,
+    });
+  });
+
+  it("does not expose mutable canonical records through a snapshot", () => {
+    workspaceChangeStore.commitChangeRecords([styleChange("color", "red")]);
+    const current = workspaceChangeStore.getSnapshot();
+    const change = current.changes[0] as ElementChangeRecord;
+
+    expect(Object.isFrozen(current)).toBe(true);
+    expect(Object.isFrozen(current.changes)).toBe(true);
+    expect(Object.isFrozen(change)).toBe(true);
+    expect(Object.isFrozen(change.source)).toBe(true);
+    expect(() => {
+      change.source.file = "src/Other.tsx";
+    }).toThrow();
+    expect(workspaceChangeStore.getSnapshot().changes[0]).toMatchObject({
+      source: { file: "src/Button.tsx" },
+    });
+  });
+
   it("rejects a duplicate structural id without publishing or adding history", () => {
     let notifications = 0;
     const unsubscribe = subscribeWorkspaceChanges(() => {
@@ -104,31 +159,16 @@ describe("WorkspaceChanges", () => {
     unsubscribe();
   });
 
-  it("publishes diagnostics without changing canonical revision or history", () => {
-    const change = styleChange("color", "red");
-    commitChangeRecords([change], project);
-    const revision = getWorkspaceChanges().revision;
-    let notifications = 0;
-    const unsubscribe = subscribeWorkspaceChanges(() => {
-      notifications += 1;
+  it("preserves blocked as distinct from unchanged", () => {
+    const canWrite = vi.spyOn(workspaceLease, "canWriteWorkspace").mockReturnValue(false);
+
+    expect(workspaceChangeStore.commitChangeRecords([styleChange("color", "red")])).toBe("blocked");
+    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+      revision: 0,
+      changes: [],
     });
 
-    replaceChangeRecordsForDiagnostics([{
-      ...change,
-      previewResult: {
-        requestedValue: "red",
-        computedValue: "red",
-        status: "applied",
-      },
-    }]);
-
-    expect(getWorkspaceChanges().revision).toBe(revision);
-    expect(getWorkspaceChanges().changes[0]).toMatchObject({
-      previewResult: { status: "applied" },
-    });
-    expect(notifications).toBe(1);
-    expect(undoWorkspaceChange(project)).toBe(true);
-    expect(getWorkspaceChanges().changes).toEqual([]);
-    unsubscribe();
+    canWrite.mockRestore();
   });
+
 });

@@ -1,6 +1,13 @@
 import type { ReactElement } from "react";
+import { useSyncExternalStore } from "react";
 import type { ChangeRecord } from "../changes/changesLog.ts";
 import { isPreviewableChange, isTokenChange } from "../changes/changesLog.ts";
+import { changeKey } from "../changes/model.ts";
+import {
+  getAnyPreviewDiagnostic,
+  getPreviewDiagnosticRevision,
+  subscribePreviewDiagnostics,
+} from "../changes/previewDiagnostics.ts";
 import { humanizeSelector } from "../tokens/catalog.ts";
 import { getScopingSelectorPattern } from "../runtime/runtimeConfig.ts";
 import { isVerificationPending } from "./staleChangeDetector.ts";
@@ -10,8 +17,14 @@ interface Props {
 }
 
 export function StaleChangeIndicator({ change }: Props): ReactElement | null {
+  useSyncExternalStore(
+    subscribePreviewDiagnostics,
+    getPreviewDiagnosticRevision,
+    getPreviewDiagnosticRevision,
+  );
   if (!isPreviewableChange(change)) return null;
-  if (change.previewResult === undefined) {
+  const result = getAnyPreviewDiagnostic(changeKey(change))?.result;
+  if (result === undefined) {
     if (isVerificationPending()) {
       return (
         <span className="changes__verifying" data-test="stale-verifying">
@@ -22,9 +35,15 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
     return null;
   }
 
-  if (change.previewResult.status !== "conflict") return null;
+  if (result.status === "applied") {
+    return (
+      <span className="changes__diagnostic" data-test="preview-applied" data-status="applied">
+        Preview active
+      </span>
+    );
+  }
 
-  if (change.previewResult.reason === "target-missing") {
+  if (result.reason === "target-missing") {
     // ADR-0011: host scoping markers are opaque structure and must not
     // surface as human-facing guidance; the raw selector stays in change
     // records for managed-rule targeting.
@@ -41,9 +60,9 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
     );
   }
 
-  if (change.previewResult.reason === "token-drift") {
-    const currentValue = change.previewResult.computedValue
-      ? ` (current: ${change.previewResult.computedValue})`
+  if (result.reason === "token-drift") {
+    const currentValue = result.computedValue
+      ? ` (current: ${result.computedValue})`
       : "";
 
     if (isTokenChange(change)) {
@@ -65,11 +84,11 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
     <span
       className="changes__conflict"
       data-test="preview-conflict"
-      title={`Computed: ${change.previewResult.computedValue}`}
+      title={`Computed: ${result.computedValue}`}
     >
       Preview Blocked (
-      {change.previewResult.reason
-        ? change.previewResult.reason.replace(/-/g, " ")
+      {result.reason
+        ? result.reason.replace(/-/g, " ")
         : "Unknown"}
       )
     </span>

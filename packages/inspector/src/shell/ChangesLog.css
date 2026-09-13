@@ -142,6 +142,10 @@
   color: var(--warning-text);
 }
 
+.changes__diagnostic[data-status="applied"] {
+  color: var(--accent);
+}
+
 .changes__revert {
   margin-top: 2px;
 }

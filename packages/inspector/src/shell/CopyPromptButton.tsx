@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import {
   IconCheck,
@@ -24,8 +24,10 @@ import {
 import { createAgentPresentationAdapter } from "../canvas/agentPresentation.ts";
 import {
   discardAgentDispatch,
+  getAgentDispatchSize,
   recordAgentDispatch,
   verifyAndReconcileAgentDispatch,
+  type AgentCompletionStatus,
 } from "../agent/verification.ts";
 import {
   getClipboardHandoffRevision,
@@ -60,6 +62,8 @@ export function CopyPromptButton({
   );
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
+  const [agentCompletionStatus, setAgentCompletionStatus] = useState<AgentCompletionStatus | null>(null);
+  const [agentCompletionSent, setAgentCompletionSent] = useState(0);
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
   const [localSettingsSection, setLocalSettingsSection] = useState<SettingsSection>("instructions");
   const settingsOpen = controlledSettingsOpen ?? localSettingsOpen;
@@ -73,6 +77,8 @@ export function CopyPromptButton({
     [runtimeConfig.projectId],
   );
   const agent = useAgentClient(runtimeConfig.projectId, agentClient);
+  const agentRef = useRef(agent);
+  agentRef.current = agent;
   const hasChanges = changes.length + structuralChanges.length > 0;
 
   useEffect(() => {
@@ -94,7 +100,26 @@ export function CopyPromptButton({
   useEffect(() => {
     const revision = agent.request?.changeRevision;
     if (agent.state !== "completed" || revision === undefined) return;
-    void verifyAndReconcileAgentDispatch(revision);
+    const sent = getAgentDispatchSize(revision);
+    let active = true;
+    void verifyAndReconcileAgentDispatch(revision)
+      .then((removed) => {
+        if (!active) return;
+        const latest = agentRef.current;
+        if (latest.request?.changeRevision !== revision || latest.state !== "completed") return;
+        setAgentCompletionSent(sent);
+        setAgentCompletionStatus(removed > 0 ? "verified" : "completed");
+      })
+      .catch(() => {
+        if (!active) return;
+        const latest = agentRef.current;
+        if (latest.request?.changeRevision !== revision || latest.state !== "completed") return;
+        setAgentCompletionSent(sent);
+        setAgentCompletionStatus("completed");
+      });
+    return () => {
+      active = false;
+    };
   }, [agent.request?.changeRevision, agent.state]);
 
   const connecting = agent.state === "pairing";
@@ -140,6 +165,8 @@ export function CopyPromptButton({
       stylingSystem: runtimeConfig.stylingSystem,
     };
     const text = generatePrompt(changes, hints, structuralChanges, customInstructions);
+    setAgentCompletionStatus(null);
+    setAgentCompletionSent(0);
     if (canSend) {
       const revision = createPromptRevision(changes, structuralChanges);
       recordAgentDispatch(revision, changes, structuralChanges);
@@ -229,6 +256,17 @@ export function CopyPromptButton({
       {reconciledCount > 0 ? (
         <p className="copy-prompt__hint" data-test="clipboard-reconciled-hint" role="status">
           Removed {reconciledCount} implemented {reconciledCount === 1 ? "change" : "changes"} from the next prompt.
+        </p>
+      ) : null}
+      {agentCompletionStatus === "verified" ? (
+        <p className="copy-prompt__hint" data-test="agent-verified-hint" role="status">
+          Agent changes verified.
+        </p>
+      ) : agentCompletionStatus === "completed" ? (
+        <p className="copy-prompt__hint" data-test="agent-completed-hint" role="status">
+          {agentCompletionSent > 0
+            ? "Agent completed. Remaining edits were preserved because they were not verified."
+            : "Agent completed."}
         </p>
       ) : null}
       <SettingsDialog

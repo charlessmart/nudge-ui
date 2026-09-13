@@ -3,7 +3,7 @@ import type {
   TokenDeclaration,
   TokenDefinition,
 } from "virtual:design-tokens";
-import type { StyleRuleContext } from "../projection/managedStylesheet.ts";
+import type { StyleRuleContext } from "../changes/editModel.ts";
 import { getScopingSelectorPattern } from "../runtime/runtimeConfig.ts";
 import { getElementComputedStyle, getElementWindow } from "../runtime/domRealm.ts";
 import { selectTokens } from "@nudge-ui/css/value-semantics";

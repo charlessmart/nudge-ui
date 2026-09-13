@@ -3,12 +3,11 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { InspectorShell, toggleInspector, setInspectorOpen, setInspectorHost } from "./shell/InspectorShell.tsx";
 import { setSelectedElement } from "./selection/selectionStore.ts";
-import { clearWorkspace } from "./changes/changesLog.ts";
 import { removeManagedSheet } from "./projection/managedStylesheet.ts";
 import { isInspectorToggleShortcut } from "./shell/shortcuts.ts";
 import { clearInspectorLayout } from "./shell/panelLayout.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
-import { bootstrapRenderer } from "./canvas/rendererBootstrap.ts";
+import { bootstrapRenderer, type RendererBootstrapHandle } from "./canvas/rendererBootstrap.ts";
 import {
   hydrateSession,
   enableAutoSave,
@@ -25,11 +24,12 @@ import {
   releaseLease,
   subscribeOwnership,
 } from "./canvas/workspaceLease.ts";
-import { startStaleDetection } from "./canvas/staleChangeDetector.ts";
+import { cancelStaleDetection, startStaleDetection } from "./canvas/staleChangeDetector.ts";
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
-import { resetStructuralDeleteProjection } from "./projection/structuralProjection.ts";
 import { installInspectionBridge } from "./inspection/bridge.ts";
+import { disposeBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
+import { releaseDocumentProjection } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
@@ -39,11 +39,18 @@ import {
   startClipboardHandoffController,
   subscribeClipboardHandoff,
 } from "./prompt/clipboardHandoff.ts";
+import {
+  createWorkspace,
+  InspectorSessionProvider,
+  type InspectorSession,
+} from "./session/index.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
 let lockedRoot: Root | null = null;
-let listenerAttached = false;
+const workspace = createWorkspace();
+let inspectorSession: InspectorSession | null = null;
+let rendererBootstrapHandle: RendererBootstrapHandle | null = null;
 let beforeUnloadAttached = false;
 let persistenceSubscribed = false;
 let unsubscribeOwnership: (() => void) | null = null;
@@ -57,12 +64,20 @@ function onKeydown(e: KeyboardEvent): void {
   }
 }
 
+function disposeInspectorSession(): void {
+  const session = inspectorSession;
+  inspectorSession = null;
+  session?.dispose();
+}
+
 export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
   const runtimeConfig = getNudgeUiRuntimeConfig();
   const explicitDemo = isDemoRuntime();
   if (!isNudgeUiDev() && !explicitDemo) return;
 
   if (explicitDemo) {
+    rendererBootstrapHandle?.teardown();
+    rendererBootstrapHandle = null;
     // ADR-0014: only the configured demo runtime opens the shared dev gate
     // for its own document. The bundle mode name alone must never flip it,
     // so every build without both opt-ins stays governed by ADR-0002.
@@ -81,11 +96,14 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
     setCanvasMode("inspect");
   }
 
+  rendererBootstrapHandle?.teardown();
+  rendererBootstrapHandle = null;
+
   removeInspectionBridge?.();
   removeInspectionBridge = installInspectionBridge();
 
   if (getNudgeUiRuntimeConfig().capabilities.canvas && isCanvasRenderer()) {
-    bootstrapRenderer();
+    rendererBootstrapHandle = bootstrapRenderer() ?? null;
     return;
   }
 
@@ -151,18 +169,20 @@ function mountLockedNotice(host: HTMLElement): void {
     reactRoot.unmount();
     reactRoot = null;
   }
-  if (listenerAttached) {
-    window.removeEventListener("keydown", onKeydown);
-    listenerAttached = false;
+  try {
+    disposeInspectorSession();
+  } finally {
+    cancelStaleDetection();
+    setInspectorOpen(false);
+    cancelInlineTextEdit();
+    setSelectedElement(null);
+    clearInspectorLayout();
+    removeManagedSheet();
+    releaseDocumentProjection(document);
+    hostElement = null;
+    unsubscribeOwnership?.();
+    unsubscribeOwnership = null;
   }
-  setInspectorOpen(false);
-  cancelInlineTextEdit();
-  setSelectedElement(null);
-  clearInspectorLayout();
-  removeManagedSheet();
-  hostElement = null;
-  unsubscribeOwnership?.();
-  unsubscribeOwnership = null;
 
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   if (!lockedRoot) {
@@ -193,17 +213,25 @@ export function mountInspector(host: HTMLElement): void {
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
+    inspectorSession = workspace.createInspectorSession(host);
+    const documentSession = inspectorSession.createDocumentSession(document);
+    documentSession.registerCleanup(() => disposeBrowserCssInspection(document));
+    documentSession.registerCleanup(() => releaseDocumentProjection(document));
+    inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
     setInspectorHost(host);
-    reactRoot.render(createElement(demo ? InspectorShell : AppShell));
+    reactRoot.render(createElement(
+      InspectorSessionProvider,
+      { inspector: inspectorSession, documentSession },
+      createElement(demo ? InspectorShell : AppShell),
+    ));
+    window.addEventListener("keydown", onKeydown);
   }
   setInspectorOpen(true);
-  if (!listenerAttached) {
-    window.addEventListener("keydown", onKeydown);
-    listenerAttached = true;
-  }
 }
 
 export function unmountInspector(): void {
+  rendererBootstrapHandle?.teardown();
+  rendererBootstrapHandle = null;
   stopClipboardHandoffController?.();
   stopClipboardHandoffController = null;
   unsubscribeOwnership?.();
@@ -212,24 +240,27 @@ export function unmountInspector(): void {
     lockedRoot.unmount();
     lockedRoot = null;
   }
-  if (listenerAttached) {
-    window.removeEventListener("keydown", onKeydown);
-    listenerAttached = false;
-  }
+  cancelStaleDetection();
   cancelInlineTextEdit();
   setSelectedElement(null);
   if (reactRoot) {
     reactRoot.unmount();
     reactRoot = null;
   }
-  clearWorkspace();
-  clearClipboardHandoff();
-  resetStructuralDeleteProjection();
-  removeManagedSheet();
-  clearInspectorLayout();
-  removeInspectionBridge?.();
-  removeInspectionBridge = null;
-  hostElement = null;
+  try {
+    disposeInspectorSession();
+  } finally {
+    // Document-session cleanup already releases host projection when a
+    // session exists; release directly as well so projection applied outside
+    // a session (gestures, workspace projection) cannot leak across unmount.
+    releaseDocumentProjection(document);
+    clearClipboardHandoff();
+    removeManagedSheet();
+    clearInspectorLayout();
+    removeInspectionBridge?.();
+    removeInspectionBridge = null;
+    hostElement = null;
+  }
 }
 
 export { toggleInspector, setInspectorOpen } from "./shell/InspectorShell.tsx";
@@ -241,12 +272,9 @@ export {
   RUNTIME_ELEMENT_CID_PREFIX,
   RUNTIME_UNKNOWN_SOURCE_PREFIX,
 } from "./runtime/staticHtmlRuntimeIdentity.ts";
-export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
 export { isCanvasRenderer } from "./canvas/roleDetection.ts";
 export { NUDGE_UI_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection/bridge.ts";
 export type { NudgeUiInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection/bridge.ts";
-export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation, ConformanceProjectionExpectation, ConformanceProjectionFieldExpectation } from "./conformance/fixture.ts";
-export { TYPOGRAPHY_CASES } from "./conformance/typographyCases.ts";
 export {
   beginInlineTextEdit,
   cancelInlineTextEdit,

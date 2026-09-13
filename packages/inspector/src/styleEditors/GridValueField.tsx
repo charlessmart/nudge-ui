@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { TextInput } from "../ui/TextInput.tsx";
 import { getLayoutValue } from "./layoutValue.ts";
-import { setStyle } from "./styleActions.ts";
+import { setStyle } from "../tokens/editActions.ts";
 import { useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import type { StringRecord } from "./stringRecord.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
