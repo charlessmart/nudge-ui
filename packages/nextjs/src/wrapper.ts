@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import type { ComponentModuleProtocols } from "@nudge-ui/compiler/component-policy";
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
@@ -82,16 +82,6 @@ function loaderPaths(): LoaderPaths {
     plugin: fileURLToPath(new URL("../dist/loaders/loader-plugin.cjs", import.meta.url)),
     identity: fileURLToPath(new URL("../dist/loaders/identity-loader.cjs", import.meta.url)),
   };
-}
-
-/** Absolute directory of a package installed in the host project, or null. */
-function hostPackageDir(root: string, name: string): string | null {
-  try {
-    const require = createRequire(join(root, "package.json"));
-    return dirname(require.resolve(`${name}/package.json`));
-  } catch {
-    return null;
-  }
 }
 
 /** Absolute path for an Adapter-owned package export, resolved beside this package. */
@@ -299,40 +289,13 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     compose("*.jsx", { ...identityRule });
 
   }
-  // --- Single React instance (ADR-0004 via module resolution) -------------
-  // Nudge UI packages carry their own react dependency for standalone
-  // consumers. Without an alias, SWC resolves their `react` imports against
-  // those copies while the host application runs its own — two Reacts in one
-  // document, and inspector state updates silently stop rendering. Aliasing
-  // to the host project's copies pins one instance for every compilation.
-  //
-  // The component-runtime import is intentionally not included here. It is
-  // emitted as the package export specifier, and Turbopack's resolveAlias
-  // treats an absolute file target as a server-relative import. That path is
-  // unsupported, and is especially visible when pnpm resolves the export
-  // through its content-addressed store. `transpilePackages` above makes the
-  // package export resolvable without an alias.
-  const hostReact = hostPackageDir(root, "react");
-  const hostReactDom = hostPackageDir(root, "react-dom");
-  const componentRuntime = adapterPackageExport("@nudge-ui/inspector/component-runtime");
-  if (hostReact || hostReactDom) {
-    const userAlias = (source.turbopack?.resolveAlias as Record<string, unknown> | undefined) ?? {};
-    nextConfig.turbopack = {
-      ...nextConfig.turbopack,
-      resolveAlias: {
-        ...(hostReact ? { react: hostReact } : {}),
-        ...(hostReactDom ? { "react-dom": hostReactDom } : {}),
-        ...userAlias,
-      },
-    };
-  }
-
   nextConfig.turbopack = {
     ...(nextConfig.turbopack ?? {}),
     rules: turbopackRules,
   };
 
   // --- Webpack mode (secondary target, Stage 6 verifies parity) ----------
+  const componentRuntime = adapterPackageExport("@nudge-ui/inspector/component-runtime");
   const userWebpack = source.webpack;
   nextConfig.webpack = (webpackConfig: Record<string, unknown>, context: { dev: boolean }) => {
     const merged = userWebpack ? userWebpack(webpackConfig, context) : webpackConfig;

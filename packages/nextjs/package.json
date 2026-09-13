@@ -33,6 +33,11 @@
       "types": "./dist/mount.d.ts",
       "import": "./dist/mount.js",
       "default": "./dist/mount.js"
+    },
+    "./component-runtime": {
+      "types": "./dist/componentRuntime.d.ts",
+      "import": "./dist/componentRuntime.js",
+      "default": "./dist/componentRuntime.js"
     }
   },
   "scripts": {

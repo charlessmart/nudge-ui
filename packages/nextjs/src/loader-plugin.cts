@@ -64,13 +64,14 @@ const { extractComponentContracts } = require("@nudge-ui/vite-react/component-co
 };
 // SAFETY: `typeof import(...)` derives the asserted shape from the module's own declaration, so the required exports cannot drift.
 const {
-  DEFAULT_COMPONENT_RUNTIME_MODULE,
   defaultReactComponentProtocols,
   formatComponentPolicyWarning,
   groupComponentPolicyDiagnostics,
   mergeComponentModuleProtocols,
   resolveHostComponentPolicy,
 } = require("@nudge-ui/compiler") as typeof import("@nudge-ui/compiler");
+
+const NEXT_COMPONENT_RUNTIME_MODULE = "@nudge-ui/nextjs/component-runtime";
 // SAFETY: A local require of the sibling repository-scope module, whose export shape is asserted by its own contract.
 const { nudgeUiRepositoryPackagePattern } = require("./repositoryScope.ts") as {
   nudgeUiRepositoryPackagePattern: RegExp;
@@ -247,7 +248,7 @@ function nudgeUiLoader(
       pagesDir: options.pagesDir,
       hostPolicy,
       instrumentComponents,
-      componentRuntimeModule: DEFAULT_COMPONENT_RUNTIME_MODULE,
+      componentRuntimeModule: NEXT_COMPONENT_RUNTIME_MODULE,
     });
 
   const resolveImport = this.getResolve?.({

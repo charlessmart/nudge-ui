@@ -151,13 +151,7 @@ describe("withNudgeUi — development output shape", () => {
       });
     }
     expect(rules["*.css"]).toBeUndefined();
-    expect(config.turbopack?.resolveAlias).toEqual(expect.objectContaining({
-      react: expect.stringMatching(/node_modules[\\/]react$/),
-      "react-dom": expect.stringMatching(/node_modules[\\/]react-dom$/),
-    }));
-    expect(config.turbopack?.resolveAlias).not.toHaveProperty(
-      "@nudge-ui/inspector/component-runtime",
-    );
+    expect(config.turbopack?.resolveAlias).toBeUndefined();
   });
 
   it("leaves the component-runtime package import for Turbopack resolution", () => {
@@ -175,9 +169,7 @@ describe("withNudgeUi — development output shape", () => {
     expect(config.turbopack?.resolveAlias).toEqual(expect.objectContaining({
       "@app/*": "./src/*",
     }));
-    expect(config.turbopack?.resolveAlias).not.toHaveProperty(
-      "@nudge-ui/inspector/component-runtime",
-    );
+    expect(Object.keys(config.turbopack?.resolveAlias ?? {})).toEqual(["@app/*"]);
   });
 
   it("passes host component protocols to both compiler integrations", () => {

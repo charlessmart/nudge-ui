@@ -7,6 +7,7 @@ import {
 } from "./loader.ts";
 
 const ROOT = "/project";
+const NEXT_COMPONENT_RUNTIME_MODULE = "@nudge-ui/nextjs/component-runtime";
 
 function transform(source: string, moduleId: string) {
   return transformNextModuleSource(source, moduleId, { root: ROOT });
@@ -111,7 +112,7 @@ describe("transformNextModuleSource — client-component policy", () => {
     const result = transform(CLIENT_BUTTON, `${ROOT}/src/Button.tsx`);
 
     expect(result!.clientComponent).toBe(true);
-    expect(result!.code).toContain("@nudge-ui/inspector/component-runtime");
+    expect(result!.code).toContain(NEXT_COMPONENT_RUNTIME_MODULE);
     expect(result!.code).toContain("__nudgeUiInstrumentComponent(");
     // Host elements are attributed but never wrapped.
     expect(result!.code).toContain('data-cid="Button"');
@@ -125,7 +126,7 @@ describe("transformNextModuleSource — client-component policy", () => {
     );
 
     expect(result!.clientComponent).toBe(true);
-    expect(result!.code).not.toContain("@nudge-ui/inspector/component-runtime");
+    expect(result!.code).not.toContain(NEXT_COMPONENT_RUNTIME_MODULE);
     expect(result!.code).not.toContain("__nudgeUiInstrumentComponent(");
   });
 
@@ -137,7 +138,7 @@ describe("transformNextModuleSource — client-component policy", () => {
     expect(
       result!.code.indexOf('"use client"'),
     ).toBeLessThan(
-      result!.code.indexOf("@nudge-ui/inspector/component-runtime"),
+      result!.code.indexOf(NEXT_COMPONENT_RUNTIME_MODULE),
     );
   });
 
@@ -148,7 +149,7 @@ describe("transformNextModuleSource — client-component policy", () => {
     const result = transform(pagesFixture, `${ROOT}/pages/index.tsx`);
 
     expect(result!.clientComponent).toBe(true);
-    expect(result!.code).toContain("@nudge-ui/inspector/component-runtime");
+    expect(result!.code).toContain(NEXT_COMPONENT_RUNTIME_MODULE);
   });
 
   it("does not treat app/pages/** as Pages Router (stays server-side)", () => {
@@ -162,7 +163,7 @@ describe("transformNextModuleSource — client-component policy", () => {
 
     expect(result).not.toBeNull();
     expect(result!.clientComponent).toBe(false);
-    expect(result!.code).not.toContain("@nudge-ui/inspector/component-runtime");
+    expect(result!.code).not.toContain(NEXT_COMPONENT_RUNTIME_MODULE);
   });
 
   it("matches src/pages for Pages Router applications", () => {
@@ -191,7 +192,7 @@ describe("transformNextModuleSource — client-component policy", () => {
     );
 
     expect(result!.clientComponent).toBe(false);
-    expect(result!.code).not.toContain("@nudge-ui/inspector/component-runtime");
+    expect(result!.code).not.toContain(NEXT_COMPONENT_RUNTIME_MODULE);
     // Identity attributes are still present.
     expect(result!.code).toContain('data-cid="Server"');
   });
