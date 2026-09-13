@@ -276,41 +276,10 @@ export function commitChangeRecords(
   return result;
 }
 
-export function revertChangeRecord(change: ChangeRecord, project: WorkspaceProjector): boolean {
-  const changed = workspaceChangeStore.revertChangeRecord(change);
-  if (changed) project(workspaceChangeStore.getSnapshot());
-  return changed;
-}
-
-export function discardChangeRecords(
-  target: { kind: "selector"; selector: string } | { kind: "instance-override"; id: string },
-  project: WorkspaceProjector,
-): boolean {
-  const changed = workspaceChangeStore.discardChangeRecords(target);
-  if (changed) project(workspaceChangeStore.getSnapshot());
-  return changed;
-}
-
 export function commitStructuralChange(change: StructuralChange, project: WorkspaceProjector): boolean {
   const changed = workspaceChangeStore.commitStructuralChange(change);
   if (changed) project(workspaceChangeStore.getSnapshot());
   return changed;
-}
-
-export function revertStructuralChangeRecord(changeId: string, project: WorkspaceProjector): boolean {
-  const changed = workspaceChangeStore.revertStructuralChangeRecord(changeId);
-  if (changed) project(workspaceChangeStore.getSnapshot());
-  return changed;
-}
-
-export function reconcileWorkspaceChanges(
-  verifiedKeys: ReadonlySet<string>,
-  verifiedStructuralIds: ReadonlySet<string>,
-  project: WorkspaceProjector,
-): number {
-  const removed = workspaceChangeStore.reconcileWorkspaceChanges(verifiedKeys, verifiedStructuralIds);
-  if (removed > 0) project(workspaceChangeStore.getSnapshot());
-  return removed;
 }
 
 export function undoWorkspaceChange(project: WorkspaceProjector): boolean {
@@ -327,11 +296,6 @@ export function redoWorkspaceChange(project: WorkspaceProjector): boolean {
 
 export function restoreWorkspaceChanges(next: WorkspaceContents, project: WorkspaceProjector): void {
   workspaceChangeStore.restoreWorkspaceChanges(next);
-  project(workspaceChangeStore.getSnapshot());
-}
-
-export function clearWorkspaceChanges(project: WorkspaceProjector): void {
-  workspaceChangeStore.clearWorkspaceChanges();
   project(workspaceChangeStore.getSnapshot());
 }
 
