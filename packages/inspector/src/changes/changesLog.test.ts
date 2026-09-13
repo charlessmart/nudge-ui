@@ -500,6 +500,33 @@ describe("changesLog", () => {
     }]);
   });
 
+  it("projects token overrides outside authored cascade layers", () => {
+    appendChange({
+      kind: "token",
+      tokenName: "--primary",
+      file: "src/theme.css",
+      line: 6,
+      selector: ":root",
+      property: "--primary",
+      rawValue: "300 100% 50%",
+      oldRawValue: "240 5.9% 10%",
+      context: {
+        wrappers: [
+          { kind: "layer", params: "base" },
+          { kind: "media", params: "(prefers-color-scheme: dark)" },
+        ],
+      },
+      contextLabel: "Default · @layer base · @media (prefers-color-scheme: dark)",
+      source: { file: "src/theme.css", line: 6, component: "Global token" },
+    });
+
+    expect(getPendingRules()).toEqual([{
+      selector: ":root",
+      declarations: { "--primary": "300 100% 50%" },
+      context: { wrappers: [{ kind: "media", params: "(prefers-color-scheme: dark)" }] },
+    }]);
+  });
+
   it("deduplicates global token edits against the first authored baseline", () => {
     const base = {
       kind: "token" as const,

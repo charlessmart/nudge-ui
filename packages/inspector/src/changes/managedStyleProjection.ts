@@ -18,8 +18,21 @@ function requestedStyleValue(change: PreviewableChangeRecord): string {
   return change.rawValue ?? "";
 }
 
+/**
+ * Token edits are controller-owned overrides, not another declaration in the
+ * authored cascade. Keep conditional wrappers that describe when the source
+ * declaration is active, but remove authored cascade layers so a normal
+ * managed declaration can override a normal declaration inside `@layer`.
+ */
+function managedContext(change: PreviewableChangeRecord): StyleRule["context"] {
+  if (!isTokenChange(change)) return undefined;
+  const wrappers = (change.context?.wrappers ?? [])
+    .filter((wrapper) => wrapper.kind !== "layer");
+  return wrappers.length > 0 ? { wrappers } : undefined;
+}
+
 function ruleKey(change: PreviewableChangeRecord): string {
-  const context = isTokenChange(change) ? JSON.stringify(change.context) : "";
+  const context = isTokenChange(change) ? JSON.stringify(managedContext(change)) : "";
   return `${selectorForManagedChange(change) ?? change.selector}\u0000${change.property}\u0000${context}`;
 }
 
@@ -53,7 +66,7 @@ export function buildManagedStyleRules(changes: ChangeRecord[]): StyleRule[] {
       map.set(key, {
         selector,
         declarations: { [change.property]: value },
-        context: isTokenChange(change) ? change.context : undefined,
+        context: managedContext(change),
       });
     }
   }
