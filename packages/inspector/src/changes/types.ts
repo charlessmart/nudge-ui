@@ -3,7 +3,7 @@ import type { PreviewResult, StyleRuleContext } from "../projection/managedStyle
 import type { ComponentChangeRecord } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "../projection/renderedInstance.ts";
 import type { TextContentChangeRecord } from "../inline-text/textChangeBoundary.ts";
-import type { EditScope } from "./editModel.ts";
+import type { EditScope } from "../editScope.ts";
 
 /** Bounded rendered facts retained for one element without an authored source location. */
 export interface RuntimeElementEvidence {

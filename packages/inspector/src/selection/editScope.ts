@@ -9,7 +9,7 @@ import {
   type RenderedInstanceRef,
 } from "../projection/renderedInstance.ts";
 import { sourceSiteSelector } from "./sourceSite.ts";
-import type { EditScope } from "../changes/editModel.ts";
+import type { EditScope } from "../editScope.ts";
 
 export { sourceSiteSelector } from "./sourceSite.ts";
 export type { EditScope };

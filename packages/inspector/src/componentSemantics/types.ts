@@ -1,5 +1,5 @@
 import type { RuntimeProps } from "./runtimeTypes.ts";
-import type { EditScope } from "../changes/editModel.ts";
+import type { EditScope } from "../editScope.ts";
 
 export type ComponentPropValue = string | number | boolean;
 export type AuthoredPropKind = "literal" | "expression" | "spread" | "default";

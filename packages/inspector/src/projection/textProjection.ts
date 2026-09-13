@@ -159,7 +159,8 @@ interface CanvasReports {
 
 export type TextProjectionResolution =
   | { status: "resolved"; element: HTMLElement }
-  | { status: "missing" | "ambiguous" };
+  | { status: "missing" }
+  | { status: "ambiguous" };
 
 let canonicalChanges = new Map<string, TextContentChangeRecord>();
 let documentStates = new Map<Document, DocumentProjectionState>();

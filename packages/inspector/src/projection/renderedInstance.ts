@@ -31,7 +31,8 @@ export interface RenderedInstanceOverride {
 
 export type ResolutionResult =
   | { status: "resolved"; element: HTMLElement }
-  | { status: "missing" | "ambiguous" };
+  | { status: "missing" }
+  | { status: "ambiguous" };
 
 export type DocumentProjectionStatus = "applied" | "missing" | "ambiguous" | "overridden";
 
