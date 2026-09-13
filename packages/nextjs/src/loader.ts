@@ -16,8 +16,8 @@ import type { HostComponentPolicy } from "@nudge-ui/compiler/component-policy";
  * - client-component detection gates the semantic runtime import (directive
  *   scan, Pages Router rule); server-component modules receive identity
  *   attributes only and fail closed;
- * - `<html>`-rendering App Router root layouts receive a dev-only mount
- *   element that bootstraps the inspector;
+ * - `<html>`-rendering App Router root layouts receive a dev-only server
+ *   script inside `<body>` that bootstraps the inspector;
  * - excluded paths are rejected before any parse work happens.
  *
  * The transform is deterministic by contract: Turbopack compiles each module
@@ -292,8 +292,10 @@ interface HtmlNode {
 }
 
 /**
- * Appends the inspector mount as the last child of the rendered `<html>`
- * element, or returns `null` when the layout does not qualify.
+ * Appends the inspector mount as the last child of the rendered `<body>`
+ * element, or the rendered `<html>` element when no body is present. The
+ * server-rendered script must be in the initial document so it does not rely
+ * on hydration of a client component in the root layout.
  *
  * Idempotence: the aliased mount import doubles as the marker — a module that
  * already carries it is left untouched, so running the loader twice (as
@@ -315,13 +317,16 @@ export function instrumentRootLayout(source: string): { code: string; map: Sourc
 
   const htmlElement = findHtmlElement(ast);
   if (!htmlElement?.closingElement?.start) return null;
+  const bodyElement = findDirectElement(htmlElement, "body");
+  const mountParent = bodyElement?.closingElement?.start ? bodyElement : htmlElement;
+  if (!mountParent.closingElement?.start) return null;
 
   const ms = new MagicString(source);
   // The import must land after any directive prologue: prepending ahead of a
   // `"use client"` directive would strip it of prologue status and silently
   // change the module's compilation environment.
   ms.appendLeft(directivePrologueEnd(source), MOUNT_IMPORT);
-  ms.appendLeft(htmlElement.closingElement.start, MOUNT_JSX);
+  ms.appendLeft(mountParent.closingElement.start, MOUNT_JSX);
   return { code: ms.toString(), map: ms.generateMap({ hires: true }) };
 }
 
@@ -409,6 +414,19 @@ function findHtmlElement(node: HtmlNode | undefined | null): HtmlNode | null {
       // SAFETY: The indexed template element of an ESTree TemplateLiteral is always an HtmlNode.
       const found = findHtmlElement(child as HtmlNode);
       if (found) return found;
+    }
+  }
+  return null;
+}
+
+function findDirectElement(parent: HtmlNode, name: string): HtmlNode | null {
+  for (const child of parent.children ?? []) {
+    if (
+      child.type === "JSXElement"
+      && child.openingElement?.name?.type === "JSXIdentifier"
+      && child.openingElement.name.name === name
+    ) {
+      return child;
     }
   }
   return null;

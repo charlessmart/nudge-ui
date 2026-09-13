@@ -216,10 +216,15 @@ describe("instrumentRootLayout", () => {
     expect(result!.layoutInstrumented).toBe(true);
     expect(result!.code).toContain("@nudge-ui/nextjs/mount");
     expect(result!.code).toContain("{__NudgeUiCreateElement(__NudgeUiMountElement)}");
-    // The mount lands inside <html>, before its closing tag.
+    // The mount lands inside <body>, before its closing tag, so Next evaluates
+    // the bootstrap script from the initial document rather than waiting for
+    // a root-layout client boundary to hydrate.
     expect(result!.code.indexOf("__NudgeUiMountElement")).toBeGreaterThan(-1);
-    expect(result!.code.lastIndexOf("</html>")).toBeGreaterThan(
+    expect(result!.code.lastIndexOf("</body>")).toBeGreaterThan(
       result!.code.indexOf("{__NudgeUiCreateElement(__NudgeUiMountElement)}"),
+    );
+    expect(result!.code.indexOf("{__NudgeUiCreateElement(__NudgeUiMountElement)}")).toBeLessThan(
+      result!.code.lastIndexOf("</body>"),
     );
   });
 
