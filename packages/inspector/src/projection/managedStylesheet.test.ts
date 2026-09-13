@@ -121,8 +121,8 @@ describe("applyRules", () => {
     expect(css).toBe('@media (width > 600px) { @layer theme { @supports (color: oklch(0 0 0)) { @media (prefers-contrast: more) { :root { --surface: #111111; } } } } }');
   });
 
-  describe("rule-diffing round trip", () => {
-    it("updates a rule in place when its value changes, without duplicating it", () => {
+  describe("canonical projection round trip", () => {
+    it("replaces a rule when its value changes, without duplicating it", () => {
       const rule: StyleRule = { selector: ".a", declarations: { color: "red" } };
       applyRules([rule]);
       applyRules([{ selector: ".a", declarations: { color: "blue" } }]);
@@ -130,6 +130,28 @@ describe("applyRules", () => {
       expect(sheet.sheet?.cssRules.length).toBe(1);
       const css = (sheet.sheet!.cssRules[0] as CSSStyleRule).style.getPropertyValue("color");
       expect(css).toBe("blue");
+    });
+
+    it("updates a custom property on a selector list containing pseudo-elements", () => {
+      const rule: StyleRule = {
+        selector: "*, ::before, ::after",
+        declarations: { "--ring": "#abcdef" },
+      };
+      applyRules([rule]);
+      applyRules([{ ...rule, declarations: { "--ring": "#fedcba" } }]);
+      const sheet = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      expect(sheet.sheet?.cssRules.length).toBe(1);
+      expect((sheet.sheet!.cssRules[0] as CSSStyleRule).style.getPropertyValue("--ring")).toBe("#fedcba");
+    });
+
+    it("restores a projection after the style element is reparsed", () => {
+      applyRules([{ selector: "*, ::before, ::after", declarations: { "--ring": "#abcdef" } }]);
+      const sheet = document.getElementById(SHEET_ID) as HTMLStyleElement;
+      sheet.textContent = "*, ::before, ::after { --ring: #abcdef; }";
+
+      applyRules([{ selector: "*, ::before, ::after", declarations: { "--ring": "#fedcba" } }]);
+
+      expect((sheet.sheet!.cssRules[0] as CSSStyleRule).style.getPropertyValue("--ring")).toBe("#fedcba");
     });
 
     it("removes a rule that is no longer projected and restores it afterwards", () => {
