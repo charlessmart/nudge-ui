@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   collectRules,
   declarationsFromCssom,
+  disposeDocumentResolution,
   documentRevisions,
   invalidateStyleResolutionCache,
   registerResolutionElement,
@@ -256,5 +257,61 @@ describe("document revision observer", () => {
 
     unsubscribe();
     otherUnsubscribe();
+  });
+
+  it("stops a disposed document session from publishing mutation or resize revisions", async () => {
+    const oldRevisions = documentRevisions(document);
+    const published = vi.fn();
+    const unsubscribe = subscribeDocumentRevision(document, published);
+    const beforeDisposal = { ...oldRevisions };
+
+    disposeDocumentResolution(document);
+
+    document.body.appendChild(document.createElement("div"));
+    window.dispatchEvent(new Event("resize"));
+    await flushObserver();
+
+    expect(oldRevisions).toEqual(beforeDisposal);
+    expect(published).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it("starts a fresh revision session after document disposal", async () => {
+    const oldRevisions = documentRevisions(document);
+    const beforeInvalidation = { ...oldRevisions };
+    invalidateStyleResolutionCache(document);
+    expect(oldRevisions).toEqual({
+      element: beforeInvalidation.element + 1,
+      stylesheet: beforeInvalidation.stylesheet + 1,
+    });
+
+    disposeDocumentResolution(document);
+
+    const freshRevisions = documentRevisions(document);
+    expect(freshRevisions).toEqual({ element: 0, stylesheet: 0 });
+
+    document.body.appendChild(document.createElement("div"));
+    await flushObserver();
+    expect(freshRevisions.element).toBeGreaterThan(0);
+  });
+
+  it("keeps listener unsubscription safe across document sessions", () => {
+    documentRevisions(document);
+    const oldListener = vi.fn();
+    const unsubscribeOld = subscribeDocumentRevision(document, oldListener);
+
+    disposeDocumentResolution(document);
+
+    documentRevisions(document);
+    const newListener = vi.fn();
+    const unsubscribeNew = subscribeDocumentRevision(document, newListener);
+
+    expect(() => unsubscribeOld()).not.toThrow();
+    invalidateStyleResolutionCache(document);
+
+    expect(oldListener).not.toHaveBeenCalled();
+    expect(newListener).toHaveBeenCalledTimes(1);
+    expect(() => unsubscribeNew()).not.toThrow();
+    expect(() => unsubscribeNew()).not.toThrow();
   });
 });

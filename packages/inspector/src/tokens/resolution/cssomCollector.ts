@@ -13,11 +13,23 @@ export interface DocumentRevisions {
   stylesheet: number;
 }
 
+interface DocumentResolutionSession {
+  active: boolean;
+  observer: MutationObserver | null;
+  view: Window | null;
+  resizeListener: (() => void) | null;
+}
+
 const revisionRecords = new WeakMap<Document, DocumentRevisions>();
 const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
+const documentResolutionSessions = new WeakMap<Document, DocumentResolutionSession>();
 
 const registeredElements = new WeakSet<Element>();
 const documentRevisionListeners = new WeakMap<Document, Set<(revisions: Readonly<DocumentRevisions>) => void>>();
+
+function isCurrentDocumentResolutionSession(doc: Document, session: DocumentResolutionSession): boolean {
+  return session.active && documentResolutionSessions.get(doc) === session;
+}
 
 function notifyDocumentRevision(doc: Document): void {
   const revisions = documentRevisions(doc);
@@ -39,8 +51,10 @@ export function subscribeDocumentRevision(
   }
   listeners.add(cb);
   return () => {
-    listeners?.delete(cb);
-    if (listeners?.size === 0) documentRevisionListeners.delete(doc);
+    listeners.delete(cb);
+    if (listeners.size === 0 && documentRevisionListeners.get(doc) === listeners) {
+      documentRevisionListeners.delete(doc);
+    }
   };
 }
 
@@ -52,6 +66,26 @@ export function subscribeDocumentRevision(
  */
 export function registerResolutionElement(el: Element): void {
   registeredElements.add(el);
+}
+
+/** Releases the observer, listener, and cached state owned by one document. */
+export function disposeDocumentResolution(doc: Document): void {
+  const session = documentResolutionSessions.get(doc);
+  if (session) {
+    session.active = false;
+    session.observer?.disconnect();
+    if (session.view && session.resizeListener) {
+      session.view.removeEventListener("resize", session.resizeListener);
+    }
+    session.observer = null;
+    session.resizeListener = null;
+    documentResolutionSessions.delete(doc);
+  }
+
+  revisionRecords.delete(doc);
+  ruleSnapshots.delete(doc);
+  documentRevisionListeners.get(doc)?.clear();
+  documentRevisionListeners.delete(doc);
 }
 
 function isStylesheetNode(node: Node | null): boolean {
@@ -125,34 +159,47 @@ function isProbeMutation(record: MutationRecord): boolean {
 }
 
 export function documentRevisions(doc: Document): DocumentRevisions {
-  let record = revisionRecords.get(doc);
-  if (!record) {
-    record = { element: 0, stylesheet: 0 };
-    revisionRecords.set(doc, record);
+  const existing = revisionRecords.get(doc);
+  if (existing) return existing;
 
-    const Observer = doc.defaultView?.MutationObserver;
-    const root = doc.documentElement;
-    if (Observer && root) {
-      const observer = new Observer((records) => {
-        const relevant = records.filter((entry) => !isProbeMutation(entry));
-        if (relevant.length === 0) return;
-        record!.element++;
-        if (relevant.some(changesStylesheet)) record!.stylesheet++;
-        notifyDocumentRevision(doc);
-      });
-      observer.observe(root, {
-        attributes: true,
-        childList: true,
-        characterData: true,
-        subtree: true,
-      });
+  const record: DocumentRevisions = { element: 0, stylesheet: 0 };
+  revisionRecords.set(doc, record);
 
-      doc.defaultView?.addEventListener("resize", () => {
-        record!.element++;
-        record!.stylesheet++;
-        notifyDocumentRevision(doc);
-      });
-    }
+  const session: DocumentResolutionSession = {
+    active: true,
+    observer: null,
+    view: doc.defaultView,
+    resizeListener: null,
+  };
+  documentResolutionSessions.set(doc, session);
+
+  const Observer = session.view?.MutationObserver;
+  const root = doc.documentElement;
+  if (Observer && root) {
+    const observer = new Observer((records) => {
+      if (!isCurrentDocumentResolutionSession(doc, session)) return;
+      const relevant = records.filter((entry) => !isProbeMutation(entry));
+      if (relevant.length === 0) return;
+      record.element++;
+      if (relevant.some(changesStylesheet)) record.stylesheet++;
+      notifyDocumentRevision(doc);
+    });
+    session.observer = observer;
+    observer.observe(root, {
+      attributes: true,
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+
+    const resizeListener = () => {
+      if (!isCurrentDocumentResolutionSession(doc, session)) return;
+      record.element++;
+      record.stylesheet++;
+      notifyDocumentRevision(doc);
+    };
+    session.resizeListener = resizeListener;
+    session.view?.addEventListener("resize", resizeListener);
   }
   return record;
 }
