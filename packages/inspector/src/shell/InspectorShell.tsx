@@ -11,6 +11,7 @@ import {
 } from "../selection/selectionStore.ts";
 import { InspectorOverlay } from "../overlay/InspectorOverlay.tsx";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
+import { findTokenRow } from "../styleEditors/rowLookup.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 
 declare global {
@@ -57,10 +58,6 @@ import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { createStyleSelection } from "../selection/styleSelection.ts";
 import { intersectTokenEntries } from "../inspection/selectionProperty.ts";
-
-function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
-  return rows.find((row) => row.property === prop) ?? null;
-}
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
   for (const property of properties) {

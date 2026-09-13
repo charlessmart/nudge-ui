@@ -3,6 +3,7 @@ import { IconBackground } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import { normalizeOpacityPercent } from "@nudge-ui/css/value-semantics";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
+import { metadataFor } from "./rowLookup.ts";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
@@ -10,12 +11,6 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
-
-function metadataFor(row: ResolvedProperty | null) {
-  return row?.sourceProperty
-    ? { sourceProperty: row.sourceProperty, sourceAuthoredValue: row.authored ?? row.declaredValue }
-    : undefined;
-}
 
 function effectiveOpacity(element: HTMLElement, row: ResolvedProperty | null): string {
   return row?.propertyOpacity?.value

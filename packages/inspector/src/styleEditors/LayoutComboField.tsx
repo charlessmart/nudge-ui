@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { setStyle } from "./styleActions.ts";
+import { setStyle } from "../tokens/editActions.ts";
 import { completeCssValue } from "./completeCssValue.ts";
 import { nudgeCssValue } from "./nudgeValue.ts";
 import { valuePolicyFor } from "./valuePolicy.ts";
