@@ -152,8 +152,32 @@ describe("withNudgeUi — development output shape", () => {
     }
     expect(rules["*.css"]).toBeUndefined();
     expect(config.turbopack?.resolveAlias).toEqual(expect.objectContaining({
-      "@nudge-ui/inspector/component-runtime": expect.stringMatching(/reactRuntime\.(?:js|tsx)$/),
+      react: expect.stringMatching(/node_modules[\\/]react$/),
+      "react-dom": expect.stringMatching(/node_modules[\\/]react-dom$/),
     }));
+    expect(config.turbopack?.resolveAlias).not.toHaveProperty(
+      "@nudge-ui/inspector/component-runtime",
+    );
+  });
+
+  it("leaves the component-runtime package import for Turbopack resolution", () => {
+    const root = makeProject();
+    projectRoots.push(root);
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+
+    const config = resolveForDevelopment({
+      turbopack: {
+        rules: { "**/*.svg": { loaders: ["svg-loader"] } },
+        resolveAlias: { "@app/*": "./src/*" },
+      },
+    } as NudgeUiNextConfig);
+
+    expect(config.turbopack?.resolveAlias).toEqual(expect.objectContaining({
+      "@app/*": "./src/*",
+    }));
+    expect(config.turbopack?.resolveAlias).not.toHaveProperty(
+      "@nudge-ui/inspector/component-runtime",
+    );
   });
 
   it("passes host component protocols to both compiler integrations", () => {

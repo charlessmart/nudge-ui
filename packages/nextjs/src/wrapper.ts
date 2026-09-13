@@ -305,19 +305,23 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   // those copies while the host application runs its own — two Reacts in one
   // document, and inspector state updates silently stop rendering. Aliasing
   // to the host project's copies pins one instance for every compilation.
+  //
+  // The component-runtime import is intentionally not included here. It is
+  // emitted as the package export specifier, and Turbopack's resolveAlias
+  // treats an absolute file target as a server-relative import. That path is
+  // unsupported, and is especially visible when pnpm resolves the export
+  // through its content-addressed store. `transpilePackages` above makes the
+  // package export resolvable without an alias.
   const hostReact = hostPackageDir(root, "react");
   const hostReactDom = hostPackageDir(root, "react-dom");
   const componentRuntime = adapterPackageExport("@nudge-ui/inspector/component-runtime");
-  if (hostReact || hostReactDom || componentRuntime) {
+  if (hostReact || hostReactDom) {
     const userAlias = (source.turbopack?.resolveAlias as Record<string, unknown> | undefined) ?? {};
     nextConfig.turbopack = {
       ...nextConfig.turbopack,
       resolveAlias: {
         ...(hostReact ? { react: hostReact } : {}),
         ...(hostReactDom ? { "react-dom": hostReactDom } : {}),
-        ...(componentRuntime
-          ? { "@nudge-ui/inspector/component-runtime": componentRuntime }
-          : {}),
         ...userAlias,
       },
     };
