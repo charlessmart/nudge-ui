@@ -356,6 +356,14 @@ function scheduleValidation(doc: Document, state: DocumentProjectionState): void
   state.validationQueued = true;
   queueMicrotask(() => {
     state.validationQueued = false;
+    // A renderer can receive its projection before its application tree has
+    // mounted. Retry unresolved records after that tree changes so a valid
+    // late mount converges without requiring another controller message.
+    if ([...state.applied.values()].some((local) => local.kind === "unresolved")) {
+      rebuildForSnapshot(doc, state, state.snapshot, false);
+      storeReports(doc, reportsForSnapshot(state, state.snapshot));
+      return;
+    }
     validateAppliedPreview(doc, state);
   });
 }
@@ -402,6 +410,7 @@ function rebuildForSnapshot(
   doc: Document,
   state: DocumentProjectionState,
   snapshot: readonly StructuralChange[],
+  schedulePostReplayValidation = true,
 ): void {
   // React may have changed a projected node before its mutation callback ran.
   // Validate synchronously so a rebuild never restores a framework-owned node.
@@ -440,7 +449,7 @@ function rebuildForSnapshot(
       local.expectedBefore = local.element.nextElementSibling as HTMLElement | null;
     }
   }
-  scheduleValidation(doc, state);
+  if (schedulePostReplayValidation) scheduleValidation(doc, state);
 }
 
 function storeUnresolved(

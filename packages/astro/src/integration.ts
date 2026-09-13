@@ -73,8 +73,8 @@ export function nudgeUiAstro(options: NudgeUiAstroOptions = {}): AstroIntegratio
             // SAFETY: Astro and this package resolve different Vite type
             // versions, but both consume the same runtime Plugin contract.
             plugins: [
-              ...nudgeUi(sharedOptions),
               createAstroClientTransportPlugin(),
+              ...nudgeUi(sharedOptions),
               createProjectContextPlugin(),
             ] as never,
           },

@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import type { ComponentModuleProtocols } from "@nudge-ui/compiler/component-policy";
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
@@ -95,6 +95,11 @@ function adapterPackageExport(specifier: string): string | null {
   } catch {
     return null;
   }
+}
+
+function relativeTurbopackAlias(root: string, target: string): string {
+  const value = relative(root, target).split("\\").join("/");
+  return value.startsWith(".") ? value : `./${value}`;
 }
 
 function resolveNextVersion(root: string): string | null {
@@ -307,10 +312,13 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     nextConfig.turbopack = {
       ...nextConfig.turbopack,
       resolveAlias: {
-        ...(hostReact ? { react: hostReact } : {}),
-        ...(hostReactDom ? { "react-dom": hostReactDom } : {}),
+        ...(hostReact ? { react: relativeTurbopackAlias(root, hostReact) } : {}),
+        ...(hostReactDom ? { "react-dom": relativeTurbopackAlias(root, hostReactDom) } : {}),
         ...(componentRuntime
-          ? { "@nudge-ui/inspector/component-runtime": componentRuntime }
+          ? {
+            "@nudge-ui/inspector/component-runtime":
+              relativeTurbopackAlias(root, componentRuntime),
+          }
           : {}),
         ...userAlias,
       },

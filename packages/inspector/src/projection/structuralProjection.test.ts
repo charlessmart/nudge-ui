@@ -148,6 +148,39 @@ describe("structural delete projection", () => {
     expect(Array.from(parent.children).map((el) => el.textContent)).toEqual(["0.1", "changed"]);
   });
 
+  it("retries a missing move when the matching rendered target mounts later", async () => {
+    const parent = document.createElement("section");
+    parent.dataset.cid = "List";
+    parent.dataset.src = "src/App.tsx:5:1";
+    document.body.append(parent);
+    const target = add("0.2");
+    const anchor = add("0.1");
+    parent.append(anchor, target);
+
+    const change = createStructuralMove(target, { parent, before: anchor }, "move-late-target")!;
+    expect(change).not.toBeNull();
+    resetStructuralDeleteProjection();
+    const placeholder = document.createTextNode("0.2");
+    target.replaceWith(placeholder);
+    expect(applyStructuralProjection(document, [change])).toEqual([
+      { changeId: "move-late-target", status: "missing", reason: "target" },
+    ]);
+
+    const remounted = document.createElement("button");
+    remounted.dataset.cid = "RepeatedItem";
+    remounted.dataset.src = "src/App.tsx:12:5";
+    remounted.textContent = "0.2";
+    placeholder.replaceWith(remounted);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(getStructuralProjectionReports(document)).toEqual([
+      { changeId: "move-late-target", status: "applied" },
+    ]);
+    expect(parent.firstElementChild).toBe(remounted);
+    expect(parent.lastElementChild).toBe(anchor);
+  });
+
   it("captures a null anchor as append-to-end placement", () => {
     const parent = document.createElement("section");
     parent.dataset.cid = "List";

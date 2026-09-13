@@ -55,10 +55,9 @@ async function selectIslandBadge(page: Page): Promise<() => string[]> {
   await waitForHydratedIsland(page);
 
   await page.locator(".counter-label").click();
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-    "data-selected-cid",
-    "IslandCounter",
-  );
+  // The panel is the supported selection contract. The old top-level
+  // selection badge was removed from the inspector shell.
+  await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   return severeErrors;
 }
 
@@ -98,10 +97,7 @@ test("dev: page-level .astro elements expose no component-semantics controls", a
   // The site title is rendered by Header.astro: response-layer identity, no
   // runtime to rerender, therefore no semantic controls.
   await page.locator(".site-header .site-title").click();
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-    "data-selected-cid",
-    /astro:/,
-  );
+  await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   await expect(page.locator('[data-test="component-props-section"]')).toHaveCount(0);
 
   expect(severeErrors()).toEqual([]);

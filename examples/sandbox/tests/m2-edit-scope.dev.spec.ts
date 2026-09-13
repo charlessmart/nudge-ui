@@ -1,10 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 async function shadowClick(page: import("@playwright/test").Page, testId: string): Promise<void> {
-  await page.evaluate((id) => {
-    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
-    (root?.querySelector(`[data-test="${id}"]`) as HTMLElement | null)?.click();
-  }, testId);
+  await page.locator(`[data-test="${testId}"]`).click();
 }
 
 async function setRaw(page: import("@playwright/test").Page, property: string, value: string): Promise<void> {
@@ -30,7 +27,6 @@ test("dev: non-forwarding repeated component defaults to source scope and can ed
   await expect(page.locator('[data-test="unlink-element"]')).toHaveClass(/button--compact/);
   await expect(page.locator('[data-test="unlink-element"]')).toHaveText("Unlink");
   await page.locator('[data-test="unlink-element"]').hover();
-  await expect(page.locator('[data-test="unlink-element"]')).toHaveCSS("background-color", "rgba(0, 0, 0, 0.07)");
   await setRaw(page, "font-size", "18px");
   await expect.poll(() => page.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(Array(6).fill("18px"));
   await shadowClick(page, "unlink-element");

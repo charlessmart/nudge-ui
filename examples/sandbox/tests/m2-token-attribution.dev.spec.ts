@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test";
 
 test("dev: catalog retains light and dark declarations for one token", async ({ page }) => {
   await page.goto("/playground");
+  await expect.poll(() => page.evaluate(() => {
+    const catalog = (window as unknown as { __designTokenCatalog?: { cssName: string }[] }).__designTokenCatalog ?? [];
+    return catalog.some((token) => token.cssName === "--color-surface-raised");
+  })).toBe(true);
   const surface = await page.evaluate(() => {
     const catalog = (window as unknown as { __designTokenCatalog?: { cssName: string; declarations: unknown[] }[] }).__designTokenCatalog ?? [];
     return catalog.find((token) => token.cssName === "--color-surface-raised");

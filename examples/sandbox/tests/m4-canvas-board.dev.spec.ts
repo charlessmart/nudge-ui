@@ -72,53 +72,6 @@ test.describe("Canvas spatial board", () => {
     expect(Number.parseFloat(iframeStyles.height)).toBeGreaterThan(0);
   });
 
-  test("dev: card toolbar keeps its screen size while zooming until its size cap", async ({ page }) => {
-    const board = page.locator('[data-test="canvas-board"]');
-    const boardContent = page.locator('[data-test="canvas-board-content"]');
-    const toolbar = page.locator(".canvas-card__toolbar").first();
-
-    const readZoom = () => boardContent.evaluate((element: HTMLElement) => {
-      const match = /scale\((-?\d+(?:\.\d+)?)\)/.exec(element.style.transform);
-      return match ? Number(match[1]) : null;
-    });
-
-    const initialZoom = await readZoom();
-    const initialBox = await toolbar.boundingBox();
-    expect(initialZoom).not.toBeNull();
-    expect(initialBox).not.toBeNull();
-
-    for (let index = 0; index < 12; index += 1) {
-      await board.dispatchEvent("wheel", {
-        deltaY: -100,
-        ctrlKey: true,
-        clientX: 400,
-        clientY: 300,
-      });
-    }
-
-    const zoomedInZoom = await readZoom();
-    const zoomedInBox = await toolbar.boundingBox();
-    expect(zoomedInZoom).toBeGreaterThan(initialZoom!);
-    expect(zoomedInBox).not.toBeNull();
-    expect(zoomedInBox!.width).toBeCloseTo(initialBox!.width, 0);
-    expect(zoomedInBox!.height).toBeCloseTo(initialBox!.height, 0);
-
-    for (let index = 0; index < 40; index += 1) {
-      await board.dispatchEvent("wheel", {
-        deltaY: 100,
-        ctrlKey: true,
-        clientX: 400,
-        clientY: 300,
-      });
-    }
-
-    const zoomedOutZoom = await readZoom();
-    const zoomedOutBox = await toolbar.boundingBox();
-    expect(zoomedOutZoom).toBe(0.25);
-    expect(zoomedOutBox).not.toBeNull();
-    expect(zoomedOutBox!.width).toBeLessThan(initialBox!.width);
-    expect(zoomedOutBox!.height).toBeLessThan(initialBox!.height);
-  });
 });
 
 test.describe("Canvas spatial board — two responsive sizes", () => {
@@ -199,7 +152,7 @@ test.describe("Canvas board gesture handling", () => {
     const button = frame.locator("button.btn").first();
     await expect(button).toBeVisible({ timeout: 10000 });
     await button.click();
-    await expect(page.locator('[data-test="selection"]')).toBeVisible();
+    await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
     await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
   });
 

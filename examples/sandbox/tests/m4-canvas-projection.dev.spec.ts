@@ -105,7 +105,7 @@ test("dev: canvas element edits survive switching back to Inspect", async ({ pag
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const button = frame.locator("button.btn").first();
   await button.click();
-  await expect(page.locator('[data-test="selection"]')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible({ timeout: 5000 });
 
   await expandSpacing(page);
   await setInput(page, "padding-top", "37px");

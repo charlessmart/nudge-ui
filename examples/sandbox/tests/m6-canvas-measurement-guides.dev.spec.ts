@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/playground");
   await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await expect(page.locator(".canvas-card__iframe").first()).toBeAttached();
@@ -97,4 +97,3 @@ test("dev: Canvas measurements stay within the active iframe and omit self-ruler
   await expect(page.locator('[data-test="canvas-measurement-overlay"]')).not.toBeAttached();
   await page.keyboard.up("Alt");
 });
-

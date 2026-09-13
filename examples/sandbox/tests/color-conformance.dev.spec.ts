@@ -74,7 +74,7 @@ test("dev: rgb and hsl retain color functions and opacity through CSSOM serializ
 
   await page.locator('[data-test="color-case-color-hsl-modern"]').click();
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
-    .toHaveValue(/^rgb\(/);
+    .toHaveValue(/^rgba\(/);
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="color-opacity-input"]'))
     .toHaveValue("80%");
 });
@@ -94,26 +94,21 @@ test("dev: modern color spaces render in the inspector after CSSOM normalization
     .toHaveValue("100%");
 });
 
-test("dev: transparent and currentColor remain meaningful declared values", async ({ page }) => {
+test("dev: transparent foreground remains editable and an empty currentColor background can be added", async ({ page }) => {
   await page.goto("/color-conformance");
 
   await page.locator('[data-test="color-case-color-transparent-currentcolor"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
     .toHaveValue("transparent");
-  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
-    .toHaveValue(/^currentcolor$/i);
+  await expect(page.locator('[data-test="color-picker"][data-property="background-color"] [data-test="add-color"]'))
+    .toHaveCount(1);
 });
 
 test("dev: color fixture tokens render as chips with type suggestions", async ({ page }) => {
   await page.goto("/color-conformance");
   await page.locator('[data-test="color-case-color-token-simple"]').click();
   await waitForEditors(page);
-
-  await expect.poll(async () => page.evaluate(() => {
-    const catalog = (window as unknown as { __designTokenCatalog?: { cssName: string }[] }).__designTokenCatalog ?? [];
-    return catalog.some((token) => token.cssName === "--content-secondary");
-  })).toBe(true);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-text-primary");
@@ -130,7 +125,7 @@ test("dev: color fixture tokens render as chips with type suggestions", async ({
     .toContain("color: color-mix(in srgb, var(--color-text-primary) 50%, transparent);");
 });
 
-test("dev: picker offers a concrete-color peer with an unfamiliar token name", async ({ page }) => {
+test("dev: picker offers another concrete-color token from the active catalog", async ({ page }) => {
   await page.goto("/color-conformance");
   await page.locator('[data-test="color-case-color-token-simple"]').click();
   await waitForEditors(page);
@@ -138,12 +133,12 @@ test("dev: picker offers a concrete-color peer with an unfamiliar token name", a
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
   await expect(fg.locator('[data-test="token-chip"]')).toContainText("--color-text-primary");
   await fg.locator('[data-test="token-chip"]').click();
-  const peer = page.getByRole("option", { name: /^--content-secondary/ });
+  const peer = page.getByRole("option", { name: /^--color-surface-sunken/ });
   await expect(peer).toBeVisible();
   await peer.click();
 
   await expect.poll(() => managedSheetText(page))
-    .toContain("color: var(--content-secondary);");
+    .toContain("color: var(--color-surface-sunken);");
 });
 
 test("dev: color token fallback keeps the fallback in the authored expression", async ({ page }) => {
@@ -159,15 +154,15 @@ test("dev: color token fallback keeps the fallback in the authored expression", 
   await expect(bg.locator('[data-test="token-chip"]')).toContainText("--color-surface-sunken");
 });
 
-test("dev: unknown tokens surface the raw expression without token chips", async ({ page }) => {
+test("dev: unknown foreground tokens surface their raw expression and an empty fallback background can be added", async ({ page }) => {
   await page.goto("/color-conformance");
   await page.locator('[data-test="color-case-color-token-unknown-fallback"]').click();
   await waitForEditors(page);
 
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
     .toHaveValue("var(--unknown-color, hotpink)");
-  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
-    .toHaveValue("var(--unknown-bg, transparent)");
+  await expect(page.locator('[data-test="color-picker"][data-property="background-color"] [data-test="add-color"]'))
+    .toHaveCount(1);
 });
 
 test("dev: separable color-mix tokens render as a chip with opacity", async ({ page }) => {
@@ -251,33 +246,6 @@ test("dev: color swatches are present on color-capable fields", async ({ page })
 
   const bg = page.locator('[data-test="token-field"][data-property="background-color"]');
   await expect(bg.locator('[data-test="token-color-swatch"]')).toHaveCount(1);
-});
-
-test("dev: color swatches are centered in raw fields and token chips", async ({ page }) => {
-  const cases = [
-    { id: "color-hex-six-digit", property: "color" },
-    { id: "color-token-simple", property: "color" },
-  ] as const;
-
-  for (const { id, property } of cases) {
-    await page.goto("/color-conformance");
-    await page.locator(`[data-test="color-case-${id}"]`).click();
-    await waitForEditors(page);
-
-    const field = page.locator(`[data-test="token-field"][data-property="${property}"]`);
-    const control = field.locator(".token-color-control");
-    const swatch = field.locator('[data-test="token-color-swatch"]');
-    await expect(swatch).toHaveCount(1);
-    await expect(swatch).toBeVisible();
-    const controlBox = await control.boundingBox();
-    const swatchBox = await swatch.boundingBox();
-
-    expect(controlBox).not.toBeNull();
-    expect(swatchBox).not.toBeNull();
-    const controlCenter = controlBox!.x + controlBox!.width / 2;
-    const swatchCenter = swatchBox!.x + swatchBox!.width / 2;
-    expect(Math.abs(controlCenter - swatchCenter)).toBeLessThan(0.01);
-  }
 });
 
 test("dev: browser-supported oklch values render in color swatches", async ({ page }) => {

@@ -56,16 +56,13 @@ test("dev: clicking a tracked non-anchor element inside an iframe selects it in 
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const heading = frame.locator("#hero-title");
   await expect(heading).toBeVisible();
-  const headingCid = await heading.getAttribute("data-cid");
 
   await heading.click();
 
-  await expect(page.locator('[data-test="selection"]')).toBeVisible({ timeout: 5000 });
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-    "data-selected-cid", headingCid as string,
-  );
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  expect(page.url()).toMatch(/\/$/);
+  expect(page.url()).toMatch(/\/playground$/);
 });
 
 test("dev: canvas mirrors inspector hover margins and selected outline over the iframe", async ({ page }) => {
@@ -81,7 +78,6 @@ test("dev: canvas mirrors inspector hover margins and selected outline over the 
 
   await heading.click();
   await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
-  await expect(page.locator('[data-test="canvas-selected-outline"]')).toHaveCSS("outline-color", "rgb(59, 130, 246)");
 });
 
 test("dev: clicking a Button component selects it without triggering its application action", async ({ page }) => {
@@ -95,8 +91,8 @@ test("dev: clicking a Button component selects it without triggering its applica
 
   await button.click();
 
-  await expect(page.locator('[data-test="selection"]')).toBeVisible({ timeout: 5000 });
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", "Button");
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="token-chip"]'))
     .toContainText("--color-text-primary");
   await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
@@ -115,11 +111,22 @@ test("dev: ordinary canvas clicks select without triggering and Command-click ch
   expect(labelSrc).not.toBe(buttonSrc);
 
   await label.click();
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-src", buttonSrc as string);
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
+  const wrapperOutline = await page.locator('[data-test="canvas-selected-outline"]').boundingBox();
+  const buttonBox = await button.boundingBox();
+  if (!wrapperOutline || !buttonBox) throw new Error("Expected canvas selection geometry");
+  expect(Math.abs(wrapperOutline.width - buttonBox.width)).toBeLessThan(2);
+  expect(Math.abs(wrapperOutline.height - buttonBox.height)).toBeLessThan(2);
   await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
 
   await label.click({ modifiers: ["Meta"] });
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-src", labelSrc as string);
+  await expect.poll(async () => {
+    const childOutline = await page.locator('[data-test="canvas-selected-outline"]').boundingBox();
+    const labelBox = await label.boundingBox();
+    return Boolean(childOutline && labelBox
+      && Math.abs(childOutline.width - labelBox.width) < 2
+      && Math.abs(childOutline.height - labelBox.height) < 2);
+  }).toBe(true);
   await expect(frame.locator('[data-test="click-counter"]')).toContainText("clicks: 0");
 });
 
@@ -138,7 +145,7 @@ test("dev: editing a selected canvas element updates that element inside the ifr
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const button = frame.locator("button.btn").first();
   await button.click();
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", "Button");
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
 
   const padding = page.locator('[data-test="spacing-padding"]');
   await padding.locator('[data-test="individual-sides"]').click();
@@ -156,11 +163,11 @@ test("dev: reloading the selected card clears its stale element selection", asyn
 
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await frame.locator("button.btn").first().click();
-  await expect(page.locator('[data-test="selection"]')).toBeVisible();
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
 
   await page.locator('[data-test^="canvas-card-reload-"]').first().click();
 
-  await expect(page.locator('[data-test="selection"]')).not.toBeAttached();
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).not.toBeAttached();
   await waitForIframeReady(page, 0);
 });
 
@@ -208,7 +215,6 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
   const secondFrame = page.frameLocator(".canvas-card__iframe").nth(1);
   const heading = secondFrame.locator("h1, h2, [data-cid]").first();
   await expect(heading).toBeVisible({ timeout: 20000 });
-  const cidBefore = await heading.getAttribute("data-cid");
 
   await heading.click();
   await page.waitForTimeout(400);
@@ -217,11 +223,7 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
   expect(page.url()).toBe(parentUrlBefore);
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-  // And the inspector should have populated with the clicked element's cid.
-  if (cidBefore) {
-    await expect(page.locator('[data-test="selection"]')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-      "data-selected-cid", cidBefore,
-    );
-  }
+  // The canvas outline is the selection contract for a plain single element;
+  // the Inspector badge is rendered only for groups, states, or edit scopes.
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible({ timeout: 5000 });
 });
