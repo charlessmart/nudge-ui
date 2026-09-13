@@ -195,6 +195,57 @@ describe("CopyPromptButton agent handoff", () => {
     expect(button.disabled).toBe(true);
   });
 
+  it("distinguishes verified agent completion from the still-pending preview", async () => {
+    const transport = new ButtonTransport();
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
+    await act(async () => { button.click(); });
+
+    const target = document.createElement("h1");
+    target.dataset.cid = "Heading";
+    document.body.append(target);
+    const authored = document.createElement("style");
+    authored.textContent = '[data-cid="Heading"] { color: red; }';
+    document.head.append(authored);
+
+    act(() => restoreChangeRecords([change()]));
+    await act(async () => { button.click(); });
+    const revision = transport.dispatches[0]?.changeRevision;
+    expect(revision).toBeDefined();
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    act(() => {
+      transport.eventHandlers?.onEvent({
+        type: "status",
+        status: listeningStatus({
+          connection: "paired",
+          paired: true,
+          request: {
+            requestId: "button-request",
+            projectId: "handoff-project",
+            prompt: "Change the heading",
+            changeRevision: revision,
+            status: "completed",
+          },
+        }),
+      });
+    });
+    expect(transport.eventHandlers).not.toBeNull();
+    expect(button.dataset.agentState).toBe("completed");
+    await flush();
+    await flush();
+
+    expect(container.querySelector('[data-test="agent-verified-hint"]')?.textContent)
+      .toBe("Agent changes verified.");
+    expect(container.querySelector('[data-test="agent-completed-hint"]')).toBeNull();
+    expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Send prompt");
+  });
+
   it("falls back to the clipboard when the paired listener rejects dispatch", async () => {
     const transport = new ButtonTransport();
     transport.rejectDispatch = true;

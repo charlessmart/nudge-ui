@@ -34,6 +34,8 @@ import {
   subscribeClipboardHandoff,
 } from "../prompt/clipboardHandoff.ts";
 
+type AgentCompletionStatus = "completed" | "verified";
+
 export interface CopyPromptButtonProps {
   readonly settingsOpen?: boolean;
   readonly settingsSection?: SettingsSection;
@@ -60,6 +62,7 @@ export function CopyPromptButton({
   );
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
+  const [agentCompletionStatus, setAgentCompletionStatus] = useState<AgentCompletionStatus | null>(null);
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
   const [localSettingsSection, setLocalSettingsSection] = useState<SettingsSection>("instructions");
   const settingsOpen = controlledSettingsOpen ?? localSettingsOpen;
@@ -94,7 +97,17 @@ export function CopyPromptButton({
   useEffect(() => {
     const revision = agent.request?.changeRevision;
     if (agent.state !== "completed" || revision === undefined) return;
-    void verifyAndReconcileAgentDispatch(revision);
+    let active = true;
+    void verifyAndReconcileAgentDispatch(revision)
+      .then((removed) => {
+        if (active) setAgentCompletionStatus(removed > 0 ? "verified" : "completed");
+      })
+      .catch(() => {
+        if (active) setAgentCompletionStatus("completed");
+      });
+    return () => {
+      active = false;
+    };
   }, [agent.request?.changeRevision, agent.state]);
 
   const connecting = agent.state === "pairing";
@@ -141,6 +154,7 @@ export function CopyPromptButton({
     };
     const text = generatePrompt(changes, hints, structuralChanges, customInstructions);
     if (canSend) {
+      setAgentCompletionStatus(null);
       const revision = createPromptRevision(changes, structuralChanges);
       recordAgentDispatch(revision, changes, structuralChanges);
       const response = await agentClient.dispatchPrompt(
@@ -229,6 +243,15 @@ export function CopyPromptButton({
       {reconciledCount > 0 ? (
         <p className="copy-prompt__hint" data-test="clipboard-reconciled-hint" role="status">
           Removed {reconciledCount} implemented {reconciledCount === 1 ? "change" : "changes"} from the next prompt.
+        </p>
+      ) : null}
+      {agentCompletionStatus === "verified" ? (
+        <p className="copy-prompt__hint" data-test="agent-verified-hint" role="status">
+          Agent changes verified.
+        </p>
+      ) : agentCompletionStatus === "completed" ? (
+        <p className="copy-prompt__hint" data-test="agent-completed-hint" role="status">
+          Agent completed. Remaining edits were preserved because they were not verified.
         </p>
       ) : null}
       <SettingsDialog

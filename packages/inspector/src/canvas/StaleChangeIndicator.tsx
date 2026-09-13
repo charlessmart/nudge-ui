@@ -35,7 +35,13 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
     return null;
   }
 
-  if (result.status !== "conflict") return null;
+  if (result.status === "applied") {
+    return (
+      <span className="changes__diagnostic" data-test="preview-applied" data-status="applied">
+        Preview active
+      </span>
+    );
+  }
 
   if (result.reason === "target-missing") {
     // ADR-0011: host scoping markers are opaque structure and must not
