@@ -44,6 +44,7 @@ import {
 } from "../projection/structuralProjection.ts";
 import { projectToAllReadyCards } from "./projection.ts";
 import type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
+import { isEditScope, type EditScope } from "../editScope.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   clearClipboardHandoff,
@@ -293,7 +294,7 @@ function isLegacyRuntimePreview(value: unknown): boolean {
   // preview path. A parsed JSON value cannot contain a live Node, but it can
   // still contain one of these stale handles; discard the whole record rather
   // than reinterpreting it against a newly rendered document.
-  return (typeof record.scope === "string" && record.scope !== "source-site" && record.scope !== "rendered-instance")
+  return (typeof record.scope === "string" && !isEditScope(record.scope))
     || ["element", "node", "placeholder", "elementId", "instanceId", "marker", "projectionMarker"]
       .some((key) => key in record);
 }
@@ -346,7 +347,7 @@ function isSerializableChange(value: unknown): value is SerializableChange {
         || change.authoredAs === "expression"
         || change.authoredAs === "spread"
         || change.authoredAs === "default")
-      && (change.scope === undefined || change.scope === "source-site" || change.scope === "rendered-instance")
+      && (change.scope === undefined || isEditScope(change.scope))
       && validEvidence
       && !repeatedUnsafeSourceOverride;
   }
@@ -472,7 +473,7 @@ export interface SerializableElementChange {
   oldRawValue?: string;
   source: { file: string; line: number; component: string };
   runtimeEvidence?: ElementChangeRecord["runtimeEvidence"];
-  scope?: "source-site" | "rendered-instance";
+  scope?: EditScope;
   instanceOverride?: RenderedInstanceOverride;
   state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";
 }
@@ -508,7 +509,7 @@ export interface SerializableComponentChange {
     | { kind: "value"; value: string | number | boolean };
   after: string | number | boolean;
   authoredAs: "literal" | "expression" | "spread" | "default";
-  scope?: "source-site" | "rendered-instance";
+  scope?: EditScope;
   evidence?: {
     occurrence: number;
     props: string | null;
@@ -527,7 +528,7 @@ export interface SerializableTextContentChange {
   before: string;
   after: string;
   authoredAs: "literal" | "expression" | "unknown";
-  scope?: "source-site" | "rendered-instance";
+  scope?: EditScope;
   evidence?: TextContentChangeRecord["evidence"];
 }
 

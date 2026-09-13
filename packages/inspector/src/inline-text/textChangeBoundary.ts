@@ -3,6 +3,8 @@
  * has no dependency on canonical history or document projection code.
  */
 
+import { isEditScope, type EditScope } from "../editScope.ts";
+
 export interface TextProjectionSourceSite {
   cid: string;
   src: string;
@@ -23,7 +25,7 @@ export interface TextProjectionTarget {
   textNodePath?: readonly number[];
 }
 
-export type TextProjectionScope = "source-site" | "rendered-instance";
+export type TextProjectionScope = EditScope;
 
 /** Bounded semantic evidence retained alongside an instance projection. */
 export interface TextBindingEvidence {
@@ -176,7 +178,7 @@ export function isTextContentChangeValue(value: unknown): value is TextContentCh
     || typeof component !== "string" || component.length === 0) return false;
 
   const scope = ownValue(value, "scope");
-  if (scope !== undefined && scope !== "source-site" && scope !== "rendered-instance") return false;
+  if (scope !== undefined && !isEditScope(scope)) return false;
   const evidence = ownValue(value, "evidence");
   if (evidence !== undefined) {
     if (!isObject(evidence) || !hasOnlyKeys(evidence, ["callsiteId", "componentName", "property", "mountedCount"])) return false;

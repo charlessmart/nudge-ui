@@ -3,6 +3,7 @@ import type { PreviewResult, StyleRuleContext } from "../projection/managedStyle
 import type { ComponentChangeRecord } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "../projection/renderedInstance.ts";
 import type { TextContentChangeRecord } from "../inline-text/textChangeBoundary.ts";
+import type { EditScope } from "../editScope.ts";
 
 /** Bounded rendered facts retained for one element without an authored source location. */
 export interface RuntimeElementEvidence {
@@ -37,7 +38,7 @@ export interface ElementChangeRecord {
   source: { file: string; line: number; component: string };
   /** Present when the selected element has a document-local runtime identity. */
   runtimeEvidence?: RuntimeElementEvidence;
-  scope?: "source-site" | "rendered-instance";
+  scope?: EditScope;
   /** Durable, controller-owned target for one rendered output. */
   instanceOverride?: RenderedInstanceOverride;
   previewResult?: PreviewResult;
