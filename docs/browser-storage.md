@@ -11,7 +11,7 @@ or untrusted scripts.
 | Key | Contents | Lifetime |
 | --- | --- | --- |
 | `nudge-ui-agent-session:<encoded-project-id>` | The project ID, origin, and bearer session token used to restore an MCP pairing. | Until disconnect, token invalidation, or site-data clearing. There is no browser-side expiry. |
-| `nudge-ui:<project-id>:v11` | Canvas and inspector state, including same-origin routes, card metadata, camera state, recorded changes, structural changes, bounded rendered evidence, and clipboard handoff fingerprints. Legacy `v3`–`v10` keys may be read during migration. | Until the session is cleared or site data is removed. |
+| `nudge-ui:<project-id>:v12` | Current Canvas and inspector state, including same-origin routes, card metadata, camera state, recorded changes, structural changes, bounded rendered evidence, and clipboard handoff fingerprints. Only this schema is read; older versioned keys are not migrated. | Until the session is cleared or site data is removed. |
 | `nudge-ui:<project-id>:lease` | The current workspace owner ID and heartbeat timestamps. | The lease expires after 15 seconds without a heartbeat and is removed when released. |
 | `nudge-ui:<project-id>:prompt-settings` | Custom instructions used when generating prompts. | Until overwritten or site data is removed. |
 
@@ -36,13 +36,17 @@ clear a project's records manually from that project's origin, run:
 const projectId = "my-app";
 
 localStorage.removeItem(`nudge-ui-agent-session:${encodeURIComponent(projectId)}`);
-localStorage.removeItem(`nudge-ui:${projectId}:v11`);
-for (const version of [3, 4, 5, 6, 7, 8, 9, 10]) {
-  localStorage.removeItem(`nudge-ui:${projectId}:v${version}`);
-}
+localStorage.removeItem(`nudge-ui:${projectId}:v12`);
 localStorage.removeItem(`nudge-ui:${projectId}:lease`);
 localStorage.removeItem(`nudge-ui:${projectId}:prompt-settings`);
 ```
+
+The inspector validates the schema identifier and every current durable record
+before restoring a session. If the current key contains malformed data or an
+unsupported schema version, the inspector discards that session and starts
+empty. Older versioned keys are ignored rather than migrated or cleaned up.
+Incompatible upgrades therefore lose the stored session; reverting the code
+does not recover data that was discarded.
 
 Avoid `localStorage.clear()` unless you intend to remove storage belonging to
 the host application as well.

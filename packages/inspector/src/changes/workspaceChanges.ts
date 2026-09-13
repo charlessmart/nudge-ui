@@ -20,8 +20,28 @@ interface HistoryEntry {
   readonly after: WorkspaceContents;
 }
 
-type WorkspaceProjector = (snapshot: WorkspaceChangesSnapshot) => void;
+export type WorkspaceProjector = (snapshot: WorkspaceChangesSnapshot) => void;
 export type CommitResult = "applied" | "unchanged" | "blocked";
+
+export interface WorkspaceChangeStore {
+  getSnapshot(): WorkspaceChangesSnapshot;
+  subscribe(listener: () => void): () => void;
+  commitChangeRecords(incoming: readonly ChangeRecord[]): CommitResult;
+  revertChangeRecord(change: ChangeRecord): boolean;
+  discardChangeRecords(
+    target: { kind: "selector"; selector: string } | { kind: "instance-override"; id: string },
+  ): boolean;
+  commitStructuralChange(change: StructuralChange): boolean;
+  revertStructuralChangeRecord(changeId: string): boolean;
+  reconcileWorkspaceChanges(
+    verifiedKeys: ReadonlySet<string>,
+    verifiedStructuralIds: ReadonlySet<string>,
+  ): number;
+  undoWorkspaceChange(): boolean;
+  redoWorkspaceChange(): boolean;
+  restoreWorkspaceChanges(next: WorkspaceContents): void;
+  clearWorkspaceChanges(): void;
+}
 
 let contents: WorkspaceContents = { changes: [], structuralChanges: [] };
 let revision = 0;
@@ -32,50 +52,73 @@ const listeners = new Set<() => void>();
 
 function cloneContents(value: WorkspaceContents): WorkspaceContents {
   return {
-    changes: [...value.changes],
-    structuralChanges: [...value.structuralChanges],
+    changes: value.changes.map((change) => cloneValue(change)),
+    structuralChanges: value.structuralChanges.map((change) => cloneValue(change)),
   };
+}
+
+function cloneValue<T>(value: T, key?: string): T {
+  // Token entries belong to the shared catalog. Preserve their identity so
+  // callers can continue to correlate a change with its catalog entry.
+  if (key === "oldToken" || key === "newToken") return value;
+  if (Array.isArray(value)) return value.map((item) => cloneValue(item)) as T;
+  if (value !== null && typeof value === "object") {
+    const clone: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value)) {
+      clone[key] = cloneValue(child, key);
+    }
+    return clone as T;
+  }
+  return value;
+}
+
+function freezeValue<T>(value: T, key?: string): T {
+  if (key === "oldToken" || key === "newToken") return value;
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const [childKey, child] of Object.entries(value)) freezeValue(child, childKey);
+    Object.freeze(value);
+  }
+  return value;
 }
 
 function createSnapshot(): WorkspaceChangesSnapshot {
-  return {
+  const snapshotContents = freezeValue(cloneContents(contents));
+  return Object.freeze({
     revision,
-    changes: contents.changes,
-    structuralChanges: contents.structuralChanges,
+    changes: snapshotContents.changes,
+    structuralChanges: snapshotContents.structuralChanges,
     canUndo: undoStack.length > 0,
     canRedo: redoStack.length > 0,
-  };
+  });
 }
 
-function publish(project: WorkspaceProjector): void {
+function publish(): void {
   revision += 1;
   snapshot = createSnapshot();
-  project(snapshot);
   for (const listener of listeners) listener();
 }
 
-function commit(next: WorkspaceContents, project: WorkspaceProjector): boolean {
+function commit(next: WorkspaceContents): boolean {
   if (!canWriteWorkspace()) return false;
   const before = cloneContents(contents);
   contents = cloneContents(next);
   undoStack.push({ before, after: cloneContents(contents) });
   redoStack = [];
-  publish(project);
+  publish();
   return true;
 }
 
-export function getWorkspaceChanges(): WorkspaceChangesSnapshot {
+function getSnapshot(): WorkspaceChangesSnapshot {
   return snapshot;
 }
 
-export function subscribeWorkspaceChanges(listener: () => void): () => void {
+function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-export function commitChangeRecords(
+function commitChangeRecordsImpl(
   incoming: readonly ChangeRecord[],
-  project: WorkspaceProjector,
 ): CommitResult {
   if (incoming.length === 0) return "unchanged";
   const nextChanges = incoming.reduce(
@@ -83,45 +126,43 @@ export function commitChangeRecords(
     [...contents.changes],
   );
   if (sameEffectiveChanges([...contents.changes], nextChanges)) return "unchanged";
-  return commit({ ...contents, changes: nextChanges }, project) ? "applied" : "blocked";
+  return commit({ ...contents, changes: nextChanges }) ? "applied" : "blocked";
 }
 
-export function revertChangeRecord(change: ChangeRecord, project: WorkspaceProjector): boolean {
+function revertChangeRecordImpl(change: ChangeRecord): boolean {
   const key = changeKey(change);
   const changes = contents.changes.filter((candidate) => changeKey(candidate) !== key);
   if (changes.length === contents.changes.length) return false;
-  return commit({ ...contents, changes }, project);
+  return commit({ ...contents, changes });
 }
 
-export function discardChangeRecords(
+function discardChangeRecordsImpl(
   target: { kind: "selector"; selector: string } | { kind: "instance-override"; id: string },
-  project: WorkspaceProjector,
 ): boolean {
   const changes = contents.changes.filter((change) => target.kind === "selector"
     ? selectorForChange(change) !== target.selector
     : !isElementChange(change) || change.instanceOverride?.id !== target.id);
   if (changes.length === contents.changes.length) return false;
-  return commit({ ...contents, changes }, project);
+  return commit({ ...contents, changes });
 }
 
-export function commitStructuralChange(change: StructuralChange, project: WorkspaceProjector): boolean {
+function commitStructuralChangeImpl(change: StructuralChange): boolean {
   if (contents.structuralChanges.some((candidate) => candidate.id === change.id)) return false;
   return commit({
     ...contents,
     structuralChanges: [...contents.structuralChanges, change],
-  }, project);
+  });
 }
 
-export function revertStructuralChangeRecord(changeId: string, project: WorkspaceProjector): boolean {
+function revertStructuralChangeRecordImpl(changeId: string): boolean {
   const structuralChanges = contents.structuralChanges.filter((change) => change.id !== changeId);
   if (structuralChanges.length === contents.structuralChanges.length) return false;
-  return commit({ ...contents, structuralChanges }, project);
+  return commit({ ...contents, structuralChanges });
 }
 
-export function reconcileWorkspaceChanges(
+function reconcileWorkspaceChangesImpl(
   verifiedKeys: ReadonlySet<string>,
   verifiedStructuralIds: ReadonlySet<string>,
-  project: WorkspaceProjector,
 ): number {
   if (!canWriteWorkspace()) return 0;
   const retain = (value: WorkspaceContents): WorkspaceContents => ({
@@ -138,7 +179,7 @@ export function reconcileWorkspaceChanges(
     .filter((entry) => !sameWorkspaceContents(entry.before, entry.after));
   undoStack = prune(undoStack);
   redoStack = prune(redoStack);
-  publish(project);
+  publish();
   return removed;
 }
 
@@ -156,44 +197,44 @@ function sameStructuralChanges(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export function undoWorkspaceChange(project: WorkspaceProjector): boolean {
+function undoWorkspaceChangeImpl(): boolean {
   if (!canWriteWorkspace()) return false;
   const entry = undoStack.at(-1);
   if (!entry) return false;
   undoStack.pop();
   contents = cloneContents(entry.before);
   redoStack.push(entry);
-  publish(project);
+  publish();
   return true;
 }
 
-export function redoWorkspaceChange(project: WorkspaceProjector): boolean {
+function redoWorkspaceChangeImpl(): boolean {
   if (!canWriteWorkspace()) return false;
   const entry = redoStack.at(-1);
   if (!entry) return false;
   redoStack.pop();
   contents = cloneContents(entry.after);
   undoStack.push(entry);
-  publish(project);
+  publish();
   return true;
 }
 
-export function restoreWorkspaceChanges(next: WorkspaceContents, project: WorkspaceProjector): void {
+function restoreWorkspaceChangesImpl(next: WorkspaceContents): void {
   contents = cloneContents(next);
   undoStack = [];
   redoStack = [];
-  publish(project);
+  publish();
 }
 
-export function clearWorkspaceChanges(project: WorkspaceProjector): void {
+function clearWorkspaceChangesImpl(): void {
   contents = { changes: [], structuralChanges: [] };
   undoStack = [];
   redoStack = [];
-  publish(project);
+  publish();
 }
 
 /** Resets controller state for teardown and tests without requiring a lease. */
-export function resetWorkspaceChanges(): void {
+function resetWorkspaceChangesImpl(): void {
   contents = { changes: [], structuralChanges: [] };
   undoStack = [];
   redoStack = [];
@@ -202,15 +243,62 @@ export function resetWorkspaceChanges(): void {
   for (const listener of listeners) listener();
 }
 
-/**
- * Publishes updated preview diagnostics without creating user intent, changing
- * history, or advancing the canonical revision. Subscribers still refresh so
- * diagnostic UI and durable session metadata observe the latest result.
- */
-export function replaceChangeRecordsForDiagnostics(
-  changes: readonly ChangeRecord[],
-): void {
-  contents = { ...contents, changes: [...changes] };
-  snapshot = createSnapshot();
-  for (const listener of listeners) listener();
+export const workspaceChangeStore: WorkspaceChangeStore = {
+  getSnapshot,
+  subscribe,
+  commitChangeRecords: commitChangeRecordsImpl,
+  revertChangeRecord: revertChangeRecordImpl,
+  discardChangeRecords: discardChangeRecordsImpl,
+  commitStructuralChange: commitStructuralChangeImpl,
+  revertStructuralChangeRecord: revertStructuralChangeRecordImpl,
+  reconcileWorkspaceChanges: reconcileWorkspaceChangesImpl,
+  undoWorkspaceChange: undoWorkspaceChangeImpl,
+  redoWorkspaceChange: redoWorkspaceChangeImpl,
+  restoreWorkspaceChanges: restoreWorkspaceChangesImpl,
+  clearWorkspaceChanges: clearWorkspaceChangesImpl,
+};
+
+/** Compatibility accessors retained for callers that have not adopted the store seam. */
+export function getWorkspaceChanges(): WorkspaceChangesSnapshot {
+  return workspaceChangeStore.getSnapshot();
+}
+
+export function subscribeWorkspaceChanges(listener: () => void): () => void {
+  return workspaceChangeStore.subscribe(listener);
+}
+
+export function commitChangeRecords(
+  incoming: readonly ChangeRecord[],
+  project: WorkspaceProjector,
+): CommitResult {
+  const result = workspaceChangeStore.commitChangeRecords(incoming);
+  if (result === "applied") project(workspaceChangeStore.getSnapshot());
+  return result;
+}
+
+export function commitStructuralChange(change: StructuralChange, project: WorkspaceProjector): boolean {
+  const changed = workspaceChangeStore.commitStructuralChange(change);
+  if (changed) project(workspaceChangeStore.getSnapshot());
+  return changed;
+}
+
+export function undoWorkspaceChange(project: WorkspaceProjector): boolean {
+  const changed = workspaceChangeStore.undoWorkspaceChange();
+  if (changed) project(workspaceChangeStore.getSnapshot());
+  return changed;
+}
+
+export function redoWorkspaceChange(project: WorkspaceProjector): boolean {
+  const changed = workspaceChangeStore.redoWorkspaceChange();
+  if (changed) project(workspaceChangeStore.getSnapshot());
+  return changed;
+}
+
+export function restoreWorkspaceChanges(next: WorkspaceContents, project: WorkspaceProjector): void {
+  workspaceChangeStore.restoreWorkspaceChanges(next);
+  project(workspaceChangeStore.getSnapshot());
+}
+
+export function resetWorkspaceChanges(): void {
+  resetWorkspaceChangesImpl();
 }

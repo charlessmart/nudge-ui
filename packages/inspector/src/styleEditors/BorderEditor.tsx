@@ -18,7 +18,7 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import { setStyle, setStyles } from "../tokens/editActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
-import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
+import { SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { ToggleButton } from "../ui/ToggleButton.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";

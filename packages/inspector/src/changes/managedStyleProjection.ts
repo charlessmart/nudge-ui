@@ -65,7 +65,7 @@ export function buildManagedStyleRules(changes: ChangeRecord[]): StyleRule[] {
 export function verifyManagedStyleProjection(
   change: PreviewableChangeRecord,
   selectedElement?: HTMLElement | null,
-): PreviewableChangeRecord {
+): PreviewResult | null {
   // Deferred verification must use the selection that existed when the
   // projection was committed. Reading the live selection here can make a
   // host-document change verify against a later canvas selection (or vice
@@ -78,7 +78,7 @@ export function verifyManagedStyleProjection(
   // cannot verify it synchronously; leave its result unknown until the frame
   // has received the canonical projection rather than claiming it is stale.
   if (selected && selected.ownerDocument !== document) {
-    return { ...change, previewResult: undefined };
+    return null;
   }
   let targets: HTMLElement[] = [];
   try {
@@ -105,5 +105,5 @@ export function verifyManagedStyleProjection(
   if (previewResult === null) {
     previewResult = firstApplied ?? verifyPreview(null, change.property, requestedValue);
   }
-  return { ...change, previewResult };
+  return previewResult;
 }

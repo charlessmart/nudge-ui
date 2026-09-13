@@ -13,6 +13,7 @@ const identity = {
 const scheduled: FrameRequestCallback[] = [];
 const originalRequestAnimationFrame = window.requestAnimationFrame;
 const originalCancelAnimationFrame = window.cancelAnimationFrame;
+let disposeRendererElementSelector: () => void = () => undefined;
 
 function runScheduledFrame(): void {
   const callback = scheduled.shift();
@@ -55,15 +56,16 @@ beforeAll(() => {
     return scheduled.length;
   }) as typeof window.requestAnimationFrame;
   window.cancelAnimationFrame = (() => undefined) as typeof window.cancelAnimationFrame;
-  installRendererElementSelector();
 });
 
 beforeEach(() => {
   setRendererIdentity(identity);
   scheduled.length = 0;
+  disposeRendererElementSelector = installRendererElementSelector();
 });
 
 afterEach(() => {
+  disposeRendererElementSelector();
   while (scheduled.length > 0) runScheduledFrame();
   vi.restoreAllMocks();
   document.body.innerHTML = "";
@@ -163,6 +165,60 @@ describe("renderer hover scheduling", () => {
       .map(([message]) => message)
       .find((message) => typeof message === "object" && message !== null && "type" in message && message.type === "element-click");
     expect(click).toMatchObject({ type: "element-click", additive: true });
+  });
+});
+
+describe("renderer selector lifecycle", () => {
+  it("removes listeners and suppresses queued callbacks after disposal", () => {
+    const button = trackedElement("disposed");
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    dispatchMouseOver(button);
+    expect(scheduled).toHaveLength(1);
+    expect(document.head.querySelector("style#nudge-ui-interaction-styles")).not.toBeNull();
+    postMessage.mockClear();
+
+    disposeRendererElementSelector();
+    disposeRendererElementSelector();
+    runScheduledFrame();
+
+    button.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    button.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
+    button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
+    document.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      clientX: 20,
+      clientY: 20,
+    }));
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: 20, clientY: 20 }));
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    document.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+      key: "z",
+    }));
+    document.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "Alt" }));
+    window.dispatchEvent(new Event("blur"));
+
+    expect(postMessage).not.toHaveBeenCalled();
+    expect(document.head.querySelector("style#nudge-ui-interaction-styles")).toBeNull();
+  });
+
+  it("can install again after disposal", () => {
+    disposeRendererElementSelector();
+    scheduled.length = 0;
+    disposeRendererElementSelector = installRendererElementSelector();
+
+    const button = trackedElement("reinstalled");
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    dispatchMouseOver(button);
+
+    expect(scheduled).toHaveLength(1);
+    runScheduledFrame();
+
+    expect(hoverMessages(postMessage)).toHaveLength(1);
+    expect(hoverMessages(postMessage)[0]).toMatchObject({ cid: "reinstalled" });
   });
 });
 

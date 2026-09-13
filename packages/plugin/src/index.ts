@@ -7,7 +7,16 @@ import {
   resolve,
   sep,
 } from "node:path";
-import type { Alias, ModuleNode, Plugin, ResolvedConfig, ViteDevServer } from "vite";
+import type {
+  Alias,
+  ConfigEnv,
+  ModuleNode,
+  Plugin,
+  ResolvedConfig,
+  UserConfig,
+  UserConfigExport,
+  ViteDevServer,
+} from "vite";
 import {
   createTokenInventory,
   type ArtifactStage,
@@ -22,6 +31,7 @@ import {
   isPackageStylesheet,
   orderViteStylesheetGraph,
 } from "./tokens/viteStylesheetArtifacts.ts";
+import type { ViteSourceScopeOptions } from "./tokens/viteStylesheetArtifacts.ts";
 import type { TokenCatalogDiagnostic } from "./virtual/design-tokens.ts";
 import { createTailwindV4NamingContribution } from "./adapters/tailwindV4.ts";
 import { createTailwindV3Adapter } from "./adapters/tailwindV3.ts";
@@ -42,6 +52,15 @@ import {
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
 } from "@nudge-ui/inspector/client-manifest";
+import {
+  defaultReactComponentProtocols,
+  formatComponentPolicyWarning,
+  groupComponentPolicyDiagnostics,
+  mergeComponentModuleProtocols,
+  resolveHostComponentPolicy,
+  type ComponentInstrumentationOptions,
+  type ComponentModuleProtocols,
+} from "@nudge-ui/compiler";
 
 export interface NudgeUiOptions {
   enabled?: boolean;
@@ -69,6 +88,73 @@ export interface NudgeUiOptions {
    * packages whose public type graph cannot describe an editable prop.
    */
   componentMetadata?: ComponentContract[];
+  /**
+   * Package exports whose component protocol is explicitly compatible with
+   * semantic preview instrumentation. The host resolves project imports;
+   * package imports remain fail-closed unless listed here or described by a
+   * component protocol.
+   */
+  compatibleComponentImports?: ComponentInstrumentationOptions["compatibleComponentImports"];
+  /** Additional package or project component protocols resolved by the host Adapter. */
+  componentProtocols?: ComponentModuleProtocols;
+  /**
+   * Authored workspace directories outside Vite's resolved root.
+   *
+   * The Vite host owns this list because only it knows which workspace
+   * packages are part of the application. Dependencies and generated output
+   * remain excluded even when a broad directory is supplied.
+   */
+  sourceRoots?: readonly string[];
+}
+
+/**
+ * Adds the Vite host Adapter to an existing Vite configuration export.
+ *
+ * Vite configuration exports may be objects, promises, or functions that
+ * receive the current command and mode. Resolve those forms at the same
+ * boundary where Vite resolves the host configuration so the Adapter can
+ * keep ownership of its runtime root and dependency graph.
+ */
+export function withNudgeUi(
+  config: UserConfigExport,
+  options: NudgeUiOptions = {},
+): UserConfigExport {
+  if (typeof config === "function") {
+    // SAFETY: The typeof guard above selects the function form of UserConfigExport, whose signature this cast states.
+    const resolveConfig = config as (env: ConfigEnv) => UserConfig | Promise<UserConfig>;
+    return (env: ConfigEnv) => appendNudgeUi(resolveConfig(env), options);
+  }
+  return appendNudgeUi(config, options);
+}
+
+function appendNudgeUi(
+  config: UserConfig | Promise<UserConfig>,
+  options: NudgeUiOptions,
+): UserConfig | Promise<UserConfig> {
+  if (isPromiseLike<UserConfig>(config)) {
+    return Promise.resolve(config).then((resolved) => appendNudgeUi(resolved, options));
+  }
+  if (hasNudgeUiPlugin(config.plugins)) return config;
+  return {
+    ...config,
+    plugins: [...(config.plugins ?? []), ...nudgeUi(options)],
+  };
+}
+
+function hasNudgeUiPlugin(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some((entry) => hasNudgeUiPlugin(entry));
+  return typeof value === "object"
+    && value !== null
+    && "name" in value
+    && typeof value.name === "string"
+    && value.name.startsWith("nudge-ui");
+}
+
+function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
+  return typeof value === "object"
+    && value !== null
+    && "then" in value
+    && typeof value.then === "function";
 }
 
 export type { ComponentContract, ComponentPropContract, ComponentPropValue } from "./components/types.ts";
@@ -100,19 +186,12 @@ export function extractViteModuleCss(code: string): string | null {
   const match = /(?:^|;)\s*(?:const|let|var)\s+__vite__css\s*=\s*("(?:[^"\\]|\\.)*")/m.exec(code);
   if (!match) return null;
   try {
+    // SAFETY: match[1] is the quoted string literal captured by the regex above, and JSON.parse is wrapped in try/catch.
     const value = JSON.parse(match[1]!) as unknown;
     return typeof value === "string" ? value : null;
   } catch {
     return null;
   }
-}
-
-function relativePath(id: string, root?: string): string {
-  if (root) {
-    const rootPrefix = root.endsWith("/") ? root : root + "/";
-    if (id.startsWith(rootPrefix)) return id.slice(rootPrefix.length);
-  }
-  return id.replace(/^\//, "");
 }
 
 function readInspectorClient(): Buffer {
@@ -199,6 +278,14 @@ function resolveReactAliases(projectRoot: string): Alias[] {
   return aliases;
 }
 
+function resolveInspectorComponentRuntime(): string | null {
+  try {
+    return packageRequire.resolve("@nudge-ui/inspector/component-runtime");
+  } catch {
+    return null;
+  }
+}
+
 export interface TransformIndexHtmlOptions {
   /** Inject the debug mount div instead of the standard one. */
   debug?: boolean;
@@ -273,11 +360,47 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     })));
   }
   const packageComponentModulesByFile = new Map<string, string[]>();
+  const reportedComponentPolicyDiagnostics = new Set<string>();
+  // The Adapter's own copy of the semantic runtime, used to alias the specifier
+  // the compiler injects into instrumented callsites. A packed install cannot
+  // resolve that specifier from the application's own dependency graph, so the
+  // Adapter pins it once per plugin instance.
+  const inspectorComponentRuntimePath = resolveInspectorComponentRuntime();
   let packageComponentFingerprint = "";
   const adapterRegistry = createTokenAdapterRegistry([
     ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config, options.tailwindV3.source)] : []),
     ...(options.vanillaExtract ? [createSprinklesAdapter(options.vanillaExtract)] : []),
   ]);
+
+  /**
+   * Resolve the source scope at hook time. Vite's final root and output
+   * directory are not known when `nudgeUi()` is called, while every transform
+   * and scan must use the same resolved scope.
+   */
+  function sourceScope(): ViteSourceScopeOptions {
+    return {
+      ...(options.sourceRoots ? { sourceRoots: options.sourceRoots } : {}),
+      ...(buildOutputDirectory ? { generatedRoots: [buildOutputDirectory] } : {}),
+    };
+  }
+
+  function isHostSource(id: string): boolean {
+    return isHostApplicationSource(id, root, sourceScope());
+  }
+
+  function isPackageSource(id: string): boolean {
+    return isPackageStylesheet(id, root, sourceScope());
+  }
+
+  function catalogPath(id: string): string {
+    return catalogSourcePath(id, root, sourceScope());
+  }
+
+  function createStylesheetArtifact(
+    input: Parameters<typeof createViteStylesheetArtifact>[0],
+  ): ReturnType<typeof createViteStylesheetArtifact> {
+    return createViteStylesheetArtifact({ ...input, ...sourceScope() });
+  }
 
   function isGeneratedBuildOutput(id: string): boolean {
     if (!root || id.startsWith("\0")) return false;
@@ -331,7 +454,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
       if (/@import\s+["']tailwindcss["']|@theme\b/i.test(code)) tailwindV4SourceFiles.add(fileId);
       else tailwindV4SourceFiles.delete(fileId);
     }
-    const artifact = createViteStylesheetArtifact({
+    const artifact = createStylesheetArtifact({
       id: fileId,
       projectRoot: root,
       stage,
@@ -349,7 +472,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     tailwindV4SourceFiles.delete(fileId);
     stylesheetOrdering.delete(fileId);
     discoveredHostCssFiles.delete(fileId);
-    const artifact = createViteStylesheetArtifact({
+    const artifact = createStylesheetArtifact({
       id: fileId,
       projectRoot: root,
       stage: "authored",
@@ -368,7 +491,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
     if (isGeneratedBuildOutput(fileId)) return;
-    inventory.apply(createViteStylesheetArtifact({
+    inventory.apply(createStylesheetArtifact({
       id: fileId,
       projectRoot: root,
       stage: "transformed",
@@ -411,9 +534,9 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
   }
 
   function cacheComponentsForFile(id: string, code: string, refreshPackages = true): void {
-    if (!COMPONENT_EXT.test(id) || !isHostApplicationSource(id, root)) return;
+    if (!COMPONENT_EXT.test(id) || !isHostSource(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
-    const rel = relativePath(fileId, root);
+    const rel = catalogPath(fileId);
     componentContracts.set(fileId, extractComponentContracts(code, rel));
     packageComponentModulesByFile.set(fileId, collectPackageComponentModules(code, fileId));
     if (refreshPackages) refreshPackageComponentContracts();
@@ -556,11 +679,11 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     } else {
       // Project CSS participates in the source inventory even before import;
       // package CSS is admitted only by the active graph refresh below.
-      if (isHostApplicationSource(file, root)) {
+      if (isHostSource(file)) {
         try {
           feedCssArtifact(file, readFileSync(file, "utf8"), "authored");
         } catch {
-          const source = catalogSourcePath(file, root);
+          const source = catalogPath(file);
           sourceScanDiagnostics.set(source, {
             code: "stylesheet-unreadable",
             artifact: source,
@@ -592,7 +715,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
       activeHostCssFiles.clear();
       for (const module of graphModules.values()) {
         const id = module.id && stripCssQuery(module.id);
-        if (id && CSS_EXT.test(id) && isHostApplicationSource(id, root)
+        if (id && CSS_EXT.test(id) && isHostSource(id)
           && module.importers.size > 0) activeHostCssFiles.add(id);
       }
     }
@@ -615,7 +738,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     )) {
       const fileId = stripCssQuery(id);
       feedCssArtifact(fileId, code, "authored", ordering);
-      if (isPackageStylesheet(fileId, root)) nextPackageFiles.add(fileId);
+      if (isPackageSource(fileId)) nextPackageFiles.add(fileId);
     }
     for (const previous of activePackageCssFiles) {
       if (!nextPackageFiles.has(previous)) feedCssRemoval(previous);
@@ -623,14 +746,14 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     activeGraphDiagnostics = [
       ...graph.unreadable.map((id): InventoryDiagnostic => ({
         code: "stylesheet-unreadable",
-        artifact: catalogSourcePath(id, root),
-        message: `Could not read stylesheet ${catalogSourcePath(id, root)}.`,
+        artifact: catalogPath(id),
+        message: `Could not read stylesheet ${catalogPath(id)}.`,
       })),
       ...graph.unresolved.map(({ importer, specifier }): InventoryDiagnostic => ({
         code: "stylesheet-unresolved",
-        artifact: catalogSourcePath(importer, root),
+        artifact: catalogPath(importer),
         module: specifier,
-        message: `Could not resolve stylesheet import ${specifier} from ${catalogSourcePath(importer, root)}.`,
+        message: `Could not resolve stylesheet import ${specifier} from ${catalogPath(importer)}.`,
       })),
     ];
     activePackageCssFiles = nextPackageFiles;
@@ -704,12 +827,26 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     enforce: "pre",
     config(userConfig, env) {
       if (!enabled || env.command !== "serve") return;
-      if (options.demo !== true) return;
-      if (options.skipReactAliases) return;
       const projectRoot = userConfig.root ?? process.cwd();
-      const aliases = resolveReactAliases(projectRoot);
-      if (aliases.length === 0) return;
-      return { resolve: { alias: aliases } };
+      const demoAliases = options.demo === true && !options.skipReactAliases
+        ? resolveReactAliases(projectRoot)
+        : [];
+      const existingDedupe = userConfig.resolve?.dedupe ?? [];
+      const runtimeAliases: Alias[] = inspectorComponentRuntimePath
+        ? [{ find: "@nudge-ui/inspector/component-runtime", replacement: inspectorComponentRuntimePath }]
+        : [];
+      return {
+        resolve: {
+          ...(demoAliases.length > 0 || runtimeAliases.length > 0
+            ? { alias: [...demoAliases, ...runtimeAliases] }
+            : {}),
+          // The published inspector client is self-contained, while the
+          // transformed callsites must use the host application's React.
+          // Dedupe prevents a workspace-linked or nested React copy from
+          // creating a second runtime without aliasing normal applications.
+          dedupe: [...new Set([...existingDedupe, "react", "react-dom"])],
+        },
+      };
     },
     configResolved(config: ResolvedConfig) {
       root = config.root;
@@ -722,6 +859,16 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     configureServer(server) {
       if (!enabled || command !== "serve") return;
       devServer = server;
+      if (!inspectorComponentRuntimePath) {
+        // Not fatal: a host that depends on @nudge-ui/inspector directly can
+        // still resolve the injected specifier itself. Packed installs that do
+        // not will fail at the importing module, so say so before that happens.
+        server.config.logger.warn(
+          "[nudge-ui] Could not resolve @nudge-ui/inspector/component-runtime from the "
+            + "Vite adapter. Semantic component callsites will fall back to application "
+            + "resolution of that specifier.",
+        );
+      }
       server.middlewares?.use(async (request, response, next) => {
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
         if ((pathname === CLIENT_PATH || pathname === MANIFEST_PATH) && request.method !== "GET") {
@@ -766,10 +913,10 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
       for (const cssPath of scanCssFiles(root, [], root, buildOutputDirectory)) {
         try {
           const code = readFileSync(cssPath, "utf8");
-          if (isHostApplicationSource(cssPath, root)) discoveredHostCssFiles.add(cssPath);
+          if (isHostSource(cssPath)) discoveredHostCssFiles.add(cssPath);
           feedCssArtifact(cssPath, code, "authored");
         } catch {
-          const rel = catalogSourcePath(cssPath, root);
+          const rel = catalogPath(cssPath);
           sourceScanDiagnostics.set(rel, {
             code: "stylesheet-unreadable",
             artifact: rel,
@@ -864,27 +1011,59 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     // prepends refresh helpers and shifts the AST locations used by data-src.
     transform: {
       order: "pre",
-      handler(code, id) {
+      async handler(code, id) {
         if (!enabled) return null;
         if (command === "build" && !demoBuild) return null; // dev-only per ADR-0002; explicit demo builds are opt-in
         if (CSS_EXT.test(id)) {
           const fileId = stripCssQuery(id);
-          if (isHostApplicationSource(fileId, root)) {
+          if (isHostSource(fileId)) {
             activeHostCssFiles.add(fileId);
             discoveredHostCssFiles.add(fileId);
           }
           feedCssArtifact(id, code, "authored");
           return null; // let Vite's CSS pipeline handle the actual stylesheet
         }
-        const instrumentComponents = isHostApplicationSource(id, root);
-        if (COMPONENT_EXT.test(id) && instrumentComponents) {
+        const instrumentComponents = isHostSource(id);
+        const isComponentModule = COMPONENT_EXT.test(id);
+        if (isComponentModule && instrumentComponents) {
           cacheComponentsForFile(id, code);
+        }
+        const hostPolicy = isComponentModule && instrumentComponents
+          ? await resolveHostComponentPolicy(code, id, {
+              resolve: async (specifier, importer) => {
+                const resolved = await this.resolve(specifier, importer, { skipSelf: true });
+                return resolved ? stripCssQuery(resolved.id) : null;
+              },
+              read: async (resolvedId) => {
+                try {
+                  return readFileSync(resolvedId, "utf8");
+                } catch {
+                  return null;
+                }
+              },
+              isProjectSource: isHostSource,
+              sourcePath: catalogPath,
+            }, {
+              moduleProtocols: mergeComponentModuleProtocols(
+                defaultReactComponentProtocols,
+                options.componentProtocols,
+              ),
+              compatibleComponentImports: options.compatibleComponentImports,
+            })
+          : undefined;
+        for (const grouped of groupComponentPolicyDiagnostics(hostPolicy?.diagnostics ?? [])) {
+          if (reportedComponentPolicyDiagnostics.has(grouped.key)) continue;
+          reportedComponentPolicyDiagnostics.add(grouped.key);
+          this.warn(formatComponentPolicyWarning(grouped, catalogPath(id)));
         }
         return injectIdentity(code, id, root, {
           // Runtime component boundaries belong to host application callsites.
-          // Workspace packages and the inspector itself sit outside the Vite
-          // application root and are therefore excluded without layout knowledge.
+          // Workspace packages are included only when sourceRoots declares
+          // them. Inspector and generated sources remain outside host scope.
           instrumentComponents,
+          // The resolved policy already folds compatibleComponentImports in, so
+          // identity reads one policy rather than two possible sources of truth.
+          hostPolicy,
         });
       },
     },
@@ -972,7 +1151,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
         if (!existsSync(fileId)) {
           feedCssRemoval(ctx.file);
         } else {
-          const rel = catalogSourcePath(fileId, root);
+          const rel = catalogPath(fileId);
           sourceScanDiagnostics.set(rel, {
             code: "stylesheet-unreadable",
             artifact: rel,

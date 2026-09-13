@@ -1,11 +1,8 @@
 import { useState, type ReactNode } from "react";
 import {
-  ArrowDownIcon,
   ArrowRightIcon,
   BellIcon,
-  CalendarDaysIcon,
   CheckIcon,
-  ChevronRightIcon,
   CircleHelpIcon,
   FileTextIcon,
   MoreHorizontalIcon,
@@ -13,7 +10,6 @@ import {
   SearchIcon,
   SettingsIcon,
   SparklesIcon,
-  UserIcon,
   XIcon,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";

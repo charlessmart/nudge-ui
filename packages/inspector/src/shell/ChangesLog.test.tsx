@@ -11,6 +11,13 @@ import {
   recordCanvasStructuralProjectionReports,
   resetStructuralDeleteProjection,
 } from "../projection/structuralProjection.ts";
+import { changeKey } from "../changes/model.ts";
+import {
+  beginPreviewAttempt,
+  getHostPreviewDocument,
+  publishPreviewDiagnostic,
+  resetPreviewDiagnostics,
+} from "../changes/previewDiagnostics.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -23,6 +30,7 @@ describe("ChangesLog", () => {
     container.remove();
     clearWorkspace();
     resetStructuralDeleteProjection();
+    resetPreviewDiagnostics();
   });
 
   it("starts collapsed and reveals stacked change content on demand", () => {
@@ -187,5 +195,38 @@ describe("ChangesLog", () => {
     const diagnostic = container.querySelector('[data-test="structural-diagnostic"]')!;
     expect(diagnostic.getAttribute("data-reason")).toBe("target");
     expect(diagnostic.textContent).toContain("Canvas card-1: missing (target address)");
+  });
+
+  it("shows an active preview separately from a conflict or verified change", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    const change = {
+      cid: "Button",
+      file: "src/Button.tsx",
+      line: 1,
+      selector: '[data-cid="Button"]',
+      property: "color",
+      oldToken: null,
+      newToken: null,
+      rawValue: "red",
+      source: { file: "src/Button.tsx", line: 1, component: "Button" },
+    } as const;
+    appendChange(change);
+    const attempt = beginPreviewAttempt(getHostPreviewDocument())!;
+    publishPreviewDiagnostic(attempt, changeKey(change), {
+      status: "applied",
+      requestedValue: "red",
+      computedValue: "red",
+    });
+
+    act(() => {
+      root = createRoot(container);
+      root.render(<ChangesLog />);
+    });
+
+    const preview = container.querySelector('[data-test="preview-applied"]')!;
+    expect(preview.getAttribute("data-status")).toBe("applied");
+    expect(preview.textContent).toBe("Preview active");
+    expect(container.querySelector('[data-test="preview-conflict"]')).toBeNull();
   });
 });

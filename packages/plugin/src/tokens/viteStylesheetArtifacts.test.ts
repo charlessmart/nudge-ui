@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createViteStylesheetArtifact,
+  isHostApplicationSource,
   orderViteStylesheetGraph,
 } from "./viteStylesheetArtifacts.ts";
 
@@ -38,5 +39,73 @@ describe("Vite stylesheet artifact adapter", () => {
       { id: "nested.css", code: "a{}", discoveryOrder: 0 },
       { id: "root.css", code: "b{}", discoveryOrder: 1 },
     ]);
+  });
+
+  it("admits explicitly scoped workspace sources while keeping dependencies and output closed", () => {
+    const root = "/repo/apps/web";
+    const workspaceRoot = "/repo/packages/ui";
+
+    expect(isHostApplicationSource(
+      "/repo/packages/ui/src/Button.tsx",
+      root,
+      { sourceRoots: ["../../packages/ui"] },
+    )).toBe(true);
+    expect(isHostApplicationSource(
+      "/repo/packages/ui/node_modules/@acme/Button.tsx",
+      root,
+      { sourceRoots: ["../../packages/ui"] },
+    )).toBe(false);
+    expect(isHostApplicationSource(
+      `${workspaceRoot}/dist/Button.js`,
+      root,
+      { sourceRoots: [workspaceRoot] },
+    )).toBe(false);
+    expect(isHostApplicationSource(
+      "/repo/packages/other/src/Button.tsx",
+      root,
+      { sourceRoots: [workspaceRoot] },
+    )).toBe(false);
+    // The primary root keeps authored directories whose names collide with
+    // generated-output conventions; the declared output root is excluded by
+    // path instead.
+    expect(isHostApplicationSource("/repo/apps/web/src/build/Button.tsx", root)).toBe(true);
+    expect(isHostApplicationSource(
+      "/repo/apps/web/dist/Button.jsx",
+      root,
+      { generatedRoots: ["dist"] },
+    )).toBe(false);
+  });
+
+  it("labels scoped workspace CSS as project provenance with a stable source", () => {
+    expect(createViteStylesheetArtifact({
+      id: "/repo/packages/ui/src/theme.css",
+      projectRoot: "/repo/apps/web",
+      sourceRoots: ["../../packages/ui"],
+      stage: "authored",
+      content: ":root { --color-brand: red; }",
+    })).toMatchObject({
+      id: "../../packages/ui/src/theme.css",
+      provenance: "project",
+    });
+  });
+
+  it("keeps identity unique across a workspace root and the application root", () => {
+    const workspace = createViteStylesheetArtifact({
+      id: "/repo/packages/ui/src/theme.css",
+      projectRoot: "/repo/apps/web",
+      sourceRoots: ["../../packages/ui"],
+      stage: "authored",
+      content: ":root { --color-brand: red; }",
+    });
+    const application = createViteStylesheetArtifact({
+      id: "/repo/apps/web/src/theme.css",
+      projectRoot: "/repo/apps/web",
+      stage: "authored",
+      content: ":root { --color-brand: red; }",
+    });
+
+    expect(workspace.id).toBe("../../packages/ui/src/theme.css");
+    expect(application.id).toBe("src/theme.css");
+    expect(workspace.id).not.toBe(application.id);
   });
 });

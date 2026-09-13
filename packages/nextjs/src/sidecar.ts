@@ -58,6 +58,7 @@ const GLOBAL_KEY = Symbol.for("@nudge-ui/nextjs/sidecar");
  * elsewhere in the same process (tests, multiple projects).
  */
 function globalState(key: string): GlobalSidecarEntry {
+  // SAFETY: The GLOBAL_KEY symbol names the one global slot this module owns and writes itself.
   const holder = globalThis as typeof globalThis & { [GLOBAL_KEY]?: Map<string, GlobalSidecarEntry> };
   if (!holder[GLOBAL_KEY]) holder[GLOBAL_KEY] = new Map();
   let entry = holder[GLOBAL_KEY].get(key);
@@ -164,6 +165,7 @@ function readStableSource(absolutePath: string): { source: string } | null {
 /** Removes a stale port file left by a crashed previous run. */
 export function clearStaleSidecarState(root: string): void {
   try {
+    // SAFETY: The JSON.parse result is validated by the typeof guard below before use.
     const raw = JSON.parse(readFileSync(portFilePath(root), "utf8")) as { pid?: number };
     if (typeof raw.pid === "number" && raw.pid !== process.pid) {
       // A previous process's record: safe to drop. The loopback socket it
@@ -418,6 +420,7 @@ function respond(
     });
     req.on("end", () => {
       try {
+        // SAFETY: The JSON.parse result is validated by the typeof/Array.isArray guards below before use.
         const parsed = JSON.parse(body) as { file?: string; contracts?: unknown[] };
         if (typeof parsed.file !== "string" || !Array.isArray(parsed.contracts)) {
           res.writeHead(400).end();

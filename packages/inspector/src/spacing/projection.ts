@@ -2,7 +2,10 @@ import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
 
-export type ProjectionSide = "top" | "right" | "bottom" | "left";
+const SIDES = ["top", "right", "bottom", "left"] as const;
+
+/** Derived from SIDES so the union and the iteration set cannot drift apart. */
+export type ProjectionSide = (typeof SIDES)[number];
 export type ProjectionGroup = "padding" | "margin" | "inset";
 export type ProjectionAxis = "horizontal" | "vertical";
 export type ProjectionState = "shared" | "mixed";
@@ -34,7 +37,6 @@ export interface InspectorProjection {
   spacing: Record<ProjectionGroup, InspectorSpacingProjection>;
 }
 
-const SIDES: readonly ProjectionSide[] = ["top", "right", "bottom", "left"];
 const AXIS_SIDES = {
   // Preserve CSS physical-side order within each axis. This makes a mixed
   // horizontal value read as right, left and a mixed vertical value as top,
@@ -168,6 +170,7 @@ function selectionSpacing(
   selection: StyleSelection,
   property: ProjectionGroup,
 ): InspectorSpacingProjection {
+  // SAFETY: SIDES supplies exactly the ProjectionSide keys, so fromEntries yields that exact record shape.
   const fields = Object.fromEntries(SIDES.map((side) => {
     const field = selectionField(selection, property === "inset" ? side : `${property}-${side}`);
     return [side, field];

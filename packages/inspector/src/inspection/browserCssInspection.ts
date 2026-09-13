@@ -17,6 +17,7 @@ import { buildTokenCatalogRows, type TokenCatalogRow } from "../tokens/catalog.t
 import {
   documentRevisions,
   registerResolutionElement,
+  retainDocumentResolution,
   subscribeDocumentRevision,
   type DocumentRevisions,
 } from "../tokens/resolution/cssomCollector.ts";
@@ -288,6 +289,7 @@ export function createBrowserCssInspection(
   const knowledgeEntries = [...(config.tokenKnowledge.entries ?? [])];
   const tokenGeneration = config.tokenKnowledge.generation;
   let disposed = false;
+  const releaseDocumentResolution = retainDocumentResolution(config.document);
   const revisionUnsubscribers = new Set<() => void>();
   const elementTables = new WeakMap<HTMLElement, ElementTableCache>();
   // When compiler entries are merged ahead of runtime availability, keep one
@@ -469,6 +471,7 @@ export function createBrowserCssInspection(
       revisionUnsubscribers.clear();
       mediaCleanup.forEach((cleanup) => cleanup());
       mediaCleanup.length = 0;
+      releaseDocumentResolution();
     },
   };
 

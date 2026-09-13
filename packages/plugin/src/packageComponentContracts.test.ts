@@ -8,7 +8,7 @@ interface TestPlugin {
   configResolved(config: { root: string; command: "serve" }): void;
   buildStart(): void;
   transform: {
-    handler(code: string, id: string): { code: string } | null;
+    handler(code: string, id: string): Promise<{ code: string } | null>;
   };
   load(id: string): string | null | Promise<string | null>;
 }
@@ -83,12 +83,19 @@ describe("npm package component contracts", () => {
     writeFileSync(join(appRoot, "App.tsx"), appSource);
 
     try {
-      const [rawPlugin] = nudgeUi();
+      const [rawPlugin] = nudgeUi({
+        compatibleComponentImports: {
+          "@fixture/design-system/components": ["Button"],
+        },
+      });
       const plugin = rawPlugin as unknown as TestPlugin;
       plugin.configResolved({ root, command: "serve" });
       plugin.buildStart();
 
-      const appResult = plugin.transform.handler(appSource, join(appRoot, "App.tsx"));
+      const appResult = await plugin.transform.handler.call({
+        resolve: async () => null,
+        warn: () => undefined,
+      }, appSource, join(appRoot, "App.tsx"));
       expect(appResult?.code)
         .toContain('"componentId":"@fixture/design-system/components#Button"');
       expect(appResult?.code).toContain('"variant":"literal"');
@@ -114,6 +121,63 @@ describe("npm package component contracts", () => {
           optional: true,
         }],
       }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves aliases and structural re-exports before instrumenting JSX", async () => {
+    const root = mkdtempSync(join(tmpdir(), "nudge-ui-host-policy-"));
+    const appRoot = join(root, "src");
+    const structuralBarrel = join(appRoot, "structural.ts");
+    const pageModule = join(appRoot, "Page.tsx");
+    mkdirSync(appRoot, { recursive: true });
+    writeFileSync(
+      structuralBarrel,
+      'export { Provider, Item } from "structural-library";\n',
+    );
+    writeFileSync(pageModule, "export function Page() { return <main />; }\n");
+
+    const source = [
+      'import { Provider, Item } from "@/structural";',
+      'import { Page } from "@/Page";',
+      "export const App = () => <Provider><Item content={<Page />} /></Provider>;",
+    ].join("\n");
+    const [rawPlugin] = nudgeUi({
+      componentProtocols: {
+        "structural-library": {
+          default: { wrap: false },
+          exports: {
+            Provider: { wrap: false, slots: { children: "rendered" } },
+            Item: { wrap: false, slots: { content: "rendered" } },
+          },
+        },
+      },
+    });
+    const plugin = rawPlugin as unknown as TestPlugin;
+    plugin.configResolved({ root, command: "serve" });
+    const warnings: string[] = [];
+
+    try {
+      const result = await plugin.transform.handler.call({
+        async resolve(specifier: string) {
+          if (specifier === "@/structural") return { id: structuralBarrel };
+          if (specifier === "@/Page") return { id: pageModule };
+          if (specifier === "structural-library") {
+            return { id: join(root, "node_modules", "structural-library", "index.js") };
+          }
+          return null;
+        },
+        warn(message: string) {
+          warnings.push(message);
+        },
+      }, source, join(appRoot, "App.tsx"));
+
+      expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<Provider");
+      expect(result?.code).not.toContain("__nudgeUiInstrumentComponent(<Item");
+      expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Page");
+      expect(result?.code).toContain('"componentId":"src/Page#Page"');
+      expect(warnings).toEqual([]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

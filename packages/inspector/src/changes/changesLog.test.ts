@@ -16,8 +16,9 @@ import type { ComponentChangeRecord, ElementChangeRecord } from "./changesLog.ts
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "./_testUtils.ts";
 import { changeKey } from "./model.ts";
+import { getPreviewDiagnostic } from "./previewDiagnostics.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
-import type { RenderedInstanceOverride } from "../projection/renderedInstance.ts";
+import type { RenderedInstanceOverride } from "./editModel.ts";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
@@ -366,18 +367,41 @@ describe("changesLog", () => {
     appendChange(makeRecord("background", COLOR_B, COLOR_A));
     const afterCommit = getChangesList()[0] as ElementChangeRecord;
     // The commit handler returns before any querySelectorAll/probe work runs.
-    expect(afterCommit.previewResult).toBeUndefined();
+    expect(getPreviewDiagnostic(changeKey(afterCommit))).toBeUndefined();
 
     await new Promise((resolve) => setTimeout(resolve, 40));
     await new Promise((resolve) => setTimeout(resolve, 40));
     const verified = getChangesList()[0] as ElementChangeRecord;
-    expect(verified.previewResult).toBeDefined();
-    expect(verified.previewResult!.status).toBe("applied");
+    const diagnostic = getPreviewDiagnostic(changeKey(verified));
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic!.result.status).toBe("applied");
     btn.remove();
   });
 
-  it("deferred verification stays bound to the document selected at commit time", async () => {
-    const hostButton = document.createElement("button");
+  it("a second commit preserves the first change's preview diagnostic", async () => {
+    const btn = document.createElement("button");
+    btn.setAttribute("data-cid", "Button");
+    btn.setAttribute("data-src", "src/Button.tsx:1:1");
+    document.body.appendChild(btn);
+
+    appendChange(makeRecord("background", COLOR_B, COLOR_A));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const first = getChangesList()[0] as ElementChangeRecord;
+    expect(getPreviewDiagnostic(changeKey(first))?.result.status).toBe("applied");
+
+    appendChange(makeRecord("color", COLOR_C, COLOR_A));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const changes = getChangesList();
+    expect(changes).toHaveLength(2);
+    for (const change of changes) {
+      expect(getPreviewDiagnostic(changeKey(change as ElementChangeRecord))).toBeDefined();
+    }
+    btn.remove();
+  });
+
+  it("deferred verification stays bound to the document selected at commit time", async () => {    const hostButton = document.createElement("button");
     hostButton.setAttribute("data-cid", "Button");
     hostButton.setAttribute("data-src", "src/Button.tsx:1:1");
     document.body.appendChild(hostButton);
@@ -405,7 +429,7 @@ describe("changesLog", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 80));
     const verified = getChangesList()[0] as ElementChangeRecord;
-    expect(verified.previewResult?.status).toBe("applied");
+    expect(getPreviewDiagnostic(changeKey(verified))?.result.status).toBe("applied");
 
     setSelectedElement(null);
     hostButton.remove();

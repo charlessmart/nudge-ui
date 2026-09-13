@@ -2,7 +2,11 @@ import { parse } from "@babel/parser";
 import type { SourceMap } from "magic-string";
 import MagicString from "magic-string";
 import { posix } from "node:path";
-import { injectIdentity } from "@nudge-ui/vite-react/identity";
+import {
+  DEFAULT_COMPONENT_RUNTIME_MODULE,
+  injectIdentity,
+} from "@nudge-ui/compiler/react-identity";
+import type { HostComponentPolicy } from "@nudge-ui/compiler/component-policy";
 
 /**
  * Pure Next.js identity-loader Module (ADR-0010).
@@ -56,6 +60,12 @@ export interface NextModuleTransformOptions {
    * are client components even without a `"use client"` directive.
    */
   pagesDir?: string;
+  /** Import provenance and slot policy resolved by the Next host Adapter. */
+  hostPolicy?: HostComponentPolicy;
+  /** Whether this module belongs to the Adapter's explicit semantic source scope. */
+  instrumentComponents?: boolean;
+  /** Module specifier resolved by the Next host for semantic boundaries. */
+  componentRuntimeModule?: string;
 }
 
 export interface NextModuleTransformResult {
@@ -93,7 +103,9 @@ export function transformNextModuleSource(
     hasUseClientDirective(source) || isPagesRouterModule(normalized, options);
 
   const identity = injectIdentity(source, normalized, options.root, {
-    instrumentComponents: clientComponent,
+    instrumentComponents: clientComponent && options.instrumentComponents !== false,
+    hostPolicy: options.hostPolicy,
+    componentRuntimeModule: options.componentRuntimeModule,
   });
 
   let code = identity ? identity.code : source;
@@ -106,7 +118,10 @@ export function transformNextModuleSource(
     // longer a directive prologue, so Next rejects the file ("use client
     // must be placed before other expressions"). Relocate the prepended
     // import to just past the directive prologue.
-    code = relocatePrependedRuntimeImport(code);
+    code = relocatePrependedRuntimeImport(
+      code,
+      options.componentRuntimeModule ?? DEFAULT_COMPONENT_RUNTIME_MODULE,
+    );
   }
 
   if (isAppRootLayoutPath(normalized)) {
@@ -127,19 +142,18 @@ export function transformNextModuleSource(
   return { code, map, clientComponent, layoutInstrumented };
 }
 
-const RUNTIME_IMPORT =
-  'import { instrumentReactComponent as __nudgeUiInstrumentComponent } from "@nudge-ui/inspector/component-runtime";\n';
-
 /**
  * Moves the shared Module's prepended runtime import past the directive
  * prologue when the source began with one. Sources without a leading
  * directive are returned untouched (the import is already first).
  */
-function relocatePrependedRuntimeImport(code: string): string {
-  if (!code.startsWith(RUNTIME_IMPORT)) return code;
-  const rest = code.slice(RUNTIME_IMPORT.length);
+function relocatePrependedRuntimeImport(code: string, runtimeModule: string): string {
+  const runtimeImport =
+    `import { instrumentReactComponent as __nudgeUiInstrumentComponent } from ${JSON.stringify(runtimeModule)};\n`;
+  if (!code.startsWith(runtimeImport)) return code;
+  const rest = code.slice(runtimeImport.length);
   const insertAt = directivePrologueEnd(rest);
-  return rest.slice(0, insertAt) + RUNTIME_IMPORT + rest.slice(insertAt);
+  return rest.slice(0, insertAt) + runtimeImport + rest.slice(insertAt);
 }
 
 /**
@@ -384,10 +398,15 @@ function findHtmlElement(node: HtmlNode | undefined | null): HtmlNode | null {
   for (const child of Object.values(node)) {
     if (Array.isArray(child)) {
       for (const grandchild of child) {
+        // SAFETY: This is an ESTree child of an array-valued parent node, which is always an HtmlNode.
         const found = findHtmlElement(grandchild as HtmlNode);
         if (found) return found;
       }
-    } else if (child && typeof child === "object" && (child as HtmlNode).type) {
+    } else if (
+      // SAFETY: The Object.values child is guarded as a non-null object, matching the HtmlNode contract.
+      child && typeof child === "object" && (child as HtmlNode).type
+    ) {
+      // SAFETY: The indexed template element of an ESTree TemplateLiteral is always an HtmlNode.
       const found = findHtmlElement(child as HtmlNode);
       if (found) return found;
     }

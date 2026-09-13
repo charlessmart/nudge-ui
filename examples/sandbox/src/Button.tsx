@@ -2,7 +2,6 @@ import { type MouseEvent } from "react";
 
 export function Button({
   label,
-  variant = "secondary",
   onClick,
 }: {
   label: string;

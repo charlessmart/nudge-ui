@@ -288,6 +288,7 @@ function ShowcaseVideo({
     <div
       className="landing-showcase-video"
       ref={ref}
+      // SAFETY: Custom property keys are absent from React's CSSProperties, so object literals carrying them require a cast.
       style={{ "--landing-showcase-video-width": width, opacity } as CSSProperties}
     >
       <div className="landing-showcase-browser-bar" aria-hidden="true">

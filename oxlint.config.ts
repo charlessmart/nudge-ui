@@ -38,6 +38,7 @@ export default {
   overrides: [
     {
       files: [
+        "packages/compiler/src/**",
         "packages/plugin/src/transform/**",
         "packages/plugin/src/components/**",
         "packages/plugin/src/adapters/**",
@@ -51,12 +52,21 @@ export default {
         "packages/inspector/src/componentSemantics/boundaries.ts",
         "packages/inspector/src/componentSemantics/reactRuntime.tsx",
         "packages/inspector/src/componentSemantics/runtimeTypes.ts",
-        "packages/inspector/src/projection/renderedInstance.ts",
-        "packages/inspector/src/selection/resolveSelection.ts",
-        "packages/inspector/src/projection/structuralProjectionBoundary.ts",
         "packages/inspector/src/inline-text/textChangeBoundary.ts",
+        "packages/inspector/src/projection/renderedInstance.ts",
+        "packages/inspector/src/projection/structuralProjectionBoundary.ts",
         "packages/inspector/src/projection/textProjection.ts",
+        "packages/inspector/src/selection/resolveSelection.ts",
         "packages/inspector/src/tokens/resolution/cssomCollector.ts",
+        "packages/agent-protocol/src/index.ts",
+        "packages/nextjs/src/wrapper.ts",
+        "packages/mcp/src/bridge.ts",
+        "packages/inspector/src/agent/httpTransport.ts",
+        "packages/inspector/src/agent/verification.ts",
+        "packages/inspector/src/canvas/agentPresentation.ts",
+        "packages/inspector/src/prompt/clipboardHandoff.ts",
+        "packages/inspector/src/runtime/runtimeConfig.ts",
+        "packages/standalone/src/tokenManifest.ts",
       ],
       rules: {
         "anti-slop/no-chained-type-assertions": "warn",

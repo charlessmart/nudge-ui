@@ -26,6 +26,7 @@ export function PhotoCard({
   // Only the custom property is set inline. The background-image declaration
   // itself stays in CSS, so the inspector's managed rules can still override it
   // (an inline property would win over the managed stylesheet).
+  // SAFETY: Custom property keys are absent from React's CSSProperties, so object literals carrying them require a cast.
   const photoStyle = {
     "--card-photo": `${SCRIM}, url("${image}")`,
   } as CSSProperties;
