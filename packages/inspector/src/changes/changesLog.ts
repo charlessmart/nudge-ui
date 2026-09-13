@@ -146,8 +146,9 @@ function markForVerification(
 
 /** Append records and report whether canonical workspace state changed. */
 export function appendChanges(incoming: ChangeRecord[], options: AppendChangesOptions = {}): CommitResult {
-  const result = workspaceChangeStore.commitChangeRecords(incoming, reapply);
+  const result = workspaceChangeStore.commitChangeRecords(incoming);
   if (result !== "applied") return result;
+  reapply(workspaceChangeStore.getSnapshot());
   // Re-verify the full surviving set so earlier diagnostics are refreshed at
   // the new revision instead of being orphaned at the old one.
   markForVerification(getChangesSnapshot().map(changeKey), options.verificationTargets);
@@ -159,7 +160,8 @@ export function appendChange(change: ChangeRecord): CommitResult {
 }
 
 export function revertChange(change: ChangeRecord): void {
-  if (!workspaceChangeStore.revertChangeRecord(change, reapply)) return;
+  if (!workspaceChangeStore.revertChangeRecord(change)) return;
+  reapply(workspaceChangeStore.getSnapshot());
   markForVerification(getChangesSnapshot().map(changeKey));
 }
 
@@ -182,36 +184,37 @@ export function reconcileVerifiedWorkspaceChanges(
   verifiedKeys: ReadonlySet<string>,
   verifiedStructuralIds: ReadonlySet<string>,
 ): number {
-  const removed = workspaceChangeStore.reconcileWorkspaceChanges(
-    verifiedKeys,
-    verifiedStructuralIds,
-    reapply,
-  );
+  const removed = workspaceChangeStore.reconcileWorkspaceChanges(verifiedKeys, verifiedStructuralIds);
   if (removed === 0) return 0;
+  reapply(workspaceChangeStore.getSnapshot());
   pruneStructuralProjectionReports(verifiedStructuralIds);
   markForVerification(getChangesSnapshot().map(changeKey));
   return removed;
 }
 
 export function discardChangesForSelector(selector: string): void {
-  if (!workspaceChangeStore.discardChangeRecords({ kind: "selector", selector }, reapply)) return;
+  if (!workspaceChangeStore.discardChangeRecords({ kind: "selector", selector })) return;
+  reapply(workspaceChangeStore.getSnapshot());
   markForVerification(getChangesSnapshot().map(changeKey));
 }
 
 /** Relink removes every CSS declaration owned by one durable rendered target. */
 export function discardChangesForInstanceOverride(overrideId: string): void {
-  if (!workspaceChangeStore.discardChangeRecords({ kind: "instance-override", id: overrideId }, reapply)) return;
+  if (!workspaceChangeStore.discardChangeRecords({ kind: "instance-override", id: overrideId })) return;
+  reapply(workspaceChangeStore.getSnapshot());
   markForVerification(getChangesSnapshot().map(changeKey));
 }
 
 export function undo(): boolean {
-  const undone = workspaceChangeStore.undoWorkspaceChange(reapply);
+  const undone = workspaceChangeStore.undoWorkspaceChange();
+  if (undone) reapply(workspaceChangeStore.getSnapshot());
   if (undone) markForVerification(getChangesSnapshot().map(changeKey));
   return undone;
 }
 
 export function redo(): boolean {
-  const redone = workspaceChangeStore.redoWorkspaceChange(reapply);
+  const redone = workspaceChangeStore.redoWorkspaceChange();
+  if (redone) reapply(workspaceChangeStore.getSnapshot());
   if (redone) markForVerification(getChangesSnapshot().map(changeKey));
   return redone;
 }
@@ -228,10 +231,8 @@ export function restoreChangeRecords(incoming: ChangeRecord[]): void {
   pendingVerificationTargets.clear();
   clearPreviewDiagnostics();
   const workspace = workspaceChangeStore.getSnapshot();
-  workspaceChangeStore.restoreWorkspaceChanges(
-    { changes: incoming, structuralChanges: workspace.structuralChanges },
-    reapply,
-  );
+  workspaceChangeStore.restoreWorkspaceChanges({ changes: incoming, structuralChanges: workspace.structuralChanges });
+  reapply(workspaceChangeStore.getSnapshot());
 }
 
 /** Restores every canonical workspace intent as one subscriber-visible snapshot. */
@@ -242,7 +243,8 @@ export function loadWorkspaceChanges(
   pendingVerificationTargets.clear();
   clearPreviewDiagnostics();
   clearStructuralProjectionReports();
-  workspaceChangeStore.restoreWorkspaceChanges({ changes: incoming, structuralChanges }, reapply);
+  workspaceChangeStore.restoreWorkspaceChanges({ changes: incoming, structuralChanges });
+  reapply(workspaceChangeStore.getSnapshot());
 }
 
 /** Clears all workspace intent and its unified undo/redo timeline. */
@@ -253,7 +255,8 @@ export function clearWorkspace(): void {
   pendingVerificationTargets.clear();
   clearPreviewDiagnostics();
   clearStructuralProjectionReports();
-  workspaceChangeStore.clearWorkspaceChanges(reapply);
+  workspaceChangeStore.clearWorkspaceChanges();
+  reapply(workspaceChangeStore.getSnapshot());
 }
 
 export function getChangesList(): ChangeRecord[] {

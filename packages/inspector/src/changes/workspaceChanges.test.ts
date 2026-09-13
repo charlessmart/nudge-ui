@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ElementChangeRecord } from "./types.ts";
 import type { StructuralDelete } from "./structuralTypes.ts";
+import * as workspaceLease from "../canvas/workspaceLease.ts";
 import {
   commitChangeRecords,
   commitStructuralChange,
@@ -89,9 +90,9 @@ describe("WorkspaceChanges", () => {
     });
 
     const change = styleChange("color", "red");
-    expect(workspaceChangeStore.commitChangeRecords([], project)).toBe("unchanged");
-    expect(workspaceChangeStore.commitChangeRecords([change], project)).toBe("applied");
-    expect(workspaceChangeStore.commitChangeRecords([change], project)).toBe("unchanged");
+    expect(workspaceChangeStore.commitChangeRecords([])).toBe("unchanged");
+    expect(workspaceChangeStore.commitChangeRecords([change])).toBe("applied");
+    expect(workspaceChangeStore.commitChangeRecords([change])).toBe("unchanged");
     expect(workspaceChangeStore.getSnapshot()).toMatchObject({
       revision: 1,
       changes: [change],
@@ -100,19 +101,36 @@ describe("WorkspaceChanges", () => {
       canRedo: false,
     });
 
-    expect(workspaceChangeStore.undoWorkspaceChange(project)).toBe(true);
+    expect(workspaceChangeStore.undoWorkspaceChange()).toBe(true);
     expect(workspaceChangeStore.getSnapshot()).toMatchObject({
       revision: 2,
       changes: [],
       canUndo: false,
       canRedo: true,
     });
-    expect(workspaceChangeStore.redoWorkspaceChange(project)).toBe(true);
+    expect(workspaceChangeStore.redoWorkspaceChange()).toBe(true);
     expect(workspaceChangeStore.getSnapshot()).toMatchObject({
       revision: 3,
       changes: [change],
       canUndo: true,
       canRedo: false,
+    });
+  });
+
+  it("does not expose mutable canonical records through a snapshot", () => {
+    workspaceChangeStore.commitChangeRecords([styleChange("color", "red")]);
+    const current = workspaceChangeStore.getSnapshot();
+    const change = current.changes[0] as ElementChangeRecord;
+
+    expect(Object.isFrozen(current)).toBe(true);
+    expect(Object.isFrozen(current.changes)).toBe(true);
+    expect(Object.isFrozen(change)).toBe(true);
+    expect(Object.isFrozen(change.source)).toBe(true);
+    expect(() => {
+      change.source.file = "src/Other.tsx";
+    }).toThrow();
+    expect(workspaceChangeStore.getSnapshot().changes[0]).toMatchObject({
+      source: { file: "src/Button.tsx" },
     });
   });
 
@@ -139,6 +157,18 @@ describe("WorkspaceChanges", () => {
     expect(undoWorkspaceChange(project)).toBe(true);
     expect(undoWorkspaceChange(project)).toBe(false);
     unsubscribe();
+  });
+
+  it("preserves blocked as distinct from unchanged", () => {
+    const canWrite = vi.spyOn(workspaceLease, "canWriteWorkspace").mockReturnValue(false);
+
+    expect(workspaceChangeStore.commitChangeRecords([styleChange("color", "red")])).toBe("blocked");
+    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+      revision: 0,
+      changes: [],
+    });
+
+    canWrite.mockRestore();
   });
 
 });

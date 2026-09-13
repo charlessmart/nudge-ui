@@ -6,6 +6,7 @@ import {
 import type { RenderedInstanceRef } from "../changes/editModel.ts";
 import { isStructuralProjectionReport } from "./structuralProjectionBoundary.ts";
 import {
+  resetWorkspaceChanges,
   workspaceChangeStore,
   type WorkspaceChangesSnapshot,
 } from "../changes/workspaceChanges.ts";
@@ -208,7 +209,8 @@ export function createStructuralDelete(element: HTMLElement, id = structuralId()
   const target = captureRenderedInstance(element);
   if (!target) return null;
   const change: StructuralDelete = { id, kind: "delete", target };
-  if (!workspaceChangeStore.commitStructuralChange(change, projectStructuralChanges)) return null;
+  if (!workspaceChangeStore.commitStructuralChange(change)) return null;
+  projectStructuralChanges(workspaceChangeStore.getSnapshot());
   return change;
 }
 
@@ -252,7 +254,8 @@ export function createStructuralMove(
         : destinationChildren.length - (sameParent ? 1 : 0),
     },
   };
-  if (!workspaceChangeStore.commitStructuralChange(change, projectStructuralChanges)) return null;
+  if (!workspaceChangeStore.commitStructuralChange(change)) return null;
+  projectStructuralChanges(workspaceChangeStore.getSnapshot());
   return change;
 }
 
@@ -266,7 +269,9 @@ export function getStructuralDeletes(): readonly StructuralDelete[] {
 
 /** Revert removes one canonical intent and leaves every other intent intact. */
 export function revertStructuralChange(changeId: string): boolean {
-  return workspaceChangeStore.revertStructuralChangeRecord(changeId, projectStructuralChanges);
+  const changed = workspaceChangeStore.revertStructuralChangeRecord(changeId);
+  if (changed) projectStructuralChanges(workspaceChangeStore.getSnapshot());
+  return changed;
 }
 
 /**
@@ -281,12 +286,9 @@ export function reconcileVerifiedStructuralChanges(
   verifiedIds: ReadonlySet<string>,
 ): number {
   if (verifiedIds.size === 0) return 0;
-  const removed = workspaceChangeStore.reconcileWorkspaceChanges(
-    new Set(),
-    verifiedIds,
-    projectStructuralChanges,
-  );
+  const removed = workspaceChangeStore.reconcileWorkspaceChanges(new Set(), verifiedIds);
   if (removed === 0) return 0;
+  projectStructuralChanges(workspaceChangeStore.getSnapshot());
   for (const [cardId, canvasReports] of reportsByCanvasCard) {
     reportsByCanvasCard.set(cardId, {
       ...canvasReports,
@@ -639,6 +641,6 @@ export function resetStructuralDeleteProjection(): void {
   reportsByCanvasCard.clear();
   nextStructuralId = 1;
   diagnosticRevision = 0;
-  workspaceChangeStore.resetWorkspaceChanges();
+  resetWorkspaceChanges();
   notifyDiagnostics();
 }
