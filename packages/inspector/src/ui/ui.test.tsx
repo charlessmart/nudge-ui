@@ -10,8 +10,6 @@ import { Select } from "./Select.tsx";
 import { Button } from "./Button.tsx";
 import { IconButton } from "./IconButton.tsx";
 import { StatusCallout } from "./StatusCallout.tsx";
-import { Badge } from "./Badge.tsx";
-import { Breadcrumb } from "./Breadcrumb.tsx";
 import { ColorSwatch } from "./ColorSwatch.tsx";
 import { PopoverListbox } from "./PopoverListbox.tsx";
 import { SideValuesField, SIDE_NAMES } from "./SideValuesField.tsx";
@@ -181,7 +179,6 @@ describe("shared inspector UI", () => {
         createElement(IconButton, { label: "Close", "data-test": "icon" }, "×"),
         createElement(StatusCallout, { tone: "accent", "data-test": "accent-status" }, "Affects 3 rendered components/elements"),
         createElement(StatusCallout, { tone: "warning", "data-test": "status" }, "Preview blocked"),
-        createElement(Badge, { tone: "accent", "data-test": "badge" }, "exact"),
       ));
     });
 
@@ -189,7 +186,6 @@ describe("shared inspector UI", () => {
     expect(host.querySelector('[data-test="icon"]')?.getAttribute("aria-label")).toBe("Close");
     expect(host.querySelector('[data-test="status"]')?.className).toContain("warning");
     expect(host.querySelector('[data-test="accent-status"]')?.className).toContain("accent");
-    expect(host.querySelector('[data-test="badge"]')?.className).toContain("accent");
   });
 
   it("shares variants and sizing semantics between text and icon buttons", () => {
@@ -226,19 +222,13 @@ describe("shared inspector UI", () => {
     expect(button.className).toContain("button--disabled");
   });
 
-  it("renders an accessible breadcrumb and color swatch", () => {
+  it("renders an accessible color swatch", () => {
     act(() => {
       root.render(createElement("div", null,
-        createElement(Breadcrumb, {
-          items: [{ id: "button", label: "Button", active: true, "data-test": "crumb" }],
-          "data-test": "breadcrumb",
-        }),
         createElement(ColorSwatch, { color: "#fff", "data-test": "swatch" }),
       ));
     });
 
-    expect(host.querySelector("nav")?.getAttribute("aria-label")).toBe("Selection hierarchy");
-    expect(host.querySelector('[data-test="crumb"]')?.getAttribute("aria-current")).toBe("location");
     expect(host.querySelector('[data-test="swatch"]')?.getAttribute("aria-hidden")).toBe("true");
   });
 
