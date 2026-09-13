@@ -32,6 +32,13 @@ export interface HandoffSnapshot {
   readonly structuralChanges: readonly StructuralChange[];
 }
 
+/**
+ * User-facing agent completion state, named once.
+ * "completed" means the agent finished; "verified" means completed work was
+ * positively reconciled against source-rendered output.
+ */
+export type AgentCompletionStatus = "completed" | "verified";
+
 const dispatches = new Map<number, HandoffSnapshot>();
 
 function stableJsonValue(value: unknown): unknown {
@@ -168,6 +175,13 @@ export function recordAgentDispatch(
 /** Drops a captured revision when the bridge rejects its dispatch. */
 export function discardAgentDispatch(revision: number): void {
   dispatches.delete(revision);
+}
+
+/** Returns how many canonical edits were in flight for one dispatch. */
+export function getAgentDispatchSize(revision: number): number {
+  const snapshot = dispatches.get(revision);
+  if (!snapshot) return 0;
+  return snapshot.changes.length + snapshot.structuralChanges.length;
 }
 
 function afterBrowserPaint(): Promise<void> {
