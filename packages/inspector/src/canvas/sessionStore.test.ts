@@ -124,14 +124,6 @@ function resetAllState(): void {
   setBoardCamera({ x: 0, y: 0, zoom: 1 });
   try {
     localStorage.removeItem(storageKey(nudgeUiProjectId));
-    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v3`);
-    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v4`);
-    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v5`);
-    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v6`);
-    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v7`);
-    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v8`);
-    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v9`);
-    localStorage.removeItem(`nudge-ui:${nudgeUiProjectId}:v10`);
   } catch {
     // ignore
   }
@@ -413,98 +405,6 @@ describe("sessionStore hydration", () => {
     expect(target.isConnected).toBe(false);
   });
 
-  it("migrates a v5 move to the current presentation schema before replaying it", () => {
-    const parent = document.createElement("section");
-    parent.dataset.cid = "List";
-    parent.dataset.src = "src/List.tsx:4:1";
-    const first = document.createElement("button");
-    first.dataset.cid = "Item";
-    first.dataset.src = "src/List.tsx:8:1";
-    first.textContent = "First";
-    const second = first.cloneNode(true) as HTMLElement;
-    second.textContent = "Second";
-    parent.append(first, second);
-    document.body.append(parent);
-    createStructuralMove(second, { parent, before: first }, "move-1");
-
-    const legacy = JSON.parse(JSON.stringify(serializeSession())) as {
-      schemaVersion: number;
-      structuralChanges: Array<Record<string, unknown>>;
-    };
-    legacy.schemaVersion = 5;
-    delete legacy.structuralChanges[0]!.presentation;
-    delete legacy.structuralChanges[0]!.source;
-    localStorage.setItem(`nudge-ui:${nudgeUiProjectId}:v5`, JSON.stringify(legacy));
-    localStorage.removeItem(storageKey(nudgeUiProjectId));
-
-    resetStructuralDeleteProjection();
-    const result = hydrateSession();
-
-    expect(result).toMatchObject({ restored: true, changeCount: 1 });
-    expect(getStructuralChanges()).toMatchObject([{
-      id: "move-1",
-      source: { parent: { sourceSite: { cid: "List", src: "src/List.tsx:4:1" } } },
-      presentation: { sourceParentTag: "section", destinationParentTag: "section", fromIndex: 1, toIndex: 0 },
-    }]);
-    expect(Array.from(parent.children).map((element) => element.textContent)).toEqual(["Second", "First"]);
-    expect(localStorage.getItem(`nudge-ui:${nudgeUiProjectId}:v5`)).toBeNull();
-    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toContain(`"schemaVersion":${SCHEMA_VERSION}`);
-  });
-
-  it.each([7, 8, 9, 10])("keeps structural changes while migrating a v%i session", (legacyVersion) => {
-    const target = document.createElement("button");
-    target.dataset.cid = "Item";
-    target.dataset.src = "src/List.tsx:8:1";
-    target.textContent = "Second";
-    document.body.append(target);
-    createStructuralDelete(target, `delete-v${legacyVersion}`);
-    appendChange(makeTextChange());
-    const legacy = JSON.parse(JSON.stringify(serializeSession())) as Record<string, unknown>;
-    legacy.schemaVersion = legacyVersion;
-    delete legacy.comparisonGroups;
-    localStorage.setItem(`nudge-ui:${nudgeUiProjectId}:v${legacyVersion}`, JSON.stringify(legacy));
-    localStorage.removeItem(storageKey(nudgeUiProjectId));
-
-    resetStructuralDeleteProjection();
-    document.body.replaceChildren(target);
-    clearWorkspace();
-    const result = hydrateSession();
-
-    expect(result).toMatchObject({ restored: true, changeCount: 2 });
-    expect(getStructuralChanges()).toMatchObject([{ id: `delete-v${legacyVersion}`, kind: "delete" }]);
-    expect(getChangesList()).toMatchObject([{ kind: "text-content", id: "text-1" }]);
-    expect(target.isConnected).toBe(false);
-    expect(localStorage.getItem(`nudge-ui:${nudgeUiProjectId}:v${legacyVersion}`)).toBeNull();
-  });
-
-  it.each([3, 4, 5, 6])("reads v%i durable CSS, drops legacy runtime records, and upgrades safely", (legacyVersion) => {
-    const legacyKey = `nudge-ui:${nudgeUiProjectId}:v${legacyVersion}`;
-    localStorage.setItem(legacyKey, JSON.stringify({
-      schemaVersion: legacyVersion,
-      projectId: nudgeUiProjectId,
-      mode: "inspect",
-      inspectUrl: window.location.href,
-      cards: [],
-      camera: { x: 0, y: 0, zoom: 1 },
-      changes: [
-        makeElementChange({ rawValue: "red", oldToken: null, newToken: null }),
-        {
-          ...makeElementChange({ rawValue: "blue", oldToken: null, newToken: null }),
-          scope: "runtime-preview",
-          elementId: "instance-1",
-        },
-      ],
-      structuralChanges: [],
-    }));
-
-    const result = hydrateSession();
-
-    expect(result).toMatchObject({ restored: true, changeCount: 1 });
-    expect(getChangesList()).toHaveLength(1);
-    expect(localStorage.getItem(legacyKey)).toBeNull();
-    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toContain(`"schemaVersion":${SCHEMA_VERSION}`);
-  });
-
   it("rejects structural payloads with generated marker or document-local fields", () => {
     localStorage.setItem(storageKey(nudgeUiProjectId), JSON.stringify({
       schemaVersion: SCHEMA_VERSION,
@@ -585,9 +485,9 @@ describe("sessionStore hydration", () => {
     expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
-  it("returns no restoration for wrong schema version", () => {
+  it.each([SCHEMA_VERSION - 1, SCHEMA_VERSION + 1])("discards unsupported schema version %i", (schemaVersion) => {
     const session = JSON.stringify({
-      schemaVersion: 999,
+      schemaVersion,
       projectId: nudgeUiProjectId,
       mode: "inspect",
       cards: [],
@@ -597,6 +497,7 @@ describe("sessionStore hydration", () => {
     localStorage.setItem(storageKey(nudgeUiProjectId), session);
     const result = hydrateSession();
     expect(result.restored).toBe(false);
+    expect(localStorage.getItem(storageKey(nudgeUiProjectId))).toBeNull();
   });
 
   it("returns no restoration for project ID mismatch", () => {

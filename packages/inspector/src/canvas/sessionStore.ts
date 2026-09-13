@@ -36,9 +36,7 @@ import {
 } from "../changes/editModel.ts";
 import type { RenderedInstanceOverride, RenderedInstanceRef } from "../changes/editModel.ts";
 import {
-  resolveRenderedInstance,
-} from "../projection/renderedInstance.ts";
-import {
+  getStructuralChanges,
   isStructuralChange,
   resetStructuralDeleteProjection,
   type StructuralChange,
@@ -55,15 +53,9 @@ import {
   type ClipboardHandoffSnapshot,
 } from "../prompt/clipboardHandoff.ts";
 
-const SCHEMA_VERSION = 11;
-// v3 is the released durable-session schema. v4 was a prerelease schema, v5
-// added structural snapshots, v6 added presentation metadata to moves, and v7
-// adds durable rendered-text projection records; v8 adds explicit text scope
-// and bounded semantic evidence; v9 adds durable agent-created Canvas groups;
-// v10 makes the structural move source-parent precondition explicit and adds
-// bounded structural projection diagnostics; v11 adds copied-prompt handoff
-// fingerprints for automatic source reconciliation.
-const LEGACY_SCHEMA_VERSIONS = [3, 4, 5, 6, 7, 8, 9, 10] as const;
+// v12 is the first durable-session schema after the edit model and preview
+// diagnostic split. Previous session shapes are intentionally incompatible.
+const SCHEMA_VERSION = 12;
 const STORAGE_PREFIX = "nudge-ui";
 
 function projectId(): string {
@@ -129,151 +121,6 @@ function isRuntimeElementEvidence(value: unknown): value is NonNullable<ElementC
     && (typeof value.ariaLabel === "string" || value.ariaLabel === null);
 }
 
-interface LegacyStructuralDelete {
-  id: string;
-  kind: "delete";
-  target: RenderedInstanceRef;
-}
-
-interface LegacyStructuralMove {
-  id: string;
-  kind: "move";
-  target: RenderedInstanceRef;
-  destination: {
-    parent: RenderedInstanceRef;
-    before: RenderedInstanceRef | null;
-  };
-  presentation?: {
-    parentTag: string;
-    fromIndex: number;
-    toIndex: number;
-  };
-}
-
-type LegacyStructuralChange = LegacyStructuralDelete | LegacyStructuralMove;
-
-function isLegacyStructuralChange(value: unknown): value is LegacyStructuralChange {
-  if (!value || typeof value !== "object") return false;
-  const change = value as Record<string, unknown>;
-  if (change.kind === "delete") {
-    return hasOnlyKeys(change, ["id", "kind", "target"])
-      && typeof change.id === "string"
-      && isRenderedInstanceRef(change.target);
-  }
-  if (change.kind !== "move" || !change.destination || typeof change.destination !== "object") return false;
-  const destination = change.destination as Record<string, unknown>;
-  const presentation = change.presentation;
-  return hasOnlyKeys(change, ["id", "kind", "target", "destination", "presentation"])
-    && typeof change.id === "string"
-    && isRenderedInstanceRef(change.target)
-    && hasOnlyKeys(destination, ["parent", "before"])
-    && isRenderedInstanceRef(destination.parent)
-    && (destination.before === null || isRenderedInstanceRef(destination.before))
-    && (presentation === undefined || isLegacyStructuralPresentation(presentation));
-}
-
-function isLegacyStructuralPresentation(value: unknown): value is NonNullable<LegacyStructuralMove["presentation"]> {
-  if (!value || typeof value !== "object") return false;
-  const presentation = value as Record<string, unknown>;
-  return hasOnlyKeys(presentation, ["parentTag", "fromIndex", "toIndex"])
-    && typeof presentation.parentTag === "string"
-    && typeof presentation.fromIndex === "number"
-    && Number.isSafeInteger(presentation.fromIndex) && presentation.fromIndex >= 0
-    && typeof presentation.toIndex === "number"
-    && Number.isSafeInteger(presentation.toIndex) && presentation.toIndex >= 0;
-}
-
-/**
- * v5 persisted the durable move intent but not display metadata. Replay that
- * intent in a detached DOM so its original parent and sibling indexes remain
- * available to v6 without touching the live page before hydration.
- */
-function migrateLegacyStructuralChanges(value: unknown): StructuralChange[] | null {
-  if (value === undefined) return [];
-  if (!Array.isArray(value)) return null;
-  const scratch = document.implementation.createHTMLDocument("nudge-ui-session-migration");
-  scratch.documentElement.innerHTML = document.documentElement.innerHTML;
-  const migrated: StructuralChange[] = [];
-
-  for (const candidate of value) {
-    const change = isStructuralChange(candidate)
-      ? candidate
-      : isLegacyStructuralChange(candidate) ? migrateLegacyMove(scratch, candidate) : null;
-    if (!change) return null;
-    if (!applyStructuralChangeToScratch(scratch, change)) return null;
-    migrated.push(change);
-  }
-  return migrated;
-}
-
-function migrateLegacyMove(doc: Document, change: LegacyStructuralChange): StructuralChange | null {
-  if (change.kind === "delete") return change;
-  const target = resolveRenderedInstance(doc, change.target);
-  const parent = resolveRenderedInstance(doc, change.destination.parent);
-  const before = change.destination.before ? resolveRenderedInstance(doc, change.destination.before) : null;
-  if (target.status !== "resolved" || parent.status !== "resolved" || (before && before.status !== "resolved")) {
-    return null;
-  }
-  if (target.element.parentElement !== parent.element || target.element === parent.element
-    || target.element.contains(parent.element)
-    || (before && (before.element.parentElement !== parent.element || before.element === target.element))) {
-    return null;
-  }
-  const children = Array.from(parent.element.children);
-  const fromIndex = children.indexOf(target.element);
-  const beforeIndex = before ? children.indexOf(before.element) : children.length;
-  if (fromIndex < 0 || beforeIndex < 0) return null;
-  const presentation = change.presentation;
-  return {
-    id: change.id,
-    kind: "move",
-    target: change.target,
-    source: { parent: change.destination.parent },
-    destination: { parent: change.destination.parent, before: change.destination.before },
-    presentation: {
-      sourceParentTag: presentation?.parentTag ?? parent.element.tagName.toLowerCase(),
-      destinationParentTag: presentation?.parentTag ?? parent.element.tagName.toLowerCase(),
-      fromIndex: presentation?.fromIndex ?? fromIndex,
-      toIndex: presentation?.toIndex
-        ?? (before ? beforeIndex - (fromIndex < beforeIndex ? 1 : 0) : children.length - 1),
-    },
-  };
-}
-
-function applyStructuralChangeToScratch(doc: Document, change: StructuralChange): boolean {
-  const target = resolveRenderedInstance(doc, change.target);
-  if (target.status !== "resolved") return false;
-  if (change.kind === "delete") {
-    target.element.replaceWith(doc.createComment("nudge-ui-session-migration"));
-    return true;
-  }
-  const sourceParent = resolveRenderedInstance(doc, change.source.parent);
-  const parent = resolveRenderedInstance(doc, change.destination.parent);
-  const before = change.destination.before ? resolveRenderedInstance(doc, change.destination.before) : null;
-  if (sourceParent.status !== "resolved" || parent.status !== "resolved" || (before && before.status !== "resolved")) return false;
-  if (target.element.parentElement !== sourceParent.element || target.element === parent.element
-    || target.element.contains(parent.element)
-    || (before && (before.element.parentElement !== parent.element || before.element === target.element))) {
-    return false;
-  }
-  parent.element.insertBefore(target.element, before?.element ?? null);
-  return true;
-}
-
-function isLegacyRuntimePreview(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Record<string, unknown>;
-  // A text-content record must pass its own strict schema. Never let the
-  // legacy preview cleanup silently discard malformed durable text intent.
-  if (record.kind === "text-content") return false;
-  // These were document/renderer-local implementation details in the former
-  // preview path. A parsed JSON value cannot contain a live Node, but it can
-  // still contain one of these stale handles; discard the whole record rather
-  // than reinterpreting it against a newly rendered document.
-  return (typeof record.scope === "string" && !isEditScope(record.scope))
-    || ["element", "node", "placeholder", "elementId", "instanceId", "marker", "projectionMarker"]
-      .some((key) => key in record);
-}
 
 function isSerializableChange(value: unknown): value is SerializableChange {
   if (!value || typeof value !== "object") return false;
@@ -391,12 +238,8 @@ function isSerializableComparisonGroup(value: unknown): value is SerializableCom
   });
 }
 
-function storageKeyForVersion(projectId: string, schemaVersion: number): string {
-  return `${STORAGE_PREFIX}:${projectId}:v${schemaVersion}`;
-}
-
 function storageKey(projectId: string): string {
-  return storageKeyForVersion(projectId, SCHEMA_VERSION);
+  return `${STORAGE_PREFIX}:${projectId}:v${SCHEMA_VERSION}`;
 }
 
 interface SerializableTokenRef {
@@ -813,18 +656,8 @@ export function hydrateSession(): HydrationResult {
   if (!projectId()) return { restored: false, changeCount: 0 };
 
   let raw: string | null = null;
-  let schemaVersion = SCHEMA_VERSION;
   try {
     raw = localStorage.getItem(storageKey(projectId()));
-    if (!raw) {
-      for (const legacyVersion of LEGACY_SCHEMA_VERSIONS) {
-        raw = localStorage.getItem(storageKeyForVersion(projectId(), legacyVersion));
-        if (raw) {
-          schemaVersion = legacyVersion;
-          break;
-        }
-      }
-    }
   } catch {
     return { restored: false, changeCount: 0 };
   }
@@ -835,34 +668,34 @@ export function hydrateSession(): HydrationResult {
   try {
     session = JSON.parse(raw);
   } catch {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
   if (!session || typeof session !== "object") {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
   const s = session as Record<string, unknown>;
 
-  if (typeof s.schemaVersion !== "number" || s.schemaVersion !== schemaVersion) {
-    safeDiscard(schemaVersion);
+  if (typeof s.schemaVersion !== "number" || s.schemaVersion !== SCHEMA_VERSION) {
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
   if (typeof s.projectId !== "string" || s.projectId !== projectId()) {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
   if (typeof s.mode !== "string" || (s.mode !== "inspect" && s.mode !== "canvas")) {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
   if (!isSameOriginUrl(s.inspectUrl)) {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
@@ -870,7 +703,7 @@ export function hydrateSession(): HydrationResult {
 
   const cards = Array.isArray(s.cards) ? (s.cards as unknown[]) : null;
   if (!cards) {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
@@ -888,7 +721,7 @@ export function hydrateSession(): HydrationResult {
       candidate.width <= 0 ||
       candidate.height <= 0
     ) {
-      safeDiscard(schemaVersion);
+      safeDiscard();
       return { restored: false, changeCount: 0 };
     }
     const c = card as Record<string, unknown>;
@@ -907,7 +740,7 @@ export function hydrateSession(): HydrationResult {
   }
 
   if (new Set(serializableCards.map((card) => card.id)).size !== serializableCards.length) {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
@@ -915,12 +748,12 @@ export function hydrateSession(): HydrationResult {
   const serializableComparisonGroups: SerializableComparisonGroup[] = [];
   if (comparisonGroupsRaw !== undefined) {
     if (!Array.isArray(comparisonGroupsRaw) || comparisonGroupsRaw.length > 128) {
-      safeDiscard(schemaVersion);
+      safeDiscard();
       return { restored: false, changeCount: 0 };
     }
     for (const group of comparisonGroupsRaw) {
       if (!isSerializableComparisonGroup(group)) {
-        safeDiscard(schemaVersion);
+        safeDiscard();
         return { restored: false, changeCount: 0 };
       }
       serializableComparisonGroups.push({
@@ -936,7 +769,7 @@ export function hydrateSession(): HydrationResult {
 
   if (new Set(serializableComparisonGroups.map((group) => group.id)).size
     !== serializableComparisonGroups.length) {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
@@ -944,7 +777,7 @@ export function hydrateSession(): HydrationResult {
   const groupedCardIds = new Set<string>();
   for (const group of serializableComparisonGroups) {
     if (group.cardIds.length !== group.routes.length) {
-      safeDiscard(schemaVersion);
+      safeDiscard();
       return { restored: false, changeCount: 0 };
     }
     for (const [routeIndex, cardId] of group.cardIds.entries()) {
@@ -952,7 +785,7 @@ export function hydrateSession(): HydrationResult {
       const route = group.routes[routeIndex];
       if (!card || !route || card.comparisonGroupId !== group.id || groupedCardIds.has(cardId)
         || card.url !== route.url) {
-        safeDiscard(schemaVersion);
+        safeDiscard();
         return { restored: false, changeCount: 0 };
       }
       groupedCardIds.add(cardId);
@@ -960,7 +793,7 @@ export function hydrateSession(): HydrationResult {
   }
   for (const card of serializableCards) {
     if (card.comparisonGroupId && !serializableComparisonGroups.some((group) => group.id === card.comparisonGroupId)) {
-      safeDiscard(schemaVersion);
+      safeDiscard();
       return { restored: false, changeCount: 0 };
     }
   }
@@ -972,7 +805,7 @@ export function hydrateSession(): HydrationResult {
     !isFiniteNumber((cameraRaw as Record<string, unknown>).y) ||
     !isFiniteNumber((cameraRaw as Record<string, unknown>).zoom)
   ) {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
@@ -980,45 +813,35 @@ export function hydrateSession(): HydrationResult {
   const deserializedChanges: ChangeRecord[] = [];
   const textChangeIds = new Set<string>();
   for (const c of changesRaw) {
-    // A legacy session may contain the former runtime-only preview record. It deliberately
-    // has no durable identity, so preserving the rest of the session is safer
-    // than attempting to map its generated DOM id onto a new document.
-    if (isLegacyRuntimePreview(c)) continue;
     if (c && typeof c === "object" && (c as Record<string, unknown>).kind === "text-content") {
       if (!isTextContentChangeValue(c)
         || textChangeIds.has(c.id)) {
-        safeDiscard(schemaVersion);
+        safeDiscard();
         return { restored: false, changeCount: 0 };
       }
       textChangeIds.add(c.id);
     }
     if (!isSerializableChange(c)) {
-      safeDiscard(schemaVersion);
+      safeDiscard();
       return { restored: false, changeCount: 0 };
     }
     try {
       deserializedChanges.push(deserializeChange(c));
     } catch {
-      safeDiscard(schemaVersion);
+      safeDiscard();
       return { restored: false, changeCount: 0 };
     }
   }
 
-  // v7 added text records on top of the v6 structural schema. Keep the
-  // structural snapshot while migrating every pre-v11 structural schema
-  // instead of silently dropping it. The migration also validates the ordered
-  // records in a detached scratch document before hydration.
-  const structuralChanges = schemaVersion === SCHEMA_VERSION
-    ? s.structuralChanges
-    : schemaVersion >= 5 ? migrateLegacyStructuralChanges(s.structuralChanges) : [];
+  const structuralChanges = s.structuralChanges;
   if (!Array.isArray(structuralChanges) || !structuralChanges.every(isStructuralChange)) {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
-  const clipboardHandoff = schemaVersion === SCHEMA_VERSION ? s.clipboardHandoff : null;
+  const clipboardHandoff = s.clipboardHandoff;
   if (!isClipboardHandoffSnapshot(clipboardHandoff)) {
-    safeDiscard(schemaVersion);
+    safeDiscard();
     return { restored: false, changeCount: 0 };
   }
 
@@ -1042,18 +865,15 @@ export function hydrateSession(): HydrationResult {
   // active. Keep the durable edits, but adopt the new route instead of
   // sending the user back to the previous page. On refresh, the URLs already
   // match and restoration remains unchanged.
-  if (inspectRouteChanged || schemaVersion !== SCHEMA_VERSION) {
-    const upgraded = persistSessionUnchecked();
-    if (upgraded && schemaVersion !== SCHEMA_VERSION) safeDiscard(schemaVersion);
-  }
+  if (inspectRouteChanged) persistSessionUnchecked();
   projectToAllReadyCards();
 
   return { restored: true, changeCount: deserializedChanges.length + structuralChanges.length };
 }
 
-function safeDiscard(schemaVersion = SCHEMA_VERSION): void {
+function safeDiscard(): void {
   try {
-    localStorage.removeItem(storageKeyForVersion(projectId(), schemaVersion));
+    localStorage.removeItem(storageKey(projectId()));
   } catch {
     // ignore
   }
@@ -1063,9 +883,6 @@ export function clearSession(): void {
   if (!canWriteWorkspace()) return;
   try {
     localStorage.removeItem(storageKey(projectId()));
-    for (const legacyVersion of LEGACY_SCHEMA_VERSIONS) {
-      localStorage.removeItem(storageKeyForVersion(projectId(), legacyVersion));
-    }
   } catch {
     // ignore
   }
