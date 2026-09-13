@@ -10,9 +10,10 @@ import {
 import { ToggleButton } from "../ui/ToggleButton.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
+import { findTokenRow, metadataFor } from "./rowLookup.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selection/selectionStore.ts";
-import { setStyle } from "./styleActions.ts";
+import { setStyle } from "../tokens/editActions.ts";
 import { SideControls, SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
@@ -37,10 +38,6 @@ const BORDER_RADIUS_ICONS = [
 
 const BORDER_RADIUS_LABELS = ["Top Left", "Top Right", "Bottom Right", "Bottom Left"] as const;
 
-function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
-  return rows.find((r) => r.property === prop) ?? null;
-}
-
 function cornerAuthoredSignature(rows: ResolvedProperty[], corner: string): string {
   const row = findTokenRow(rows, corner);
   return `${row?.authored ?? row?.declaredValue ?? ""}|${row?.tokenName ?? ""}`;
@@ -49,12 +46,6 @@ function cornerAuthoredSignature(rows: ResolvedProperty[], corner: string): stri
 function cornersAreLinked(rows: ResolvedProperty[]): boolean {
   const signatures = BORDER_RADIUS_CORNERS.map((corner) => cornerAuthoredSignature(rows, corner));
   return new Set(signatures).size === 1;
-}
-
-function metadataFor(row: ResolvedProperty | null | undefined) {
-  return row?.sourceProperty
-    ? { sourceProperty: row.sourceProperty, sourceAuthoredValue: row.authored ?? row.declaredValue }
-    : undefined;
 }
 
 function linkAllCorners(

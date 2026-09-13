@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { getLayoutValue } from "./layoutValue.ts";
-import { setStyles } from "./styleActions.ts";
+import { setStyles } from "../tokens/editActions.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 
 export const GRID_PICKER_MAX_COLUMNS = 12;

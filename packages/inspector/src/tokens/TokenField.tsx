@@ -10,7 +10,7 @@ import {
 import type { AtRuleContext, ColorOpacity, ColorValueFacts, ResolvedProperty } from "@nudge-ui/css/model";
 import type { TokenSemanticSlot } from "@nudge-ui/css/value-semantics";
 import { promoteToToken, swapToken } from "./editActions.ts";
-import { setStyle } from "../styleEditors/styleActions.ts";
+import { setStyle } from "./editActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
 import { nudgeCssValue, nudgeOpacityValue } from "../styleEditors/nudgeValue.ts";
 import { valuePolicyFor } from "../styleEditors/valuePolicy.ts";
