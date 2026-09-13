@@ -123,6 +123,7 @@ export function installStaticHtmlRuntimeIdentity(doc: Document = document): () =
       return;
     }
     if (node.nodeType === 11) {
+      // SAFETY: nodeType 11 is DOCUMENT_FRAGMENT_NODE, so the node is a DocumentFragment by the DOM spec.
       for (const descendant of Array.from((node as DocumentFragment).querySelectorAll("*"))) {
         ensureIdentity(descendant);
       }

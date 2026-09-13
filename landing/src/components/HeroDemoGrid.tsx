@@ -45,44 +45,6 @@ function ChevronRightIcon(): ReactNode {
   );
 }
 
-function CloseIcon(): ReactNode {
-  return (
-    <svg className="landing-hero-demo-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M18 6 6 18" />
-      <path d="m6 6 12 12" />
-    </svg>
-  );
-}
-
-function PlusIcon(): ReactNode {
-  return (
-    <svg className="landing-hero-demo-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-    </svg>
-  );
-}
-
-function UploadIcon(): ReactNode {
-  return (
-    <svg className="landing-hero-demo-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-      <path d="m7 9 5-5 5 5" />
-      <path d="M12 4v12" />
-    </svg>
-  );
-}
-
-function ShieldIcon(): ReactNode {
-  return (
-    <svg className="landing-hero-demo-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 3a12 12 0 0 0 8.5 3 12 12 0 0 1-8.5 15A12 12 0 0 1 3.5 6 12 12 0 0 0 12 3Z" />
-      <path d="M11 11a1 1 0 1 0 2 0a1 1 0 1 0-2 0Z" />
-      <path d="M12 12v2.5" />
-    </svg>
-  );
-}
-
 type TypographyGlyphKind = "font-family" | "font-style" | "font-size" | "line-height" | "letter-spacing";
 
 function TypographyGlyph({ kind }: { kind: TypographyGlyphKind }): ReactNode {
@@ -153,95 +115,6 @@ function BankMark({ color, icon, label, large = false, wireframe = false }: { co
   );
 }
 
-function ConnectOption({
-  description,
-  icon,
-  marks,
-  title,
-  wireframe = false,
-}: {
-  description: string;
-  icon: ReactNode;
-  marks?: Array<{ color: string; label: string }>;
-  title: string;
-  wireframe?: boolean;
-}): ReactNode {
-  return (
-    <div className="landing-hero-demo-connect-option">
-      <div className="landing-hero-demo-bank-marks">
-        {marks?.map((mark) => <BankMark key={`${mark.color}-${mark.label}`} {...mark} wireframe={wireframe} />)}
-        {!marks ? <span className="landing-hero-demo-bank-mark landing-hero-demo-bank-mark--large">{icon}</span> : null}
-      </div>
-      <div className="landing-hero-demo-row landing-hero-demo-row--between landing-hero-demo-connect-option-footer">
-        <div className="landing-hero-demo-column landing-hero-demo-column--tight">
-          <div className="landing-hero-demo-heading landing-hero-demo-heading--small">{title}</div>
-          <div className="landing-hero-demo-body landing-hero-demo-body--muted">{description}</div>
-        </div>
-        <ChevronRightIcon />
-      </div>
-    </div>
-  );
-}
-
-function ConnectModalDemo({ wireframe = false }: { wireframe?: boolean } = {}): ReactNode {
-  return (
-    <article className={`landing-hero-demo-board landing-hero-demo-board--connect${wireframe ? " landing-hero-demo-board--wireframe" : ""}`} aria-label="Add accounts">
-      {wireframe ? <WireframeMeasure label="24px" /> : null}
-      <div className="landing-hero-demo-row landing-hero-demo-row--between">
-        <div className="landing-hero-demo-heading landing-hero-demo-heading--medium">Add accounts</div>
-        <div className="landing-hero-demo-icon-button"><CloseIcon /></div>
-      </div>
-
-      <div className="landing-hero-demo-search">
-        <SearchIcon />
-        <span>Search 13,000+ institutions</span>
-      </div>
-
-      <div className="landing-hero-demo-connect-options">
-        <ConnectOption
-          description="Choose from supported institutions"
-          marks={[
-            { color: "#005bb9", label: "01" },
-            { color: "#d71e28", label: "02" },
-            { color: "#0c76d1", label: "03" },
-          ]}
-          title="Connect a bank"
-          icon={<UploadIcon />}
-          wireframe={wireframe}
-        />
-        <ConnectOption
-          description="Brokerage and investment accounts"
-          marks={[
-            { color: "#368727", label: "04" },
-            { color: "#009ddb", label: "05" },
-            { color: "#ccff00", label: "06" },
-          ]}
-          title="Connect an account"
-          icon={<UploadIcon />}
-          wireframe={wireframe}
-        />
-        <ConnectOption
-          description="Any lender or servicer"
-          title="Connect a loan"
-          icon={<UploadIcon />}
-          wireframe={wireframe}
-        />
-        <ConnectOption
-          description="Something else you own"
-          title="Add another asset"
-          icon={<PlusIcon />}
-          wireframe={wireframe}
-        />
-      </div>
-
-      <div className="landing-hero-demo-security">
-        <ShieldIcon />
-        <span>Read-only access · 256-bit encryption · Disconnect anytime</span>
-      </div>
-    </article>
-  );
-}
-
 function InstitutionChip({ color, icon, name, wireframe = false }: { color: string; icon: ReactNode; name: string; wireframe?: boolean }): ReactNode {
   return (
     <span className="landing-hero-demo-chip">
@@ -308,6 +181,7 @@ function HealthStreamDemo({ wireframe = false }: { wireframe?: boolean } = {}): 
   return (
     <article
       className={`landing-hero-demo-board landing-hero-demo-board--health${wireframe ? " landing-hero-demo-board--wireframe" : ""}`}
+      // SAFETY: Custom property keys are absent from React's CSSProperties, so object literals carrying them require a cast.
       style={wireframe ? undefined : ({ "--landing-health-data-image": `url(${healthDataImage})` } as CSSProperties)}
       aria-label="Stream your health data"
     >
@@ -404,16 +278,13 @@ function WireframeMeasure({
   return (
     <div
       className={`landing-hero-demo-wireframe-measure landing-hero-demo-wireframe-measure--${placement}`}
+      // SAFETY: Custom property keys are absent from React's CSSProperties, so object literals carrying them require a cast.
       style={{ "--landing-hero-demo-wireframe-measure-inset": `${inset}px` } as CSSProperties}
     >
       <span />
       <strong>{label}</strong>
     </div>
   );
-}
-
-function WireframeConnectDemo(): ReactNode {
-  return <ConnectModalDemo wireframe />;
 }
 
 function WireframeInstitutionDemo(): ReactNode {
@@ -446,6 +317,7 @@ export function HeroDemoGrid({ variant = "hero" }: { variant?: "hero" | "review"
         <div
           className={`landing-hero-demo landing-hero-demo--${id}`}
           key={id}
+          // SAFETY: Custom property keys are absent from React's CSSProperties, so object literals carrying them require a cast.
           style={{ "--landing-hero-demo-wireframe-delay": `${1400 + index * 600}ms` } as CSSProperties}
         >
           <div className="landing-hero-demo-card">

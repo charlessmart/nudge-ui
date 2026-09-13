@@ -120,6 +120,7 @@ export function withNudgeUi(
   options: NudgeUiOptions = {},
 ): UserConfigExport {
   if (typeof config === "function") {
+    // SAFETY: The typeof guard above selects the function form of UserConfigExport, whose signature this cast states.
     const resolveConfig = config as (env: ConfigEnv) => UserConfig | Promise<UserConfig>;
     return (env: ConfigEnv) => appendNudgeUi(resolveConfig(env), options);
   }
@@ -185,6 +186,7 @@ export function extractViteModuleCss(code: string): string | null {
   const match = /(?:^|;)\s*(?:const|let|var)\s+__vite__css\s*=\s*("(?:[^"\\]|\\.)*")/m.exec(code);
   if (!match) return null;
   try {
+    // SAFETY: match[1] is the quoted string literal captured by the regex above, and JSON.parse is wrapped in try/catch.
     const value = JSON.parse(match[1]!) as unknown;
     return typeof value === "string" ? value : null;
   } catch {

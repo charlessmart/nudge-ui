@@ -1,7 +1,6 @@
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
 import type { TokenContextWrapper } from "virtual:design-tokens";
-import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 
 export { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";

@@ -8,11 +8,7 @@ import { projectInspectorValues } from "../spacing/projection.ts";
 import type { InspectorProjection } from "../spacing/projection.ts";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
 import { selectTokens } from "@nudge-ui/css/value-semantics";
-import {
-  createBrowserCssInspection,
-  type DocumentTokenInspectionSnapshot,
-  type InspectionSnapshot,
-} from "./browserCssInspection.ts";
+import { createBrowserCssInspection } from "./browserCssInspection.ts";
 import { getBrowserCssInspection } from "./browserCssInspectionRegistry.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 

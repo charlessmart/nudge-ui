@@ -92,7 +92,9 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
 
       // A renderer whose runtime finished booting after the iframe load event
       // asks for the identity announcement it may have missed.
+      // SAFETY: Renderer messages arrive as unvalidated structured clones, so the discriminant must be read structurally.
       if ((msg as { type?: string }).type === "renderer-hello") {
+        // SAFETY: The `type === "renderer-hello"` branch above selects exactly the hello payload shape.
         const hello = msg as { protocolVersion?: number };
         if (hello.protocolVersion !== PROTOCOL_VERSION) return;
         sendParentReady();

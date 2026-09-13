@@ -1,8 +1,5 @@
 import type { ReactNode } from "react";
 import {
-  IconChartLine,
-  IconHome,
-  IconPackage,
   IconPlus,
   IconSearch,
   IconShieldCheck,

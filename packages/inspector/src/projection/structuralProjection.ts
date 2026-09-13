@@ -4,12 +4,7 @@ import {
   resolveRenderedInstance,
   type RenderedInstanceRef,
 } from "./renderedInstance.ts";
-import {
-  isStructuralChange,
-  isStructuralDelete,
-  isStructuralMove,
-  isStructuralProjectionReport,
-} from "./structuralProjectionBoundary.ts";
+import { isStructuralProjectionReport } from "./structuralProjectionBoundary.ts";
 import {
   commitStructuralChange,
   getWorkspaceChanges,

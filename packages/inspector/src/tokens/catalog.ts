@@ -6,11 +6,7 @@ import type {
 import type { StyleRuleContext } from "../projection/managedStylesheet.ts";
 import { getScopingSelectorPattern } from "../runtime/runtimeConfig.ts";
 import { getElementComputedStyle, getElementWindow } from "../runtime/domRealm.ts";
-import {
-  selectTokens,
-  TOKEN_GROUP_LABELS,
-  TOKEN_GROUP_ORDER,
-} from "@nudge-ui/css/value-semantics";
+import { selectTokens } from "@nudge-ui/css/value-semantics";
 import type { TokenGroup } from "@nudge-ui/css/value-semantics";
 import { cascadeLayerOrder } from "./resolution/cssomCollector.ts";
 import { compareAuthorCascade } from "./resolution/cascade.ts";

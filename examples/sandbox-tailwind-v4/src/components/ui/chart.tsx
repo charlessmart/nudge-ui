@@ -100,6 +100,7 @@ ${prefix} [data-chart=${id}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
     const color =
+      // SAFETY: Both THEMES keys and ChartConfig.theme keys are the same theme union, so the key is valid by construction.
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ??
       itemConfig.color
     return color ? `  --color-${key}: ${color};` : null
@@ -232,6 +233,7 @@ function ChartTooltipContent({
                             }
                           )}
                           style={
+                            // SAFETY: Custom property keys are absent from React's CSSProperties, so object literals carrying them require a cast.
                             {
                               "--color-bg": indicatorColor,
                               "--color-border": indicatorColor,
@@ -347,14 +349,20 @@ function getPayloadConfigFromPayload(
 
   if (
     key in payload &&
+    // SAFETY: The `key in payload` guard above proves the key indexes payload.
     typeof payload[key as keyof typeof payload] === "string"
   ) {
+    // SAFETY: The `key in payload` guard above proves the key indexes payload,
+    // and the `typeof ... === "string"` check proves the guarded read is a string.
     configLabelKey = payload[key as keyof typeof payload] as string
   } else if (
     payloadPayload &&
     key in payloadPayload &&
+    // SAFETY: The `key in payloadPayload` guard above proves the key indexes payloadPayload.
     typeof payloadPayload[key as keyof typeof payloadPayload] === "string"
   ) {
+    // SAFETY: The `key in payloadPayload` guard proves the key indexes payloadPayload,
+    // and the `typeof ... === "string"` check proves the same guarded read is a string.
     configLabelKey = payloadPayload[
       key as keyof typeof payloadPayload
     ] as string

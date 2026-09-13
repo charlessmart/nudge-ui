@@ -418,6 +418,7 @@ function canonicalExistingAncestor(candidate: string): string | null {
 }
 
 function isMissingPathError(error: unknown): boolean {
+  // SAFETY: The `in` guard below proves the node error object has a code field.
   return typeof error === "object"
     && error !== null
     && "code" in error

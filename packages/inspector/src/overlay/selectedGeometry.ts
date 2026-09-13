@@ -10,6 +10,7 @@ export function observeSelectedGeometry(element: HTMLElement, onChange: () => vo
   const view = getElementWindow(element);
   // getElementWindow returns the cross-realm Window interface, while the
   // project-wide browser global also carries the observer constructors.
+  // SAFETY: view is a same-realm Window, and the runtime realm exposes the observer constructors as project-wide globals.
   const { ResizeObserver: ResizeObserverCtor, MutationObserver: MutationObserverCtor } = view as typeof window;
   let frame: number | null = null;
 
