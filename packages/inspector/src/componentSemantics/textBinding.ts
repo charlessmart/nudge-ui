@@ -168,13 +168,35 @@ function isTextNode(node: Node): node is Text {
   return node.nodeType === 3;
 }
 
+function isHiddenTextNode(element: HTMLElement, textNode: Text): boolean {
+  let current = textNode.parentElement;
+  while (current) {
+    if (current.hidden
+      || current.hasAttribute("inert")
+      || current.getAttribute("aria-hidden") === "true") {
+      return true;
+    }
+    const style = current.ownerDocument.defaultView?.getComputedStyle(current);
+    if (style?.display === "none"
+      || style?.visibility === "hidden"
+      || style?.visibility === "collapse") {
+      return true;
+    }
+    if (current === element) break;
+    current = current.parentElement;
+  }
+  return false;
+}
+
 function textNodesFor(element: HTMLElement): Text[] {
   const doc = element.ownerDocument;
   const walker = doc.createTreeWalker(element, 0x4 /* NodeFilter.SHOW_TEXT */);
   const nodes: Text[] = [];
   let node = walker.nextNode();
   while (node) {
-    if (isTextNode(node) && normalizedText(node.nodeValue ?? "")) {
+    if (isTextNode(node)
+      && normalizedText(node.nodeValue ?? "")
+      && !isHiddenTextNode(element, node)) {
       nodes.push(node);
     }
     node = walker.nextNode();
