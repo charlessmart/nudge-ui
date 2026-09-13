@@ -16,10 +16,13 @@ import { clearCanvasRenderedInstanceProjectionReports } from "../projection/rend
 import { clearCanvasTextProjectionReports } from "../projection/textProjection.ts";
 import { getCanvasToolbarScale } from "./toolbarScale.ts";
 import { getCanvasResizeHandleScale } from "./resizeHandleScale.ts";
+import type { DocumentSession, InspectorSession } from "../session/sessionFactory.ts";
+import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
   onEdit?: (card: CanvasCard) => void;
+  documentOwner?: InspectorSession;
 }
 
 type CardLoadState = "loading" | "ready" | "error";
@@ -27,8 +30,9 @@ type CardLoadState = "loading" | "ready" | "error";
 const MIN_CARD_WIDTH = 200;
 const MIN_CARD_HEIGHT = 150;
 
-export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
+export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const documentSessionRef = useRef<{ document: Document; session: DocumentSession } | null>(null);
   const [loadState, setLoadState] = useState<CardLoadState>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const camera = useBoardCamera();
@@ -39,18 +43,36 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
   const toolbarScale = getCanvasToolbarScale(camera.zoom);
   const resizeHandleScale = getCanvasResizeHandleScale(camera.zoom);
 
+  const disposeDocumentSession = useCallback((): void => {
+    documentSessionRef.current?.session.dispose();
+    documentSessionRef.current = null;
+  }, []);
+
+  const bindDocumentSession = useCallback((): void => {
+    const frameDocument = iframeRef.current?.contentDocument;
+    if (!documentOwner || !frameDocument) return;
+    if (documentSessionRef.current?.document === frameDocument) return;
+    disposeDocumentSession();
+    const session = documentOwner.createDocumentSession(frameDocument);
+    session.registerCleanup(() => disposeBrowserCssInspection(frameDocument));
+    documentSessionRef.current = { document: frameDocument, session };
+  }, [disposeDocumentSession, documentOwner]);
+
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
     registerCardFrameSource(card.id, iframe);
+    bindDocumentSession();
     return () => {
+      disposeDocumentSession();
       unregisterCardFrame(card.id);
     };
-  }, [card.id]);
+  }, [bindDocumentSession, card.id, disposeDocumentSession]);
 
   function handleReload(): void {
     if (iframeRef.current) {
       if (getSelectedCardId() === card.id) setSelectedElement(null);
+      disposeDocumentSession();
       invalidateCanvasPreviewDocument(card.id);
       setLoadState("loading");
       setErrorMessage(null);
@@ -159,17 +181,19 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
     if (!iframe) return;
     function onLoad(): void {
       if (getSelectedCardId() === card.id) setSelectedElement(null);
+      disposeDocumentSession();
       // A reload creates a new renderer document; do not show diagnostics
       // produced by the old frame while its replacement is handshaking.
       invalidateCanvasPreviewDocument(card.id);
       clearCanvasStructuralProjectionReports(card.id);
       clearCanvasRenderedInstanceProjectionReports(card.id);
       clearCanvasTextProjectionReports(card.id);
+      bindDocumentSession();
       sendParentReady();
     }
     iframe.addEventListener("load", onLoad);
     return () => iframe.removeEventListener("load", onLoad);
-  }, [card.id]);
+  }, [bindDocumentSession, card.id, disposeDocumentSession]);
 
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, cardX: 0, cardY: 0 });

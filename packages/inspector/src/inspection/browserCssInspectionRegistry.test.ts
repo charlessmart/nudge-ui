@@ -5,6 +5,7 @@ import {
   disposeBrowserCssInspection,
   getBrowserCssInspection,
 } from "./browserCssInspectionRegistry.ts";
+import { documentRevisions } from "../tokens/resolution/cssomCollector.ts";
 import { setDesignTokensStub } from "../__stubs__/design-tokens.ts";
 import {
   configureNudgeUiRuntime,
@@ -36,6 +37,18 @@ describe("browser CSS inspection registry", () => {
     disposeBrowserCssInspection(document);
 
     expect(getBrowserCssInspection(document)).not.toBe(first);
+  });
+
+  it("releases the document CSSOM lifetime with the registry session", () => {
+    const first = getBrowserCssInspection(document);
+    const revisions = documentRevisions(document);
+    revisions.element = 4;
+    revisions.stylesheet = 2;
+
+    disposeBrowserCssInspection(document);
+
+    expect(documentRevisions(document)).toEqual({ element: 0, stylesheet: 0 });
+    expect(first.inspect(document.createElement("div")).target.status).toBe("disposed");
   });
 
   it("recreates the document session when token knowledge generation changes", () => {

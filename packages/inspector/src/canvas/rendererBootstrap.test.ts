@@ -1,16 +1,18 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PROTOCOL_VERSION, setRendererIdentity } from "./frameProtocol.ts";
+import { getRendererIdentity, PROTOCOL_VERSION, setRendererIdentity } from "./frameProtocol.ts";
 import { bootstrapRenderer, type RendererBootstrapHandle } from "./rendererBootstrap.ts";
+import { installRendererElementSelector } from "./rendererElementSelector.ts";
+import { startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 
 vi.mock("./rendererElementSelector.ts", () => ({
-  installRendererElementSelector: vi.fn(),
+  installRendererElementSelector: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("./rendererStylesheet.ts", () => ({
   handleReplaceStyles: vi.fn(),
-  startRendererProjectionDiagnostics: vi.fn(),
+  startRendererProjectionDiagnostics: vi.fn(() => vi.fn()),
 }));
 
 const identity = {
@@ -58,6 +60,19 @@ afterEach(() => {
 });
 
 describe("bootstrapRenderer teardown", () => {
+  it("disposes renderer-owned selector and diagnostics resources", () => {
+    const disposeSelector = vi.fn();
+    const disposeDiagnostics = vi.fn();
+    vi.mocked(installRendererElementSelector).mockReturnValue(disposeSelector);
+    vi.mocked(startRendererProjectionDiagnostics).mockReturnValue(disposeDiagnostics);
+
+    handle = bootstrapRenderer();
+    handle?.teardown();
+
+    expect(disposeSelector).toHaveBeenCalledOnce();
+    expect(disposeDiagnostics).toHaveBeenCalledOnce();
+  });
+
   it("releases owned resources, suppresses late callbacks, and permits a later bootstrap", async () => {
     vi.useFakeTimers();
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
@@ -72,6 +87,7 @@ describe("bootstrapRenderer teardown", () => {
     window.history.pushState({}, "", "#pending");
     handle?.teardown();
     handle?.teardown();
+    expect(getRendererIdentity()).toBeNull();
 
     await Promise.resolve();
     vi.advanceTimersByTime(5000);
@@ -91,6 +107,7 @@ describe("bootstrapRenderer teardown", () => {
     nextHandle?.teardown();
     handle = undefined;
     expect(window.history.pushState).toBe(originalPushState);
+    expect(getRendererIdentity()).toBeNull();
   });
 
   it("does not cancel a newer history owner when an application replaces the patch", () => {

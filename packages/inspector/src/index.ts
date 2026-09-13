@@ -7,7 +7,7 @@ import { removeManagedSheet } from "./projection/managedStylesheet.ts";
 import { isInspectorToggleShortcut } from "./shell/shortcuts.ts";
 import { clearInspectorLayout } from "./shell/panelLayout.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
-import { bootstrapRenderer } from "./canvas/rendererBootstrap.ts";
+import { bootstrapRenderer, type RendererBootstrapHandle } from "./canvas/rendererBootstrap.ts";
 import {
   hydrateSession,
   enableAutoSave,
@@ -24,10 +24,11 @@ import {
   releaseLease,
   subscribeOwnership,
 } from "./canvas/workspaceLease.ts";
-import { startStaleDetection } from "./canvas/staleChangeDetector.ts";
+import { cancelStaleDetection, startStaleDetection } from "./canvas/staleChangeDetector.ts";
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
 import { installInspectionBridge } from "./inspection/bridge.ts";
+import { disposeBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
@@ -48,7 +49,7 @@ let reactRoot: Root | null = null;
 let lockedRoot: Root | null = null;
 const workspace = createWorkspace();
 let inspectorSession: InspectorSession | null = null;
-let listenerAttached = false;
+let rendererBootstrapHandle: RendererBootstrapHandle | null = null;
 let beforeUnloadAttached = false;
 let persistenceSubscribed = false;
 let unsubscribeOwnership: (() => void) | null = null;
@@ -73,6 +74,8 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
   if (!isNudgeUiDev() && !explicitDemo) return;
 
   if (explicitDemo) {
+    rendererBootstrapHandle?.teardown();
+    rendererBootstrapHandle = null;
     // ADR-0014: only the configured demo runtime opens the shared dev gate
     // for its own document. The bundle mode name alone must never flip it,
     // so every build without both opt-ins stays governed by ADR-0002.
@@ -91,11 +94,14 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
     setCanvasMode("inspect");
   }
 
+  rendererBootstrapHandle?.teardown();
+  rendererBootstrapHandle = null;
+
   removeInspectionBridge?.();
   removeInspectionBridge = installInspectionBridge();
 
   if (getNudgeUiRuntimeConfig().capabilities.canvas && isCanvasRenderer()) {
-    bootstrapRenderer();
+    rendererBootstrapHandle = bootstrapRenderer() ?? null;
     return;
   }
 
@@ -162,10 +168,7 @@ function mountLockedNotice(host: HTMLElement): void {
     reactRoot = null;
   }
   disposeInspectorSession();
-  if (listenerAttached) {
-    window.removeEventListener("keydown", onKeydown);
-    listenerAttached = false;
-  }
+  cancelStaleDetection();
   setInspectorOpen(false);
   cancelInlineTextEdit();
   setSelectedElement(null);
@@ -205,21 +208,23 @@ export function mountInspector(host: HTMLElement): void {
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
     inspectorSession = workspace.createInspectorSession(host);
+    const documentSession = inspectorSession.createDocumentSession(document);
+    documentSession.registerCleanup(() => disposeBrowserCssInspection(document));
+    inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
     setInspectorHost(host);
     reactRoot.render(createElement(
       InspectorSessionProvider,
-      { inspector: inspectorSession },
+      { inspector: inspectorSession, documentSession },
       createElement(demo ? InspectorShell : AppShell),
     ));
+    window.addEventListener("keydown", onKeydown);
   }
   setInspectorOpen(true);
-  if (!listenerAttached) {
-    window.addEventListener("keydown", onKeydown);
-    listenerAttached = true;
-  }
 }
 
 export function unmountInspector(): void {
+  rendererBootstrapHandle?.teardown();
+  rendererBootstrapHandle = null;
   stopClipboardHandoffController?.();
   stopClipboardHandoffController = null;
   unsubscribeOwnership?.();
@@ -228,10 +233,7 @@ export function unmountInspector(): void {
     lockedRoot.unmount();
     lockedRoot = null;
   }
-  if (listenerAttached) {
-    window.removeEventListener("keydown", onKeydown);
-    listenerAttached = false;
-  }
+  cancelStaleDetection();
   cancelInlineTextEdit();
   setSelectedElement(null);
   if (reactRoot) {

@@ -99,30 +99,15 @@ export function createWorkspace(): Workspace {
   return workspace;
 }
 
-/**
- * Creates an inspector session for a workspace.
- *
- * The optional workspace parameter makes the owning dependency explicit when
- * this convenience form is used. Prefer `workspace.createInspectorSession`
- * when the workspace is already in hand.
- */
-export function createInspectorSession(host: InspectorHost, workspace: Workspace = createWorkspace()): InspectorSession {
+/** Creates an inspector session owned by the supplied workspace. */
+export function createInspectorSession(workspace: Workspace, host: InspectorHost): InspectorSession {
   return workspace.createInspectorSession(host);
 }
 
-/**
- * Creates a document session for a workspace or mounted inspector.
- *
- * The optional owner makes the document lifetime explicit. Prefer
- * `inspector.createDocumentSession` for a document attached to a mounted
- * inspector, or `workspace.createDocumentSession` for a workspace-owned
- * document.
- */
+/** Creates a document session owned by a workspace or mounted inspector. */
 export function createDocumentSession(
+  owner: Workspace | InspectorSession,
   doc: Document,
-  owner: Workspace | InspectorSession = createWorkspace(),
 ): DocumentSession {
   return owner.createDocumentSession(doc);
 }
-
-export type WorkspaceSession = Workspace;

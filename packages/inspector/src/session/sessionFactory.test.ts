@@ -45,8 +45,8 @@ describe("session factory ownership", () => {
 
   it("keeps convenience constructors attached to their explicit owner", () => {
     const workspace = createWorkspace();
-    const inspector = createInspectorSession(document.body, workspace);
-    const documentSession = createDocumentSession(document, inspector);
+    const inspector = createInspectorSession(workspace, document.body);
+    const documentSession = createDocumentSession(inspector, document);
     const cleanup = vi.fn();
 
     documentSession.registerCleanup(cleanup);

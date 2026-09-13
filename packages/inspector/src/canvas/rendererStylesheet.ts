@@ -87,6 +87,16 @@ let lastTextProjectionReportRevision: number | null = null;
 let stopStructuralDiagnostics: (() => void) | null = null;
 let stopRenderedInstanceDiagnostics: (() => void) | null = null;
 let stopTextProjectionDiagnostics: (() => void) | null = null;
+let activeDiagnosticsOwner: object | null = null;
+
+function stopProjectionDiagnostics(): void {
+  stopStructuralDiagnostics?.();
+  stopStructuralDiagnostics = null;
+  stopRenderedInstanceDiagnostics?.();
+  stopRenderedInstanceDiagnostics = null;
+  stopTextProjectionDiagnostics?.();
+  stopTextProjectionDiagnostics = null;
+}
 
 function sendStructuralProjectionReport(revision: number): void {
   const identity = getRendererIdentity();
@@ -140,8 +150,15 @@ function sendProjectionApplied(revision: number): void {
 }
 
 /** Installs renderer diagnostics only after the dev-only renderer bootstrap. */
-export function startRendererProjectionDiagnostics(): void {
-  if (!isNudgeUiDev() || stopStructuralDiagnostics || stopRenderedInstanceDiagnostics || stopTextProjectionDiagnostics) return;
+export function startRendererProjectionDiagnostics(): () => void {
+  if (!isNudgeUiDev() || activeDiagnosticsOwner) return () => undefined;
+
+  lastAppliedRevision = -1;
+  lastStructuralReportRevision = null;
+  lastRenderedInstanceReportRevision = null;
+  lastTextProjectionReportRevision = null;
+  const owner = {};
+  activeDiagnosticsOwner = owner;
   stopStructuralDiagnostics = subscribeStructuralDiagnostics(() => {
     if (lastStructuralReportRevision !== null) {
       sendStructuralProjectionReport(lastStructuralReportRevision);
@@ -157,6 +174,16 @@ export function startRendererProjectionDiagnostics(): void {
       sendTextProjectionReport(lastTextProjectionReportRevision);
     }
   });
+
+  return () => {
+    if (activeDiagnosticsOwner !== owner) return;
+    activeDiagnosticsOwner = null;
+    stopProjectionDiagnostics();
+    lastAppliedRevision = -1;
+    lastStructuralReportRevision = null;
+    lastRenderedInstanceReportRevision = null;
+    lastTextProjectionReportRevision = null;
+  };
 }
 
 export function getLastAppliedRevision(): number {
@@ -164,16 +191,12 @@ export function getLastAppliedRevision(): number {
 }
 
 export function resetRendererRevision(): void {
+  activeDiagnosticsOwner = null;
+  stopProjectionDiagnostics();
   lastAppliedRevision = -1;
   lastStructuralReportRevision = null;
   lastRenderedInstanceReportRevision = null;
   lastTextProjectionReportRevision = null;
-  stopStructuralDiagnostics?.();
-  stopStructuralDiagnostics = null;
-  stopRenderedInstanceDiagnostics?.();
-  stopRenderedInstanceDiagnostics = null;
-  stopTextProjectionDiagnostics?.();
-  stopTextProjectionDiagnostics = null;
 }
 
 export interface ReplaceStylesValidation {

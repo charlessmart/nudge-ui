@@ -79,7 +79,9 @@ export function createSessionOwner(kind: SessionKind): SessionOwnerImplementatio
         child.dispose();
         return;
       }
+      if (child.disposed) return;
       children.add(child);
+      child.registerCleanup(() => children.delete(child));
     },
     dispose,
   };

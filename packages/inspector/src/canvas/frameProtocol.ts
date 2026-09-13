@@ -256,6 +256,10 @@ export function setRendererIdentity(identity: FrameIdentity): void {
   rendererIdentity = identity;
 }
 
+export function clearRendererIdentity(expected?: FrameIdentity): void {
+  if (expected === undefined || rendererIdentity === expected) rendererIdentity = null;
+}
+
 export function getRendererIdentity(): FrameIdentity | null {
   return rendererIdentity;
 }

@@ -1,5 +1,6 @@
 import {
   PROTOCOL_VERSION,
+  clearRendererIdentity,
   getRendererIdentity,
   isRendererMessageFor,
   sendToParent,
@@ -36,6 +37,7 @@ interface CancellableFrameThrottle {
 interface RendererBootstrapOwner {
   active: boolean;
   listenerRemovers: Array<() => void>;
+  resourceDisposers: Array<() => void>;
   observers: MutationObserver[];
   timers: Set<number>;
   frameThrottles: CancellableFrameThrottle[];
@@ -92,6 +94,7 @@ function observeFrameMetadata(owner: RendererBootstrapOwner): void {
   owner.listenerRemovers.push(() => window.removeEventListener("hashchange", onHashChange));
 
   for (const method of ["pushState", "replaceState"] as const) {
+    const descriptor = Object.getOwnPropertyDescriptor(history, method);
     const original = history[method];
     const patched = function (
       this: History,
@@ -106,7 +109,11 @@ function observeFrameMetadata(owner: RendererBootstrapOwner): void {
     history[method] = patched;
     owner.historyPatchRestorers.push(() => {
       if (history[method] === patched) {
-        history[method] = original;
+        if (descriptor) {
+          Object.defineProperty(history, method, descriptor);
+        } else {
+          delete history[method];
+        }
       }
     });
   }
@@ -152,7 +159,9 @@ function teardownRenderer(owner: RendererBootstrapOwner): void {
   owner.observers.length = 0;
 
   for (const removeListener of owner.listenerRemovers.splice(0)) removeListener();
+  for (const disposeResource of owner.resourceDisposers.splice(0)) disposeResource();
   for (const restoreHistoryPatch of owner.historyPatchRestorers.splice(0)) restoreHistoryPatch();
+  clearRendererIdentity();
 }
 
 export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
@@ -163,6 +172,7 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
   const owner: RendererBootstrapOwner = {
     active: true,
     listenerRemovers: [],
+    resourceDisposers: [],
     observers: [],
     timers: new Set(),
     frameThrottles: [],
@@ -175,8 +185,10 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
 
   try {
     observeFrameMetadata(owner);
-    startRendererProjectionDiagnostics();
-    installRendererElementSelector();
+    const disposeDiagnostics = startRendererProjectionDiagnostics();
+    if (disposeDiagnostics) owner.resourceDisposers.push(disposeDiagnostics);
+    const disposeSelector = installRendererElementSelector();
+    if (disposeSelector) owner.resourceDisposers.push(disposeSelector);
     installRendererPanProxy(owner);
 
     const onClick = (event: MouseEvent): void => {

@@ -20,6 +20,7 @@ import {
   type CompiledManagedStyles,
   type WorkspaceProjectionPlan,
 } from "../projection/workspaceProjection.ts";
+import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 
 export const PROJECT_ID = window.location.origin;
 
@@ -65,6 +66,8 @@ export function getCanvasPreviewDocument(cardId: string): PreviewDocument {
 
 /** Invalidates a card's current document before its iframe is replaced. */
 export function invalidateCanvasPreviewDocument(cardId: string): void {
+  const state = frameProjectionStates.get(cardId);
+  if (state?.document) disposeBrowserCssInspection(state.document);
   const previewDocument = previewDocuments.get(cardId);
   if (!previewDocument) return;
   invalidatePreviewDocumentSession(previewDocument.logicalDocument, previewDocument.sessionId);
@@ -159,8 +162,8 @@ export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): vo
 export function unregisterCardFrame(cardId: string): void {
   frameSourceRegistry.delete(cardId);
   frameRegistry.delete(cardId);
-  frameProjectionStates.delete(cardId);
   invalidateCanvasPreviewDocument(cardId);
+  frameProjectionStates.delete(cardId);
   clearCanvasStructuralProjectionReports(cardId);
   clearCanvasRenderedInstanceProjectionReports(cardId);
   clearCanvasTextProjectionReports(cardId);

@@ -6,7 +6,6 @@ export {
   type InspectorHost,
   type InspectorSession,
   type Workspace,
-  type WorkspaceSession,
 } from "./sessionFactory.ts";
 export {
   InspectorSessionProvider,

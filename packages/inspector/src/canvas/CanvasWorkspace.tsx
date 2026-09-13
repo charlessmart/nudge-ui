@@ -46,11 +46,13 @@ import foundationStyles from "../ui/Foundation.css?inline";
 import { useInspectorOpen } from "../shell/openStore.ts";
 import { isEditableEvent } from "../shell/shortcuts.ts";
 import { acknowledgeAgentRendererReady } from "./agentPresentation.ts";
+import { useInspectorSession } from "../session/sessionContext.tsx";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");
 
 export function CanvasWorkspace(): ReactElement | null {
   const mode = useCanvasMode();
+  const inspectorSession = useInspectorSession();
   const inspectorOpen = useInspectorOpen();
   const cards = useCanvasCards();
   const camera = useBoardCamera();
@@ -362,7 +364,7 @@ export function CanvasWorkspace(): ReactElement | null {
             data-test="canvas-board-content"
           >
             {cards.map((card) => (
-              <CanvasCard key={card.id} card={card} onEdit={handleEdit} />
+              <CanvasCard key={card.id} card={card} onEdit={handleEdit} documentOwner={inspectorSession} />
             ))}
           </div>
         </div>

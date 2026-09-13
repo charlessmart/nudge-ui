@@ -20,9 +20,15 @@ interface DocumentResolutionSession {
   resizeListener: (() => void) | null;
 }
 
+interface DocumentResolutionReference {
+  session: DocumentResolutionSession;
+  count: number;
+}
+
 const revisionRecords = new WeakMap<Document, DocumentRevisions>();
 const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
 const documentResolutionSessions = new WeakMap<Document, DocumentResolutionSession>();
+const documentResolutionReferences = new WeakMap<Document, DocumentResolutionReference>();
 
 const registeredElements = new WeakSet<Element>();
 const documentRevisionListeners = new WeakMap<Document, Set<(revisions: Readonly<DocumentRevisions>) => void>>();
@@ -81,11 +87,36 @@ export function disposeDocumentResolution(doc: Document): void {
     session.resizeListener = null;
     documentResolutionSessions.delete(doc);
   }
+  documentResolutionReferences.delete(doc);
 
   revisionRecords.delete(doc);
   ruleSnapshots.delete(doc);
   documentRevisionListeners.get(doc)?.clear();
   documentRevisionListeners.delete(doc);
+}
+
+/** Keeps one document's CSSOM observer alive for a browser inspection owner. */
+export function retainDocumentResolution(doc: Document): () => void {
+  documentRevisions(doc);
+  const session = documentResolutionSessions.get(doc);
+  if (!session) return () => undefined;
+
+  const existing = documentResolutionReferences.get(doc);
+  const reference = existing?.session === session
+    ? existing
+    : { session, count: 0 };
+  reference.count += 1;
+  documentResolutionReferences.set(doc, reference);
+
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const current = documentResolutionReferences.get(doc);
+    if (!current || current.session !== session) return;
+    current.count -= 1;
+    if (current.count === 0) disposeDocumentResolution(doc);
+  };
 }
 
 function isStylesheetNode(node: Node | null): boolean {
