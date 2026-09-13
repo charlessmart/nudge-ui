@@ -3,7 +3,6 @@ import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { InspectorShell, toggleInspector, setInspectorOpen, setInspectorHost } from "./shell/InspectorShell.tsx";
 import { setSelectedElement } from "./selection/selectionStore.ts";
-import { clearWorkspace } from "./changes/changesLog.ts";
 import { removeManagedSheet } from "./projection/managedStylesheet.ts";
 import { isInspectorToggleShortcut } from "./shell/shortcuts.ts";
 import { clearInspectorLayout } from "./shell/panelLayout.ts";
@@ -28,7 +27,6 @@ import {
 import { startStaleDetection } from "./canvas/staleChangeDetector.ts";
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
-import { resetStructuralDeleteProjection } from "./projection/structuralProjection.ts";
 import { installInspectionBridge } from "./inspection/bridge.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
@@ -39,10 +37,17 @@ import {
   startClipboardHandoffController,
   subscribeClipboardHandoff,
 } from "./prompt/clipboardHandoff.ts";
+import {
+  createWorkspace,
+  InspectorSessionProvider,
+  type InspectorSession,
+} from "./session/index.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
 let lockedRoot: Root | null = null;
+const workspace = createWorkspace();
+let inspectorSession: InspectorSession | null = null;
 let listenerAttached = false;
 let beforeUnloadAttached = false;
 let persistenceSubscribed = false;
@@ -55,6 +60,11 @@ function onKeydown(e: KeyboardEvent): void {
     toggleInspector();
     e.preventDefault();
   }
+}
+
+function disposeInspectorSession(): void {
+  inspectorSession?.dispose();
+  inspectorSession = null;
 }
 
 export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
@@ -151,6 +161,7 @@ function mountLockedNotice(host: HTMLElement): void {
     reactRoot.unmount();
     reactRoot = null;
   }
+  disposeInspectorSession();
   if (listenerAttached) {
     window.removeEventListener("keydown", onKeydown);
     listenerAttached = false;
@@ -193,8 +204,13 @@ export function mountInspector(host: HTMLElement): void {
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
+    inspectorSession = workspace.createInspectorSession(host);
     setInspectorHost(host);
-    reactRoot.render(createElement(demo ? InspectorShell : AppShell));
+    reactRoot.render(createElement(
+      InspectorSessionProvider,
+      { inspector: inspectorSession },
+      createElement(demo ? InspectorShell : AppShell),
+    ));
   }
   setInspectorOpen(true);
   if (!listenerAttached) {
@@ -222,9 +238,8 @@ export function unmountInspector(): void {
     reactRoot.unmount();
     reactRoot = null;
   }
-  clearWorkspace();
+  disposeInspectorSession();
   clearClipboardHandoff();
-  resetStructuralDeleteProjection();
   removeManagedSheet();
   clearInspectorLayout();
   removeInspectionBridge?.();
