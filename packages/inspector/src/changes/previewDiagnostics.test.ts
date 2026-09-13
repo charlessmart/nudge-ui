@@ -104,4 +104,23 @@ describe("preview diagnostics", () => {
     invalidatePreviewDocumentSession(secondDocument.logicalDocument, secondDocument.sessionId);
     expect(beginPreviewAttempt(secondDocument)).toBeNull();
   });
+
+  it("keeps diagnostics for two Canvas documents separate", () => {
+    const firstDocument = { logicalDocument: "canvas:card-1", sessionId: "session-a" };
+    const secondDocument = { logicalDocument: "canvas:card-2", sessionId: "session-b" };
+    startPreviewDocumentSession(firstDocument);
+    startPreviewDocumentSession(secondDocument);
+    const first = beginPreviewAttempt(firstDocument)!;
+    const second = beginPreviewAttempt(secondDocument)!;
+    const firstResult = { ...result, computedValue: "blue" };
+    const secondResult = { ...result, computedValue: "green" };
+
+    publishPreviewDiagnostic(first, changeKey(change), firstResult);
+    publishPreviewDiagnostic(second, changeKey(change), secondResult);
+
+    expect(getPreviewDiagnostic(changeKey(change), firstDocument.logicalDocument)?.result.computedValue)
+      .toBe("blue");
+    expect(getPreviewDiagnostic(changeKey(change), secondDocument.logicalDocument)?.result.computedValue)
+      .toBe("green");
+  });
 });

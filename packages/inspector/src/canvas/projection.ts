@@ -136,6 +136,7 @@ export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): vo
   if (!existing || existing.iframe !== iframe || existing.document !== frameDocument) {
     if (existing) {
       invalidatePreviewDocumentSession(existing.previewDocument.logicalDocument, existing.previewDocument.sessionId);
+      previewDocuments.delete(cardId);
     }
     const previewDocument = previewDocuments.get(cardId) ?? createPreviewDocument(cardId);
     startPreviewDocumentSession(previewDocument);

@@ -51,6 +51,7 @@ export function CanvasCard({ card, onEdit }: CanvasCardProps): ReactElement {
   function handleReload(): void {
     if (iframeRef.current) {
       if (getSelectedCardId() === card.id) setSelectedElement(null);
+      invalidateCanvasPreviewDocument(card.id);
       setLoadState("loading");
       setErrorMessage(null);
       const currentSrc = iframeRef.current.src;
