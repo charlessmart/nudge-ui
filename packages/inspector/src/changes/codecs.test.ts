@@ -3,8 +3,11 @@ import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "./_testUtils.ts";
 import {
   deserializeChange,
+  deserializeTokenChange,
   isSerializableChange,
   serializeChange,
+  serializeTextContentChange,
+  serializeTokenChange,
 } from "./codecs.ts";
 import type { ChangeRecord, ElementChangeRecord, TokenChangeRecord } from "./types.ts";
 import type { TextContentChangeRecord } from "./editModel.ts";
@@ -122,5 +125,78 @@ describe("change codecs", () => {
     });
 
     expect(serializeChange(change)).toBeNull();
+  });
+
+  it("does not persist non-finite numeric prop values that JSON would corrupt", () => {
+    for (const after of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(serializeChange(makeComponentChange({ after }))).toBeNull();
+    }
+    expect(isSerializableChange({
+      ...serializeChange(makeComponentChange())!,
+      after: Number.NaN,
+    })).toBe(false);
+    // JSON.stringify(NaN) -> null, which must never hydrate as a prop value.
+    expect(isSerializableChange(JSON.parse(JSON.stringify({
+      ...serializeChange(makeComponentChange())!,
+      after: Number.NaN,
+    })))).toBe(false);
+  });
+
+  it("does not persist a component record with malformed evidence", () => {
+    const change = makeComponentChange({
+      authoredAs: "expression",
+      scope: "source-site",
+      evidence: {
+        occurrence: 0,
+        props: null,
+        ariaLabel: null,
+        beforeText: "primary",
+      } as unknown as { occurrence: number; props: null; ariaLabel: null; beforeText: string; mountedCount: number },
+    });
+
+    expect(serializeChange(change)).toBeNull();
+  });
+
+  it("survives a JSON round trip for every record kind", () => {
+    const changes = [makeElementChange(), makeTokenChange(), makeComponentChange(), makeTextChange()];
+    for (const change of changes) {
+      const serialized = serializeChange(change)!;
+      const revived = JSON.parse(JSON.stringify(serialized)) as unknown;
+      expect(isSerializableChange(revived)).toBe(true);
+      expect(deserializeChange(revived as Parameters<typeof deserializeChange>[0])).toEqual(change);
+    }
+  });
+
+  it("preserves an empty token wrapper list instead of collapsing it", () => {
+    const serialized = serializeTokenChange({ ...makeTokenChange(), context: { wrappers: [] } });
+    expect(serialized.context).toEqual({ wrappers: [] });
+    expect(isSerializableChange(serialized)).toBe(true);
+  });
+
+  it("defaults a missing token context instead of persisting undefined", () => {
+    const serialized = serializeTokenChange(makeTokenChange());
+    expect(deserializeTokenChange({ ...serialized, context: undefined } as unknown as typeof serialized).context)
+      .toEqual({});
+  });
+
+  it("drops an empty text-node path instead of emitting a record the validator rejects", () => {
+    const change = makeTextChange();
+    const serialized = serializeTextContentChange({
+      ...change,
+      target: { ...change.target, textNodePath: [] },
+    });
+    expect("textNodePath" in serialized.target).toBe(false);
+    expect(isSerializableChange(serialized)).toBe(true);
+  });
+
+  it("normalizes a missing element scope to source-site", () => {
+    const change = makeElementChange();
+    const serialized = serializeChange({ ...change, scope: undefined });
+    expect(serialized?.kind).not.toBe("token");
+    if (!serialized || serialized.kind === "token" || serialized.kind === "component-prop" || serialized.kind === "text-content") {
+      throw new Error("expected an element change");
+    }
+    expect(serialized.scope).toBe("source-site");
+    expect(isSerializableChange(serialized)).toBe(true);
   });
 });

@@ -181,12 +181,21 @@ export function isSerializableComponentChangeValue(value: unknown): value is Ser
 }
 
 export function serializeChange(change: ChangeRecord): SerializableChange | null {
-  if (isTokenChange(change)) return serializeTokenChange(change);
-  if (isComponentChange(change)) {
-    return isRepeatedUnsafeSourceOverride(change) ? null : serializeComponentChange(change);
+  if (isTokenChange(change)) {
+    const serialized = serializeTokenChange(change);
+    return isSerializableTokenChangeValue(serialized) ? serialized : null;
   }
-  if (change.kind === "text-content") return serializeTextContentChange(change);
-  return serializeElementChange(change);
+  if (isComponentChange(change)) {
+    if (isRepeatedUnsafeSourceOverride(change)) return null;
+    const serialized = serializeComponentChange(change);
+    return isSerializableComponentChangeValue(serialized) ? serialized : null;
+  }
+  if (change.kind === "text-content") {
+    const serialized = serializeTextContentChange(change);
+    return isTextContentChangeValue(serialized) ? serialized : null;
+  }
+  const serialized = serializeElementChange(change);
+  return serialized && isSerializableElementChangeValue(serialized) ? serialized : null;
 }
 
 export function serializeElementChange(change: ElementChangeRecord): SerializableElementChange | null {
@@ -215,6 +224,7 @@ export function serializeElementChange(change: ElementChangeRecord): Serializabl
 }
 
 export function serializeTokenChange(change: TokenChangeRecord): SerializableTokenChange {
+  const wrappers = change.context?.wrappers;
   return {
     kind: "token",
     tokenName: change.tokenName,
@@ -224,9 +234,7 @@ export function serializeTokenChange(change: TokenChangeRecord): SerializableTok
     property: change.property,
     rawValue: change.rawValue,
     oldRawValue: change.oldRawValue,
-    context: change.context.wrappers?.length
-      ? { wrappers: change.context.wrappers.map((wrapper) => ({ ...wrapper })) }
-      : {},
+    context: wrappers ? { wrappers: wrappers.map((wrapper) => ({ ...wrapper })) } : {},
     contextLabel: change.contextLabel ?? "",
     source: change.source,
   };
@@ -257,7 +265,7 @@ export function serializeTextContentChange(change: TextContentChangeRecord): Ser
       props: change.target.props,
       ariaLabel: change.target.ariaLabel,
       beforeText: change.target.beforeText,
-      ...(change.target.textNodePath
+      ...(change.target.textNodePath?.length
         ? { textNodePath: [...change.target.textNodePath] }
         : {}),
     },
@@ -311,7 +319,7 @@ export function deserializeTokenChange(serialized: SerializableTokenChange): Tok
     property: serialized.property,
     rawValue: serialized.rawValue,
     oldRawValue: serialized.oldRawValue,
-    context: serialized.context,
+    context: serialized.context ?? {},
     contextLabel: serialized.contextLabel ?? "",
     source: serialized.source,
   };
@@ -342,7 +350,7 @@ export function deserializeTextContentChange(serialized: SerializableTextContent
       props: serialized.target.props,
       ariaLabel: serialized.target.ariaLabel,
       beforeText: serialized.target.beforeText,
-      ...(serialized.target.textNodePath
+      ...(serialized.target.textNodePath?.length
         ? { textNodePath: [...serialized.target.textNodePath] }
         : {}),
     },
@@ -468,7 +476,9 @@ function isEditScopeValue(value: unknown): value is EditScope | undefined {
 }
 
 function isComponentPropValue(value: unknown): value is ComponentPropValue {
-  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+  return typeof value === "string"
+    || (typeof value === "number" && Number.isFinite(value))
+    || typeof value === "boolean";
 }
 
 function isAuthoredPropKindValue(value: unknown): value is ComponentChangeRecord["authoredAs"] {

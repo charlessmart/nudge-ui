@@ -169,7 +169,9 @@ function buildSession(): DurableSession {
   const serializableChanges: SerializableChange[] = [];
   for (const change of changes) {
     const serialized = serializeChange(change);
-    if (serialized) serializableChanges.push(serialized);
+    // serializeChange already fails closed, but re-validate here so a future
+    // serializer skew can never poison the whole durable session.
+    if (serialized && isSerializableChange(serialized)) serializableChanges.push(serialized);
   }
 
   const cards = getCanvasCards();
