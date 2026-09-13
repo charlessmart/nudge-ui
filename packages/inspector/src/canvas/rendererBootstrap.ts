@@ -1,5 +1,6 @@
 import {
   PROTOCOL_VERSION,
+  clearRendererIdentity,
   getRendererIdentity,
   isRendererMessageFor,
   sendToParent,
@@ -25,8 +26,37 @@ import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
-let rendererBootstrapped = false;
-function sendFrameReady(): void {
+export interface RendererBootstrapHandle {
+  teardown(): void;
+}
+
+interface CancellableFrameThrottle {
+  cancel(): void;
+}
+
+interface RendererBootstrapOwner {
+  active: boolean;
+  listenerRemovers: Array<() => void>;
+  resourceDisposers: Array<() => void>;
+  observers: MutationObserver[];
+  timers: Set<number>;
+  frameThrottles: CancellableFrameThrottle[];
+  historyPatchRestorers: Array<() => void>;
+}
+
+interface ActiveRendererBootstrap {
+  owner: RendererBootstrapOwner;
+  handle: RendererBootstrapHandle;
+}
+
+let activeRendererBootstrap: ActiveRendererBootstrap | null = null;
+
+function ownsRendererBootstrap(owner: RendererBootstrapOwner): boolean {
+  return owner.active && activeRendererBootstrap?.owner === owner;
+}
+
+function sendFrameReady(owner: RendererBootstrapOwner): void {
+  if (!ownsRendererBootstrap(owner)) return;
   const identity = getRendererIdentity();
   if (!identity) return;
   const msg: FrameReadyMessage = {
@@ -40,9 +70,10 @@ function sendFrameReady(): void {
   sendToParent(msg);
 }
 
-function sendFrameMetadata(): void {
+function sendFrameMetadata(owner: RendererBootstrapOwner): void {
+  if (!ownsRendererBootstrap(owner)) return;
   const identity = getRendererIdentity();
-  if (!rendererBootstrapped || !identity) return;
+  if (!identity) return;
   const msg: FrameMetadataMessage = {
     type: "frame-metadata",
     protocolVersion: PROTOCOL_VERSION,
@@ -53,39 +84,115 @@ function sendFrameMetadata(): void {
   sendToParent(msg);
 }
 
-function observeFrameMetadata(): void {
-  window.addEventListener("popstate", sendFrameMetadata);
-  window.addEventListener("hashchange", sendFrameMetadata);
+function observeFrameMetadata(owner: RendererBootstrapOwner): void {
+  const onPopState = (): void => sendFrameMetadata(owner);
+  window.addEventListener("popstate", onPopState);
+  owner.listenerRemovers.push(() => window.removeEventListener("popstate", onPopState));
+
+  const onHashChange = (): void => sendFrameMetadata(owner);
+  window.addEventListener("hashchange", onHashChange);
+  owner.listenerRemovers.push(() => window.removeEventListener("hashchange", onHashChange));
 
   for (const method of ["pushState", "replaceState"] as const) {
+    const descriptor = Object.getOwnPropertyDescriptor(history, method);
     const original = history[method];
-    history[method] = function (...args: Parameters<History[typeof method]>): ReturnType<History[typeof method]> {
+    const patched = function (
+      this: History,
+      ...args: Parameters<typeof original>
+    ): ReturnType<typeof original> {
       const result = original.apply(this, args);
-      queueMicrotask(sendFrameMetadata);
+      if (ownsRendererBootstrap(owner)) {
+        queueMicrotask(() => sendFrameMetadata(owner));
+      }
       return result;
-    };
+    } as typeof original;
+    history[method] = patched;
+    owner.historyPatchRestorers.push(() => {
+      if (history[method] === patched) {
+        if (descriptor) {
+          Object.defineProperty(history, method, descriptor);
+        } else {
+          delete history[method];
+        }
+      }
+    });
   }
 
   const titleEl = document.querySelector("title");
   if (titleEl) {
-    const observer = new MutationObserver(sendFrameMetadata);
+    const observer = new MutationObserver(() => sendFrameMetadata(owner));
     observer.observe(titleEl, { subtree: true, characterData: true, childList: true });
+    owner.observers.push(observer);
   }
 }
 
-export function bootstrapRenderer(): void {
+function scheduleRendererTimer(
+  owner: RendererBootstrapOwner,
+  callback: () => void,
+  delay: number,
+): void {
+  const timer = window.setTimeout(() => {
+    owner.timers.delete(timer);
+    if (!ownsRendererBootstrap(owner)) return;
+    callback();
+  }, delay);
+  owner.timers.add(timer);
+}
+
+function teardownRenderer(owner: RendererBootstrapOwner): void {
+  if (!owner.active) return;
+
+  // Invalidate callbacks before releasing any resource. A queued microtask or
+  // frame can still run after its source has been cancelled.
+  owner.active = false;
+  if (activeRendererBootstrap?.owner === owner) {
+    activeRendererBootstrap = null;
+  }
+
+  for (const timer of owner.timers) window.clearTimeout(timer);
+  owner.timers.clear();
+
+  for (const throttle of owner.frameThrottles) throttle.cancel();
+  owner.frameThrottles.length = 0;
+
+  for (const observer of owner.observers) observer.disconnect();
+  owner.observers.length = 0;
+
+  for (const removeListener of owner.listenerRemovers.splice(0)) removeListener();
+  for (const disposeResource of owner.resourceDisposers.splice(0)) disposeResource();
+  for (const restoreHistoryPatch of owner.historyPatchRestorers.splice(0)) restoreHistoryPatch();
+  clearRendererIdentity();
+}
+
+export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
   if (!getNudgeUiRuntimeConfig().capabilities.canvas) return;
   if (!isNudgeUiDev()) return;
-  if (rendererBootstrapped) return;
-  rendererBootstrapped = true;
+  if (activeRendererBootstrap) return activeRendererBootstrap.handle;
 
-  observeFrameMetadata();
-  startRendererProjectionDiagnostics();
-  installRendererElementSelector();
-  installRendererPanProxy();
-  document.addEventListener(
-    "click",
-    (event: MouseEvent) => {
+  const owner: RendererBootstrapOwner = {
+    active: true,
+    listenerRemovers: [],
+    resourceDisposers: [],
+    observers: [],
+    timers: new Set(),
+    frameThrottles: [],
+    historyPatchRestorers: [],
+  };
+  const handle: RendererBootstrapHandle = {
+    teardown: () => teardownRenderer(owner),
+  };
+  activeRendererBootstrap = { owner, handle };
+
+  try {
+    observeFrameMetadata(owner);
+    const disposeDiagnostics = startRendererProjectionDiagnostics();
+    if (disposeDiagnostics) owner.resourceDisposers.push(disposeDiagnostics);
+    const disposeSelector = installRendererElementSelector();
+    if (disposeSelector) owner.resourceDisposers.push(disposeSelector);
+    installRendererPanProxy(owner);
+
+    const onClick = (event: MouseEvent): void => {
+      if (!ownsRendererBootstrap(owner)) return;
       const anchor = findClosestAnchor(event.target);
       if (!anchor) return;
       if (!isEligibleNavigation(anchor, event)) {
@@ -116,62 +223,71 @@ export function bootstrapRenderer(): void {
         ...identity,
       };
       sendToParent(msg);
-    },
-    true,
-  );
-
-  window.addEventListener("message", (event) => {
-    if (event.origin !== window.location.origin) return;
-    if (event.source !== window.parent) return;
-    const msg = event.data;
-
-    if (msg && typeof msg === "object" && msg.type === "parent-ready") {
-      if (typeof msg.protocolVersion !== "number" || msg.protocolVersion !== PROTOCOL_VERSION) return;
-      const pr = msg as ParentReadyMessage;
-      setRendererIdentity({
-        projectId: pr.projectId,
-        workspaceId: pr.workspaceId,
-        cardId: pr.cardId,
-      });
-      sendFrameReady();
-      return;
-    }
-
-    if (
-      msg &&
-      typeof msg === "object" &&
-      msg.type === "replace-styles" &&
-      getRendererIdentity()
-    ) {
-      const identity = getRendererIdentity()!;
-      handleReplaceStyles(
-        msg as Parameters<typeof handleReplaceStyles>[0],
-        identity.projectId,
-        identity.workspaceId,
-        identity.cardId,
-      );
-    }
-  });
-
-  // Solicit the handshake, then retry briefly. The controller answers on
-  // iframe load AND on every hello it receives, but its answering listener
-  // attaches when the card component commits — normally long before any
-  // renderer finishes booting. The retries cover the residual window where
-  // a renderer's listeners go live before the controller's do (fast boot,
-  // slow controller compile). Every path is idempotent: setRendererIdentity
-  // overwrites, re-registration replaces, projection re-sends are safe.
-  let helloAttempts = 0;
-  const solicitHandshake = (): void => {
-    if (getRendererIdentity() || helloAttempts >= 5) return;
-    helloAttempts += 1;
-    const hello: RendererHelloMessage = {
-      type: "renderer-hello",
-      protocolVersion: PROTOCOL_VERSION,
     };
-    sendToParent(hello);
-    setTimeout(solicitHandshake, 400 * helloAttempts);
-  };
-  solicitHandshake();
+    document.addEventListener("click", onClick, true);
+    owner.listenerRemovers.push(() => document.removeEventListener("click", onClick, true));
+
+    const onMessage = (event: MessageEvent): void => {
+      if (!ownsRendererBootstrap(owner)) return;
+      if (event.origin !== window.location.origin) return;
+      if (event.source !== window.parent) return;
+      const msg = event.data;
+
+      if (msg && typeof msg === "object" && msg.type === "parent-ready") {
+        if (typeof msg.protocolVersion !== "number" || msg.protocolVersion !== PROTOCOL_VERSION) return;
+        const pr = msg as ParentReadyMessage;
+        setRendererIdentity({
+          projectId: pr.projectId,
+          workspaceId: pr.workspaceId,
+          cardId: pr.cardId,
+        });
+        sendFrameReady(owner);
+        return;
+      }
+
+      if (
+        msg &&
+        typeof msg === "object" &&
+        msg.type === "replace-styles" &&
+        getRendererIdentity()
+      ) {
+        const identity = getRendererIdentity()!;
+        handleReplaceStyles(
+          msg as Parameters<typeof handleReplaceStyles>[0],
+          identity.projectId,
+          identity.workspaceId,
+          identity.cardId,
+        );
+      }
+    };
+    window.addEventListener("message", onMessage);
+    owner.listenerRemovers.push(() => window.removeEventListener("message", onMessage));
+
+    // Solicit the handshake, then retry briefly. The controller answers on
+    // iframe load AND on every hello it receives, but its answering listener
+    // attaches when the card component commits — normally long before any
+    // renderer finishes booting. The retries cover the residual window where
+    // a renderer's listeners go live before the controller's do (fast boot,
+    // slow controller compile). Every path is idempotent: setRendererIdentity
+    // overwrites, re-registration replaces, projection re-sends are safe.
+    let helloAttempts = 0;
+    const solicitHandshake = (): void => {
+      if (!ownsRendererBootstrap(owner) || getRendererIdentity() || helloAttempts >= 5) return;
+      helloAttempts += 1;
+      const hello: RendererHelloMessage = {
+        type: "renderer-hello",
+        protocolVersion: PROTOCOL_VERSION,
+      };
+      sendToParent(hello);
+      scheduleRendererTimer(owner, solicitHandshake, 400 * helloAttempts);
+    };
+    solicitHandshake();
+  } catch (error) {
+    teardownRenderer(owner);
+    throw error;
+  }
+
+  return handle;
 }
 
 function isPrimarySelfNavigation(anchor: HTMLAnchorElement, event: MouseEvent): boolean {
@@ -181,11 +297,12 @@ function isPrimarySelfNavigation(anchor: HTMLAnchorElement, event: MouseEvent): 
   return anchor.protocol === "http:" || anchor.protocol === "https:";
 }
 
-function installRendererPanProxy(): void {
+function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   let spaceHeld = false;
   let panning = false;
 
   const panMoveUpdate = createFrameThrottle((point: { x: number; y: number }) => {
+    if (!ownsRendererBootstrap(owner)) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     const message: PanMoveMessage = {
@@ -196,6 +313,7 @@ function installRendererPanProxy(): void {
     };
     sendToParent(message);
   });
+  owner.frameThrottles.push(panMoveUpdate);
 
   function isEditableTarget(target: EventTarget | null): boolean {
     return target instanceof HTMLElement
@@ -203,6 +321,7 @@ function installRendererPanProxy(): void {
   }
 
   function sendSpaceState(): void {
+    if (!ownsRendererBootstrap(owner)) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     const message: PanModifierMessage = {
@@ -214,29 +333,45 @@ function installRendererPanProxy(): void {
     sendToParent(message);
   }
 
-  window.addEventListener("message", (event) => {
+  const onMessage = (event: MessageEvent): void => {
+    if (!ownsRendererBootstrap(owner)) return;
     if (event.origin !== window.location.origin || event.source !== window.parent) return;
     const identity = getRendererIdentity();
     if (!identity || !isRendererMessageFor(event.data, identity)) return;
     if ((event.data as PanModifierMessage).type === "pan-modifier") {
       spaceHeld = (event.data as PanModifierMessage).spaceHeld;
     }
-  });
+  };
+  window.addEventListener("message", onMessage);
+  owner.listenerRemovers.push(() => window.removeEventListener("message", onMessage));
 
-  window.addEventListener("keydown", (event) => {
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (!ownsRendererBootstrap(owner)) return;
     if (event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
       spaceHeld = true;
       if (getRendererIdentity()) event.preventDefault();
       sendSpaceState();
     }
-  }, true);
-  window.addEventListener("keyup", (event) => {
+  };
+  window.addEventListener("keydown", onKeyDown, true);
+  owner.listenerRemovers.push(() => window.removeEventListener("keydown", onKeyDown, true));
+
+  const onKeyUp = (event: KeyboardEvent): void => {
+    if (!ownsRendererBootstrap(owner)) return;
     if (event.code === "Space") {
       spaceHeld = false;
       sendSpaceState();
     }
-  }, true);
+  };
+  window.addEventListener("keyup", onKeyUp, true);
+  owner.listenerRemovers.push(() => window.removeEventListener("keyup", onKeyUp, true));
+
   function endPan(): void {
+    if (!ownsRendererBootstrap(owner)) {
+      panMoveUpdate.cancel();
+      panning = false;
+      return;
+    }
     if (!panning) {
       panMoveUpdate.cancel();
       return;
@@ -254,7 +389,9 @@ function installRendererPanProxy(): void {
     };
     sendToParent(message);
   }
-  document.addEventListener("pointerdown", (event) => {
+
+  const onPointerDown = (event: PointerEvent): void => {
+    if (!ownsRendererBootstrap(owner)) return;
     if (!spaceHeld || event.button !== 0 || isEditableTarget(event.target)) return;
     const identity = getRendererIdentity();
     if (!identity) return;
@@ -269,21 +406,35 @@ function installRendererPanProxy(): void {
       ...identity,
     };
     sendToParent(message);
-  }, true);
-  document.addEventListener("pointermove", (event) => {
+  };
+  document.addEventListener("pointerdown", onPointerDown, true);
+  owner.listenerRemovers.push(() => document.removeEventListener("pointerdown", onPointerDown, true));
+
+  const onPointerMove = (event: PointerEvent): void => {
+    if (!ownsRendererBootstrap(owner)) return;
     if (!panning) return;
     event.preventDefault();
     panMoveUpdate.schedule({ x: event.clientX, y: event.clientY });
-  }, true);
+  };
+  document.addEventListener("pointermove", onPointerMove, true);
+  owner.listenerRemovers.push(() => document.removeEventListener("pointermove", onPointerMove, true));
+
   document.addEventListener("pointerup", endPan, true);
+  owner.listenerRemovers.push(() => document.removeEventListener("pointerup", endPan, true));
   document.addEventListener("pointercancel", endPan, true);
-  window.addEventListener("blur", () => {
+  owner.listenerRemovers.push(() => document.removeEventListener("pointercancel", endPan, true));
+
+  const onBlur = (): void => {
+    if (!ownsRendererBootstrap(owner)) return;
     spaceHeld = false;
     sendSpaceState();
     endPan();
-  });
+  };
+  window.addEventListener("blur", onBlur);
+  owner.listenerRemovers.push(() => window.removeEventListener("blur", onBlur));
 
-  window.addEventListener("wheel", (event) => {
+  const onWheel = (event: WheelEvent): void => {
+    if (!ownsRendererBootstrap(owner)) return;
     if (!event.ctrlKey && !event.metaKey) return;
     const identity = getRendererIdentity();
     if (!identity) return;
@@ -297,5 +448,8 @@ function installRendererPanProxy(): void {
       ...identity,
     };
     sendToParent(message);
-  }, { capture: true, passive: false });
+  };
+  const wheelOptions = { capture: true, passive: false };
+  window.addEventListener("wheel", onWheel, wheelOptions);
+  owner.listenerRemovers.push(() => window.removeEventListener("wheel", onWheel, wheelOptions));
 }

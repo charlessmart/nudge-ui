@@ -13,6 +13,7 @@ import type {
   PromptDispatchResponse,
 } from "../agent/protocol.ts";
 import { clearWorkspace, restoreChangeRecords, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { recordAgentDispatch, resetAgentVerification } from "../agent/verification.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
@@ -100,6 +101,7 @@ describe("CopyPromptButton agent handoff", () => {
     setNudgeUiHostDevFlag(true);
     localStorage.clear();
     clearClipboardHandoff();
+    resetAgentVerification();
     previousConfig = getNudgeUiRuntimeConfig();
     configureNudgeUiRuntime({ ...previousConfig, projectId: "handoff-project" });
     container = document.createElement("div");
@@ -113,8 +115,10 @@ describe("CopyPromptButton agent handoff", () => {
     resetAgentClients();
     clearWorkspace();
     clearClipboardHandoff();
+    resetAgentVerification();
     configureNudgeUiRuntime(previousConfig);
     container.remove();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -193,6 +197,147 @@ describe("CopyPromptButton agent handoff", () => {
     expect(transport.dispatches[0]?.prompt).toContain("src/Heading.tsx");
     expect(button.textContent).toContain("Agent working");
     expect(button.disabled).toBe(true);
+  });
+
+  it("distinguishes verified agent completion from the still-pending preview", async () => {
+    const transport = new ButtonTransport();
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
+    await act(async () => { button.click(); });
+
+    const target = document.createElement("h1");
+    target.dataset.cid = "Heading";
+    document.body.append(target);
+    const authored = document.createElement("style");
+    authored.textContent = '[data-cid="Heading"] { color: red; }';
+    document.head.append(authored);
+
+    act(() => restoreChangeRecords([change()]));
+    await act(async () => { button.click(); });
+    const revision = transport.dispatches[0]?.changeRevision;
+    expect(revision).toBeDefined();
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    act(() => {
+      transport.eventHandlers?.onEvent({
+        type: "status",
+        status: listeningStatus({
+          connection: "paired",
+          paired: true,
+          request: {
+            requestId: "button-request",
+            projectId: "handoff-project",
+            prompt: "Change the heading",
+            changeRevision: revision,
+            status: "completed",
+          },
+        }),
+      });
+    });
+    expect(transport.eventHandlers).not.toBeNull();
+    expect(button.dataset.agentState).toBe("completed");
+    await flush();
+    await flush();
+
+    expect(container.querySelector('[data-test="agent-verified-hint"]')?.textContent)
+      .toBe("Agent changes verified.");
+    expect(container.querySelector('[data-test="agent-completed-hint"]')).toBeNull();
+    expect(container.querySelector('[data-test="copy-prompt"]')?.textContent).toContain("Send prompt");
+  });
+
+  it("reports completed-but-unverified work while preserving remaining edits", async () => {
+    document.head.querySelectorAll("style").forEach((el) => el.remove());
+    document.body.querySelectorAll("[data-cid]").forEach((el) => el.remove());
+    const transport = new ButtonTransport();
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
+    await act(async () => { button.click(); });
+
+    const target = document.createElement("h1");
+    target.dataset.cid = "Heading";
+    document.body.append(target);
+
+    act(() => restoreChangeRecords([change()]));
+    await act(async () => { button.click(); });
+    const revision = transport.dispatches[0]?.changeRevision;
+    expect(revision).toBeDefined();
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    act(() => {
+      transport.eventHandlers?.onEvent({
+        type: "status",
+        status: listeningStatus({
+          connection: "paired",
+          paired: true,
+          request: {
+            requestId: "button-request",
+            projectId: "handoff-project",
+            prompt: "Change the heading",
+            changeRevision: revision,
+            status: "completed",
+          },
+        }),
+      });
+    });
+    expect(button.dataset.agentState).toBe("completed");
+    await flush();
+    await flush();
+
+    expect(container.querySelector('[data-test="agent-verified-hint"]')).toBeNull();
+    expect(container.querySelector('[data-test="agent-completed-hint"]')?.textContent)
+      .toBe("Agent completed. Remaining edits were preserved because they were not verified.");
+  });
+
+  it("shows plain completion when nothing was in flight", async () => {
+    document.head.querySelectorAll("style").forEach((el) => el.remove());
+    document.body.querySelectorAll("[data-cid]").forEach((el) => el.remove());
+    const transport = new ButtonTransport();
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
+    await act(async () => { button.click(); });
+    expect(transport.eventHandlers).not.toBeNull();
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    const revision = 987_654;
+    act(() => restoreChangeRecords([]));
+    recordAgentDispatch(revision, []);
+    act(() => {
+      transport.eventHandlers?.onEvent({
+        type: "status",
+        status: listeningStatus({
+          connection: "paired",
+          paired: true,
+          request: {
+            requestId: "empty-request",
+            projectId: "handoff-project",
+            prompt: "No edits",
+            changeRevision: revision,
+            status: "completed",
+          },
+        }),
+      });
+    });
+    await flush();
+    await flush();
+
+    expect(container.querySelector('[data-test="agent-verified-hint"]')).toBeNull();
+    expect(container.querySelector('[data-test="agent-completed-hint"]')?.textContent)
+      .toBe("Agent completed.");
   });
 
   it("falls back to the clipboard when the paired listener rejects dispatch", async () => {

@@ -10,11 +10,17 @@ import {
 } from "../projection/textProjection.ts";
 import { clearCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import {
+  invalidatePreviewDocumentSession,
+  startPreviewDocumentSession,
+  type PreviewDocument,
+} from "../changes/previewDiagnostics.ts";
+import {
   applyHostWorkspaceProjection,
   compileWorkspaceProjection,
   type CompiledManagedStyles,
   type WorkspaceProjectionPlan,
 } from "../projection/workspaceProjection.ts";
+import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 
 export const PROJECT_ID = window.location.origin;
 
@@ -26,6 +32,7 @@ let lastRulesKey: string | null = null;
 interface FrameProjectionState {
   iframe: HTMLIFrameElement;
   document: Document | null;
+  previewDocument: PreviewDocument;
   sentRevision: number;
   appliedRevision: number;
 }
@@ -36,8 +43,36 @@ export interface CanvasProjectionStatus {
 }
 
 const frameProjectionStates = new Map<string, FrameProjectionState>();
+const previewDocuments = new Map<string, PreviewDocument>();
 const projectionAcknowledgementListeners = new Set<() => void>();
 let projectionAcknowledgementVersion = 0;
+let nextPreviewSessionId = 1;
+
+function createPreviewDocumentIdentity(cardId: string): PreviewDocument {
+  const previewDocument = {
+    logicalDocument: `canvas:${cardId}`,
+    sessionId: `canvas-session-${nextPreviewSessionId++}`,
+  };
+  previewDocuments.set(cardId, previewDocument);
+  return previewDocument;
+}
+
+/** Returns the current value-based identity for one Canvas card document. */
+export function getCanvasPreviewDocument(cardId: string): PreviewDocument {
+  // Pure getter: no session activation or notify. Creation (identity only) is
+  // idempotent here; registerCardFrame owns session activation.
+  return previewDocuments.get(cardId) ?? createPreviewDocumentIdentity(cardId);
+}
+
+/** Invalidates a card's current document before its iframe is replaced. */
+export function invalidateCanvasPreviewDocument(cardId: string): void {
+  const state = frameProjectionStates.get(cardId);
+  if (state?.document) disposeBrowserCssInspection(state.document);
+  const previewDocument = previewDocuments.get(cardId);
+  if (!previewDocument) return;
+  invalidatePreviewDocumentSession(previewDocument.logicalDocument, previewDocument.sessionId);
+  previewDocuments.delete(cardId);
+}
 
 function projectionKey(plan: WorkspaceProjectionPlan<CompiledManagedStyles>): string {
   // Revision ordering protects every controller-owned projection dimension.
@@ -103,12 +138,21 @@ export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): vo
   const frameDocument = getFrameDocument(iframe);
   const existing = frameProjectionStates.get(cardId);
   if (!existing || existing.iframe !== iframe || existing.document !== frameDocument) {
+    if (existing) {
+      invalidatePreviewDocumentSession(existing.previewDocument.logicalDocument, existing.previewDocument.sessionId);
+      previewDocuments.delete(cardId);
+    }
+    const previewDocument = previewDocuments.get(cardId) ?? createPreviewDocumentIdentity(cardId);
+    startPreviewDocumentSession(previewDocument);
     frameProjectionStates.set(cardId, {
       iframe,
       document: frameDocument,
+      previewDocument,
       sentRevision: -1,
       appliedRevision: -1,
     });
+  } else {
+    startPreviewDocumentSession(existing.previewDocument);
   }
   frameSourceRegistry.set(cardId, iframe);
   frameRegistry.set(cardId, iframe);
@@ -118,6 +162,7 @@ export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): vo
 export function unregisterCardFrame(cardId: string): void {
   frameSourceRegistry.delete(cardId);
   frameRegistry.delete(cardId);
+  invalidateCanvasPreviewDocument(cardId);
   frameProjectionStates.delete(cardId);
   clearCanvasStructuralProjectionReports(cardId);
   clearCanvasRenderedInstanceProjectionReports(cardId);
