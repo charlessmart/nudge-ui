@@ -24,6 +24,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js",
+      "default": "./dist/testing.js"
+    },
     "./component-runtime": {
       "types": "./dist/componentSemantics/reactRuntime.d.ts",
       "import": "./dist/componentSemantics/reactRuntime.js",

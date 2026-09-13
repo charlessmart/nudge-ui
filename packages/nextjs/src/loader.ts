@@ -398,10 +398,15 @@ function findHtmlElement(node: HtmlNode | undefined | null): HtmlNode | null {
   for (const child of Object.values(node)) {
     if (Array.isArray(child)) {
       for (const grandchild of child) {
+        // SAFETY: This is an ESTree child of an array-valued parent node, which is always an HtmlNode.
         const found = findHtmlElement(grandchild as HtmlNode);
         if (found) return found;
       }
-    } else if (child && typeof child === "object" && (child as HtmlNode).type) {
+    } else if (
+      // SAFETY: The Object.values child is guarded as a non-null object, matching the HtmlNode contract.
+      child && typeof child === "object" && (child as HtmlNode).type
+    ) {
+      // SAFETY: The indexed template element of an ESTree TemplateLiteral is always an HtmlNode.
       const found = findHtmlElement(child as HtmlNode);
       if (found) return found;
     }

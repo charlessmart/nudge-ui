@@ -177,7 +177,7 @@ test.describe("Canvas workspace — stale change detection", () => {
     // Now inject a fake "stale" change into the session — one that won't match any DOM element
     await page.evaluate(() => {
       const keys = Object.keys(localStorage).filter((k) =>
-        k.startsWith("nudge-ui:") && k.endsWith(":v3"),
+        k.startsWith("nudge-ui:") && k.endsWith(":v12"),
       );
       if (keys.length === 0) return;
       const raw = localStorage.getItem(keys[0]!);
@@ -237,11 +237,12 @@ test.describe("Canvas workspace — stale change detection", () => {
       if (!leaseKey) throw new Error("expected a workspace lease");
       const id = leaseKey.slice("nudge-ui:".length, -":lease".length);
       const session = {
-        schemaVersion: 3,
+        schemaVersion: 12,
         projectId: id,
         mode: "inspect",
         inspectUrl: window.location.href,
         cards: [],
+        comparisonGroups: [],
         camera: { x: 0, y: 0, zoom: 1 },
         changes: [
           {
@@ -257,8 +258,10 @@ test.describe("Canvas workspace — stale change detection", () => {
             scope: "source-site",
           },
         ],
+        structuralChanges: [],
+        clipboardHandoff: null,
       };
-      const prefixedKey = `nudge-ui:${id}:v3`;
+      const prefixedKey = `nudge-ui:${id}:v12`;
       localStorage.setItem(prefixedKey, JSON.stringify(session));
     });
 

@@ -46,7 +46,7 @@ import { formatInspectorLabel } from "../ui/labels.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { enterCanvas, useCanvasMode } from "../canvas/canvasStore.ts";
-import { getRestoreCount, clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
+import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
@@ -127,7 +127,6 @@ export function InspectorShell(): ReactElement {
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
   const [scopeRevision, refreshScope] = useState(0);
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
-  const [restoreCount, setShowRestore] = useState<number>(getRestoreCount());
   const cssInspection = useBrowserCssInspection(selectedElements, styleState);
   const isMultiSelection = selectedElements.length > 1;
 
@@ -523,11 +522,10 @@ export function InspectorShell(): ReactElement {
             <EmptyState />
           )}
           <ChangesLog
-            onClearSession={restoreCount > 0 ? () => {
+            onClearSession={() => {
               clearSession();
               clearRestoreCount();
-              setShowRestore(0);
-            } : undefined}
+            }}
           />
         </div>
       </div>

@@ -65,9 +65,9 @@ test.describe("Canvas durable session", () => {
     await setInput(page, "padding-top", "32px");
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
 
-    // Verify the clear action is NOT shown before refresh (no session was loaded)
-    const clearBefore = await page.locator('[data-test="clear-session"]').isVisible().catch(() => false);
-    expect(clearBefore).toBe(false);
+    // The clear action is available as soon as the first edit is committed.
+    await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
+    await expect(page.locator('[data-test="changes-log"]')).toBeVisible();
 
     // Reload the page
     await page.reload();
@@ -79,6 +79,22 @@ test.describe("Canvas durable session", () => {
 
     // The edit should still be present
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
+  });
+
+  test("dev: the first CSS edit can be cleared before refresh", async ({ page }) => {
+    await page.goto("/playground");
+    await page.click("text=Save");
+    await waitForInspector(page);
+
+    await expandSpacing(page);
+    await setInput(page, "padding-top", "32px");
+    await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
+    await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
+
+    await page.locator('[data-test="clear-session"]').click();
+    await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 32px;");
+    await expect(page.locator('[data-test="changes-log"]')).not.toBeAttached();
+    await expect(page.locator('[data-test="clear-session"]')).not.toBeAttached();
   });
 
   test("dev: canvas mode and cards survive refresh", async ({ page }) => {

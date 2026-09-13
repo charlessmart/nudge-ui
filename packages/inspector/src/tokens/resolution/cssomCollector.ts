@@ -13,11 +13,29 @@ export interface DocumentRevisions {
   stylesheet: number;
 }
 
+interface DocumentResolutionSession {
+  active: boolean;
+  observer: MutationObserver | null;
+  view: Window | null;
+  resizeListener: (() => void) | null;
+}
+
+interface DocumentResolutionReference {
+  session: DocumentResolutionSession;
+  count: number;
+}
+
 const revisionRecords = new WeakMap<Document, DocumentRevisions>();
 const ruleSnapshots = new WeakMap<Document, RuleSnapshot>();
+const documentResolutionSessions = new WeakMap<Document, DocumentResolutionSession>();
+const documentResolutionReferences = new WeakMap<Document, DocumentResolutionReference>();
 
 const registeredElements = new WeakSet<Element>();
 const documentRevisionListeners = new WeakMap<Document, Set<(revisions: Readonly<DocumentRevisions>) => void>>();
+
+function isCurrentDocumentResolutionSession(doc: Document, session: DocumentResolutionSession): boolean {
+  return session.active && documentResolutionSessions.get(doc) === session;
+}
 
 function notifyDocumentRevision(doc: Document): void {
   const revisions = documentRevisions(doc);
@@ -39,8 +57,10 @@ export function subscribeDocumentRevision(
   }
   listeners.add(cb);
   return () => {
-    listeners?.delete(cb);
-    if (listeners?.size === 0) documentRevisionListeners.delete(doc);
+    listeners.delete(cb);
+    if (listeners.size === 0 && documentRevisionListeners.get(doc) === listeners) {
+      documentRevisionListeners.delete(doc);
+    }
   };
 }
 
@@ -52,6 +72,66 @@ export function subscribeDocumentRevision(
  */
 export function registerResolutionElement(el: Element): void {
   registeredElements.add(el);
+}
+
+/** Releases the observer, listener, and cached state owned by one document. */
+export function disposeDocumentResolution(doc: Document): void {
+  const session = documentResolutionSessions.get(doc);
+  if (session) {
+    session.active = false;
+    session.observer?.disconnect();
+    if (session.view && session.resizeListener) {
+      session.view.removeEventListener("resize", session.resizeListener);
+    }
+    session.observer = null;
+    session.resizeListener = null;
+    documentResolutionSessions.delete(doc);
+  }
+  documentResolutionReferences.delete(doc);
+
+  // Keep revision counters monotonic per Document. Resetting them to (0,0)
+  // resurrects stale revision-keyed caches in tokens/resolution.ts
+  // (stableTokenCache, stateResolutionSnapshots, tokenEntriesCache,
+  // concreteElementMatchCaches, sourceSiteMatchCaches): an entry written at
+  // (0,0) before disposal matches immediately after disposal at (0,0), even
+  // though the CSSOM changed while no observer was attached. Bump instead so
+  // every pre-disposal cache entry misses, then let the next
+  // documentRevisions() observe from the bumped baseline. Only bump when a
+  // session was actually torn down so repeated disposes stay idempotent.
+  if (session) {
+    const record = revisionRecords.get(doc);
+    if (record) {
+      record.element += 1;
+      record.stylesheet += 1;
+    }
+  }
+  ruleSnapshots.delete(doc);
+  documentRevisionListeners.get(doc)?.clear();
+  documentRevisionListeners.delete(doc);
+}
+
+/** Keeps one document's CSSOM observer alive for a browser inspection owner. */
+export function retainDocumentResolution(doc: Document): () => void {
+  documentRevisions(doc);
+  const session = documentResolutionSessions.get(doc);
+  if (!session) return () => undefined;
+
+  const existing = documentResolutionReferences.get(doc);
+  const reference = existing?.session === session
+    ? existing
+    : { session, count: 0 };
+  reference.count += 1;
+  documentResolutionReferences.set(doc, reference);
+
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const current = documentResolutionReferences.get(doc);
+    if (!current || current.session !== session) return;
+    current.count -= 1;
+    if (current.count === 0) disposeDocumentResolution(doc);
+  };
 }
 
 function isStylesheetNode(node: Node | null): boolean {
@@ -129,30 +209,53 @@ export function documentRevisions(doc: Document): DocumentRevisions {
   if (!record) {
     record = { element: 0, stylesheet: 0 };
     revisionRecords.set(doc, record);
+  }
+  // A disposed document keeps its monotonic record (see
+  // disposeDocumentResolution) but loses its observer session. Recreate the
+  // session so later mutations are observed from the bumped baseline instead
+  // of silently freezing the counters.
+  if (documentResolutionSessions.get(doc)) return record;
 
-    const Observer = doc.defaultView?.MutationObserver;
-    const root = doc.documentElement;
-    if (Observer && root) {
-      const observer = new Observer((records) => {
-        const relevant = records.filter((entry) => !isProbeMutation(entry));
-        if (relevant.length === 0) return;
-        record!.element++;
-        if (relevant.some(changesStylesheet)) record!.stylesheet++;
-        notifyDocumentRevision(doc);
-      });
-      observer.observe(root, {
-        attributes: true,
-        childList: true,
-        characterData: true,
-        subtree: true,
-      });
+  const session: DocumentResolutionSession = {
+    active: true,
+    observer: null,
+    view: doc.defaultView,
+    resizeListener: null,
+  };
+  documentResolutionSessions.set(doc, session);
 
-      doc.defaultView?.addEventListener("resize", () => {
-        record!.element++;
-        record!.stylesheet++;
-        notifyDocumentRevision(doc);
-      });
-    }
+  // MutationObserver is a global constructor of the document realm, but it is
+  // not a property in every TypeScript Window declaration used by consumers.
+  // Keep the cast local so the observer and its callback remain document-local.
+  const viewWithObserver = session.view as ((Window & { MutationObserver?: typeof MutationObserver }) | null);
+  const Observer = viewWithObserver?.MutationObserver
+    ?? (typeof MutationObserver !== "undefined" ? MutationObserver : undefined);
+  const root = doc.documentElement;
+  if (Observer && root) {
+    const observer = new Observer((records: MutationRecord[]) => {
+      if (!isCurrentDocumentResolutionSession(doc, session)) return;
+      const relevant = records.filter((entry: MutationRecord) => !isProbeMutation(entry));
+      if (relevant.length === 0) return;
+      record.element++;
+      if (relevant.some(changesStylesheet)) record.stylesheet++;
+      notifyDocumentRevision(doc);
+    });
+    session.observer = observer;
+    observer.observe(root, {
+      attributes: true,
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+
+    const resizeListener = () => {
+      if (!isCurrentDocumentResolutionSession(doc, session)) return;
+      record.element++;
+      record.stylesheet++;
+      notifyDocumentRevision(doc);
+    };
+    session.resizeListener = resizeListener;
+    session.view?.addEventListener("resize", resizeListener);
   }
   return record;
 }

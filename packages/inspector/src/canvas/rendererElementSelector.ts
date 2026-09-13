@@ -100,15 +100,30 @@ export function buildSelector(el: HTMLElement): string {
 }
 
 let installed = false;
+const noopDisposal = (): void => undefined;
 
-export function installRendererElementSelector(): void {
-  if (!isNudgeUiDev()) return;
-  if (installed) return;
+export function installRendererElementSelector(): () => void {
+  if (!isNudgeUiDev()) return noopDisposal;
+  if (installed) return noopDisposal;
   installed = true;
-  installInteractionStyles();
+  const removeInteractionStyles = installInteractionStyles();
+  const listenerCleanup: Array<() => void> = [];
+  let disposed = false;
+
+  function trackListener<E extends Event>(
+    target: Document | Window,
+    type: string,
+    listener: (event: E) => void,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
+    const eventListener: EventListener = (event) => listener(event as E);
+    target.addEventListener(type, eventListener, options);
+    listenerCleanup.push(() => target.removeEventListener(type, eventListener, options));
+  }
 
   const cidIndex = createCidIndex(document);
   const hoverUpdate = createFrameThrottle((pending: { element: HTMLElement; clear: boolean }) => {
+    if (disposed) return;
     const { element, clear } = pending;
     const identity = getRendererIdentity();
     if (!identity) return;
@@ -145,6 +160,7 @@ export function installRendererElementSelector(): void {
   let measureAltKey = false;
 
   function updateMeasureState(altKey: boolean, pointerOverPage: boolean): void {
+    if (disposed) return;
     if (measureAltKey === altKey && measurePointerOverPage === pointerOverPage) return;
     measureAltKey = altKey;
     measurePointerOverPage = pointerOverPage;
@@ -160,7 +176,8 @@ export function installRendererElementSelector(): void {
     sendToParent(msg);
   }
 
-  document.addEventListener(
+  trackListener<MouseEvent>(
+    document,
     "mouseover",
     (event: MouseEvent) => {
       updateMeasureState(event.altKey, true);
@@ -179,13 +196,14 @@ export function installRendererElementSelector(): void {
   let lastSelected: HTMLElement | null = null;
 
   const dragMoveUpdate = createFrameThrottle((point: { x: number; y: number }) => {
+    if (disposed) return;
     const identity = getRendererIdentity();
     if (!point || !identity) return;
     const msg: ElementDragMoveMessage = { type: "element-drag-move", protocolVersion: PROTOCOL_VERSION, point, ...identity };
     sendToParent(msg);
   });
 
-  document.addEventListener("mousedown", (event: MouseEvent) => {
+  trackListener<MouseEvent>(document, "mousedown", (event: MouseEvent) => {
     if (event.button !== 0) return;
     const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
     if (!element) return;
@@ -193,7 +211,7 @@ export function installRendererElementSelector(): void {
     pendingDrag = { element, point: { x: event.clientX, y: event.clientY } };
   }, true);
 
-  document.addEventListener("mousemove", (event: MouseEvent) => {
+  trackListener<MouseEvent>(document, "mousemove", (event: MouseEvent) => {
     if (!pendingDrag) return;
     if (!dragging && Math.hypot(event.clientX - pendingDrag.point.x, event.clientY - pendingDrag.point.y) < 6) return;
     const identity = getRendererIdentity();
@@ -229,9 +247,9 @@ export function installRendererElementSelector(): void {
     pendingDrag = null;
     dragging = false;
   }
-  document.addEventListener("mouseup", finishDrag, true);
+  trackListener<MouseEvent>(document, "mouseup", finishDrag, true);
 
-  document.addEventListener("keydown", (event: KeyboardEvent) => {
+  trackListener<KeyboardEvent>(document, "keydown", (event: KeyboardEvent) => {
     if (event.key === "Alt") updateMeasureState(true, measurePointerOverPage);
     if (isEditableEvent(event)) return;
     const scrollKey = event.code === "Space"
@@ -289,15 +307,16 @@ export function installRendererElementSelector(): void {
     sendToParent(msg);
   }, true);
 
-  document.addEventListener("keyup", (event: KeyboardEvent) => {
+  trackListener<KeyboardEvent>(document, "keyup", (event: KeyboardEvent) => {
     if (event.key === "Alt") updateMeasureState(false, measurePointerOverPage);
   }, true);
 
-  window.addEventListener("blur", () => {
+  trackListener<Event>(window, "blur", () => {
     updateMeasureState(false, false);
   });
 
-  document.addEventListener(
+  trackListener<MouseEvent>(
+    document,
     "mouseout",
     (event: MouseEvent) => {
       const target = event.target;
@@ -319,7 +338,8 @@ export function installRendererElementSelector(): void {
     true,
   );
 
-  document.addEventListener(
+  trackListener<MouseEvent>(
+    document,
     "click",
     (event: MouseEvent) => {
       const target = event.target;
@@ -379,4 +399,20 @@ export function installRendererElementSelector(): void {
     },
     true,
   );
+
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    installed = false;
+    hoverUpdate.cancel();
+    dragMoveUpdate.cancel();
+    for (const cleanup of listenerCleanup) cleanup();
+    listenerCleanup.length = 0;
+    removeInteractionStyles();
+    pendingDrag = null;
+    dragging = false;
+    lastSelected = null;
+    measurePointerOverPage = false;
+    measureAltKey = false;
+  };
 }

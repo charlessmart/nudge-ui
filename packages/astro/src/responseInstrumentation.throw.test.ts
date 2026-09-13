@@ -1,15 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+
+import { instrumentAstroResponse } from "./responseInstrumentation.ts";
 
 // The catch branch exists so identity extraction can never break a dev page
-// load. Driving it requires the identity module to throw for this file only,
+// load. Driving it injects a failing identity transform for this file only,
 // which keeps the main suite's happy-path coverage unpolluted.
-vi.mock("./identity.ts", () => ({
-  instrumentAstroHtml: () => {
-    throw new Error("synthetic identity failure");
-  },
-}));
-
-const { instrumentAstroResponse } = await import("./responseInstrumentation.ts");
+function throwingInstrumenter(): never {
+  throw new Error("synthetic identity failure");
+}
 
 describe("instrumentAstroResponse failure tolerance", () => {
   it("forwards the untouched body when instrumentation throws", async () => {
@@ -26,6 +24,7 @@ describe("instrumentAstroResponse failure tolerance", () => {
     const { response: result, diagnostics } = await instrumentAstroResponse(
       response,
       "/work/site",
+      throwingInstrumenter,
     );
 
     expect(diagnostics).toHaveLength(0);

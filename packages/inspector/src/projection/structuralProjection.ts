@@ -2,21 +2,12 @@ import {
   captureRenderedInstance,
   matchesRenderedInstanceEvidence,
   resolveRenderedInstance,
-  type RenderedInstanceRef,
 } from "./renderedInstance.ts";
+import type { RenderedInstanceRef } from "../changes/editModel.ts";
+import { isStructuralProjectionReport } from "./structuralProjectionBoundary.ts";
 import {
-  isStructuralChange,
-  isStructuralDelete,
-  isStructuralMove,
-  isStructuralProjectionReport,
-} from "./structuralProjectionBoundary.ts";
-import {
-  commitStructuralChange,
-  getWorkspaceChanges,
-  reconcileWorkspaceChanges,
   resetWorkspaceChanges,
-  revertStructuralChangeRecord,
-  subscribeWorkspaceChanges,
+  workspaceChangeStore,
   type WorkspaceChangesSnapshot,
 } from "../changes/workspaceChanges.ts";
 import type {
@@ -218,7 +209,8 @@ export function createStructuralDelete(element: HTMLElement, id = structuralId()
   const target = captureRenderedInstance(element);
   if (!target) return null;
   const change: StructuralDelete = { id, kind: "delete", target };
-  if (!commitStructuralChange(change, projectStructuralChanges)) return null;
+  if (!workspaceChangeStore.commitStructuralChange(change)) return null;
+  projectStructuralChanges(workspaceChangeStore.getSnapshot());
   return change;
 }
 
@@ -262,12 +254,13 @@ export function createStructuralMove(
         : destinationChildren.length - (sameParent ? 1 : 0),
     },
   };
-  if (!commitStructuralChange(change, projectStructuralChanges)) return null;
+  if (!workspaceChangeStore.commitStructuralChange(change)) return null;
+  projectStructuralChanges(workspaceChangeStore.getSnapshot());
   return change;
 }
 
 export function getStructuralChanges(): readonly StructuralChange[] {
-  return getWorkspaceChanges().structuralChanges;
+  return workspaceChangeStore.getSnapshot().structuralChanges;
 }
 
 export function getStructuralDeletes(): readonly StructuralDelete[] {
@@ -276,7 +269,9 @@ export function getStructuralDeletes(): readonly StructuralDelete[] {
 
 /** Revert removes one canonical intent and leaves every other intent intact. */
 export function revertStructuralChange(changeId: string): boolean {
-  return revertStructuralChangeRecord(changeId, projectStructuralChanges);
+  const changed = workspaceChangeStore.revertStructuralChangeRecord(changeId);
+  if (changed) projectStructuralChanges(workspaceChangeStore.getSnapshot());
+  return changed;
 }
 
 /**
@@ -291,8 +286,9 @@ export function reconcileVerifiedStructuralChanges(
   verifiedIds: ReadonlySet<string>,
 ): number {
   if (verifiedIds.size === 0) return 0;
-  const removed = reconcileWorkspaceChanges(new Set(), verifiedIds, projectStructuralChanges);
+  const removed = workspaceChangeStore.reconcileWorkspaceChanges(new Set(), verifiedIds);
   if (removed === 0) return 0;
+  projectStructuralChanges(workspaceChangeStore.getSnapshot());
   for (const [cardId, canvasReports] of reportsByCanvasCard) {
     reportsByCanvasCard.set(cardId, {
       ...canvasReports,
@@ -305,7 +301,7 @@ export function reconcileVerifiedStructuralChanges(
 
 /** State changes drive controller-to-renderer projection. Diagnostics do not. */
 export function subscribeStructuralChanges(listener: () => void): () => void {
-  return subscribeWorkspaceChanges(listener);
+  return workspaceChangeStore.subscribe(listener);
 }
 
 /** Compatibility name retained while the controller moved to a full union. */
@@ -339,7 +335,9 @@ function getDocumentState(doc: Document): DocumentProjectionState {
 }
 
 function installDocumentObserver(doc: Document, state: DocumentProjectionState): void {
-  const Observer = doc.defaultView?.MutationObserver;
+  const viewWithObserver = doc.defaultView as ((Window & { MutationObserver?: typeof MutationObserver }) | null | undefined);
+  const Observer = viewWithObserver?.MutationObserver
+    ?? (typeof MutationObserver !== "undefined" ? MutationObserver : undefined);
   if (!Observer || !doc.documentElement) return;
   state.observer = new Observer(() => scheduleValidation(doc, state));
   state.observer.observe(doc.documentElement, {
@@ -655,5 +653,28 @@ export function resetStructuralDeleteProjection(): void {
   nextStructuralId = 1;
   diagnosticRevision = 0;
   resetWorkspaceChanges();
+  notifyDiagnostics();
+}
+
+/**
+ * Releases one document's structural projection without touching canonical
+ * workspace intent. Applied deletes/moves owned by this document are restored
+ * and the document observer is disconnected; the controller snapshot stays
+ * intact so a later remount can re-project from canonical state. Register as
+ * a document-session cleanup alongside disposeBrowserCssInspection.
+ */
+export function releaseDocumentProjection(doc: Document): void {
+  const state = documentStates.get(doc);
+  if (!state) {
+    if (reportsByDocument.delete(doc)) notifyDiagnostics();
+    return;
+  }
+  for (const id of [...state.appliedOrder].reverse()) {
+    const local = state.applied.get(id);
+    if (local && local.status !== "overridden") restoreApplied(local);
+  }
+  state.observer?.disconnect();
+  documentStates.delete(doc);
+  reportsByDocument.delete(doc);
   notifyDiagnostics();
 }
