@@ -1,15 +1,18 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { createRequire } from "node:module";
-import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { realpath } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import {
   buildManifest,
   type NudgeUiManifest,
   type NudgeUiTokenSnapshot,
 } from "./manifest.ts";
 import { extractComponentContracts } from "@nudge-ui/vite-react/component-contracts";
-import { createStandaloneFileWatcher } from "@nudge-ui/standalone/watcher";
+import {
+  createStandaloneFileWatcher,
+  type StandaloneFileChange,
+} from "@nudge-ui/standalone/watcher";
 import { createStandaloneTokenSnapshot } from "@nudge-ui/standalone/token-manifest";
 
 /**
@@ -81,6 +84,46 @@ const CONTRACT_SOURCE_EXT = /\.(tsx|jsx)$/;
 const SCAN_EXCLUDED_SEGMENTS = new Set([".git", ".next", "build", "dist", "node_modules"]);
 /** Upper bound on examined project source files; truncation is announced. */
 const SCAN_MAX_SOURCES = 5000;
+
+/** Returns whether a directory declares a package-manager workspace. */
+function hasWorkspaceManifest(directory: string): boolean {
+  if (existsSync(join(directory, "pnpm-workspace.yaml"))) return true;
+  try {
+    const packageJson = JSON.parse(readFileSync(join(directory, "package.json"), "utf8")) as {
+      workspaces?: unknown;
+    };
+    return Array.isArray(packageJson.workspaces)
+      || (typeof packageJson.workspaces === "object"
+        && packageJson.workspaces !== null
+        && Array.isArray((packageJson.workspaces as { packages?: unknown }).packages));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Finds the nearest declared workspace root without walking above it.
+ *
+ * A Next app normally runs with its app directory as `process.cwd()`. When a
+ * workspace manifest is present above that directory, the workspace is the
+ * smallest safe default that can include sibling authored stylesheets. With
+ * no manifest, scanning remains confined to the app root.
+ */
+function nearestWorkspaceRoot(root: string): string {
+  let directory = root;
+  while (true) {
+    if (hasWorkspaceManifest(directory)) return directory;
+    const parent = dirname(directory);
+    if (parent === directory) return root;
+    directory = parent;
+  }
+}
+
+function tokenScanRoots(root: string, sourceRoots: readonly string[] = []): string[] {
+  const workspaceRoot = nearestWorkspaceRoot(root);
+  const configuredRoots = sourceRoots.map((sourceRoot) => resolve(root, sourceRoot));
+  return [...new Set([workspaceRoot, ...configuredRoots])];
+}
 
 /**
  * Extracts component contracts directly from project sources.
@@ -179,6 +222,8 @@ export function clearStaleSidecarState(root: string): void {
 
 export interface SidecarOptions {
   manifest?: NudgeUiManifest;
+  /** Authored workspace roots included in the token inventory and watcher. */
+  sourceRoots?: readonly string[];
   /**
    * Enables the Stage 4 token lifecycle: an initial project CSS scan feeds
    * the manifest's token fields, and a settled-batch watcher republishes on
@@ -201,7 +246,10 @@ export async function ensureSidecar(
   // prefix may differ (e.g. /tmp -> /private/tmp), so canonicalize once and
   // derive every filesystem-relative computation from the canonical root.
   const fsRoot = await realpath(root).catch(() => root);
-  const state = globalState(`${options.tokens ? "tokens" : "manifest"}:${fsRoot}`);
+  const scanRoots = tokenScanRoots(fsRoot, options.sourceRoots);
+  const state = globalState(
+    `${options.tokens ? "tokens" : "manifest"}:${fsRoot}:${scanRoots.join("|")}`,
+  );
   // The settled promise doubles as the handle cache: awaiting it replays the
   // same handle for every caller until close/failure clears the slot.
   if (state.starting) return state.starting;
@@ -231,6 +279,10 @@ export async function ensureSidecar(
     };
 
     const manifest: NudgeUiManifest = options.manifest ?? buildManifest({ root });
+    const tokenSnapshotOptions = {
+      rootDirectory: scanRoots[0]!,
+      ...(scanRoots.length > 1 ? { additionalRootDirectories: scanRoots.slice(1) } : {}),
+    };
 
     const applySnapshot = (snapshot: NudgeUiTokenSnapshot): void => {
       manifest.runtime.tokenCatalog = snapshot.tokenCatalog;
@@ -289,76 +341,87 @@ export async function ensureSidecar(
       // tokens without waiting for a watcher tick. Failures degrade to the
       // empty snapshot already present in the manifest.
       try {
-        applySnapshot(await createStandaloneTokenSnapshot({ rootDirectory: root }));
+        applySnapshot(await createStandaloneTokenSnapshot(tokenSnapshotOptions));
       } catch {
         /* keep empty snapshot */
       }
       generation += 1;
 
-      const watcher = createStandaloneFileWatcher({
-        rootDirectory: fsRoot,
-        debounceMs: 60,
-        onSettled: async (changes) => {
-          let needsContractRescan = false;
-          // Changed or deleted component sources update their aggregated
-          // contracts directly: deletions must prune (or stale controls
-          // survive forever), and edits re-extract from the authored bytes
-          // even if a compiler cache never re-runs the loader. A read that
-          // lands mid-write is skipped — the next settled batch retries.
-          for (const change of changes) {
-            const normalized = change.absolutePath.split("\\").join("/");
-            // fs.watch can report a directory or omit a filename. In that
-            // case the exact source is unknown, so a bounded project scan is
-            // the only way to keep the contract catalog coherent.
-            if (!CONTRACT_SOURCE_EXT.test(normalized)) {
-              needsContractRescan = true;
-              continue;
-            }
-            const key = relative(fsRoot, normalized);
-            if (change.kind === "remove") {
-              contractsByFile.delete(key);
-              continue;
-            }
-            const stable = readStableSource(change.absolutePath);
-            if (!stable) {
-              needsContractRescan = true;
-              continue;
-            }
-            try {
-              contractsByFile.set(key, extractComponentContracts(stable.source, key));
-            } catch {
-              /* syntactically invalid sources keep their previous knowledge */
-            }
-          }
+      const settleTokens = async (): Promise<void> => {
+        try {
+          applySnapshot(await createStandaloneTokenSnapshot(tokenSnapshotOptions));
+        } catch {
+          /* unreadable trees keep the previous snapshot */
+        }
+        flushContracts();
+      };
 
-          if (needsContractRescan) {
-            const scannedContracts = new Map<string, unknown[]>();
-            const scan = await scanProjectContracts(fsRoot, (file, list) => {
-              scannedContracts.set(file, list);
-            });
-            if (!scan.truncated) {
-              for (const file of contractsByFile.keys()) {
-                if (!scan.files.has(file)) contractsByFile.delete(file);
-              }
-            }
-            for (const [file, list] of scannedContracts) {
-              contractsByFile.set(file, list);
-            }
+      const settleProjectChanges = async (
+        changes: readonly StandaloneFileChange[],
+      ): Promise<void> => {
+        let needsContractRescan = false;
+        // Changed or deleted component sources update their aggregated
+        // contracts directly: deletions must prune (or stale controls
+        // survive forever), and edits re-extract from the authored bytes
+        // even if a compiler cache never re-runs the loader. A read that
+        // lands mid-write is skipped — the next settled batch retries.
+        for (const change of changes) {
+          const normalized = change.absolutePath.split("\\").join("/");
+          // fs.watch can report a directory or omit a filename. In that
+          // case the exact source is unknown, so a bounded project scan is
+          // the only way to keep the contract catalog coherent.
+          if (!CONTRACT_SOURCE_EXT.test(normalized)) {
+            needsContractRescan = true;
+            continue;
           }
-
-          // One settled batch = exactly one token scan + one contract flush
-          // + one generation bump + exactly one reload notification, however
-          // many fs events fed it.
+          const key = relative(fsRoot, normalized);
+          if (change.kind === "remove") {
+            contractsByFile.delete(key);
+            continue;
+          }
+          const stable = readStableSource(change.absolutePath);
+          if (!stable) {
+            needsContractRescan = true;
+            continue;
+          }
           try {
-            applySnapshot(await createStandaloneTokenSnapshot({ rootDirectory: root }));
+            contractsByFile.set(key, extractComponentContracts(stable.source, key));
           } catch {
-            /* unreadable trees keep the previous snapshot */
+            /* syntactically invalid sources keep their previous knowledge */
           }
-          flushContracts();
-        },
-      });
-      await watcher.start();
-      watchers.push(watcher);
+        }
+
+        if (needsContractRescan) {
+          const scannedContracts = new Map<string, unknown[]>();
+          const scan = await scanProjectContracts(fsRoot, (file, list) => {
+            scannedContracts.set(file, list);
+          });
+          if (!scan.truncated) {
+            for (const file of contractsByFile.keys()) {
+              if (!scan.files.has(file)) contractsByFile.delete(file);
+            }
+          }
+          for (const [file, list] of scannedContracts) {
+            contractsByFile.set(file, list);
+          }
+        }
+
+        await settleTokens();
+      };
+
+      // Always keep the application watcher responsible for component
+      // contracts. Additional workspace roots only need token updates; using
+      // them for contract rescans would broaden the contract root silently.
+      const watcherRoots = [...new Set([fsRoot, ...scanRoots])];
+      for (const tokenRoot of watcherRoots) {
+        const watcher = createStandaloneFileWatcher({
+          rootDirectory: tokenRoot,
+          debounceMs: 60,
+          onSettled: tokenRoot === fsRoot ? settleProjectChanges : settleTokens,
+        });
+        await watcher.start();
+        watchers.push(watcher);
+      }
     }
 
     const handle: SidecarHandle = {
