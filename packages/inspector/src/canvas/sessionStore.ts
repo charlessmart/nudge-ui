@@ -32,9 +32,8 @@ import { canWriteWorkspace } from "./workspaceLease.ts";
 import type { StyleRuleContext } from "../projection/managedStylesheet.ts";
 import {
   isRenderedInstanceOverride,
-  isRenderedInstanceRef,
 } from "../changes/editModel.ts";
-import type { RenderedInstanceOverride, RenderedInstanceRef } from "../changes/editModel.ts";
+import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import {
   getStructuralChanges,
   isStructuralChange,
