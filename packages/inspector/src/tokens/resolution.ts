@@ -246,15 +246,13 @@ function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
 }
 
 /**
- * Keeps only stylesheet evidence that maps to an authored CSS declaration.
- * Compiled hosts often expose hashed CSS URLs that cannot be mapped back to
- * the inventory; those URLs must not make every valid declaration look lazy.
- * Non-file declarations (such as hydrated `cssom` sources) match every URL
- * by design, so they are excluded here — otherwise one such declaration
- * would retain every opaque URL and reintroduce the narrowing this filter
- * exists to prevent.
+ * Returns stylesheet identities only when the browser gave us a complete,
+ * authored-source mapping. A compiled host can expose a mixture of source-like
+ * and opaque CSS URLs; treating the mapped subset as complete would make
+ * declarations behind the opaque URLs look lazy even while their variables are
+ * live in the document.
  */
-function knownLoadedStylesheetSources(
+function confidentlyLoadedStylesheetSources(
   definitions: readonly TokenDefinition[],
   loadedSources: readonly string[],
 ): string[] {
@@ -263,8 +261,9 @@ function knownLoadedStylesheetSources(
       .map((declaration) => declaration.source)
       .filter((source) => /\.css$/i.test(sourceFile(source))));
   if (cssSources.length === 0) return [];
-  return loadedSources.filter((loaded) =>
+  const known = loadedSources.filter((loaded) =>
     cssSources.some((source) => isLoadedCssSource(source, [loaded])));
+  return known.length === loadedSources.length ? known : [];
 }
 
 /**
@@ -280,7 +279,7 @@ export function getAvailableTokenCatalog(
 ): TokenDefinition[] {
   const computed = getElementComputedStyle(root);
   const hydrated = hydrateTokenCatalogFromCssom(definitions, root.ownerDocument ?? document);
-  const loadedSources = knownLoadedStylesheetSources(
+  const loadedSources = confidentlyLoadedStylesheetSources(
     hydrated,
     loadedStylesheetSources(root.ownerDocument ?? document),
   );

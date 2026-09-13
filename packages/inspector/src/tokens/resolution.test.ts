@@ -85,6 +85,7 @@ describe("runtime token availability", () => {
     document.head.innerHTML = "";
     document.body.innerHTML = "";
     document.documentElement.style.removeProperty("--color-live");
+    document.documentElement.style.removeProperty("--color-compiled");
     invalidateStyleResolutionCache(document);
   });
 
@@ -170,6 +171,43 @@ describe("runtime token availability", () => {
     } finally {
       document.documentElement.style.removeProperty("--color-cssom");
     }
+  });
+
+  it("does not discard opaque-source declarations when mapped and compiled sheets coexist", () => {
+    const mapped = document.createElement("style");
+    mapped.dataset.viteDevId = "/project/src/theme.css";
+    document.head.appendChild(mapped);
+    const compiled = document.createElement("link");
+    compiled.rel = "stylesheet";
+    compiled.href = "/_next/static/css/app/layout-abc123.css";
+    document.head.appendChild(compiled);
+    document.documentElement.style.setProperty("--color-live", "#224466");
+    document.documentElement.style.setProperty("--color-compiled", "#112233");
+
+    const definitions: TokenDefinition[] = [
+      {
+        cssName: "--color-live",
+        name: "--color-live",
+        declarations: [{
+          value: "#224466",
+          source: "src/theme.css:1",
+          important: false,
+          context: {},
+        }],
+      },
+      {
+        cssName: "--color-compiled",
+        name: "--color-compiled",
+        declarations: [{
+          value: "#112233",
+          source: "app/globals.css:2",
+          important: false,
+          context: {},
+        }],
+      },
+    ];
+
+    expect(getAvailableTokenCatalog(document.documentElement, definitions)).toEqual(definitions);
   });
 
   it("hydrates semantic contract entries from compiler CSSOM declarations", () => {
