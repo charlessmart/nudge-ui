@@ -6,12 +6,7 @@ import {
 import type { RenderedInstanceRef } from "../changes/editModel.ts";
 import { isStructuralProjectionReport } from "./structuralProjectionBoundary.ts";
 import {
-  commitStructuralChange,
-  getWorkspaceChanges,
-  reconcileWorkspaceChanges,
-  resetWorkspaceChanges,
-  revertStructuralChangeRecord,
-  subscribeWorkspaceChanges,
+  workspaceChangeStore,
   type WorkspaceChangesSnapshot,
 } from "../changes/workspaceChanges.ts";
 import type {
@@ -213,7 +208,7 @@ export function createStructuralDelete(element: HTMLElement, id = structuralId()
   const target = captureRenderedInstance(element);
   if (!target) return null;
   const change: StructuralDelete = { id, kind: "delete", target };
-  if (!commitStructuralChange(change, projectStructuralChanges)) return null;
+  if (!workspaceChangeStore.commitStructuralChange(change, projectStructuralChanges)) return null;
   return change;
 }
 
@@ -257,12 +252,12 @@ export function createStructuralMove(
         : destinationChildren.length - (sameParent ? 1 : 0),
     },
   };
-  if (!commitStructuralChange(change, projectStructuralChanges)) return null;
+  if (!workspaceChangeStore.commitStructuralChange(change, projectStructuralChanges)) return null;
   return change;
 }
 
 export function getStructuralChanges(): readonly StructuralChange[] {
-  return getWorkspaceChanges().structuralChanges;
+  return workspaceChangeStore.getSnapshot().structuralChanges;
 }
 
 export function getStructuralDeletes(): readonly StructuralDelete[] {
@@ -271,7 +266,7 @@ export function getStructuralDeletes(): readonly StructuralDelete[] {
 
 /** Revert removes one canonical intent and leaves every other intent intact. */
 export function revertStructuralChange(changeId: string): boolean {
-  return revertStructuralChangeRecord(changeId, projectStructuralChanges);
+  return workspaceChangeStore.revertStructuralChangeRecord(changeId, projectStructuralChanges);
 }
 
 /**
@@ -286,7 +281,11 @@ export function reconcileVerifiedStructuralChanges(
   verifiedIds: ReadonlySet<string>,
 ): number {
   if (verifiedIds.size === 0) return 0;
-  const removed = reconcileWorkspaceChanges(new Set(), verifiedIds, projectStructuralChanges);
+  const removed = workspaceChangeStore.reconcileWorkspaceChanges(
+    new Set(),
+    verifiedIds,
+    projectStructuralChanges,
+  );
   if (removed === 0) return 0;
   for (const [cardId, canvasReports] of reportsByCanvasCard) {
     reportsByCanvasCard.set(cardId, {
@@ -300,7 +299,7 @@ export function reconcileVerifiedStructuralChanges(
 
 /** State changes drive controller-to-renderer projection. Diagnostics do not. */
 export function subscribeStructuralChanges(listener: () => void): () => void {
-  return subscribeWorkspaceChanges(listener);
+  return workspaceChangeStore.subscribe(listener);
 }
 
 /** Compatibility name retained while the controller moved to a full union. */
@@ -640,6 +639,6 @@ export function resetStructuralDeleteProjection(): void {
   reportsByCanvasCard.clear();
   nextStructuralId = 1;
   diagnosticRevision = 0;
-  resetWorkspaceChanges();
+  workspaceChangeStore.resetWorkspaceChanges();
   notifyDiagnostics();
 }

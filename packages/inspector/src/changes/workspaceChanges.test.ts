@@ -11,6 +11,7 @@ import {
   restoreWorkspaceChanges,
   subscribeWorkspaceChanges,
   undoWorkspaceChange,
+  workspaceChangeStore,
 } from "./workspaceChanges.ts";
 
 const project = (): void => undefined;
@@ -76,6 +77,43 @@ describe("WorkspaceChanges", () => {
 
     expect(observed).toEqual([{ changes: 1, structuralChanges: 1 }]);
     unsubscribe();
+  });
+
+  it("exposes the complete snapshot and preserves commit and undo results", () => {
+    expect(workspaceChangeStore.getSnapshot()).toEqual({
+      revision: 0,
+      changes: [],
+      structuralChanges: [],
+      canUndo: false,
+      canRedo: false,
+    });
+
+    const change = styleChange("color", "red");
+    expect(workspaceChangeStore.commitChangeRecords([], project)).toBe("unchanged");
+    expect(workspaceChangeStore.commitChangeRecords([change], project)).toBe("applied");
+    expect(workspaceChangeStore.commitChangeRecords([change], project)).toBe("unchanged");
+    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+      revision: 1,
+      changes: [change],
+      structuralChanges: [],
+      canUndo: true,
+      canRedo: false,
+    });
+
+    expect(workspaceChangeStore.undoWorkspaceChange(project)).toBe(true);
+    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+      revision: 2,
+      changes: [],
+      canUndo: false,
+      canRedo: true,
+    });
+    expect(workspaceChangeStore.redoWorkspaceChange(project)).toBe(true);
+    expect(workspaceChangeStore.getSnapshot()).toMatchObject({
+      revision: 3,
+      changes: [change],
+      canUndo: true,
+      canRedo: false,
+    });
   });
 
   it("rejects a duplicate structural id without publishing or adding history", () => {
