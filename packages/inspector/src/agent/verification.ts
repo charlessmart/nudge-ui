@@ -51,14 +51,6 @@ function stableSerialized(value: unknown): string {
 
 /** Stable, preview-metadata-free identity for one prompt handoff record. */
 export function handoffChangeFingerprint(change: ChangeRecord): string {
-  if (!isTokenChange(change) && !isComponentChange(change) && !isTextContentChange(change)) {
-    const { previewResult: _previewResult, ...intent } = change;
-    return stableSerialized(intent);
-  }
-  if (isTokenChange(change)) {
-    const { previewResult: _previewResult, ...intent } = change;
-    return stableSerialized(intent);
-  }
   return stableSerialized(change);
 }
 

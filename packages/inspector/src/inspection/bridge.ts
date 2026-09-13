@@ -1,5 +1,7 @@
 import type { TokenDefinition, TokenEntry } from "@nudge-ui/css/model";
 import { getChangesList, getPendingRules, isPreviewableChange } from "../changes/changesLog.ts";
+import { changeKey } from "../changes/model.ts";
+import { getPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
 import { detectFramework } from "../prompt/detectFramework.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
 import { loadCustomInstructions } from "../prompt/promptSettings.ts";
@@ -140,10 +142,11 @@ export function inspectElement(
   const customInstructions = loadCustomInstructions(runtimeConfig.projectId);
   const managedPreview = {
     rules: getPendingRules(),
-    results: changes.flatMap((change) =>
-      isPreviewableChange(change) && change.previewResult
-        ? [{ property: change.property, ...change.previewResult }]
-        : []),
+    results: changes.flatMap((change) => {
+      if (!isPreviewableChange(change)) return [];
+      const diagnostic = getPreviewDiagnostic(changeKey(change));
+      return diagnostic ? [{ property: change.property, ...diagnostic.result }] : [];
+    }),
   };
   // Local vanilla-extract themes attach contract variables to a theme class,
   // not necessarily :root. The selected element is therefore the correct

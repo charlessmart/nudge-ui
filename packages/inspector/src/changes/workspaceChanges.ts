@@ -201,16 +201,3 @@ export function resetWorkspaceChanges(): void {
   snapshot = createSnapshot();
   for (const listener of listeners) listener();
 }
-
-/**
- * Publishes updated preview diagnostics without creating user intent, changing
- * history, or advancing the canonical revision. Subscribers still refresh so
- * diagnostic UI and durable session metadata observe the latest result.
- */
-export function replaceChangeRecordsForDiagnostics(
-  changes: readonly ChangeRecord[],
-): void {
-  contents = { ...contents, changes: [...changes] };
-  snapshot = createSnapshot();
-  for (const listener of listeners) listener();
-}

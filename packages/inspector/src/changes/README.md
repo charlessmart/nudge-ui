@@ -24,12 +24,12 @@ Every canonical record has four separate concerns:
   target. Evidence is not a live DOM node, React object, preview result, or
   timer state.
 
-Canonical intent is the `ChangeRecord` or `StructuralChange` payload. Current
-preview and verification data is split between document-scoped projection
-reports and a single `previewResult` field on element and token records. The
-field is transient: session serialization excludes it and handoff fingerprints
-exclude it for those style records. Phase 2 moves that remaining field into an
-explicit document/attempt diagnostic store.
+Canonical intent is the `ChangeRecord` or `StructuralChange` payload. Preview
+and verification data is separate from that payload: document-scoped
+projection reports remain owned by the projection modules, while CSS preview
+diagnostics are owned by [`previewDiagnostics.ts`](./previewDiagnostics.ts).
+Each stored CSS diagnostic is tied to a canonical workspace revision, logical
+document, live document session, and verification attempt.
 
 ## Current record mapping
 
@@ -37,8 +37,8 @@ explicit document/attempt diagnostic store.
 
 | Variant | Operation | Target and scope | Evidence and baseline |
 | --- | --- | --- | --- |
-| `ElementChangeRecord` | Change one CSS property using a raw value or token value. `state` selects the supported interaction state when present. | Source-site identity is represented by the instrumentation `cid` (component/site id), `file`, `line`, and `selector`. A rendered-instance edit uses `scope: "rendered-instance"` and `instanceOverride.target`; omitted scope and `scope: "source-site"` use the source-site selector. | `oldToken`/`oldRawValue` are the baseline; `newToken`/`rawValue` are the requested value. `sourceProperty` and `sourceAuthoredValue` preserve CSSOM source context. `runtimeEvidence` and the instance override retain bounded rendered facts. `previewResult` is a preview diagnostic, not evidence. |
-| `TokenChangeRecord` | Change a token value in the managed stylesheet and in the eventual source token definition. | The token is identified by `tokenName`, source file/line, `selector`, and `context`. This variant has no `scope`, instrumentation `cid`, or rendered-instance target. | `oldRawValue` is the baseline and `rawValue` is the requested value. `context` and `contextLabel` preserve conditional CSS context; `source` identifies the authored token location. `previewResult` is a preview diagnostic. |
+| `ElementChangeRecord` | Change one CSS property using a raw value or token value. `state` selects the supported interaction state when present. | Source-site identity is represented by the instrumentation `cid` (component/site id), `file`, `line`, and `selector`. A rendered-instance edit uses `scope: "rendered-instance"` and `instanceOverride.target`; omitted scope and `scope: "source-site"` use the source-site selector. | `oldToken`/`oldRawValue` are the baseline; `newToken`/`rawValue` are the requested value. `sourceProperty` and `sourceAuthoredValue` preserve CSSOM source context. `runtimeEvidence` and the instance override retain bounded rendered facts. Preview outcomes live in `previewDiagnostics.ts`. |
+| `TokenChangeRecord` | Change a token value in the managed stylesheet and in the eventual source token definition. | The token is identified by `tokenName`, source file/line, `selector`, and `context`. This variant has no `scope`, instrumentation `cid`, or rendered-instance target. | `oldRawValue` is the baseline and `rawValue` is the requested value. `context` and `contextLabel` preserve conditional CSS context; `source` identifies the authored token location. Preview outcomes live in `previewDiagnostics.ts`. |
 | `ComponentChangeRecord` | Change one component prop. | `target` identifies the framework, component definition, callsite, component name, and source location. `scope` is `source-site` or `rendered-instance`; `createComponentPropChange` defaults it to `source-site`. | `before` is a value or default baseline; `after` is the requested value; `authoredAs` describes the authored prop form. Optional `evidence` records the rendered invocation, including occurrence, props, accessible name, original text, and mounted count. |
 | `TextContentChangeRecord` | Replace rendered text with `after`. | `target.sourceSite` identifies the instrumented site. `scope` is `source-site` or `rendered-instance`; `id` identifies the text change. `selector` is the source-site projection selector, not a complete rendered identity. | `before` and `target.beforeText` are the baseline. `target` also carries bounded props, accessible name, occurrence, and optional `textNodePath`; the path is document-local evidence. Optional `evidence` records the semantic component binding. `authoredAs` describes the source text form. |
 
@@ -128,12 +128,12 @@ unsent intent remains in the workspace.
 | Record shapes and type guards | `changes/types.ts`, `changes/structuralTypes.ts`, `changes/editModel.ts`, `inline-text/textChangeBoundary.ts`, `componentSemantics/types.ts` | Canonical records contain serializable intent and bounded evidence, never live DOM or framework objects. Operation, target, scope, and evidence remain distinguishable. Shared rendered-instance guards reject document-local fields. |
 | Canonical keys, baselines, and merge rules | `changes/model.ts` | A merge preserves the first baseline and latest requested value. Returning to the baseline removes the canonical delta. Text records only merge when their stable evidence and before/after chain are compatible. |
 | Workspace history and revision | `changes/workspaceChanges.ts` | Only canonical mutations advance revision or enter undo/redo. Diagnostic publication does neither. `CommitResult` remains three-valued. Reconciliation removes only positively verified records and cannot resurrect them through history. |
-| Public change orchestration | `changes/changesLog.ts` | Subscribers observe a complete workspace snapshot. CSS projection is derived from canonical records. Deferred verification is bound to the document captured at commit time. |
+| Public change orchestration | `changes/changesLog.ts`, `changes/previewDiagnostics.ts` | Subscribers observe a complete workspace snapshot. CSS projection is derived from canonical records. Deferred verification publishes to the diagnostic store and is bound to the document captured at commit time. |
 | Source-site and instance scope | `selection/editScope.ts`, `changes/editModel.ts`, `projection/renderedInstance.ts` | Missing or ambiguous rendered evidence fails closed. A partial repeated-source edit must not silently broaden to every output. The projection module re-exports the shared model while owning resolution. |
 | Component intent and runtime override | `componentSemantics/changeModel.ts`, `componentSemantics/textBinding.ts` | A rendered-instance component record is not converted into a callsite-wide override. Repeated expression and spread props are not broadened without proof. |
 | Text target resolution and projection | `inline-text/textChangeBoundary.ts`, `projection/textProjection.ts` | Before text is part of identity. Text-node paths are bounded document evidence. Projection restores only its own marker and value. |
 | Structural capture and projection | `projection/structuralProjection.ts`, `projection/structuralProjectionBoundary.ts` | Every target, parent, and anchor must resolve exactly and satisfy the shared containment rules. DOM placeholders, observers, and applied nodes remain document-local. |
-| Persistence and handoff | `canvas/sessionStore.ts`, `prompt/generatePrompt.ts`, `agent/verification.ts` | Session data and handoff fingerprints carry durable intent, not preview diagnostics or DOM artifacts. Handoff reconciliation preserves newer unsent edits. |
+| Persistence and handoff | `canvas/sessionStore.ts`, `prompt/generatePrompt.ts`, `agent/verification.ts`, `changes/previewDiagnostics.ts` | Session data and handoff fingerprints carry durable intent, not preview diagnostics or DOM artifacts. Handoff reconciliation preserves newer unsent edits. |
 
 ## Ownership and disposal contract
 
@@ -176,6 +176,9 @@ Current coverage includes:
   verification, and stale detection in `canvas/sessionStore.test.ts`,
   `prompt/clipboardHandoff.test.ts`, `agent/verification.test.ts`, and
   `canvas/staleChangeDetector.test.ts`.
+- CSS preview diagnostic ownership and freshness rules in
+  [`previewDiagnostics.test.ts`](./previewDiagnostics.test.ts), including
+  revision, document-session, and verification-attempt invalidation.
 
 The first implementation slices need focused coverage for:
 

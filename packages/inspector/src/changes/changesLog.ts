@@ -7,7 +7,7 @@ import {
   buildManagedStyleRules,
   verifyManagedStyleProjection,
 } from "./managedStyleProjection.ts";
-import type { StyleRule, PreviewResult } from "../projection/managedStylesheet.ts";
+import type { StyleRule } from "../projection/managedStylesheet.ts";
 import { isPreviewableChange } from "./types.ts";
 import type { ChangeRecord } from "./types.ts";
 import { cancelInlineTextForClear } from "../inline-text/inlineTextLifecycle.ts";
@@ -18,7 +18,6 @@ import {
   getWorkspaceChanges,
   reconcileWorkspaceChanges,
   redoWorkspaceChange,
-  replaceChangeRecordsForDiagnostics,
   restoreWorkspaceChanges,
   revertChangeRecord,
   subscribeWorkspaceChanges,
@@ -26,6 +25,11 @@ import {
   type CommitResult,
   type WorkspaceChangesSnapshot,
 } from "./workspaceChanges.ts";
+import {
+  beginPreviewAttempt,
+  getHostPreviewDocument,
+  publishPreviewDiagnostic,
+} from "./previewDiagnostics.ts";
 import { clearStructuralProjectionReports, pruneStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import type { StructuralChange } from "./structuralTypes.ts";
 import {
@@ -82,40 +86,26 @@ function reapply(workspace: WorkspaceChangesSnapshot): void {
   applyHostWorkspaceProjection(compileWorkspaceProjection(workspace));
 }
 
-function samePreviewResult(
-  a: PreviewResult | undefined,
-  b: PreviewResult | undefined,
-): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  return a.status === b.status
-    && a.reason === b.reason
-    && a.requestedValue === b.requestedValue
-    && a.computedValue === b.computedValue;
-}
-
 function flushVerification(): void {
   verificationHandle = null;
   const targets = pendingVerificationTargets;
   pendingVerificationTargets = new Map<string, HTMLElement | null>();
   if (targets.size === 0) return;
   const current = getChangesSnapshot();
-  let updated: ChangeRecord[] | null = null;
+  const attempt = beginPreviewAttempt(getHostPreviewDocument(), getWorkspaceChanges().revision);
+  if (!attempt) return;
   for (let i = 0; i < current.length; i++) {
     const change = current[i]!;
     if (!isPreviewableChange(change)) continue;
     const key = changeKey(change);
     if (!targets.has(key)) continue;
-    const verified = verifyManagedStyleProjection(
+    const result = verifyManagedStyleProjection(
       change,
       targets.get(key) ?? null,
     );
-    if (samePreviewResult(change.previewResult, verified.previewResult)) continue;
-    if (!updated) updated = current.slice();
-    updated[i] = verified;
-  }
-  if (updated) {
-    replaceChangeRecordsForDiagnostics(updated);
+    if (result) {
+      publishPreviewDiagnostic(attempt, key, result);
+    }
   }
 }
 
@@ -262,10 +252,6 @@ export function getChangesList(): ChangeRecord[] {
 }
 
 export { subscribe as subscribeChanges, getChangesSnapshot as getChanges };
-
-export function touchChanges(): void {
-  replaceChangeRecordsForDiagnostics([...getChangesSnapshot()]);
-}
 
 export function useChanges(): ChangeRecord[] {
   return useSyncExternalStore(subscribe, getChangesSnapshot, getChangesSnapshot);

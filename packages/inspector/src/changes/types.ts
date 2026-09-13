@@ -1,5 +1,5 @@
 import type { TokenEntry } from "virtual:design-tokens";
-import type { PreviewResult, StyleRuleContext } from "../projection/managedStylesheet.ts";
+import type { StyleRuleContext } from "../projection/managedStylesheet.ts";
 import type { ComponentChangeRecord } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "./editModel.ts";
 import type { TextContentChangeRecord } from "../inline-text/textChangeBoundary.ts";
@@ -41,7 +41,6 @@ export interface ElementChangeRecord {
   scope?: EditScope;
   /** Durable, controller-owned target for one rendered output. */
   instanceOverride?: RenderedInstanceOverride;
-  previewResult?: PreviewResult;
   state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";
 }
 
@@ -61,7 +60,6 @@ export interface TokenChangeRecord {
   oldToken?: null;
   newToken?: null;
   scope?: undefined;
-  previewResult?: PreviewResult;
 }
 
 export type ChangeRecord =

@@ -338,8 +338,8 @@ describe("sessionStore persistence", () => {
     expect(parsed.changes[0].oldRawValue).toBe("#00ff00");
   });
 
-  it("does not include preview results in serialized output", () => {
-    appendChange(makeElementChange({ previewResult: { status: "applied", requestedValue: "var(--color-b)", computedValue: "#bbbbbb" } }));
+  it("serializes canonical intent without preview diagnostics", () => {
+    appendChange(makeElementChange());
     const session = serializeSession();
     const json = JSON.stringify(session);
     expect(json).not.toContain("previewResult");
@@ -1045,13 +1045,7 @@ describe("sessionStore exclusions", () => {
   });
 
   it("does not persist preview verification results", () => {
-    appendChange(makeElementChange({
-      previewResult: {
-        status: "applied",
-        requestedValue: "var(--color-b)",
-        computedValue: "#bbbbbb",
-      },
-    }));
+    appendChange(makeElementChange());
     persistSession();
 
     const raw = localStorage.getItem(storageKey(nudgeUiProjectId));

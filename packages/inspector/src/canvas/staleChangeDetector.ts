@@ -6,8 +6,17 @@ import type {
 import {
   isPreviewableChange,
   isTokenChange,
-  touchChanges,
 } from "../changes/changesLog.ts";
+import { changeKey } from "../changes/model.ts";
+import {
+  beginPreviewAttempt,
+  clearPreviewDiagnostics,
+  getHostPreviewDocument,
+  notifyPreviewDiagnostics,
+  publishPreviewDiagnostic,
+  type PreviewAttempt,
+} from "../changes/previewDiagnostics.ts";
+import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import type { PreviewResult } from "../projection/managedStylesheet.ts";
 import { getRegisteredFrames } from "./projection.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
@@ -22,6 +31,7 @@ const STALE_CHECK_DEBOUNCE_MS = 100;
 let verificationTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingChanges: PreviewableChangeRecord[] | null = null;
+let pendingAttempt: PreviewAttempt | null = null;
 
 export type StaleChangeStatus = "unverified" | "verified" | "stale" | "token-drift";
 
@@ -139,26 +149,26 @@ function gatherMatchEvidence(
   return evidence;
 }
 
-function applyStaleResults(changes: PreviewableChangeRecord[]): void {
+function applyStaleResults(changes: PreviewableChangeRecord[], attempt: PreviewAttempt | null): void {
+  if (!attempt) return;
   const evidence = gatherMatchEvidence(changes);
 
   for (let i = 0; i < changes.length; i++) {
     const change = changes[i]!;
-    if (change.previewResult !== undefined) continue;
 
     if (isTokenChange(change)) {
       const drift = checkTokenDrift(change);
       if (drift) {
-        change.previewResult = drift;
+        publishPreviewDiagnostic(attempt, changeKey(change), drift);
       }
       continue;
     }
     const routes = evidence.get(i);
     if (!routes || routes.length === 0) {
-      change.previewResult = buildStaleResult(
+      publishPreviewDiagnostic(attempt, changeKey(change), buildStaleResult(
         change.selector,
         getRequestedValue(change),
-      );
+      ));
     }
   }
 }
@@ -167,7 +177,12 @@ function scheduleStaleCheck(): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     if (pendingChanges) {
-      applyStaleResults(pendingChanges);
+      const nextAttempt = beginPreviewAttempt(getHostPreviewDocument(), getWorkspaceChanges().revision);
+      if (nextAttempt) {
+        pendingAttempt = nextAttempt;
+        clearPreviewDiagnostics(pendingChanges.map(changeKey));
+      }
+      applyStaleResults(pendingChanges, pendingAttempt);
     }
   }, STALE_CHECK_DEBOUNCE_MS);
 }
@@ -176,20 +191,20 @@ export function startStaleDetection(changes: ChangeRecord[]): void {
   const previewableChanges = changes.filter(isPreviewableChange);
   if (previewableChanges.length === 0) return;
 
-  for (const change of previewableChanges) {
-    change.previewResult = undefined;
-  }
+  clearPreviewDiagnostics(previewableChanges.map(changeKey));
+  pendingAttempt = beginPreviewAttempt(getHostPreviewDocument(), getWorkspaceChanges().revision);
 
   pendingChanges = previewableChanges;
 
   if (verificationTimer) clearTimeout(verificationTimer);
   verificationTimer = setTimeout(() => {
     if (pendingChanges) {
-      applyStaleResults(pendingChanges);
+      applyStaleResults(pendingChanges, pendingAttempt);
       pendingChanges = null;
     }
+    pendingAttempt = null;
     verificationTimer = null;
-    touchChanges();
+    notifyPreviewDiagnostics();
   }, VERIFICATION_TIMEOUT_MS);
 
   window.addEventListener("message", handleFrameReady);
@@ -219,7 +234,9 @@ export function cancelStaleDetection(): void {
     debounceTimer = null;
   }
   pendingChanges = null;
+  pendingAttempt = null;
   window.removeEventListener("message", handleFrameReady);
+  notifyPreviewDiagnostics();
 }
 
 export function isVerificationPending(): boolean {

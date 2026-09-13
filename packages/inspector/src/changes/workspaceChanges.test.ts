@@ -7,7 +7,6 @@ import {
   commitStructuralChange,
   getWorkspaceChanges,
   redoWorkspaceChange,
-  replaceChangeRecordsForDiagnostics,
   resetWorkspaceChanges,
   restoreWorkspaceChanges,
   subscribeWorkspaceChanges,
@@ -104,31 +103,4 @@ describe("WorkspaceChanges", () => {
     unsubscribe();
   });
 
-  it("publishes diagnostics without changing canonical revision or history", () => {
-    const change = styleChange("color", "red");
-    commitChangeRecords([change], project);
-    const revision = getWorkspaceChanges().revision;
-    let notifications = 0;
-    const unsubscribe = subscribeWorkspaceChanges(() => {
-      notifications += 1;
-    });
-
-    replaceChangeRecordsForDiagnostics([{
-      ...change,
-      previewResult: {
-        requestedValue: "red",
-        computedValue: "red",
-        status: "applied",
-      },
-    }]);
-
-    expect(getWorkspaceChanges().revision).toBe(revision);
-    expect(getWorkspaceChanges().changes[0]).toMatchObject({
-      previewResult: { status: "applied" },
-    });
-    expect(notifications).toBe(1);
-    expect(undoWorkspaceChange(project)).toBe(true);
-    expect(getWorkspaceChanges().changes).toEqual([]);
-    unsubscribe();
-  });
 });

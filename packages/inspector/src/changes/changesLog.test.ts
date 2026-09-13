@@ -16,6 +16,7 @@ import type { ComponentChangeRecord, ElementChangeRecord } from "./changesLog.ts
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "./_testUtils.ts";
 import { changeKey } from "./model.ts";
+import { getPreviewDiagnostic } from "./previewDiagnostics.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import type { RenderedInstanceOverride } from "./editModel.ts";
 
@@ -366,13 +367,14 @@ describe("changesLog", () => {
     appendChange(makeRecord("background", COLOR_B, COLOR_A));
     const afterCommit = getChangesList()[0] as ElementChangeRecord;
     // The commit handler returns before any querySelectorAll/probe work runs.
-    expect(afterCommit.previewResult).toBeUndefined();
+    expect(getPreviewDiagnostic(changeKey(afterCommit))).toBeUndefined();
 
     await new Promise((resolve) => setTimeout(resolve, 40));
     await new Promise((resolve) => setTimeout(resolve, 40));
     const verified = getChangesList()[0] as ElementChangeRecord;
-    expect(verified.previewResult).toBeDefined();
-    expect(verified.previewResult!.status).toBe("applied");
+    const diagnostic = getPreviewDiagnostic(changeKey(verified));
+    expect(diagnostic).toBeDefined();
+    expect(diagnostic!.result.status).toBe("applied");
     btn.remove();
   });
 
@@ -405,7 +407,7 @@ describe("changesLog", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 80));
     const verified = getChangesList()[0] as ElementChangeRecord;
-    expect(verified.previewResult?.status).toBe("applied");
+    expect(getPreviewDiagnostic(changeKey(verified))?.result.status).toBe("applied");
 
     setSelectedElement(null);
     hostButton.remove();
