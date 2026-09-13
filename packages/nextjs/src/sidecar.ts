@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { realpath } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   buildManifest,
   type NudgeUiManifest,
@@ -89,40 +89,59 @@ const SCAN_MAX_SOURCES = 5000;
 function hasWorkspaceManifest(directory: string): boolean {
   if (existsSync(join(directory, "pnpm-workspace.yaml"))) return true;
   try {
+    // SAFETY: The parsed JSON shape is validated by the Array.isArray guards below before use.
     const packageJson = JSON.parse(readFileSync(join(directory, "package.json"), "utf8")) as {
       workspaces?: unknown;
     };
-    return Array.isArray(packageJson.workspaces)
-      || (typeof packageJson.workspaces === "object"
-        && packageJson.workspaces !== null
-        && Array.isArray((packageJson.workspaces as { packages?: unknown }).packages));
+    if (Array.isArray(packageJson.workspaces)) return true;
+    if (typeof packageJson.workspaces !== "object" || packageJson.workspaces === null) return false;
+    // SAFETY: The packages field is validated by Array.isArray before use.
+    const packages = (packageJson.workspaces as { packages?: unknown }).packages;
+    return Array.isArray(packages);
   } catch {
     return false;
   }
 }
 
+/** Upper bound on ancestors examined when searching for a workspace root. */
+const MAX_WORKSPACE_SEARCH_DEPTH = 5;
+
 /**
- * Finds the nearest declared workspace root without walking above it.
+ * Finds the nearest declared workspace root by walking upward from the app.
  *
  * A Next app normally runs with its app directory as `process.cwd()`. When a
  * workspace manifest is present above that directory, the workspace is the
- * smallest safe default that can include sibling authored stylesheets. With
- * no manifest, scanning remains confined to the app root.
+ * smallest safe default that can include sibling authored stylesheets. The
+ * walk is bounded and never promotes the filesystem root itself, so a stray
+ * manifest at `/` cannot turn the whole machine into the token scan root.
+ * With no manifest found, scanning remains confined to the app root.
  */
 function nearestWorkspaceRoot(root: string): string {
   let directory = root;
-  while (true) {
-    if (hasWorkspaceManifest(directory)) return directory;
+  for (let depth = 0; depth <= MAX_WORKSPACE_SEARCH_DEPTH; depth += 1) {
+    if (hasWorkspaceManifest(directory)) {
+      if (dirname(directory) === directory) return root;
+      return directory;
+    }
     const parent = dirname(directory);
     if (parent === directory) return root;
     directory = parent;
   }
+  return root;
 }
 
 function tokenScanRoots(root: string, sourceRoots: readonly string[] = []): string[] {
   const workspaceRoot = nearestWorkspaceRoot(root);
   const configuredRoots = sourceRoots.map((sourceRoot) => resolve(root, sourceRoot));
   return [...new Set([workspaceRoot, ...configuredRoots])];
+}
+
+function isWithinRoot(root: string, candidate: string): boolean {
+  const pathFromRoot = relative(root, candidate);
+  return pathFromRoot === ""
+    || (!pathFromRoot.startsWith(`..${sep}`)
+      && pathFromRoot !== ".."
+      && !isAbsolute(pathFromRoot));
 }
 
 /**
@@ -412,12 +431,38 @@ export async function ensureSidecar(
       // Always keep the application watcher responsible for component
       // contracts. Additional workspace roots only need token updates; using
       // them for contract rescans would broaden the contract root silently.
-      const watcherRoots = [...new Set([fsRoot, ...scanRoots])];
-      for (const tokenRoot of watcherRoots) {
+      // Roots nested inside the app are already covered by the app watcher.
+      const additionalRoots = [...new Set(scanRoots)].filter(
+        (scanRoot) => scanRoot !== fsRoot && !isWithinRoot(fsRoot, scanRoot),
+      );
+      // Additional roots can overlap each other (for example an explicit
+      // source root inside the workspace). Keep only the outermost so one
+      // sibling edit settles into one token scan.
+      const outerAdditionalRoots = additionalRoots
+        .sort((a, b) => a.length - b.length)
+        .filter((scanRoot, index, list) =>
+          !list.slice(0, index).some((outer) => isWithinRoot(outer, scanRoot)));
+      const appWatcher = createStandaloneFileWatcher({
+        rootDirectory: fsRoot,
+        debounceMs: 60,
+        onSettled: settleProjectChanges,
+      });
+      await appWatcher.start();
+      watchers.push(appWatcher);
+      for (const tokenRoot of outerAdditionalRoots) {
         const watcher = createStandaloneFileWatcher({
           rootDirectory: tokenRoot,
           debounceMs: 60,
-          onSettled: tokenRoot === fsRoot ? settleProjectChanges : settleTokens,
+          onSettled: async (changes) => {
+            // A workspace root contains the app tree, so app edits fire this
+            // watcher too. The app watcher already refreshes tokens for those
+            // edits, so only changes outside the app need a second scan.
+            const outside = isWithinRoot(tokenRoot, fsRoot)
+              ? changes.filter((change) => !isWithinRoot(fsRoot, change.absolutePath))
+              : changes;
+            if (outside.length === 0) return;
+            await settleTokens();
+          },
         });
         await watcher.start();
         watchers.push(watcher);

@@ -246,17 +246,25 @@ function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
 }
 
 /**
- * Keeps only stylesheet evidence that maps to an authored declaration.
+ * Keeps only stylesheet evidence that maps to an authored CSS declaration.
  * Compiled hosts often expose hashed CSS URLs that cannot be mapped back to
  * the inventory; those URLs must not make every valid declaration look lazy.
+ * Non-file declarations (such as hydrated `cssom` sources) match every URL
+ * by design, so they are excluded here — otherwise one such declaration
+ * would retain every opaque URL and reintroduce the narrowing this filter
+ * exists to prevent.
  */
 function knownLoadedStylesheetSources(
   definitions: readonly TokenDefinition[],
   loadedSources: readonly string[],
 ): string[] {
-  return loadedSources.filter((loaded) => definitions.some((definition) =>
-    definition.declarations.some((declaration) =>
-      isLoadedCssSource(declaration.source, [loaded]))));
+  const cssSources = definitions.flatMap((definition) =>
+    definition.declarations
+      .map((declaration) => declaration.source)
+      .filter((source) => /\.css$/i.test(sourceFile(source))));
+  if (cssSources.length === 0) return [];
+  return loadedSources.filter((loaded) =>
+    cssSources.some((source) => isLoadedCssSource(source, [loaded])));
 }
 
 /**

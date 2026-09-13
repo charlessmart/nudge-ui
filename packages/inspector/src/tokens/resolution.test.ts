@@ -133,6 +133,45 @@ describe("runtime token availability", () => {
     expect(getAvailableTokenCatalog(document.documentElement, [definition])).toEqual([definition]);
   });
 
+  it("ignores opaque stylesheet URLs when non-file declarations are present", () => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "/_next/static/chunks/app/page-abc123.css";
+    document.head.appendChild(link);
+    document.documentElement.style.setProperty("--color-live", "#224466");
+    document.documentElement.style.setProperty("--color-cssom", "#123456");
+
+    const cssDefinition: TokenDefinition = {
+      cssName: "--color-live",
+      name: "--color-live",
+      declarations: [{
+        value: "#224466",
+        source: "packages/ui/src/styles/theme.css:1",
+        important: false,
+        context: {},
+      }],
+    };
+    const cssomDefinition: TokenDefinition = {
+      cssName: "--color-cssom",
+      name: "--color-cssom",
+      declarations: [{
+        value: "#123456",
+        source: "cssom",
+        important: false,
+        context: {},
+      }],
+    };
+
+    try {
+      expect(getAvailableTokenCatalog(document.documentElement, [cssDefinition, cssomDefinition])).toEqual([
+        cssDefinition,
+        cssomDefinition,
+      ]);
+    } finally {
+      document.documentElement.style.removeProperty("--color-cssom");
+    }
+  });
+
   it("hydrates semantic contract entries from compiler CSSOM declarations", () => {
     const style = document.createElement("style");
     style.dataset.viteDevId = "/project/src/theme.css.ts.vanilla.css";
