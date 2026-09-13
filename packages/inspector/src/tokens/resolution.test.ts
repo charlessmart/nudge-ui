@@ -112,6 +112,27 @@ describe("runtime token availability", () => {
     ]);
   });
 
+  it("keeps adapter declarations when compiled stylesheet links have opaque URLs", () => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "/_next/static/chunks/app/page-abc123.css";
+    document.head.appendChild(link);
+    document.documentElement.style.setProperty("--color-live", "#224466");
+
+    const definition: TokenDefinition = {
+      cssName: "--color-live",
+      name: "--color-live",
+      declarations: [{
+        value: "#224466",
+        source: "packages/ui/src/styles/theme.css:1",
+        important: false,
+        context: {},
+      }],
+    };
+
+    expect(getAvailableTokenCatalog(document.documentElement, [definition])).toEqual([definition]);
+  });
+
   it("hydrates semantic contract entries from compiler CSSOM declarations", () => {
     const style = document.createElement("style");
     style.dataset.viteDevId = "/project/src/theme.css.ts.vanilla.css";

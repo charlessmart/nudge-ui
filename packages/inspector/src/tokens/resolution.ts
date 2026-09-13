@@ -246,17 +246,36 @@ function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
 }
 
 /**
+ * Keeps only stylesheet evidence that maps to an authored declaration.
+ * Compiled hosts often expose hashed CSS URLs that cannot be mapped back to
+ * the inventory; those URLs must not make every valid declaration look lazy.
+ */
+function knownLoadedStylesheetSources(
+  definitions: readonly TokenDefinition[],
+  loadedSources: readonly string[],
+): string[] {
+  return loadedSources.filter((loaded) => definitions.some((definition) =>
+    definition.declarations.some((declaration) =>
+      isLoadedCssSource(declaration.source, [loaded]))));
+}
+
+/**
  * Produces the page catalog used by the global Tokens settings section. It retains the
  * build-time inventory separately, while removing declarations from CSS files
- * that Vite has not loaded for this page (such as lazy route stylesheets).
+ * that have not loaded when the document exposes mappable source identities
+ * (such as Vite's lazy route stylesheets). Opaque compiled URLs do not narrow
+ * the adapter-supplied catalog.
  */
 export function getAvailableTokenCatalog(
   root: HTMLElement = document.documentElement,
   definitions: readonly TokenDefinition[] = getNudgeUiRuntimeConfig().tokenCatalog,
 ): TokenDefinition[] {
   const computed = getElementComputedStyle(root);
-  const loadedSources = loadedStylesheetSources(root.ownerDocument ?? document);
   const hydrated = hydrateTokenCatalogFromCssom(definitions, root.ownerDocument ?? document);
+  const loadedSources = knownLoadedStylesheetSources(
+    hydrated,
+    loadedStylesheetSources(root.ownerDocument ?? document),
+  );
   return hydrated.flatMap((definition) => {
     if (!isCustomPropertyToken(definition)) return [definition];
     if (!computed.getPropertyValue(definition.cssName).trim()) return [];
