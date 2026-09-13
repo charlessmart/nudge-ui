@@ -288,6 +288,12 @@ test("dev: Inspect deletes the selected tracked element with the macOS Backspace
   await expect(heading).not.toBeAttached();
   await page.locator('[data-test="changes-toggle"]').click();
   await expect(page.locator('[data-test="dom-change-row"][data-action="delete"]')).toBeVisible();
+
+  await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
+  await page.locator('[data-test="clear-session"]').click();
+  await expect(page.locator("#hero-title")).toBeVisible();
+  await expect(page.locator('[data-test="changes-log"]')).not.toBeAttached();
+  await expect(page.locator('[data-test="clear-session"]')).not.toBeAttached();
 });
 
 test("dev: Inspect revert and undo/redo operate on canonical structural history", async ({ page }) => {
