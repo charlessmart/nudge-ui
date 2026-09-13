@@ -87,6 +87,26 @@ describe("agent completion verification", () => {
     expect(getChangesList()).toMatchObject([{ property: "margin-left", rawValue: "12px" }]);
   });
 
+  it("preserves a newer value for the same change key", async () => {
+    const sent = styleChange("color", "rgb(255, 0, 0)");
+    appendChange(sent);
+    recordAgentDispatch(42, getChangesList());
+
+    // The user changes the same field while the agent is working. The newer
+    // canonical record must not be mistaken for the dispatched snapshot.
+    appendChange(styleChange("color", "rgb(0, 0, 255)"));
+
+    const authored = document.createElement("style");
+    authored.textContent = '[data-cid="Card"] { color: rgb(255, 0, 0); }';
+    document.head.prepend(authored);
+
+    await expect(verifyAndReconcileAgentDispatch(42)).resolves.toBe(0);
+    expect(getChangesList()).toMatchObject([{
+      property: "color",
+      rawValue: "rgb(0, 0, 255)",
+    }]);
+  });
+
   it("reconciles only the structural deletes the source verifiably applied", async () => {
     document.body.replaceChildren();
     const applied = addItem("0.1");

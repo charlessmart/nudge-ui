@@ -288,6 +288,12 @@ test("dev: Inspect deletes the selected tracked element with the macOS Backspace
   await expect(heading).not.toBeAttached();
   await page.locator('[data-test="changes-toggle"]').click();
   await expect(page.locator('[data-test="dom-change-row"][data-action="delete"]')).toBeVisible();
+
+  await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
+  await page.locator('[data-test="clear-session"]').click();
+  await expect(page.locator("#hero-title")).toBeVisible();
+  await expect(page.locator('[data-test="changes-log"]')).not.toBeAttached();
+  await expect(page.locator('[data-test="clear-session"]')).not.toBeAttached();
 });
 
 test("dev: Inspect revert and undo/redo operate on canonical structural history", async ({ page }) => {
@@ -358,6 +364,77 @@ test("dev: an application replacement is reported as overridden and is not reapp
   await expect(page.locator('[data-application-rendered="true"]')).toHaveText("Application replacement");
   await page.waitForTimeout(100);
   await expect(page.locator('[data-application-rendered="true"]')).toHaveText("Application replacement");
+});
+
+test("dev: duplicate structural evidence stays ambiguous instead of rebinding", async ({ page }) => {
+  await page.goto("/playground");
+  const target = page.getByText("Repeated 3", { exact: true });
+  await target.click();
+
+  // Keep the selected element, but add an indistinguishable rendered sibling
+  // before creating intent. The structural resolver must decline to guess.
+  await page.evaluate(() => {
+    const original = Array.from(document.querySelectorAll<HTMLElement>(".repeated-item"))
+      .find((element) => element.textContent?.trim() === "Repeated 3");
+    if (!original?.parentElement) throw new Error("Expected repeated target");
+    const duplicate = original.cloneNode(true) as HTMLElement;
+    duplicate.removeAttribute("data-projection-instance");
+    original.parentElement.append(duplicate);
+  });
+
+  await page.keyboard.press("Backspace");
+  await page.locator('[data-test="changes-toggle"]').click();
+  await expect(page.locator(
+    '[data-test="structural-diagnostic"][data-document="Inspect"][data-status="ambiguous"]',
+  )).toBeVisible();
+  await expect(page.locator(".repeated-item").filter({ hasText: "Repeated 3" })).toHaveCount(2);
+});
+
+test("dev: the same Canvas edit keeps diagnostics separate per document", async ({ page }) => {
+  await page.goto("/playground");
+  await page.locator('[data-test="mode-canvas"]').click();
+  const board = page.locator('[data-test="canvas-board"]');
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
+  await page.locator('[data-test^="canvas-card-duplicate-"]').first().click();
+  await expect(board.locator(".canvas-card")).toHaveCount(2);
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+
+  const cards = board.locator(".canvas-card");
+  const sourceFrame = cards.nth(0).locator(".canvas-card__iframe").contentFrame();
+  const replacementFrame = cards.nth(1).locator(".canvas-card__iframe").contentFrame();
+
+  const target = sourceFrame.getByText("Repeated 3", { exact: true });
+  const identity = await target.evaluate((element) => ({
+    cid: element.getAttribute("data-cid"),
+    src: element.getAttribute("data-src"),
+    text: element.textContent,
+  }));
+  await target.click();
+  await target.press("Backspace");
+  await page.locator('[data-test="changes-toggle"]').click();
+  await expect(page.locator(
+    '[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="applied"]',
+  )).toHaveCount(2);
+
+  await replacementFrame.locator("body").evaluate((_, { cid, src, text }) => {
+    const list = document.querySelector('[data-test="repeated-items"]');
+    const placeholder = Array.from(list?.childNodes ?? []).find((node) =>
+      node.nodeType === Node.COMMENT_NODE && node.nodeValue === "nudge-ui-deleted");
+    if (!placeholder) throw new Error("Expected Canvas deletion placeholder");
+    const replacement = document.createElement("button");
+    replacement.className = "repeated-item";
+    if (cid) replacement.setAttribute("data-cid", cid);
+    if (src) replacement.setAttribute("data-src", src);
+    replacement.textContent = text ?? "Repeated 3";
+    placeholder.replaceWith(replacement);
+  }, identity);
+
+  await expect(page.locator(
+    '[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="applied"]',
+  )).toHaveCount(1);
+  await expect(page.locator(
+    '[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="overridden"]',
+  )).toHaveCount(1);
 });
 
 test("dev: Inspect DOM moves survive switching to Canvas", async ({ page }) => {

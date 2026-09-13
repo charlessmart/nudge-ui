@@ -13,10 +13,19 @@ import {
   isPreviewableChange,
   restoreChangeRecords,
 } from "../changes/changesLog.ts";
-import { getRegisteredFrames } from "./projection.ts";
+import { getCanvasPreviewDocument, registerCardFrame, unregisterCardFrame } from "./projection.ts";
 import { addCanvasCard, removeCanvasCard as removeCanvasCardStore, getCanvasCards } from "./canvasStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "../changes/_testUtils.ts";
+import { changeKey } from "../changes/model.ts";
+import {
+  beginPreviewAttempt,
+  getHostPreviewDocument,
+  getPreviewDiagnostic,
+  publishPreviewDiagnostic,
+  resetPreviewDiagnostics,
+} from "../changes/previewDiagnostics.ts";
+import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 
 const TOKEN_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const TOKEN_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
@@ -104,25 +113,31 @@ describe("staleChangeDetector", () => {
   beforeEach(() => {
     cancelStaleDetection();
     clearWorkspace();
+    resetPreviewDiagnostics();
   });
 
   afterEach(() => {
     cancelStaleDetection();
     clearWorkspace();
+    resetPreviewDiagnostics();
   });
 
   describe("element change verification", () => {
     it("marks restored element changes as unverified on start", () => {
-      const change = makeElementChange({
-        previewResult: { status: "applied", requestedValue: "var(--color-b)", computedValue: "#bbbbbb" },
-      });
+      const change = makeElementChange();
       restoreChangeRecords([change]);
 
       const changes = getPreviewableChanges();
-      expect(changes[0]!.previewResult?.status).toBe("applied");
+      const attempt = beginPreviewAttempt(getHostPreviewDocument(), getWorkspaceChanges().revision)!;
+      publishPreviewDiagnostic(attempt, changeKey(change), {
+        status: "applied",
+        requestedValue: "var(--color-b)",
+        computedValue: "#bbbbbb",
+      });
+      expect(getPreviewDiagnostic(changeKey(change))?.result.status).toBe("applied");
 
       startStaleDetection(changes);
-      expect(changes[0]!.previewResult).toBeUndefined();
+      expect(getPreviewDiagnostic(changeKey(change))).toBeUndefined();
     });
 
     it("marks an unmatched edit as stale after timeout", async () => {
@@ -137,8 +152,9 @@ describe("staleChangeDetector", () => {
       vi.advanceTimersByTime(6000);
 
       const updated = getPreviewableChanges();
-      expect(updated[0]!.previewResult?.status).toBe("conflict");
-      expect(updated[0]!.previewResult?.reason).toBe("target-missing");
+      const diagnostic = getPreviewDiagnostic(changeKey(updated[0]!));
+      expect(diagnostic?.result.status).toBe("conflict");
+      expect(diagnostic?.result.reason).toBe("target-missing");
 
       vi.useRealTimers();
     });
@@ -155,7 +171,7 @@ describe("staleChangeDetector", () => {
       vi.advanceTimersByTime(6000);
 
       const updated = getPreviewableChanges();
-      expect(updated[0]!.previewResult).toBeUndefined();
+      expect(getPreviewDiagnostic(changeKey(updated[0]!))).toBeUndefined();
 
       vi.useRealTimers();
       document.body.innerHTML = "";
@@ -167,10 +183,8 @@ describe("staleChangeDetector", () => {
       const selector = '[data-cid="Sidebar"][data-src*="Sidebar.tsx:42"]';
       addElementToFrame(iframe, selector);
 
-      const frameMap = getRegisteredFrames() as Map<string, HTMLIFrameElement>;
-
       const card = addCanvasCard("http://localhost:5173/about");
-      frameMap.set(card.id, iframe);
+      registerCardFrame(card.id, iframe);
 
       const change = makeElementChange({ selector, cid: "Sidebar", file: "src/Sidebar.tsx", line: 42 });
       restoreChangeRecords([change]);
@@ -180,9 +194,13 @@ describe("staleChangeDetector", () => {
       vi.advanceTimersByTime(6000);
 
       const updated = getPreviewableChanges();
-      expect(updated[0]!.previewResult).toBeUndefined();
+      const key = changeKey(updated[0]!);
+      // A Canvas-only match is verified, not a host conflict. A document that
+      // does not contain the target says nothing about staleness.
+      expect(getPreviewDiagnostic(key)).toBeUndefined();
+      expect(getPreviewDiagnostic(key, getCanvasPreviewDocument(card.id).logicalDocument)).toBeUndefined();
 
-      frameMap.delete(card.id);
+      unregisterCardFrame(card.id);
       vi.useRealTimers();
       document.body.innerHTML = "";
       for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
@@ -192,9 +210,8 @@ describe("staleChangeDetector", () => {
       vi.useFakeTimers();
       const iframe = createMockFrame();
 
-      const frameMap = getRegisteredFrames() as Map<string, HTMLIFrameElement>;
       const card = addCanvasCard("http://localhost:5173/about");
-      frameMap.set(card.id, iframe);
+      registerCardFrame(card.id, iframe);
 
       const missingSelector = '[data-cid="Deleted"][data-src*="Deleted.tsx:1"]';
       const change = makeElementChange({
@@ -210,10 +227,15 @@ describe("staleChangeDetector", () => {
       vi.advanceTimersByTime(6000);
 
       const updated = getPreviewableChanges();
-      expect(updated[0]!.previewResult?.status).toBe("conflict");
-      expect(updated[0]!.previewResult?.reason).toBe("target-missing");
+      const diagnostic = getPreviewDiagnostic(changeKey(updated[0]!));
+      expect(diagnostic?.result.status).toBe("conflict");
+      expect(diagnostic?.result.reason).toBe("target-missing");
+      expect(getPreviewDiagnostic(
+        changeKey(updated[0]!),
+        getCanvasPreviewDocument(card.id).logicalDocument,
+      )?.result.reason).toBe("target-missing");
 
-      frameMap.delete(card.id);
+      unregisterCardFrame(card.id);
       vi.useRealTimers();
       document.body.innerHTML = "";
       for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
@@ -245,8 +267,9 @@ describe("staleChangeDetector", () => {
       expect(stale.file).toBe("src/Widget.tsx");
       expect(stale.line).toBe(5);
       expect(stale.property).toBe("margin");
-      expect(stale.previewResult?.status).toBe("conflict");
-      expect(stale.previewResult?.reason).toBe("target-missing");
+      const diagnostic = getPreviewDiagnostic(changeKey(stale));
+      expect(diagnostic?.result.status).toBe("conflict");
+      expect(diagnostic?.result.reason).toBe("target-missing");
 
       vi.useRealTimers();
     });
@@ -267,7 +290,7 @@ describe("staleChangeDetector", () => {
       vi.advanceTimersByTime(6000);
 
       const updated = getPreviewableChanges();
-      expect(updated[0]!.previewResult?.status).toBe("conflict");
+      expect(getPreviewDiagnostic(changeKey(updated[0]!))?.result.status).toBe("conflict");
 
       vi.useRealTimers();
     });
@@ -288,7 +311,7 @@ describe("staleChangeDetector", () => {
       vi.advanceTimersByTime(6000);
 
       const updated = getPreviewableChanges();
-      expect(updated[0]!.previewResult).toBeUndefined();
+      expect(getPreviewDiagnostic(changeKey(updated[0]!))).toBeUndefined();
 
       vi.useRealTimers();
     });

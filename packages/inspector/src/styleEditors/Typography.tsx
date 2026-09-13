@@ -15,21 +15,18 @@ import {
   IconTypography,
 } from "@tabler/icons-react";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
+import { findTokenRow, metadataFor } from "./rowLookup.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { SelectedElement } from "../selection/selectionStore.ts";
 import { Select } from "../ui/Select.tsx";
 import { SegmentedControl } from "../ui/SegmentedControl.tsx";
 import { getStateStyleValue } from "../shell/stateValue.ts";
-import { setStyle, setStyles } from "./styleActions.ts";
+import { setStyle, setStyles } from "../tokens/editActions.ts";
 import { AtRuleIndicator, useFieldAtRules } from "../ui/AtRuleContext.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
-
-function findTokenRow(rows: readonly ResolvedProperty[], prop: string): ResolvedProperty | null {
-  return rows.find((r) => r.property === prop) ?? null;
-}
 
 export interface TypographyProps {
   element: SelectedElement;
@@ -364,8 +361,3 @@ function normalizeAlignment(property: string, value: string): string {
   return value;
 }
 
-function metadataFor(row: ResolvedProperty | null | undefined) {
-  return row?.sourceProperty
-    ? { sourceProperty: row.sourceProperty, sourceAuthoredValue: row.authored ?? row.declaredValue }
-    : undefined;
-}

@@ -5,6 +5,7 @@ import {
   disposeBrowserCssInspection,
   getBrowserCssInspection,
 } from "./browserCssInspectionRegistry.ts";
+import { documentRevisions } from "../tokens/resolution/cssomCollector.ts";
 import { setDesignTokensStub } from "../__stubs__/design-tokens.ts";
 import {
   configureNudgeUiRuntime,
@@ -36,6 +37,20 @@ describe("browser CSS inspection registry", () => {
     disposeBrowserCssInspection(document);
 
     expect(getBrowserCssInspection(document)).not.toBe(first);
+  });
+
+  it("releases the document CSSOM lifetime with the registry session", () => {
+    const first = getBrowserCssInspection(document);
+    const revisions = documentRevisions(document);
+    revisions.element = 4;
+    revisions.stylesheet = 2;
+
+    disposeBrowserCssInspection(document);
+
+    // Monotonic, never reset: disposal advances past (4,2) to (5,3) so
+    // pre-disposal revision-keyed caches miss instead of hitting at (0,0).
+    expect(documentRevisions(document)).toEqual({ element: 5, stylesheet: 3 });
+    expect(first.inspect(document.createElement("div")).target.status).toBe("disposed");
   });
 
   it("recreates the document session when token knowledge generation changes", () => {

@@ -172,6 +172,32 @@ describe("validateReplaceStyles", () => {
     } as unknown as Partial<ReplaceStylesMessage>), TEST_PROJECT, TEST_WORKSPACE, TEST_CARD_ID)).toEqual({ valid: false, reason: "text content changes are invalid" });
   });
 
+  it("rejects document-local fields on instance overrides", () => {
+    const validOverride: ReplaceStylesMessage["instanceOverrides"][number] = {
+      id: "override-1",
+      target: {
+        sourceSite: { cid: "Item", src: "src/App.tsx:5:3" },
+        locator: { kind: "evidence", occurrence: 1, props: null, text: "Two" },
+      },
+    };
+    expect(validateReplaceStyles(
+      makeMsg({ instanceOverrides: [validOverride] }),
+      TEST_PROJECT,
+      TEST_WORKSPACE,
+      TEST_CARD_ID,
+    ).valid).toBe(true);
+    const withDocumentLocalKey = {
+      ...validOverride,
+      elementId: "document-local",
+    } as unknown as ReplaceStylesMessage["instanceOverrides"][number];
+    expect(validateReplaceStyles(
+      makeMsg({ instanceOverrides: [withDocumentLocalKey] }),
+      TEST_PROJECT,
+      TEST_WORKSPACE,
+      TEST_CARD_ID,
+    )).toEqual({ valid: false, reason: "instance overrides are invalid" });
+  });
+
   it("rejects physical DOM data in a structural delete", () => {
     const result = validateReplaceStyles(makeMsg({
       structuralChanges: [{
@@ -453,6 +479,29 @@ describe("handleReplaceStyles", () => {
       TEST_CARD_ID,
     );
     expect(applied).toBe(false);
+  });
+
+  it("drops the entire message when one instance override carries document-local state", () => {
+    const applied = handleReplaceStyles(
+      makeMsg({
+        revision: 1,
+        css: ".a { color: red; }",
+        instanceOverrides: [{
+          id: "override-1",
+          target: {
+            sourceSite: { cid: "Item", src: "src/App.tsx:5:3" },
+            locator: { kind: "evidence", occurrence: 1, props: null, text: "Two" },
+          },
+          elementId: "document-local",
+        }] as unknown as ReplaceStylesMessage["instanceOverrides"],
+      }),
+      TEST_PROJECT,
+      TEST_WORKSPACE,
+      TEST_CARD_ID,
+    );
+    expect(applied).toBe(false);
+    expect(document.getElementById(SHEET_ID)).toBeNull();
+    expect(getLastAppliedRevision()).toBe(-1);
   });
 
   it("overwrites all previous rules on each call", () => {

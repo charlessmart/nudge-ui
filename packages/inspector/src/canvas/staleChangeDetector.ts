@@ -6,10 +6,20 @@ import type {
 import {
   isPreviewableChange,
   isTokenChange,
-  touchChanges,
 } from "../changes/changesLog.ts";
+import { changeKey } from "../changes/model.ts";
+import {
+  beginPreviewAttempt,
+  clearPreviewDiagnostics,
+  getHostPreviewDocument,
+  notifyPreviewDiagnostics,
+  publishPreviewDiagnostic,
+  type PreviewAttempt,
+  type PreviewDocument,
+} from "../changes/previewDiagnostics.ts";
+import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import type { PreviewResult } from "../projection/managedStylesheet.ts";
-import { getRegisteredFrames } from "./projection.ts";
+import { getCanvasPreviewDocument, getRegisteredFrames } from "./projection.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { getCanvasCards } from "./canvasStore.ts";
 import { isRendererMessageFor } from "./frameProtocol.ts";
@@ -22,6 +32,7 @@ const STALE_CHECK_DEBOUNCE_MS = 100;
 let verificationTimer: ReturnType<typeof setTimeout> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingChanges: PreviewableChangeRecord[] | null = null;
+let pendingAttempts = new Map<string, PreviewAttempt>();
 
 export type StaleChangeStatus = "unverified" | "verified" | "stale" | "token-drift";
 
@@ -103,10 +114,30 @@ function checkTokenDrift(change: TokenChangeRecord): PreviewResult | null {
   return null;
 }
 
+function getPreviewDocuments(): PreviewDocument[] {
+  const documents = [getHostPreviewDocument()];
+  const frames = getRegisteredFrames();
+  for (const card of getCanvasCards()) {
+    if (frames.has(card.id)) documents.push(getCanvasPreviewDocument(card.id));
+  }
+  return documents;
+}
+
+function beginPreviewAttempts(): Map<string, PreviewAttempt> {
+  const attempts = new Map<string, PreviewAttempt>();
+  const revision = getWorkspaceChanges().revision;
+  for (const document of getPreviewDocuments()) {
+    const attempt = beginPreviewAttempt(document, revision);
+    if (attempt) attempts.set(document.logicalDocument, attempt);
+  }
+  return attempts;
+}
+
 function gatherMatchEvidence(
   changes: PreviewableChangeRecord[],
-): Map<number, string[]> {
-  const evidence = new Map<number, string[]>();
+): Map<number, PreviewDocument[]> {
+  const evidence = new Map<number, PreviewDocument[]>();
+  const hostDocument = getHostPreviewDocument();
 
   for (let i = 0; i < changes.length; i++) {
     const change = changes[i]!;
@@ -114,7 +145,7 @@ function gatherMatchEvidence(
 
     if (checkSelectorInDocument(document, change.selector)) {
       const routes = evidence.get(i) ?? [];
-      routes.push(window.location.href);
+      routes.push(hostDocument);
       evidence.set(i, routes);
     }
   }
@@ -130,7 +161,7 @@ function gatherMatchEvidence(
 
       if (checkSelectorInFrame(frame, change.selector)) {
         const routes = evidence.get(i) ?? [];
-        routes.push(card.url);
+        routes.push(getCanvasPreviewDocument(card.id));
         evidence.set(i, routes);
       }
     }
@@ -139,26 +170,33 @@ function gatherMatchEvidence(
   return evidence;
 }
 
-function applyStaleResults(changes: PreviewableChangeRecord[]): void {
+function applyStaleResults(
+  changes: PreviewableChangeRecord[],
+  attempts: ReadonlyMap<string, PreviewAttempt>,
+): void {
   const evidence = gatherMatchEvidence(changes);
+  const hostAttempt = attempts.get(getHostPreviewDocument().logicalDocument);
 
   for (let i = 0; i < changes.length; i++) {
     const change = changes[i]!;
-    if (change.previewResult !== undefined) continue;
 
     if (isTokenChange(change)) {
       const drift = checkTokenDrift(change);
-      if (drift) {
-        change.previewResult = drift;
-      }
+      if (drift && hostAttempt) publishPreviewDiagnostic(hostAttempt, changeKey(change), drift);
       continue;
     }
     const routes = evidence.get(i);
+    // A document that does not contain the target says nothing about
+    // staleness. Publish target-missing only when the change matches nowhere;
+    // a Canvas-only match is verified, not a host conflict. When nowhere,
+    // every live document reports the same miss.
     if (!routes || routes.length === 0) {
-      change.previewResult = buildStaleResult(
-        change.selector,
-        getRequestedValue(change),
-      );
+      for (const attempt of attempts.values()) {
+        publishPreviewDiagnostic(attempt, changeKey(change), buildStaleResult(
+          change.selector,
+          getRequestedValue(change),
+        ));
+      }
     }
   }
 }
@@ -167,7 +205,9 @@ function scheduleStaleCheck(): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     if (pendingChanges) {
-      applyStaleResults(pendingChanges);
+      pendingAttempts = beginPreviewAttempts();
+      clearPreviewDiagnostics(pendingChanges.map(changeKey));
+      applyStaleResults(pendingChanges, pendingAttempts);
     }
   }, STALE_CHECK_DEBOUNCE_MS);
 }
@@ -176,20 +216,20 @@ export function startStaleDetection(changes: ChangeRecord[]): void {
   const previewableChanges = changes.filter(isPreviewableChange);
   if (previewableChanges.length === 0) return;
 
-  for (const change of previewableChanges) {
-    change.previewResult = undefined;
-  }
+  clearPreviewDiagnostics(previewableChanges.map(changeKey));
+  pendingAttempts = beginPreviewAttempts();
 
   pendingChanges = previewableChanges;
 
   if (verificationTimer) clearTimeout(verificationTimer);
   verificationTimer = setTimeout(() => {
     if (pendingChanges) {
-      applyStaleResults(pendingChanges);
+      applyStaleResults(pendingChanges, pendingAttempts);
       pendingChanges = null;
     }
+    pendingAttempts = new Map();
     verificationTimer = null;
-    touchChanges();
+    notifyPreviewDiagnostics();
   }, VERIFICATION_TIMEOUT_MS);
 
   window.addEventListener("message", handleFrameReady);
@@ -219,7 +259,9 @@ export function cancelStaleDetection(): void {
     debounceTimer = null;
   }
   pendingChanges = null;
+  pendingAttempts = new Map();
   window.removeEventListener("message", handleFrameReady);
+  notifyPreviewDiagnostics();
 }
 
 export function isVerificationPending(): boolean {

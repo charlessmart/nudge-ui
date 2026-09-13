@@ -14,6 +14,16 @@ async function frameManagedSheetContent(
   return text ?? "";
 }
 
+async function frameDocumentTimeOrigin(
+  page: import("@playwright/test").Page,
+  iframeSelector: string,
+): Promise<number> {
+  return page.locator(iframeSelector).evaluate((element) => {
+    const frame = element as HTMLIFrameElement;
+    return frame.contentWindow?.performance.timeOrigin ?? 0;
+  });
+}
+
 async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
   await expect
     .poll(
@@ -210,6 +220,8 @@ test("dev: frame reload converges on latest projection", async ({ page }) => {
     .poll(() => frameManagedSheetContent(page, ".canvas-card__iframe"))
     .toContain("padding-top: 48px;");
 
+  const previousDocumentTimeOrigin = await frameDocumentTimeOrigin(page, ".canvas-card__iframe");
+
   // Reload the frame
   await page.locator('[data-test^="canvas-card-reload-"]').click();
 
@@ -217,6 +229,9 @@ test("dev: frame reload converges on latest projection", async ({ page }) => {
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
     timeout: 20000,
   });
+  await expect
+    .poll(() => frameDocumentTimeOrigin(page, ".canvas-card__iframe"))
+    .not.toBe(previousDocumentTimeOrigin);
 
   // After reload, the frame should still have the latest projection
   await expect

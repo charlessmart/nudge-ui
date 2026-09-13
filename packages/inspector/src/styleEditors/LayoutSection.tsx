@@ -12,7 +12,7 @@ import { AspectRatioField } from "./AspectRatioField.tsx";
 import { PositionInsets } from "./PositionInsets.tsx";
 import { GridSection } from "./GridSection.tsx";
 import { meaningfulLayoutValue } from "./layoutValue.ts";
-import { setStyle, setStyles } from "./styleActions.ts";
+import { setStyle, setStyles } from "../tokens/editActions.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { InspectorPopover } from "../ui/InspectorPopover.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";

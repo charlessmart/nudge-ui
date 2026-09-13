@@ -9,6 +9,7 @@ import {
   type ChangeRecord,
 } from "./types.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
+import type { EditScope } from "../editScope.ts";
 
 export interface ChangePresentation {
   groupKey: string;
@@ -18,7 +19,7 @@ export interface ChangePresentation {
   propertyLabel: string;
   before: string;
   after: string;
-  scope?: "source-site" | "rendered-instance";
+  scope?: EditScope;
   evidence?: string;
 }
 

@@ -67,6 +67,15 @@ The package also exports `mountInspector`, `unmountInspector`, inspector
 controls, browser inspection helpers, runtime configuration, and the React
 component-runtime entry at `@nudge-ui/inspector/component-runtime`.
 
+Conformance fixtures and their test runner are available from the separate
+`@nudge-ui/inspector/testing` entry:
+
+```ts
+import { COLOR_CASES, runConformanceFixture } from "@nudge-ui/inspector/testing";
+```
+
+The runtime entry does not include this test-only surface.
+
 ## Source layout
 
 The package entry point remains at `src/index.ts`. Implementation modules are

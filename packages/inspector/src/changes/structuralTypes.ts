@@ -1,4 +1,4 @@
-import type { RenderedInstanceRef } from "../projection/renderedInstance.ts";
+import type { RenderedInstanceRef } from "./editModel.ts";
 
 /** Controller-owned intent to remove one rendered instance. */
 export interface StructuralDelete {
