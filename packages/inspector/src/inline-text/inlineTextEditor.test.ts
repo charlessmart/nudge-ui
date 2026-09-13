@@ -86,6 +86,21 @@ function renderedFixture(): HTMLElement {
   return element;
 }
 
+function duplicatedVisibilityFixture(): { element: HTMLElement; visible: HTMLElement } {
+  const element = document.createElement("h1");
+  element.setAttribute("data-cid", "AnimatedLabel");
+  element.setAttribute("data-src", "src/AnimatedLabel.tsx:12:3");
+  const hidden = document.createElement("span");
+  hidden.setAttribute("aria-hidden", "true");
+  hidden.style.visibility = "hidden";
+  hidden.textContent = "Visible label";
+  const visible = document.createElement("span");
+  visible.textContent = "Visible label";
+  element.append(hidden, visible);
+  document.body.append(element);
+  return { element, visible };
+}
+
 function requestInlineEdit(target: Element, x = 10): InlineTextInteractionDisposition {
   return handleInlineTextEditIntent({ kind: "double-click", target, point: { x, y: 10 } });
 }
@@ -197,6 +212,15 @@ describe("inlineTextEditor", () => {
     expect(label?.firstChild).toBe(originalTextNode);
     expect(document.getSelection()?.getRangeAt(0).startContainer).toBe(label);
     expect(getChangesList()).toMatchObject([{ kind: "component-prop", property: "label", after: "Save file" }]);
+  });
+
+  it("starts editing in the visible copy when a hidden layout duplicate comes first", () => {
+    const { element, visible } = duplicatedVisibilityFixture();
+    const result = beginInlineTextEdit(element);
+    if ("kind" in result) throw new Error(result.message);
+
+    expect(result.host.parentElement).toBe(visible);
+    result.cancel();
   });
 
   it("uses plaintext selection replacement and paste without adding per-input history", () => {
