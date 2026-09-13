@@ -335,7 +335,9 @@ function getDocumentState(doc: Document): DocumentProjectionState {
 }
 
 function installDocumentObserver(doc: Document, state: DocumentProjectionState): void {
-  const Observer = doc.defaultView?.MutationObserver;
+  const viewWithObserver = doc.defaultView as ((Window & { MutationObserver?: typeof MutationObserver }) | null | undefined);
+  const Observer = viewWithObserver?.MutationObserver
+    ?? (typeof MutationObserver !== "undefined" ? MutationObserver : undefined);
   if (!Observer || !doc.documentElement) return;
   state.observer = new Observer(() => scheduleValidation(doc, state));
   state.observer.observe(doc.documentElement, {
@@ -642,5 +644,28 @@ export function resetStructuralDeleteProjection(): void {
   nextStructuralId = 1;
   diagnosticRevision = 0;
   resetWorkspaceChanges();
+  notifyDiagnostics();
+}
+
+/**
+ * Releases one document's structural projection without touching canonical
+ * workspace intent. Applied deletes/moves owned by this document are restored
+ * and the document observer is disconnected; the controller snapshot stays
+ * intact so a later remount can re-project from canonical state. Register as
+ * a document-session cleanup alongside disposeBrowserCssInspection.
+ */
+export function releaseDocumentProjection(doc: Document): void {
+  const state = documentStates.get(doc);
+  if (!state) {
+    if (reportsByDocument.delete(doc)) notifyDiagnostics();
+    return;
+  }
+  for (const id of [...state.appliedOrder].reverse()) {
+    const local = state.applied.get(id);
+    if (local && local.status !== "overridden") restoreApplied(local);
+  }
+  state.observer?.disconnect();
+  documentStates.delete(doc);
+  reportsByDocument.delete(doc);
   notifyDiagnostics();
 }

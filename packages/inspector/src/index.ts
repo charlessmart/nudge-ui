@@ -29,6 +29,7 @@ import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
 import { installInspectionBridge } from "./inspection/bridge.ts";
 import { disposeBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
+import { releaseDocumentProjection } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
@@ -64,8 +65,9 @@ function onKeydown(e: KeyboardEvent): void {
 }
 
 function disposeInspectorSession(): void {
-  inspectorSession?.dispose();
+  const session = inspectorSession;
   inspectorSession = null;
+  session?.dispose();
 }
 
 export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
@@ -167,16 +169,20 @@ function mountLockedNotice(host: HTMLElement): void {
     reactRoot.unmount();
     reactRoot = null;
   }
-  disposeInspectorSession();
-  cancelStaleDetection();
-  setInspectorOpen(false);
-  cancelInlineTextEdit();
-  setSelectedElement(null);
-  clearInspectorLayout();
-  removeManagedSheet();
-  hostElement = null;
-  unsubscribeOwnership?.();
-  unsubscribeOwnership = null;
+  try {
+    disposeInspectorSession();
+  } finally {
+    cancelStaleDetection();
+    setInspectorOpen(false);
+    cancelInlineTextEdit();
+    setSelectedElement(null);
+    clearInspectorLayout();
+    removeManagedSheet();
+    releaseDocumentProjection(document);
+    hostElement = null;
+    unsubscribeOwnership?.();
+    unsubscribeOwnership = null;
+  }
 
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
   if (!lockedRoot) {
@@ -210,6 +216,7 @@ export function mountInspector(host: HTMLElement): void {
     inspectorSession = workspace.createInspectorSession(host);
     const documentSession = inspectorSession.createDocumentSession(document);
     documentSession.registerCleanup(() => disposeBrowserCssInspection(document));
+    documentSession.registerCleanup(() => releaseDocumentProjection(document));
     inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
     setInspectorHost(host);
     reactRoot.render(createElement(
@@ -240,13 +247,20 @@ export function unmountInspector(): void {
     reactRoot.unmount();
     reactRoot = null;
   }
-  disposeInspectorSession();
-  clearClipboardHandoff();
-  removeManagedSheet();
-  clearInspectorLayout();
-  removeInspectionBridge?.();
-  removeInspectionBridge = null;
-  hostElement = null;
+  try {
+    disposeInspectorSession();
+  } finally {
+    // Document-session cleanup already releases host projection when a
+    // session exists; release directly as well so projection applied outside
+    // a session (gestures, workspace projection) cannot leak across unmount.
+    releaseDocumentProjection(document);
+    clearClipboardHandoff();
+    removeManagedSheet();
+    clearInspectorLayout();
+    removeInspectionBridge?.();
+    removeInspectionBridge = null;
+    hostElement = null;
+  }
 }
 
 export { toggleInspector, setInspectorOpen } from "./shell/InspectorShell.tsx";

@@ -18,6 +18,7 @@ import { getCanvasToolbarScale } from "./toolbarScale.ts";
 import { getCanvasResizeHandleScale } from "./resizeHandleScale.ts";
 import type { DocumentSession, InspectorSession } from "../session/sessionFactory.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
+import { releaseDocumentProjection } from "../projection/structuralProjection.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -55,6 +56,7 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
     disposeDocumentSession();
     const session = documentOwner.createDocumentSession(frameDocument);
     session.registerCleanup(() => disposeBrowserCssInspection(frameDocument));
+    session.registerCleanup(() => releaseDocumentProjection(frameDocument));
     documentSessionRef.current = { document: frameDocument, session };
   }, [disposeDocumentSession, documentOwner]);
 

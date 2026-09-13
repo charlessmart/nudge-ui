@@ -89,7 +89,22 @@ export function disposeDocumentResolution(doc: Document): void {
   }
   documentResolutionReferences.delete(doc);
 
-  revisionRecords.delete(doc);
+  // Keep revision counters monotonic per Document. Resetting them to (0,0)
+  // resurrects stale revision-keyed caches in tokens/resolution.ts
+  // (stableTokenCache, stateResolutionSnapshots, tokenEntriesCache,
+  // concreteElementMatchCaches, sourceSiteMatchCaches): an entry written at
+  // (0,0) before disposal matches immediately after disposal at (0,0), even
+  // though the CSSOM changed while no observer was attached. Bump instead so
+  // every pre-disposal cache entry misses, then let the next
+  // documentRevisions() observe from the bumped baseline. Only bump when a
+  // session was actually torn down so repeated disposes stay idempotent.
+  if (session) {
+    const record = revisionRecords.get(doc);
+    if (record) {
+      record.element += 1;
+      record.stylesheet += 1;
+    }
+  }
   ruleSnapshots.delete(doc);
   documentRevisionListeners.get(doc)?.clear();
   documentRevisionListeners.delete(doc);
@@ -190,11 +205,16 @@ function isProbeMutation(record: MutationRecord): boolean {
 }
 
 export function documentRevisions(doc: Document): DocumentRevisions {
-  const existing = revisionRecords.get(doc);
-  if (existing) return existing;
-
-  const record: DocumentRevisions = { element: 0, stylesheet: 0 };
-  revisionRecords.set(doc, record);
+  let record = revisionRecords.get(doc);
+  if (!record) {
+    record = { element: 0, stylesheet: 0 };
+    revisionRecords.set(doc, record);
+  }
+  // A disposed document keeps its monotonic record (see
+  // disposeDocumentResolution) but loses its observer session. Recreate the
+  // session so later mutations are observed from the bumped baseline instead
+  // of silently freezing the counters.
+  if (documentResolutionSessions.get(doc)) return record;
 
   const session: DocumentResolutionSession = {
     active: true,
@@ -204,12 +224,14 @@ export function documentRevisions(doc: Document): DocumentRevisions {
   };
   documentResolutionSessions.set(doc, session);
 
-  const Observer = session.view?.MutationObserver;
+  const viewWithObserver = session.view as ((Window & { MutationObserver?: typeof MutationObserver }) | null);
+  const Observer = viewWithObserver?.MutationObserver
+    ?? (typeof MutationObserver !== "undefined" ? MutationObserver : undefined);
   const root = doc.documentElement;
   if (Observer && root) {
-    const observer = new Observer((records) => {
+    const observer = new Observer((records: MutationRecord[]) => {
       if (!isCurrentDocumentResolutionSession(doc, session)) return;
-      const relevant = records.filter((entry) => !isProbeMutation(entry));
+      const relevant = records.filter((entry: MutationRecord) => !isProbeMutation(entry));
       if (relevant.length === 0) return;
       record.element++;
       if (relevant.some(changesStylesheet)) record.stylesheet++;

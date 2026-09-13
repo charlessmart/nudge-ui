@@ -267,16 +267,24 @@ describe("document revision observer", () => {
 
     disposeDocumentResolution(document);
 
+    // Disposal bumps the monotonic counters once to invalidate pre-disposal
+    // revision-keyed caches, then disconnects the observer.
+    expect(oldRevisions).toEqual({
+      element: beforeDisposal.element + 1,
+      stylesheet: beforeDisposal.stylesheet + 1,
+    });
+    const afterDisposal = { ...oldRevisions };
+
     document.body.appendChild(document.createElement("div"));
     window.dispatchEvent(new Event("resize"));
     await flushObserver();
 
-    expect(oldRevisions).toEqual(beforeDisposal);
+    expect(oldRevisions).toEqual(afterDisposal);
     expect(published).not.toHaveBeenCalled();
     unsubscribe();
   });
 
-  it("starts a fresh revision session after document disposal", async () => {
+  it("keeps revision counters monotonic across document disposal", async () => {
     const oldRevisions = documentRevisions(document);
     const beforeInvalidation = { ...oldRevisions };
     invalidateStyleResolutionCache(document);
@@ -284,15 +292,22 @@ describe("document revision observer", () => {
       element: beforeInvalidation.element + 1,
       stylesheet: beforeInvalidation.stylesheet + 1,
     });
+    const beforeDisposal = { ...oldRevisions };
 
     disposeDocumentResolution(document);
 
     const freshRevisions = documentRevisions(document);
-    expect(freshRevisions).toEqual({ element: 0, stylesheet: 0 });
+    // Monotonic, never reset: disposal invalidates caches by advancing past
+    // every pre-disposal (element, stylesheet) pair instead of restarting at
+    // (0,0) where a stale cache entry would hit immediately.
+    expect(freshRevisions).toEqual({
+      element: beforeDisposal.element + 1,
+      stylesheet: beforeDisposal.stylesheet + 1,
+    });
 
     document.body.appendChild(document.createElement("div"));
     await flushObserver();
-    expect(freshRevisions.element).toBeGreaterThan(0);
+    expect(freshRevisions.element).toBeGreaterThan(beforeDisposal.element + 1);
   });
 
   it("keeps listener unsubscription safe across document sessions", () => {
