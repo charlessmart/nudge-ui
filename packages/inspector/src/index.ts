@@ -272,12 +272,9 @@ export {
   RUNTIME_ELEMENT_CID_PREFIX,
   RUNTIME_UNKNOWN_SOURCE_PREFIX,
 } from "./runtime/staticHtmlRuntimeIdentity.ts";
-export { assertConformanceFixture, runConformanceFixture } from "./conformance/fixture.ts";
 export { isCanvasRenderer } from "./canvas/roleDetection.ts";
 export { NUDGE_UI_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection/bridge.ts";
 export type { NudgeUiInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection/bridge.ts";
-export type { ConformanceFixture, ConformanceResult, ConformancePropertyExpectation, ConformanceProjectionExpectation, ConformanceProjectionFieldExpectation } from "./conformance/fixture.ts";
-export { TYPOGRAPHY_CASES } from "./conformance/typographyCases.ts";
 export {
   beginInlineTextEdit,
   cancelInlineTextEdit,

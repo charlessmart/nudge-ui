@@ -1,5 +1,5 @@
-import { COLOR_CASES } from "../../../packages/inspector/src/conformance/colorCases.ts";
-import type { ConformanceFixture } from "../../../packages/inspector/src/conformance/fixture.ts";
+import { COLOR_CASES } from "@nudge-ui/inspector/testing";
+import type { ConformanceFixture } from "@nudge-ui/inspector/testing";
 import "./color-conformance.css";
 import type { StringRecord } from "./stringRecord.ts";
 
