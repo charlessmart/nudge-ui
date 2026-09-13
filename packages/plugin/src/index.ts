@@ -832,10 +832,23 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
         ? resolveReactAliases(projectRoot)
         : [];
       const existingDedupe = userConfig.resolve?.dedupe ?? [];
+      const existingOptimizeDeps = userConfig.optimizeDeps;
       const runtimeAliases: Alias[] = inspectorComponentRuntimePath
         ? [{ find: "@nudge-ui/inspector/component-runtime", replacement: inspectorComponentRuntimePath }]
         : [];
       return {
+        optimizeDeps: {
+          ...existingOptimizeDeps,
+          // The transformed callsites import the semantic runtime through its
+          // published specifier. Pre-bundling it with the host app keeps its
+          // React imports in the same optimized dependency graph on cold Vite
+          // starts, including Vite versions that optimize late-discovered
+          // imports during dependency crawling.
+          include: [...new Set([
+            ...(existingOptimizeDeps?.include ?? []),
+            "@nudge-ui/inspector/component-runtime",
+          ])],
+        },
         resolve: {
           ...(demoAliases.length > 0 || runtimeAliases.length > 0
             ? { alias: [...demoAliases, ...runtimeAliases] }

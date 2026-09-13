@@ -286,7 +286,10 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
   type ConfigHook = (
     config: unknown,
     env: { command: string },
-  ) => { resolve: { alias?: unknown[]; dedupe?: string[] } } | undefined;
+  ) => {
+    optimizeDeps?: { include?: string[]; exclude?: string[]; [key: string]: unknown };
+    resolve: { alias?: unknown[]; dedupe?: string[] };
+  } | undefined;
 
   it("dedupes React for the shared external client without aliasing it", () => {
     const plugin = nudgeUi() as unknown as { config?: ConfigHook };
@@ -295,6 +298,27 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
     expect(result?.resolve.alias).toEqual(expect.arrayContaining([
       expect.objectContaining({ find: "@nudge-ui/inspector/component-runtime" }),
     ]));
+    expect(result?.optimizeDeps?.include).toEqual([
+      "@nudge-ui/inspector/component-runtime",
+    ]);
+  });
+
+  it("preserves host dependency optimization settings while including the component runtime", () => {
+    const plugin = nudgeUi() as unknown as { config?: ConfigHook };
+    const result = plugin.config?.({
+      root: sandboxRoot,
+      optimizeDeps: {
+        include: ["host-dependency", "@nudge-ui/inspector/component-runtime"],
+        exclude: ["host-excluded-dependency"],
+        force: true,
+      },
+    }, serveEnv);
+
+    expect(result?.optimizeDeps).toEqual({
+      include: ["host-dependency", "@nudge-ui/inspector/component-runtime"],
+      exclude: ["host-excluded-dependency"],
+      force: true,
+    });
   });
 
   it("retains React aliases for the bundled landing demo", () => {
@@ -309,6 +333,9 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
       config?: ConfigHook;
     };
     expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toEqual({
+      optimizeDeps: {
+        include: ["@nudge-ui/inspector/component-runtime"],
+      },
       resolve: {
         alias: expect.arrayContaining([
           expect.objectContaining({ find: "@nudge-ui/inspector/component-runtime" }),
