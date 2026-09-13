@@ -47,19 +47,20 @@ const projectionAcknowledgementListeners = new Set<() => void>();
 let projectionAcknowledgementVersion = 0;
 let nextPreviewSessionId = 1;
 
-function createPreviewDocument(cardId: string): PreviewDocument {
+function createPreviewDocumentIdentity(cardId: string): PreviewDocument {
   const previewDocument = {
     logicalDocument: `canvas:${cardId}`,
     sessionId: `canvas-session-${nextPreviewSessionId++}`,
   };
   previewDocuments.set(cardId, previewDocument);
-  startPreviewDocumentSession(previewDocument);
   return previewDocument;
 }
 
 /** Returns the current value-based identity for one Canvas card document. */
 export function getCanvasPreviewDocument(cardId: string): PreviewDocument {
-  return previewDocuments.get(cardId) ?? createPreviewDocument(cardId);
+  // Pure getter: no session activation or notify. Creation (identity only) is
+  // idempotent here; registerCardFrame owns session activation.
+  return previewDocuments.get(cardId) ?? createPreviewDocumentIdentity(cardId);
 }
 
 /** Invalidates a card's current document before its iframe is replaced. */
@@ -138,7 +139,7 @@ export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): vo
       invalidatePreviewDocumentSession(existing.previewDocument.logicalDocument, existing.previewDocument.sessionId);
       previewDocuments.delete(cardId);
     }
-    const previewDocument = previewDocuments.get(cardId) ?? createPreviewDocument(cardId);
+    const previewDocument = previewDocuments.get(cardId) ?? createPreviewDocumentIdentity(cardId);
     startPreviewDocumentSession(previewDocument);
     frameProjectionStates.set(cardId, {
       iframe,

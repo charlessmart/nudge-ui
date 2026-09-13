@@ -11,7 +11,7 @@ import type { RenderedInstanceOverride, RenderedInstanceRef } from "../changes/e
 import type { StructuralChange } from "../projection/structuralProjection.ts";
 import type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
 import { canonicalizeChanges, changeKey, tokenReference } from "../changes/model.ts";
-import { getPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
+import { getAnyPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
 import {
   formatComponentPropBaseline,
   formatComponentPropValue,
@@ -105,7 +105,7 @@ function groupElementChanges(changes: ElementChangeRecord[]): ElementGroup[] {
 }
 
 function conflictSuffix(rec: PreviewableChangeRecord): string {
-  const result = getPreviewDiagnostic(changeKey(rec))?.result;
+  const result = getAnyPreviewDiagnostic(changeKey(rec))?.result;
   if (!result || result.status === "applied") return "";
   return ` — preview conflict: browser computed \`${result.computedValue || "(no value)"}\` (${result.reason ?? "cascade conflict"}); implement the requested value without assuming \`!important\``;
 }

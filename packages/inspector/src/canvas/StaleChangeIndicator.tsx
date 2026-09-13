@@ -4,7 +4,7 @@ import type { ChangeRecord } from "../changes/changesLog.ts";
 import { isPreviewableChange, isTokenChange } from "../changes/changesLog.ts";
 import { changeKey } from "../changes/model.ts";
 import {
-  getPreviewDiagnostic,
+  getAnyPreviewDiagnostic,
   getPreviewDiagnosticRevision,
   subscribePreviewDiagnostics,
 } from "../changes/previewDiagnostics.ts";
@@ -23,7 +23,7 @@ export function StaleChangeIndicator({ change }: Props): ReactElement | null {
     getPreviewDiagnosticRevision,
   );
   if (!isPreviewableChange(change)) return null;
-  const result = getPreviewDiagnostic(changeKey(change))?.result;
+  const result = getAnyPreviewDiagnostic(changeKey(change))?.result;
   if (result === undefined) {
     if (isVerificationPending()) {
       return (

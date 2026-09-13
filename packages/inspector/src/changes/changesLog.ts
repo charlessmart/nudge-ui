@@ -27,6 +27,7 @@ import {
 } from "./workspaceChanges.ts";
 import {
   beginPreviewAttempt,
+  clearPreviewDiagnostics,
   getHostPreviewDocument,
   publishPreviewDiagnostic,
 } from "./previewDiagnostics.ts";
@@ -129,8 +130,10 @@ function scheduleVerification(): void {
 
 /**
  * Marks the given change keys for deferred re-verification. Undo/redo/revert
- * re-verify the surviving set (their sheet projection changed globally);
- * a plain commit re-verifies only the records it introduced or merged.
+ * re-verify the surviving set (their sheet projection changed globally).
+ * A plain commit re-verifies the full surviving set as well: a new rule can
+ * change cascade/specificity for earlier changes, so verifying only incoming
+ * records would drop their conflict warnings.
  */
 function markForVerification(
   keys: Iterable<string>,
@@ -151,7 +154,9 @@ function markForVerification(
 export function appendChanges(incoming: ChangeRecord[], options: AppendChangesOptions = {}): CommitResult {
   const result = commitChangeRecords(incoming, reapply);
   if (result !== "applied") return result;
-  markForVerification(incoming.map(changeKey), options.verificationTargets);
+  // Re-verify the full surviving set so earlier diagnostics are refreshed at
+  // the new revision instead of being orphaned at the old one.
+  markForVerification(getChangesSnapshot().map(changeKey), options.verificationTargets);
   return result;
 }
 
@@ -223,6 +228,7 @@ export function restoreChangeRecords(incoming: ChangeRecord[]): void {
   // document. Do not let a deferred verification from the previous session
   // inspect a newly loaded record with its old selection context.
   pendingVerificationTargets.clear();
+  clearPreviewDiagnostics();
   const workspace = getWorkspaceChanges();
   restoreWorkspaceChanges({ changes: incoming, structuralChanges: workspace.structuralChanges }, reapply);
 }
@@ -233,6 +239,7 @@ export function loadWorkspaceChanges(
   structuralChanges: readonly StructuralChange[],
 ): void {
   pendingVerificationTargets.clear();
+  clearPreviewDiagnostics();
   clearStructuralProjectionReports();
   restoreWorkspaceChanges({ changes: incoming, structuralChanges }, reapply);
 }
@@ -243,6 +250,7 @@ export function clearWorkspace(): void {
   // the canonical set has been cleared.
   cancelInlineTextForClear();
   pendingVerificationTargets.clear();
+  clearPreviewDiagnostics();
   clearStructuralProjectionReports();
   clearCanonicalWorkspace(reapply);
 }

@@ -52,9 +52,10 @@ function notify(): void {
 function syncWorkspaceRevision(): void {
   const nextRevision = getWorkspaceChanges().revision;
   if (nextRevision === workspaceRevision) return;
+  // Track the revision so late publishes are rejected per key. Do not clear
+  // here: a new commit must preserve earlier diagnostics until they are
+  // re-verified, otherwise every edit deletes every other change's status.
   workspaceRevision = nextRevision;
-  diagnostics.clear();
-  notify();
 }
 
 subscribeWorkspaceChanges(syncWorkspaceRevision);
@@ -113,15 +114,10 @@ export function beginPreviewAttempt(
   }
   const attempt = (attemptsBySession.get(sessionKey(document)) ?? 0) + 1;
   attemptsBySession.set(sessionKey(document), attempt);
-  let changed = false;
-  for (const [key, diagnostic] of diagnostics) {
-    if (diagnostic.logicalDocument === document.logicalDocument
-      && diagnostic.sessionId === document.sessionId) {
-      diagnostics.delete(key);
-      changed = true;
-    }
-  }
-  if (changed) notify();
+  // Do not delete existing diagnostics here. The attempt stamp already
+  // rejects late publishes per key; wiping would drop every other change's
+  // status before it is re-verified (and drop all host status when Canvas
+  // verification returns null).
   return { ...document, workspaceRevision: revision, attempt };
 }
 
@@ -174,11 +170,29 @@ export function getPreviewDiagnostic(
   changeKey: string,
   logicalDocument = HOST_DOCUMENT.logicalDocument,
 ): PreviewDiagnostic | undefined {
-  syncWorkspaceRevision();
+  // Pure getter: never sync or notify. It runs on the React render path via
+  // StaleChangeIndicator, so side effects here would clear state mid-render.
+  // Diagnostics survive workspace revisions until overwritten or explicitly
+  // cleared; publish-time stamps reject stale results per key.
   const sessionId = activeSessions.get(logicalDocument);
   if (!sessionId) return undefined;
-  const diagnostic = diagnostics.get(storageKey({ logicalDocument, sessionId }, changeKey));
-  return diagnostic?.workspaceRevision === workspaceRevision ? diagnostic : undefined;
+  return diagnostics.get(storageKey({ logicalDocument, sessionId }, changeKey));
+}
+
+/**
+ * Host-first read across live documents. The per-document store is observable
+ * here so a Canvas-only conflict is not write-only; host remains the default
+ * for single-document consumers.
+ */
+export function getAnyPreviewDiagnostic(changeKey: string): PreviewDiagnostic | undefined {
+  const host = getPreviewDiagnostic(changeKey, HOST_DOCUMENT.logicalDocument);
+  if (host) return host;
+  for (const logicalDocument of activeSessions.keys()) {
+    if (logicalDocument === HOST_DOCUMENT.logicalDocument) continue;
+    const diagnostic = getPreviewDiagnostic(changeKey, logicalDocument);
+    if (diagnostic) return diagnostic;
+  }
+  return undefined;
 }
 
 export function subscribePreviewDiagnostics(listener: () => void): () => void {

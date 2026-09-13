@@ -1,14 +1,17 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ElementChangeRecord } from "./types.ts";
 import { changeKey } from "./model.ts";
 import {
   beginPreviewAttempt,
+  clearPreviewDiagnostics,
   getHostPreviewDocument,
   getPreviewDiagnostic,
+  getPreviewDiagnosticRevision,
   invalidatePreviewDocumentSession,
   publishPreviewDiagnostic,
   resetPreviewDiagnostics,
   startPreviewDocumentSession,
+  subscribePreviewDiagnostics,
 } from "./previewDiagnostics.ts";
 import {
   commitChangeRecords,
@@ -69,15 +72,55 @@ describe("preview diagnostics", () => {
     expect(getPreviewDiagnostic(changeKey(change))?.attempt).toBe(2);
   });
 
-  it("invalidates stored results when canonical workspace revision advances", () => {
+  it("preserves diagnostics across workspace revisions until explicitly cleared", () => {
     const document = getHostPreviewDocument();
     const attempt = beginPreviewAttempt(document)!;
     publishPreviewDiagnostic(attempt, changeKey(change), result);
 
     restoreWorkspaceChanges({ changes: [change], structuralChanges: [] }, () => undefined);
 
-    expect(getPreviewDiagnostic(changeKey(change))).toBeUndefined();
+    // A new commit must not delete earlier diagnostics. The revision stamp
+    // rejects late publishes per key, but reads survive until overwritten.
+    expect(getPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
     expect(publishPreviewDiagnostic(attempt, changeKey(change), result)).toBe(false);
+
+    clearPreviewDiagnostics();
+    expect(getPreviewDiagnostic(changeKey(change))).toBeUndefined();
+  });
+
+  it("keeps both diagnostics when two changes commit in sequence", () => {
+    const secondChange: ElementChangeRecord = {
+      ...change,
+      property: "background",
+      rawValue: "blue",
+      oldRawValue: "white",
+    };
+    expect(commitChangeRecords([change], () => undefined)).toBe("applied");
+    const firstAttempt = beginPreviewAttempt(getHostPreviewDocument())!;
+    expect(publishPreviewDiagnostic(firstAttempt, changeKey(change), result)).toBe(true);
+
+    expect(commitChangeRecords([secondChange], () => undefined)).toBe("applied");
+    // Earlier diagnostics survive the second commit; the new change verifies
+    // at the new revision without wiping the first.
+    expect(getPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
+    const secondAttempt = beginPreviewAttempt(getHostPreviewDocument())!;
+    const secondResult = { ...result, requestedValue: "blue", computedValue: "blue" };
+    expect(publishPreviewDiagnostic(secondAttempt, changeKey(secondChange), secondResult)).toBe(true);
+    expect(getPreviewDiagnostic(changeKey(change))?.result).toMatchObject(result);
+    expect(getPreviewDiagnostic(changeKey(secondChange))?.result).toMatchObject(secondResult);
+  });
+
+  it("does not notify when reading a diagnostic", () => {
+    const document = getHostPreviewDocument();
+    const attempt = beginPreviewAttempt(document)!;
+    publishPreviewDiagnostic(attempt, changeKey(change), result);
+    const listener = vi.fn();
+    subscribePreviewDiagnostics(listener);
+    listener.mockClear();
+
+    expect(getPreviewDiagnostic(changeKey(change))).toBeDefined();
+    expect(getPreviewDiagnosticRevision()).toBeGreaterThan(0);
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it("publishes diagnostics without changing canonical state or history", () => {

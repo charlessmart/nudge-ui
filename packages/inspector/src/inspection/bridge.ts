@@ -1,7 +1,7 @@
 import type { TokenDefinition, TokenEntry } from "@nudge-ui/css/model";
 import { getChangesList, getPendingRules, isPreviewableChange } from "../changes/changesLog.ts";
 import { changeKey } from "../changes/model.ts";
-import { getPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
+import { getAnyPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
 import { detectFramework } from "../prompt/detectFramework.ts";
 import { generatePrompt } from "../prompt/generatePrompt.ts";
 import { loadCustomInstructions } from "../prompt/promptSettings.ts";
@@ -144,7 +144,7 @@ export function inspectElement(
     rules: getPendingRules(),
     results: changes.flatMap((change) => {
       if (!isPreviewableChange(change)) return [];
-      const diagnostic = getPreviewDiagnostic(changeKey(change));
+      const diagnostic = getAnyPreviewDiagnostic(changeKey(change));
       return diagnostic ? [{ property: change.property, ...diagnostic.result }] : [];
     }),
   };

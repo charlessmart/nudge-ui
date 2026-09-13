@@ -175,23 +175,28 @@ function applyStaleResults(
   attempts: ReadonlyMap<string, PreviewAttempt>,
 ): void {
   const evidence = gatherMatchEvidence(changes);
+  const hostAttempt = attempts.get(getHostPreviewDocument().logicalDocument);
 
   for (let i = 0; i < changes.length; i++) {
     const change = changes[i]!;
 
     if (isTokenChange(change)) {
       const drift = checkTokenDrift(change);
-      const hostAttempt = attempts.get(getHostPreviewDocument().logicalDocument);
       if (drift && hostAttempt) publishPreviewDiagnostic(hostAttempt, changeKey(change), drift);
       continue;
     }
     const routes = evidence.get(i);
-    for (const [logicalDocument, attempt] of attempts) {
-      if (routes?.some((route) => route.logicalDocument === logicalDocument)) continue;
-      publishPreviewDiagnostic(attempt, changeKey(change), buildStaleResult(
-        change.selector,
-        getRequestedValue(change),
-      ));
+    // A document that does not contain the target says nothing about
+    // staleness. Publish target-missing only when the change matches nowhere;
+    // a Canvas-only match is verified, not a host conflict. When nowhere,
+    // every live document reports the same miss.
+    if (!routes || routes.length === 0) {
+      for (const attempt of attempts.values()) {
+        publishPreviewDiagnostic(attempt, changeKey(change), buildStaleResult(
+          change.selector,
+          getRequestedValue(change),
+        ));
+      }
     }
   }
 }

@@ -339,6 +339,9 @@ describe("sessionStore persistence", () => {
   });
 
   it("serializes canonical intent without preview diagnostics", () => {
+    // Guard against re-introducing transient preview state on the durable
+    // record: ElementChangeRecord has no previewResult field, so this can only
+    // fail if preview diagnostics leak back into canonical intent.
     appendChange(makeElementChange());
     const session = serializeSession();
     const json = JSON.stringify(session);

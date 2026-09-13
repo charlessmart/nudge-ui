@@ -13,7 +13,7 @@ import {
   isPreviewableChange,
   restoreChangeRecords,
 } from "../changes/changesLog.ts";
-import { getCanvasPreviewDocument, getRegisteredFrames } from "./projection.ts";
+import { getCanvasPreviewDocument, registerCardFrame, unregisterCardFrame } from "./projection.ts";
 import { addCanvasCard, removeCanvasCard as removeCanvasCardStore, getCanvasCards } from "./canvasStore.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { makeComponentChange } from "../changes/_testUtils.ts";
@@ -183,10 +183,8 @@ describe("staleChangeDetector", () => {
       const selector = '[data-cid="Sidebar"][data-src*="Sidebar.tsx:42"]';
       addElementToFrame(iframe, selector);
 
-      const frameMap = getRegisteredFrames() as Map<string, HTMLIFrameElement>;
-
       const card = addCanvasCard("http://localhost:5173/about");
-      frameMap.set(card.id, iframe);
+      registerCardFrame(card.id, iframe);
 
       const change = makeElementChange({ selector, cid: "Sidebar", file: "src/Sidebar.tsx", line: 42 });
       restoreChangeRecords([change]);
@@ -197,10 +195,12 @@ describe("staleChangeDetector", () => {
 
       const updated = getPreviewableChanges();
       const key = changeKey(updated[0]!);
-      expect(getPreviewDiagnostic(key)?.result.reason).toBe("target-missing");
+      // A Canvas-only match is verified, not a host conflict. A document that
+      // does not contain the target says nothing about staleness.
+      expect(getPreviewDiagnostic(key)).toBeUndefined();
       expect(getPreviewDiagnostic(key, getCanvasPreviewDocument(card.id).logicalDocument)).toBeUndefined();
 
-      frameMap.delete(card.id);
+      unregisterCardFrame(card.id);
       vi.useRealTimers();
       document.body.innerHTML = "";
       for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
@@ -210,9 +210,8 @@ describe("staleChangeDetector", () => {
       vi.useFakeTimers();
       const iframe = createMockFrame();
 
-      const frameMap = getRegisteredFrames() as Map<string, HTMLIFrameElement>;
       const card = addCanvasCard("http://localhost:5173/about");
-      frameMap.set(card.id, iframe);
+      registerCardFrame(card.id, iframe);
 
       const missingSelector = '[data-cid="Deleted"][data-src*="Deleted.tsx:1"]';
       const change = makeElementChange({
@@ -236,7 +235,7 @@ describe("staleChangeDetector", () => {
         getCanvasPreviewDocument(card.id).logicalDocument,
       )?.result.reason).toBe("target-missing");
 
-      frameMap.delete(card.id);
+      unregisterCardFrame(card.id);
       vi.useRealTimers();
       document.body.innerHTML = "";
       for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
