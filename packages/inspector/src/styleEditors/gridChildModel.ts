@@ -1,7 +1,7 @@
 import { getLayoutValue } from "./layoutValue.ts";
-import { setElementStyles, setStyle, setStyles } from "./styleActions.ts";
+import { setElementStyles, setStyle, setStyles } from "../tokens/editActions.ts";
 import { countGridTracks } from "./GridPicker.tsx";
-import type { ChangeRecord } from "./styleActions.ts";
+import type { ChangeRecord } from "../tokens/editActions.ts";
 import { targetElements, type EditTarget } from "../selection/editTarget.ts";
 
 /** One grid axis of a grid item: `column` maps to grid-column-*, `row` to grid-row-*. */

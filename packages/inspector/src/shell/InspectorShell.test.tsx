@@ -5,10 +5,10 @@ import { mountInspector, unmountInspector } from "../index.ts";
 import { getSelectedElement, setSelectedElement, setSelectedElements } from "../selection/selectionStore.ts";
 import * as selectionResolver from "../selection/resolveSelection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
-import { appendChange } from "../changes/changesLog.ts";
+import { appendChange, clearWorkspace, getChangesList } from "../changes/changesLog.ts";
 import { acquireLease, releaseLease } from "../canvas/workspaceLease.ts";
 import { exitCanvas } from "../canvas/canvasStore.ts";
-import { clearRestoreCount, setRestoreCount } from "../canvas/sessionStore.ts";
+import { clearRestoreCount } from "../canvas/sessionStore.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { setInputValue } from "../styleEditors/_testUtils.ts";
 
@@ -35,6 +35,7 @@ describe("InspectorShell", () => {
     act(() => {
       unmountInspector();
     });
+    clearWorkspace();
     clearRestoreCount();
     releaseLease();
     host.remove();
@@ -284,7 +285,6 @@ describe("InspectorShell", () => {
   });
 
   it("keeps session clearing below the changes accordion when changes are present", () => {
-    setRestoreCount(7);
     act(() => {
       appendChange({
         cid: "Button",
@@ -300,10 +300,15 @@ describe("InspectorShell", () => {
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
-    expect(shadow.textContent).not.toContain("Restored 7 changes");
     expect(shadow.querySelector('[data-test="session-actions"]')?.previousElementSibling?.matches(".changes")).toBe(true);
     expect(shadow.querySelector('[data-test="clear-session"]')?.textContent).toBe("Clear Changes");
     expect(shadow.querySelector(".panel__session-actions")).toBeNull();
+
+    act(() => {
+      (shadow.querySelector('[data-test="clear-session"]') as HTMLButtonElement).click();
+    });
+    expect(host.shadowRoot?.querySelector('[data-test="changes-log"]')).toBeNull();
+    expect(host.shadowRoot?.querySelector('[data-test="clear-session"]')).toBeNull();
   });
 
   it("shows selection guidance and shortcuts when nothing is selected", () => {
@@ -616,5 +621,33 @@ describe("InspectorShell", () => {
     expect(host2.shadowRoot).not.toBeNull();
     expect(host2.shadowRoot!.textContent).not.toContain("Inspector shell ready");
     host2.remove();
+  });
+
+  it("preserves workspace changes across mounted inspector lifetimes", () => {
+    expect(appendChange({
+      cid: "Button",
+      file: "src/Button.tsx",
+      line: 1,
+      selector: '[data-cid="Button"]',
+      property: "color",
+      oldToken: null,
+      newToken: null,
+      rawValue: "red",
+      source: { file: "src/Button.tsx", line: 1, component: "Button" },
+    })).toBe("applied");
+    expect(getChangesList()).toHaveLength(1);
+
+    act(() => {
+      mountInspector(host);
+      expect(getChangesList()).toHaveLength(1);
+      unmountInspector();
+    });
+
+    expect(getChangesList()).toHaveLength(1);
+
+    act(() => {
+      mountInspector(host);
+    });
+    expect(getChangesList()).toHaveLength(1);
   });
 });

@@ -13,9 +13,10 @@ import {
 } from "@tabler/icons-react";
 import type { TokenEntry } from "virtual:design-tokens";
 import type { ResolvedProperty } from "@nudge-ui/css/model";
+import { findTokenRow } from "./rowLookup.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
 import type { SelectedElement } from "../selection/selectionStore.ts";
-import { setStyle, setStyles } from "./styleActions.ts";
+import { setStyle, setStyles } from "../tokens/editActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { SIDE_NAMES } from "../ui/SideValuesField.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -32,10 +33,6 @@ const BORDER_STYLES = ["none", "hidden", "solid", "dashed", "dotted", "double", 
 const INVISIBLE_BORDER_STYLES = new Set(["none", "hidden"]);
 const ZERO_WIDTH = /^(?:0|0px|0rem|0em|0%)$/i;
 const BORDER_SIDES = SIDE_NAMES.map((side) => `border-${side}`);
-
-function findTokenRow(rows: ResolvedProperty[], prop: string): ResolvedProperty | null {
-  return rows.find((r) => r.property === prop) ?? null;
-}
 
 function borderStyleValue(el: HTMLElement, rows: ResolvedProperty[], property: string): string {
   const row = findTokenRow(rows, property);

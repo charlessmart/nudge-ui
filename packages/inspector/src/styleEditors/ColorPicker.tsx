@@ -9,7 +9,7 @@ import { TokenField } from "../tokens/TokenField.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { ControlSurface } from "../ui/ControlSurface.tsx";
-import { setStyle } from "./styleActions.ts";
+import { setStyle } from "../tokens/editActions.ts";
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";

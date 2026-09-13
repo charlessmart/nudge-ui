@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { setStyle } from "./styleActions.ts";
+import { setStyle } from "../tokens/editActions.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { formatInspectorLabel } from "../ui/labels.ts";

@@ -2,6 +2,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   computeProjection,
+  getCanvasPreviewDocument,
+  invalidateCanvasPreviewDocument,
   resetProjectionRevision,
   registerCardFrame,
   registerCardFrameSource,
@@ -16,6 +18,14 @@ import {
   WORKSPACE_ID,
 } from "./projection.ts";
 import { appendChange, clearWorkspace, getPendingRules } from "../changes/changesLog.ts";
+import { changeKey } from "../changes/model.ts";
+import {
+  beginPreviewAttempt,
+  getPreviewDiagnostic,
+  publishPreviewDiagnostic,
+  resetPreviewDiagnostics,
+} from "../changes/previewDiagnostics.ts";
+import type { ElementChangeRecord } from "../changes/types.ts";
 import type { TokenEntry } from "virtual:design-tokens";
 import { createStructuralDelete, createStructuralMove, resetStructuralDeleteProjection } from "../projection/structuralProjection.ts";
 
@@ -25,6 +35,7 @@ const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styl
 describe("projection", () => {
   beforeEach(() => {
     clearWorkspace();
+    resetPreviewDiagnostics();
     resetStructuralDeleteProjection();
     resetProjectionRevision();
     document.getElementById("nudge-ui-styles")?.remove();
@@ -222,6 +233,53 @@ describe("projection", () => {
     expect(getRegisteredFrames().has("card-1")).toBe(true);
     expect(findCanvasFrameBySource(window)).toBeNull();
     unregisterCardFrame("card-1");
+  });
+
+  it("rotates the value-based preview session when a Canvas document is replaced", () => {
+    const first = getCanvasPreviewDocument("card-session");
+
+    invalidateCanvasPreviewDocument("card-session");
+
+    const second = getCanvasPreviewDocument("card-session");
+    expect(second.logicalDocument).toBe(first.logicalDocument);
+    expect(second.sessionId).not.toBe(first.sessionId);
+  });
+
+  it("rejects a diagnostic from the replaced Canvas frame session", () => {
+    const firstFrame = document.createElement("iframe");
+    const secondFrame = document.createElement("iframe");
+    document.body.append(firstFrame, secondFrame);
+    registerCardFrame("card-reload", firstFrame);
+    const firstDocument = getCanvasPreviewDocument("card-reload");
+    const attempt = beginPreviewAttempt(firstDocument)!;
+    const change = {
+      cid: "Button",
+      file: "src/Button.tsx",
+      line: 1,
+      selector: "[data-cid=Button]",
+      property: "color",
+      oldToken: null,
+      newToken: null,
+      rawValue: "red",
+      source: { file: "src/Button.tsx", line: 1, component: "Button" },
+    } satisfies ElementChangeRecord;
+    publishPreviewDiagnostic(attempt, changeKey(change), {
+      status: "conflict",
+      requestedValue: "red",
+      computedValue: "",
+      reason: "target-missing",
+    });
+
+    registerCardFrame("card-reload", secondFrame);
+
+    expect(getPreviewDiagnostic(changeKey(change), firstDocument.logicalDocument)).toBeUndefined();
+    expect(publishPreviewDiagnostic(attempt, changeKey(change), {
+      status: "conflict",
+      requestedValue: "red",
+      computedValue: "",
+      reason: "target-missing",
+    })).toBe(false);
+    unregisterCardFrame("card-reload");
   });
 
   it("tracks sent and acknowledged revisions for each frame document", () => {

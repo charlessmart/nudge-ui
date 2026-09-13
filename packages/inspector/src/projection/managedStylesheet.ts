@@ -1,9 +1,12 @@
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
-import type { TokenContextWrapper } from "virtual:design-tokens";
+import type { TokenContextWrapper } from "@nudge-ui/css/model";
+import type { StyleRuleContext } from "../changes/editModel.ts";
+import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 
 export { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
+export type { StyleRuleContext } from "../changes/editModel.ts";
 
 declare global {
   interface Window {
@@ -16,10 +19,6 @@ export interface StyleRule {
   selector: string;
   declarations: Record<string, string>;
   context?: StyleRuleContext;
-}
-
-export interface StyleRuleContext {
-  wrappers?: TokenContextWrapper[];
 }
 
 export type PreviewConflictReason = "higher-specificity" | "inline-style" | "important" | "animation" | "transition" | "target-missing" | "token-drift";

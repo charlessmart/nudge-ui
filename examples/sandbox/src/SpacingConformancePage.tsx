@@ -1,5 +1,5 @@
-import { SPACING_CASES } from "../../../packages/inspector/src/conformance/spacingCases.ts";
-import type { ConformanceFixture } from "../../../packages/inspector/src/conformance/fixture.ts";
+import { SPACING_CASES } from "@nudge-ui/inspector/testing";
+import type { ConformanceFixture } from "@nudge-ui/inspector/testing";
 import "./spacing-conformance.css";
 
 function scopedCss(fixture: ConformanceFixture, targetClass: string): string {

@@ -5,14 +5,13 @@ import {
   captureRenderedInstance,
   clearRenderedInstanceOverride,
   resolveRenderedInstance,
-  type RenderedInstanceOverride,
-  type RenderedInstanceRef,
 } from "../projection/renderedInstance.ts";
 import { sourceSiteSelector } from "./sourceSite.ts";
+import type { EditScope } from "../editScope.ts";
+import type { RenderedInstanceOverride, RenderedInstanceRef } from "../changes/editModel.ts";
 
 export { sourceSiteSelector } from "./sourceSite.ts";
-
-export type EditScope = "source-site" | "rendered-instance";
+export type { EditScope };
 
 export interface InstanceEvidence {
   renderedIndex: number;
