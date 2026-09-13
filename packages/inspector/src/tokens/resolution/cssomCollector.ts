@@ -224,6 +224,9 @@ export function documentRevisions(doc: Document): DocumentRevisions {
   };
   documentResolutionSessions.set(doc, session);
 
+  // MutationObserver is a global constructor of the document realm, but it is
+  // not a property in every TypeScript Window declaration used by consumers.
+  // Keep the cast local so the observer and its callback remain document-local.
   const viewWithObserver = session.view as ((Window & { MutationObserver?: typeof MutationObserver }) | null);
   const Observer = viewWithObserver?.MutationObserver
     ?? (typeof MutationObserver !== "undefined" ? MutationObserver : undefined);
