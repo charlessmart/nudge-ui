@@ -136,6 +136,7 @@ export function isSerializableElementChangeValue(value: unknown): value is Seria
     || (value.oldRawValue !== undefined && typeof value.oldRawValue !== "string")
     || (value.runtimeEvidence !== undefined && !isRuntimeElementEvidenceValue(value.runtimeEvidence))
     || !isEditScopeValue(value.scope)
+    || (value.instanceOverride !== undefined && value.scope !== "rendered-instance")
     || (value.scope === "rendered-instance" && !isRenderedInstanceOverride(value.instanceOverride))
     || (value.state !== undefined && !isElementStateValue(value.state))) {
     return false;
@@ -176,11 +177,7 @@ export function isSerializableComponentChangeValue(value: unknown): value is Ser
     return false;
   }
   const evidence = value.evidence;
-  const repeatedUnsafeSourceOverride = isComponentInvocationEvidenceValue(evidence)
-    && evidence.mountedCount > 1
-    && (value.authoredAs === "expression" || value.authoredAs === "spread")
-    && value.scope !== "rendered-instance";
-  return !repeatedUnsafeSourceOverride;
+  return !isUnsafeRepeatedSourceOverride(value.authoredAs, value.scope, evidence);
 }
 
 export function serializeChange(change: ChangeRecord): SerializableChange | null {
@@ -192,7 +189,9 @@ export function serializeChange(change: ChangeRecord): SerializableChange | null
   return serializeElementChange(change);
 }
 
-export function serializeElementChange(change: ElementChangeRecord): SerializableElementChange {
+export function serializeElementChange(change: ElementChangeRecord): SerializableElementChange | null {
+  if (change.instanceOverride !== undefined && change.scope !== "rendered-instance") return null;
+  if (change.scope === "rendered-instance" && !isRenderedInstanceOverride(change.instanceOverride)) return null;
   return {
     kind: change.kind,
     cid: change.cid,
@@ -383,12 +382,19 @@ function deserializeTokenRef(serialized: SerializableTokenRef | null): TokenEntr
   };
 }
 
+function isUnsafeRepeatedSourceOverride(
+  authoredAs: ComponentChangeRecord["authoredAs"],
+  scope: EditScope | undefined,
+  evidence: unknown,
+): boolean {
+  return isComponentInvocationEvidenceValue(evidence)
+    && evidence.mountedCount > 1
+    && (authoredAs === "expression" || authoredAs === "spread")
+    && scope !== "rendered-instance";
+}
+
 function isRepeatedUnsafeSourceOverride(change: ComponentChangeRecord): boolean {
-  const mountedCount = change.evidence?.mountedCount;
-  return mountedCount !== undefined
-    && mountedCount > 1
-    && (change.authoredAs === "expression" || change.authoredAs === "spread")
-    && change.scope !== "rendered-instance";
+  return isUnsafeRepeatedSourceOverride(change.authoredAs, change.scope, change.evidence);
 }
 
 function isComponentTargetValue(value: unknown): value is ComponentChangeTarget {

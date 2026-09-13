@@ -9,6 +9,14 @@ import {
 import type { ChangeRecord, ElementChangeRecord, TokenChangeRecord } from "./types.ts";
 import type { TextContentChangeRecord } from "./editModel.ts";
 
+const renderedInstanceOverride = {
+  id: "override-1",
+  target: {
+    sourceSite: { cid: "Button", src: "src/Button.tsx:1:1" },
+    locator: { kind: "evidence" as const, occurrence: 0, props: null, text: "Save" },
+  },
+};
+
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
 
@@ -83,6 +91,21 @@ describe("change codecs", () => {
 
     expect(isSerializableChange({ ...element, previewResult: { status: "applied" } })).toBe(false);
     expect(isSerializableChange({ ...component, target: null })).toBe(false);
+  });
+
+  it("rejects an instance override without rendered-instance scope", () => {
+    const serialized = serializeChange(makeElementChange())!;
+
+    expect(isSerializableChange({ ...serialized, instanceOverride: renderedInstanceOverride })).toBe(false);
+    expect(isSerializableChange({
+      ...serialized,
+      scope: undefined,
+      instanceOverride: renderedInstanceOverride,
+    })).toBe(false);
+    expect(serializeChange({
+      ...makeElementChange(),
+      instanceOverride: renderedInstanceOverride,
+    })).toBeNull();
   });
 
   it("does not persist an unsafe repeated source-site prop edit", () => {
