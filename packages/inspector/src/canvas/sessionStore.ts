@@ -1,15 +1,12 @@
-import type { ChangeRecord } from "../changes/changesLog.ts";
+import type { ChangeRecord } from "../changes/types.ts";
 import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { loadWorkspaceChanges } from "../changes/changesLog.ts";
 import {
-  loadWorkspaceChanges,
-  isComponentChange,
-  isTokenChange,
-  isTextContentChangeValue,
-  type ComponentChangeRecord,
-  type ElementChangeRecord,
-  type TextContentChangeRecord,
-  type TokenChangeRecord,
-} from "../changes/changesLog.ts";
+  deserializeChange,
+  isSerializableChange,
+  serializeChange,
+  type SerializableChange,
+} from "../changes/codecs.ts";
 import {
   getCanvasMode,
   getCanvasCards,
@@ -27,22 +24,13 @@ import { clearWorkspace as clearWorkspaceLog } from "../changes/changesLog.ts";
 import { removeManagedSheet } from "../projection/managedStylesheet.ts";
 import { clearInspectorLayout } from "../shell/panelLayout.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
-import type { TokenEntry } from "virtual:design-tokens";
 import { canWriteWorkspace } from "./workspaceLease.ts";
-import type { StyleRuleContext } from "../projection/managedStylesheet.ts";
 import {
-  isRenderedInstanceOverride,
-} from "../changes/editModel.ts";
-import type { RenderedInstanceOverride } from "../changes/editModel.ts";
-import {
-  getStructuralChanges,
   isStructuralChange,
   resetStructuralDeleteProjection,
   type StructuralChange,
 } from "../projection/structuralProjection.ts";
 import { projectToAllReadyCards } from "./projection.ts";
-import type { TextProjectionTarget } from "../inline-text/textChangeBoundary.ts";
-import { isEditScope, type EditScope } from "../editScope.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   clearClipboardHandoff,
@@ -78,125 +66,8 @@ function isSameOriginUrl(value: unknown): value is string {
   }
 }
 
-function isSource(value: unknown): value is { file: string; line: number; component: string } {
-  if (!value || typeof value !== "object") return false;
-  const source = value as Record<string, unknown>;
-  return typeof source.file === "string"
-    && isFiniteNumber(source.line)
-    && typeof source.component === "string";
-}
-
-function isTokenRef(value: unknown): boolean {
-  if (value === null) return true;
-  if (!value || typeof value !== "object") return false;
-  const token = value as Record<string, unknown>;
-  return typeof token.name === "string"
-    && typeof token.value === "string"
-    && typeof token.source === "string";
-}
-
-function isStyleRuleContext(value: unknown): value is StyleRuleContext {
-  if (!value || typeof value !== "object") return false;
-  const wrappers = (value as { wrappers?: unknown }).wrappers;
-  return wrappers === undefined || (Array.isArray(wrappers) && wrappers.every((wrapper) => {
-    if (!wrapper || typeof wrapper !== "object") return false;
-    const candidate = wrapper as { kind?: unknown; params?: unknown };
-    return (candidate.kind === "media" || candidate.kind === "supports"
-      || candidate.kind === "scope" || candidate.kind === "layer")
-      && typeof candidate.params === "string";
-  }));
-}
-
 function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
   return Object.keys(value).every((key) => allowed.includes(key));
-}
-
-function isRuntimeElementEvidence(value: unknown): value is NonNullable<ElementChangeRecord["runtimeEvidence"]> {
-  if (!isRecord(value)
-    || !hasOnlyKeys(value, ["tagName", "text", "props", "ariaLabel"])) return false;
-  return typeof value.tagName === "string"
-    && (typeof value.text === "string" || value.text === null)
-    && (typeof value.props === "string" || value.props === null)
-    && (typeof value.ariaLabel === "string" || value.ariaLabel === null);
-}
-
-
-function isSerializableChange(value: unknown): value is SerializableChange {
-  if (!value || typeof value !== "object") return false;
-  const change = value as Record<string, unknown>;
-  if (change.kind === "component-prop") {
-    const target = isRecord(change.target) ? change.target : undefined;
-    const before = change.before as Record<string, unknown> | undefined;
-    const validBefore = before?.kind === "default"
-      || (before?.kind === "value"
-        && (typeof before.value === "string"
-          || typeof before.value === "number"
-          || typeof before.value === "boolean"));
-    const evidence = change.evidence;
-    const evidenceRecord = isRecord(evidence) ? evidence : null;
-    const validEvidence = evidence === undefined || (
-      evidenceRecord !== null
-      && hasOnlyKeys(evidenceRecord, ["occurrence", "props", "ariaLabel", "beforeText", "mountedCount"])
-      && typeof evidenceRecord.occurrence === "number"
-      && Number.isSafeInteger(evidenceRecord.occurrence)
-      && evidenceRecord.occurrence >= 0
-      && (typeof evidenceRecord.props === "string" || evidenceRecord.props === null)
-      && (typeof evidenceRecord.ariaLabel === "string" || evidenceRecord.ariaLabel === null)
-      && typeof evidenceRecord.beforeText === "string"
-      && typeof evidenceRecord.mountedCount === "number"
-      && Number.isSafeInteger(evidenceRecord.mountedCount)
-      && evidenceRecord.mountedCount >= 0
-    );
-    const mountedCount = evidenceRecord?.mountedCount;
-    const repeatedUnsafeSourceOverride = typeof mountedCount === "number"
-      && mountedCount > 1
-      && (change.authoredAs === "expression" || change.authoredAs === "spread")
-      && change.scope !== "rendered-instance";
-    return target !== undefined
-      && target.framework === "react"
-      && typeof target.componentId === "string"
-      && typeof target.callsiteId === "string"
-      && typeof target.componentName === "string"
-      && typeof target.file === "string"
-      && isFiniteNumber(target.line)
-      && isFiniteNumber(target.column)
-      && typeof change.property === "string"
-      && validBefore
-      && (typeof change.after === "string"
-        || typeof change.after === "number"
-        || typeof change.after === "boolean")
-      && (change.authoredAs === "literal"
-        || change.authoredAs === "expression"
-        || change.authoredAs === "spread"
-        || change.authoredAs === "default")
-      && (change.scope === undefined || isEditScope(change.scope))
-      && validEvidence
-      && !repeatedUnsafeSourceOverride;
-  }
-  if (change.kind === "text-content") return isTextContentChangeValue(change);
-  if (
-    typeof change.selector !== "string"
-    || typeof change.property !== "string"
-    || !isSource(change.source)
-    || typeof change.file !== "string"
-    || !isFiniteNumber(change.line)
-  ) return false;
-  if (change.kind === "token") {
-    return typeof change.tokenName === "string"
-      && typeof change.rawValue === "string"
-      && typeof change.oldRawValue === "string"
-      && isStyleRuleContext(change.context)
-      && typeof change.contextLabel === "string";
-  }
-  return (change.kind === undefined || change.kind === "element")
-    && typeof change.cid === "string"
-    && (change.column === undefined
-      || (isFiniteNumber(change.column) && Number.isSafeInteger(change.column) && change.column >= 0))
-    && (change.runtimeEvidence === undefined || isRuntimeElementEvidence(change.runtimeEvidence))
-    && isTokenRef(change.oldToken)
-    && isTokenRef(change.newToken)
-    && (change.scope === undefined || change.scope === "source-site" || change.scope === "rendered-instance")
-    && (change.scope !== "rendered-instance" || isRenderedInstanceOverride(change.instanceOverride));
 }
 
 function isSerializableComparisonGroup(value: unknown): value is SerializableComparisonGroup {
@@ -241,16 +112,6 @@ function storageKey(projectId: string): string {
   return `${STORAGE_PREFIX}:${projectId}:v${SCHEMA_VERSION}`;
 }
 
-interface SerializableTokenRef {
-  name: string;
-  value: string;
-  source: string;
-  cssValue?: string;
-  cssName?: string;
-  adapter?: string;
-  origin?: string;
-}
-
 export interface SerializableCard {
   id: string;
   url: string;
@@ -275,87 +136,6 @@ export interface SerializableComparisonGroup {
   }>;
 }
 
-export interface SerializableElementChange {
-  kind?: "element";
-  cid: string;
-  file: string;
-  line: number;
-  column?: number;
-  selector: string;
-  property: string;
-  sourceProperty?: string;
-  sourceAuthoredValue?: string;
-  oldToken: SerializableTokenRef | null;
-  newToken: SerializableTokenRef | null;
-  rawValue?: string;
-  oldRawValue?: string;
-  source: { file: string; line: number; component: string };
-  runtimeEvidence?: ElementChangeRecord["runtimeEvidence"];
-  scope?: EditScope;
-  instanceOverride?: RenderedInstanceOverride;
-  state?: "base" | "hover" | "active" | "focus" | "focus-visible" | "disabled";
-}
-
-export interface SerializableTokenChange {
-  kind: "token";
-  tokenName: string;
-  file: string;
-  line: number;
-  selector: string;
-  property: string;
-  rawValue: string;
-  oldRawValue: string;
-  context: StyleRuleContext;
-  contextLabel: string;
-  source: { file: string; line: number; component: string };
-}
-
-export interface SerializableComponentChange {
-  kind: "component-prop";
-  target: {
-    framework: "react";
-    componentId: string;
-    callsiteId: string;
-    componentName: string;
-    file: string;
-    line: number;
-    column: number;
-  };
-  property: string;
-  before:
-    | { kind: "default" }
-    | { kind: "value"; value: string | number | boolean };
-  after: string | number | boolean;
-  authoredAs: "literal" | "expression" | "spread" | "default";
-  scope?: EditScope;
-  evidence?: {
-    occurrence: number;
-    props: string | null;
-    ariaLabel: string | null;
-    beforeText: string;
-    mountedCount: number;
-  };
-}
-
-export interface SerializableTextContentChange {
-  kind: "text-content";
-  id: string;
-  target: TextProjectionTarget;
-  source: { file: string; line: number; column: number; component: string };
-  selector: string;
-  before: string;
-  after: string;
-  authoredAs: "literal" | "expression" | "unknown";
-  scope?: EditScope;
-  evidence?: TextContentChangeRecord["evidence"];
-}
-
-export type SerializableChange =
-  | SerializableElementChange
-  | SerializableTokenChange
-  | SerializableComponentChange
-  | SerializableTextContentChange;
-
 export interface DurableSession {
   schemaVersion: typeof SCHEMA_VERSION;
   projectId: string;
@@ -369,209 +149,14 @@ export interface DurableSession {
   clipboardHandoff: ClipboardHandoffSnapshot | null;
 }
 
-function serializeTokenRef(token: TokenEntry | null): SerializableTokenRef | null {
-  if (!token) return null;
-  return {
-    name: token.name,
-    value: token.value ?? "",
-    source: token.source ?? "",
-    cssValue: token.cssValue,
-    cssName: token.cssName,
-    adapter: token.adapter,
-    origin: token.origin,
-  };
-}
-
-function serializeElementChange(change: ElementChangeRecord): SerializableElementChange | null {
-  return {
-    kind: change.kind,
-    cid: change.cid,
-    file: change.file,
-    line: change.line,
-    column: change.column,
-    selector: change.selector,
-    property: change.property,
-    sourceProperty: change.sourceProperty,
-    sourceAuthoredValue: change.sourceAuthoredValue,
-    oldToken: serializeTokenRef(change.oldToken),
-    newToken: serializeTokenRef(change.newToken),
-    rawValue: change.rawValue,
-    oldRawValue: change.oldRawValue,
-    source: change.source,
-    runtimeEvidence: change.runtimeEvidence ? { ...change.runtimeEvidence } : undefined,
-    scope: change.scope === "rendered-instance" ? "rendered-instance" : "source-site",
-    instanceOverride: change.scope === "rendered-instance" ? change.instanceOverride : undefined,
-    state: change.state,
-  };
-}
-
-function serializeTokenChange(change: TokenChangeRecord): SerializableTokenChange {
-  return {
-    kind: "token",
-    tokenName: change.tokenName,
-    file: change.file,
-    line: change.line,
-    selector: change.selector,
-    property: change.property,
-    rawValue: change.rawValue,
-    oldRawValue: change.oldRawValue,
-    context: change.context.wrappers?.length
-      ? { wrappers: change.context.wrappers.map((wrapper) => ({ ...wrapper })) }
-      : {},
-    contextLabel: change.contextLabel ?? "",
-    source: change.source,
-  };
-}
-
-function serializeComponentChange(change: ComponentChangeRecord): SerializableComponentChange {
-  return {
-    kind: "component-prop",
-    target: { ...change.target },
-    property: change.property,
-    before: change.before.kind === "default"
-      ? { kind: "default" }
-      : { kind: "value", value: change.before.value },
-    after: change.after,
-    authoredAs: change.authoredAs,
-    scope: change.scope,
-    evidence: change.evidence ? { ...change.evidence } : undefined,
-  };
-}
-
-function serializeTextContentChange(change: TextContentChangeRecord): SerializableTextContentChange {
-  return {
-    kind: "text-content",
-    id: change.id,
-    target: {
-      sourceSite: { ...change.target.sourceSite },
-      occurrence: change.target.occurrence,
-      props: change.target.props,
-      ariaLabel: change.target.ariaLabel,
-      beforeText: change.target.beforeText,
-      ...(change.target.textNodePath
-        ? { textNodePath: [...change.target.textNodePath] }
-        : {}),
-    },
-    source: { ...change.source },
-    selector: change.selector,
-    before: change.before,
-    after: change.after,
-    authoredAs: change.authoredAs,
-    scope: change.scope,
-    evidence: change.evidence ? { ...change.evidence } : undefined,
-  };
-}
-
-function serializeChange(change: ChangeRecord): SerializableChange | null {
-  if (isTokenChange(change)) return serializeTokenChange(change);
-  if (isComponentChange(change)) {
-    const repeatedUnsafeSourceOverride = change.evidence?.mountedCount !== undefined
-      && change.evidence.mountedCount > 1
-      && (change.authoredAs === "expression" || change.authoredAs === "spread")
-      && change.scope !== "rendered-instance";
-    return repeatedUnsafeSourceOverride ? null : serializeComponentChange(change);
-  }
-  if (change.kind === "text-content") return serializeTextContentChange(change);
-  return serializeElementChange(change);
-}
-
-function deserializeTokenRef(serialized: SerializableTokenRef | null): TokenEntry | null {
-  if (!serialized) return null;
-  return {
-    name: serialized.name,
-    value: serialized.value,
-    source: serialized.source,
-    cssValue: serialized.cssValue,
-    cssName: serialized.cssName,
-    adapter: serialized.adapter,
-    origin: serialized.origin as TokenEntry["origin"],
-  };
-}
-
-function deserializeElementChange(s: SerializableElementChange): ElementChangeRecord {
-  return {
-    kind: s.kind,
-    cid: s.cid,
-    file: s.file,
-    line: s.line,
-    column: s.column,
-    selector: s.selector,
-    property: s.property,
-    sourceProperty: s.sourceProperty,
-    sourceAuthoredValue: s.sourceAuthoredValue,
-    oldToken: deserializeTokenRef(s.oldToken),
-    newToken: deserializeTokenRef(s.newToken),
-    rawValue: s.rawValue,
-    oldRawValue: s.oldRawValue,
-    source: s.source,
-    runtimeEvidence: s.runtimeEvidence ? { ...s.runtimeEvidence } : undefined,
-    scope: s.scope ?? "source-site",
-    instanceOverride: s.scope === "rendered-instance" ? s.instanceOverride : undefined,
-    state: s.state,
-  };
-}
-
-function deserializeTokenChange(s: SerializableTokenChange): TokenChangeRecord {
-  return {
-    kind: "token",
-    tokenName: s.tokenName,
-    file: s.file,
-    line: s.line,
-    selector: s.selector,
-    property: s.property,
-    rawValue: s.rawValue,
-    oldRawValue: s.oldRawValue,
-    context: s.context ?? {},
-    contextLabel: s.contextLabel ?? "",
-    source: s.source,
-  };
-}
-
-function deserializeComponentChange(s: SerializableComponentChange): ComponentChangeRecord {
-  return {
-    kind: "component-prop",
-    target: { ...s.target },
-    property: s.property,
-    before: s.before.kind === "default"
-      ? { kind: "default" }
-      : { kind: "value", value: s.before.value },
-    after: s.after,
-    authoredAs: s.authoredAs,
-    scope: s.scope,
-    evidence: s.evidence ? { ...s.evidence } : undefined,
-  };
-}
-
-function deserializeTextContentChange(s: SerializableTextContentChange): TextContentChangeRecord {
-  return {
-    kind: "text-content",
-    id: s.id,
-    target: {
-      sourceSite: { ...s.target.sourceSite },
-      occurrence: s.target.occurrence,
-      props: s.target.props,
-      ariaLabel: s.target.ariaLabel,
-      beforeText: s.target.beforeText,
-      ...(s.target.textNodePath
-        ? { textNodePath: [...s.target.textNodePath] }
-        : {}),
-    },
-    source: { ...s.source },
-    selector: s.selector,
-    before: s.before,
-    after: s.after,
-    authoredAs: s.authoredAs,
-    scope: s.scope,
-    evidence: s.evidence ? { ...s.evidence } : undefined,
-  };
-}
-
-function deserializeChange(s: SerializableChange): ChangeRecord {
-  if (s.kind === "token") return deserializeTokenChange(s);
-  if (s.kind === "component-prop") return deserializeComponentChange(s);
-  if (s.kind === "text-content") return deserializeTextContentChange(s);
-  return deserializeElementChange(s);
-}
+export type {
+  SerializableChange,
+  SerializableComponentChange,
+  SerializableElementChange,
+  SerializableTextContentChange,
+  SerializableTokenChange,
+  SerializableTokenRef,
+} from "../changes/codecs.ts";
 
 export interface HydrationResult {
   restored: boolean;
@@ -814,17 +399,16 @@ export function hydrateSession(): HydrationResult {
   const deserializedChanges: ChangeRecord[] = [];
   const textChangeIds = new Set<string>();
   for (const c of changesRaw) {
-    if (c && typeof c === "object" && (c as Record<string, unknown>).kind === "text-content") {
-      if (!isTextContentChangeValue(c)
-        || textChangeIds.has(c.id)) {
+    if (!isSerializableChange(c)) {
+      safeDiscard();
+      return { restored: false, changeCount: 0 };
+    }
+    if (c.kind === "text-content") {
+      if (textChangeIds.has(c.id)) {
         safeDiscard();
         return { restored: false, changeCount: 0 };
       }
       textChangeIds.add(c.id);
-    }
-    if (!isSerializableChange(c)) {
-      safeDiscard();
-      return { restored: false, changeCount: 0 };
     }
     try {
       deserializedChanges.push(deserializeChange(c));

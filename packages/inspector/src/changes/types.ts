@@ -1,9 +1,11 @@
 import type { TokenEntry } from "virtual:design-tokens";
-import type { StyleRuleContext } from "../projection/managedStylesheet.ts";
 import type { ComponentChangeRecord } from "../componentSemantics/types.ts";
-import type { RenderedInstanceOverride } from "./editModel.ts";
-import type { TextContentChangeRecord } from "../inline-text/textChangeBoundary.ts";
-import type { EditScope } from "../editScope.ts";
+import type {
+  EditScope,
+  RenderedInstanceOverride,
+  StyleRuleContext,
+  TextContentChangeRecord,
+} from "./editModel.ts";
 
 /** Bounded rendered facts retained for one element without an authored source location. */
 export interface RuntimeElementEvidence {
@@ -93,9 +95,15 @@ export function isPreviewableChange(
 }
 
 export type { ComponentChangeRecord } from "../componentSemantics/types.ts";
-export type { TextContentChangeRecord, TextProjectionTarget, TextProjectionScope, TextBindingEvidence } from "../inline-text/textChangeBoundary.ts";
+export type {
+  TextBindingEvidence,
+  TextContentChangeRecord,
+  TextProjectionScope,
+  TextProjectionSourceSite,
+  TextProjectionTarget,
+} from "./editModel.ts";
 export {
   isTextContentChangeListValue,
   isTextContentChangeValue,
   isTextProjectionTargetValue,
-} from "../inline-text/textChangeBoundary.ts";
+} from "./editModel.ts";
