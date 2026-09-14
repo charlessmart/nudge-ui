@@ -9,6 +9,13 @@ const compilerSource = (file: string) =>
 // package entry point through node_modules would require — and could silently
 // test against — a stale `dist` build.
 export default defineConfig({
+  test: {
+    // These suites spawn real sidecar processes and debounced filesystem
+    // watchers. Running the files concurrently makes them contend for those
+    // resources, so a settled batch can miss its timing window.
+    fileParallelism: false,
+    testTimeout: 20_000,
+  },
   resolve: {
     alias: [
       { find: /^@nudge-ui\/compiler$/, replacement: compilerSource("index.ts") },

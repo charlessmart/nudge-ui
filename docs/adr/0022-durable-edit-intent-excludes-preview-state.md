@@ -1,4 +1,4 @@
-# ADR-0021: Durable edit intent excludes preview and gesture state
+# ADR-0022: Durable edit intent excludes preview and gesture state
 
 Date: 2026-09-13
 Status: Accepted

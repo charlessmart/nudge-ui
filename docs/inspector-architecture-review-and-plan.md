@@ -1,7 +1,7 @@
 # Inspector architecture implementation plan
 
 Implement the phases below in dependency order. The governing decision is
-[ADR-0021: Durable edit intent excludes preview and gesture state](./adr/0021-durable-edit-intent-excludes-preview-state.md).
+[ADR-0022: Durable edit intent excludes preview and gesture state](./adr/0022-durable-edit-intent-excludes-preview-state.md).
 
 ## Objective
 
@@ -85,7 +85,7 @@ Phase 5  simplify plumbing, caches, codecs, exports, duplicated helpers
 
 ## Phase 0 — Establish the implementation contract
 
-Read [ADR-0021](./adr/0021-durable-edit-intent-excludes-preview-state.md) and
+Read [ADR-0022](./adr/0022-durable-edit-intent-excludes-preview-state.md) and
 [ADR-0020](./adr/0020-inline-text-interaction-handoff.md). Inspect the affected
 modules and existing tests before changing their interfaces.
 
@@ -201,7 +201,7 @@ on React, DOM objects, storage machinery, or projection implementations.
    their identity; do not use arbitrary object insertion order as the contract.
 6. Only after 3-5: consolidate `changesLog.ts` + `workspaceChanges.ts` behind one
    explicit store interface, preserving `CommitResult` (ground rule 4).
-7. **Delete session migration support** under ADR-0021 item 4 when changing the
+7. **Delete session migration support** under ADR-0022 item 4 when changing the
    stored record shape. Remove legacy schema lists, migration-only record types,
    scratch-document replay for migration, multi-version reads, and migration-only
    branches from `canvas/sessionStore.ts`.
@@ -332,7 +332,7 @@ passes. Keep MCP optional as it is.
 
 ## Session compatibility policy
 
-Under ADR-0021, the tool maintains no session migration window while it has no
+Under ADR-0022, the tool maintains no session migration window while it has no
 users. Discard incompatible stored sessions instead of partially restoring or
 migrating them. Keep an explicit current schema identifier and validation.
 

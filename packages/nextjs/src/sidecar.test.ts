@@ -388,31 +388,36 @@ describe("sidecar token lifecycle (Stage 4)", () => {
 
     const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/reload`);
     const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
     const frames: string[] = [];
-    const reading = (async () => {
-      const decoder = new TextDecoder();
-      let buffer = "";
-      while (frames.length < 2) {
+    let buffer = "";
+
+    // `fetch` resolves on response headers, which the sidecar writes before it
+    // registers the stream. Reading the announce frame first proves the
+    // subscription exists, so the burst below cannot be published to nobody.
+    const readFrames = async (count: number): Promise<void> => {
+      while (frames.length < count) {
         const chunk = await reader.read();
-        if (chunk.done) return;
+        if (chunk.done) throw new Error("reload stream closed early");
         buffer += decoder.decode(chunk.value, { stream: true });
         let idx = buffer.indexOf("\n\n");
-        while (idx !== -1 && frames.length < 3) {
+        while (idx !== -1) {
           const frame = buffer.slice(0, idx).trim();
           buffer = buffer.slice(idx + 2);
           if (frame.startsWith("data:")) frames.push(frame);
           idx = buffer.indexOf("\n\n");
         }
       }
-    })();
+    };
 
+    await readFrames(1);
 
     // One burst of many fs events must settle into ONE notification.
     for (let i = 0; i < 5; i += 1) {
       appendFileSync(join(root, "app", "a.css"), `--burst-${i}: ${i}px;\n`);
     }
 
-    await reading;
+    await readFrames(2);
     // Announce + exactly ONE notification for the whole settled burst.
     expect(frames).toHaveLength(2);
     const revisions = frames.map((f) => JSON.parse(f.slice(5)).revision);

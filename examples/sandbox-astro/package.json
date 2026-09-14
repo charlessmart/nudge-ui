@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "playwright": "playwright test",
     "test:e2e": "playwright test",
-    "test:purity": "node scripts/build-purity.mjs",
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
