@@ -13,8 +13,9 @@ readonly SCRIPT_ROOT CURRENT_ROOT CURRENT_GIT_DIR
 
 readonly -a PATHS_TO_REMOVE=(
   "examples/sandbox-next/.next"
-  "docs/qa/screenshots"
+  "docs/qa"
   ".codex/config.toml"
+  "examples/sandbox-next/.codex/config.toml"
 )
 
 usage() {
@@ -27,8 +28,9 @@ git-filter-repo. The rewrite removes these exact paths from all reachable
 refs, expires reflogs, and prunes unreachable objects:
 
   examples/sandbox-next/.next
-  docs/qa/screenshots
+  docs/qa
   .codex/config.toml
+  examples/sandbox-next/.codex/config.toml
 
 The target must be a clean fresh clone or a bare mirror outside this checkout.
 The script never uses --force, never pushes, and never rewrites the checkout
@@ -155,7 +157,8 @@ done
     --invert-paths \
     --path "${PATHS_TO_REMOVE[0]}" \
     --path "${PATHS_TO_REMOVE[1]}" \
-    --path "${PATHS_TO_REMOVE[2]}"
+    --path "${PATHS_TO_REMOVE[2]}" \
+    --path "${PATHS_TO_REMOVE[3]}"
 )
 
 remaining_paths() {
@@ -165,8 +168,9 @@ remaining_paths() {
         path = $0
         sub(/^[^ ]+ /, "", path)
         if (path == ".codex/config.toml" ||
+            path == "examples/sandbox-next/.codex/config.toml" ||
             index(path, "examples/sandbox-next/.next/") == 1 ||
-            index(path, "docs/qa/screenshots/") == 1) {
+            index(path, "docs/qa/") == 1) {
           print path
         }
       }
