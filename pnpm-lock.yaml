@@ -481,6 +481,9 @@ importers:
       '@nudge-ui/vite-react':
         specifier: workspace:*
         version: link:../plugin
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../nudge-ui
       parse5:
         specifier: ^7.3.0
         version: 7.3.0
@@ -637,18 +640,15 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../inspector
-      '@nudge-ui/standalone':
-        specifier: workspace:*
-        version: link:../standalone
-      '@nudge-ui/vite-react':
-        specifier: workspace:*
-        version: link:../plugin
       magic-string:
         specifier: ^0.30.21
         version: 0.30.21
       next:
         specifier: '>=15.3 <17'
         version: 16.3.4(@playwright/test@1.62.1)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../nudge-ui
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.8
@@ -675,6 +675,22 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
+  packages/nudge-ui:
+    dependencies:
+      '@nudge-ui/css':
+        specifier: workspace:*
+        version: link:../css
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+
   packages/package-css-fixture: {}
 
   packages/plugin:
@@ -694,6 +710,9 @@ importers:
       magic-string:
         specifier: ^0.30.21
         version: 0.30.21
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../nudge-ui
       postcss:
         specifier: ^8.5.26
         version: 8.5.26
@@ -719,6 +738,9 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../inspector
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../nudge-ui
       parse5:
         specifier: ^7.3.0
         version: 7.3.0

@@ -9,6 +9,8 @@
  * served by the sidecar, while transformed application components register the
  * host React Adapter through the page-global runtime seam.
  */
+
+import { NUDGE_UI_CLIENT_PATH, NUDGE_UI_MANIFEST_PATH } from "nudge-ui/transport";
 export function NudgeUiMount() {
   return (
     <>
@@ -24,9 +26,9 @@ export function NudgeUiMount() {
       />
       <script
         type="module"
-        src="/__nudge_ui__/client.mjs"
+        src={NUDGE_UI_CLIENT_PATH}
         data-nudge-ui-client=""
-        data-nudge-ui-manifest="/__nudge_ui__/manifest"
+        data-nudge-ui-manifest={NUDGE_UI_MANIFEST_PATH}
       />
     </>
   );

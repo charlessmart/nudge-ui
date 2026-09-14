@@ -43,16 +43,6 @@
       "import": "./dist/manifest.js",
       "default": "./dist/manifest.js"
     },
-    "./token-manifest": {
-      "types": "./dist/tokenManifest.d.ts",
-      "import": "./dist/tokenManifest.js",
-      "default": "./dist/tokenManifest.js"
-    },
-    "./watcher": {
-      "types": "./dist/watcher.d.ts",
-      "import": "./dist/watcher.js",
-      "default": "./dist/watcher.js"
-    },
     "./server": {
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js",
@@ -67,6 +57,7 @@
   },
   "dependencies": {
     "@nudge-ui/css": "workspace:*",
+    "nudge-ui": "workspace:*",
     "@nudge-ui/inspector": "workspace:*",
     "parse5": "^7.3.0"
   },

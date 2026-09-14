@@ -319,7 +319,7 @@ describe("withNudgeUi — development output shape", () => {
       runtime?: { projectId?: string; host?: string };
     };
     expect(manifest.runtime?.host).toBe("nextjs-react");
-    expect(manifest.runtime?.projectId).toMatch(/^nextjs:[0-9a-f]{12}$/);
+    expect(manifest.runtime?.projectId).toMatch(/^nextjs:[0-9a-f]{24}$/);
   });
 
   it("shadows reserved-namespace user rewrites and keeps their other entries", async () => {

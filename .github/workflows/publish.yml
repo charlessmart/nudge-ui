@@ -89,6 +89,8 @@ jobs:
             archive: nudge-ui-css
           - name: "@nudge-ui/inspector"
             archive: nudge-ui-inspector
+          - name: "nudge-ui"
+            archive: nudge-ui
           - name: "@nudge-ui/vite-react"
             archive: nudge-ui-vite-react
           - name: "@nudge-ui/astro"

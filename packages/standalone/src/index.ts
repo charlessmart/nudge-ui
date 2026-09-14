@@ -19,21 +19,6 @@ export {
   type StandaloneRuntimeManifest,
 } from "./manifest.ts";
 export {
-  createStandaloneTokenSnapshot,
-  discoverStandaloneCssArtifacts,
-  type StandaloneCssArtifact,
-  type StandaloneCssFileReader,
-  type StandaloneTokenManifestOptions,
-  type StandaloneTokenSnapshot,
-} from "./tokenManifest.ts";
-export {
-  createStandaloneFileWatcher,
-  type StandaloneFileChange,
-  type StandaloneFileChangeKind,
-  type StandaloneFileWatcher,
-  type StandaloneFileWatcherOptions,
-} from "./watcher.ts";
-export {
   contentTypeForPath,
   createStandaloneProjectId,
   createStandaloneServer,

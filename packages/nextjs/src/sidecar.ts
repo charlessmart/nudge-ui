@@ -10,10 +10,16 @@ import {
 } from "./manifest.ts";
 import { extractComponentContracts } from "@nudge-ui/compiler/component-contracts";
 import {
-  createStandaloneFileWatcher,
-  type StandaloneFileChange,
-} from "@nudge-ui/standalone/watcher";
-import { createStandaloneTokenSnapshot } from "@nudge-ui/standalone/token-manifest";
+  createProjectFileWatcher,
+  type ProjectFileChange,
+} from "nudge-ui/project-files";
+import { createProjectTokenSnapshot } from "nudge-ui/project-tokens";
+import {
+  NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_MANIFEST_PATH,
+  NUDGE_UI_RELOAD_PATH,
+  NUDGE_UI_ROUTE_PREFIX,
+} from "nudge-ui/transport";
 
 /**
  * Loopback-only manifest/reload sidecar (ADR-0010).
@@ -305,6 +311,7 @@ export async function ensureSidecar(
     const additionalTokenRoots = scanRoots.filter((scanRoot) => scanRoot !== fsRoot);
     const tokenSnapshotOptions = {
       rootDirectory: fsRoot,
+      generationLabel: "nextjs-token",
       ...(additionalTokenRoots.length > 0 ? { additionalRootDirectories: additionalTokenRoots } : {}),
     };
 
@@ -312,12 +319,7 @@ export async function ensureSidecar(
       manifest.runtime.tokenCatalog = snapshot.tokenCatalog;
       manifest.runtime.tokens = snapshot.tokens;
       manifest.runtime.tokenDiagnostics = snapshot.tokenDiagnostics;
-      // The shared scanner labels its digest static-html:<digest>; this host
-      // publishes the same deterministic digest under its own namespace.
-      manifest.runtime.tokenGeneration = snapshot.tokenGeneration.replace(
-        /^static-html:/,
-        "nextjs-token:",
-      );
+      manifest.runtime.tokenGeneration = snapshot.tokenGeneration;
     };
 
     const receiveContracts = (file: string, contracts: unknown[]): void => {
@@ -365,7 +367,7 @@ export async function ensureSidecar(
       // tokens without waiting for a watcher tick. Failures degrade to the
       // empty snapshot already present in the manifest.
       try {
-        applySnapshot(await createStandaloneTokenSnapshot(tokenSnapshotOptions));
+        applySnapshot(await createProjectTokenSnapshot(tokenSnapshotOptions));
       } catch {
         /* keep empty snapshot */
       }
@@ -373,7 +375,7 @@ export async function ensureSidecar(
 
       const settleTokens = async (): Promise<void> => {
         try {
-          applySnapshot(await createStandaloneTokenSnapshot(tokenSnapshotOptions));
+          applySnapshot(await createProjectTokenSnapshot(tokenSnapshotOptions));
         } catch {
           /* unreadable trees keep the previous snapshot */
         }
@@ -381,7 +383,7 @@ export async function ensureSidecar(
       };
 
       const settleProjectChanges = async (
-        changes: readonly StandaloneFileChange[],
+        changes: readonly ProjectFileChange[],
       ): Promise<void> => {
         let needsContractRescan = false;
         // Changed or deleted component sources update their aggregated
@@ -447,7 +449,7 @@ export async function ensureSidecar(
         .sort((a, b) => a.length - b.length)
         .filter((scanRoot, index, list) =>
           !list.slice(0, index).some((outer) => isWithinRoot(outer, scanRoot)));
-      const appWatcher = createStandaloneFileWatcher({
+      const appWatcher = createProjectFileWatcher({
         rootDirectory: fsRoot,
         debounceMs: 60,
         onSettled: settleProjectChanges,
@@ -455,7 +457,7 @@ export async function ensureSidecar(
       await appWatcher.start();
       watchers.push(appWatcher);
       for (const tokenRoot of outerAdditionalRoots) {
-        const watcher = createStandaloneFileWatcher({
+        const watcher = createProjectFileWatcher({
           rootDirectory: tokenRoot,
           debounceMs: 60,
           onSettled: async (changes) => {
@@ -525,7 +527,7 @@ function respond(
 
   // Loader postings aggregate component contracts (Stage 5). Loopback-only by
   // virtue of the bind address; payload size is capped defensively.
-  if (url === "/__nudge_ui__/contracts" && req.method === "POST") {
+  if (url === `${NUDGE_UI_ROUTE_PREFIX}contracts` && req.method === "POST") {
     let body = "";
     req.on("data", (chunk) => {
       body += chunk;
@@ -553,7 +555,7 @@ function respond(
     return;
   }
 
-  if (url === "/__nudge_ui__/manifest") {
+  if (url === NUDGE_UI_MANIFEST_PATH) {
     // The served snapshot carries its revision so clients can reconcile
     // against SSE notifications instead of guessing.
     const body = `${JSON.stringify({ ...currentManifest(), revision: currentGeneration() })}\n`;
@@ -565,7 +567,7 @@ function respond(
     return;
   }
 
-  if (url === "/__nudge_ui__/client.mjs") {
+  if (url === NUDGE_UI_CLIENT_PATH) {
     try {
       inspectorClientPath ??= packageRequire.resolve("@nudge-ui/inspector/client");
       const body = readFileSync(inspectorClientPath);
@@ -580,7 +582,7 @@ function respond(
     return;
   }
 
-  if (url === "/__nudge_ui__/reload") {
+  if (url === NUDGE_UI_RELOAD_PATH) {
     res.writeHead(200, {
       "content-type": "text/event-stream",
       "cache-control": "no-store",

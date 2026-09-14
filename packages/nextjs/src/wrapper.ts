@@ -5,6 +5,7 @@ import type { ComponentModuleProtocols } from "@nudge-ui/compiler/component-poli
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
 import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
+import { NUDGE_UI_ROUTE_PREFIX } from "nudge-ui/transport";
 
 /**
  * `withNudgeUi(nextConfig)` — the single user touchpoint (ADR-0010).
@@ -55,7 +56,7 @@ export interface RewritesShape {
   [key: string]: unknown;
 }
 
-const NAMESPACE_PREFIX = "/__nudge_ui__";
+const NAMESPACE_PREFIX = NUDGE_UI_ROUTE_PREFIX.slice(0, -1);
 
 const SUPPORTED_NEXT_RANGE = ">=15.3 <17";
 
@@ -390,8 +391,8 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
 
   // --- Manifest transport rewrite ----------------------------------------
   const proxyRewrite = (port: number): RewritesSource => ({
-    source: "/__nudge_ui__/:path*",
-    destination: `http://127.0.0.1:${port}/__nudge_ui__/:path*`,
+    source: `${NUDGE_UI_ROUTE_PREFIX}:path*`,
+    destination: `http://127.0.0.1:${port}${NUDGE_UI_ROUTE_PREFIX}:path*`,
   });
 
   const resolveRewrites = async (): Promise<RewritesShape> => {

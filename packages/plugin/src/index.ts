@@ -23,6 +23,7 @@ import {
   type InventoryDiagnostic,
 } from "@nudge-ui/css/token-inventory";
 import { injectIdentity } from "@nudge-ui/compiler/react-identity";
+import { NUDGE_UI_CLIENT_PATH, NUDGE_UI_MANIFEST_PATH } from "nudge-ui/transport";
 import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
 import {
   catalogSourcePath,
@@ -165,8 +166,8 @@ const VIRTUAL_COMPONENTS_ID = "virtual:nudge-ui-components";
 const RESOLVED_COMPONENTS_ID = "\0" + VIRTUAL_COMPONENTS_ID;
 const CSS_EXT = /\.css(?:$|[?#])/;
 const COMPONENT_EXT = /\.(?:tsx|jsx)(?:$|[?#])/;
-const CLIENT_PATH = "/__nudge_ui__/client.mjs";
-const MANIFEST_PATH = "/__nudge_ui__/manifest";
+const CLIENT_PATH = NUDGE_UI_CLIENT_PATH;
+const MANIFEST_PATH = NUDGE_UI_MANIFEST_PATH;
 const INSPECTOR_COMPONENT_RUNTIME_MODULE = "@nudge-ui/inspector/component-runtime";
 const packageRequire = createRequire(import.meta.url);
 let inspectorClientPath: string | undefined;

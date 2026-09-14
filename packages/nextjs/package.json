@@ -52,7 +52,7 @@
     "@nudge-ui/compiler": "workspace:*",
     "@nudge-ui/css": "workspace:*",
     "@nudge-ui/inspector": "workspace:*",
-    "@nudge-ui/standalone": "workspace:*",
+    "nudge-ui": "workspace:*",
     "magic-string": "^0.30.21"
   },
   "peerDependencies": {

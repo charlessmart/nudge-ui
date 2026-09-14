@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
-import { realpathSync } from "node:fs";
 import type {
   NudgeUiClientManifest,
   NudgeUiRuntimeConfig,
 } from "@nudge-ui/inspector/client-manifest";
+import { createProjectId } from "nudge-ui/project-identity";
+import { NUDGE_UI_MANIFEST_VERSION, NUDGE_UI_RELOAD_PATH } from "nudge-ui/transport";
 
 /**
  * Builds the frozen runtime snapshot served over the loopback manifest
@@ -48,22 +48,12 @@ export interface NudgeUiTokenSnapshot {
 
 /** Short deterministic digest naming a project across restarts. */
 export function nextjsProjectId(root: string): string {
-  // Canonicalized so a symlinked working directory hashes to the same
-  // project (and therefore the same durable session) as its real path —
-  // matching the standalone host's identity derivation.
-  let canonical = root;
-  try {
-    canonical = realpathSync(root);
-  } catch {
-    /* an unresolvable root keeps its textual form */
-  }
-  const digest = createHash("sha256").update(canonical).digest("hex").slice(0, 12);
-  return `nextjs:${digest}`;
+  return createProjectId("nextjs", root);
 }
 
 export function buildManifest(input: NudgeUiManifestInput): NudgeUiManifest {
   return {
-    version: 1,
+    version: NUDGE_UI_MANIFEST_VERSION,
     revision: 0,
     runtime: {
       projectId: nextjsProjectId(input.root),
@@ -80,7 +70,7 @@ export function buildManifest(input: NudgeUiManifestInput): NudgeUiManifest {
       componentContracts: [],
     },
     reload: {
-      endpoint: "/__nudge_ui__/reload",
+      endpoint: NUDGE_UI_RELOAD_PATH,
       strategy: "refresh-manifest",
     },
   };

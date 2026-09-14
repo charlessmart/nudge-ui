@@ -6,9 +6,10 @@ import type { Plugin, ViteDevServer } from "vite";
 import { createAstroRuntimeConfig } from "./astroRuntimeConfig.ts";
 import { createAstroClientAssetHandler } from "./clientAsset.ts";
 
-export const ASTRO_ROUTE_PREFIX = "/__nudge_ui__/";
-export const ASTRO_CLIENT_PATH = `${ASTRO_ROUTE_PREFIX}client.mjs`;
-export const ASTRO_MANIFEST_PATH = `${ASTRO_ROUTE_PREFIX}manifest`;
+import {
+  NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_MANIFEST_PATH,
+} from "nudge-ui/transport";
 
 const serveClient = createAstroClientAssetHandler();
 
@@ -36,11 +37,11 @@ export function createAstroClientTransportPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
-        if (pathname === ASTRO_CLIENT_PATH) {
+        if (pathname === NUDGE_UI_CLIENT_PATH) {
           void serveClient(request, response).catch(next);
           return;
         }
-        if (pathname === ASTRO_MANIFEST_PATH) {
+        if (pathname === NUDGE_UI_MANIFEST_PATH) {
           void createManifest(server)
             .then((manifest) => {
               response.statusCode = 200;

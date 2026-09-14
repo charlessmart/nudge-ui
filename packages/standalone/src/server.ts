@@ -24,13 +24,13 @@ import {
   NUDGE_UI_ROUTE_PREFIX,
   type StandaloneRuntimeManifest,
 } from "./manifest.ts";
-import { createStandaloneTokenSnapshot, EMPTY_STANDALONE_TOKEN_SNAPSHOT } from "./tokenManifest.ts";
+import { createProjectTokenSnapshot, EMPTY_PROJECT_TOKEN_SNAPSHOT } from "nudge-ui/project-tokens";
 import {
-  createStandaloneFileWatcher,
-  type StandaloneFileChange,
-  type StandaloneFileWatcher,
-} from "./watcher.ts";
-import { isSensitiveProjectPath } from "./pathPolicy.ts";
+  createProjectFileWatcher,
+  isSensitiveProjectPath,
+  type ProjectFileChange,
+  type ProjectFileWatcher,
+} from "nudge-ui/project-files";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const HTML_EXTENSIONS = new Set([".html", ".htm"]);
@@ -102,12 +102,12 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
   let revision = 0;
   let manifest = createStandaloneRuntimeManifest(
     projectId,
-    EMPTY_STANDALONE_TOKEN_SNAPSHOT,
+    EMPTY_PROJECT_TOKEN_SNAPSHOT,
     revision,
   );
   // The initial scan runs asynchronously; start() awaits it so the first
   // request and manifest always observe the complete project token knowledge.
-  const initialTokens = createStandaloneTokenSnapshot({ rootDirectory }).then((tokens) => {
+  const initialTokens = createProjectTokenSnapshot({ rootDirectory, generationLabel: "static-html" }).then((tokens) => {
     manifest = createStandaloneRuntimeManifest(projectId, tokens, revision);
     return tokens;
   });
@@ -115,7 +115,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
   // prevents an unhandled rejection when a server is created but never started.
   void initialTokens.catch(() => undefined);
   const reloadClients = new Set<ServerResponse>();
-  let fileWatcher: StandaloneFileWatcher | null = null;
+  let fileWatcher: ProjectFileWatcher | null = null;
   let changeQueue = Promise.resolve();
 
   const getManifest = (): StandaloneRuntimeManifest => manifest;
@@ -140,13 +140,13 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       }
     }
   };
-  const processSettledChanges = (_changes: readonly StandaloneFileChange[]): void => {
+  const processSettledChanges = (_changes: readonly ProjectFileChange[]): void => {
     changeQueue = changeQueue.then(async () => {
       // Rebuild every settled batch. fs.watch can report a directory or omit a
       // filename, so an extension check cannot reliably identify CSS changes.
       // The scan is asynchronous and bounded to the project root; rebuilding
       // once per settled batch keeps the manifest coherent before reload.
-      const tokens = await createStandaloneTokenSnapshot({ rootDirectory });
+      const tokens = await createProjectTokenSnapshot({ rootDirectory, generationLabel: "static-html" });
       manifest = createStandaloneRuntimeManifest(projectId, tokens, revision + 1);
       revision += 1;
       notifyReload();
@@ -209,7 +209,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
               rejectStart(new Error("Standalone server closed during startup."));
               return;
             }
-            fileWatcher = createStandaloneFileWatcher({
+            fileWatcher = createProjectFileWatcher({
               rootDirectory,
               debounceMs: options.watchDebounceMs,
               onSettled: processSettledChanges,
@@ -236,7 +236,7 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
       const closeWatcher = fileWatcher?.close() ?? Promise.resolve();
       fileWatcher = null;
       closeReloadClients();
-      closePromise = closeWatcher
+      const closing = closeWatcher
         .then(() => pendingStart?.catch(() => undefined))
         .then(() => changeQueue)
         .then(() => {
@@ -255,7 +255,8 @@ export function createStandaloneServer(options: StandaloneServerOptions): Standa
           closeRequested = false;
           closePromise = null;
         });
-      return closePromise;
+      closePromise = closing;
+      return closing;
     },
   };
   return server;

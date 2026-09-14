@@ -11,6 +11,7 @@ const packageDirectories = [
   "create-nudge-ui",
   "css",
   "inspector",
+  "nudge-ui",
   "plugin",
   "astro",
   "nextjs",

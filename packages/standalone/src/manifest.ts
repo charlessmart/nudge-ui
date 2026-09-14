@@ -1,20 +1,14 @@
 import type { NudgeUiClientManifest } from "@nudge-ui/inspector/client-manifest";
-import type { StandaloneTokenSnapshot } from "./tokenManifest.ts";
+import type { ProjectTokenSnapshot } from "nudge-ui/project-tokens";
+import { NUDGE_UI_MANIFEST_VERSION, NUDGE_UI_RELOAD_PATH } from "nudge-ui/transport";
 
-/** The reserved URL namespace owned by the standalone Nudge UI host. */
-export const NUDGE_UI_ROUTE_PREFIX = "/__nudge_ui__/";
-
-/** The only mount ID supported by the standalone host contract. */
-export const NUDGE_UI_MOUNT_ID = "nudge-ui-root";
-
-/** The manifest consumed by the standalone browser client. */
-export const NUDGE_UI_MANIFEST_PATH = `${NUDGE_UI_ROUTE_PREFIX}manifest`;
-
-/** The prebundled, self-contained inspector client. */
-export const NUDGE_UI_CLIENT_PATH = `${NUDGE_UI_ROUTE_PREFIX}client.mjs`;
-
-/** The same-origin server-sent event stream for settled project changes. */
-export const NUDGE_UI_RELOAD_PATH = `${NUDGE_UI_ROUTE_PREFIX}reload`;
+export {
+  NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_MANIFEST_PATH,
+  NUDGE_UI_MOUNT_ID,
+  NUDGE_UI_RELOAD_PATH,
+  NUDGE_UI_ROUTE_PREFIX,
+} from "nudge-ui/transport";
 
 /** The serializable runtime document sent to a standalone client. */
 export interface StandaloneRuntimeManifest extends NudgeUiClientManifest {}
@@ -32,11 +26,11 @@ export interface StandaloneRuntimeManifest extends NudgeUiClientManifest {}
  */
 export function createStandaloneRuntimeManifest(
   projectId: string,
-  tokenSnapshot: StandaloneTokenSnapshot = emptyTokenSnapshot(),
+  tokenSnapshot: ProjectTokenSnapshot = emptyTokenSnapshot(),
   revision = 0,
 ): StandaloneRuntimeManifest {
   return {
-    version: 1,
+    version: NUDGE_UI_MANIFEST_VERSION,
     revision,
     runtime: {
       projectId,
@@ -65,7 +59,7 @@ export function createStandaloneRuntimeManifest(
   };
 }
 
-function emptyTokenSnapshot(): StandaloneTokenSnapshot {
+function emptyTokenSnapshot(): ProjectTokenSnapshot {
   return {
     tokenCatalog: [],
     tokens: [],

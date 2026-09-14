@@ -52,7 +52,7 @@ describe("sidecar transport", () => {
     };
     expect(manifest.version).toBe(1);
     expect(manifest.runtime.host).toBe("nextjs-react");
-    expect(manifest.runtime.projectId).toMatch(/^nextjs:[0-9a-f]{12}$/);
+    expect(manifest.runtime.projectId).toMatch(/^nextjs:[0-9a-f]{24}$/);
     expect(manifest.reload).toEqual({
       endpoint: "/__nudge_ui__/reload",
       strategy: "refresh-manifest",

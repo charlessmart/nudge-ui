@@ -12,21 +12,23 @@ import { realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { isExcludedDirectoryName, isSensitiveProjectPath } from "./pathPolicy.ts";
 
-export type StandaloneFileChangeKind = "add" | "change" | "remove";
+export { isExcludedDirectoryName, isSensitiveProjectPath } from "./pathPolicy.ts";
 
-export interface StandaloneFileChange {
+export type ProjectFileChangeKind = "add" | "change" | "remove";
+
+export interface ProjectFileChange {
   readonly absolutePath: string;
-  readonly kind: StandaloneFileChangeKind;
+  readonly kind: ProjectFileChangeKind;
 }
 
-export interface StandaloneFileWatcherOptions {
+export interface ProjectFileWatcherOptions {
   readonly rootDirectory: string;
   readonly debounceMs?: number;
-  readonly onSettled: (changes: readonly StandaloneFileChange[]) => void | Promise<void>;
+  readonly onSettled: (changes: readonly ProjectFileChange[]) => void | Promise<void>;
   readonly onError?: (error: unknown) => void;
 }
 
-export interface StandaloneFileWatcher {
+export interface ProjectFileWatcher {
   /** Starts watching and resolves after the initial directory walk is ready. */
   start(): Promise<void>;
   close(): Promise<void>;
@@ -39,13 +41,13 @@ interface DirectoryWatch {
 }
 
 /** Creates a watcher that starts and stops explicitly with the server. */
-export function createStandaloneFileWatcher(
-  options: StandaloneFileWatcherOptions,
-): StandaloneFileWatcher {
+export function createProjectFileWatcher(
+  options: ProjectFileWatcherOptions,
+): ProjectFileWatcher {
   const rootDirectory = realpathSync(resolve(options.rootDirectory));
   const debounceMs = Math.max(0, options.debounceMs ?? 60);
   const watches = new Map<string, DirectoryWatch>();
-  const pending = new Map<string, StandaloneFileChangeKind>();
+  const pending = new Map<string, ProjectFileChangeKind>();
   let timer: NodeJS.Timeout | null = null;
   let scanQueue: Promise<void> = Promise.resolve();
   let pendingScans = 0;
@@ -174,9 +176,9 @@ export function createStandaloneFileWatcher(
 }
 
 function mergeChangeKind(
-  previous: StandaloneFileChangeKind | undefined,
-  next: StandaloneFileChangeKind,
-): StandaloneFileChangeKind {
+  previous: ProjectFileChangeKind | undefined,
+  next: ProjectFileChangeKind,
+): ProjectFileChangeKind {
   if (!previous) return next;
   if (next === "remove") return "remove";
   if (next === "add") return previous === "remove" ? "add" : previous;
@@ -184,7 +186,7 @@ function mergeChangeKind(
   return "change";
 }
 
-function classifyChange(absolutePath: string, wasRenamed: boolean): StandaloneFileChangeKind {
+function classifyChange(absolutePath: string, wasRenamed: boolean): ProjectFileChangeKind {
   if (!exists(absolutePath)) return "remove";
   return wasRenamed ? "add" : "change";
 }

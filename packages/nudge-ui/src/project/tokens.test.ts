@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  createStandaloneTokenSnapshot,
-  discoverStandaloneCssArtifacts,
-} from "./tokenManifest.ts";
+  createProjectTokenSnapshot,
+  discoverProjectCssArtifacts,
+} from "./tokens.ts";
 
 describe("standalone CSS token discovery", () => {
   it("scans stable project-relative paths and excludes generated directories and escapes", async () => {
@@ -25,7 +25,7 @@ describe("standalone CSS token discovery", () => {
     await writeFile(join(outside, "secret.css"), ":root { --secret: 5px; }");
     await symlink(join(outside, "secret.css"), join(root, "outside.css"));
 
-    const artifacts = await discoverStandaloneCssArtifacts(root);
+    const artifacts = await discoverProjectCssArtifacts(root);
     expect(artifacts.map((artifact) => artifact.projectPath)).toEqual([
       "nested/a.css",
       "z.css",
@@ -40,8 +40,8 @@ describe("standalone CSS token discovery", () => {
     await mkdir(join(root, "styles"));
     await writeFile(join(root, "styles", "theme.css"), ":root { --brand: #09f; }");
 
-    const first = await createStandaloneTokenSnapshot({ rootDirectory: root });
-    const second = await createStandaloneTokenSnapshot({ rootDirectory: root });
+    const first = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
+    const second = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
     expect(second).toEqual(first);
     expect(first.tokens).toEqual([expect.objectContaining({
       cssName: "--brand",
@@ -57,7 +57,7 @@ describe("standalone CSS token discovery", () => {
       await writeFile(join(root, name), `:root { --${name[0]}: 1px; }`);
     }
 
-    expect((await discoverStandaloneCssArtifacts(root)).map((artifact) => artifact.projectPath)).toEqual([
+    expect((await discoverProjectCssArtifacts(root)).map((artifact) => artifact.projectPath)).toEqual([
       "a-.css",
       "a.css",
       "a_.css",
@@ -71,8 +71,9 @@ describe("standalone CSS token discovery", () => {
     await writeFile(join(root, "broken.css"), ":root { --broken: ;");
     await writeFile(join(root, "unreadable.css"), ":root { --unreadable: 1px; }");
 
-    const snapshot = await createStandaloneTokenSnapshot({
+    const snapshot = await createProjectTokenSnapshot({
       rootDirectory: root,
+      generationLabel: "test",
       readFile: (absolutePath) => {
         if (absolutePath.endsWith("unreadable.css")) {
           const error = new Error("permission denied") as Error & { code: string };
@@ -99,19 +100,19 @@ describe("standalone CSS token discovery", () => {
   it("changes generation for CSS add, change, and remove transitions", async () => {
     const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
     await writeFile(join(root, "base.css"), ":root { --base: 1px; }");
-    const initial = await createStandaloneTokenSnapshot({ rootDirectory: root });
+    const initial = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
 
     await writeFile(join(root, "added.css"), ":root { --added: 2px; }");
-    const added = await createStandaloneTokenSnapshot({ rootDirectory: root });
+    const added = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
     expect(added.tokenGeneration).not.toBe(initial.tokenGeneration);
 
     await writeFile(join(root, "added.css"), ":root { --added: 3px; }");
-    const changed = await createStandaloneTokenSnapshot({ rootDirectory: root });
+    const changed = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
     expect(changed.tokenGeneration).not.toBe(added.tokenGeneration);
 
     const { unlink } = await import("node:fs/promises");
     await unlink(join(root, "added.css"));
-    const removed = await createStandaloneTokenSnapshot({ rootDirectory: root });
+    const removed = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
     expect(removed.tokenGeneration).toBe(initial.tokenGeneration);
   });
 });

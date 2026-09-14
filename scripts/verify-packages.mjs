@@ -20,6 +20,7 @@ const packageDirectories = [
   "create-nudge-ui",
   "css",
   "inspector",
+  "nudge-ui",
   "plugin",
   "astro",
   "nextjs",
@@ -160,6 +161,7 @@ function verifyPackedAstroConsumers() {
     "@nudge-ui/compiler",
     "@nudge-ui/css",
     "@nudge-ui/inspector",
+    "nudge-ui",
     "@nudge-ui/vite-react",
     "@nudge-ui/astro",
   ];

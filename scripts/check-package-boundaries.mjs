@@ -32,12 +32,6 @@ const KNOWN_EXCEPTIONS = [
     reason: "Astro runs on Vite and deliberately composes the Vite integration.",
     retiredBy: "Step 5 — split the Vite host module out of the React semantics module.",
   },
-  {
-    from: "@nudge-ui/nextjs",
-    to: "@nudge-ui/standalone",
-    reason: "Next.js reaches sideways for file watching and token snapshots.",
-    retiredBy: "Step 2 — extract a shared project-files module.",
-  },
 ];
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs"]);

@@ -1,8 +1,7 @@
 import type { AstroIntegration, AstroUserConfig } from "astro";
 import { nudgeUi, type NudgeUiOptions } from "@nudge-ui/vite-react";
+import { NUDGE_UI_CLIENT_PATH, NUDGE_UI_MANIFEST_PATH } from "nudge-ui/transport";
 import {
-  ASTRO_CLIENT_PATH,
-  ASTRO_MANIFEST_PATH,
   createAstroClientTransportPlugin,
 } from "./clientTransport.ts";
 import { createProjectContextPlugin } from "./projectContext.ts";
@@ -24,9 +23,9 @@ const BOOTSTRAP_ENTRY_CONTENT = [
   'if (!document.querySelector("script[data-nudge-ui-client]")) {',
   '  const script = document.createElement("script");',
   '  script.type = "module";',
-  `  script.src = ${JSON.stringify(ASTRO_CLIENT_PATH)};`,
+  `  script.src = ${JSON.stringify(NUDGE_UI_CLIENT_PATH)};`,
   '  script.setAttribute("data-nudge-ui-client", "");',
-  `  script.dataset.nudgeUiManifest = ${JSON.stringify(ASTRO_MANIFEST_PATH)};`,
+  `  script.dataset.nudgeUiManifest = ${JSON.stringify(NUDGE_UI_MANIFEST_PATH)};`,
   "  document.head.append(script);",
   "}",
 ].join("\n");

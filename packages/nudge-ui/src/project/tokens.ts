@@ -31,7 +31,7 @@ import type {
 } from "@nudge-ui/css/model";
 
 /** The serializable token knowledge published by the standalone manifest. */
-export interface StandaloneTokenSnapshot {
+export interface ProjectTokenSnapshot {
   readonly tokenCatalog: readonly TokenDefinition[];
   readonly tokens: readonly TokenEntry[];
   readonly tokenDiagnostics: readonly TokenCatalogDiagnostic[];
@@ -39,7 +39,7 @@ export interface StandaloneTokenSnapshot {
 }
 
 /** The placeholder used before and in place of a successful project scan. */
-export const EMPTY_STANDALONE_TOKEN_SNAPSHOT: StandaloneTokenSnapshot = {
+export const EMPTY_PROJECT_TOKEN_SNAPSHOT: ProjectTokenSnapshot = {
   tokenCatalog: [],
   tokens: [],
   tokenDiagnostics: [],
@@ -47,7 +47,7 @@ export const EMPTY_STANDALONE_TOKEN_SNAPSHOT: StandaloneTokenSnapshot = {
 };
 
 /** A CSS file discovered below the project root before inventory parsing. */
-export interface StandaloneCssArtifact {
+export interface ProjectCssArtifact {
   readonly absolutePath: string;
   readonly projectPath: string;
   readonly content?: string;
@@ -58,14 +58,19 @@ export interface StandaloneCssArtifact {
  * Injectable file reader used to keep unreadable-file handling testable.
  * Readers may resolve asynchronously; the scan awaits each result.
  */
-export type StandaloneCssFileReader = (absolutePath: string) => string | Promise<string>;
+export type ProjectCssFileReader = (absolutePath: string) => string | Promise<string>;
 
 /** Options for the deterministic project CSS scan. */
-export interface StandaloneTokenManifestOptions {
+export interface ProjectTokenSnapshotOptions {
   readonly rootDirectory: string;
   /** Additional authored roots to include in the same deterministic inventory. */
   readonly additionalRootDirectories?: readonly string[];
-  readonly readFile?: StandaloneCssFileReader;
+  readonly readFile?: ProjectCssFileReader;
+  /**
+   * Namespace prefixed to the snapshot digest, so two hosts scanning the same
+   * project publish distinguishable generations.
+   */
+  readonly generationLabel: string;
 }
 
 /**
@@ -76,18 +81,18 @@ export interface StandaloneTokenManifestOptions {
  * only when their canonical target remains below rootDirectory. Read and
  * parse failures become diagnostics; they never reject the scan.
  */
-export async function createStandaloneTokenSnapshot(
-  options: StandaloneTokenManifestOptions,
-): Promise<StandaloneTokenSnapshot> {
+export async function createProjectTokenSnapshot(
+  options: ProjectTokenSnapshotOptions,
+): Promise<ProjectTokenSnapshot> {
   const rootDirectory = await canonicalRoot(options.rootDirectory);
   const additionalRoots = (await Promise.all(
     (options.additionalRootDirectories ?? []).map((directory) => canonicalOptionalRoot(directory)),
   )).filter((root): root is string => root !== null);
   const scanRoots = [rootDirectory, ...additionalRoots.filter((root) => root !== rootDirectory)];
   const discovered = await Promise.all(
-    scanRoots.map((root) => discoverStandaloneCssArtifacts(root, options.readFile)),
+    scanRoots.map((root) => discoverProjectCssArtifacts(root, options.readFile)),
   );
-  const artifacts: StandaloneCssArtifact[] = [];
+  const artifacts: ProjectCssArtifact[] = [];
   const seenFiles = new Set<string>();
   for (let index = 0; index < discovered.length; index += 1) {
     for (const artifact of discovered[index] ?? []) {
@@ -130,7 +135,7 @@ export async function createStandaloneTokenSnapshot(
   const snapshot = inventory.snapshot();
   const tokenGeneration = artifacts.length === 0
     ? "empty"
-    : deterministicGeneration(artifacts, snapshot.generation);
+    : deterministicGeneration(artifacts, snapshot.generation, options.generationLabel);
   return {
     tokenCatalog: snapshot.definitions.map((definition): TokenDefinition => ({
       ...definition,
@@ -154,12 +159,12 @@ export async function createStandaloneTokenSnapshot(
  * This is exported as a discovery seam so callers can test provenance and
  * symlink confinement without depending on PostCSS or inventory internals.
  */
-export async function discoverStandaloneCssArtifacts(
+export async function discoverProjectCssArtifacts(
   rootDirectory: string,
-  readFile: StandaloneCssFileReader = (absolutePath) => readUtf8File(absolutePath, "utf8"),
-): Promise<readonly StandaloneCssArtifact[]> {
+  readFile: ProjectCssFileReader = (absolutePath) => readUtf8File(absolutePath, "utf8"),
+): Promise<readonly ProjectCssArtifact[]> {
   const root = await canonicalRoot(rootDirectory);
-  const artifacts: StandaloneCssArtifact[] = [];
+  const artifacts: ProjectCssArtifact[] = [];
   const visitedDirectories = new Set<string>();
   const visitedFiles = new Set<string>();
 
@@ -173,8 +178,8 @@ async function walkDirectory(
   directory: string,
   visitedDirectories: Set<string>,
   visitedFiles: Set<string>,
-  artifacts: StandaloneCssArtifact[],
-  readFile: StandaloneCssFileReader,
+  artifacts: ProjectCssArtifact[],
+  readFile: ProjectCssFileReader,
 ): Promise<void> {
   const canonicalDirectoryPath = await canonicalWithinRoot(rootDirectory, directory);
   if (!canonicalDirectoryPath || visitedDirectories.has(canonicalDirectoryPath)) return;
@@ -295,8 +300,9 @@ function mapDiagnostic(diagnostic: InventoryDiagnostic): TokenCatalogDiagnostic 
 }
 
 function deterministicGeneration(
-  artifacts: readonly StandaloneCssArtifact[],
+  artifacts: readonly ProjectCssArtifact[],
   inventoryGeneration: string,
+  label: string,
 ): string {
   const facts = artifacts.map((artifact) => JSON.stringify({
     path: artifact.projectPath,
@@ -307,7 +313,7 @@ function deterministicGeneration(
     .update(`${facts.join("\n")}\n${inventoryGeneration}`)
     .digest("hex")
     .slice(0, 24);
-  return `static-html:${digest}`;
+  return `${label}:${digest}`;
 }
 
 /** Compares UTF-8 path bytes so discovery is independent of the host locale. */
