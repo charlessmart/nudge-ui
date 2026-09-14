@@ -9,15 +9,9 @@ import { fileURLToPath } from "node:url";
 const suiteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(suiteRoot, "../..");
 const maxDiagnosticCharacters = 256_000;
-const adapterPackages = {
-  astro: "nudge-ui/astro",
-  nextjs: "nudge-ui/next",
-  "nextjs-16.1": "nudge-ui/next",
-  standalone: "nudge-ui/static",
-  "vite-react": "nudge-ui/vite",
-  "vite-react-current": "nudge-ui/vite",
-  "vite-react-monorepo": "nudge-ui/vite",
-};
+const upstreamRegistry = "https://registry.npmjs.org";
+/** Every host installs the same distribution package and reaches its host through a subpath. */
+const distributionPackage = "nudge-ui";
 
 /**
  * The packed compatibility matrix deliberately varies one seam at a time:
@@ -206,15 +200,19 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
     "create-nudge-ui": `file:${initializerPackage.tarball}`,
   };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  const registryConfig = `@nudge-ui:registry=${registryUrl}\n`;
+  // The distribution package is unscoped, and npm only supports per-scope registries, so the
+  // consumer resolves everything through the local registry and it proxies what it does not pack.
+  const registryConfig = `registry=${registryUrl}\n`;
   writeFileSync(join(projectRoot, ".npmrc"), registryConfig);
   if (installDirectory !== projectRoot) writeFileSync(join(installDirectory, ".npmrc"), registryConfig);
+  // Environment config outranks the project .npmrc, and the outer pnpm run exports npm_config_registry.
+  const registryEnv = { ...process.env, npm_config_registry: registryUrl, NPM_CONFIG_REGISTRY: registryUrl };
 
   const packageManager = consumer.packageManager ?? "npm";
   const installArgs = packageManager === "pnpm"
     ? ["install", "--no-frozen-lockfile", "--ignore-scripts"]
     : ["install", "--no-audit", "--no-fund"];
-  await runAsync(packageManager, installArgs, packageManagerRoot);
+  await runAsync(packageManager, installArgs, packageManagerRoot, registryEnv);
   const initializerCandidates = [
     join(installDirectory, "node_modules", ".bin", "create-nudge-ui"),
     join(projectRoot, "node_modules", ".bin", "create-nudge-ui"),
@@ -225,12 +223,13 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
     initializer,
     ["--framework", consumer.installerFramework ?? consumer.adapter, "--package-manager", packageManager],
     installDirectory,
+    registryEnv,
   );
   const adapterRoots = [installDirectory, projectRoot];
   const installedAdapter = adapterRoots
-    .map((directory) => join(directory, "node_modules", ...adapterPackages[consumer.adapter].split("/")))
+    .map((directory) => join(directory, "node_modules", distributionPackage))
     .find((candidate) => lstatSync(candidate, { throwIfNoEntry: false }));
-  if (!installedAdapter) throw new Error(`${consumer.adapter} was not installed.`);
+  if (!installedAdapter) throw new Error(`${consumer.adapter} did not install ${distributionPackage}.`);
   if (lstatSync(installedAdapter).isSymbolicLink()) {
     const resolvedAdapter = realpathSync(installedAdapter);
     const resolvedProjectRoot = realpathSync(projectRoot);
@@ -339,7 +338,11 @@ async function startRegistry(packages) {
 
     const name = decodeURIComponent(path.slice(1));
     const packed = packages.get(name);
-    if (!packed) return sendJson(response, 404, { error: `Package ${name} not found.` });
+    if (!packed) {
+      response.writeHead(302, { location: `${upstreamRegistry}${request.url ?? "/"}` });
+      response.end();
+      return;
+    }
     const bytes = readFileSync(packed.tarball);
     const version = packed.manifest.version;
     const tarballUrl = `${registry.url}/tarballs/${encodeURIComponent(name)}`;
@@ -489,9 +492,9 @@ function runSync(command, args, cwd) {
   execFileSync(command, args, { cwd, env: process.env, stdio: "inherit" });
 }
 
-function runAsync(command, args, cwd) {
+function runAsync(command, args, cwd, env = process.env) {
   return new Promise((resolveRun, rejectRun) => {
-    const child = spawn(command, args, { cwd, env: process.env, stdio: "inherit" });
+    const child = spawn(command, args, { cwd, env, stdio: "inherit" });
     child.once("error", rejectRun);
     child.once("exit", (code, signal) => {
       if (code === 0) {

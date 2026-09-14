@@ -1,8 +1,7 @@
 /**
  * Compiles the compiler-facing loader entries to self-contained CommonJS
- * modules under dist/webpack/. Webpack cannot execute TypeScript loaders,
- * while Turbopack consumes the raw .cts sources directly — so Turbopack
- * keeps the source path and webpack mode registers these bundles.
+ * modules under dist/hosts/next/loaders/. Neither webpack nor Turbopack can
+ * execute the TypeScript sources, so both register these bundles.
  */
 import { build } from "esbuild";
 import { mkdirSync } from "node:fs";

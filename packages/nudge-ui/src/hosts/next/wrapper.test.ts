@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   DEVELOPMENT_SERVER_PHASE,
   withNudgeUi,
@@ -9,6 +10,13 @@ import {
 } from "./wrapper.ts";
 import { buildManifest, nextjsProjectId } from "./manifest.ts";
 import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
+
+/**
+ * Where `pnpm --filter nudge-ui build` writes the bundled CommonJS loaders. The
+ * registered paths are asserted exactly: a merely plausible suffix let a wrong
+ * directory ship once.
+ */
+const loaderDirectory = fileURLToPath(new URL("../../../dist/hosts/next/loaders/", import.meta.url));
 
 function makeProject(): string {
   const root = mkdtempSync(join(tmpdir(), "next-wrapper-"));
@@ -135,8 +143,8 @@ describe("withNudgeUi — development output shape", () => {
     for (const key of ["*.tsx", "*.jsx"]) {
       const rule = rules[key];
       expect(rule).toBeDefined();
-      expect((rule!.loaders as Array<{ loader: string }>)[0]?.loader).toMatch(
-        /dist[\\/]+loaders[\\/]loader-plugin\.cjs$/,
+      expect((rule!.loaders as Array<{ loader: string }>)[0]?.loader).toBe(
+        join(loaderDirectory, "loader-plugin.cjs"),
       );
       expect(rule!.condition).toEqual({
         all: [
@@ -269,7 +277,9 @@ describe("withNudgeUi — development output shape", () => {
     // Identity rule for first-party TSX/JSX. The inspector client is served
     // as a prebuilt asset, so Next must not receive a CSS query rule.
     expect(rules[0]?.test).toEqual(/\.(tsx|jsx)$/);
-    expect((rules[0]?.use as Array<{ loader: string }>)[0]?.loader).toMatch(/identity-loader\.cjs$/);
+    expect((rules[0]?.use as Array<{ loader: string }>)[0]?.loader).toBe(
+      join(loaderDirectory, "identity-loader.cjs"),
+    );
     expect((devOut.resolve as { alias?: Record<string, unknown> }).alias).toEqual(
       expect.objectContaining({
         "nudge-ui/component-runtime": expect.stringMatching(/reactRuntime\.(?:js|tsx)$/),
