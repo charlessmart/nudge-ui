@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createTokenInventory } from "@nudge-ui/css/token-inventory";
+import { mergeConfig } from "vite";
 import {
   nudgeUi as createNudgeUiPlugins,
   extractViteModuleCss,
@@ -286,7 +287,10 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
   type ConfigHook = (
     config: unknown,
     env: { command: string },
-  ) => { resolve: { alias?: unknown[]; dedupe?: string[] } } | undefined;
+  ) => {
+    optimizeDeps?: { include?: string[]; exclude?: string[]; [key: string]: unknown };
+    resolve: { alias?: unknown[]; dedupe?: string[] };
+  } | undefined;
 
   it("dedupes React for the shared external client without aliasing it", () => {
     const plugin = nudgeUi() as unknown as { config?: ConfigHook };
@@ -295,6 +299,35 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
     expect(result?.resolve.alias).toEqual(expect.arrayContaining([
       expect.objectContaining({ find: "@nudge-ui/inspector/component-runtime" }),
     ]));
+    expect(result?.optimizeDeps?.include).toEqual([
+      "@nudge-ui/inspector/component-runtime",
+    ]);
+  });
+
+  it("merges the component runtime into host dependency optimization settings once", () => {
+    const plugin = nudgeUi() as unknown as { config?: ConfigHook };
+    const hostConfig = {
+      root: sandboxRoot,
+      optimizeDeps: {
+        include: ["host-dependency"],
+        exclude: ["host-excluded-dependency"],
+        force: true,
+      },
+    };
+    const pluginConfig = plugin.config?.(hostConfig, serveEnv);
+    const result = mergeConfig(hostConfig, pluginConfig ?? {});
+
+    expect(result.optimizeDeps?.include).toEqual([
+      "host-dependency",
+      "@nudge-ui/inspector/component-runtime",
+    ]);
+    expect(result.optimizeDeps?.exclude).toEqual(["host-excluded-dependency"]);
+    expect(result.optimizeDeps?.force).toBe(true);
+    expect(hostConfig.optimizeDeps).toEqual({
+      include: ["host-dependency"],
+      exclude: ["host-excluded-dependency"],
+      force: true,
+    });
   });
 
   it("retains React aliases for the bundled landing demo", () => {
@@ -309,6 +342,9 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
       config?: ConfigHook;
     };
     expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toEqual({
+      optimizeDeps: {
+        include: ["@nudge-ui/inspector/component-runtime"],
+      },
       resolve: {
         alias: expect.arrayContaining([
           expect.objectContaining({ find: "@nudge-ui/inspector/component-runtime" }),
