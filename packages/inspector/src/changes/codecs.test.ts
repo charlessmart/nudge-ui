@@ -48,6 +48,7 @@ function makeTokenChange(): TokenChangeRecord {
     property: "--color-surface",
     rawValue: "#bbbbbb",
     oldRawValue: "#aaaaaa",
+    important: true,
     context: {},
     contextLabel: ":root",
     source: { file: "src/theme.css", line: 4, component: "Global token" },

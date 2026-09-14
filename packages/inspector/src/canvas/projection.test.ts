@@ -114,6 +114,7 @@ describe("projection", () => {
       property: "--color-text",
       rawValue: "#eeeeee",
       oldRawValue: "#dddddd",
+      important: false,
       context: { wrappers: [{ kind: "media", params: "(prefers-color-scheme: dark)" }] },
       contextLabel: 'root[data-theme="dark"]',
       source: { file: "src/theme.css", line: 6, component: "Global token" },

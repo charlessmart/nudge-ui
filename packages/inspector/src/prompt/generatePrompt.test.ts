@@ -946,6 +946,7 @@ describe("generatePrompt", () => {
       property: "--color-text",
       rawValue: "var(--color-neutral-100)",
       oldRawValue: "#eeeeee",
+      important: false,
       context: {},
       contextLabel: 'root[data-theme="dark"]',
       source: { file: "src/theme.css", line: 6, component: "Global token" },

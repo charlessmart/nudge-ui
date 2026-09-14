@@ -15,6 +15,7 @@ export function setGlobalTokenValue(row: TokenCatalogRow, value: string): TokenC
     property: row.definition.cssName,
     rawValue: nextValue,
     oldRawValue: row.authoredValue,
+    important: row.activeDeclaration.important,
     context: row.styleContext,
     contextLabel: row.contextLabel,
     source: { file: row.file, line: row.line, component: "Global token" },
