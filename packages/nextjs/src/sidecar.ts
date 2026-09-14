@@ -130,10 +130,14 @@ function nearestWorkspaceRoot(root: string): string {
   return root;
 }
 
-function tokenScanRoots(root: string, sourceRoots: readonly string[] = []): string[] {
+async function tokenScanRoots(root: string, sourceRoots: readonly string[] = []): Promise<string[]> {
   const workspaceRoot = nearestWorkspaceRoot(root);
   const configuredRoots = sourceRoots.map((sourceRoot) => resolve(root, sourceRoot));
-  return [...new Set([workspaceRoot, ...configuredRoots])];
+  const canonicalRoots = await Promise.all(
+    [root, workspaceRoot, ...configuredRoots].map((scanRoot) =>
+      realpath(scanRoot).catch(() => scanRoot)),
+  );
+  return [...new Set(canonicalRoots)];
 }
 
 function isWithinRoot(root: string, candidate: string): boolean {
@@ -265,7 +269,7 @@ export async function ensureSidecar(
   // prefix may differ (e.g. /tmp -> /private/tmp), so canonicalize once and
   // derive every filesystem-relative computation from the canonical root.
   const fsRoot = await realpath(root).catch(() => root);
-  const scanRoots = tokenScanRoots(fsRoot, options.sourceRoots);
+  const scanRoots = await tokenScanRoots(fsRoot, options.sourceRoots);
   const state = globalState(
     `${options.tokens ? "tokens" : "manifest"}:${fsRoot}:${scanRoots.join("|")}`,
   );
@@ -298,9 +302,10 @@ export async function ensureSidecar(
     };
 
     const manifest: NudgeUiManifest = options.manifest ?? buildManifest({ root });
+    const additionalTokenRoots = scanRoots.filter((scanRoot) => scanRoot !== fsRoot);
     const tokenSnapshotOptions = {
-      rootDirectory: scanRoots[0]!,
-      ...(scanRoots.length > 1 ? { additionalRootDirectories: scanRoots.slice(1) } : {}),
+      rootDirectory: fsRoot,
+      ...(additionalTokenRoots.length > 0 ? { additionalRootDirectories: additionalTokenRoots } : {}),
     };
 
     const applySnapshot = (snapshot: NudgeUiTokenSnapshot): void => {
@@ -432,7 +437,7 @@ export async function ensureSidecar(
       // contracts. Additional workspace roots only need token updates; using
       // them for contract rescans would broaden the contract root silently.
       // Roots nested inside the app are already covered by the app watcher.
-      const additionalRoots = [...new Set(scanRoots)].filter(
+      const additionalRoots = scanRoots.filter(
         (scanRoot) => scanRoot !== fsRoot && !isWithinRoot(fsRoot, scanRoot),
       );
       // Additional roots can overlap each other (for example an explicit

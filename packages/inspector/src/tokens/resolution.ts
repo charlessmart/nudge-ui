@@ -225,15 +225,31 @@ function normalizedPath(value: string): string {
   return decodeURIComponent(value).replace(/\\/g, "/").replace(/^file:\/\//, "").replace(/\/+$/, "");
 }
 
-function loadedStylesheetSources(doc: Document): string[] {
-  return Array.from(doc.querySelectorAll<HTMLStyleElement | HTMLLinkElement>(
+interface LoadedStylesheetSource {
+  readonly path: string;
+  readonly providesAuthoredIdentity: boolean;
+}
+
+function loadedStylesheetSources(doc: Document): LoadedStylesheetSource[] {
+  const sourceIdentityByPath = new Map<string, boolean>();
+  for (const node of doc.querySelectorAll<HTMLStyleElement | HTMLLinkElement>(
     'style[data-vite-dev-id], link[rel~="stylesheet"][href]',
-  )).flatMap((node) => {
-    const source = node instanceof HTMLStyleElement
-      ? node.dataset.viteDevId
+  )) {
+    const providesAuthoredIdentity = node.tagName === "STYLE";
+    const source = providesAuthoredIdentity
+      ? (node as HTMLStyleElement).dataset.viteDevId
       : node.getAttribute("href");
-    return source ? [normalizedPath(source.split(/[?#]/, 1)[0] ?? source)] : [];
-  });
+    if (!source) continue;
+    const path = normalizedPath(source.split(/[?#]/, 1)[0] ?? source);
+    sourceIdentityByPath.set(
+      path,
+      providesAuthoredIdentity || sourceIdentityByPath.get(path) === true,
+    );
+  }
+  return Array.from(sourceIdentityByPath, ([path, providesAuthoredIdentity]) => ({
+    path,
+    providesAuthoredIdentity,
+  }));
 }
 
 function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
@@ -254,16 +270,24 @@ function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
  */
 function confidentlyLoadedStylesheetSources(
   definitions: readonly TokenDefinition[],
-  loadedSources: readonly string[],
+  loadedSources: readonly LoadedStylesheetSource[],
 ): string[] {
   const cssSources = definitions.flatMap((definition) =>
     definition.declarations
       .map((declaration) => declaration.source)
       .filter((source) => /\.css$/i.test(sourceFile(source))));
-  if (cssSources.length === 0) return [];
-  const known = loadedSources.filter((loaded) =>
-    cssSources.some((source) => isLoadedCssSource(source, [loaded])));
-  return known.length === loadedSources.length ? known : [];
+  const known = new Set<string>();
+  for (const loaded of loadedSources) {
+    if (loaded.providesAuthoredIdentity
+      || cssSources.some((source) => isLoadedCssSource(source, [loaded.path]))) {
+      known.add(loaded.path);
+      continue;
+    }
+    // One opaque compiled URL can contain any authored declaration, so the
+    // document does not provide enough evidence to remove unloaded sources.
+    return [];
+  }
+  return [...known];
 }
 
 /**

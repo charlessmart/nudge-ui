@@ -7,6 +7,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -291,6 +292,8 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     mkdirSync(appRoot, { recursive: true });
     mkdirSync(stylesRoot, { recursive: true });
     writeFileSync(join(workspaceRoot, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n  - packages/*\n");
+    mkdirSync(join(appRoot, "app"), { recursive: true });
+    writeFileSync(join(appRoot, "app", "globals.css"), ":root{--app-accent:#2563eb}");
     writeFileSync(join(stylesRoot, "theme.css"), ":root{--workspace-accent:#4f46e5}");
 
     const handle = await ensureSidecar(appRoot, { tokens: true });
@@ -300,14 +303,34 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     const manifest = (await response.json()) as {
       runtime: {
         tokens: Array<{ name: string }>;
-        tokenCatalog: Array<{ declarations: Array<{ source: string }> }>;
+        tokenCatalog: Array<{ cssName: string; declarations: Array<{ source: string }> }>;
       };
     };
 
-    expect(manifest.runtime.tokens.map((token) => token.name)).toContain("--workspace-accent");
-    expect(manifest.runtime.tokenCatalog[0]?.declarations[0]?.source).toContain(
-      "packages/ui/src/styles/theme.css",
-    );
+    const sourceByName = new Map(manifest.runtime.tokenCatalog.map((definition) => [
+      definition.cssName,
+      definition.declarations[0]?.source,
+    ]));
+    expect(sourceByName.get("--app-accent")).toBe("app/globals.css:1");
+    expect(sourceByName.get("--workspace-accent")).toBe("../../packages/ui/src/styles/theme.css:1");
+  });
+
+  it("reuses one sidecar when configured token roots resolve to the same directory", async () => {
+    const root = mkdtempSync(join(tmpdir(), "tokens-canonical-roots-"));
+    roots.push(root);
+    const appRoot = join(root, "app");
+    const stylesRoot = join(root, "styles");
+    const stylesAlias = join(root, "styles-alias");
+    mkdirSync(appRoot, { recursive: true });
+    mkdirSync(stylesRoot, { recursive: true });
+    symlinkSync(stylesRoot, stylesAlias, "dir");
+
+    const first = await ensureSidecar(appRoot, { tokens: true, sourceRoots: [stylesRoot] });
+    handles.push(first);
+    const second = await ensureSidecar(appRoot, { tokens: true, sourceRoots: [stylesAlias] });
+    if (second !== first) handles.push(second);
+
+    expect(second.port).toBe(first.port);
   });
 
   it("includes explicitly configured authored roots outside the app", async () => {

@@ -113,6 +113,22 @@ describe("runtime token availability", () => {
     ]);
   });
 
+  it("filters unloaded declarations when a loaded stylesheet declares no tokens", () => {
+    const tokenStyle = document.createElement("style");
+    tokenStyle.dataset.viteDevId = "/project/src/styles.css";
+    const tokenlessStyle = document.createElement("style");
+    tokenlessStyle.dataset.viteDevId = "/project/src/reset.css";
+    document.head.append(tokenStyle, tokenlessStyle);
+    document.documentElement.style.setProperty("--color-live", "#224466");
+
+    expect(getAvailableTokenCatalog(document.documentElement, definitions)).toEqual([
+      {
+        ...definitions[0],
+        declarations: [definitions[0]!.declarations[0]!],
+      },
+    ]);
+  });
+
   it("keeps adapter declarations when compiled stylesheet links have opaque URLs", () => {
     const link = document.createElement("link");
     link.rel = "stylesheet";
