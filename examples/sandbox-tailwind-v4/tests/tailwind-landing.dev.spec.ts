@@ -88,9 +88,7 @@ test("dev: Tailwind v4 color opacity keeps base token, alpha, and painted previe
   expect(facts.authored).toContain("10%");
   expect(facts.catalog.find((entry) => entry.cssName === "--color-red-500")).toMatchObject({ adapter: "tailwind-v4" });
 
-  await fixture.evaluate((element) => {
-    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
-  });
+  await fixture.click({ position: { x: 5, y: 5 } });
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return root?.querySelector('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]')?.textContent?.trim() ?? null;
@@ -114,9 +112,9 @@ test("dev: Tailwind side border utilities parse into independent inspector field
     return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(",");
   })).toBe("2px,4px,8px,1px");
 
-  await expect(page.locator('.border')).toHaveAttribute("data-expanded", "true");
+  await expect(page.locator('[data-test="style-editors"] .border')).toHaveAttribute("data-expanded", "true");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("2px");
   await expect(page.locator('[data-test="token-field"][data-property="border-right-width"] [data-test="raw-input"]')).toHaveValue("4px");
-  await expect(page.locator('[data-test="border-style-top"]')).toContainText("Dashed");
+  await expect(page.locator('[data-test="border-style-top"]')).toHaveAttribute("aria-label", "Border style: Dashed");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-color"] [data-test="token-chip"]')).toContainText("--color-lime-300");
 });

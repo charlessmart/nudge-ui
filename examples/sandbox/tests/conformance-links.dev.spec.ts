@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("dev: main demo links to every conformance page", async ({ page }) => {
   await page.goto("/playground");
+  await expect(page.locator(".site-shell")).toBeVisible();
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 
@@ -24,8 +25,12 @@ test("dev: main demo links to every conformance page", async ({ page }) => {
 
 test("dev: ordinary conformance-link clicks select without navigating", async ({ page }) => {
   await page.goto("/playground");
+  await expect(page.locator(".site-shell")).toBeVisible();
+  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
   await page.evaluate(() => localStorage.clear());
   await page.reload();
+  await expect(page.locator(".site-shell")).toBeVisible();
+  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
 
   await page.locator('[data-conformance-route="/conformance"]').click();
 
@@ -35,8 +40,12 @@ test("dev: ordinary conformance-link clicks select without navigating", async ({
 
 test("dev: Command-click selects a conformance link without navigating", async ({ page, context }) => {
   await page.goto("/playground");
+  await expect(page.locator(".site-shell")).toBeVisible();
+  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
   await page.evaluate(() => localStorage.clear());
   await page.reload();
+  await expect(page.locator(".site-shell")).toBeVisible();
+  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
 
   await page.locator('[data-conformance-route="/conformance"]').click({ modifiers: ["Meta"] });
 
@@ -47,6 +56,7 @@ test("dev: Command-click selects a conformance link without navigating", async (
 
 test("dev: Command+Shift-click follows a conformance link", async ({ page, context }) => {
   await page.goto("/playground");
+  await expect(page.locator(".site-shell")).toBeVisible();
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 

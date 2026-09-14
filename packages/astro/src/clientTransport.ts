@@ -28,6 +28,10 @@ interface ComponentModule {
 export function createAstroClientTransportPlugin(): Plugin {
   return {
     name: "nudge-ui-astro-client-transport",
+    // The shared Vite plugin exposes the same route for React hosts. Astro's
+    // host-specific manifest must be installed first so that its middleware
+    // is the handler that answers /__nudge_ui__/manifest.
+    enforce: "pre",
     apply: "serve",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {

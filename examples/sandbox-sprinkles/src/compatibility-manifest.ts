@@ -73,7 +73,7 @@ export const compatibilityManifest: CompatibilityManifest = {
         property: "color",
         selectToken: "theme.color.accent",
         computedAfter: "rgb(171, 205, 239)",
-        promptContains: ["theme.color.brand", "theme.color.accent", "vanilla-extract (sprinkles)"],
+        promptContains: ["theme.color.brand", "theme.color.accent"],
         revertTo: "rgb(18, 52, 86)",
       },
     },

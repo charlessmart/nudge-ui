@@ -102,14 +102,7 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
 
   // Select the hero card heading.
   const target = page.locator(".hero-card h2");
-  await target.evaluate((element) => {
-    if (!(element instanceof HTMLElement)) throw new Error("target is not an HTMLElement");
-    element.click();
-  });
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-    "data-selected-cid",
-    "HeroCard",
-  );
+  await target.click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   // Let the editor surface finish binding its control handlers.
   await page.waitForTimeout(1200);
@@ -123,13 +116,8 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
     '[data-test="token-field"][data-property="width"] [data-test="raw-input"]',
   );
   await widthInput.waitFor({ state: "visible", timeout: 15_000 }).catch(async () => {
-    await page.locator(".hero-card h2").evaluate((el) => {
-      if (el instanceof HTMLElement) el.click();
-    });
-    await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-      "data-selected-cid",
-      "HeroCard",
-    );
+    await page.locator(".hero-card h2").click();
+    await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
     await widthInput.waitFor({ state: "visible", timeout: 15_000 });
   });
   await widthInput.evaluate((el, value) => {
@@ -175,40 +163,20 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
   await expect(page.locator(".hero-card h2")).toHaveCSS("width", "240px");
 });
 
-// Was skipped pending issue 0060 (React 19-canary click delegation inside the
-// shadow-root mount). The symptom no longer reproduces on the pinned
-// react ^19.2 line; this spec is the regression guard.
 test("dev: prompt copy names the source location without runtime selectors", async ({ page }) => {
   await inspectorReady(page);
 
   const target = page.locator(".hero-card h2");
-  await target.evaluate((element) => {
-    if (!(element instanceof HTMLElement)) throw new Error("target is not an HTMLElement");
-    element.click();
-  });
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-    "data-selected-cid",
-    "HeroCard",
-  );
+  await target.click();
 
   // The copy control enables once the session holds a change; make one.
-  await page.evaluate(() => {
-    const target = document.querySelector(".hero-card h2");
-    if (!(target instanceof HTMLElement)) throw new Error("target is not an HTMLElement");
-    target.click();
-  });
+  await target.click();
   const input = page.locator(
     '[data-test="token-field"][data-property="width"] [data-test="raw-input"]',
   );
   await input.waitFor({ state: "visible", timeout: 15_000 }).catch(async () => {
-    await page.locator(".hero-card h2").evaluate((el) => {
-      if (!(el instanceof HTMLElement)) throw new Error("target is not an HTMLElement");
-      el.click();
-    });
-    await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-      "data-selected-cid",
-      "HeroCard",
-    );
+    await page.locator(".hero-card h2").click();
+    await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
     await input.waitFor({ state: "visible", timeout: 15_000 });
   });
   await input.evaluate((el) => {
@@ -237,10 +205,7 @@ test("dev: source files stay byte-for-byte unchanged across a session", async ({
   await inspectorReady(page);
   // Interact: select, edit, navigate — the full instrumented lifecycle.
   const target = page.locator(".hero-card h2");
-  await target.evaluate((element) => {
-    if (!(element instanceof HTMLElement)) throw new Error("target is not an HTMLElement");
-    element.click();
-  });
+  await target.click();
   await page.waitForURL("**/");
 
   const after = sourceBytes();

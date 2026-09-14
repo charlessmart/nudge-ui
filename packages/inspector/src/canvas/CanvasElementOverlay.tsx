@@ -7,7 +7,7 @@ import {
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { useBoardCamera, useCanvasCards } from "./canvasStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
-import { useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
+import { getSelectedElements, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 import {
   getMarginFills,
   getMarginGuides,
@@ -143,8 +143,13 @@ export function CanvasElementOverlay(): ReactElement | null {
   const selectedRect = selectedInCanvas && selectedLocalRect
     ? projectRect(selectedFrame, selectedLocalRect, camera.zoom)
     : null;
-  const projectedSelectedRects = selectedInCanvas
-    ? selectedRects.flatMap((rect) => rect ? [projectRect(selectedFrame!, rect, camera.zoom)] : [])
+  const projectedSelectedGeometry = selectedInCanvas
+    ? selectedRects.flatMap((rect, index) => {
+      const element = selectedElements[index];
+      return rect && element
+        ? [{ element, rect: projectRect(selectedFrame, rect, camera.zoom) }]
+        : [];
+    })
     : [];
   const selectedBorders = selectedInCanvas && selected
     ? readBorderWidths(selected.domElement)
@@ -213,7 +218,7 @@ export function CanvasElementOverlay(): ReactElement | null {
       } else if (data.type === "element-deselect") {
         setSelectedElement(null);
       } else if (data.type === "element-drag-start") {
-        if (selectedElements.length !== 1) return;
+        if (getSelectedElements().length > 1) return;
         const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         if (!element) return;
@@ -235,13 +240,13 @@ export function CanvasElementOverlay(): ReactElement | null {
         dragRef.current = null;
         clearDropGuide("canvas");
       } else if (data.type === "element-delete") {
-        if (selectedElements.length !== 1) return;
+        if (getSelectedElements().length !== 1) return;
         const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         const selectedElement = element ? resolveSelectionFromElement(element) : null;
         if (selectedElement && deleteElement(selectedElement)) setSelectedElement(null);
       } else if (data.type === "element-nudge") {
-        if (selectedElements.length !== 1) return;
+        if (getSelectedElements().length !== 1) return;
         const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         const record = element ? nudgeElement(element, msg.key) : null;
@@ -275,9 +280,9 @@ export function CanvasElementOverlay(): ReactElement | null {
       window.removeEventListener("message", onMessage);
       clearDropGuide("canvas");
     };
-  }, [selectedElements.length]);
+  }, []);
 
-  if (!hover && projectedSelectedRects.length === 0 && !projectedDropGuide) return null;
+  if (!hover && projectedSelectedGeometry.length === 0 && !projectedDropGuide) return null;
 
   const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, camera.zoom) : null;
   const hoverMargins = hover ? scaleMargins(hover.margins, camera.zoom) : null;
@@ -340,12 +345,14 @@ export function CanvasElementOverlay(): ReactElement | null {
           ))}
         </>
       ) : null}
-      {projectedSelectedRects.map((rect, index) => (
+      {projectedSelectedGeometry.map(({ element, rect }, index) => (
         <div
-          key={`canvas-selected-${index}`}
+          key={`${element.cid}-${index}`}
           className="canvas-selected-outline"
           data-test="canvas-selected-outline"
+          data-selected-cid={element.cid}
           data-selected-index={index}
+          data-selected-src={element.src}
           style={overlayStyle(rect)}
           aria-hidden="true"
         />

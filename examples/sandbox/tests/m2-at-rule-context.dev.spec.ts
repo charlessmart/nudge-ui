@@ -48,6 +48,7 @@ test("dev: a media-query popover lists all property candidates and highlights th
 
 test("dev: a matching container-query declaration is shown in the context popover", async ({ page }) => {
   await page.goto("/playground");
+  await expect(page.locator(".site-shell")).toBeVisible();
   await page.evaluate(() => {
     const button = document.querySelector(".btn") as HTMLElement | null;
     if (!button?.parentElement) throw new Error("Expected sandbox Save button");

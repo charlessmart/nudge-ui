@@ -2,10 +2,7 @@ import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 
 async function selectCase(page: import("@playwright/test").Page, id: string): Promise<void> {
-  await page.locator(`[data-test="pipeline-case-${id}"]`).evaluate((element) => {
-    element.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, composed: true }));
-  });
-  await expect(page.locator('[data-test="selection"]')).toBeVisible();
+  await page.locator(`[data-test="pipeline-case-${id}"]`).click({ position: { x: 5, y: 5 } });
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 }
 
@@ -14,19 +11,9 @@ async function setRawInput(
   property: string,
   value: string,
 ): Promise<void> {
-  await page.evaluate(({ property: prop, next }) => {
-    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const input = shadow?.querySelector(
-      `[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`,
-    ) as HTMLInputElement | null;
-    if (!input) throw new Error(`Missing raw input for ${prop}`);
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-    if (!setter) throw new Error("Native input value setter is unavailable");
-    input.focus();
-    setter.call(input, next);
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    input.blur();
-  }, { property, next: value });
+  const input = page.locator(`[data-test="token-field"][data-property="${property}"] [data-test="raw-input"]`);
+  await input.fill(value);
+  await input.blur();
 }
 
 function computed(
@@ -40,18 +27,13 @@ function computed(
   );
 }
 
-test("dev: static CSS catalog reaches the Inspector", async ({ page }) => {
+test("dev: static CSS declarations remain inspectable without a token catalog", async ({ page }) => {
   await page.goto("/pipeline-conformance");
-
-  await expect.poll(() => page.evaluate(() => (
-    (window as { __designTokenCatalog?: Array<{ cssName: string }> })
-      .__designTokenCatalog
-      ?.find((token) => token.cssName === "--pipeline-color")
-  ))).toMatchObject({ cssName: "--pipeline-color" });
-
   await selectCase(page, "token-color");
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="token-chip"]'))
     .toContainText("--pipeline-color");
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]'))
+    .toContainText("--pipeline-surface");
 });
 
 test("dev: a fallback expression remains authored and previews through the managed stylesheet", async ({ page }) => {

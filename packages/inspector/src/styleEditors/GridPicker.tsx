@@ -123,11 +123,16 @@ export function GridPicker({ domElement: el, editTarget, revision = 0, onAfterEd
     if (!open) return;
 
     function closeOnOutsidePointer(event: PointerEvent): void {
+      const picker = pickerRef.current;
+      if (!picker) return;
       const target = event.target;
-      if (target instanceof Node && !pickerRef.current?.contains(target)) {
-        setOpen(false);
-        setHovered(null);
-      }
+      // Document listeners see a shadow-root event through its host as the
+      // retargeted `event.target`. Use the composed path so pointer-downs on
+      // the grid cells are not mistaken for outside clicks.
+      if (event.composedPath().includes(picker)) return;
+      if (target instanceof Node && picker.contains(target)) return;
+      setOpen(false);
+      setHovered(null);
     }
 
     document.addEventListener("pointerdown", closeOnOutsidePointer);

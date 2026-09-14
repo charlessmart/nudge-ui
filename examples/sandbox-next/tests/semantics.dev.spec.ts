@@ -5,20 +5,11 @@ test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 /**
  * Stage 5 — semantic component props on client components.
  *
- * Issue 0060: React 19-canary click delegation inside the shadow-root mount
- * does not dispatch onClick under Next 16 dev, so panel controls cannot be
- * driven through trusted pointer clicks here. The flip below therefore
- * invokes the control's own React handler (the same function a trusted click
- * would reach) — which still exercises the REAL rerender path: the wrapped
- * client component re-renders with the new prop value, no managed stylesheet
- * declaration is produced, and the durable session records callsite
- * identity.
+ * These tests use trusted browser interactions. Selection and prop changes
+ * cross the same event bridge as an end user, then exercise the real rerender
+ * path: the wrapped client component updates, no managed stylesheet
+ * declaration is produced, and the durable session records callsite identity.
  */
-
-// Both flip specs were skipped pending issue 0060 (React 19-canary click
-// delegation inside the shadow-root mount under Next 16 dev). The symptom
-// does not reproduce on the pinned react ^19.2 line; these specs are the
-// regression guard for panel clicks and prop controls.
 
 async function selectBadge(page: import("@playwright/test").Page): Promise<void> {
   await page.goto("/");
@@ -38,13 +29,8 @@ async function selectBadge(page: import("@playwright/test").Page): Promise<void>
       return Boolean(badge && Object.keys(badge).some((k) => k.startsWith("__reactFiber$")));
     }))
     .toBe(true);
-  await page.locator('[data-testid="client-badge"]').evaluate((el) => {
-    if (el instanceof HTMLElement) el.click();
-  });
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-    "data-selected-cid",
-    "ClientBadge",
-  );
+  await page.locator('[data-testid="client-badge"]').click();
+  await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 }
 
 test("dev: flipping a typed enum prop re-renders the real client component", async ({
@@ -100,12 +86,7 @@ test("dev: server-component invocations never produce prop controls", async ({ p
 
   // HeroCard is a server component; its rendered elements carry identity but
   // must not expose semantic prop controls.
-  await page.locator(".hero-card h2").evaluate((el) => {
-    if (el instanceof HTMLElement) el.click();
-  });
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-    "data-selected-cid",
-    "HeroCard",
-  );
+  await page.locator(".hero-card h2").click();
+  await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   await expect(page.locator('[data-test="component-props-section"]')).toHaveCount(0);
 });

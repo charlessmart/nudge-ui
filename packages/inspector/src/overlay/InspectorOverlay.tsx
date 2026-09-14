@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactElement } from "react";
 import { useInspectorOpen } from "../shell/openStore.ts";
-import { useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
+import { getSelectedElements, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 import { installElementSelector } from "./elementSelector.ts";
 import {
   getMarginFills,
@@ -157,7 +157,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       window.removeEventListener("scroll", scheduleHoverRecalc, true);
       hoverResizeObserver?.disconnect();
     };
-  }, [open, host, selectedElements.length]);
+  }, [open, host]);
 
   useEffect(() => {
     let raf = 0;
@@ -229,7 +229,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
 
     function onPointerDown(event: MouseEvent): void {
       if (isInlineTextEditingActive()) return;
-      if (selectedElements.length > 1) return;
+      if (getSelectedElements().length > 1) return;
       if (event.button !== 0 || !(event.target instanceof HTMLElement)) return;
       if (host === event.target || host.contains(event.target)) return;
       if (event.target.closest(`[${EMPTY_TEXT_PROJECTION_ATTR}]`)) return;
@@ -285,7 +285,7 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
       clearDropGuide("inspect");
       removeInteractionStyles();
     };
-  }, [open, host, selectedElements.length]);
+  }, [open, host]);
 
   const selectedGeometry = selectedElements.flatMap((candidate, index) => {
     const rect = selectedRects[index];
@@ -369,7 +369,9 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
           key={`${element.domElement.getAttribute("data-cid") ?? "element"}-${index}`}
           className="selected-outline"
           data-test="selected-outline"
+          data-selected-cid={element.cid}
           data-selected-index={index}
+          data-selected-src={element.src}
           style={overlayStyle(rect)}
           aria-hidden="true"
         />
