@@ -19,6 +19,8 @@ import { changeKey } from "./model.ts";
 import { getPreviewDiagnostic } from "./previewDiagnostics.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import type { RenderedInstanceOverride } from "./editModel.ts";
+import { buildManagedStyleRules } from "./managedStyleProjection.ts";
+import { rulesToCssText } from "../projection/managedStylesheet.ts";
 
 const COLOR_A: TokenEntry = { name: "--color-a", value: "#aaaaaa", source: "styles.css:1" };
 const COLOR_B: TokenEntry = { name: "--color-b", value: "#bbbbbb", source: "styles.css:2" };
@@ -487,6 +489,7 @@ describe("changesLog", () => {
       property: "--color-text",
       rawValue: "#eeeeee",
       oldRawValue: "#dddddd",
+      important: false,
       context: { wrappers: [{ kind: "media", params: "(prefers-color-scheme: dark)" }] },
       contextLabel: 'root[data-theme="dark"]',
       source: { file: "src/theme.css", line: 6, component: "Global token" },
@@ -500,6 +503,60 @@ describe("changesLog", () => {
     }]);
   });
 
+  it("preserves authored cascade layers in token projections", () => {
+    const rules = buildManagedStyleRules([{
+      kind: "token",
+      tokenName: "--primary",
+      file: "src/theme.css",
+      line: 6,
+      selector: ":root",
+      property: "--primary",
+      rawValue: "300 100% 50%",
+      oldRawValue: "240 5.9% 10%",
+      important: false,
+      context: {
+        wrappers: [
+          { kind: "layer", params: "base" },
+          { kind: "media", params: "(prefers-color-scheme: dark)" },
+        ],
+      },
+      contextLabel: "Default · @layer base · @media (prefers-color-scheme: dark)",
+      source: { file: "src/theme.css", line: 6, component: "Global token" },
+    }]);
+
+    expect(rules).toEqual([{
+      selector: ":root",
+      declarations: { "--primary": "300 100% 50%" },
+      context: {
+        wrappers: [
+          { kind: "layer", params: "base" },
+          { kind: "media", params: "(prefers-color-scheme: dark)" },
+        ],
+      },
+    }]);
+  });
+
+  it("preserves important priority in token projections", () => {
+    const rules = buildManagedStyleRules([{
+      kind: "token",
+      tokenName: "--primary",
+      file: "src/theme.css",
+      line: 6,
+      selector: ":root",
+      property: "--primary",
+      rawValue: "300 100% 50%",
+      oldRawValue: "240 5.9% 10%",
+      important: true,
+      context: { wrappers: [{ kind: "layer", params: "base" }] },
+      contextLabel: "Default · @layer base",
+      source: { file: "src/theme.css", line: 6, component: "Global token" },
+    }]);
+
+    expect(rulesToCssText(rules)).toBe(
+      "@layer base { :root { --primary: 300 100% 50% !important; } }",
+    );
+  });
+
   it("deduplicates global token edits against the first authored baseline", () => {
     const base = {
       kind: "token" as const,
@@ -508,6 +565,7 @@ describe("changesLog", () => {
       line: 3,
       selector: ":root",
       property: "--space-2",
+      important: false,
       context: {},
       contextLabel: "Default",
       source: { file: "src/theme.css", line: 3, component: "Global token" as const },

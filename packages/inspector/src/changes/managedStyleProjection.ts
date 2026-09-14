@@ -18,6 +18,13 @@ function requestedStyleValue(change: PreviewableChangeRecord): string {
   return change.rawValue ?? "";
 }
 
+function projectedStyleValue(change: PreviewableChangeRecord): string {
+  const value = requestedStyleValue(change);
+  return isTokenChange(change) && change.important && !/!\s*important\s*$/i.test(value)
+    ? `${value} !important`
+    : value;
+}
+
 function ruleKey(change: PreviewableChangeRecord): string {
   const context = isTokenChange(change) ? JSON.stringify(change.context) : "";
   return `${selectorForManagedChange(change) ?? change.selector}\u0000${change.property}\u0000${context}`;
@@ -38,7 +45,7 @@ export function buildManagedStyleRules(changes: ChangeRecord[]): StyleRule[] {
   const instanceRules = new Map<string, StyleRule>();
   for (const change of changes) {
     if (isComponentChange(change) || isTextContentChange(change)) continue;
-    const value = requestedStyleValue(change);
+    const value = projectedStyleValue(change);
     if (!value) continue;
     const selector = selectorForManagedChange(change);
     if (!selector) continue;

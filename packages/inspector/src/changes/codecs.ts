@@ -70,6 +70,7 @@ export interface SerializableTokenChange {
   property: string;
   rawValue: string;
   oldRawValue: string;
+  important?: boolean;
   context: StyleRuleContext;
   contextLabel: string;
   source: { file: string; line: number; component: string };
@@ -148,7 +149,7 @@ export function isSerializableTokenChangeValue(value: unknown): value is Seriali
   return isRecord(value)
     && hasOnlyKeys(value, [
       "kind", "tokenName", "file", "line", "selector", "property", "rawValue",
-      "oldRawValue", "context", "contextLabel", "source",
+      "oldRawValue", "important", "context", "contextLabel", "source",
     ])
     && value.kind === "token"
     && typeof value.tokenName === "string"
@@ -158,6 +159,7 @@ export function isSerializableTokenChangeValue(value: unknown): value is Seriali
     && typeof value.property === "string"
     && typeof value.rawValue === "string"
     && typeof value.oldRawValue === "string"
+    && (value.important === undefined || typeof value.important === "boolean")
     && isStyleRuleContextValue(value.context)
     && typeof value.contextLabel === "string"
     && isSourceValue(value.source);
@@ -234,6 +236,7 @@ export function serializeTokenChange(change: TokenChangeRecord): SerializableTok
     property: change.property,
     rawValue: change.rawValue,
     oldRawValue: change.oldRawValue,
+    important: change.important,
     context: wrappers ? { wrappers: wrappers.map((wrapper) => ({ ...wrapper })) } : {},
     contextLabel: change.contextLabel ?? "",
     source: change.source,
@@ -319,6 +322,7 @@ export function deserializeTokenChange(serialized: SerializableTokenChange): Tok
     property: serialized.property,
     rawValue: serialized.rawValue,
     oldRawValue: serialized.oldRawValue,
+    important: serialized.important ?? false,
     context: serialized.context ?? {},
     contextLabel: serialized.contextLabel ?? "",
     source: serialized.source,
