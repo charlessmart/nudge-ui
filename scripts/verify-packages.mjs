@@ -16,10 +16,7 @@ import ts from "typescript";
 const repositoryRoot = resolve(new URL("..", import.meta.url).pathname);
 const packageDirectories = [
   "agent-protocol",
-  "compiler",
   "create-nudge-ui",
-  "css",
-  "inspector",
   "nudge-ui",
   "mcp",
 ];
@@ -108,24 +105,23 @@ function verifyPackage(packageRoot) {
     );
     assert(entries.includes("package/bin/nudge-ui.mjs"), "nudge-ui is missing its CLI entry point.");
     assert(entries.includes("package/dist/nudge-ui.mjs"), "nudge-ui is missing its bundled CLI.");
-    // Every host reads the inspector client from @nudge-ui/inspector at
-    // runtime. Shipping a second copy would let the two drift.
-    assert(
-      !entries.includes("package/dist/client.mjs"),
-      "nudge-ui must serve the shared inspector client instead of publishing a copy.",
-    );
-  }
-  if (packageJson.name === "@nudge-ui/inspector") {
+    // The browser client is served over HTTP into pages that have no module
+    // resolution, so it must carry every dependency it needs.
     const clientPath = "package/dist/client.mjs";
-    assert(entries.includes(clientPath), "Inspector package is missing its self-contained client.");
-    const client = tarFile(tarball, clientPath);
-    const externalSpecifiers = externalModuleSpecifiers(client);
+    assert(entries.includes(clientPath), "nudge-ui is missing its self-contained inspector client.");
+    const externalSpecifiers = externalModuleSpecifiers(tarFile(tarball, clientPath));
     assert(
       externalSpecifiers.length === 0,
       `Inspector client contains external module imports: ${externalSpecifiers.join(", ")}.`,
     );
-    assert(!entries.includes("package/dist/client.js"), "Inspector package contains a dead client.js emit.");
-    assert(!entries.includes("package/dist/client.d.ts"), "Inspector package contains a dead client declaration emit.");
+    assert(
+      !entries.includes("package/dist/inspector/client.js"),
+      "nudge-ui contains a dead client.js emit alongside the bundled client.",
+    );
+    assert(
+      !entries.includes("package/dist/inspector/client.d.ts"),
+      "nudge-ui contains a dead client declaration emit alongside the bundled client.",
+    );
   }
   if (packageJson.name === "@nudge-ui/mcp") {
     assert(!entries.includes("package/scripts/postinstall.mjs"), "MCP package must not ship an install-time postinstall script.");
@@ -153,12 +149,7 @@ function verifyPackedAstroConsumers() {
   }
   const requiredPackages = [
     "@nudge-ui/agent-protocol",
-    "@nudge-ui/compiler",
-    "@nudge-ui/css",
-    "@nudge-ui/inspector",
     "nudge-ui",
-    "nudge-ui/vite",
-    "nudge-ui/astro",
   ];
   for (const packageName of requiredPackages) {
     assert(tarballs.has(packageName), `Packed Astro verification is missing ${packageName}.`);

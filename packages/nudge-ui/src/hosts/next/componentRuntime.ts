@@ -4,4 +4,4 @@
  * The loader emits this package-owned specifier so pnpm consumers do not
  * need to resolve the inspector package as an application dependency.
  */
-export * from "@nudge-ui/inspector/component-runtime";
+export * from "nudge-ui/component-runtime";

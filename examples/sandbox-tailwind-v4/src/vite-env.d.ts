@@ -1,16 +1,16 @@
 /// <reference types="vite/client" />
 
 interface Window {
-  __designTokens?: import("@nudge-ui/css/model").TokenEntry[];
-  __designTokenCatalog?: import("@nudge-ui/css/model").TokenDefinition[];
-  __designTokenDiagnostics?: import("@nudge-ui/css/model").TokenCatalogDiagnostic[];
+  __designTokens?: import("nudge-ui/vite/tokens").TokenEntry[];
+  __designTokenCatalog?: import("nudge-ui/vite/tokens").TokenDefinition[];
+  __designTokenDiagnostics?: import("nudge-ui/vite/tokens").TokenCatalogDiagnostic[];
 }
 declare module "virtual:design-tokens" {
   import type {
     TokenCatalogDiagnostic,
     TokenDefinition,
     TokenEntry,
-  } from "@nudge-ui/css/model";
+  } from "nudge-ui/vite/tokens";
 
   export const tokenCatalog: TokenDefinition[];
   export const tokens: TokenEntry[];

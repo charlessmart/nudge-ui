@@ -1,4 +1,4 @@
-import type { NudgeUiClientManifest } from "@nudge-ui/inspector/client-manifest";
+import type { NudgeUiClientManifest } from "../../inspector/clientManifest.ts";
 import type { ProjectTokenSnapshot } from "../../project/tokens.ts";
 import { NUDGE_UI_MANIFEST_VERSION, NUDGE_UI_RELOAD_PATH } from "../../transport/index.ts";
 

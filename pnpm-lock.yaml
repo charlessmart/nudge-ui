@@ -38,9 +38,6 @@ importers:
 
   examples/mockup-cards:
     dependencies:
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../../packages/inspector
       '@tabler/icons-react':
         specifier: 3.46.0
         version: 3.46.0(react@18.3.1)
@@ -90,12 +87,6 @@ importers:
 
   examples/sandbox:
     dependencies:
-      '@nudge-ui/css':
-        specifier: workspace:*
-        version: link:../../packages/css
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../../packages/inspector
       '@nudge-ui/package-css-fixture':
         specifier: workspace:*
         version: link:../../packages/package-css-fixture
@@ -139,9 +130,6 @@ importers:
       '@astrojs/react':
         specifier: ^6.0.5
         version: 6.0.5(@types/node@22.20.1)(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.2)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(yaml@2.9.0)
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../../packages/inspector
       astro:
         specifier: ^7.2.10
         version: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(yaml@2.9.0)
@@ -176,12 +164,6 @@ importers:
 
   examples/sandbox-next:
     dependencies:
-      '@nudge-ui/css':
-        specifier: workspace:*
-        version: link:../../packages/css
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../../packages/inspector
       next:
         specifier: ~16.3.4
         version: 16.3.4(@playwright/test@1.62.1)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -213,9 +195,6 @@ importers:
 
   examples/sandbox-sprinkles:
     dependencies:
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../../packages/inspector
       '@vanilla-extract/css':
         specifier: 1.21.2
         version: 1.21.2
@@ -265,9 +244,6 @@ importers:
       '@nudge-ui/compatibility':
         specifier: workspace:*
         version: link:../../packages/compatibility
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../../packages/inspector
       nudge-ui:
         specifier: workspace:*
         version: link:../../packages/nudge-ui
@@ -317,9 +293,6 @@ importers:
       '@nudge-ui/compatibility':
         specifier: workspace:*
         version: link:../../packages/compatibility
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../../packages/inspector
       '@shadcn/react':
         specifier: ^0.3.1
         version: 0.3.1(@types/react@19.2.18)(react@19.2.8)
@@ -423,9 +396,6 @@ importers:
 
   landing:
     dependencies:
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../packages/inspector
       '@tabler/icons-react':
         specifier: 3.46.0
         version: 3.46.0(react@18.3.1)
@@ -482,87 +452,12 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
-  packages/compiler:
-    dependencies:
-      '@babel/parser':
-        specifier: ^7.29.8
-        version: 7.29.8
-      magic-string:
-        specifier: ^0.30.21
-        version: 0.30.21
-    devDependencies:
-      '@types/node':
-        specifier: ^22.20.1
-        version: 22.20.1
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
-
   packages/create-nudge-ui:
     dependencies:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
     devDependencies:
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
-
-  packages/css:
-    dependencies:
-      postcss:
-        specifier: ^8.5.26
-        version: 8.5.26
-    devDependencies:
-      jsdom:
-        specifier: ^25.0.1
-        version: 25.0.1
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
-
-  packages/inspector:
-    dependencies:
-      '@base-ui/react':
-        specifier: ^1.7.0
-        version: 1.7.0(@date-fns/tz@1.5.0)(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@nudge-ui/agent-protocol':
-        specifier: workspace:*
-        version: link:../agent-protocol
-      '@nudge-ui/css':
-        specifier: workspace:*
-        version: link:../css
-      '@tabler/icons-react':
-        specifier: ^3.46.0
-        version: 3.46.0(react@19.2.8)
-    devDependencies:
-      '@types/react':
-        specifier: 19.2.18
-        version: 19.2.18
-      '@types/react-dom':
-        specifier: 19.2.5
-        version: 19.2.5(@types/react@19.2.18)
-      esbuild:
-        specifier: ^0.21.5
-        version: 0.21.5
-      jsdom:
-        specifier: ^25.0.1
-        version: 25.0.1
-      react:
-        specifier: ^19.2.8
-        version: 19.2.8
-      react-dom:
-        specifier: ^19.2.8
-        version: 19.2.8(react@19.2.8)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
@@ -597,15 +492,15 @@ importers:
       '@babel/parser':
         specifier: ^7.29.8
         version: 7.29.8
-      '@nudge-ui/compiler':
+      '@base-ui/react':
+        specifier: ^1.7.0
+        version: 1.7.0(@date-fns/tz@1.5.0)(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@nudge-ui/agent-protocol':
         specifier: workspace:*
-        version: link:../compiler
-      '@nudge-ui/css':
-        specifier: workspace:*
-        version: link:../css
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../inspector
+        version: link:../agent-protocol
+      '@tabler/icons-react':
+        specifier: ^3.46.0
+        version: 3.46.0(react@19.2.8)
       magic-string:
         specifier: ^0.30.21
         version: 0.30.21
@@ -618,12 +513,6 @@ importers:
       postcss:
         specifier: ^8.5.26
         version: 8.5.26
-      react:
-        specifier: ^18.0.0 || ^19.0.0
-        version: 19.2.8
-      react-dom:
-        specifier: ^18.0.0 || ^19.0.0
-        version: 19.2.8(react@19.2.8)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -632,10 +521,10 @@ importers:
         specifier: ^22.20.1
         version: 22.20.1
       '@types/react':
-        specifier: ^19.2.18
+        specifier: 19.2.18
         version: 19.2.18
       '@types/react-dom':
-        specifier: ^19.2.5
+        specifier: 19.2.5
         version: 19.2.5(@types/react@19.2.18)
       astro:
         specifier: ^7.2.10
@@ -643,6 +532,15 @@ importers:
       esbuild:
         specifier: ^0.28.0
         version: 0.28.2
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1
+      react:
+        specifier: ^19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.8
+        version: 19.2.8(react@19.2.8)
       vite:
         specifier: ^8.2.2
         version: 8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)

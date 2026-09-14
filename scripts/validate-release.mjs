@@ -7,10 +7,7 @@ import { resolve } from "node:path";
 const repositoryRoot = resolve(new URL("..", import.meta.url).pathname);
 const packageDirectories = [
   "agent-protocol",
-  "compiler",
   "create-nudge-ui",
-  "css",
-  "inspector",
   "nudge-ui",
   "mcp",
 ];

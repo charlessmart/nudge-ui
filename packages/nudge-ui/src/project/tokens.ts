@@ -21,14 +21,14 @@ import {
   createTokenInventory,
   type InventoryDiagnostic,
   type StylesheetArtifact,
-} from "@nudge-ui/css/token-inventory";
+} from "../css/token-inventory/index.ts";
 import { isExcludedDirectoryName, isSensitiveProjectPath } from "./pathPolicy.ts";
 import type {
   TokenCatalogDiagnostic,
   TokenDeclaration,
   TokenDefinition,
   TokenEntry,
-} from "@nudge-ui/css/model";
+} from "../css/model/index.ts";
 
 /** The serializable token knowledge published by the standalone manifest. */
 export interface ProjectTokenSnapshot {

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { createTokenInventory } from "@nudge-ui/css/token-inventory";
+import { createTokenInventory } from "../../css/token-inventory/index.ts";
 import { mergeConfig } from "vite";
 import {
   nudgeUi as createNudgeUiPlugins,
@@ -12,7 +12,7 @@ import {
   transformIndexHtmlHtml,
   withNudgeUi,
 } from "./index.ts";
-import { interpretDialects } from "@nudge-ui/css/dialects";
+import { interpretDialects } from "../../css/dialects/index.ts";
 
 const nudgeUi = (...args: Parameters<typeof createNudgeUiPlugins>) =>
   createNudgeUiPlugins(...args)[0]!;
@@ -296,10 +296,10 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
     const result = plugin.config?.({ root: sandboxRoot }, serveEnv);
     expect(result?.resolve.dedupe).toEqual(["react", "react-dom"]);
     expect(result?.resolve.alias).toEqual(expect.arrayContaining([
-      expect.objectContaining({ find: "@nudge-ui/inspector/component-runtime" }),
+      expect.objectContaining({ find: "nudge-ui/component-runtime" }),
     ]));
     expect(result?.optimizeDeps?.include).toEqual([
-      "@nudge-ui/inspector/component-runtime",
+      "nudge-ui/component-runtime",
     ]);
   });
 
@@ -318,7 +318,7 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
 
     expect(result.optimizeDeps?.include).toEqual([
       "host-dependency",
-      "@nudge-ui/inspector/component-runtime",
+      "nudge-ui/component-runtime",
     ]);
     expect(result.optimizeDeps?.exclude).toEqual(["host-excluded-dependency"]);
     expect(result.optimizeDeps?.force).toBe(true);
@@ -342,11 +342,11 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
     };
     expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toEqual({
       optimizeDeps: {
-        include: ["@nudge-ui/inspector/component-runtime"],
+        include: ["nudge-ui/component-runtime"],
       },
       resolve: {
         alias: expect.arrayContaining([
-          expect.objectContaining({ find: "@nudge-ui/inspector/component-runtime" }),
+          expect.objectContaining({ find: "nudge-ui/component-runtime" }),
         ]),
         dedupe: ["react", "react-dom"],
       },

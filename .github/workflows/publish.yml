@@ -81,14 +81,8 @@ jobs:
         include:
           - name: "@nudge-ui/agent-protocol"
             archive: nudge-ui-agent-protocol
-          - name: "@nudge-ui/compiler"
-            archive: nudge-ui-compiler
           - name: "create-nudge-ui"
             archive: create-nudge-ui
-          - name: "@nudge-ui/css"
-            archive: nudge-ui-css
-          - name: "@nudge-ui/inspector"
-            archive: nudge-ui-inspector
           - name: "nudge-ui"
             archive: nudge-ui
           - name: "@nudge-ui/mcp"

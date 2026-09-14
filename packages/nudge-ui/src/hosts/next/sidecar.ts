@@ -8,7 +8,7 @@ import {
   type NudgeUiManifest,
   type NudgeUiTokenSnapshot,
 } from "./manifest.ts";
-import { extractComponentContracts } from "@nudge-ui/compiler/component-contracts";
+import { extractComponentContracts } from "../../compiler/componentContracts.ts";
 import {
   createProjectFileWatcher,
   type ProjectFileChange,
@@ -569,7 +569,7 @@ function respond(
 
   if (url === NUDGE_UI_CLIENT_PATH) {
     try {
-      inspectorClientPath ??= packageRequire.resolve("@nudge-ui/inspector/client");
+      inspectorClientPath ??= packageRequire.resolve("nudge-ui/client");
       const body = readFileSync(inspectorClientPath);
       res.writeHead(200, {
         "content-type": "text/javascript; charset=utf-8",

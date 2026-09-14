@@ -13,7 +13,6 @@
     "test:compat": "playwright test --project=compat-chromium --project=compat-firefox --project=compat-webkit"
   },
   "dependencies": {
-    "@nudge-ui/inspector": "workspace:*",
     "@vanilla-extract/css": "1.21.2",
     "@vanilla-extract/sprinkles": "1.7.0",
     "nudge-ui": "workspace:*",

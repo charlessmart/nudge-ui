@@ -13,8 +13,8 @@ describe("createAstroClientAssetHandler", () => {
     const response = await request(handler);
 
     expect(response.status).toBe(503);
-    expect(response.body).toContain("Build @nudge-ui/inspector");
-    expect(response.body).toContain("reinstall @nudge-ui/inspector");
+    expect(response.body).toContain("Build nudge-ui/inspector");
+    expect(response.body).toContain("reinstall nudge-ui/inspector");
   });
 
   it("retries a client read after the missing asset is rebuilt", async () => {

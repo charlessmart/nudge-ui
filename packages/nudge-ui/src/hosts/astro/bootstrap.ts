@@ -1,4 +1,4 @@
-import { bootstrapNudgeUi, configureNudgeUiRuntime } from "@nudge-ui/inspector";
+import { bootstrapNudgeUi, configureNudgeUiRuntime } from "../../inspector/index.ts";
 import {
   nudgeUiProjectId,
   tokenCatalog,

@@ -24,7 +24,7 @@ export function createAstroClientAssetHandler(
   dependencies: ClientAssetDependencies = {},
 ): (request: IncomingMessage, response: ServerResponse) => Promise<void> {
   const resolveClientPath = dependencies.resolveClientPath
-    ?? (() => packageRequire.resolve("@nudge-ui/inspector/client"));
+    ?? (() => packageRequire.resolve("nudge-ui/client"));
   const readClientFile = dependencies.readClientFile ?? readFile;
   let cachedAsset: Promise<ClientAsset> | undefined;
 
@@ -60,8 +60,8 @@ export function createAstroClientAssetHandler(
     } catch (cause) {
       throw new Error(
         "Nudge UI could not load its inspector client. "
-          + "Build @nudge-ui/inspector (`pnpm --filter @nudge-ui/inspector build`) "
-          + "in a source workspace, or reinstall @nudge-ui/inspector in an installed project.",
+          + "Build nudge-ui/inspector (`pnpm --filter nudge-ui/inspector build`) "
+          + "in a source workspace, or reinstall nudge-ui/inspector in an installed project.",
         { cause },
       );
     }

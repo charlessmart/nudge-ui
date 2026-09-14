@@ -1,5 +1,5 @@
-import { TYPOGRAPHY_CASES } from "@nudge-ui/inspector/testing";
-import type { ConformanceFixture } from "@nudge-ui/inspector/testing";
+import { TYPOGRAPHY_CASES } from "nudge-ui/testing";
+import type { ConformanceFixture } from "nudge-ui/testing";
 import "./typography-conformance.css";
 import type { StringRecord } from "./stringRecord.ts";
 

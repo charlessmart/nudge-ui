@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
-import type { ComponentModuleProtocols } from "@nudge-ui/compiler/component-policy";
+import type { ComponentModuleProtocols } from "../../compiler/componentPolicyResolution.ts";
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
 import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
@@ -245,8 +245,8 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   // compile from node_modules unless listed (see feature-plan appendix).
   const nudgeUiPackages = [
     "nudge-ui",
-    "@nudge-ui/inspector",
-    "@nudge-ui/css",
+    "../../inspector/index.ts",
+    "../../css/index.ts",
   ];
   const userTranspile = Array.isArray(source.transpilePackages)
     ? source.transpilePackages
@@ -318,7 +318,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   // to the host project's copies pins one instance for every compilation.
   const hostReact = hostPackageDir(root, "react");
   const hostReactDom = hostPackageDir(root, "react-dom");
-  const componentRuntime = adapterPackageExport("@nudge-ui/inspector/component-runtime");
+  const componentRuntime = adapterPackageExport("nudge-ui/component-runtime");
   if (hostReact || hostReactDom || componentRuntime) {
     const userAlias = (source.turbopack?.resolveAlias as Record<string, unknown> | undefined) ?? {};
     nextConfig.turbopack = {
@@ -328,7 +328,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
         ...(hostReactDom ? { "react-dom": relativeTurbopackAlias(root, hostReactDom) } : {}),
         ...(componentRuntime
           ? {
-            "@nudge-ui/inspector/component-runtime":
+            "nudge-ui/component-runtime":
               relativeTurbopackAlias(root, componentRuntime),
           }
           : {}),
@@ -380,7 +380,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
         ...resolveConfig,
         alias: {
           ...(componentRuntime
-            ? { "@nudge-ui/inspector/component-runtime": componentRuntime }
+            ? { "nudge-ui/component-runtime": componentRuntime }
             : {}),
           ...userAlias,
         },

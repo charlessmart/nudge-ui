@@ -1,1 +1,1 @@
-/// <reference types="@nudge-ui/css/virtual-design-tokens" />
+/// <reference path="../../css/virtual-design-tokens.d.ts" />

@@ -1,7 +1,7 @@
 import type {
   NudgeUiClientManifest,
   NudgeUiRuntimeConfig,
-} from "@nudge-ui/inspector/client-manifest";
+} from "../../inspector/clientManifest.ts";
 import { createProjectId } from "../../project/identity.ts";
 import { NUDGE_UI_MANIFEST_VERSION, NUDGE_UI_RELOAD_PATH } from "../../transport/index.ts";
 

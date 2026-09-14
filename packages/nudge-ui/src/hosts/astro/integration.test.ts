@@ -49,7 +49,7 @@ describe("nudgeUiAstro", () => {
     expect(content).toContain('/__nudge_ui__/client.mjs');
     expect(content).toContain('/__nudge_ui__/manifest');
     expect(content).toContain("data-nudge-ui-client");
-    expect(content).not.toContain("@nudge-ui/inspector");
+    expect(content).not.toContain("../../inspector/index.ts");
     expect(content).not.toContain("@react-refresh");
 
     expect(addMiddleware).toHaveBeenCalledTimes(1);

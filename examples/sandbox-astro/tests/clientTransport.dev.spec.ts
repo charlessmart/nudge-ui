@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { ComponentRuntimeAdapter } from "@nudge-ui/inspector/host-runtime";
+import type { ComponentRuntimeAdapter } from "nudge-ui/host-runtime";
 
 type GlobalWithHostRuntime = typeof globalThis & {
   [key: symbol]: {

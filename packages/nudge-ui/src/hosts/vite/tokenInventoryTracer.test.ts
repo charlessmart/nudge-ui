@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createTokenInventory } from "@nudge-ui/css/token-inventory";
+import { createTokenInventory } from "../../css/token-inventory/index.ts";
 import { nudgeUi as createNudgeUiPlugins } from "./index.ts";
 
 const nudgeUi = (...args: Parameters<typeof createNudgeUiPlugins>) =>

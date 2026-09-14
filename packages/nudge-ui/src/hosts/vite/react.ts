@@ -2,14 +2,14 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { Alias } from "vite";
-import { injectIdentity } from "@nudge-ui/compiler/react-identity";
-import { extractComponentContracts } from "@nudge-ui/compiler/component-contracts";
+import { injectIdentity } from "../../compiler/reactIdentity.ts";
+import { extractComponentContracts } from "../../compiler/componentContracts.ts";
 import {
   collectPackageComponentModules,
   extractPackageComponentContractCatalog,
-} from "@nudge-ui/compiler/package-component-contracts";
-import type { ComponentContract } from "@nudge-ui/compiler";
-import type { NudgeUiRuntimeConfig } from "@nudge-ui/inspector/client-manifest";
+} from "../../compiler/packageComponentContracts.ts";
+import type { ComponentContract } from "../../compiler/index.ts";
+import type { NudgeUiRuntimeConfig } from "../../inspector/clientManifest.ts";
 import {
   defaultReactComponentProtocols,
   formatComponentPolicyWarning,
@@ -18,7 +18,7 @@ import {
   resolveHostComponentPolicy,
   type ComponentInstrumentationOptions,
   type ComponentModuleProtocols,
-} from "@nudge-ui/compiler";
+} from "../../compiler/index.ts";
 
 /**
  * What React means to a host, with no knowledge of which host is asking.
@@ -36,7 +36,7 @@ import {
  */
 
 const COMPONENT_EXTENSION = /\.(?:tsx|jsx)(?:$|[?#])/;
-const COMPONENT_RUNTIME_MODULE = "@nudge-ui/inspector/component-runtime";
+const COMPONENT_RUNTIME_MODULE = "nudge-ui/component-runtime";
 
 const packageRequire = createRequire(import.meta.url);
 
@@ -185,7 +185,7 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
     },
 
     /**
-     * Not fatal: a host depending on `@nudge-ui/inspector` directly resolves
+     * Not fatal: a host depending on `nudge-ui/inspector` directly resolves
      * the injected specifier itself. Packed installs that do not will fail at
      * the importing module, so say so before that happens.
      */

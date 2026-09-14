@@ -27,6 +27,9 @@ src/
   hosts/next    Webpack and Turbopack loaders, sidecar, mount
   hosts/astro   Response-level identity over the Vite integration
   hosts/static  Instrumenting file server and CLI
+  inspector/    The browser UI, its client bundle, and the runtime bridge
+  compiler/     JSX identity injection and component contract extraction
+  css/          Token model, value semantics, dialects, token inventory
   transport/    Reserved routes, mount ID, manifest version
   project/      File discovery, path policy, watching, token snapshots
   html/         parse5 identity instrumentation
@@ -40,6 +43,23 @@ because Astro is a Vite host.
 components import the route constants directly. Anything needing the filesystem
 belongs under `project/`. A test in the package enforces this.
 
-Only the host subpaths in the table above are public. Everything else is
-internal and may change without notice. See
-[ADR-0023](../../docs/adr/0023-one-package-with-host-subpaths.md).
+`css/index.ts`, `css/model`, and `css/value-semantics` are browser-safe and
+must not import Node, React, PostCSS, or anything under `hosts/` or
+`inspector/`. `src/css/importGraph.test.ts` enforces that.
+
+## Public surface
+
+The host subpaths above, plus:
+
+| Subpath | Purpose |
+| --- | --- |
+| `nudge-ui/client` | The inspector bundle, served over HTTP to the page. |
+| `nudge-ui/inspector` | Bootstrap API, injected into consumer bundles. |
+| `nudge-ui/component-runtime` | Injected into consumer source by the compiler. |
+| `nudge-ui/host-runtime` | Runtime bridge for host-side component semantics. |
+| `nudge-ui/testing` | Conformance fixtures for consumer tests. |
+| `nudge-ui/virtual-design-tokens` | Ambient types for the transport module. |
+
+Everything else is internal and may change without notice. See
+[ADR-0023](../../docs/adr/0023-one-package-with-host-subpaths.md) and
+[ADR-0024](../../docs/adr/0024-fold-libraries-into-the-distribution.md).

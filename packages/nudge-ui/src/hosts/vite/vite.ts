@@ -21,7 +21,7 @@ import {
   createTokenInventory,
   type ArtifactStage,
   type InventoryDiagnostic,
-} from "@nudge-ui/css/token-inventory";
+} from "../../css/token-inventory/index.ts";
 import { NUDGE_UI_CLIENT_PATH, NUDGE_UI_MANIFEST_PATH } from "../../transport/index.ts";
 import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
 import {
@@ -33,21 +33,21 @@ import {
 } from "./tokens/viteStylesheetArtifacts.ts";
 import type { ViteSourceScopeOptions } from "./tokens/viteStylesheetArtifacts.ts";
 import type { TokenCatalogDiagnostic } from "./virtual/design-tokens.ts";
-import { interpretDialects } from "@nudge-ui/css/dialects";
-import type { TailwindV3Config, ThemeContract } from "@nudge-ui/css/dialects";
-import type { ComponentContract } from "@nudge-ui/compiler";
+import { interpretDialects } from "../../css/dialects/index.ts";
+import type { TailwindV3Config, ThemeContract } from "../../css/dialects/index.ts";
+import type { ComponentContract } from "../../compiler/index.ts";
 import {
   detectStylingSystem,
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
-} from "@nudge-ui/inspector/client-manifest";
+} from "../../inspector/clientManifest.ts";
 import type { FrameworkHost, FrameworkSupport, ReactOptions } from "./react.ts";
 
 /**
  * How this host should find the project's vanilla-extract theme contract.
  *
  * Loading a module is a host capability, so the specifier lives here; what the
- * contract *means* is interpreted in `@nudge-ui/css/dialects`.
+ * contract *means* is interpreted in `nudge-ui/css/dialects`.
  */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -126,7 +126,7 @@ export function extractViteModuleCss(code: string): string | null {
 }
 
 function readInspectorClient(): Buffer {
-  inspectorClientPath ??= packageRequire.resolve("@nudge-ui/inspector/client");
+  inspectorClientPath ??= packageRequire.resolve("nudge-ui/client");
   return readFileSync(inspectorClientPath);
 }
 
@@ -791,7 +791,7 @@ export function createVitePlugins(
           // from the manifest the transport serves.
           const identity = buildRuntimeSnapshot();
           return [
-            'import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework, setInspectorOpen } from "@nudge-ui/inspector";',
+            'import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework, setInspectorOpen } from "nudge-ui/inspector";',
             'import { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";',
             ...(framework
               ? [`import { componentContracts } from ${JSON.stringify(framework.virtualModuleId)};`]

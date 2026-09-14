@@ -40,7 +40,7 @@ interface NudgeUiLoaderContext {
 interface LoaderOptions {
   root?: string;
   pagesDir?: string;
-  componentProtocols?: import("@nudge-ui/compiler").ComponentModuleProtocols;
+  componentProtocols?: import("../../compiler/index.ts").ComponentModuleProtocols;
   sourceRoots?: readonly string[];
 }
 
@@ -52,7 +52,7 @@ const { transformNextModuleSource } = require("./loader.ts") as {
     options?: {
       root?: string;
       pagesDir?: string;
-      hostPolicy?: import("@nudge-ui/compiler").HostComponentPolicy;
+      hostPolicy?: import("../../compiler/index.ts").HostComponentPolicy;
       instrumentComponents?: boolean;
       componentRuntimeModule?: string;
     },
@@ -66,7 +66,7 @@ const {
   groupComponentPolicyDiagnostics,
   mergeComponentModuleProtocols,
   resolveHostComponentPolicy,
-} = require("@nudge-ui/compiler") as typeof import("@nudge-ui/compiler");
+} = require("../../compiler/index.ts") as typeof import("../../compiler/index.ts");
 
 const NEXT_COMPONENT_RUNTIME_MODULE = "nudge-ui/next/component-runtime";
 // SAFETY: A local require of the sibling repository-scope module, whose export shape is asserted by its own contract.
@@ -239,7 +239,7 @@ function nudgeUiLoader(
   }
 
   const instrumentComponents = isProjectSource(moduleId);
-  const transform = (hostPolicy?: import("@nudge-ui/compiler").HostComponentPolicy) =>
+  const transform = (hostPolicy?: import("../../compiler/index.ts").HostComponentPolicy) =>
     transformNextModuleSource(source, moduleId, {
       root,
       pagesDir: options.pagesDir,
@@ -277,7 +277,7 @@ function nudgeUiLoader(
         defaultReactComponentProtocols,
         options.componentProtocols,
       ),
-    }).then((hostPolicy: import("@nudge-ui/compiler").HostComponentPolicy) => {
+    }).then((hostPolicy: import("../../compiler/index.ts").HostComponentPolicy) => {
       for (const grouped of groupComponentPolicyDiagnostics(hostPolicy.diagnostics)) {
         if (reportedComponentPolicyDiagnostics.has(grouped.key)) continue;
         reportedComponentPolicyDiagnostics.add(grouped.key);

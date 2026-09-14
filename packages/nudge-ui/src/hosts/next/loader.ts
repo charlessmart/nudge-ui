@@ -2,8 +2,8 @@ import { parse } from "@babel/parser";
 import type { SourceMap } from "magic-string";
 import MagicString from "magic-string";
 import { posix } from "node:path";
-import { injectIdentity } from "@nudge-ui/compiler/react-identity";
-import type { HostComponentPolicy } from "@nudge-ui/compiler/component-policy";
+import { injectIdentity } from "../../compiler/reactIdentity.ts";
+import type { HostComponentPolicy } from "../../compiler/componentPolicyResolution.ts";
 
 /**
  * Pure Next.js identity-loader Module (ADR-0010).

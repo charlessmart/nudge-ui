@@ -1,7 +1,7 @@
 import {
   type NudgeUiClientManifest,
   type NudgeUiRuntimeConfig,
-} from "@nudge-ui/inspector/client-manifest";
+} from "../../inspector/clientManifest.ts";
 import type { Plugin, ViteDevServer } from "vite";
 import { createAstroRuntimeConfig } from "./astroRuntimeConfig.ts";
 import { createAstroClientAssetHandler } from "./clientAsset.ts";

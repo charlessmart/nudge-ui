@@ -1,7 +1,7 @@
 import {
   detectStylingSystem,
   type NudgeUiRuntimeConfig,
-} from "@nudge-ui/inspector/client-manifest";
+} from "../../inspector/clientManifest.ts";
 
 interface AstroRuntimeKnowledge {
   readonly projectId: string;

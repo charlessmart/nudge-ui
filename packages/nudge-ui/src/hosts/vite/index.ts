@@ -73,8 +73,8 @@ export type { TransformIndexHtmlOptions } from "./vite.ts";
 export { isHostApplicationSource } from "./tokens/viteStylesheetArtifacts.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
 /**
- * Dialect interpretation is host-neutral and lives in `@nudge-ui/css/dialects`,
+ * Dialect interpretation is host-neutral and lives in `nudge-ui/css/dialects`,
  * where the browser runtime reaches the same grammar. This host only gathers
  * the evidence.
  */
-export type { TailwindV3Config, ThemeContract } from "@nudge-ui/css/dialects";
+export type { TailwindV3Config, ThemeContract } from "../../css/dialects/index.ts";
