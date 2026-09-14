@@ -2,10 +2,7 @@ import { parse } from "@babel/parser";
 import type { SourceMap } from "magic-string";
 import MagicString from "magic-string";
 import { posix } from "node:path";
-import {
-  DEFAULT_COMPONENT_RUNTIME_MODULE,
-  injectIdentity,
-} from "@nudge-ui/compiler/react-identity";
+import { injectIdentity } from "@nudge-ui/compiler/react-identity";
 import type { HostComponentPolicy } from "@nudge-ui/compiler/component-policy";
 
 /**
@@ -35,6 +32,8 @@ const JSX_SOURCE_EXT = /\.(tsx|jsx)$/;
 const EXCLUDED_SEGMENTS = /(^|\/)(node_modules|\.next)\//i;
 
 const MOUNT_LOCAL_NAME = "__NudgeUiMountElement";
+
+const NEXT_COMPONENT_RUNTIME_MODULE = "@nudge-ui/nextjs/component-runtime";
 
 const MOUNT_IMPORT =
   `import { createElement as __NudgeUiCreateElement } from "react";\n`
@@ -105,7 +104,7 @@ export function transformNextModuleSource(
   const identity = injectIdentity(source, normalized, options.root, {
     instrumentComponents: clientComponent && options.instrumentComponents !== false,
     hostPolicy: options.hostPolicy,
-    componentRuntimeModule: options.componentRuntimeModule,
+    componentRuntimeModule: options.componentRuntimeModule ?? NEXT_COMPONENT_RUNTIME_MODULE,
   });
 
   let code = identity ? identity.code : source;
@@ -120,7 +119,7 @@ export function transformNextModuleSource(
     // import to just past the directive prologue.
     code = relocatePrependedRuntimeImport(
       code,
-      options.componentRuntimeModule ?? DEFAULT_COMPONENT_RUNTIME_MODULE,
+      options.componentRuntimeModule ?? NEXT_COMPONENT_RUNTIME_MODULE,
     );
   }
 

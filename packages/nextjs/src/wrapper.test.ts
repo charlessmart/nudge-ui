@@ -161,6 +161,24 @@ describe("withNudgeUi — development output shape", () => {
     expect(componentRuntimeAlias).toMatch(/^\.\.?\//);
   });
 
+  it("preserves user Turbopack aliases alongside the runtime alias", () => {
+    const root = makeProject();
+    projectRoots.push(root);
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+
+    const config = resolveForDevelopment({
+      turbopack: {
+        rules: { "**/*.svg": { loaders: ["svg-loader"] } },
+        resolveAlias: { "@app/*": "./src/*" },
+      },
+    } as NudgeUiNextConfig);
+
+    expect(config.turbopack?.resolveAlias).toEqual(expect.objectContaining({
+      "@app/*": "./src/*",
+      "@nudge-ui/inspector/component-runtime": expect.stringMatching(/reactRuntime\.(?:js|tsx)$/),
+    }));
+  });
+
   it("passes host component protocols to both compiler integrations", () => {
     const root = makeProject();
     projectRoots.push(root);
