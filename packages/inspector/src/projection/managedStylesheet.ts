@@ -1,6 +1,5 @@
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { notifyBrowserStylesheetChange } from "../inspection/browserCssInspectionRegistry.ts";
-import type { TokenContextWrapper } from "@nudge-ui/css/model";
 import type { StyleRuleContext } from "../changes/editModel.ts";
 import { escapeAttrValue, escapeCssString } from "./cssEscapes.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
@@ -34,6 +33,7 @@ const SHEET_ID = "nudge-ui-styles";
 
 let managedHeadGuardDocument: Document | null = null;
 let managedHeadGuard: MutationObserver | null = null;
+let failedRehydrationCssText: string | null = null;
 
 function installManagedHeadGuard(doc: Document): void {
   const Observer = doc.defaultView?.MutationObserver;
@@ -51,7 +51,7 @@ function installManagedHeadGuard(doc: Document): void {
   managedHeadGuard.observe(doc.head, { childList: true });
 }
 
-export function ensureManagedSheet(): CSSStyleSheet {
+export function ensureManagedSheet(): void {
   const doc = document;
   // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
   let el = doc.getElementById(SHEET_ID) as HTMLStyleElement | null;
@@ -82,11 +82,9 @@ export function ensureManagedSheet(): CSSStyleSheet {
   }
   installManagedHeadGuard(doc);
   if (isNudgeUiDev() && doc.defaultView) {
-    // Keep authored CSS available to dev diagnostics without writing
-    // textContent on the live <style> element (which reparses CSSOM rules).
+    // Keep the canonical CSS available to dev diagnostics.
     doc.defaultView.__nudgeUiGetManagedSheetText = getManagedSheetText;
   }
-  return sheet;
 }
 
 function buildDeclarationsBody(declarations: Record<string, string>): string {
@@ -119,249 +117,85 @@ export function rulesToCssText(rules: StyleRule[]): string {
   return lines.join("\n");
 }
 
-/**
- * In-memory mirror of the managed sheet's rules. Each entry maps to exactly
- * one top-level CSSOM rule (a flat style rule, or an at-rule block holding a
- * single nested style rule). `index` is the rule's top-level position in
- * `sheet.cssRules`; `leaf` is the CSSStyleRule whose declarations back the
- * style (the top-level rule itself for flat rules, the innermost nested rule
- * for wrapped rules).
- */
-interface ManagedRuleEntry {
-  id: string;
-  selector: string;
-  wrappers?: TokenContextWrapper[];
-  declarations: Record<string, string>;
-  leaf: CSSStyleRule | null;
-}
-
-let managedSheetElement: HTMLElement | null = null;
-let managedEntries: ManagedRuleEntry[] = [];
-
-/** A rule is uniquely identified by its selector + wrappers + declared properties. */
-function ruleIdentity(rule: StyleRule): string {
-  const properties = Object.keys(rule.declarations).sort().join(",");
-  return `${rule.selector}\u0000${JSON.stringify(rule.context?.wrappers ?? [])}\u0000${properties}`;
-}
-
-function declarationsEqual(a: Record<string, string>, b: Record<string, string>): boolean {
-  const aKeys = Object.keys(a);
-  if (aKeys.length !== Object.keys(b).length) return false;
-  return aKeys.every((key) => b[key] === a[key]);
-}
-
-function leafRule(top: CSSRule | null, wrapperCount: number): CSSStyleRule | null {
-  let current: CSSRule | null = top;
-  for (let depth = 0; depth < wrapperCount && current; depth++) {
-    // SAFETY: the CSSRule is being traversed as a group rule only after wrapperCount checks; cssRules is present on group rules.
-    current = (current as { cssRules?: CSSRuleList }).cssRules?.[0] ?? null;
-  }
-  // SAFETY: after descending through known wrapper rules, the result is a CSSStyleRule when non-null.
-  return current as CSSStyleRule | null;
-}
-
-function entryToRule(entry: ManagedRuleEntry): StyleRule {
-  return {
-    selector: entry.selector,
-    declarations: { ...entry.declarations },
-    ...(entry.wrappers && entry.wrappers.length > 0
-      ? { context: { wrappers: entry.wrappers } }
-      : {}),
-  };
-}
-
-/** Rebuild the model from a sheet that is assumed to contain exactly `rules` in order. */
-function syncModelFromSheet(rules: StyleRule[], sheet: CSSStyleSheet): void {
-  managedEntries = [];
-  let index = 0;
-  for (const rule of rules) {
-    if (!buildRuleText(rule)) continue;
-    const top = sheet.cssRules[index] ?? null;
-    managedEntries.push({
-      id: ruleIdentity(rule),
-      selector: rule.selector,
-      wrappers: rule.context?.wrappers,
-      declarations: { ...rule.declarations },
-      leaf: leafRule(top, rule.context?.wrappers?.length ?? 0),
-    });
-    index++;
-  }
-}
+/** Canonical rules retained so a framework can rehydrate a moved style node. */
+let managedRules: StyleRule[] = [];
 
 /** Synchronous serialized view of the rules currently projected into the managed sheet. */
 export function getManagedSheetText(): string {
-  return rulesToCssText(managedEntries.map(entryToRule));
+  return rulesToCssText(managedRules);
 }
 
 /**
  * Rehydrate the CSSOM after moving the managed style element in <head>.
  *
- * Incremental CSSOM writes intentionally leave the style element's text empty.
- * Some browsers replace the CSSStyleSheet when that element is reattached, so
- * the in-memory mirror can outlive an empty live sheet. Rewriting the authored
- * text is acceptable here because head reattachment is an infrequent lifecycle
- * operation, not the hot edit path.
+ * Some browsers replace the CSSStyleSheet when that element is reattached.
+ * Rewriting the canonical text keeps the new sheet and the model aligned.
  */
 function rehydrateManagedSheet(doc: Document, el: HTMLStyleElement): void {
   const sheet = el.sheet;
   if (!sheet) return;
 
-  const rules = managedEntries.map(entryToRule);
+  const rules = managedRules;
   const cssText = rulesToCssText(rules);
-  const needsRebuild = el.textContent !== cssText || sheet.cssRules.length !== rules.length;
-
-  if (needsRebuild) {
-    el.textContent = cssText;
-    if (!el.sheet) return;
-    notifyBrowserStylesheetChange(doc);
+  if (sheet.cssRules.length === rules.length) {
+    failedRehydrationCssText = null;
+    return;
   }
+  if (failedRehydrationCssText === cssText) return;
 
-  // Reparenting can invalidate the CSSStyleRule objects held by the model even
-  // when the browser happened to retain the same rule count.
-  if (el.sheet) syncModelFromSheet(rules, el.sheet);
+  el.textContent = cssText;
+  if (!el.sheet) {
+    failedRehydrationCssText = cssText;
+    return;
+  }
+  failedRehydrationCssText = el.sheet.cssRules.length === rules.length ? null : cssText;
+  notifyBrowserStylesheetChange(doc);
 }
 
 /**
- * Full-sheet fallback used when CSSOM rejects a rule (for example an at-rule
- * a limited DOM does not implement). Keeps the sheet authoritative by
- * rebuilding it from serialized text, then re-syncs the model.
+ * Writes the canonical projection to the managed style element and retains a
+ * copy for rehydration if a framework moves or reparses that element.
  */
 function rebuildSheetText(rules: StyleRule[]): void {
   // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
   const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
   if (!el) return;
-  el.textContent = rulesToCssText(rules);
-  managedSheetElement = el;
-  if (el.sheet) syncModelFromSheet(rules, el.sheet);
-  else managedEntries = [];
+  const desired = rules.map((rule) => ({
+    ...rule,
+    declarations: { ...rule.declarations },
+  }));
+  const cssText = rulesToCssText(desired);
+  const rulesChanged = rulesToCssText(managedRules) !== cssText;
+  const shouldRetryDroppedRules = el.sheet !== null
+    && el.sheet.cssRules.length !== desired.length
+    && failedRehydrationCssText !== cssText;
+  managedRules = desired;
+  if (!rulesChanged && el.textContent === cssText && !shouldRetryDroppedRules) return;
+
+  el.textContent = cssText;
+  failedRehydrationCssText = el.sheet && el.sheet.cssRules.length !== desired.length
+    ? cssText
+    : null;
   notifyBrowserStylesheetChange(document);
 }
 
 /**
- * Writes the managed sheet incrementally: only rules whose identity or
- * declarations changed touch the CSSOM (insertRule / deleteRule / per-rule
- * declaration writes). The sheet stays last in `<head>` (keep-last guard in
- * `ensureManagedSheet`) and the cascade loses to author `!important` rules
- * exactly as the text-based projection did.
+ * Replaces the managed sheet with the canonical projection. Keeping the
+ * serialized rules authoritative avoids stale CSSStyleRule references when a
+ * framework dev server reparses or reattaches style nodes during a render.
  */
 export function applyRules(rules: StyleRule[]): void {
-  const sheet = ensureManagedSheet();
-  // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
-  const el = document.getElementById(SHEET_ID) as HTMLElement | null;
-  if (!el) return;
-  let mutated = false;
-  if (el !== managedSheetElement) {
-    managedSheetElement = el;
-    managedEntries = [];
-    try {
-      for (let index = sheet.cssRules.length - 1; index >= 0; index--) sheet.deleteRule(index);
-    } catch {
-      // A foreign rule or a limited CSSOM may reject deletion; assigning an
-      // empty sheet remains recoverable and the desired rules are inserted
-      // below in their canonical order.
-      el.textContent = "";
-    }
-    mutated = true;
-  }
-
+  ensureManagedSheet();
   const desired: StyleRule[] = [];
   const desiredIds = new Set<string>();
   for (const rule of rules) {
-    if (!buildRuleText(rule)) continue;
-    const id = ruleIdentity(rule);
+    const id = buildRuleText(rule);
+    if (!id) continue;
     if (desiredIds.has(id)) continue;
     desiredIds.add(id);
     desired.push(rule);
   }
-
-  // Remove rules that no longer have a desired counterpart. Array position is
-  // the CSSOM rule index by invariant, so delete in descending position order
-  // to keep surviving positions stable while we go.
-  let removedStale = false;
-  for (let position = managedEntries.length - 1; position >= 0; position--) {
-    if (desiredIds.has(managedEntries[position]!.id)) continue;
-    try {
-      sheet.deleteRule(position);
-    } catch {
-      rebuildSheetText(desired);
-      return;
-    }
-    removedStale = true;
-  }
-  if (removedStale) {
-    managedEntries = managedEntries.filter((entry) => desiredIds.has(entry.id));
-    mutated = true;
-  }
-
-  // Reconcile each desired rule at its canonical position. Existing rules are
-  // moved with CSSOM delete/insert when their order changes; new rules are
-  // inserted at the desired index rather than appended blindly.
-  for (let index = 0; index < desired.length; index++) {
-    const rule = desired[index]!;
-    const id = ruleIdentity(rule);
-    let currentIndex = managedEntries.findIndex((entry) => entry.id === id);
-
-    if (currentIndex < 0) {
-      const cssText = buildRuleText(rule);
-      let top: CSSRule | null = null;
-      try {
-        sheet.insertRule(cssText, index);
-        top = sheet.cssRules[index] ?? null;
-      } catch {
-        top = null;
-      }
-      if (!top) {
-        rebuildSheetText(desired);
-        return;
-      }
-      managedEntries.splice(index, 0, {
-        id,
-        selector: rule.selector,
-        wrappers: rule.context?.wrappers,
-        declarations: { ...rule.declarations },
-        leaf: leafRule(top, rule.context?.wrappers?.length ?? 0),
-      });
-      mutated = true;
-      currentIndex = index;
-    } else if (currentIndex !== index) {
-      const entry = managedEntries[currentIndex]!;
-      const cssText = buildRuleText(entryToRule(entry));
-      let top: CSSRule | null = null;
-      try {
-        sheet.deleteRule(currentIndex);
-        sheet.insertRule(cssText, index);
-        top = sheet.cssRules[index] ?? null;
-      } catch {
-        top = null;
-      }
-      if (!top) {
-        rebuildSheetText(desired);
-        return;
-      }
-      managedEntries.splice(currentIndex, 1);
-      managedEntries.splice(index, 0, entry);
-      entry.leaf = leafRule(top, entry.wrappers?.length ?? 0);
-      mutated = true;
-      currentIndex = index;
-    }
-
-    const entry = managedEntries[currentIndex]!;
-    if (declarationsEqual(entry.declarations, rule.declarations)) continue;
-    if (!entry.leaf) {
-      rebuildSheetText(desired);
-      return;
-    }
-    entry.leaf.style.cssText = buildDeclarationsBody(rule.declarations);
-    entry.declarations = { ...rule.declarations };
-    mutated = true;
-  }
-
-  if (mutated) {
-    // CSSOM writes do not produce MutationRecords, so the revision-based
-    // resolution caches must be invalidated explicitly (ADR-0003 panel
-    // refresh depends on this revision bump).
-    notifyBrowserStylesheetChange(document);
-  }
+  rebuildSheetText(desired);
 }
 
 function commaListIncludes(value: string, property: string): boolean {
@@ -418,7 +252,7 @@ export function verifyPreview(el: HTMLElement | null, property: string, requeste
 export function removeManagedSheet(): void {
   const el = document.getElementById(SHEET_ID);
   if (el) el.remove();
-  managedSheetElement = null;
-  managedEntries = [];
+  managedRules = [];
+  failedRehydrationCssText = null;
   notifyBrowserStylesheetChange(document);
 }
