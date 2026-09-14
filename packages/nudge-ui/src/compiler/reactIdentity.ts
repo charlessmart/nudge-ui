@@ -28,7 +28,7 @@ export interface InjectIdentityOptions extends ComponentInstrumentationOptions {
   componentRuntimeModule?: string;
 }
 
-export const DEFAULT_COMPONENT_RUNTIME_MODULE = "nudge-ui/component-runtime";
+export const DEFAULT_COMPONENT_RUNTIME_MODULE = "nudge-ui/internal/component-runtime";
 
 const PARSEABLE_EXT = /\.(tsx|jsx)$/;
 

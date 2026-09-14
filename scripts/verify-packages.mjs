@@ -95,6 +95,25 @@ function verifyPackage(packageRoot) {
   }
 
   if (packageJson.name === "nudge-ui") {
+    const expectedExports = [
+      "./vite",
+      "./next",
+      "./astro",
+      "./static",
+      "./testing",
+      "./virtual-design-tokens",
+      "./internal/client",
+      "./internal/inspector",
+      "./internal/component-runtime",
+      "./internal/host-runtime",
+      "./internal/next/mount",
+    ];
+    const actualExports = Object.keys(packageJson.exports ?? {});
+    assert(
+      actualExports.length === expectedExports.length
+        && expectedExports.every((subpath) => actualExports.includes(subpath)),
+      `nudge-ui export surface changed: ${actualExports.join(", ")}.`,
+    );
     for (const loader of ["loader-plugin.cjs", "identity-loader.cjs"]) {
       const path = `package/dist/hosts/next/loaders/${loader}`;
       assert(entries.includes(path), `nudge-ui is missing ${path}.`);

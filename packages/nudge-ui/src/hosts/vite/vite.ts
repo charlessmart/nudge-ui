@@ -115,7 +115,7 @@ export function extractViteModuleCss(code: string): string | null {
 }
 
 function readInspectorClient(): Buffer {
-  inspectorClientPath ??= packageRequire.resolve("nudge-ui/client");
+  inspectorClientPath ??= packageRequire.resolve("nudge-ui/internal/client");
   return readFileSync(inspectorClientPath);
 }
 
@@ -737,7 +737,7 @@ export function createVitePlugins(
           // from the manifest the transport serves.
           const identity = buildRuntimeSnapshot();
           return [
-            'import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework, setInspectorOpen } from "nudge-ui/inspector";',
+            'import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework, setInspectorOpen } from "nudge-ui/internal/inspector";',
             'import { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";',
             ...(framework
               ? [`import { componentContracts } from ${JSON.stringify(framework.virtualModuleId)};`]

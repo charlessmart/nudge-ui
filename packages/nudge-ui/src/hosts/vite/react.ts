@@ -28,7 +28,7 @@ import {
  */
 
 const COMPONENT_EXTENSION = /\.(?:tsx|jsx)(?:$|[?#])/;
-const COMPONENT_RUNTIME_MODULE = "nudge-ui/component-runtime";
+const COMPONENT_RUNTIME_MODULE = "nudge-ui/internal/component-runtime";
 
 const packageRequire = createRequire(import.meta.url);
 

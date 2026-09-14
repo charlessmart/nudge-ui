@@ -7,7 +7,7 @@ import {
 } from "./loader.ts";
 
 const ROOT = "/project";
-const NEXT_COMPONENT_RUNTIME_MODULE = "nudge-ui/next/component-runtime";
+const NEXT_COMPONENT_RUNTIME_MODULE = "nudge-ui/internal/component-runtime";
 
 function transform(source: string, moduleId: string) {
   return transformNextModuleSource(source, moduleId, { root: ROOT });
@@ -215,7 +215,7 @@ describe("instrumentRootLayout", () => {
     );
 
     expect(result!.layoutInstrumented).toBe(true);
-    expect(result!.code).toContain("nudge-ui/next/mount");
+    expect(result!.code).toContain("nudge-ui/internal/next/mount");
     const mountExpression = "{__NudgeUiCreateElement(__NudgeUiMountElement)}";
     const mountIndex = result!.code.indexOf(mountExpression);
     expect(mountIndex).toBeGreaterThan(result!.code.indexOf("<body"));
@@ -258,7 +258,7 @@ describe("instrumentRootLayout", () => {
 
     expect(result).not.toBeNull();
     const code = result!.code;
-    expect(code.indexOf('"use client"')).toBeLessThan(code.indexOf("nudge-ui/next/mount"));
+    expect(code.indexOf('"use client"')).toBeLessThan(code.indexOf("nudge-ui/internal/next/mount"));
     expect(code.trimStart().startsWith('"use client"')).toBe(true);
   });
 

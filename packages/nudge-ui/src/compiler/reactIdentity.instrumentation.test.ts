@@ -321,7 +321,7 @@ describe("injectIdentity — React component invocation instrumentation", () => 
     });
 
     expect(result?.code).toContain(
-      'import { instrumentReactComponent as __nudgeUiInstrumentComponent } from "nudge-ui/component-runtime";',
+      'import { instrumentReactComponent as __nudgeUiInstrumentComponent } from "nudge-ui/internal/component-runtime";',
     );
     expect(result?.code).toContain("__nudgeUiInstrumentComponent(<Button");
     expect(result?.code).toContain('"callsiteId":"src/App.tsx:1:26"');
@@ -387,7 +387,7 @@ describe("injectIdentity — React component invocation instrumentation", () => 
       instrumentComponents: true,
     });
     expect(result?.code).not.toContain("__nudgeUiInstrumentComponent");
-    expect(result?.code).not.toContain("nudge-ui/component-runtime");
+    expect(result?.code).not.toContain("nudge-ui/internal/component-runtime");
   });
 
   it("qualifies imported components by local module or package export", async () => {

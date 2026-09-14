@@ -11,7 +11,7 @@ browser bridge. The browser does not speak MCP directly.
 ## Install
 
 ```sh
-pnpm add -D @nudge-ui/mcp@0.1.3
+pnpm add -D @nudge-ui/mcp@0.2.0
 ```
 
 ### Configure automatically
@@ -20,7 +20,7 @@ From the application project root, use [`add-mcp`](https://github.com/neon-solut
 
 ```sh
 npx add-mcp \
-  'npx -y @nudge-ui/mcp@0.1.3 --project-id my-app --origin http://localhost:5173 --workspace-root .' \
+  'npx -y @nudge-ui/mcp@0.2.0 --project-id my-app --origin http://localhost:5173 --workspace-root .' \
   --name nudge_ui
 ```
 
@@ -35,7 +35,7 @@ For standard Vite and Astro projects, `my-app` normally matches the project
 directory name. Next.js and standalone HTML projects use host-specific IDs, so
 retain the explicit ID from their integration configuration.
 
-The generated command pins the published `@nudge-ui/mcp@0.1.3` package through
+The generated command pins the published `@nudge-ui/mcp@0.2.0` package through
 `npx` for reproducible tool versions. Update the version deliberately when
 upgrading the MCP integration. After configuration, restart or reload the
 agent host so it refreshes its MCP tool catalog.

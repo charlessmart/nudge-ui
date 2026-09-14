@@ -2,7 +2,7 @@
  * Shared CSS/token knowledge types for `nudge-ui/css`.
  *
  * This module is the browser-safe shared model consumed by the runtime
- * inspector (`nudge-ui/inspector`), the Vite adapter transport
+ * inspector (`nudge-ui/internal/inspector`), the Vite adapter transport
  * (`virtual:design-tokens`), and — in later slices — the token inventory
  * Module. It MUST NOT import React, Vite, PostCSS, Node, or filesystem code;
  * the import-graph test in `src/importGraph.test.ts` enforces that contract.

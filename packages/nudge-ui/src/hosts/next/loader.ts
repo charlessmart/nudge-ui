@@ -33,11 +33,11 @@ const EXCLUDED_SEGMENTS = /(^|\/)(node_modules|\.next)\//i;
 
 const MOUNT_LOCAL_NAME = "__NudgeUiMountElement";
 
-const NEXT_COMPONENT_RUNTIME_MODULE = "nudge-ui/next/component-runtime";
+const NEXT_COMPONENT_RUNTIME_MODULE = "nudge-ui/internal/component-runtime";
 
 const MOUNT_IMPORT =
   `import { createElement as __NudgeUiCreateElement } from "react";\n`
-  + `import { NudgeUiMount as ${MOUNT_LOCAL_NAME} } from "nudge-ui/next/mount";\n`;
+  + `import { NudgeUiMount as ${MOUNT_LOCAL_NAME} } from "nudge-ui/internal/next/mount";\n`;
 
 // The mount renders through an expression container invoking createElement
 // rather than through a JSX element: a bare `{Component}` would hand React

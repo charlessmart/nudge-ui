@@ -160,7 +160,7 @@ describe("withNudgeUi — development output shape", () => {
     }
     expect(rules["*.css"]).toBeUndefined();
     const componentRuntimeAlias = (config.turbopack?.resolveAlias as Record<string, unknown>)[
-      "nudge-ui/component-runtime"
+      "nudge-ui/internal/component-runtime"
     ];
     expect(componentRuntimeAlias).toEqual(expect.stringMatching(/reactRuntime\.(?:js|tsx)$/));
     // Turbopack treats absolute filesystem aliases as malformed relative
@@ -183,7 +183,7 @@ describe("withNudgeUi — development output shape", () => {
 
     expect(config.turbopack?.resolveAlias).toEqual(expect.objectContaining({
       "@app/*": "./src/*",
-      "nudge-ui/component-runtime": expect.stringMatching(/reactRuntime\.(?:js|tsx)$/),
+      "nudge-ui/internal/component-runtime": expect.stringMatching(/reactRuntime\.(?:js|tsx)$/),
     }));
   });
 
@@ -282,7 +282,7 @@ describe("withNudgeUi — development output shape", () => {
     );
     expect((devOut.resolve as { alias?: Record<string, unknown> }).alias).toEqual(
       expect.objectContaining({
-        "nudge-ui/component-runtime": expect.stringMatching(/reactRuntime\.(?:js|tsx)$/),
+        "nudge-ui/internal/component-runtime": expect.stringMatching(/reactRuntime\.(?:js|tsx)$/),
       }),
     );
 

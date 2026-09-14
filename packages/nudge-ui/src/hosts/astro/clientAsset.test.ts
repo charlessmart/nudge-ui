@@ -13,8 +13,9 @@ describe("createAstroClientAssetHandler", () => {
     const response = await request(handler);
 
     expect(response.status).toBe(503);
-    expect(response.body).toContain("Build nudge-ui/inspector");
-    expect(response.body).toContain("reinstall nudge-ui/inspector");
+    expect(response.body).toContain("Build nudge-ui (`pnpm --filter nudge-ui build`)");
+    expect(response.body).toContain("reinstall nudge-ui in an installed project");
+    expect(response.body).not.toContain("nudge-ui/inspector");
   });
 
   it("retries a client read after the missing asset is rebuilt", async () => {
