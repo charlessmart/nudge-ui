@@ -467,13 +467,13 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.0
         version: 1.30.0(zod@3.25.76)
-      '@nudge-ui/agent-protocol':
-        specifier: workspace:*
-        version: link:../agent-protocol
       zod:
         specifier: ^3.25.76
         version: 3.25.76
     devDependencies:
+      '@nudge-ui/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.1
@@ -495,9 +495,6 @@ importers:
       '@base-ui/react':
         specifier: ^1.7.0
         version: 1.7.0(@date-fns/tz@1.5.0)(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@nudge-ui/agent-protocol':
-        specifier: workspace:*
-        version: link:../agent-protocol
       '@tabler/icons-react':
         specifier: ^3.46.0
         version: 3.46.0(react@19.2.8)
@@ -517,6 +514,9 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
     devDependencies:
+      '@nudge-ui/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.1

@@ -1,9 +1,9 @@
 /**
  * Companion-facing aliases and transport envelopes.
  *
- * The domain contracts live in `@nudge-ui/agent-protocol`; this module keeps
- * transport names discoverable for Node consumers while preserving a single
- * protocol vocabulary for browser and agent adapters.
+ * The domain contracts live in the private shared protocol module. This public
+ * subpath keeps transport names discoverable for Node consumers while
+ * preserving one protocol vocabulary for browser and agent adapters.
  */
 export {
   AGENT_PROTOCOL_LIMITS,
