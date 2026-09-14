@@ -215,10 +215,17 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     return config;
   }
 
+  const sourceRoots = options.sourceRoots?.map((sourceRoot) => resolve(root, sourceRoot));
+
   // ensureSidecar is a per-process singleton; awaiting it wherever the port
-  // is needed removes any config-evaluation race.
+  // is needed removes any config-evaluation race. The same authored roots
+  // reach token discovery so workspace CSS is visible to both integrations.
   const sidecarPort = (): Promise<number> =>
-    ensureSidecar(root, { manifest: buildManifest({ root }), tokens: true })
+    ensureSidecar(root, {
+      manifest: buildManifest({ root }),
+      tokens: true,
+      ...(sourceRoots ? { sourceRoots } : {}),
+    })
       .then((handle: SidecarHandle) => handle.port)
       .catch((error: unknown) => {
         console.warn("[nudge-ui] sidecar failed to start:", error);
@@ -249,7 +256,6 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     ...((source.turbopack?.rules as Record<string, unknown> | undefined) ?? {}),
   };
   const paths = loaderPaths();
-  const sourceRoots = options.sourceRoots?.map((sourceRoot) => resolve(root, sourceRoot));
   const loaderOptions = {
     root,
     ...(options.componentProtocols ? { componentProtocols: options.componentProtocols } : {}),

@@ -58,6 +58,11 @@ identity as a project-root relative path (`../packages/ui/src/Button.tsx` for a
 declared workspace package) so it is unique and portable. React Router uses the
 built-in catalog rather than a framework-specific compiler branch.
 
+The Next.js token inventory scans the app root and, when the app is nested in a
+declared pnpm or npm workspace, the nearest workspace root. `sourceRoots` are
+also included in that scan for authored CSS outside the inferred workspace;
+hidden directories, build output, and `node_modules` remain excluded.
+
 ## Additional exports
 
 The package exports the manifest helpers, mount helper, sidecar lifecycle, and

@@ -225,15 +225,31 @@ function normalizedPath(value: string): string {
   return decodeURIComponent(value).replace(/\\/g, "/").replace(/^file:\/\//, "").replace(/\/+$/, "");
 }
 
-function loadedStylesheetSources(doc: Document): string[] {
-  return Array.from(doc.querySelectorAll<HTMLStyleElement | HTMLLinkElement>(
+interface LoadedStylesheetSource {
+  readonly path: string;
+  readonly providesAuthoredIdentity: boolean;
+}
+
+function loadedStylesheetSources(doc: Document): LoadedStylesheetSource[] {
+  const sourceIdentityByPath = new Map<string, boolean>();
+  for (const node of doc.querySelectorAll<HTMLStyleElement | HTMLLinkElement>(
     'style[data-vite-dev-id], link[rel~="stylesheet"][href]',
-  )).flatMap((node) => {
-    const source = node instanceof HTMLStyleElement
-      ? node.dataset.viteDevId
+  )) {
+    const providesAuthoredIdentity = node.tagName === "STYLE";
+    const source = providesAuthoredIdentity
+      ? (node as HTMLStyleElement).dataset.viteDevId
       : node.getAttribute("href");
-    return source ? [normalizedPath(source.split(/[?#]/, 1)[0] ?? source)] : [];
-  });
+    if (!source) continue;
+    const path = normalizedPath(source.split(/[?#]/, 1)[0] ?? source);
+    sourceIdentityByPath.set(
+      path,
+      providesAuthoredIdentity || sourceIdentityByPath.get(path) === true,
+    );
+  }
+  return Array.from(sourceIdentityByPath, ([path, providesAuthoredIdentity]) => ({
+    path,
+    providesAuthoredIdentity,
+  }));
 }
 
 function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
@@ -246,17 +262,51 @@ function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
 }
 
 /**
+ * Returns stylesheet identities only when the browser gave us a complete,
+ * authored-source mapping. A compiled host can expose a mixture of source-like
+ * and opaque CSS URLs; treating the mapped subset as complete would make
+ * declarations behind the opaque URLs look lazy even while their variables are
+ * live in the document.
+ */
+function confidentlyLoadedStylesheetSources(
+  definitions: readonly TokenDefinition[],
+  loadedSources: readonly LoadedStylesheetSource[],
+): string[] {
+  const cssSources = definitions.flatMap((definition) =>
+    definition.declarations
+      .map((declaration) => declaration.source)
+      .filter((source) => /\.css$/i.test(sourceFile(source))));
+  const known = new Set<string>();
+  for (const loaded of loadedSources) {
+    if (loaded.providesAuthoredIdentity
+      || cssSources.some((source) => isLoadedCssSource(source, [loaded.path]))) {
+      known.add(loaded.path);
+      continue;
+    }
+    // One opaque compiled URL can contain any authored declaration, so the
+    // document does not provide enough evidence to remove unloaded sources.
+    return [];
+  }
+  return [...known];
+}
+
+/**
  * Produces the page catalog used by the global Tokens settings section. It retains the
  * build-time inventory separately, while removing declarations from CSS files
- * that Vite has not loaded for this page (such as lazy route stylesheets).
+ * that have not loaded when the document exposes mappable source identities
+ * (such as Vite's lazy route stylesheets). Opaque compiled URLs do not narrow
+ * the adapter-supplied catalog.
  */
 export function getAvailableTokenCatalog(
   root: HTMLElement = document.documentElement,
   definitions: readonly TokenDefinition[] = getNudgeUiRuntimeConfig().tokenCatalog,
 ): TokenDefinition[] {
   const computed = getElementComputedStyle(root);
-  const loadedSources = loadedStylesheetSources(root.ownerDocument ?? document);
   const hydrated = hydrateTokenCatalogFromCssom(definitions, root.ownerDocument ?? document);
+  const loadedSources = confidentlyLoadedStylesheetSources(
+    hydrated,
+    loadedStylesheetSources(root.ownerDocument ?? document),
+  );
   return hydrated.flatMap((definition) => {
     if (!isCustomPropertyToken(definition)) return [definition];
     if (!computed.getPropertyValue(definition.cssName).trim()) return [];
