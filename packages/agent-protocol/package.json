@@ -1,7 +1,8 @@
 {
   "name": "@nudge-ui/agent-protocol",
   "version": "0.2.0",
-  "description": "Host-neutral browser-agent bridge and Canvas protocol contracts for Nudge UI.",
+  "private": true,
+  "description": "Private browser-agent bridge and Canvas protocol contracts for Nudge UI.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -35,11 +36,5 @@
   "devDependencies": {
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

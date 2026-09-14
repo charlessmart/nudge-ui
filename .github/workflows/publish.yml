@@ -79,14 +79,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: "@nudge-ui/agent-protocol"
-            archive: nudge-ui-agent-protocol
-          - name: "create-nudge-ui"
-            archive: create-nudge-ui
           - name: "nudge-ui"
             archive: nudge-ui
           - name: "@nudge-ui/mcp"
             archive: nudge-ui-mcp
+          - name: "create-nudge-ui"
+            archive: create-nudge-ui
     permissions:
       contents: read
       id-token: write

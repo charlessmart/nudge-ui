@@ -218,24 +218,17 @@ result can be positively verified.
 
 ## Architecture
 
-The repository separates host integration from shared browser behavior:
+The repository separates its public products from private implementation:
 
-- `packages/plugin` — Vite transforms, virtual modules, token discovery, and
-  dev HTML bootstrap.
-- `packages/compiler` — host-neutral development source compilers used by
-  framework adapters.
-- `packages/create-nudge-ui` — framework detection, adapter installation, and
-  host-configuration setup.
-- `packages/css` — browser-safe CSS and token models, value semantics, and the
-  build-time token inventory.
-- `packages/inspector` — selection, CSS inspection, managed previews, changes,
-  prompts, and the React runtime.
-- `packages/agent-protocol` — host-neutral browser bridge and Canvas command
-  contracts.
-- `packages/mcp` — the early-alpha MCP stdio server and authenticated local
+- `packages/nudge-ui` — the inspector, shared compiler and CSS model, and the
+  Vite, Next.js, Astro, and static HTML hosts.
+- `packages/mcp` — the optional MCP stdio server and authenticated local
   browser companion.
-- `packages/nextjs`, `packages/astro`, and `packages/standalone` — host
-  adapters that publish one runtime configuration contract.
+- `packages/create-nudge-ui` — framework detection, package installation, and
+  host configuration.
+- `packages/agent-protocol` — private shared browser bridge and Canvas command
+  contracts compiled into `nudge-ui` and `@nudge-ui/mcp`.
+- `packages/compatibility` — private compatibility fixtures shared by tests.
 - `examples` — real consumer applications used for end-to-end verification.
 
 Stable `data-*` attributes provide identity across framework re-renders. The
@@ -302,9 +295,9 @@ git push origin v0.2.0
 The tag starts the npm release workflow. It validates that every public package
 matches the tag, runs the required unit suite, builds and verifies the package
 archives once, and submits those exact archives with `npm stage publish`.
-Review the four entries on npm's **Staged Packages** page and approve them with
-2FA in dependency order: `@nudge-ui/agent-protocol`, `nudge-ui`,
-`@nudge-ui/mcp`, then `create-nudge-ui`.
+Review the three entries on npm's **Staged Packages** page and approve them with
+2FA in dependency order: `nudge-ui`, `@nudge-ui/mcp`, then
+`create-nudge-ui`.
 
 Each package must trust the `charlessmart/nudge-ui` GitHub repository and the
 `publish.yml` workflow on npm. Configure the trusted publisher for staged

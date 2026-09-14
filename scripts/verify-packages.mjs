@@ -15,7 +15,6 @@ import ts from "typescript";
 
 const repositoryRoot = resolve(new URL("..", import.meta.url).pathname);
 const packageDirectories = [
-  "agent-protocol",
   "create-nudge-ui",
   "nudge-ui",
   "mcp",
@@ -80,6 +79,26 @@ function verifyPackage(packageRoot) {
   assert(packageJson.publishConfig?.access === "public", `${packageJson.name} must publish with public access.`);
   assert(packageJson.engines?.node, `${packageJson.name} must declare a Node engine.`);
   assert(!JSON.stringify(packageJson).includes("workspace:"), `${packageJson.name} retains a workspace dependency.`);
+
+  if (packageJson.name === "nudge-ui" || packageJson.name === "@nudge-ui/mcp") {
+    assert(
+      !packageJson.dependencies?.["@nudge-ui/agent-protocol"],
+      `${packageJson.name} has a runtime dependency on the private agent protocol.`,
+    );
+    assert(
+      entries.includes("package/dist/internal/agent-protocol.js")
+        && entries.includes("package/dist/internal/agent-protocol.d.ts"),
+      `${packageJson.name} does not include the private agent protocol.`,
+    );
+    const leakedImports = entries.filter((entry) =>
+      entry.startsWith("package/dist/") && /\.(?:[cm]?js|d\.ts)$/.test(entry)
+        && /["']@nudge-ui\/agent-protocol["']/.test(tarFile(tarball, entry)),
+    );
+    assert(
+      leakedImports.length === 0,
+      `${packageJson.name} imports the unpublished agent protocol from ${leakedImports.join(", ")}.`,
+    );
+  }
 
   assertPackageTarget(entries, packageJson.main, `${packageJson.name} main`);
   assertPackageTarget(entries, packageJson.types, `${packageJson.name} types`);
@@ -169,7 +188,6 @@ function verifyPackedAstroConsumers() {
   // Package names, not export subpaths: the hosts now ship as subpaths of the
   // single distribution package, so there is no separate tarball to install.
   const requiredPackages = [
-    "@nudge-ui/agent-protocol",
     "nudge-ui",
   ];
   for (const packageName of requiredPackages) {

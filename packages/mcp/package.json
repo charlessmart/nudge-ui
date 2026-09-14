@@ -45,7 +45,7 @@
     }
   },
   "scripts": {
-    "build": "node ../../scripts/build-package.mjs && node scripts/build.mjs",
+    "build": "node ../../scripts/build-package.mjs && node ../../scripts/vendor-agent-protocol.mjs && node scripts/build.mjs",
     "prepack": "pnpm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "vitest run",
@@ -53,10 +53,10 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@nudge-ui/agent-protocol": "workspace:*",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@nudge-ui/agent-protocol": "workspace:*",
     "@types/node": "^22.20.1",
     "esbuild": "^0.21.5",
     "typescript": "^5.9.3",
