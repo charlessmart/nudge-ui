@@ -60,8 +60,8 @@ deliberate compatibility decision.
 
 ## Consequences
 
-- Consumers still install `nudge-ui`; release packaging is governed separately
-  by ADR-0026.
+- Installing and publishing remain unchanged: consumers install `nudge-ui`,
+  and a release still publishes four npm packages.
 - Documentation and editor completion show a small supported API instead of
   package wiring.
 - Runtime-generated imports remain resolvable without presenting them as
