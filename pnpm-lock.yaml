@@ -521,13 +521,13 @@ importers:
       magic-string:
         specifier: ^0.30.21
         version: 0.30.21
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
     devDependencies:
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.1
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
@@ -640,9 +640,6 @@ importers:
       '@nudge-ui/standalone':
         specifier: workspace:*
         version: link:../standalone
-      '@nudge-ui/vite-react':
-        specifier: workspace:*
-        version: link:../plugin
       magic-string:
         specifier: ^0.30.21
         version: 0.30.21
@@ -697,9 +694,6 @@ importers:
       postcss:
         specifier: ^8.5.26
         version: 8.5.26
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
     devDependencies:
       '@types/node':
         specifier: ^22.20.1

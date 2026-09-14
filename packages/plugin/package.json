@@ -48,8 +48,7 @@
     "@nudge-ui/css": "workspace:*",
     "@nudge-ui/inspector": "workspace:*",
     "magic-string": "^0.30.21",
-    "postcss": "^8.5.26",
-    "typescript": "^5.9.3"
+    "postcss": "^8.5.26"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
