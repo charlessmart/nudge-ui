@@ -30,6 +30,18 @@ test("dev: virtual:design-tokens module renders populated token table", async ({
 test("dev: first catalog load follows the active package CSS import graph", async ({ page }) => {
   await page.goto("/playground");
 
+  await expect.poll(() => page.evaluate(() => {
+    const catalog = (window as unknown as {
+      __designTokenCatalog?: Array<{ cssName: string }>;
+    }).__designTokenCatalog ?? [];
+    return [
+      "--color-content-primary",
+      "--color-content-secondary",
+      "--spacing-200",
+      "--border-radius-medium",
+    ].every((cssName) => catalog.some((token) => token.cssName === cssName));
+  })).toBe(true);
+
   const packageTokens = await page.evaluate(() => {
     const catalog = (window as unknown as {
       __designTokenCatalog?: Array<{ cssName: string; origin?: string; editable?: boolean; declarations: Array<{ source: string }> }>;
@@ -53,6 +65,17 @@ test("dev: first catalog load follows the active package CSS import graph", asyn
 
 test("dev: ordinary CSS inventory reaches browser inspection, managed preview, and prompt", async ({ page }) => {
   await page.goto("/playground");
+
+  await expect.poll(() => page.evaluate(() => {
+    const catalog = (window as unknown as {
+      __designTokenCatalog?: Array<{
+        cssName: string;
+        declarations: Array<{ contribution?: { kind?: string; buildTool?: string } }>;
+      }>;
+    }).__designTokenCatalog ?? [];
+    return catalog.find((definition) => definition.cssName === "--color-surface-sunken")
+      ?.declarations[0]?.contribution ?? null;
+  })).toMatchObject({ kind: "stylesheet", buildTool: "vite" });
 
   const inventoryEvidence = await page.evaluate(() => {
     const catalog = (window as unknown as {

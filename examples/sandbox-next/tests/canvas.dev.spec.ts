@@ -48,15 +48,10 @@ async function enterCanvas(page: Page): Promise<void> {
 
 /** Makes one durable width edit through the inspect-mode panel. */
 async function makeWidthEdit(page: Page, value: string): Promise<void> {
-  await page.locator(".hero-card h2").evaluate((el) => {
-    if (!(el instanceof HTMLElement)) throw new Error("target is not an HTMLElement");
-    el.click();
-  });
+  await page.locator(".hero-card h2").click();
   const input = page.locator('[data-test="token-field"][data-property="width"] [data-test="raw-input"]');
   await input.waitFor({ state: "visible", timeout: 20_000 }).catch(async () => {
-    await page.locator(".hero-card h2").evaluate((el) => {
-      if (el instanceof HTMLElement) el.click();
-    });
+    await page.locator(".hero-card h2").click();
     await input.waitFor({ state: "visible", timeout: 20_000 });
   });
   await input.evaluate((el, v) => {
@@ -107,10 +102,7 @@ test("dev: links inside a card discover new route cards", async ({ page }) => {
   // Clicking the app's client-side Link inside the renderer must surface a
   // /second card through navigation-intent rather than navigating the frame.
   const cardFrame = page.frames().find((f) => f !== page.mainFrame())!;
-  await cardFrame.locator('a[href="/second"]').evaluate((el) => {
-    if (!(el instanceof HTMLElement)) throw new Error("nav link is not an HTMLElement");
-    el.click();
-  });
+  await cardFrame.locator('a[href="/second"]').click();
 
   await page.waitForFunction(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
@@ -154,10 +146,7 @@ test("dev: navigation intent focuses an existing card for a known route", async 
   // as 3 whenever the intent round-trip lands.
   const secondFrame = page.frames().find((f) => f.url().endsWith("/second"));
   expect(secondFrame).toBeTruthy();
-  await secondFrame!.locator('a[href="/"]').evaluate((el) => {
-    if (!(el instanceof HTMLElement)) throw new Error("nav link is not an HTMLElement");
-    el.click();
-  });
+  await secondFrame!.locator('a[href="/"]').click();
 
   await expect
     .poll(() => page.evaluate(() => {

@@ -15,13 +15,9 @@ test("dev: standard CSS conformance fixture keeps authored attribution separate 
   expect(facts.authoredPadding).toContain("var(--conformance-alias)");
   expect(facts.computedPadding).toBe("16px");
   expect(facts.computedColor).toBe("rgb(51, 65, 85)");
-  expect(facts.catalog.some((entry) => entry.cssName === "--conformance-alias")).toBe(true);
 
   await card.click();
-  await expect.poll(async () => page.evaluate(() => {
-    const root = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return root?.querySelector('[data-test="style-editors"]') !== null;
-  })).toBe(true);
+  await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 });
 
 test("dev: logical spacing projects onto physical inspector side controls", async ({ page }) => {

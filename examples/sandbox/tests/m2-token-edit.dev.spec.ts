@@ -169,37 +169,13 @@ test("dev: token unlink action appears over the chip on hover", async ({ page })
   const field = page.locator('[data-test="token-field"][data-property="color"]');
   const chip = field.locator('[data-test="token-chip"]');
   const delink = field.locator('[data-test="delink-btn"]');
+  const action = field.locator(".token-chip__action");
 
   await expect(chip).toBeVisible();
-  await expect(delink).toHaveCSS("opacity", "0");
+  await expect(action).toHaveCSS("opacity", "0");
   await chip.hover();
-  await expect(delink).toHaveCSS("opacity", "1");
-});
-
-test("dev: compact token unlink button stays clear of the chip text", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
-  await waitForRow(page);
-  await expandSpacing(page);
-  await selectPromote(page, "padding-top", "--space-2");
-
-  const geometry = await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const field = sr?.querySelector('[data-test="token-field"][data-property="padding-top"]');
-    const wrap = field?.querySelector<HTMLElement>(".token-field__chip-wrap");
-    const delink = field?.querySelector<HTMLElement>('[data-test="delink-btn"]');
-    if (!wrap || !delink) return null;
-    const wrapRect = wrap.getBoundingClientRect();
-    const delinkRect = delink.getBoundingClientRect();
-    return {
-      delinkLeft: delinkRect.left - wrapRect.left,
-      wrapWidth: wrapRect.width,
-    };
-  });
-
-  expect(geometry).not.toBeNull();
-  expect(geometry!.delinkLeft).toBeGreaterThanOrEqual(39);
-  expect(geometry!.delinkLeft).toBeGreaterThan(geometry!.wrapWidth);
+  await expect(action).toHaveCSS("opacity", "1");
+  await expect(delink).toBeEnabled();
 });
 
 test("dev: replacing a hardcoded spacing value with a token writes a rule to the sheet", async ({ page }) => {

@@ -30,7 +30,7 @@ describe("NEXT_PHASE production-build guard", () => {
     ).toBeNull();
     // The compiler-facing loader entry carries the same guard.
     expect(
-      instrumentRootLayout('export default function L(){return <html><body/></html>;}'),
+      instrumentRootLayout('export default function L(){return <html><body></body></html>;}'),
     ).not.toBeNull(); // pure helper stays pure; entry-level guard covers the pipeline
   });
 
@@ -210,18 +210,36 @@ describe("instrumentRootLayout", () => {
 
   it("is applied by the main entry to html-rendering layouts", () => {
     const result = transform(
-      "export default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang=\"en\">\n      <body>{children}</body>\n    </html>\n  );\n}\n",
+      "export default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang=\"en\">\n      <body className=\"theme\">{children}</body>\n    </html>\n  );\n}\n",
       LAYOUT_ID,
     );
 
     expect(result!.layoutInstrumented).toBe(true);
     expect(result!.code).toContain("@nudge-ui/nextjs/mount");
-    expect(result!.code).toContain("{__NudgeUiCreateElement(__NudgeUiMountElement)}");
-    // The mount lands inside <html>, before its closing tag.
-    expect(result!.code.indexOf("__NudgeUiMountElement")).toBeGreaterThan(-1);
-    expect(result!.code.lastIndexOf("</html>")).toBeGreaterThan(
-      result!.code.indexOf("{__NudgeUiCreateElement(__NudgeUiMountElement)}"),
+    const mountExpression = "{__NudgeUiCreateElement(__NudgeUiMountElement)}";
+    const mountIndex = result!.code.indexOf(mountExpression);
+    expect(mountIndex).toBeGreaterThan(result!.code.indexOf("<body"));
+    // The mount lands inside <body>, before its closing tag, so Next evaluates
+    // the bootstrap script from the initial document rather than waiting for
+    // a root-layout client boundary to hydrate.
+    expect(mountIndex).toBeLessThan(result!.code.lastIndexOf("</body>"));
+    expect(result!.code.indexOf(mountExpression, mountIndex + 1)).toBe(-1);
+  });
+
+  it("finds a body nested in a JSX fragment", () => {
+    const result = instrumentRootLayout(
+      "export default function RootLayout({ children }) {\n  return <html><><body>{children}</body></></html>;\n}\n",
     );
+
+    const mountIndex = result!.code.indexOf("{__NudgeUiCreateElement(__NudgeUiMountElement)}");
+    expect(mountIndex).toBeGreaterThan(result!.code.indexOf("<body>"));
+    expect(mountIndex).toBeLessThan(result!.code.indexOf("</body>"));
+  });
+
+  it("skips layouts without a literal body element", () => {
+    const source = "export default function RootLayout({ children }) {\n  return <html><Body>{children}</Body></html>;\n}\n";
+
+    expect(instrumentRootLayout(source)).toBeNull();
   });
 
   it("leaves non-html layouts untouched", () => {

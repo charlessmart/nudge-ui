@@ -86,6 +86,23 @@ function renderedFixture(): HTMLElement {
   return element;
 }
 
+function duplicatedTextFixture(): {
+  element: HTMLElement;
+  first: HTMLElement;
+  second: HTMLElement;
+} {
+  const element = document.createElement("h1");
+  element.setAttribute("data-cid", "AnimatedLabel");
+  element.setAttribute("data-src", "src/AnimatedLabel.tsx:12:3");
+  const first = document.createElement("span");
+  first.textContent = "Visible label";
+  const second = document.createElement("span");
+  second.textContent = "Visible label";
+  element.append(first, second);
+  document.body.append(element);
+  return { element, first, second };
+}
+
 function requestInlineEdit(target: Element, x = 10): InlineTextInteractionDisposition {
   return handleInlineTextEditIntent({ kind: "double-click", target, point: { x, y: 10 } });
 }
@@ -197,6 +214,68 @@ describe("inlineTextEditor", () => {
     expect(label?.firstChild).toBe(originalTextNode);
     expect(document.getSelection()?.getRangeAt(0).startContainer).toBe(label);
     expect(getChangesList()).toMatchObject([{ kind: "component-prop", property: "label", after: "Save file" }]);
+  });
+
+  it("starts editing in the visible copy when a hidden layout duplicate comes first", () => {
+    const { element, first, second } = duplicatedTextFixture();
+    first.style.visibility = "hidden";
+    const result = beginInlineTextEdit(element);
+    if ("kind" in result) throw new Error(result.message);
+
+    expect(result.host.parentElement).toBe(second);
+    result.cancel();
+  });
+
+  it("starts editing in the visible copy when a content-hidden duplicate comes first", () => {
+    const { element, first, second } = duplicatedTextFixture();
+    first.style.contentVisibility = "hidden";
+    const result = beginInlineTextEdit(element);
+    if ("kind" in result) throw new Error(result.message);
+
+    expect(result.host.parentElement).toBe(second);
+    result.cancel();
+  });
+
+  it("keeps painted aria-hidden text editable", () => {
+    const element = renderedFixture();
+    element.setAttribute("aria-hidden", "true");
+    const result = beginInlineTextEdit(element);
+    if ("kind" in result) throw new Error(result.message);
+
+    expect(result.host.parentElement).toBe(element);
+    result.cancel();
+  });
+
+  it("keeps painted inert text editable", () => {
+    const element = renderedFixture();
+    element.setAttribute("inert", "");
+    const result = beginInlineTextEdit(element);
+    if ("kind" in result) throw new Error(result.message);
+
+    expect(result.host.parentElement).toBe(element);
+    result.cancel();
+  });
+
+  it("keeps hidden-attributed text editable when CSS paints it", () => {
+    const element = renderedFixture();
+    element.hidden = true;
+    element.style.display = "block";
+    const result = beginInlineTextEdit(element);
+    if ("kind" in result) throw new Error(result.message);
+
+    expect(result.host.parentElement).toBe(element);
+    result.cancel();
+  });
+
+  it("ignores a hidden duplicate root when proving rendered identity", () => {
+    const element = renderedFixture();
+    const hiddenDuplicate = renderedFixture();
+    hiddenDuplicate.style.display = "none";
+    const result = beginInlineTextEdit(element);
+    if ("kind" in result) throw new Error(result.message);
+
+    expect(result.host.parentElement).toBe(element);
+    result.cancel();
   });
 
   it("uses plaintext selection replacement and paste without adding per-input history", () => {

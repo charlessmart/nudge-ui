@@ -3,14 +3,10 @@ import { managedSheetText } from "./managedSheet.ts";
 
 async function selectCase(page: import("@playwright/test").Page, id: string): Promise<void> {
   const target = page.locator(`[data-test="border-case-${id}"]`);
-  await target.evaluate((element) => {
-    if (!(element instanceof HTMLElement)) throw new Error("Border case target is not an HTML element");
-    element.click();
-  });
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute(
-    "data-selected-cid",
-    `BorderConformance:${id}`,
-  );
+  // The specimen contains instrumented text children. Click its empty corner
+  // so the fixture element, rather than a child text node, receives the real
+  // browser event.
+  await target.click({ position: { x: 4, y: 4 } });
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 }
 
@@ -48,12 +44,8 @@ test("dev: border conformance gallery renders every shared case and selects a sa
   await expect(targets).toHaveCount(22);
   for (let index = 0; index < await targets.count(); index += 1) {
     const target = targets.nth(index);
-    await target.evaluate((element) => {
-      if (!(element instanceof HTMLElement)) throw new Error("Border target is not an HTML element");
-      element.click();
-    });
-    const cid = await target.getAttribute("data-cid");
-    await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", cid ?? "");
+    await target.click({ position: { x: 4, y: 4 } });
+    await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   }
 });
 
@@ -79,7 +71,7 @@ test("dev: border side-specific shorthand decomposes correctly", async ({ page }
   await selectCase(page, "border-side-specific");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("3px");
-  await expect(page.locator('[data-test="border-style-top"]')).toContainText("Dotted");
+  await expect(page.locator('[data-test="border-style-top"]')).toHaveAttribute("aria-label", "Border style: Dotted");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-color"] [data-test="token-chip"]')).toContainText("--color-accent");
 });
 
@@ -108,7 +100,7 @@ test("dev: all-sides-different expands individual side fields by default", async
   await expect(page.locator('.border')).toHaveAttribute("data-expanded", "true");
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("1px");
   await expect(page.locator('[data-test="token-field"][data-property="border-left-width"] [data-test="raw-input"]')).toHaveValue("4px");
-  await expect(page.locator('[data-test="border-style-right"]')).toContainText("Dotted");
+  await expect(page.locator('[data-test="border-style-right"]')).toHaveAttribute("aria-label", "Border style: Dotted");
 });
 
 test("dev: order-permuted shorthand shows literal hex color not a token chip", async ({ page }) => {
@@ -173,7 +165,7 @@ test("dev: all four side-specific borders render and are selectable", async ({ p
   await selectCase(page, "border-all-sides-different");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("1px");
-  await expect(page.locator('[data-test="border-style-right"]')).toContainText("Dotted");
+  await expect(page.locator('[data-test="border-style-right"]')).toHaveAttribute("aria-label", "Border style: Dotted");
   await expect(page.locator('[data-test="token-field"][data-property="border-bottom-color"] [data-test="raw-input"]')).toHaveValue("blue");
   await expect(page.locator('[data-test="token-field"][data-property="border-left-width"] [data-test="raw-input"]')).toHaveValue("4px");
 });

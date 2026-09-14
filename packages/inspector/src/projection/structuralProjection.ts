@@ -349,11 +349,30 @@ function installDocumentObserver(doc: Document, state: DocumentProjectionState):
   });
 }
 
+function hasUnresolvedAppliedChange(state: DocumentProjectionState): boolean {
+  for (const local of state.applied.values()) {
+    if (local.kind === "unresolved") return true;
+  }
+  return false;
+}
+
 function scheduleValidation(doc: Document, state: DocumentProjectionState): void {
   if (state.validationQueued || state.applied.size === 0) return;
   state.validationQueued = true;
   queueMicrotask(() => {
     state.validationQueued = false;
+    // A renderer can receive its projection before its application tree has
+    // mounted. Retry unresolved records after that tree changes so a valid
+    // late mount converges without requiring another controller message.
+    if (hasUnresolvedAppliedChange(state)) {
+      rebuildForSnapshot(doc, state, state.snapshot, false);
+      // The replay is synchronous, so external renderer mutations cannot
+      // interleave with it. Discard only the records produced by the replay;
+      // future renderer mutations remain observed and can trigger another try.
+      state.observer?.takeRecords();
+      storeReports(doc, reportsForSnapshot(state, state.snapshot));
+      return;
+    }
     validateAppliedPreview(doc, state);
   });
 }
@@ -400,6 +419,7 @@ function rebuildForSnapshot(
   doc: Document,
   state: DocumentProjectionState,
   snapshot: readonly StructuralChange[],
+  schedulePostReplayValidation = true,
 ): void {
   // React may have changed a projected node before its mutation callback ran.
   // Validate synchronously so a rebuild never restores a framework-owned node.
@@ -438,7 +458,7 @@ function rebuildForSnapshot(
       local.expectedBefore = local.element.nextElementSibling as HTMLElement | null;
     }
   }
-  scheduleValidation(doc, state);
+  if (schedulePostReplayValidation) scheduleValidation(doc, state);
 }
 
 function storeUnresolved(

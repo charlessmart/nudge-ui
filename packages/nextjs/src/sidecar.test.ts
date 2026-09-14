@@ -7,6 +7,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -283,6 +284,75 @@ describe("sidecar contract aggregation (Stage 5)", () => {
 });
 
 describe("sidecar token lifecycle (Stage 4)", () => {
+  it("discovers authored CSS in sibling pnpm workspace packages", async () => {
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "tokens-workspace-"));
+    roots.push(workspaceRoot);
+    const appRoot = join(workspaceRoot, "apps", "web");
+    const stylesRoot = join(workspaceRoot, "packages", "ui", "src", "styles");
+    mkdirSync(appRoot, { recursive: true });
+    mkdirSync(stylesRoot, { recursive: true });
+    writeFileSync(join(workspaceRoot, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n  - packages/*\n");
+    mkdirSync(join(appRoot, "app"), { recursive: true });
+    writeFileSync(join(appRoot, "app", "globals.css"), ":root{--app-accent:#2563eb}");
+    writeFileSync(join(stylesRoot, "theme.css"), ":root{--workspace-accent:#4f46e5}");
+
+    const handle = await ensureSidecar(appRoot, { tokens: true });
+    handles.push(handle);
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
+    const manifest = (await response.json()) as {
+      runtime: {
+        tokens: Array<{ name: string }>;
+        tokenCatalog: Array<{ cssName: string; declarations: Array<{ source: string }> }>;
+      };
+    };
+
+    const sourceByName = new Map(manifest.runtime.tokenCatalog.map((definition) => [
+      definition.cssName,
+      definition.declarations[0]?.source,
+    ]));
+    expect(sourceByName.get("--app-accent")).toBe("app/globals.css:1");
+    expect(sourceByName.get("--workspace-accent")).toBe("../../packages/ui/src/styles/theme.css:1");
+  });
+
+  it("reuses one sidecar when configured token roots resolve to the same directory", async () => {
+    const root = mkdtempSync(join(tmpdir(), "tokens-canonical-roots-"));
+    roots.push(root);
+    const appRoot = join(root, "app");
+    const stylesRoot = join(root, "styles");
+    const stylesAlias = join(root, "styles-alias");
+    mkdirSync(appRoot, { recursive: true });
+    mkdirSync(stylesRoot, { recursive: true });
+    symlinkSync(stylesRoot, stylesAlias, "dir");
+
+    const first = await ensureSidecar(appRoot, { tokens: true, sourceRoots: [stylesRoot] });
+    handles.push(first);
+    const second = await ensureSidecar(appRoot, { tokens: true, sourceRoots: [stylesAlias] });
+    if (second !== first) handles.push(second);
+
+    expect(second.port).toBe(first.port);
+  });
+
+  it("includes explicitly configured authored roots outside the app", async () => {
+    const root = mkdtempSync(join(tmpdir(), "tokens-source-root-"));
+    roots.push(root);
+    const appRoot = join(root, "apps", "web");
+    const stylesRoot = join(root, "design-system", "src");
+    mkdirSync(appRoot, { recursive: true });
+    mkdirSync(stylesRoot, { recursive: true });
+    writeFileSync(join(stylesRoot, "theme.css"), ":root{--explicit-accent:#4f46e5}");
+
+    const handle = await ensureSidecar(appRoot, { tokens: true, sourceRoots: [stylesRoot] });
+    handles.push(handle);
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/__nudge_ui__/manifest`);
+    const manifest = (await response.json()) as {
+      runtime: { tokens: Array<{ name: string }> };
+    };
+
+    expect(manifest.runtime.tokens.map((token) => token.name)).toContain("--explicit-accent");
+  });
+
   it("serves scanned custom properties with project-relative provenance", async () => {
     const root = mkdtempSync(join(tmpdir(), "tokens-"));
     roots.push(root);

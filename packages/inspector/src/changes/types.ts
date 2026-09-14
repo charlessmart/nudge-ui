@@ -55,6 +55,7 @@ export interface TokenChangeRecord {
   property: string;
   rawValue: string;
   oldRawValue: string;
+  important: boolean;
   context: StyleRuleContext;
   contextLabel: string;
   source: { file: string; line: number; component: string };

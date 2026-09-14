@@ -8,6 +8,7 @@ async function dragBefore(
   dropTarget?: import("@playwright/test").Locator,
   afterTarget = false,
 ): Promise<void> {
+  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible({ timeout: 10000 });
   await source.scrollIntoViewIfNeeded();
   await destination.scrollIntoViewIfNeeded();
   const sourceBox = await source.boundingBox();
@@ -46,6 +47,7 @@ async function dragIntoContainer(
   destination: import("@playwright/test").Locator,
   dropLine: import("@playwright/test").Locator,
 ): Promise<void> {
+  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible({ timeout: 10000 });
   await source.scrollIntoViewIfNeeded();
   await destination.scrollIntoViewIfNeeded();
   const [sourceBox, destinationBox] = await Promise.all([source.boundingBox(), destination.boundingBox()]);
@@ -68,6 +70,7 @@ async function dragIntoFlexGap(
   rightItem: import("@playwright/test").Locator,
   dropLine: import("@playwright/test").Locator,
 ): Promise<void> {
+  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible({ timeout: 10000 });
   await source.evaluate((element) => {
     const parent = element.parentElement!;
     parent.style.justifyContent = "space-between";
@@ -467,7 +470,10 @@ test("dev: Inspect arrow keys reorder a selected sibling", async ({ page }) => {
   await expect.poll(async () => (await outline.boundingBox())?.x ?? 0).toBeGreaterThan(before?.x ?? 0);
 
   await page.locator('[data-test="mode-canvas"]').click();
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   const frame = page.frameLocator(".canvas-card__iframe").first();
+  await expect(frame.locator("body")).toBeVisible({ timeout: 20000 });
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 

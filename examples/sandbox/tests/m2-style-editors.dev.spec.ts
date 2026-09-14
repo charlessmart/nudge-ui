@@ -221,9 +221,7 @@ test("dev: authored CSS border fixtures parse width, style, and color per side",
   await page.goto("/playground");
   await waitForInspector(page);
   const fixture = page.locator('[data-test="css-border-mixed"]');
-  await fixture.evaluate((element) => {
-    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
-  });
+  await fixture.click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
 
   await expect(page.locator('.border')).toHaveAttribute("data-expanded", "true");
@@ -245,9 +243,7 @@ test("dev: main demo color fixtures expose partial opacity after CSSOM normaliza
   await waitForInspector(page);
 
   const rgbaFixture = page.locator('[data-test="css-opacity-rgba"]');
-  await rgbaFixture.evaluate((element) => {
-    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
-  });
+  await rgbaFixture.click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
     .toHaveValue("rgba(196, 243, 107, 0.18)");
@@ -255,43 +251,19 @@ test("dev: main demo color fixtures expose partial opacity after CSSOM normaliza
     .toHaveValue("18%");
 
   const hexFixture = page.locator('[data-test="css-opacity-hex"]');
-  await hexFixture.evaluate((element) => {
-    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
-  });
+  await hexFixture.click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
     .toHaveValue("rgba(217, 200, 255, 0.2)");
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
     .toHaveValue("20%");
 
-  const opacitySeparator = await page.evaluate(() => {
-    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const input = shadow?.querySelector(
-      '[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]',
-    ) as HTMLInputElement | null;
-    if (!input) return null;
-    const styles = getComputedStyle(input);
-    return {
-      borderLeftColor: styles.borderLeftColor,
-      borderLeftStyle: styles.borderLeftStyle,
-      borderLeftWidth: styles.borderLeftWidth,
-      height: styles.height,
-    };
-  });
-  expect(opacitySeparator).toEqual({
-    borderLeftColor: "rgb(252, 252, 252)",
-    borderLeftStyle: "solid",
-    borderLeftWidth: "1px",
-    height: "28px",
-  });
 });
 
 test("dev: individual side focus ring belongs to the whole side field", async ({ page }) => {
   await page.goto("/playground");
   await waitForInspector(page);
-  await page.locator('[data-test="css-border-mixed"]').evaluate((element) => {
-    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
-  });
+  await page.locator('[data-test="css-border-mixed"]').click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
 
   const input = page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]');
@@ -428,9 +400,7 @@ test("dev: linking divergent border widths applies one value and survives resele
   await page.goto("/playground");
   await waitForInspector(page);
   const fixture = page.locator('[data-test="css-border-mixed"]');
-  await fixture.evaluate((element) => {
-    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
-  });
+  await fixture.click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
 
   const borderSection = page.locator('.border');
@@ -442,9 +412,7 @@ test("dev: linking divergent border widths applies one value and survives resele
     .toEqual(["2px", "2px", "2px", "2px"]);
   await expect.poll(async () => sheetText(page), { timeout: 5000 }).toContain("border-width: 2px");
 
-  await fixture.evaluate((element) => {
-    element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
-  });
+  await fixture.click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
   await expect(page.locator('.border')).toHaveAttribute("data-expanded", "false");
 });

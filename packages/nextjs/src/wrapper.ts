@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import type { ComponentModuleProtocols } from "@nudge-ui/compiler/component-policy";
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
@@ -84,6 +84,16 @@ function loaderPaths(): LoaderPaths {
   };
 }
 
+/** Absolute directory of a package installed in the host project, or null. */
+function hostPackageDir(root: string, name: string): string | null {
+  try {
+    const require = createRequire(join(root, "package.json"));
+    return dirname(require.resolve(`${name}/package.json`));
+  } catch {
+    return null;
+  }
+}
+
 /** Absolute path for an Adapter-owned package export, resolved beside this package. */
 function adapterPackageExport(specifier: string): string | null {
   try {
@@ -91,6 +101,11 @@ function adapterPackageExport(specifier: string): string | null {
   } catch {
     return null;
   }
+}
+
+function relativeTurbopackAlias(root: string, target: string): string {
+  const value = relative(root, target).split("\\").join("/");
+  return value.startsWith(".") ? value : `./${value}`;
 }
 
 function resolveNextVersion(root: string): string | null {
@@ -205,10 +220,17 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     return config;
   }
 
+  const sourceRoots = options.sourceRoots?.map((sourceRoot) => resolve(root, sourceRoot));
+
   // ensureSidecar is a per-process singleton; awaiting it wherever the port
-  // is needed removes any config-evaluation race.
+  // is needed removes any config-evaluation race. The same authored roots
+  // reach token discovery so workspace CSS is visible to both integrations.
   const sidecarPort = (): Promise<number> =>
-    ensureSidecar(root, { manifest: buildManifest({ root }), tokens: true })
+    ensureSidecar(root, {
+      manifest: buildManifest({ root }),
+      tokens: true,
+      ...(sourceRoots ? { sourceRoots } : {}),
+    })
       .then((handle: SidecarHandle) => handle.port)
       .catch((error: unknown) => {
         console.warn("[nudge-ui] sidecar failed to start:", error);
@@ -239,7 +261,6 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     ...((source.turbopack?.rules as Record<string, unknown> | undefined) ?? {}),
   };
   const paths = loaderPaths();
-  const sourceRoots = options.sourceRoots?.map((sourceRoot) => resolve(root, sourceRoot));
   const loaderOptions = {
     root,
     ...(options.componentProtocols ? { componentProtocols: options.componentProtocols } : {}),
@@ -289,13 +310,39 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     compose("*.jsx", { ...identityRule });
 
   }
+  // --- Single React instance (ADR-0004 via module resolution) -------------
+  // Nudge UI packages carry their own react dependency for standalone
+  // consumers. Without an alias, SWC resolves their `react` imports against
+  // those copies while the host application runs its own — two Reacts in one
+  // document, and inspector state updates silently stop rendering. Aliasing
+  // to the host project's copies pins one instance for every compilation.
+  const hostReact = hostPackageDir(root, "react");
+  const hostReactDom = hostPackageDir(root, "react-dom");
+  const componentRuntime = adapterPackageExport("@nudge-ui/inspector/component-runtime");
+  if (hostReact || hostReactDom || componentRuntime) {
+    const userAlias = (source.turbopack?.resolveAlias as Record<string, unknown> | undefined) ?? {};
+    nextConfig.turbopack = {
+      ...nextConfig.turbopack,
+      resolveAlias: {
+        ...(hostReact ? { react: relativeTurbopackAlias(root, hostReact) } : {}),
+        ...(hostReactDom ? { "react-dom": relativeTurbopackAlias(root, hostReactDom) } : {}),
+        ...(componentRuntime
+          ? {
+            "@nudge-ui/inspector/component-runtime":
+              relativeTurbopackAlias(root, componentRuntime),
+          }
+          : {}),
+        ...userAlias,
+      },
+    };
+  }
+
   nextConfig.turbopack = {
     ...(nextConfig.turbopack ?? {}),
     rules: turbopackRules,
   };
 
   // --- Webpack mode (secondary target, Stage 6 verifies parity) ----------
-  const componentRuntime = adapterPackageExport("@nudge-ui/inspector/component-runtime");
   const userWebpack = source.webpack;
   nextConfig.webpack = (webpackConfig: Record<string, unknown>, context: { dev: boolean }) => {
     const merged = userWebpack ? userWebpack(webpackConfig, context) : webpackConfig;

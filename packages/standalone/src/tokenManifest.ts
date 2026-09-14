@@ -63,6 +63,8 @@ export type StandaloneCssFileReader = (absolutePath: string) => string | Promise
 /** Options for the deterministic project CSS scan. */
 export interface StandaloneTokenManifestOptions {
   readonly rootDirectory: string;
+  /** Additional authored roots to include in the same deterministic inventory. */
+  readonly additionalRootDirectories?: readonly string[];
   readonly readFile?: StandaloneCssFileReader;
 }
 
@@ -78,7 +80,32 @@ export async function createStandaloneTokenSnapshot(
   options: StandaloneTokenManifestOptions,
 ): Promise<StandaloneTokenSnapshot> {
   const rootDirectory = await canonicalRoot(options.rootDirectory);
-  const artifacts = await discoverStandaloneCssArtifacts(rootDirectory, options.readFile);
+  const additionalRoots = (await Promise.all(
+    (options.additionalRootDirectories ?? []).map((directory) => canonicalOptionalRoot(directory)),
+  )).filter((root): root is string => root !== null);
+  const scanRoots = [rootDirectory, ...additionalRoots.filter((root) => root !== rootDirectory)];
+  const discovered = await Promise.all(
+    scanRoots.map((root) => discoverStandaloneCssArtifacts(root, options.readFile)),
+  );
+  const artifacts: StandaloneCssArtifact[] = [];
+  const seenFiles = new Set<string>();
+  for (let index = 0; index < discovered.length; index += 1) {
+    for (const artifact of discovered[index] ?? []) {
+      const canonicalPath = await realpath(artifact.absolutePath).catch(() => artifact.absolutePath);
+      if (seenFiles.has(canonicalPath)) continue;
+      seenFiles.add(canonicalPath);
+      // Keep the primary root's paths unchanged. Additional roots are
+      // represented relative to it so one inventory can merge their
+      // declarations without losing provenance.
+      artifacts.push({
+        ...artifact,
+        projectPath: index === 0
+          ? artifact.projectPath
+          : relative(rootDirectory, artifact.absolutePath).split(sep).join("/"),
+      });
+    }
+  }
+  artifacts.sort((a, b) => comparePosixStrings(a.projectPath, b.projectPath));
   const inventory = createTokenInventory();
 
   for (const [discoveryOrder, artifact] of artifacts.entries()) {
@@ -220,6 +247,14 @@ async function canonicalRoot(rootDirectory: string): Promise<string> {
     throw new Error(`Standalone root is not a directory: ${rootDirectory}`);
   }
   return root;
+}
+
+async function canonicalOptionalRoot(rootDirectory: string): Promise<string | null> {
+  try {
+    return await canonicalRoot(rootDirectory);
+  } catch {
+    return null;
+  }
 }
 
 async function canonicalWithinRoot(

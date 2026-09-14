@@ -151,10 +151,17 @@ describe("withNudgeUi — development output shape", () => {
       });
     }
     expect(rules["*.css"]).toBeUndefined();
-    expect(config.turbopack?.resolveAlias).toBeUndefined();
+    const componentRuntimeAlias = (config.turbopack?.resolveAlias as Record<string, unknown>)[
+      "@nudge-ui/inspector/component-runtime"
+    ];
+    expect(componentRuntimeAlias).toEqual(expect.stringMatching(/reactRuntime\.(?:js|tsx)$/));
+    // Turbopack treats absolute filesystem aliases as malformed relative
+    // imports. The alias must be project-relative for both flat projects and
+    // workspace source files.
+    expect(componentRuntimeAlias).toMatch(/^\.\.?\//);
   });
 
-  it("leaves the component-runtime package import for Turbopack resolution", () => {
+  it("preserves user Turbopack aliases alongside the runtime alias", () => {
     const root = makeProject();
     projectRoots.push(root);
     vi.spyOn(process, "cwd").mockReturnValue(root);
@@ -168,8 +175,8 @@ describe("withNudgeUi — development output shape", () => {
 
     expect(config.turbopack?.resolveAlias).toEqual(expect.objectContaining({
       "@app/*": "./src/*",
+      "@nudge-ui/inspector/component-runtime": expect.stringMatching(/reactRuntime\.(?:js|tsx)$/),
     }));
-    expect(Object.keys(config.turbopack?.resolveAlias ?? {})).toEqual(["@app/*"]);
   });
 
   it("passes host component protocols to both compiler integrations", () => {

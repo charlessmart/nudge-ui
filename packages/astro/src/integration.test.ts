@@ -39,8 +39,9 @@ describe("nudgeUiAstro", () => {
     const plugins = (
       updateConfig.mock.calls[0]?.[0] as { vite: { plugins: unknown[] } }
     ).vite.plugins;
-    // Shared plugin + transformed-CSS observer + client transport + context.
+    // Client transport + shared plugin + transformed-CSS observer + context.
     expect(plugins).toHaveLength(4);
+    expect((plugins[0] as { name?: string }).name).toBe("nudge-ui-astro-client-transport");
 
     expect(injectScript).toHaveBeenCalledTimes(1);
     const [stage, content] = injectScript.mock.calls[0] as unknown as [string, string];

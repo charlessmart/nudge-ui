@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 const STATIC_SOURCE = "index.html:13:7";
 const RENDERED_TEXT_SOURCE = "index.html:14:7";
+const RENDERED_TEXT = "This copy has no semantic contract.";
 
 function projectPath(file: string): string {
   const root = process.env.NUDGE_UI_STANDALONE_E2E_ROOT;
@@ -95,7 +96,7 @@ test("serves a self-contained inspector and edits static HTML through managed CS
   await expect(button).toHaveAttribute("data-cid", "html:button");
   await expect(button).toHaveAttribute("data-src", STATIC_SOURCE);
   await button.click();
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-src", STATIC_SOURCE);
+  await expect(page.locator('[data-test="selected-outline"]')).toBeVisible();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 
   const originalInlineStyle = await button.getAttribute("style");
@@ -127,8 +128,9 @@ test("falls back to rendered text and exports an HTML-aware prompt", async ({ pa
 
   const copy = page.locator("#rendered-copy");
   await copy.dblclick();
-  await expect(page.locator('[data-test="inline-text-binding"]')).toHaveText("Rendered text");
   const editor = page.locator('[data-inline-editor="true"]');
+  await expect(editor).toBeVisible();
+  await expect(editor).toHaveText(RENDERED_TEXT);
   await editor.fill("Updated rendered copy");
   await editor.press("Enter");
   await expect(copy).toHaveText("Updated rendered copy");
@@ -136,7 +138,7 @@ test("falls back to rendered text and exports an HTML-aware prompt", async ({ pa
   const prompt = await copyPrompt(page);
   expect(prompt).not.toContain("Framework:");
   expect(prompt).toContain("## Rendered text changes");
-  expect(prompt).toContain("Rendered text");
+  expect(prompt).toContain(RENDERED_TEXT);
   expect(prompt).toContain(RENDERED_TEXT_SOURCE);
   expect(prompt).not.toContain("data-cid");
   expect(await readFile(projectPath("index.html"), "utf8")).toBe(originalHtml);
@@ -150,9 +152,8 @@ test("assigns runtime identity and exports explicit unknown-source evidence", as
   await expect(runtimeButton).toBeVisible();
   await expect(runtimeButton).toHaveAttribute("data-cid", /^nudge-ui-runtime-\d+$/);
   await expect(runtimeButton).toHaveAttribute("data-src", /^nudge-ui:unknown:\d+$/);
-  const runtimeCid = await runtimeButton.getAttribute("data-cid");
   await runtimeButton.click();
-  await expect(page.locator('[data-test="selection"]')).toHaveAttribute("data-selected-cid", runtimeCid ?? "");
+  await expect(page.locator('[data-test="selected-outline"]')).toBeVisible();
   await setRawValue(page, "color", "#7442b8");
   await expect.poll(() => managedSheetText(page)).toContain("color: rgb(116, 66, 184)");
   await expect.poll(() => computedStyle(page, "#runtime-action", "color")).toBe("rgb(116, 66, 184)");

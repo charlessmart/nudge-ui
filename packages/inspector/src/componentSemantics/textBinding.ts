@@ -168,13 +168,31 @@ function isTextNode(node: Node): node is Text {
   return node.nodeType === 3;
 }
 
+function isHiddenTextNode(element: HTMLElement, textNode: Text): boolean {
+  let current = textNode.parentElement;
+  while (current) {
+    const style = current.ownerDocument.defaultView?.getComputedStyle(current);
+    if (style?.display === "none"
+      || style?.visibility === "hidden"
+      || style?.visibility === "collapse"
+      || style?.contentVisibility === "hidden") {
+      return true;
+    }
+    if (current === element) break;
+    current = current.parentElement;
+  }
+  return false;
+}
+
 function textNodesFor(element: HTMLElement): Text[] {
   const doc = element.ownerDocument;
   const walker = doc.createTreeWalker(element, 0x4 /* NodeFilter.SHOW_TEXT */);
   const nodes: Text[] = [];
   let node = walker.nextNode();
   while (node) {
-    if (isTextNode(node) && normalizedText(node.nodeValue ?? "")) {
+    if (isTextNode(node)
+      && normalizedText(node.nodeValue ?? "")
+      && !isHiddenTextNode(element, node)) {
       nodes.push(node);
     }
     node = walker.nextNode();
@@ -417,6 +435,7 @@ function hasUniqueRenderedIdentity(
       || root.getAttribute("aria-label") !== target.ariaLabel) return false;
     const textNode = resolveTextProjectionTextNode(root, target, target.beforeText);
     return textNode !== null
+      && !isHiddenTextNode(root, textNode)
       && isSafeRenderedTextHost(root, textNode);
   });
   return matching.length === 1;
