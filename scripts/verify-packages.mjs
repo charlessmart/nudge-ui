@@ -16,14 +16,8 @@ import ts from "typescript";
 const repositoryRoot = resolve(new URL("..", import.meta.url).pathname);
 const packageDirectories = [
   "agent-protocol",
-  "compiler",
   "create-nudge-ui",
-  "css",
-  "inspector",
-  "plugin",
-  "astro",
-  "nextjs",
-  "standalone",
+  "nudge-ui",
   "mcp",
 ];
 const outputArgument = process.argv.indexOf("--output-directory");
@@ -100,35 +94,33 @@ function verifyPackage(packageRoot) {
     assertPackageTarget(entries, target, `${packageJson.name} bin ${name}`);
   }
 
-  if (packageJson.name === "@nudge-ui/nextjs") {
+  if (packageJson.name === "nudge-ui") {
     for (const loader of ["loader-plugin.cjs", "identity-loader.cjs"]) {
-      assert(entries.includes(`package/dist/loaders/${loader}`), `Next.js package is missing dist/loaders/${loader}.`);
+      const path = `package/dist/hosts/next/loaders/${loader}`;
+      assert(entries.includes(path), `nudge-ui is missing ${path}.`);
     }
     assert(
-      !entries.includes("package/dist/loaders/css-inline-loader.cjs"),
-      "Next.js package must not publish the obsolete CSS query loader.",
+      !entries.some((entry) => entry.endsWith("/css-inline-loader.cjs")),
+      "nudge-ui must not publish the obsolete CSS query loader.",
     );
-  }
-  if (packageJson.name === "@nudge-ui/inspector") {
+    assert(entries.includes("package/bin/nudge-ui.mjs"), "nudge-ui is missing its CLI entry point.");
+    assert(entries.includes("package/dist/nudge-ui.mjs"), "nudge-ui is missing its bundled CLI.");
+    // The browser client is served over HTTP into pages that have no module
+    // resolution, so it must carry every dependency it needs.
     const clientPath = "package/dist/client.mjs";
-    assert(entries.includes(clientPath), "Inspector package is missing its self-contained client.");
-    const client = tarFile(tarball, clientPath);
-    const externalSpecifiers = externalModuleSpecifiers(client);
+    assert(entries.includes(clientPath), "nudge-ui is missing its self-contained inspector client.");
+    const externalSpecifiers = externalModuleSpecifiers(tarFile(tarball, clientPath));
     assert(
       externalSpecifiers.length === 0,
       `Inspector client contains external module imports: ${externalSpecifiers.join(", ")}.`,
     );
-    assert(!entries.includes("package/dist/client.js"), "Inspector package contains a dead client.js emit.");
-    assert(!entries.includes("package/dist/client.d.ts"), "Inspector package contains a dead client declaration emit.");
-  }
-  if (packageJson.name === "@nudge-ui/standalone") {
     assert(
-      !entries.includes("package/dist/client.mjs"),
-      "Standalone package must serve the shared inspector client instead of publishing a copy.",
+      !entries.includes("package/dist/inspector/client.js"),
+      "nudge-ui contains a dead client.js emit alongside the bundled client.",
     );
     assert(
-      !packageJson.devDependencies?.react && !packageJson.devDependencies?.["react-dom"],
-      "Standalone package must not require React to build its host Adapter.",
+      !entries.includes("package/dist/inspector/client.d.ts"),
+      "nudge-ui contains a dead client declaration emit alongside the bundled client.",
     );
   }
   if (packageJson.name === "@nudge-ui/mcp") {
@@ -155,13 +147,11 @@ function verifyPackedAstroConsumers() {
     const packageJson = JSON.parse(tarFile(tarball, "package/package.json"));
     tarballs.set(packageJson.name, tarball);
   }
+  // Package names, not export subpaths: the hosts now ship as subpaths of the
+  // single distribution package, so there is no separate tarball to install.
   const requiredPackages = [
     "@nudge-ui/agent-protocol",
-    "@nudge-ui/compiler",
-    "@nudge-ui/css",
-    "@nudge-ui/inspector",
-    "@nudge-ui/vite-react",
-    "@nudge-ui/astro",
+    "nudge-ui",
   ];
   for (const packageName of requiredPackages) {
     assert(tarballs.has(packageName), `Packed Astro verification is missing ${packageName}.`);
@@ -194,12 +184,12 @@ function verifyPackedAstroConsumers() {
       mkdirSync(join(consumerRoot, "src/pages"), { recursive: true });
       writeFileSync(
         join(consumerRoot, "astro.config.mjs"),
-        'import { withNudgeUi } from "@nudge-ui/astro";\nexport default withNudgeUi({});\n',
+        'import { withNudgeUi } from "nudge-ui/astro";\nexport default withNudgeUi({});\n',
       );
       writeFileSync(join(consumerRoot, "src/pages/index.astro"), "<p>Packed Astro consumer</p>\n");
       writeFileSync(join(consumerRoot, "verify.mjs"), [
         'import { dev } from "astro";',
-        'import { withNudgeUi } from "@nudge-ui/astro";',
+        'import { withNudgeUi } from "nudge-ui/astro";',
         'const integrations = [{ name: "existing", hooks: {} }];',
         "const input = { integrations };",
         "const output = withNudgeUi(input);",

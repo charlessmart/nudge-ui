@@ -37,6 +37,8 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Check package boundaries
+        run: pnpm run check:boundaries
       - name: Build packages
         run: pnpm run build:packages
       - name: Typecheck
@@ -45,6 +47,35 @@ jobs:
         run: pnpm run lint
       - name: Run required unit tests
         run: pnpm run test:unit
+
+  # Proves ADR-0002 per host path without a browser. `packed-consumers` already
+  # proves the complementary half (the inspector mounts in development).
+  host-purity:
+    name: Production purity (${{ matrix.host }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [vite, next, astro, standalone]
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build packages
+        run: pnpm run build:packages
+      - name: Check production purity
+        run: pnpm run check:purity ${{ matrix.host }}
 
   packed-consumers:
     name: Packed consumer smoke tests

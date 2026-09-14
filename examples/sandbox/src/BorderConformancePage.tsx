@@ -1,5 +1,5 @@
-import { BORDER_CASES } from "@nudge-ui/inspector/testing";
-import type { ConformanceFixture, ConformancePropertyExpectation } from "@nudge-ui/inspector/testing";
+import { BORDER_CASES } from "nudge-ui/testing";
+import type { ConformanceFixture, ConformancePropertyExpectation } from "nudge-ui/testing";
 import "./border-conformance.css";
 import type { StringRecord } from "./stringRecord.ts";
 

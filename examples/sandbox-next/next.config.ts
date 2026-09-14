@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { withNudgeUi } from "@nudge-ui/nextjs";
+import { withNudgeUi } from "nudge-ui/next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

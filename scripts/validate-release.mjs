@@ -7,14 +7,8 @@ import { resolve } from "node:path";
 const repositoryRoot = resolve(new URL("..", import.meta.url).pathname);
 const packageDirectories = [
   "agent-protocol",
-  "compiler",
   "create-nudge-ui",
-  "css",
-  "inspector",
-  "plugin",
-  "astro",
-  "nextjs",
-  "standalone",
+  "nudge-ui",
   "mcp",
 ];
 const releaseTag = process.argv.slice(2).find((argument) => argument !== "--");

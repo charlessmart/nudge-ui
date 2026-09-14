@@ -1,5 +1,5 @@
 {
-  "name": "nudge-ui",
+  "name": "nudge-ui-workspace",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -19,10 +19,12 @@
     "lint:oxlint": "oxlint packages examples landing",
     "typecheck": "pnpm -r typecheck",
     "test:anti-slop": "vitest run tools/anti-slop",
+    "check:boundaries": "node scripts/check-package-boundaries.mjs",
+    "check:purity": "node scripts/check-production-purity.mjs",
     "test:unit": "pnpm -r test:unit",
-    "test:ui-integration": "pnpm --filter @nudge-ui/inspector test:ui-integration",
+    "test:ui-integration": "pnpm --filter nudge-ui test:ui-integration",
     "test:full": "pnpm run test:unit && pnpm run test:ui-integration",
-    "test:e2e": "pnpm --filter sandbox test:e2e && pnpm --filter sandbox-tailwind-v4 test:e2e && pnpm --filter sandbox-tailwind-v3 test:e2e && pnpm --filter sandbox-sprinkles test:e2e && pnpm --filter standalone-html test:e2e && pnpm --filter sandbox-next test:e2e && pnpm --filter sandbox-astro test:purity && pnpm --filter sandbox-astro test:e2e",
+    "test:e2e": "pnpm --filter sandbox test:e2e && pnpm --filter sandbox-tailwind-v4 test:e2e && pnpm --filter sandbox-tailwind-v3 test:e2e && pnpm --filter sandbox-sprinkles test:e2e && pnpm --filter standalone-html test:e2e && pnpm --filter sandbox-next test:e2e && pnpm --filter sandbox-astro test:e2e",
     "test:packed-consumers": "pnpm --filter packed-consumers test:e2e",
     "test:e2e:standalone": "pnpm --filter standalone-html test:e2e",
     "perf": "pnpm --filter sandbox perf",
@@ -40,12 +42,12 @@
     "dev:mockups": "pnpm --filter mockup-cards dev"
   },
   "devDependencies": {
-    "@nudge-ui/standalone": "workspace:*",
     "@oxlint/plugins": "1.78.0",
     "@types/node": "^22.20.1",
     "@typescript-eslint/parser": "^8.69.0",
     "eslint": "^9.39.5",
     "globals": "^17.12.0",
+    "nudge-ui": "workspace:*",
     "oxlint": "1.78.0",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"

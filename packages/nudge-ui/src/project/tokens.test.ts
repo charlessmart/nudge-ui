@@ -1,0 +1,122 @@
+import { readFileSync } from "node:fs";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  createProjectTokenSnapshot,
+  discoverProjectCssArtifacts,
+} from "./tokens.ts";
+
+describe("standalone CSS token discovery", () => {
+  it("scans stable project-relative paths and excludes generated directories and escapes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
+    const outside = await mkdtemp(join(tmpdir(), "nudge-ui-token-outside-"));
+    await writeFile(join(root, "z.css"), ":root { --z: 1px; }");
+    await mkdir(join(root, "nested"));
+    await writeFile(join(root, "nested", "a.css"), ":root { --a: 2px; }");
+    await mkdir(join(root, "dist"));
+    await writeFile(join(root, "dist", "generated.css"), ":root { --generated: 3px; }");
+    await mkdir(join(root, "node_modules"));
+    await writeFile(join(root, "node_modules", "package.css"), ":root { --package: 4px; }");
+    await writeFile(join(root, ".env.css"), ":root { --env: 6px; }");
+    await mkdir(join(root, ".codex"));
+    await writeFile(join(root, ".codex", "secrets.css"), ":root { --secret-config: 7px; }");
+    await writeFile(join(outside, "secret.css"), ":root { --secret: 5px; }");
+    await symlink(join(outside, "secret.css"), join(root, "outside.css"));
+
+    const artifacts = await discoverProjectCssArtifacts(root);
+    expect(artifacts.map((artifact) => artifact.projectPath)).toEqual([
+      "nested/a.css",
+      "z.css",
+    ]);
+    expect(artifacts.map((artifact) => artifact.absolutePath)).not.toContain(
+      join(outside, "secret.css"),
+    );
+  });
+
+  it("publishes authored provenance and a deterministic generation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
+    await mkdir(join(root, "styles"));
+    await writeFile(join(root, "styles", "theme.css"), ":root { --brand: #09f; }");
+
+    const first = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
+    const second = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
+    expect(second).toEqual(first);
+    expect(first.tokens).toEqual([expect.objectContaining({
+      cssName: "--brand",
+      source: "styles/theme.css:1",
+      origin: "project",
+    })]);
+    expect(first.tokenCatalog[0]?.declarations[0]?.source).toBe("styles/theme.css:1");
+  });
+
+  it("orders discovery by UTF-8 path bytes rather than locale", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
+    for (const name of ["a_.css", "a~.css", "a.css", "a-.css"]) {
+      await writeFile(join(root, name), `:root { --${name[0]}: 1px; }`);
+    }
+
+    expect((await discoverProjectCssArtifacts(root)).map((artifact) => artifact.projectPath)).toEqual([
+      "a-.css",
+      "a.css",
+      "a_.css",
+      "a~.css",
+    ]);
+  });
+
+  it("retains valid knowledge and reports malformed and unreadable CSS", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
+    await writeFile(join(root, "valid.css"), ":root { --valid: 1px; }");
+    await writeFile(join(root, "broken.css"), ":root { --broken: ;");
+    await writeFile(join(root, "unreadable.css"), ":root { --unreadable: 1px; }");
+
+    const snapshot = await createProjectTokenSnapshot({
+      rootDirectory: root,
+      generationLabel: "test",
+      readFile: (absolutePath) => {
+        if (absolutePath.endsWith("unreadable.css")) {
+          const error = new Error("permission denied") as Error & { code: string };
+          error.code = "EACCES";
+          throw error;
+        }
+        return requireReadFile(absolutePath);
+      },
+    });
+
+    expect(snapshot.tokens).toEqual([expect.objectContaining({ cssName: "--valid" })]);
+    expect(snapshot.tokenDiagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: "stylesheet-parse-failed",
+        module: "broken.css",
+      }),
+      expect.objectContaining({
+        code: "stylesheet-unreadable",
+        module: "unreadable.css",
+      }),
+    ]));
+  });
+
+  it("changes generation for CSS add, change, and remove transitions", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nudge-ui-token-manifest-"));
+    await writeFile(join(root, "base.css"), ":root { --base: 1px; }");
+    const initial = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
+
+    await writeFile(join(root, "added.css"), ":root { --added: 2px; }");
+    const added = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
+    expect(added.tokenGeneration).not.toBe(initial.tokenGeneration);
+
+    await writeFile(join(root, "added.css"), ":root { --added: 3px; }");
+    const changed = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
+    expect(changed.tokenGeneration).not.toBe(added.tokenGeneration);
+
+    const { unlink } = await import("node:fs/promises");
+    await unlink(join(root, "added.css"));
+    const removed = await createProjectTokenSnapshot({ rootDirectory: root, generationLabel: "test" });
+    expect(removed.tokenGeneration).toBe(initial.tokenGeneration);
+  });
+});
+
+function requireReadFile(path: string): string {
+  return readFileSync(path, "utf8");
+}

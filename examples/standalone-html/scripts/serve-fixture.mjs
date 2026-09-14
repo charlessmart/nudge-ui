@@ -20,7 +20,7 @@ const prototypeRoot = fileURLToPath(new URL("../prototype", import.meta.url));
 rmSync(root, { recursive: true, force: true });
 cpSync(prototypeRoot, root, { recursive: true });
 
-const cliPath = fileURLToPath(new URL("../../../packages/standalone/bin/nudge-ui.mjs", import.meta.url));
+const cliPath = fileURLToPath(new URL("../../../packages/nudge-ui/bin/nudge-ui.mjs", import.meta.url));
 const server = spawn(process.execPath, [
   cliPath,
   "serve",

@@ -11,9 +11,8 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@nudge-ui/inspector": "workspace:*",
-    "@nudge-ui/vite-react": "workspace:*",
     "@tabler/icons-react": "3.46.0",
+    "nudge-ui": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

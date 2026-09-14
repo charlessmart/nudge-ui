@@ -1,6 +1,6 @@
 import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
-import { nudgeUi } from "@nudge-ui/vite-react";
+import { nudgeUi } from "nudge-ui/vite";
 
 export default defineConfig({
   // SAFETY: nudgeUi returns the plugin graph for its own Vite instance; this

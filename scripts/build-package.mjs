@@ -10,17 +10,14 @@
  */
 import {
   copyFileSync,
-  cpSync,
   mkdirSync,
-  mkdtempSync,
   readdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const packageRoot = resolve(process.argv[2] ?? process.cwd());
@@ -40,14 +37,13 @@ rmSync(outputRoot, { recursive: true, force: true });
 mkdirSync(outputRoot, { recursive: true });
 
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
-const buildProject = createBuildProject(packageRoot, sourceRoot);
 const result = spawnSync(
   pnpm,
   [
     "exec",
     "tsc",
     "-p",
-    buildProject.configPath,
+    "tsconfig.build.json",
     "--noEmit",
     "false",
     "--declaration",
@@ -63,14 +59,11 @@ const result = spawnSync(
   { cwd: packageRoot, stdio: "inherit" },
 );
 if (result.error) {
-  buildProject.cleanup();
   throw result.error;
 }
 if (result.status !== 0) {
-  buildProject.cleanup();
   process.exit(result.status ?? 1);
 }
-buildProject.cleanup();
 
 copyDeclarationFiles(sourceRoot, outputRoot);
 copyStaticAssets(sourceRoot, outputRoot);
@@ -166,80 +159,3 @@ function rewriteDeclarationExtensions(directory) {
   }
 }
 
-/**
- * macOS filesystems are commonly case-insensitive, while this package has a
- * deliberate `ChangesLog.tsx` UI module alongside the `changesLog.ts` store.
- * TypeScript cannot emit both basename variants into one directory there.
- * Compile a temporary, renamed copy of that package's sources and preserve
- * the public module names in the emitted graph. No source checkout files are
- * changed and the temporary tree is removed as soon as emit completes.
- */
-function createBuildProject(packageDirectory, sourceDirectory) {
-  const defaultConfigPath = "tsconfig.build.json";
-  if (basename(packageDirectory) !== "inspector") {
-    return { configPath: defaultConfigPath, cleanup() {} };
-  }
-
-  // Keep the temporary tree below the package so bare dependencies resolve
-  // through this package's own node_modules directory (rather than through a
-  // system temporary directory with no workspace ancestry).
-  const temporaryRoot = mkdtempSync(join(packageDirectory, ".tmp-inspector-build-"));
-  const temporarySource = join(temporaryRoot, "src");
-  cpSync(sourceDirectory, temporarySource, { recursive: true });
-
-  const sourceModule = join(temporarySource, "ChangesLog.tsx");
-  const renamedModule = join(temporarySource, "ChangesLogComponent.tsx");
-  if (statSync(sourceModule, { throwIfNoEntry: false })?.isFile()) {
-    renameSync(sourceModule, renamedModule);
-    rewriteTemporaryImports(temporarySource);
-  }
-
-  // Keep the temporary config next to the package so TypeScript resolves the
-  // package's installed `@types` exactly as it does for a normal build.
-  const temporaryConfig = join(packageDirectory, ".tsconfig.build.tmp.json");
-  writeFileSync(
-    temporaryConfig,
-    JSON.stringify({
-      extends: resolve(packageDirectory, "tsconfig.build.json"),
-      compilerOptions: {
-        rootDir: temporarySource,
-        outDir: resolve(packageDirectory, "dist"),
-      },
-      include: [temporarySource],
-      exclude: buildExcludes(temporarySource),
-    }),
-  );
-
-  return {
-    configPath: temporaryConfig,
-    cleanup() {
-      rmSync(temporaryConfig, { force: true });
-      rmSync(temporaryRoot, { recursive: true, force: true });
-    },
-  };
-}
-
-function buildExcludes(sourceDirectory) {
-  return [
-    join(sourceDirectory, "**/*.test.ts"),
-    join(sourceDirectory, "**/*.test.tsx"),
-    join(sourceDirectory, "**/*.spec.ts"),
-    join(sourceDirectory, "**/*.spec.tsx"),
-    join(sourceDirectory, "**/_testUtils.ts"),
-    join(sourceDirectory, "**/__stubs__/**"),
-  ];
-}
-
-function rewriteTemporaryImports(directory) {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const absolutePath = resolve(directory, entry.name);
-    if (entry.isDirectory()) {
-      rewriteTemporaryImports(absolutePath);
-      continue;
-    }
-    if (!entry.isFile() || !/\.(?:[cm]?[jt]sx?|d\.ts)$/.test(entry.name)) continue;
-    const source = readFileSync(absolutePath, "utf8");
-    const rewritten = source.replaceAll("./ChangesLog.tsx", "./ChangesLogComponent.tsx");
-    if (rewritten !== source) writeFileSync(absolutePath, rewritten);
-  }
-}

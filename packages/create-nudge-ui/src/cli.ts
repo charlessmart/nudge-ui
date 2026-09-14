@@ -5,7 +5,6 @@ import { basename, relative } from "node:path";
 import { parseArguments, helpText } from "./arguments.ts";
 import { planConfiguration } from "./configuration.ts";
 import {
-  adapterPackage,
   detectFrameworks,
   detectPackageManager,
   detectStaticRoot,
@@ -27,8 +26,9 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
   const detected = detectFrameworks(projectRoot, manifest);
   const framework = options.framework ?? await selectFramework(detected);
   const packageManager = options.packageManager ?? detectPackageManager(projectRoot, manifest);
-  const packageName = adapterPackage(framework);
-  const command = installCommand(packageManager, packageName);
+  // One package serves every host; the framework only decides which
+  // subpath the generated configuration imports.
+  const command = installCommand(packageManager, "nudge-ui");
   const change = planConfiguration(projectRoot, framework);
   const staticRoot = framework === "standalone" ? detectStaticRoot(projectRoot) : undefined;
   const serveDirectory = staticRoot ? relative(projectRoot, staticRoot) || "." : ".";
@@ -56,7 +56,7 @@ export async function runCli(args = process.argv.slice(2), projectRoot = process
   if (framework === "standalone") {
     stdout.write(`Run \`nudge-ui serve ${serveDirectory}\` to start the instrumented development server.\n`);
   }
-  stdout.write(`Nudge UI is configured with ${packageName}.\n`);
+  stdout.write(`Nudge UI is configured for ${frameworkDisplayName(framework)}.\n`);
 }
 
 async function selectFramework(detected: readonly Framework[]): Promise<Framework> {

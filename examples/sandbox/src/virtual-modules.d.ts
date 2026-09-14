@@ -1,1 +1,1 @@
-/// <reference types="@nudge-ui/css/virtual-design-tokens" />
+/// <reference types="nudge-ui/virtual-design-tokens" />

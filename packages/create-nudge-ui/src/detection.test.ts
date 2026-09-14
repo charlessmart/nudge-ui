@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  adapterPackage,
   detectFrameworks,
   detectPackageManager,
   detectStaticRoot,
@@ -93,15 +92,6 @@ describe("detectPackageManager", () => {
     writeFileSync(join(child, "package.json"), "{}");
     writeFileSync(join(root, "pnpm-lock.yaml"), "");
     expect(detectPackageManager(child)).toBe("pnpm");
-  });
-});
-
-describe("adapterPackage", () => {
-  it("maps each host framework to its public adapter", () => {
-    expect(adapterPackage("nextjs")).toBe("@nudge-ui/nextjs");
-    expect(adapterPackage("astro")).toBe("@nudge-ui/astro");
-    expect(adapterPackage("vite-react")).toBe("@nudge-ui/vite-react");
-    expect(adapterPackage("standalone")).toBe("@nudge-ui/standalone");
   });
 });
 

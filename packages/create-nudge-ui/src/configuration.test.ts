@@ -22,7 +22,7 @@ describe("planConfiguration", () => {
       expect(change?.created).toBe(false);
       expect(change?.path).toBe(join(root, "vite.config.cjs"));
       expect(change?.content).toContain(
-        'const { withNudgeUi } = require("@nudge-ui/vite-react");',
+        'const { withNudgeUi } = require("nudge-ui/vite");',
       );
       expect(change?.content).toContain("module.exports = withNudgeUi({ plugins: [] });");
     });
@@ -49,7 +49,7 @@ export default defineConfig({
 });
 `;
     const configured = configureSource(source, "astro", "astro.config.ts");
-    expect(configured).toContain('import { withNudgeUi } from "@nudge-ui/astro";');
+    expect(configured).toContain('import { withNudgeUi } from "nudge-ui/astro";');
     expect(configured).toContain("export default withNudgeUi(defineConfig({");
     expect(configureSource(configured, "astro", "astro.config.ts")).toBe(configured);
   });
@@ -67,7 +67,7 @@ export default defineConfig({ integrations, ...getOverrides() });
   });
 
   it("uses the local name of a renamed Astro wrapper import", () => {
-    const source = 'import { withNudgeUi as withInspector } from "@nudge-ui/astro";\nexport default {};\n';
+    const source = 'import { withNudgeUi as withInspector } from "nudge-ui/astro";\nexport default {};\n';
     const configured = configureSource(source, "astro", "astro.config.mjs");
     expect(configured).toContain("export default withInspector({})");
     expect(configured).not.toContain("withNudgeUi({})");
@@ -77,7 +77,7 @@ export default defineConfig({ integrations, ...getOverrides() });
     const source = "const withNudgeUi = () => 'local';\nexport default {};\n";
     const configured = configureSource(source, "astro", "astro.config.mjs");
     expect(configured).toContain(
-      'import { withNudgeUi as withNudgeUi2 } from "@nudge-ui/astro";',
+      'import { withNudgeUi as withNudgeUi2 } from "nudge-ui/astro";',
     );
     expect(configured).toContain("export default withNudgeUi2({})");
   });
@@ -91,7 +91,7 @@ export default defineConfig({
 });
 `;
     const configured = configureSource(source, "vite-react", "vite.config.ts");
-    expect(configured).toContain('import { withNudgeUi } from "@nudge-ui/vite-react";');
+    expect(configured).toContain('import { withNudgeUi } from "nudge-ui/vite";');
     expect(configured).toContain("export default withNudgeUi(defineConfig({");
     expect(configureSource(configured, "vite-react", "vite.config.ts")).toBe(configured);
   });
@@ -108,7 +108,7 @@ export default defineConfig(({ mode }) => ({
     const configured = configureSource(source, "vite-react", "vite.config.ts");
     expect(configured).toContain("export default withNudgeUi(defineConfig(({ mode }) => ({");
     expect(configured).toContain("const shared = { plugins: [] };");
-    expect(configured).toContain('import { withNudgeUi } from "@nudge-ui/vite-react";');
+    expect(configured).toContain('import { withNudgeUi } from "nudge-ui/vite";');
   });
 
   it("wraps CommonJS Vite exports", () => {
@@ -117,7 +117,7 @@ module.exports = defineConfig(() => ({ plugins: [] }));
 `;
     const configured = configureSource(source, "vite-react", "vite.config.cjs");
     expect(configured).toContain(
-      'const { withNudgeUi } = require("@nudge-ui/vite-react");',
+      'const { withNudgeUi } = require("nudge-ui/vite");',
     );
     expect(configured).toContain(
       "module.exports = withNudgeUi(defineConfig(() => ({ plugins: [] })));",
@@ -131,18 +131,18 @@ export default { root: "app" };
 `;
     const configured = configureSource(source, "vite-react", "vite.config.ts");
     expect(configured).toContain(
-      'import { withNudgeUi as withNudgeUi2 } from "@nudge-ui/vite-react";',
+      'import { withNudgeUi as withNudgeUi2 } from "nudge-ui/vite";',
     );
     expect(configured).toContain("export default withNudgeUi2({ root: \"app\" });");
   });
 
   it("preserves an aliased CommonJS Vite wrapper binding", () => {
-    const source = `const { withNudgeUi: withInspector } = require("@nudge-ui/vite-react");
+    const source = `const { withNudgeUi: withInspector } = require("nudge-ui/vite");
 module.exports = {};
 `;
     const configured = configureSource(source, "vite-react", "vite.config.cjs");
     expect(configured).toContain("module.exports = withInspector({});");
-    expect(configured.match(/require\("@nudge-ui\/vite-react"\)/g)).toHaveLength(1);
+    expect(configured.match(/require\("nudge-ui\/vite"\)/g)).toHaveLength(1);
   });
 
   it("wraps ESM and CommonJS Next.js configuration exports", () => {
@@ -171,7 +171,7 @@ module.exports = {};
     const source = "// module.exports = oldConfig\nconst nextConfig = {};\nexport default nextConfig;\n";
     const configured = configureSource(source, "nextjs", "next.config.mjs");
     expect(configured).toContain("// module.exports = oldConfig");
-    expect(configured).toContain('import { withNudgeUi } from "@nudge-ui/nextjs";');
+    expect(configured).toContain('import { withNudgeUi } from "nudge-ui/next";');
     expect(configured).toContain("export default withNudgeUi(nextConfig);");
     expect(configured).not.toContain("require(");
   });
@@ -186,18 +186,18 @@ module.exports = {};
   });
 
   it("recognizes existing Next.js wrappers despite call spacing", () => {
-    const source = 'import { withNudgeUi } from "@nudge-ui/nextjs";\nconst config = {};\nexport default withNudgeUi (config);\n';
+    const source = 'import { withNudgeUi } from "nudge-ui/next";\nconst config = {};\nexport default withNudgeUi (config);\n';
     expect(configureSource(source, "nextjs", "next.config.mjs")).toBe(source);
   });
 
   it("recognizes an already wrapped Vite export without adding another wrapper", () => {
-    const source = 'import { withNudgeUi } from "@nudge-ui/vite-react";\nexport default withNudgeUi({});\n';
+    const source = 'import { withNudgeUi } from "nudge-ui/vite";\nexport default withNudgeUi({});\n';
     expect(configureSource(source, "vite-react", "vite.config.ts")).toBe(source);
   });
 
   it("recognizes adapter calls with options as already configured", () => {
     const source = `import { defineConfig } from "astro/config";
-import { nudgeUiAstro } from "@nudge-ui/astro";
+import { nudgeUiAstro } from "nudge-ui/astro";
 export default defineConfig({
   integrations: [nudgeUiAstro({ debug: true })],
 });

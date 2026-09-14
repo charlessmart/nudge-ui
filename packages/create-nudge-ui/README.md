@@ -11,7 +11,7 @@ npm create nudge-ui@latest
 
 The initializer supports Next.js, Astro, Vite with React, and static HTML. Host
 frameworks take precedence over their underlying tools, so an Astro project
-with React islands receives `@nudge-ui/astro`, not `@nudge-ui/vite-react`.
+with React islands receives `nudge-ui/astro`, not `nudge-ui/vite`.
 
 Use an explicit framework when automatic detection is ambiguous:
 

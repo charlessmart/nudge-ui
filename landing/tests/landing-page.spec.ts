@@ -14,7 +14,7 @@ test("runs the real inspector on the landing document", async ({ page }) => {
   await expect(setup.locator("pre")).toHaveCount(4);
   await expect(setup.getByText("npm create nudge-ui@latest", { exact: true })).toBeVisible();
   await expect(setup.getByText("Run npm create nudge-ui@latest in this project", { exact: true })).toBeVisible();
-  await expect(setup.locator("pre").filter({ hasText: "@nudge-ui/astro" })).toBeVisible();
+  await expect(setup.locator("pre").filter({ hasText: "nudge-ui/astro" })).toBeVisible();
   await expect(setup.getByText("nudge_listen", { exact: true })).toBeVisible();
   const openSource = page.getByRole("region", { name: "Open source" });
   await expect(openSource).toBeVisible();
