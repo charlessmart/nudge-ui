@@ -107,6 +107,7 @@ package records a `../`-prefixed path, so it stays unique against the
 application's own files and never serialises a machine path into a prompt or a
 DOM attribute.
 
-The adapter exposes optional `tokens`, `identity`, `component-contracts`, and
-`vanilla-extract-runtime` subpaths for host integrations. Application projects
-normally need only the root `withNudgeUi` export.
+The adapter exposes optional `tokens` and `vanilla-extract-runtime` subpaths for
+host integrations. Application projects normally need only the root
+`withNudgeUi` export. Identity injection and component-contract extraction are
+host-neutral compilers: import them from `@nudge-ui/compiler`.

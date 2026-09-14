@@ -291,12 +291,12 @@ describe("withNudgeUi — development output shape", () => {
     const transpile = config.transpilePackages as string[];
     for (const required of [
       "@nudge-ui/nextjs",
-      "@nudge-ui/vite-react",
       "@nudge-ui/inspector",
       "@nudge-ui/css",
     ]) {
       expect(transpile).toContain(required);
     }
+    expect(transpile).not.toContain("@nudge-ui/vite-react");
   });
 
   it("proxies /__nudge_ui__ to a live loopback sidecar before user rewrites", async () => {

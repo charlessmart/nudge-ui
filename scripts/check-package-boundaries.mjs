@@ -34,12 +34,6 @@ const KNOWN_EXCEPTIONS = [
   },
   {
     from: "@nudge-ui/nextjs",
-    to: "@nudge-ui/vite-react",
-    reason: "Next.js reaches sideways for React component-contract extraction.",
-    retiredBy: "Step 2 — move extractComponentContracts into @nudge-ui/compiler.",
-  },
-  {
-    from: "@nudge-ui/nextjs",
     to: "@nudge-ui/standalone",
     reason: "Next.js reaches sideways for file watching and token snapshots.",
     retiredBy: "Step 2 — extract a shared project-files module.",

@@ -22,7 +22,7 @@ import {
   type ArtifactStage,
   type InventoryDiagnostic,
 } from "@nudge-ui/css/token-inventory";
-import { injectIdentity } from "./transform/injectDataCid.ts";
+import { injectIdentity } from "@nudge-ui/compiler/react-identity";
 import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
 import {
   catalogSourcePath,
@@ -41,12 +41,12 @@ import { isRecord } from "./adapters/isRecord.ts";
 import type { ThemeContract, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
 import { createPublishedVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
 import { createTokenAdapterRegistry } from "./adapters/registry.ts";
-import { extractComponentContracts } from "./components/extractContracts.ts";
+import { extractComponentContracts } from "@nudge-ui/compiler/component-contracts";
 import {
   collectPackageComponentModules,
   extractPackageComponentContractCatalog,
-} from "./components/extractPackageContracts.ts";
-import type { ComponentContract } from "./components/types.ts";
+} from "@nudge-ui/compiler/package-component-contracts";
+import type { ComponentContract } from "@nudge-ui/compiler";
 import {
   detectStylingSystem,
   type NudgeUiClientManifest,
@@ -156,8 +156,6 @@ function isPromiseLike<T>(value: unknown): value is PromiseLike<T> {
     && "then" in value
     && typeof value.then === "function";
 }
-
-export type { ComponentContract, ComponentPropContract, ComponentPropValue } from "./components/types.ts";
 
 const VIRTUAL_TOKENS_ID = "virtual:design-tokens";
 const RESOLVED_TOKENS_ID = "\0" + VIRTUAL_TOKENS_ID;
@@ -1226,8 +1224,6 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
   return [plugin, transformedCssObserver];
 }
 
-export { injectIdentity, injectDataCid } from "./transform/injectDataCid.ts";
-export type { InjectResult } from "./transform/injectDataCid.ts";
 export { isHostApplicationSource } from "./tokens/viteStylesheetArtifacts.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
 export { createTailwindV4Adapter, createTailwindV4NamingContribution, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";

@@ -1,5 +1,5 @@
 import { parse } from "@babel/parser";
-import type { ComponentContract, ComponentPropContract, ComponentPropValue } from "./types.ts";
+import type { ComponentContract, ComponentPropContract, ComponentPropValue } from "./componentContractTypes.ts";
 
 type Node = {
   type: string;

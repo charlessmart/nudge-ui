@@ -18,6 +18,11 @@ export default defineConfig({
         find: /^@nudge-ui\/compiler\/react-component-protocols$/,
         replacement: compilerSource("reactComponentProtocols.ts"),
       },
+      { find: /^@nudge-ui\/compiler\/component-contracts$/, replacement: compilerSource("componentContracts.ts") },
+      {
+        find: /^@nudge-ui\/compiler\/package-component-contracts$/,
+        replacement: compilerSource("packageComponentContracts.ts"),
+      },
     ],
   },
 });

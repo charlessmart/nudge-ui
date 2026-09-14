@@ -58,12 +58,9 @@ const { transformNextModuleSource } = require("./loader.ts") as {
     },
   ) => { code: string } | null;
 };
-// SAFETY: A local require of the workspace component-contracts module, whose export shape is asserted by its own contract.
-const { extractComponentContracts } = require("@nudge-ui/vite-react/component-contracts") as {
-  extractComponentContracts: (source: string, file: string) => unknown[];
-};
 // SAFETY: `typeof import(...)` derives the asserted shape from the module's own declaration, so the required exports cannot drift.
 const {
+  extractComponentContracts,
   defaultReactComponentProtocols,
   formatComponentPolicyWarning,
   groupComponentPolicyDiagnostics,

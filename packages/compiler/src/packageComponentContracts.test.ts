@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   collectPackageComponentModules,
   extractPackageComponentContracts,
-} from "./extractPackageContracts.ts";
+} from "./packageComponentContracts.ts";
 
 function writeFixtureFile(root: string, path: string, content: string): string {
   const file = join(root, path);

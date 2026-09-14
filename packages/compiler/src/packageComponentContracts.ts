@@ -4,7 +4,7 @@ import type {
   ComponentContract,
   ComponentPropContract,
   ComponentPropValue,
-} from "./types.ts";
+} from "./componentContractTypes.ts";
 
 /**
  * Identifies a package import from the host module that uses it.

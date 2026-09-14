@@ -33,16 +33,6 @@
       "types": "./dist/adapters/vanillaExtractRuntime.d.ts",
       "import": "./dist/adapters/vanillaExtractRuntime.js",
       "default": "./dist/adapters/vanillaExtractRuntime.js"
-    },
-    "./identity": {
-      "types": "./dist/transform/injectDataCid.d.ts",
-      "import": "./dist/transform/injectDataCid.js",
-      "default": "./dist/transform/injectDataCid.js"
-    },
-    "./component-contracts": {
-      "types": "./dist/components/extractContracts.d.ts",
-      "import": "./dist/components/extractContracts.js",
-      "default": "./dist/components/extractContracts.js"
     }
   },
   "scripts": {

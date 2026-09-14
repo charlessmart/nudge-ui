@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractComponentContracts } from "./extractContracts.ts";
+import { extractComponentContracts } from "./componentContracts.ts";
 
 describe("extractComponentContracts", () => {
   it("extracts enum and boolean controls from an inline props annotation", () => {

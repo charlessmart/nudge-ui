@@ -33,5 +33,6 @@ identity root a host supplies. A module outside it keeps a `../`-prefixed
 relative path rather than a machine path, so workspace packages stay unique
 across roots and portable across machines.
 
-The Vite adapter continues to expose its legacy
-`@nudge-ui/vite-react/identity` subpath as a compatibility re-export.
+Host adapters import these compilers directly. `@nudge-ui/compiler/react-identity`
+injects identity attributes; `@nudge-ui/compiler/component-contracts` extracts
+editable prop contracts from TypeScript sources.

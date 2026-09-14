@@ -38,6 +38,16 @@
       "types": "./dist/reactComponentProtocols.d.ts",
       "import": "./dist/reactComponentProtocols.js",
       "default": "./dist/reactComponentProtocols.js"
+    },
+    "./component-contracts": {
+      "types": "./dist/componentContracts.d.ts",
+      "import": "./dist/componentContracts.js",
+      "default": "./dist/componentContracts.js"
+    },
+    "./package-component-contracts": {
+      "types": "./dist/packageComponentContracts.d.ts",
+      "import": "./dist/packageComponentContracts.js",
+      "default": "./dist/packageComponentContracts.js"
     }
   },
   "scripts": {

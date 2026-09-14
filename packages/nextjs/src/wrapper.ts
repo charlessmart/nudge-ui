@@ -244,7 +244,6 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   // compile from node_modules unless listed (see feature-plan appendix).
   const nudgeUiPackages = [
     "@nudge-ui/nextjs",
-    "@nudge-ui/vite-react",
     "@nudge-ui/inspector",
     "@nudge-ui/css",
   ];
