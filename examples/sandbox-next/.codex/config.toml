@@ -1,0 +1,12 @@
+[mcp_servers.nudge_ui]
+command = "npx"
+args = [
+  "-y",
+  "@nudge-ui/mcp@0.1.3",
+  "--project-id",
+  "nextjs:ba0ff3704a65",
+  "--origin",
+  "http://localhost:3000",
+  "--workspace-root",
+  "."
+]
