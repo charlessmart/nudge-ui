@@ -36,6 +36,11 @@
       "types": "./dist/project/identity.d.ts",
       "import": "./dist/project/identity.js",
       "default": "./dist/project/identity.js"
+    },
+    "./html-identity": {
+      "types": "./dist/html/identity.d.ts",
+      "import": "./dist/html/identity.js",
+      "default": "./dist/html/identity.js"
     }
   },
   "scripts": {
@@ -46,7 +51,8 @@
     "test:unit:watch": "vitest"
   },
   "dependencies": {
-    "@nudge-ui/css": "workspace:*"
+    "@nudge-ui/css": "workspace:*",
+    "parse5": "^7.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

@@ -14,7 +14,7 @@ import {
 import { open, stat } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
 import { createRequire } from "node:module";
-import { instrumentHtml } from "./html/identity.ts";
+import { instrumentSourceHtml } from "nudge-ui/html-identity";
 import { injectStandaloneBootstrap } from "./html/bootstrap.ts";
 import {
   createStandaloneRuntimeManifest,
@@ -511,7 +511,7 @@ function instrumentHtmlResponse(body: Buffer, projectPath: string): Buffer {
     );
     return body;
   }
-  const identified = instrumentHtml(source, projectPath);
+  const identified = instrumentSourceHtml(source, projectPath);
   const bootstrapped = injectStandaloneBootstrap(identified.html);
   return Buffer.from(bootstrapped.html, "utf8");
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { instrumentHtml } from "./identity.ts";
+import { instrumentSourceHtml } from "./identity.ts";
 
-describe("instrumentHtml", () => {
+describe("instrumentSourceHtml", () => {
   it("instruments eligible elements under body with source identity", () => {
     const source = `<!doctype html>
 <html>
@@ -11,7 +11,7 @@ describe("instrumentHtml", () => {
   </body>
 </html>`;
 
-    const result = instrumentHtml(source, "index.html");
+    const result = instrumentSourceHtml(source, "index.html");
 
     expect(result.html).toContain(
       '<main class="page" data-cid="html:main" data-src="index.html:5:5">',
@@ -25,7 +25,7 @@ describe("instrumentHtml", () => {
 
   it("keeps same-tag elements distinct when compact markup shares a line", () => {
     const source = "<!doctype html><body><button>A</button><button>B</button></body>";
-    const result = instrumentHtml(source, "pages/home.html");
+    const result = instrumentSourceHtml(source, "pages/home.html");
 
     expect(result.html).toContain(
       '<button data-cid="html:button" data-src="pages/home.html:1:22">A</button>',
@@ -44,7 +44,7 @@ describe("instrumentHtml", () => {
 <div data-cid="both-cid" data-src="author.html:8:4">both</div>
 </body>`;
 
-    const result = instrumentHtml(source, "index.html");
+    const result = instrumentSourceHtml(source, "index.html");
 
     expect(result.html).toContain(
       '<div data-cid="author-cid" data-src="index.html:2:1">cid only</div>',
@@ -70,7 +70,7 @@ describe("instrumentHtml", () => {
   <button>eligible</button>
 </body></html>`;
 
-    const result = instrumentHtml(source, "index.html");
+    const result = instrumentSourceHtml(source, "index.html");
 
     expect(result.html).not.toContain('data-cid="html:button" data-src="index.html:4:');
     expect(result.html).not.toContain('data-cid="html:button" data-src="index.html:5:');
@@ -82,7 +82,7 @@ describe("instrumentHtml", () => {
 
   it("skips SVG nodes and their descendants while instrumenting following HTML", () => {
     const source = "<!doctype html><body><svg><circle></circle><foreignObject><div>svg child</div></foreignObject></svg><div>html</div></body>";
-    const result = instrumentHtml(source, "index.html");
+    const result = instrumentSourceHtml(source, "index.html");
 
     expect(result.html).not.toContain("html:svg");
     expect(result.html).not.toContain("html:circle");
@@ -100,7 +100,7 @@ describe("instrumentHtml", () => {
   ><button>One</button><button>Two</button></section>
 </body>`;
 
-    const result = instrumentHtml(source, "nested/page.html");
+    const result = instrumentSourceHtml(source, "nested/page.html");
 
     expect(result.html).toContain('data-src="nested/page.html:3:3"');
     expect(result.html).toContain('data-src="nested/page.html:5:4"');
@@ -110,8 +110,8 @@ describe("instrumentHtml", () => {
   it("keeps source identity scoped to each HTML file", () => {
     const source = "<!doctype html><body><main>Page</main></body>";
 
-    const first = instrumentHtml(source, "index.html");
-    const second = instrumentHtml(source, "pages/about.html");
+    const first = instrumentSourceHtml(source, "index.html");
+    const second = instrumentSourceHtml(source, "pages/about.html");
 
     expect(first.html).toContain('data-src="index.html:1:22"');
     expect(second.html).toContain('data-src="pages/about.html:1:22"');
@@ -119,7 +119,7 @@ describe("instrumentHtml", () => {
 
   it("escapes file identity values without changing authored markup", () => {
     const source = '<!doctype html><body><div title="a &quot; > b">x</div></body>';
-    const result = instrumentHtml(source, 'pages/a"&<b.html');
+    const result = instrumentSourceHtml(source, 'pages/a"&<b.html');
 
     expect(result.html).toContain(
       'data-src="pages/a&quot;&amp;&lt;b.html:1:22"',
@@ -135,7 +135,7 @@ describe("instrumentHtml", () => {
 
   it("reports parser diagnostics and preserves source outside insertions for malformed input", () => {
     const source = '<!doctype html>\n<body><div title="unterminated><button>x</button>';
-    const result = instrumentHtml(source, "broken.html");
+    const result = instrumentSourceHtml(source, "broken.html");
 
     expect(result.diagnostics.some((diagnostic) => diagnostic.code === "html-parse-error")).toBe(true);
     expect(result.html).toBe(source);
@@ -144,7 +144,7 @@ describe("instrumentHtml", () => {
 
   it("returns the exact original string when no eligible element needs identity", () => {
     const source = '<!doctype html><html><head><title>Only head</title></head><body><div data-cid="x" data-src="x.html:1:1">done</div></body></html>';
-    const result = instrumentHtml(source, "index.html");
+    const result = instrumentSourceHtml(source, "index.html");
 
     expect(result.html).toBe(source);
     expect(result.insertedAttributeCount).toBe(0);
@@ -152,7 +152,7 @@ describe("instrumentHtml", () => {
 
   it("computes identity from original offsets in CRLF sources without changing bytes", () => {
     const source = "<!doctype html>\r\n<body>\r\n  <button>Save</button>\r\n</body>";
-    const result = instrumentHtml(source, "index.html");
+    const result = instrumentSourceHtml(source, "index.html");
 
     expect(result.html).toContain('data-src="index.html:3:3"');
     expect(
@@ -163,21 +163,21 @@ describe("instrumentHtml", () => {
 
   it("treats a lone carriage return as a line break like the HTML spec", () => {
     const source = "<!doctype html><body>\r<button>Save</button>";
-    const result = instrumentHtml(source, "index.html");
+    const result = instrumentSourceHtml(source, "index.html");
 
     expect(result.html).toContain('data-src="index.html:2:1"');
   });
 
   it("counts a tab as one column so offsets stay grep-comparable", () => {
     const source = "<!doctype html>\n<body>\n\t<button>Save</button>\n</body>";
-    const result = instrumentHtml(source, "index.html");
+    const result = instrumentSourceHtml(source, "index.html");
 
     expect(result.html).toContain('data-src="index.html:3:2"');
   });
 
   it("reserves only the fixed Nudge UI mount ID", () => {
     const source = '<!doctype html><body><div id="prototype-mount"><button>instrument</button></div><button>keep</button></body>';
-    const result = instrumentHtml(source, "index.html");
+    const result = instrumentSourceHtml(source, "index.html");
 
     expect(result.html).toContain(
       '<div id="prototype-mount" data-cid="html:div" data-src="index.html:1:22"><button data-cid="html:button" data-src="index.html:1:48">instrument</button></div>',

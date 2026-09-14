@@ -40,7 +40,6 @@
   "dependencies": {
     "@nudge-ui/inspector": "workspace:*",
     "@nudge-ui/vite-react": "workspace:*",
-    "parse5": "^7.3.0",
     "nudge-ui": "workspace:*"
   },
   "peerDependencies": {

@@ -1,4 +1,4 @@
-import { instrumentAstroHtml, type AstroIdentityDiagnostic } from "./identity.ts";
+import { instrumentRenderedHtml, type HtmlIdentityDiagnostic } from "nudge-ui/html-identity";
 
 const HTML_MEDIA_TYPE_PATTERN = /^text\/html$/i;
 
@@ -24,7 +24,7 @@ export interface InstrumentedAstroResponse {
   /** A response safe to hand back to Astro. */
   readonly response: Response;
   /** Identity diagnostics in source order; empty for untouched responses. */
-  readonly diagnostics: readonly AstroIdentityDiagnostic[];
+  readonly diagnostics: readonly HtmlIdentityDiagnostic[];
 }
 
 /**
@@ -32,7 +32,7 @@ export interface InstrumentedAstroResponse {
  * failure-tolerance suite can drive the catch branch through a real seam
  * instead of replacing the identity module wholesale.
  */
-export type AstroHtmlInstrumenter = typeof instrumentAstroHtml;
+export type AstroHtmlInstrumenter = typeof instrumentRenderedHtml;
 
 /**
  * Instruments one rendered dev response at the Astro middleware seam
@@ -51,13 +51,13 @@ export type AstroHtmlInstrumenter = typeof instrumentAstroHtml;
  * @param response The response produced downstream (the rendered page).
  * @param projectRoot Project root used to relativize annotation paths.
  * @param instrument Identity transform to apply; defaults to the real
- *   `instrumentAstroHtml`. Tests inject a failing implementation to exercise
+ *   `instrumentRenderedHtml`. Tests inject a failing implementation to exercise
  *   the catch branch.
  */
 export async function instrumentAstroResponse(
   response: Response,
   projectRoot: string | undefined,
-  instrument: AstroHtmlInstrumenter = instrumentAstroHtml,
+  instrument: AstroHtmlInstrumenter = instrumentRenderedHtml,
 ): Promise<InstrumentedAstroResponse> {
   const contentType = response.headers.get("content-type") ?? undefined;
   if (!isHtmlContentType(contentType)) return { response, diagnostics: [] };

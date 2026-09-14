@@ -484,9 +484,6 @@ importers:
       nudge-ui:
         specifier: workspace:*
         version: link:../nudge-ui
-      parse5:
-        specifier: ^7.3.0
-        version: 7.3.0
     devDependencies:
       '@types/node':
         specifier: ^22.20.1
@@ -680,6 +677,9 @@ importers:
       '@nudge-ui/css':
         specifier: workspace:*
         version: link:../css
+      parse5:
+        specifier: ^7.3.0
+        version: 7.3.0
     devDependencies:
       '@types/node':
         specifier: ^22.20.1

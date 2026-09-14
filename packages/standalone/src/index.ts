@@ -1,10 +1,9 @@
 export {
-  instrumentHtml,
-  instrumentHtml as instrumentHtmlIdentity,
+  instrumentSourceHtml,
   type HtmlIdentityDiagnostic,
   type HtmlIdentityDiagnosticCode,
   type HtmlIdentityResult,
-} from "./html/identity.ts";
+} from "nudge-ui/html-identity";
 export {
   injectStandaloneBootstrap,
   type StandaloneBootstrapOptions,
