@@ -16,8 +16,8 @@ import type { HostComponentPolicy } from "@nudge-ui/compiler/component-policy";
  * - client-component detection gates the semantic runtime import (directive
  *   scan, Pages Router rule); server-component modules receive identity
  *   attributes only and fail closed;
- * - `<html>`-rendering App Router root layouts receive a dev-only mount
- *   element that bootstraps the inspector;
+ * - `<html>`-rendering App Router root layouts receive a dev-only server
+ *   script inside `<body>` that bootstraps the inspector;
  * - excluded paths are rejected before any parse work happens.
  *
  * The transform is deterministic by contract: Turbopack compiles each module
@@ -292,8 +292,11 @@ interface HtmlNode {
 }
 
 /**
- * Appends the inspector mount as the last child of the rendered `<html>`
- * element, or returns `null` when the layout does not qualify.
+ * Appends the inspector mount as the last child of a literal rendered `<body>`
+ * element. The server-rendered script must be in the initial document so it
+ * does not rely on hydration of a client component in the root layout. A
+ * layout with no literal body is left unchanged rather than emitting an
+ * invalid direct child of `<html>`.
  *
  * Idempotence: the aliased mount import doubles as the marker — a module that
  * already carries it is left untouched, so running the loader twice (as
@@ -313,15 +316,17 @@ export function instrumentRootLayout(source: string): { code: string; map: Sourc
     return null;
   }
 
-  const htmlElement = findHtmlElement(ast);
-  if (!htmlElement?.closingElement?.start) return null;
+  const htmlElement = findElement(ast, "html");
+  if (!htmlElement) return null;
+  const bodyElement = findElement(htmlElement, "body");
+  if (!bodyElement?.closingElement?.start) return null;
 
   const ms = new MagicString(source);
   // The import must land after any directive prologue: prepending ahead of a
   // `"use client"` directive would strip it of prologue status and silently
   // change the module's compilation environment.
   ms.appendLeft(directivePrologueEnd(source), MOUNT_IMPORT);
-  ms.appendLeft(htmlElement.closingElement.start, MOUNT_JSX);
+  ms.appendLeft(bodyElement.closingElement.start, MOUNT_JSX);
   return { code: ms.toString(), map: ms.generateMap({ hires: true }) };
 }
 
@@ -386,12 +391,12 @@ export function directivePrologueEnd(source: string): number {
   return length;
 }
 
-function findHtmlElement(node: HtmlNode | undefined | null): HtmlNode | null {
+function findElement(node: HtmlNode | undefined | null, name: string): HtmlNode | null {
   if (!node || typeof node !== "object") return null;
   if (
     node.type === "JSXElement"
     && node.openingElement?.name?.type === "JSXIdentifier"
-    && node.openingElement.name.name === "html"
+    && node.openingElement.name.name === name
   ) {
     return node;
   }
@@ -399,7 +404,7 @@ function findHtmlElement(node: HtmlNode | undefined | null): HtmlNode | null {
     if (Array.isArray(child)) {
       for (const grandchild of child) {
         // SAFETY: This is an ESTree child of an array-valued parent node, which is always an HtmlNode.
-        const found = findHtmlElement(grandchild as HtmlNode);
+        const found = findElement(grandchild as HtmlNode, name);
         if (found) return found;
       }
     } else if (
@@ -407,7 +412,7 @@ function findHtmlElement(node: HtmlNode | undefined | null): HtmlNode | null {
       child && typeof child === "object" && (child as HtmlNode).type
     ) {
       // SAFETY: The indexed template element of an ESTree TemplateLiteral is always an HtmlNode.
-      const found = findHtmlElement(child as HtmlNode);
+      const found = findElement(child as HtmlNode, name);
       if (found) return found;
     }
   }
