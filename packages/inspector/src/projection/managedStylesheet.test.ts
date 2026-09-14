@@ -1,44 +1,49 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { ensureManagedSheet, applyRules, escapeAttrValue, rulesToCssText, verifyPreview, getManagedSheetText } from "./managedStylesheet.ts";
+import { ensureManagedSheet, applyRules, escapeAttrValue, rulesToCssText, verifyPreview, getManagedSheetText, removeManagedSheet } from "./managedStylesheet.ts";
+import { disposeBrowserCssInspection, getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import type { StyleRule } from "./managedStylesheet.ts";
 
 const SHEET_ID = "nudge-ui-styles";
 
 describe("ensureManagedSheet", () => {
   afterEach(() => {
-    document.getElementById(SHEET_ID)?.remove();
+    removeManagedSheet();
+    disposeBrowserCssInspection(document);
   });
 
   it("injects a single <style id='nudge-ui-styles'> into document.head", () => {
     expect(document.getElementById(SHEET_ID)).toBeNull();
-    const sheet = ensureManagedSheet();
+    ensureManagedSheet();
     const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
     expect(el).not.toBeNull();
     expect(el!.tagName).toBe("STYLE");
     expect(el!.getAttribute("id")).toBe(SHEET_ID);
-    expect(sheet).toBe(el!.sheet);
+    expect(el!.sheet).not.toBeNull();
   });
 
   it("is idempotent — calling twice returns the same sheet", () => {
-    const a = ensureManagedSheet();
-    const b = ensureManagedSheet();
-    expect(a).toBe(b);
+    ensureManagedSheet();
+    const firstSheet = (document.getElementById(SHEET_ID) as HTMLStyleElement).sheet;
+    ensureManagedSheet();
+    expect((document.getElementById(SHEET_ID) as HTMLStyleElement).sheet).toBe(firstSheet);
     expect(document.querySelectorAll(`#${SHEET_ID}`).length).toBe(1);
   });
 
   it("reuses the existing sheet across calls even after external removal+re-add", () => {
-    const a = ensureManagedSheet();
+    ensureManagedSheet();
+    const firstSheet = (document.getElementById(SHEET_ID) as HTMLStyleElement).sheet;
     document.getElementById(SHEET_ID)?.remove();
-    const b = ensureManagedSheet();
-    expect(a).not.toBe(b);
+    ensureManagedSheet();
+    expect((document.getElementById(SHEET_ID) as HTMLStyleElement).sheet).not.toBe(firstSheet);
     expect(document.querySelectorAll(`#${SHEET_ID}`).length).toBe(1);
   });
 });
 
 describe("applyRules", () => {
   afterEach(() => {
-    document.getElementById(SHEET_ID)?.remove();
+    removeManagedSheet();
+    disposeBrowserCssInspection(document);
   });
 
   it("writes the expected CSS text for a single rule", () => {
@@ -62,15 +67,32 @@ describe("applyRules", () => {
     expect(getManagedSheetText()).toContain("color: blue;");
   });
 
-  it("is idempotent for identical input (replaceSync semantics, no duplicates)", () => {
+  it("does not rewrite the sheet or invalidate caches for an identical projection", () => {
     const rules: StyleRule[] = [{ selector: ".a", declarations: { color: "red" } }];
     applyRules(rules);
-    const before = getManagedSheetText();
+    const el = document.getElementById(SHEET_ID) as HTMLStyleElement;
+    const sheet = el.sheet;
+    const inspection = getBrowserCssInspection(document);
+    const revision = inspection.inspectTokens().revision.stylesheet;
+
     applyRules(rules);
-    const after = getManagedSheetText();
-    expect(after).toBe(before);
-    const matches = (after ?? "").split(".a").length - 1;
-    expect(matches).toBe(1);
+
+    expect(el.sheet).toBe(sheet);
+    expect(inspection.inspectTokens().revision.stylesheet).toBe(revision);
+    expect(getManagedSheetText()).toBe(".a { color: red; }");
+  });
+
+  it("does not rewrite the sheet or invalidate caches for an empty projection", () => {
+    applyRules([]);
+    const el = document.getElementById(SHEET_ID) as HTMLStyleElement;
+    const sheet = el.sheet;
+    const inspection = getBrowserCssInspection(document);
+    const revision = inspection.inspectTokens().revision.stylesheet;
+
+    applyRules([]);
+
+    expect(el.sheet).toBe(sheet);
+    expect(inspection.inspectTokens().revision.stylesheet).toBe(revision);
   });
 
   it("omits entries with empty property or value", () => {
@@ -185,6 +207,17 @@ describe("applyRules", () => {
       expect(sheet.sheet?.cssRules.length).toBe(2);
       const props = Array.from(sheet.sheet!.cssRules).map((r) => (r as CSSStyleRule).style.getPropertyValue("color") || (r as CSSStyleRule).style.getPropertyValue("padding"));
       expect(props.sort()).toEqual(["4px", "red"]);
+    });
+
+    it("keeps same-property rules when their values differ", () => {
+      applyRules([
+        { selector: ".a", declarations: { color: "red" } },
+        { selector: ".a", declarations: { color: "blue" } },
+      ]);
+
+      const sheet = (document.getElementById(SHEET_ID) as HTMLStyleElement).sheet!;
+      expect(Array.from(sheet.cssRules).map((rule) =>
+        (rule as CSSStyleRule).style.getPropertyValue("color"))).toEqual(["red", "blue"]);
     });
 
     it("restores canonical order when an existing rule moves later", () => {

@@ -33,6 +33,7 @@ const SHEET_ID = "nudge-ui-styles";
 
 let managedHeadGuardDocument: Document | null = null;
 let managedHeadGuard: MutationObserver | null = null;
+let failedRehydrationCssText: string | null = null;
 
 function installManagedHeadGuard(doc: Document): void {
   const Observer = doc.defaultView?.MutationObserver;
@@ -50,7 +51,7 @@ function installManagedHeadGuard(doc: Document): void {
   managedHeadGuard.observe(doc.head, { childList: true });
 }
 
-export function ensureManagedSheet(): CSSStyleSheet {
+export function ensureManagedSheet(): void {
   const doc = document;
   // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
   let el = doc.getElementById(SHEET_ID) as HTMLStyleElement | null;
@@ -84,7 +85,6 @@ export function ensureManagedSheet(): CSSStyleSheet {
     // Keep the canonical CSS available to dev diagnostics.
     doc.defaultView.__nudgeUiGetManagedSheetText = getManagedSheetText;
   }
-  return sheet;
 }
 
 function buildDeclarationsBody(declarations: Record<string, string>): string {
@@ -120,12 +120,6 @@ export function rulesToCssText(rules: StyleRule[]): string {
 /** Canonical rules retained so a framework can rehydrate a moved style node. */
 let managedRules: StyleRule[] = [];
 
-/** A rule is uniquely identified by its selector + wrappers + declared properties. */
-function ruleIdentity(rule: StyleRule): string {
-  const properties = Object.keys(rule.declarations).sort().join(",");
-  return `${rule.selector}\u0000${JSON.stringify(rule.context?.wrappers ?? [])}\u0000${properties}`;
-}
-
 /** Synchronous serialized view of the rules currently projected into the managed sheet. */
 export function getManagedSheetText(): string {
   return rulesToCssText(managedRules);
@@ -143,13 +137,19 @@ function rehydrateManagedSheet(doc: Document, el: HTMLStyleElement): void {
 
   const rules = managedRules;
   const cssText = rulesToCssText(rules);
-  const needsRebuild = el.textContent !== cssText || sheet.cssRules.length !== rules.length;
-
-  if (needsRebuild) {
-    el.textContent = cssText;
-    if (!el.sheet) return;
-    notifyBrowserStylesheetChange(doc);
+  if (sheet.cssRules.length === rules.length) {
+    failedRehydrationCssText = null;
+    return;
   }
+  if (failedRehydrationCssText === cssText) return;
+
+  el.textContent = cssText;
+  if (!el.sheet) {
+    failedRehydrationCssText = cssText;
+    return;
+  }
+  failedRehydrationCssText = el.sheet.cssRules.length === rules.length ? null : cssText;
+  notifyBrowserStylesheetChange(doc);
 }
 
 /**
@@ -160,11 +160,22 @@ function rebuildSheetText(rules: StyleRule[]): void {
   // SAFETY: getElementById returns an Element; the managed style element is created as HTMLStyleElement when missing.
   const el = document.getElementById(SHEET_ID) as HTMLStyleElement | null;
   if (!el) return;
-  managedRules = rules.map((rule) => ({
+  const desired = rules.map((rule) => ({
     ...rule,
     declarations: { ...rule.declarations },
   }));
-  el.textContent = rulesToCssText(managedRules);
+  const cssText = rulesToCssText(desired);
+  const rulesChanged = rulesToCssText(managedRules) !== cssText;
+  const shouldRetryDroppedRules = el.sheet !== null
+    && el.sheet.cssRules.length !== desired.length
+    && failedRehydrationCssText !== cssText;
+  managedRules = desired;
+  if (!rulesChanged && el.textContent === cssText && !shouldRetryDroppedRules) return;
+
+  el.textContent = cssText;
+  failedRehydrationCssText = el.sheet && el.sheet.cssRules.length !== desired.length
+    ? cssText
+    : null;
   notifyBrowserStylesheetChange(document);
 }
 
@@ -178,8 +189,8 @@ export function applyRules(rules: StyleRule[]): void {
   const desired: StyleRule[] = [];
   const desiredIds = new Set<string>();
   for (const rule of rules) {
-    if (!buildRuleText(rule)) continue;
-    const id = ruleIdentity(rule);
+    const id = buildRuleText(rule);
+    if (!id) continue;
     if (desiredIds.has(id)) continue;
     desiredIds.add(id);
     desired.push(rule);
@@ -242,5 +253,6 @@ export function removeManagedSheet(): void {
   const el = document.getElementById(SHEET_ID);
   if (el) el.remove();
   managedRules = [];
+  failedRehydrationCssText = null;
   notifyBrowserStylesheetChange(document);
 }
