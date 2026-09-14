@@ -12,10 +12,6 @@ const packageDirectories = [
   "css",
   "inspector",
   "nudge-ui",
-  "plugin",
-  "astro",
-  "nextjs",
-  "standalone",
   "mcp",
 ];
 const releaseTag = process.argv.slice(2).find((argument) => argument !== "--");

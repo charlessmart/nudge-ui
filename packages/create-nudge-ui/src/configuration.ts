@@ -60,7 +60,7 @@ function configureViteSource(
   source: string,
   sourceFile: ts.SourceFile,
 ): string {
-  const packageName = "@nudge-ui/vite-react";
+  const packageName = "nudge-ui/vite";
   const importName = "withNudgeUi";
   const target = findConfigExport(sourceFile, "Vite");
   const bindings = target.commonJs
@@ -86,7 +86,7 @@ function configureViteSource(
 
 function configureAstroSource(source: string, sourceFile: ts.SourceFile): string {
   const target = findDefaultExport(sourceFile, "Astro");
-  const bindings = importedBindings(sourceFile, "@nudge-ui/astro", "withNudgeUi");
+  const bindings = importedBindings(sourceFile, "nudge-ui/astro", "withNudgeUi");
   const wrapperBinding = bindings[0] ?? unusedBindingName(sourceFile, "withNudgeUi");
   const edits: TextEdit[] = [];
   if (!containsCall(target, new Set(bindings))) {
@@ -100,7 +100,7 @@ function configureAstroSource(source: string, sourceFile: ts.SourceFile): string
       : `withNudgeUi as ${wrapperBinding}`;
     edits.push(importEdit(
       sourceFile,
-      `import { ${importedName} } from "@nudge-ui/astro";`,
+      `import { ${importedName} } from "nudge-ui/astro";`,
       false,
     ));
   }
@@ -110,8 +110,8 @@ function configureAstroSource(source: string, sourceFile: ts.SourceFile): string
 function configureNextSource(source: string, sourceFile: ts.SourceFile): string {
   const target = findConfigExport(sourceFile, "Next.js");
   const bindings = target.commonJs
-    ? requiredBindings(sourceFile, "@nudge-ui/nextjs", "withNudgeUi")
-    : importedBindings(sourceFile, "@nudge-ui/nextjs", "withNudgeUi");
+    ? requiredBindings(sourceFile, "nudge-ui/next", "withNudgeUi")
+    : importedBindings(sourceFile, "nudge-ui/next", "withNudgeUi");
   const callableBindings = new Set([...bindings, "withNudgeUi"]);
   const edits: TextEdit[] = [];
 
@@ -122,8 +122,8 @@ function configureNextSource(source: string, sourceFile: ts.SourceFile): string 
   }
   if (bindings.length === 0) {
     const statement = target.commonJs
-      ? 'const { withNudgeUi } = require("@nudge-ui/nextjs");'
-      : 'import { withNudgeUi } from "@nudge-ui/nextjs";';
+      ? 'const { withNudgeUi } = require("nudge-ui/next");'
+      : 'import { withNudgeUi } from "nudge-ui/next";';
     edits.push(importEdit(sourceFile, statement, target.commonJs));
   }
   return applyEdits(source, edits);

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-const installCommand = "@nudge-ui/vite-react in this project";
+const installCommand = "nudge-ui/vite in this project";
 
 function CopyIcon(): ReactNode {
   return (

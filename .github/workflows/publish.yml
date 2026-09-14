@@ -91,14 +91,6 @@ jobs:
             archive: nudge-ui-inspector
           - name: "nudge-ui"
             archive: nudge-ui
-          - name: "@nudge-ui/vite-react"
-            archive: nudge-ui-vite-react
-          - name: "@nudge-ui/astro"
-            archive: nudge-ui-astro
-          - name: "@nudge-ui/nextjs"
-            archive: nudge-ui-nextjs
-          - name: "@nudge-ui/standalone"
-            archive: nudge-ui-standalone
           - name: "@nudge-ui/mcp"
             archive: nudge-ui-mcp
     permissions:
@@ -143,4 +135,4 @@ jobs:
       - name: Write approval instructions
         run: |
           echo "### $RELEASE_TAG is staged on npm" >> "$GITHUB_STEP_SUMMARY"
-          echo "Review all ten packages in npm's Staged Packages page, then approve them with 2FA." >> "$GITHUB_STEP_SUMMARY"
+          echo "Review the staged packages in npm's Staged Packages page, then approve them with 2FA." >> "$GITHUB_STEP_SUMMARY"

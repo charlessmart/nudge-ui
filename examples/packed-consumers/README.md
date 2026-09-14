@@ -35,7 +35,7 @@ Every entry must mount the Nudge bridge. The two Vite React 19 fixtures also
 declare `expectedApplicationText`, so for those a mounted inspector cannot hide
 a host render failure; the remaining entries assert the bridge alone.
 
-Astro 5 is intentional because `@nudge-ui/astro` supports Astro 5 and this stack
+Astro 5 is intentional because `nudge-ui/astro` supports Astro 5 and this stack
 reproduces the external-consumer regression that the suite must retain: a
 `virtual:design-tokens` dependency-optimization failure during server-side
 module resolution. The shared client work fixed that regression, so the Astro

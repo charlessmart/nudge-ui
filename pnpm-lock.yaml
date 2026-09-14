@@ -8,9 +8,6 @@ importers:
 
   .:
     devDependencies:
-      '@nudge-ui/standalone':
-        specifier: workspace:*
-        version: link:packages/standalone
       '@oxlint/plugins':
         specifier: 1.78.0
         version: 1.78.0
@@ -26,6 +23,9 @@ importers:
       globals:
         specifier: ^17.12.0
         version: 17.12.0
+      nudge-ui:
+        specifier: workspace:*
+        version: link:packages/nudge-ui
       oxlint:
         specifier: 1.78.0
         version: 1.78.0
@@ -41,12 +41,12 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@nudge-ui/vite-react':
-        specifier: workspace:*
-        version: link:../../packages/plugin
       '@tabler/icons-react':
         specifier: 3.46.0
         version: 3.46.0(react@18.3.1)
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../../packages/nudge-ui
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -99,9 +99,9 @@ importers:
       '@nudge-ui/package-css-fixture':
         specifier: workspace:*
         version: link:../../packages/package-css-fixture
-      '@nudge-ui/vite-react':
+      nudge-ui:
         specifier: workspace:*
-        version: link:../../packages/plugin
+        version: link:../../packages/nudge-ui
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -139,15 +139,15 @@ importers:
       '@astrojs/react':
         specifier: ^6.0.5
         version: 6.0.5(@types/node@22.20.1)(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(esbuild@0.28.2)(jiti@2.7.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(yaml@2.9.0)
-      '@nudge-ui/astro':
-        specifier: workspace:*
-        version: link:../../packages/astro
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
       astro:
         specifier: ^7.2.10
         version: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(yaml@2.9.0)
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../../packages/nudge-ui
       react:
         specifier: ^19.2.8
         version: 19.2.8
@@ -182,15 +182,12 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@nudge-ui/nextjs':
-        specifier: workspace:*
-        version: link:../../packages/nextjs
-      '@nudge-ui/vite-react':
-        specifier: workspace:*
-        version: link:../../packages/plugin
       next:
         specifier: ~16.3.4
         version: 16.3.4(@playwright/test@1.62.1)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../../packages/nudge-ui
       react:
         specifier: ^19.2.8
         version: 19.2.8
@@ -219,15 +216,15 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@nudge-ui/vite-react':
-        specifier: workspace:*
-        version: link:../../packages/plugin
       '@vanilla-extract/css':
         specifier: 1.21.2
         version: 1.21.2
       '@vanilla-extract/sprinkles':
         specifier: 1.7.0
         version: 1.7.0(@vanilla-extract/css@1.21.2)
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../../packages/nudge-ui
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -271,9 +268,9 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@nudge-ui/vite-react':
+      nudge-ui:
         specifier: workspace:*
-        version: link:../../packages/plugin
+        version: link:../../packages/nudge-ui
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -323,9 +320,6 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../../packages/inspector
-      '@nudge-ui/vite-react':
-        specifier: workspace:*
-        version: link:../../packages/plugin
       '@shadcn/react':
         specifier: ^0.3.1
         version: 0.3.1(@types/react@19.2.18)(react@19.2.8)
@@ -353,6 +347,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../../packages/nudge-ui
       radix-ui:
         specifier: ^1.6.7
         version: 1.6.7(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -429,12 +426,12 @@ importers:
       '@nudge-ui/inspector':
         specifier: workspace:*
         version: link:../packages/inspector
-      '@nudge-ui/vite-react':
-        specifier: workspace:*
-        version: link:../packages/plugin
       '@tabler/icons-react':
         specifier: 3.46.0
         version: 3.46.0(react@18.3.1)
+      nudge-ui:
+        specifier: workspace:*
+        version: link:../packages/nudge-ui
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -472,34 +469,6 @@ importers:
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@26.4.1)(jsdom@25.0.1)(lightningcss@1.33.0)
-
-  packages/astro:
-    dependencies:
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../inspector
-      '@nudge-ui/vite-react':
-        specifier: workspace:*
-        version: link:../plugin
-      nudge-ui:
-        specifier: workspace:*
-        version: link:../nudge-ui
-    devDependencies:
-      '@types/node':
-        specifier: ^22.20.1
-        version: 22.20.1
-      astro:
-        specifier: ^7.2.10
-        version: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(yaml@2.9.0)
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vite:
-        specifier: ^7.3.6
-        version: 7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.0)
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
   packages/compatibility:
     devDependencies:
@@ -623,7 +592,7 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
-  packages/nextjs:
+  packages/nudge-ui:
     dependencies:
       '@babel/parser':
         specifier: ^7.29.8
@@ -643,15 +612,21 @@ importers:
       next:
         specifier: '>=15.3 <17'
         version: 16.3.4(@playwright/test@1.62.1)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      nudge-ui:
-        specifier: workspace:*
-        version: link:../nudge-ui
+      parse5:
+        specifier: ^7.3.0
+        version: 7.3.0
+      postcss:
+        specifier: ^8.5.26
+        version: 8.5.26
       react:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.8
       react-dom:
         specifier: ^18.0.0 || ^19.0.0
         version: 19.2.8(react@19.2.8)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
     devDependencies:
       '@types/node':
         specifier: ^22.20.1
@@ -662,67 +637,12 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.5
         version: 19.2.5(@types/react@19.2.18)
+      astro:
+        specifier: ^7.2.10
+        version: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(jiti@2.7.0)(yaml@2.9.0)
       esbuild:
-        specifier: ^0.21.5
-        version: 0.21.5
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
-
-  packages/nudge-ui:
-    dependencies:
-      '@nudge-ui/css':
-        specifier: workspace:*
-        version: link:../css
-      parse5:
-        specifier: ^7.3.0
-        version: 7.3.0
-    devDependencies:
-      '@types/node':
-        specifier: ^22.20.1
-        version: 22.20.1
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
-
-  packages/package-css-fixture: {}
-
-  packages/plugin:
-    dependencies:
-      '@babel/parser':
-        specifier: ^7.29.8
-        version: 7.29.8
-      '@nudge-ui/compiler':
-        specifier: workspace:*
-        version: link:../compiler
-      '@nudge-ui/css':
-        specifier: workspace:*
-        version: link:../css
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../inspector
-      magic-string:
-        specifier: ^0.30.21
-        version: 0.30.21
-      nudge-ui:
-        specifier: workspace:*
-        version: link:../nudge-ui
-      postcss:
-        specifier: ^8.5.26
-        version: 8.5.26
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-    devDependencies:
-      '@types/node':
-        specifier: ^22.20.1
-        version: 22.20.1
+        specifier: ^0.28.0
+        version: 0.28.2
       vite:
         specifier: ^8.2.2
         version: 8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0)
@@ -730,33 +650,7 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
 
-  packages/standalone:
-    dependencies:
-      '@nudge-ui/css':
-        specifier: workspace:*
-        version: link:../css
-      '@nudge-ui/inspector':
-        specifier: workspace:*
-        version: link:../inspector
-      nudge-ui:
-        specifier: workspace:*
-        version: link:../nudge-ui
-      parse5:
-        specifier: ^7.3.0
-        version: 7.3.0
-    devDependencies:
-      '@types/node':
-        specifier: ^22.20.1
-        version: 22.20.1
-      esbuild:
-        specifier: ^0.21.5
-        version: 0.21.5
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.33.0)
+  packages/package-css-fixture: {}
 
 packages:
 
@@ -5908,46 +5802,6 @@ packages:
       sugarss:
         optional: true
       terser:
-        optional: true
-
-  vite@7.3.6:
-    resolution: {integrity: sha512-4XP60spRGjSZFf1qYH+dJIkK2znL3zQfl9KkOV9MkkRR/3Dls0dxaBsQPTloEc5BLXWPL9vsOxopxyKoMmDueg==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    hasBin: true
-    peerDependencies:
-      '@types/node': ^20.19.0 || >=22.12.0
-      jiti: '>=1.21.0'
-      less: ^4.0.0
-      lightningcss: ^1.21.0
-      sass: ^1.70.0
-      sass-embedded: ^1.70.0
-      stylus: '>=0.54.8'
-      sugarss: ^5.0.0
-      terser: ^5.16.0
-      tsx: ^4.8.1
-      yaml: ^2.4.2
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
-      jiti:
-        optional: true
-      less:
-        optional: true
-      lightningcss:
-        optional: true
-      sass:
-        optional: true
-      sass-embedded:
-        optional: true
-      stylus:
-        optional: true
-      sugarss:
-        optional: true
-      terser:
-        optional: true
-      tsx:
-        optional: true
-      yaml:
         optional: true
 
   vite@8.2.2:
@@ -11261,21 +11115,6 @@ snapshots:
       '@types/node': 26.4.1
       fsevents: 2.3.3
       lightningcss: 1.33.0
-
-  vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.0):
-    dependencies:
-      esbuild: 0.28.2
-      fdir: 6.5.0(picomatch@4.0.7)
-      picomatch: 4.0.7
-      postcss: 8.5.26
-      rollup: 4.63.1
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      '@types/node': 22.20.1
-      fsevents: 2.3.3
-      jiti: 2.7.0
-      lightningcss: 1.33.0
-      yaml: 2.9.0
 
   vite@8.2.2(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.0):
     dependencies:

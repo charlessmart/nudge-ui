@@ -13,10 +13,10 @@ import { HeroDemoGrid } from "./components/HeroDemoGrid";
 const installPrompt = "Run npm create nudge-ui@latest in this project";
 const OPEN_NUDGE_EVENT = "nudge-ui:open";
 const manualSetupCode = [
-  "Vite + React  @nudge-ui/vite-react",
-  "Next.js       @nudge-ui/nextjs",
-  "Astro         @nudge-ui/astro",
-  "Static HTML   @nudge-ui/standalone",
+  "Vite + React  nudge-ui/vite",
+  "Next.js       nudge-ui/next",
+  "Astro         nudge-ui/astro",
+  "Static HTML   nudge-ui/static",
 ].join(String.fromCharCode(10));
 const agentSetupCode = [
   "pnpm add -D @nudge-ui/mcp",

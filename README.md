@@ -17,8 +17,8 @@ npm create nudge-ui@latest
 ```
 
 The initializer detects Next.js, Astro, Vite with React, or static HTML,
-installs the corresponding host adapter, and updates the host configuration.
-Use an explicit framework when detection is ambiguous:
+installs `nudge-ui`, and updates the host configuration. Use an explicit
+framework when detection is ambiguous:
 
 ```sh
 npm create nudge-ui@latest -- --framework astro
@@ -26,23 +26,35 @@ npm create nudge-ui@latest -- --framework astro
 
 ### Manual installation
 
-Install the adapter for the host application when automatic setup is not
-appropriate. The examples in this repository use `workspace:*`; an external
-project should use the corresponding published package or a local package
-build.
+One package serves every host. Install it, then import the subpath matching
+the build tool:
+
+```sh
+pnpm add -D nudge-ui
+```
+
+| Host | Subpath |
+| --- | --- |
+| Vite with React | `nudge-ui/vite` |
+| Next.js | `nudge-ui/next` |
+| Astro | `nudge-ui/astro` |
+| Static HTML | `nudge-ui/static`, plus the `nudge-ui` command |
+
+Peer dependencies on Vite, Next.js, Astro, React, and React DOM are all
+optional, so installing `nudge-ui` never asks for a toolchain the project does
+not use.
+
+The examples in this repository use `workspace:*`; an external project should
+use the published package or a local build.
 
 ### Vite and React
 
-```sh
-pnpm add -D @nudge-ui/vite-react
-```
-
-Add the Vite React adapter after the React plugin in `vite.config.ts`:
+Add the Vite adapter after the React plugin in `vite.config.ts`:
 
 ```ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { withNudgeUi } from "@nudge-ui/vite-react";
+import { withNudgeUi } from "nudge-ui/vite";
 
 export default withNudgeUi(defineConfig({
   plugins: [react()],
@@ -64,14 +76,10 @@ adapter's source scope.
 
 ### Next.js
 
-```sh
-pnpm add -D @nudge-ui/nextjs
-```
-
 Wrap the Next.js configuration:
 
 ```ts
-import { withNudgeUi } from "@nudge-ui/nextjs";
+import { withNudgeUi } from "nudge-ui/next";
 
 const nextConfig = {};
 
@@ -83,15 +91,11 @@ local manifest transport. It supports Next.js 15.3 through 16.x.
 
 ### Astro
 
-```sh
-pnpm add -D @nudge-ui/astro
-```
-
 Register the integration in `astro.config.ts`:
 
 ```ts
 import { defineConfig } from "astro/config";
-import { nudgeUiAstro } from "@nudge-ui/astro";
+import { nudgeUiAstro } from "nudge-ui/astro";
 
 export default defineConfig({
   integrations: [nudgeUiAstro()],
@@ -104,7 +108,6 @@ Automated installs use `withNudgeUi(defineConfig(...))`; the explicit
 ### Static HTML
 
 ```sh
-pnpm add -D @nudge-ui/standalone
 pnpm exec nudge-ui serve ./prototype
 ```
 

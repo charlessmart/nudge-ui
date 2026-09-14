@@ -39,8 +39,8 @@ export default {
     {
       files: [
         "packages/compiler/src/**",
-        "packages/plugin/src/components/**",
-        "packages/plugin/src/tokens/**",
+        "packages/nudge-ui/src/hosts/vite/components/**",
+        "packages/nudge-ui/src/hosts/vite/tokens/**",
         "packages/compatibility/src/playwright.ts",
         "packages/inspector/src/canvas/frameProtocol.ts",
         "packages/inspector/src/canvas/rendererBootstrap.ts",
@@ -57,14 +57,14 @@ export default {
         "packages/inspector/src/selection/resolveSelection.ts",
         "packages/inspector/src/tokens/resolution/cssomCollector.ts",
         "packages/agent-protocol/src/index.ts",
-        "packages/nextjs/src/wrapper.ts",
+        "packages/nudge-ui/src/hosts/next/wrapper.ts",
         "packages/mcp/src/bridge.ts",
         "packages/inspector/src/agent/httpTransport.ts",
         "packages/inspector/src/agent/verification.ts",
         "packages/inspector/src/canvas/agentPresentation.ts",
         "packages/inspector/src/prompt/clipboardHandoff.ts",
         "packages/inspector/src/runtime/runtimeConfig.ts",
-        "packages/standalone/src/tokenManifest.ts",
+        "packages/nudge-ui/src/project/tokens.ts",
       ],
       rules: {
         "anti-slop/no-chained-type-assertions": "warn",

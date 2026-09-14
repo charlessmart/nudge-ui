@@ -31,7 +31,7 @@ test("dev: landing install command renders the design copy", async ({ page }) =>
   await page.goto("/");
 
   const install = page.locator(".landing-install");
-  await expect(install).toContainText("Let's install @nudge-ui/vite-react in this project");
+  await expect(install).toContainText("Let's install nudge-ui/vite in this project");
   await expect(install).toContainText("Copy");
 
   // The window mockup's inspector controls are static replicas.

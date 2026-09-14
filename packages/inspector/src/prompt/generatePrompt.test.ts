@@ -27,7 +27,7 @@ function rec(
 
 /**
  * Configures the runtime the way the Astro host Adapter declares it
- * (packages/astro/src/bootstrap.ts): response-layer `astro:` identity and
+ * (packages/nudge-ui/src/hosts/astro/bootstrap.ts): response-layer `astro:` identity and
  * `.astro`/`.html` sources keep exact authored coordinates; hydrated-island
  * JSX keeps line precision.
  */

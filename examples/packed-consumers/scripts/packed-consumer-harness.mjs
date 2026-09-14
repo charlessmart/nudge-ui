@@ -10,13 +10,13 @@ const suiteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(suiteRoot, "../..");
 const maxDiagnosticCharacters = 256_000;
 const adapterPackages = {
-  astro: "@nudge-ui/astro",
-  nextjs: "@nudge-ui/nextjs",
-  "nextjs-16.1": "@nudge-ui/nextjs",
-  standalone: "@nudge-ui/standalone",
-  "vite-react": "@nudge-ui/vite-react",
-  "vite-react-current": "@nudge-ui/vite-react",
-  "vite-react-monorepo": "@nudge-ui/vite-react",
+  astro: "nudge-ui/astro",
+  nextjs: "nudge-ui/next",
+  "nextjs-16.1": "nudge-ui/next",
+  standalone: "nudge-ui/static",
+  "vite-react": "nudge-ui/vite",
+  "vite-react-current": "nudge-ui/vite",
+  "vite-react-monorepo": "nudge-ui/vite",
 };
 
 /**

@@ -1,7 +1,6 @@
 export { parseArguments, helpText, type CliOptions } from "./arguments.ts";
 export { configureSource, planConfiguration } from "./configuration.ts";
 export {
-  adapterPackage,
   detectFrameworks,
   detectPackageManager,
   detectStaticRoot,

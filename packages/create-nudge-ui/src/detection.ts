@@ -59,7 +59,7 @@ export function detectFrameworks(projectRoot: string, manifest = readProjectMani
   if (hasVite && hasReact) return ["vite-react"];
   if (hasVite) return [];
 
-  if (manifest.dependencies.has("@nudge-ui/standalone") || detectStaticRoot(projectRoot)) return ["standalone"];
+  if (manifest.dependencies.has("nudge-ui") || detectStaticRoot(projectRoot)) return ["standalone"];
   return [];
 }
 
@@ -98,13 +98,6 @@ export function frameworkDisplayName(framework: Framework): string {
   if (framework === "astro") return "Astro";
   if (framework === "vite-react") return "Vite with React";
   return "static HTML";
-}
-
-export function adapterPackage(framework: Framework): string {
-  if (framework === "nextjs") return "@nudge-ui/nextjs";
-  if (framework === "astro") return "@nudge-ui/astro";
-  if (framework === "vite-react") return "@nudge-ui/vite-react";
-  return "@nudge-ui/standalone";
 }
 
 function hasAnyFile(projectRoot: string, names: readonly string[]): boolean {

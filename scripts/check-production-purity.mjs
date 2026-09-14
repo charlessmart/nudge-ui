@@ -136,7 +136,7 @@ async function waitForServer(url, timeoutMs = 20_000) {
 async function checkServedPurity(host) {
   const source = join(repoRoot, host.directory, "prototype");
   const root = mkdtempSync(join(tmpdir(), "nudge-ui-standalone-e2e-"));
-  const cli = join(repoRoot, "packages/standalone/bin/nudge-ui.mjs");
+  const cli = join(repoRoot, "packages/nudge-ui/bin/nudge-ui.mjs");
   const port = 4399;
 
   cpSync(source, root, { recursive: true });

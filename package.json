@@ -1,5 +1,5 @@
 {
-  "name": "nudge-ui",
+  "name": "nudge-ui-workspace",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -42,12 +42,12 @@
     "dev:mockups": "pnpm --filter mockup-cards dev"
   },
   "devDependencies": {
-    "@nudge-ui/standalone": "workspace:*",
     "@oxlint/plugins": "1.78.0",
     "@types/node": "^22.20.1",
     "@typescript-eslint/parser": "^8.69.0",
     "eslint": "^9.39.5",
     "globals": "^17.12.0",
+    "nudge-ui": "workspace:*",
     "oxlint": "1.78.0",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"

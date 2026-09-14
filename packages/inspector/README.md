@@ -27,10 +27,10 @@ Custom React hosts also provide `react` and `react-dom` for the
 
 Most projects should install a host adapter instead:
 
-- `@nudge-ui/vite-react` for Vite + React
-- `@nudge-ui/nextjs` for Next.js
-- `@nudge-ui/astro` for Astro
-- `@nudge-ui/standalone` for static HTML
+- `nudge-ui/vite` for Vite + React
+- `nudge-ui/next` for Next.js
+- `nudge-ui/astro` for Astro
+- `nudge-ui/static` for static HTML
 
 Install the inspector directly only when implementing a custom host adapter.
 

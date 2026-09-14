@@ -1,9 +1,17 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
     "outDir": "dist",
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@nudge-ui/compiler": ["../compiler/src/index.ts"],
+      "@nudge-ui/compiler/react-identity": ["../compiler/src/reactIdentity.ts"],
+      "@nudge-ui/compiler/component-policy": ["../compiler/src/componentPolicyResolution.ts"],
+      "@nudge-ui/compiler/react-component-protocols": ["../compiler/src/reactComponentProtocols.ts"],
+      "@nudge-ui/compiler/component-contracts": ["../compiler/src/componentContracts.ts"],
+      "@nudge-ui/compiler/package-component-contracts": ["../compiler/src/packageComponentContracts.ts"]
+    }
   },
   "include": ["src"]
 }

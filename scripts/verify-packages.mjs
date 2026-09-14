@@ -21,10 +21,6 @@ const packageDirectories = [
   "css",
   "inspector",
   "nudge-ui",
-  "plugin",
-  "astro",
-  "nextjs",
-  "standalone",
   "mcp",
 ];
 const outputArgument = process.argv.indexOf("--output-directory");
@@ -101,13 +97,22 @@ function verifyPackage(packageRoot) {
     assertPackageTarget(entries, target, `${packageJson.name} bin ${name}`);
   }
 
-  if (packageJson.name === "@nudge-ui/nextjs") {
+  if (packageJson.name === "nudge-ui") {
     for (const loader of ["loader-plugin.cjs", "identity-loader.cjs"]) {
-      assert(entries.includes(`package/dist/loaders/${loader}`), `Next.js package is missing dist/loaders/${loader}.`);
+      const path = `package/dist/hosts/next/loaders/${loader}`;
+      assert(entries.includes(path), `nudge-ui is missing ${path}.`);
     }
     assert(
-      !entries.includes("package/dist/loaders/css-inline-loader.cjs"),
-      "Next.js package must not publish the obsolete CSS query loader.",
+      !entries.some((entry) => entry.endsWith("/css-inline-loader.cjs")),
+      "nudge-ui must not publish the obsolete CSS query loader.",
+    );
+    assert(entries.includes("package/bin/nudge-ui.mjs"), "nudge-ui is missing its CLI entry point.");
+    assert(entries.includes("package/dist/nudge-ui.mjs"), "nudge-ui is missing its bundled CLI.");
+    // Every host reads the inspector client from @nudge-ui/inspector at
+    // runtime. Shipping a second copy would let the two drift.
+    assert(
+      !entries.includes("package/dist/client.mjs"),
+      "nudge-ui must serve the shared inspector client instead of publishing a copy.",
     );
   }
   if (packageJson.name === "@nudge-ui/inspector") {
@@ -121,16 +126,6 @@ function verifyPackage(packageRoot) {
     );
     assert(!entries.includes("package/dist/client.js"), "Inspector package contains a dead client.js emit.");
     assert(!entries.includes("package/dist/client.d.ts"), "Inspector package contains a dead client declaration emit.");
-  }
-  if (packageJson.name === "@nudge-ui/standalone") {
-    assert(
-      !entries.includes("package/dist/client.mjs"),
-      "Standalone package must serve the shared inspector client instead of publishing a copy.",
-    );
-    assert(
-      !packageJson.devDependencies?.react && !packageJson.devDependencies?.["react-dom"],
-      "Standalone package must not require React to build its host Adapter.",
-    );
   }
   if (packageJson.name === "@nudge-ui/mcp") {
     assert(!entries.includes("package/scripts/postinstall.mjs"), "MCP package must not ship an install-time postinstall script.");
@@ -162,8 +157,8 @@ function verifyPackedAstroConsumers() {
     "@nudge-ui/css",
     "@nudge-ui/inspector",
     "nudge-ui",
-    "@nudge-ui/vite-react",
-    "@nudge-ui/astro",
+    "nudge-ui/vite",
+    "nudge-ui/astro",
   ];
   for (const packageName of requiredPackages) {
     assert(tarballs.has(packageName), `Packed Astro verification is missing ${packageName}.`);
@@ -196,12 +191,12 @@ function verifyPackedAstroConsumers() {
       mkdirSync(join(consumerRoot, "src/pages"), { recursive: true });
       writeFileSync(
         join(consumerRoot, "astro.config.mjs"),
-        'import { withNudgeUi } from "@nudge-ui/astro";\nexport default withNudgeUi({});\n',
+        'import { withNudgeUi } from "nudge-ui/astro";\nexport default withNudgeUi({});\n',
       );
       writeFileSync(join(consumerRoot, "src/pages/index.astro"), "<p>Packed Astro consumer</p>\n");
       writeFileSync(join(consumerRoot, "verify.mjs"), [
         'import { dev } from "astro";',
-        'import { withNudgeUi } from "@nudge-ui/astro";',
+        'import { withNudgeUi } from "nudge-ui/astro";',
         'const integrations = [{ name: "existing", hooks: {} }];',
         "const input = { integrations };",
         "const output = withNudgeUi(input);",

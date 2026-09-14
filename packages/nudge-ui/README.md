@@ -1,25 +1,45 @@
 # nudge-ui
 
-The primary Nudge UI distribution.
+The Nudge UI distribution. One package, one subpath per host.
 
-Today this package holds the host-neutral implementation that every adapter
-shares. It is being assembled in place: the Vite, Next.js, Astro, and
-static-HTML adapters move in here as `nudge-ui/vite`, `nudge-ui/next`,
-`nudge-ui/astro`, and `nudge-ui/static`, replacing the separately published
-`@nudge-ui/*` adapter packages.
+```sh
+pnpm add -D nudge-ui
+```
 
-## Subpaths
+## Hosts
 
-| Subpath | Contents |
-| --- | --- |
-| `nudge-ui/transport` | Reserved routes, mount ID, and manifest version. Browser-safe. |
-| `nudge-ui/project-files` | Safe project-file discovery, path policy, and settled-batch watching. |
-| `nudge-ui/project-tokens` | Deterministic project CSS discovery and token-snapshot assembly. |
-| `nudge-ui/project-identity` | Deterministic project naming for durable sessions. |
+| Subpath | Host | Entry point |
+| --- | --- | --- |
+| `nudge-ui/vite` | Vite with React | `withNudgeUi(defineConfig(...))` |
+| `nudge-ui/next` | Next.js 15.3 – 16.x | `withNudgeUi(nextConfig)` |
+| `nudge-ui/astro` | Astro | `nudgeUiAstro()` |
+| `nudge-ui/static` | Static HTML | the `nudge-ui serve` command |
 
-`nudge-ui/transport` must stay free of Node imports, because the inspector's
-mount components import the route constants directly. Everything requiring the
-filesystem belongs under `project/`. A test in the package enforces this.
+Peer dependencies on Vite, Next.js, Astro, React, and React DOM are all
+optional. Installing this package never asks for a toolchain the project does
+not use.
 
-These subpaths are implementation seams shared by the adapters, not a stable
-public API. They become internal once the adapters move in.
+## Layout
+
+```
+src/
+  hosts/vite    Vite lifecycle, CSS observation, transport, bootstrap
+  hosts/next    Webpack and Turbopack loaders, sidecar, mount
+  hosts/astro   Response-level identity over the Vite integration
+  hosts/static  Instrumenting file server and CLI
+  transport/    Reserved routes, mount ID, manifest version
+  project/      File discovery, path policy, watching, token snapshots
+  html/         parse5 identity instrumentation
+```
+
+A host must not import a sibling host. `scripts/check-package-boundaries.mjs`
+enforces this; Astro's dependency on Vite is the one documented exception,
+because Astro is a Vite host.
+
+`transport/` must stay free of Node imports, because the inspector's mount
+components import the route constants directly. Anything needing the filesystem
+belongs under `project/`. A test in the package enforces this.
+
+Only the host subpaths in the table above are public. Everything else is
+internal and may change without notice. See
+[ADR-0023](../../docs/adr/0023-one-package-with-host-subpaths.md).

@@ -26,3 +26,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0020: Inline text editing owns interaction handoff](./0020-inline-text-interaction-handoff.md)
 - [ADR-0021: Host-resolved component instrumentation policy](./0021-host-resolved-component-instrumentation-policy.md)
 - [ADR-0022: Durable edit intent excludes preview and gesture state](./0022-durable-edit-intent-excludes-preview-state.md)
+- [ADR-0023: One package with host subpaths](./0023-one-package-with-host-subpaths.md)

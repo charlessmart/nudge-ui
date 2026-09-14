@@ -14,7 +14,7 @@
   "dependencies": {
     "@nudge-ui/compatibility": "workspace:*",
     "@nudge-ui/inspector": "workspace:*",
-    "@nudge-ui/vite-react": "workspace:*",
+    "nudge-ui": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
