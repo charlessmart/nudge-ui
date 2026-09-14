@@ -171,15 +171,11 @@ function isTextNode(node: Node): node is Text {
 function isHiddenTextNode(element: HTMLElement, textNode: Text): boolean {
   let current = textNode.parentElement;
   while (current) {
-    if (current.hidden
-      || current.hasAttribute("inert")
-      || current.getAttribute("aria-hidden") === "true") {
-      return true;
-    }
     const style = current.ownerDocument.defaultView?.getComputedStyle(current);
     if (style?.display === "none"
       || style?.visibility === "hidden"
-      || style?.visibility === "collapse") {
+      || style?.visibility === "collapse"
+      || style?.contentVisibility === "hidden") {
       return true;
     }
     if (current === element) break;
@@ -439,6 +435,7 @@ function hasUniqueRenderedIdentity(
       || root.getAttribute("aria-label") !== target.ariaLabel) return false;
     const textNode = resolveTextProjectionTextNode(root, target, target.beforeText);
     return textNode !== null
+      && !isHiddenTextNode(root, textNode)
       && isSafeRenderedTextHost(root, textNode);
   });
   return matching.length === 1;
