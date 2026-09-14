@@ -606,7 +606,7 @@ async function readFileFromDescriptor(
 }
 
 function resolveDefaultClientPath(): string {
-  return packageRequire.resolve("nudge-ui/client");
+  return packageRequire.resolve("nudge-ui/internal/client");
 }
 
 function readAddress(server: Server, host: string): StandaloneServerAddress {

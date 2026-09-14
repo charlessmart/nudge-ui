@@ -127,7 +127,7 @@ From the application project root, use [`add-mcp`](https://github.com/neon-solut
 
 ```sh
 npx add-mcp \
-  'npx -y @nudge-ui/mcp@0.1.3 --project-id my-app --origin http://localhost:5173 --workspace-root .' \
+  'npx -y @nudge-ui/mcp@0.2.0 --project-id my-app --origin http://localhost:5173 --workspace-root .' \
   --name nudge_ui
 ```
 
@@ -142,7 +142,7 @@ For standard Vite and Astro projects, `my-app` normally matches the project
 directory name. Next.js and standalone HTML projects use host-specific IDs, so
 retain the explicit ID from their integration configuration.
 
-The generated command pins the published `@nudge-ui/mcp@0.1.3` package through
+The generated command pins the published `@nudge-ui/mcp@0.2.0` package through
 `npx` for reproducible tool versions. Update the version deliberately when
 upgrading the MCP integration. After configuration, restart or reload the
 agent host so it refreshes its MCP tool catalog.
@@ -152,7 +152,7 @@ agent host so it refreshes its MCP tool catalog.
 You can also install the optional local companion in the application project:
 
 ```sh
-pnpm add -D @nudge-ui/mcp@0.1.3
+pnpm add -D @nudge-ui/mcp@0.2.0
 ```
 
 Installation does not modify project or global tool configuration. Configure
@@ -295,15 +295,16 @@ All public packages use one version. Update their `package.json` versions,
 merge the change to `main`, then create and push an annotated stable SemVer tag:
 
 ```sh
-git tag -a v0.1.3 -m "Release v0.1.3"
-git push origin v0.1.3
+git tag -a v0.2.0 -m "Release v0.2.0"
+git push origin v0.2.0
 ```
 
 The tag starts the npm release workflow. It validates that every public package
 matches the tag, runs the required unit suite, builds and verifies the package
 archives once, and submits those exact archives with `npm stage publish`.
-Review the nine entries on npm's **Staged Packages** page and approve them with
-2FA to make the release public.
+Review the four entries on npm's **Staged Packages** page and approve them with
+2FA in dependency order: `@nudge-ui/agent-protocol`, `nudge-ui`,
+`@nudge-ui/mcp`, then `create-nudge-ui`.
 
 Each package must trust the `charlessmart/nudge-ui` GitHub repository and the
 `publish.yml` workflow on npm. Configure the trusted publisher for staged

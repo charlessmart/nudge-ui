@@ -59,7 +59,13 @@ export type { NudgeUiOptions, VanillaExtractOptions } from "./vite.ts";
 export { extractViteModuleCss, transformIndexHtmlHtml } from "./vite.ts";
 export type { TransformIndexHtmlOptions } from "./vite.ts";
 export { isHostApplicationSource } from "./tokens/viteStylesheetArtifacts.ts";
-export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
+export type {
+  TokenCatalogDiagnostic,
+  TokenContext,
+  TokenDeclaration,
+  TokenDefinition,
+  TokenEntry,
+} from "./virtual/design-tokens.ts";
 // Interpretation lives in css/dialects, where the browser runtime reaches the
 // same grammar; this host only gathers evidence.
 export type { TailwindV3Config, ThemeContract } from "../../css/dialects/index.ts";

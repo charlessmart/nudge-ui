@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { createRequire } from "node:module";
 import { z } from "zod";
 import { validateRoutes } from "@nudge-ui/agent-protocol";
 import type {
@@ -17,7 +18,20 @@ import {
 } from "./bridge.ts";
 
 export const MCP_SERVER_NAME = "nudge-ui";
-export const MCP_SERVER_VERSION = "0.1.3";
+export const MCP_SERVER_VERSION = readPackageVersion();
+
+function readPackageVersion(): string {
+  const metadata: unknown = createRequire(import.meta.url)("../package.json");
+  if (
+    typeof metadata !== "object"
+    || metadata === null
+    || !("version" in metadata)
+    || typeof metadata.version !== "string"
+  ) {
+    throw new TypeError("@nudge-ui/mcp package metadata has no version.");
+  }
+  return metadata.version;
+}
 
 /** Instructions are sent through MCP initialization for every host. */
 export const MCP_SERVER_INSTRUCTIONS = [

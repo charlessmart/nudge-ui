@@ -47,19 +47,20 @@ belongs under `project/`. A test in the package enforces this.
 must not import Node, React, PostCSS, or anything under `hosts/` or
 `inspector/`. `src/css/importGraph.test.ts` enforces that.
 
-## Public surface
+## Supported public surface
 
-The host subpaths above, plus:
+The host subpaths above and the following utility subpaths follow semantic
+versioning:
 
 | Subpath | Purpose |
 | --- | --- |
-| `nudge-ui/client` | The inspector bundle, served over HTTP to the page. |
-| `nudge-ui/inspector` | Bootstrap API, injected into consumer bundles. |
-| `nudge-ui/component-runtime` | Injected into consumer source by the compiler. |
-| `nudge-ui/host-runtime` | Runtime bridge for host-side component semantics. |
 | `nudge-ui/testing` | Conformance fixtures for consumer tests. |
 | `nudge-ui/virtual-design-tokens` | Ambient types for the transport module. |
 
-Everything else is internal and may change without notice. See
+Exports under `nudge-ui/internal/*` are package-owned implementation details.
+The host adapters inject or resolve these imports; application code must not
+import them directly. They may change without notice.
+
+Everything else is private. See
 [ADR-0023](../../docs/adr/0023-one-package-with-host-subpaths.md) and
-[ADR-0024](../../docs/adr/0024-fold-libraries-into-the-distribution.md).
+[ADR-0025](../../docs/adr/0025-supported-and-internal-export-subpaths.md).

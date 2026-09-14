@@ -68,7 +68,7 @@ const {
   resolveHostComponentPolicy,
 } = require("../../compiler/index.ts") as typeof import("../../compiler/index.ts");
 
-const NEXT_COMPONENT_RUNTIME_MODULE = "nudge-ui/next/component-runtime";
+const NEXT_COMPONENT_RUNTIME_MODULE = "nudge-ui/internal/component-runtime";
 // SAFETY: A local require of the sibling repository-scope module, whose export shape is asserted by its own contract.
 const { nudgeUiRepositoryPackagePattern } = require("./repositoryScope.ts") as {
   nudgeUiRepositoryPackagePattern: RegExp;

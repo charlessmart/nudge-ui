@@ -296,10 +296,10 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
     const result = plugin.config?.({ root: sandboxRoot }, serveEnv);
     expect(result?.resolve.dedupe).toEqual(["react", "react-dom"]);
     expect(result?.resolve.alias).toEqual(expect.arrayContaining([
-      expect.objectContaining({ find: "nudge-ui/component-runtime" }),
+      expect.objectContaining({ find: "nudge-ui/internal/component-runtime" }),
     ]));
     expect(result?.optimizeDeps?.include).toEqual([
-      "nudge-ui/component-runtime",
+      "nudge-ui/internal/component-runtime",
     ]);
   });
 
@@ -318,7 +318,7 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
 
     expect(result.optimizeDeps?.include).toEqual([
       "host-dependency",
-      "nudge-ui/component-runtime",
+      "nudge-ui/internal/component-runtime",
     ]);
     expect(result.optimizeDeps?.exclude).toEqual(["host-excluded-dependency"]);
     expect(result.optimizeDeps?.force).toBe(true);
@@ -342,11 +342,11 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
     };
     expect(plugin.config?.({ root: sandboxRoot }, serveEnv)).toEqual({
       optimizeDeps: {
-        include: ["nudge-ui/component-runtime"],
+        include: ["nudge-ui/internal/component-runtime"],
       },
       resolve: {
         alias: expect.arrayContaining([
-          expect.objectContaining({ find: "nudge-ui/component-runtime" }),
+          expect.objectContaining({ find: "nudge-ui/internal/component-runtime" }),
         ]),
         dedupe: ["react", "react-dom"],
       },

@@ -15,9 +15,10 @@ import {
 import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 
 /**
- * Configures the runtime the way the Astro host Adapter declares it
- * (packages/nudge-ui/src/hosts/astro/bootstrap.ts): Astro's structural scoping markers are
- * declared at the host seam, not known to the shared catalog.
+ * Configures the runtime the way the Astro host Adapter declares it in
+ * `packages/nudge-ui/src/hosts/astro/astroRuntimeConfig.ts`: Astro's structural
+ * scoping markers are declared at the host seam, not known to the shared
+ * catalog.
  */
 function configureAstroHost(): void {
   configureNudgeUiRuntime({

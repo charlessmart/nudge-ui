@@ -324,7 +324,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   // to the host project's copies pins one instance for every compilation.
   const hostReact = hostPackageDir(root, "react");
   const hostReactDom = hostPackageDir(root, "react-dom");
-  const componentRuntime = adapterPackageExport("nudge-ui/component-runtime");
+  const componentRuntime = adapterPackageExport("nudge-ui/internal/component-runtime");
   if (hostReact || hostReactDom || componentRuntime) {
     const userAlias = (source.turbopack?.resolveAlias as Record<string, unknown> | undefined) ?? {};
     nextConfig.turbopack = {
@@ -334,7 +334,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
         ...(hostReactDom ? { "react-dom": relativeTurbopackAlias(root, hostReactDom) } : {}),
         ...(componentRuntime
           ? {
-            "nudge-ui/component-runtime":
+            "nudge-ui/internal/component-runtime":
               relativeTurbopackAlias(root, componentRuntime),
           }
           : {}),
@@ -386,7 +386,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
         ...resolveConfig,
         alias: {
           ...(componentRuntime
-            ? { "nudge-ui/component-runtime": componentRuntime }
+            ? { "nudge-ui/internal/component-runtime": componentRuntime }
             : {}),
           ...userAlias,
         },

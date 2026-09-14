@@ -569,7 +569,7 @@ function respond(
 
   if (url === NUDGE_UI_CLIENT_PATH) {
     try {
-      inspectorClientPath ??= packageRequire.resolve("nudge-ui/client");
+      inspectorClientPath ??= packageRequire.resolve("nudge-ui/internal/client");
       const body = readFileSync(inspectorClientPath);
       res.writeHead(200, {
         "content-type": "text/javascript; charset=utf-8",
