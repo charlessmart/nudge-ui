@@ -147,9 +147,8 @@ describe("the guarantee hosts rely on", () => {
   };
 
   it("derives token knowledge from evidence alone, so any host supplying it gets the same result", () => {
-    // A Vite host and a static-file host share no code path, but they reach
-    // this function with the same argument, and this is what makes their token
-    // knowledge identical rather than merely similar.
+    // Hosts share no code path, so reaching this function with equal evidence is
+    // what makes their token knowledge identical rather than merely similar.
     expect(interpretDialects(evidence)).toEqual(interpretDialects(structuredClone(evidence)));
   });
 
@@ -159,9 +158,8 @@ describe("the guarantee hosts rely on", () => {
     expect(evidence).toEqual(original);
   });
 
-  // The browser runtime imports this module to read Tailwind utilities, which
-  // is the whole reason the grammar is no longer duplicated there. A Node
-  // import would break that at bundle time rather than here.
+  // The browser runtime imports this module, so a Node import would break the
+  // bundle instead of failing here.
   it("stays browser-safe", () => {
     const offenders = readdirSync(dialectsDir)
       .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))

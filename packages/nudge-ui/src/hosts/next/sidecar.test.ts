@@ -120,8 +120,7 @@ describe("sidecar transport", () => {
     handle.publishRevision(2);
 
     await reading;
-    // Late subscribers first receive the current generation (0), then every
-    // bump in order.
+    // Late subscribers receive the current generation first, then every bump in order.
     expect(received).toEqual([{ revision: 0 }, { revision: 1 }, { revision: 2 }]);
     reader.cancel().catch(() => {});
   });
@@ -270,8 +269,7 @@ describe("sidecar contract aggregation (Stage 5)", () => {
     });
     await settle(300);
 
-    // Simulate the file being removed: the watcher settles with a remove
-    // event and the sidecar must drop the stale entry.
+    // On a remove event the sidecar must drop the stale entry.
     rmSync(join(root, "app", "Gone.tsx"));
     await settle(1200);
 
@@ -377,17 +375,10 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     expect(declaration?.source).toContain("app/theme.css");
   });
 
-  // QUARANTINED: pre-existing flake, not caused by this change. It passes in
-  // isolation (20+ consecutive runs, including under saturated CPU) and hangs
-  // only when the whole workspace suite runs, waiting for a settled batch that
-  // never arrives. Ruled out so far: the timeout length (it hangs for 30s just
-  // as it does for 5s), subscription ordering (the test now reads the announce
-  // frame before writing, which proves the stream is registered), CPU
-  // starvation, and sidecar cache conflation (the key is per-root).
-  //
-  // The remaining suspect is the watcher itself, which step 2 moves out of
-  // nudge-ui/static into a shared project-files module. Re-enable and
-  // re-diagnose there rather than carrying a red required gate until then.
+  // QUARANTINED: pre-existing flake. Passes in isolation but hangs waiting for a
+  // settled batch when the whole workspace suite runs. Ruled out: timeout length,
+  // subscription ordering, CPU starvation, sidecar cache conflation. Remaining
+  // suspect is the watcher, now in project/files.ts — re-diagnose there.
   it.skip("bumps the generation and emits one reload per settled batch", async () => {
     const root = mkdtempSync(join(tmpdir(), "tokens-"));
     roots.push(root);
@@ -403,9 +394,8 @@ describe("sidecar token lifecycle (Stage 4)", () => {
     const frames: string[] = [];
     let buffer = "";
 
-    // `fetch` resolves on response headers, which the sidecar writes before it
-    // registers the stream. Reading the announce frame first proves the
-    // subscription exists, so the burst below cannot be published to nobody.
+    // `fetch` resolves on headers, which the sidecar writes before registering the
+    // stream, so read the announce frame first to prove the subscription exists.
     const readFrames = async (count: number): Promise<void> => {
       while (frames.length < count) {
         const chunk = await reader.read();
@@ -513,8 +503,7 @@ describe("sidecar source contract scan", () => {
     mkdirSync(join(root, "app"), { recursive: true });
     writeFileSync(join(root, "app", "Badge.tsx"), `${BADGE_SOURCE}\n`);
 
-    // No tokens lifecycle and no postings: the startup scan alone must
-    // populate the catalog so a restarted dev server keeps prop controls.
+    // The startup scan alone must populate the catalog, so a restarted dev server keeps prop controls.
     const handle = await ensureSidecar(root);
     handles.push(handle);
 
@@ -542,8 +531,7 @@ describe("sidecar source contract scan", () => {
 
     const sourcePath = join(root, "app", "Badge.tsx");
     const temporaryPath = join(root, "app", "Badge.tsx.tmp");
-    // Model an editor's atomic save so the test observes a deterministic
-    // rename event instead of depending on how the host coalesces writes.
+    // An editor's atomic save, so the test sees a deterministic rename rather than coalesced writes.
     writeFileSync(
       temporaryPath,
       `${BADGE_SOURCE.replace('  tone?: "accent" | "quiet";\n', "").replace('tone = "quiet", ', "")}\n`,

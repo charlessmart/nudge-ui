@@ -6,17 +6,11 @@ import { createVitePlugins } from "./vite.ts";
 import { createReactSupport } from "./react.ts";
 
 /**
- * The Vite host, composed with no framework at all.
- *
- * This file is the proof obligation for splitting `./vite.ts` from
- * `./react.ts`. A split that only moved code between files would still leave
- * the host unable to run without React; these tests fail the moment it grows
- * a React assumption back, because there is no React here to satisfy it.
- *
- * What a framework-free host must still do is everything that belongs to the
- * build tool: observe stylesheets, publish tokens, serve the transport, and
- * inject the bootstrap. What it must not do is touch a source module or ask
- * anything of Vite's module resolution.
+ * The Vite host composed with no framework, which is the proof obligation for
+ * splitting `./vite.ts` from `./react.ts`. It must still do everything the
+ * build tool owns — observe stylesheets, publish tokens, serve the transport,
+ * inject the bootstrap — and must not touch a source module or ask anything of
+ * Vite's module resolution.
  */
 
 const STYLESHEET = ":root { --brand: #123456; --space: 8px; }";

@@ -7,24 +7,17 @@ export * from "./tailwind.ts";
 export * from "./vanillaExtract.ts";
 
 /**
- * Host-neutral interpretation of CSS dialects.
- *
- * Hosts differ enormously in what they can see. A Vite host watches the whole
- * transform pipeline; a static-file host only reads `.css` off disk. That
- * difference is real and this module does not paper over it: a host supplies
- * the evidence it can actually observe, and `interpretDialects` turns exactly
- * that evidence into token knowledge.
- *
- * The consequence worth relying on is that the function is pure. Two hosts
- * supplying the same evidence get the same tokens, so dialect behaviour can be
- * tested here, once, without standing up a build tool. Where a host observes
- * less, it reports less — see `DialectObservation` — rather than silently
- * producing a thinner catalog that looks the same as a complete one.
+ * Host-neutral interpretation of CSS dialects. Hosts see very different things
+ * — a Vite host watches the whole transform pipeline, a static-file host only
+ * reads `.css` off disk — so each supplies the evidence it can observe and this
+ * module turns exactly that into token knowledge. It is pure, so the same
+ * evidence yields the same tokens on every host and dialect behaviour can be
+ * tested without a build tool. A host that observes less reports less through
+ * `DialectObservation` rather than quietly producing a thinner catalog.
  */
 
 export type DialectName = "tailwind-v3" | "tailwind-v4" | "vanilla-extract";
 
-/** A Tailwind v3 config object the host resolved. */
 export interface TailwindV3Evidence {
   readonly config: unknown;
   /** Path recorded on the resulting tokens. */
@@ -39,14 +32,9 @@ export interface InlineThemeContractEvidence {
   readonly source?: string;
 }
 
-/**
- * A theme contract loaded from a published module.
- *
- * `attempted` distinguishes "the host never looked" from "the host looked and
- * found nothing", which are different facts: only the second should clear a
- * contract the inventory already holds.
- */
+/** A theme contract loaded from a published module. */
 export interface PublishedThemeContractEvidence {
+  /** Separates "never looked" from "looked and found nothing"; only the latter clears a held contract. */
   readonly attempted: boolean;
   readonly contract: unknown;
   /** Whether the contract came from a dependency rather than project source. */
@@ -63,29 +51,25 @@ export interface DialectEvidence {
   readonly tailwindV4Css?: boolean;
   readonly inlineThemeContract?: InlineThemeContractEvidence;
   readonly publishedThemeContract?: PublishedThemeContractEvidence;
-  /** Failures the host hit while gathering the evidence above. */
   readonly diagnostics?: readonly InventoryDiagnostic[];
 }
 
-/** What one dialect contributed, and on the strength of what evidence. */
 export interface DialectObservation {
   readonly dialect: DialectName;
   readonly evidence: "none" | "config" | "contract" | "css";
-  /** Tokens or definitions this dialect contributed. */
   readonly tokenCount: number;
 }
 
 export interface DialectInterpretation {
-  /** Apply all of these to the token inventory, in this order. */
+  /** Apply to the token inventory in this order. */
   readonly contributions: readonly TokenContribution[];
-  /** What the supplied evidence proved, for host capability reporting. */
   readonly observed: readonly DialectObservation[];
 }
 
 /**
  * Every contribution is emitted on every call, empty when a dialect has no
- * evidence. Contributions are id-keyed and replaceable, so an omitted one would
- * leave stale facts in the inventory instead of clearing them.
+ * evidence: they are id-keyed and replaceable, so omitting one would leave
+ * stale facts in the inventory rather than clearing them.
  */
 export function interpretDialects(evidence: DialectEvidence = {}): DialectInterpretation {
   const observed: DialectObservation[] = [];
@@ -111,8 +95,7 @@ export function interpretDialects(evidence: DialectEvidence = {}): DialectInterp
   observed.push({
     dialect: "tailwind-v4",
     evidence: tailwindV4 ? "css" : "none",
-    // v4 tokens are already in the CSS the parser read; this dialect relabels
-    // them rather than contributing rows of its own.
+    // v4 tokens are already in the parsed CSS; this dialect only relabels them.
     tokenCount: 0,
   });
 
@@ -143,9 +126,8 @@ function readInlineContract(evidence: InlineThemeContractEvidence | undefined): 
 }
 
 /**
- * A published contract contributes identity only. The emitted CSS remains the
- * authority on value, cascade context, and editability, so entries arrive as
- * definitions with no declarations and the inventory merges them by CSS name.
+ * Contributes identity only: the emitted CSS stays authoritative on value,
+ * cascade, and editability, so entries carry no declarations and merge by CSS name.
  */
 function readPublishedContract(
   evidence: PublishedThemeContractEvidence | undefined,

@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-// Proves ADR-0002 for every distinct host path: a production build carries no
-// inspector bootstrap, no identity attributes, and no token transport.
-//
-// Browser-free by design. Each host either emits a build tree we grep, or (for
-// the static-HTML host, which has no build step) must leave the author's files
-// byte-identical after serving them.
+// Proves ADR-0002 for every host: a production build carries no inspector
+// bootstrap, no identity attributes, and no token transport. Browser-free by
+// design — each host emits a build tree to grep, except the static-HTML host,
+// which has no build step and must instead leave the author's files unchanged.
 //
 // Usage: node scripts/check-production-purity.mjs [host...]
 
@@ -17,13 +15,9 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
-// Runtime artifacts that only Nudge UI emits, covering each thing ADR-0002
-// promises production never receives: identity attributes, the inspector
-// bootstrap and mount, and the token transport.
-//
-// A bare "@nudge-ui/" reference is deliberately NOT a marker. Package names
-// appear legitimately in fixture copy and in build traces, so they produce
-// false positives without proving anything these markers miss.
+// Runtime artifacts only Nudge UI emits. A bare "@nudge-ui/" reference is
+// deliberately not one: package names appear legitimately in fixture copy and
+// build traces, so they only add false positives.
 const FORBIDDEN_MARKERS = [
   "data-cid=",
   "data-src=",
@@ -131,8 +125,7 @@ async function waitForServer(url, timeoutMs = 20_000) {
   throw new Error(`Server at ${url} did not become ready.`);
 }
 
-// The static-HTML host instruments responses in memory. Its production
-// guarantee is therefore that serving never edits the author's files.
+// This host instruments responses in memory, so its guarantee is that serving never edits files on disk.
 async function checkServedPurity(host) {
   const source = join(repoRoot, host.directory, "prototype");
   const root = mkdtempSync(join(tmpdir(), "nudge-ui-standalone-e2e-"));

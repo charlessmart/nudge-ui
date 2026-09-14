@@ -20,31 +20,25 @@ import {
 import { NUDGE_UI_MOUNT_ID } from "../transport/routes.ts";
 
 /**
- * Adds source identity to HTML without reserializing it.
+ * Adds source identity to HTML without reserializing it. The two hosts differ
+ * only in where identity comes from: the static-HTML host owns the file and
+ * uses parser offsets, Astro does not own the response and reads its
+ * compiler's annotations. Both share the traversal below.
  *
- * Two hosts need this, and they differ only in where identity comes from.
- * The static-HTML host owns the file on disk, so it derives identity from
- * parser offsets. Astro does not own the rendered response, so it reads the
- * annotations Astro's own compiler emitted. Everything else — parsing,
- * traversal, eligibility, and byte-preserving insertion — is shared below.
- *
- * Only missing attributes are inserted, at the end of each opening tag, so
- * whitespace, quoting, entities, attribute order, and malformed input outside
- * those insertions remain byte-for-byte unchanged.
+ * Attributes are inserted only where missing, at the end of the opening tag,
+ * so everything outside those insertions stays byte-for-byte unchanged.
  */
 
-/** A diagnostic emitted while parsing or instrumenting one HTML document. */
 export interface HtmlIdentityDiagnostic {
   readonly code: HtmlIdentityDiagnosticCode;
   readonly severity: "warning";
   readonly message: string;
-  /** The project-relative HTML file, when the operation instruments a file. */
   readonly file?: string;
-  /** One-based source line, when a position is known. */
+  /** One-based. */
   readonly line?: number;
-  /** One-based source column, when a position is known. */
+  /** One-based. */
   readonly column?: number;
-  /** Zero-based source offset, when a position is known. */
+  /** Zero-based. */
   readonly offset?: number;
 }
 
@@ -54,23 +48,18 @@ export type HtmlIdentityDiagnosticCode =
   | "invalid-source-location"
   | "astro-source-annotations-absent";
 
-/** The result of instrumenting one document. */
 export interface HtmlIdentityResult {
-  /** The original source with identity attributes inserted at parser offsets. */
   readonly html: string;
-  /** Parser and instrumentation diagnostics in source order, document-level last. */
+  /** In source order, document-level last. */
   readonly diagnostics: readonly HtmlIdentityDiagnostic[];
-  /** The number of attributes inserted into the returned source. */
   readonly insertedAttributeCount: number;
 }
 
-/** One eligible element, with its opening-tag position in the original source. */
 interface ElementSite {
   readonly element: HtmlElement;
   readonly tagName: string;
   readonly line: number;
   readonly column: number;
-  /** Zero-based offset of the element's start in the original source. */
   readonly offset: number;
 }
 
@@ -78,11 +67,8 @@ interface ElementSite {
 interface IdentityPass {
   /** Attribute source text to insert. An empty list skips the element. */
   attributesFor(site: ElementSite, report: ReportDiagnostic): string[];
-  /** True when an element's subtree must not be visited. */
   stopsDescent?(tagName: string): boolean;
-  /** Called for every eligible element before attributes are computed. */
   observe?(element: HtmlElement): void;
-  /** Attached to every diagnostic, when the operation instruments a named file. */
   readonly file?: string;
 }
 
@@ -113,9 +99,7 @@ function runIdentityPass(source: string, pass: IdentityPass): HtmlIdentityResult
   });
 
   for (const error of parseErrors) {
-    // A missing doctype does not affect source locations or browser DOM
-    // identity, so do not turn ordinary HTML fragments into warning-heavy
-    // results. Other parser errors can affect the tree and are useful.
+    // Affects neither source locations nor DOM identity, and ordinary fragments have none.
     if (error.code === "missing-doctype") continue;
     report("html-parse-error", `HTML parser reported ${error.code}.`, {
       line: error.startLine,
@@ -188,15 +172,7 @@ function runIdentityPass(source: string, pass: IdentityPass): HtmlIdentityResult
   };
 }
 
-/**
- * Instruments an HTML file the host owns on disk.
- *
- * Identity is derived from the file path and the parser's offsets, so every
- * eligible element receives both a label and an exact source position.
- *
- * @param source The HTML file contents.
- * @param file The project-relative file identity used in `data-src`.
- */
+/** Instruments an HTML file the host owns on disk, using parser offsets for position. */
 export function instrumentSourceHtml(source: string, file: string): HtmlIdentityResult {
   return runIdentityPass(source, {
     file,
@@ -219,20 +195,14 @@ const ASTRO_SOURCE_FILE_ATTRIBUTE = "data-astro-source-file";
 const ASTRO_SOURCE_LOC_ATTRIBUTE = "data-astro-source-loc";
 
 export interface RenderedHtmlIdentityOptions {
-  /**
-   * Project root used to make annotation file paths project-relative.
-   * Absolute paths are relativized; relative paths pass through. When
-   * omitted, annotation paths are forwarded unchanged.
-   */
+  /** Relativizes absolute annotation paths. Omit to forward them unchanged. */
   readonly projectRoot?: string;
 }
 
 /**
- * Instruments a rendered Astro dev response the host does not own.
- *
- * Identity comes from Astro's compiler annotations. Elements without them
- * degrade to a generated `astro:<Tag>` label with no invented location,
- * because a `data-src` this operation guessed would be worse than none.
+ * Instruments a rendered Astro dev response from Astro's own compiler
+ * annotations. Elements without them degrade to an `astro:<Tag>` label and no
+ * position, because a guessed `data-src` would be worse than none.
  */
 export function instrumentRenderedHtml(
   html: string,
@@ -275,12 +245,7 @@ export function instrumentRenderedHtml(
   };
 }
 
-/**
- * Builds a `data-src` from Astro's annotations, or returns null when no
- * usable position exists. Never invents a location: an annotated file without
- * a readable position contributes nothing rather than a bare file path that
- * downstream consumers would misparse.
- */
+/** Returns null rather than a bare file path, which consumers would misparse. */
 function readAstroSourceIdentity(
   element: HtmlElement,
   projectRoot: string | undefined,
@@ -293,7 +258,6 @@ function readAstroSourceIdentity(
   const tagName = element.tagName.toLowerCase();
   const trimmedFile = fileValue.trim();
   if (trimmedFile === "") {
-    // An empty annotation yields ":line:col", which consumers would misparse.
     report("invalid-source-location", `Ignored empty Astro source file annotation on <${tagName}>.`, position);
     return null;
   }
@@ -315,11 +279,7 @@ function readAstroSourceIdentity(
   return loc.column === undefined ? `${file}:${loc.line}` : `${file}:${loc.line}:${loc.column}`;
 }
 
-/**
- * Parses Astro's `data-astro-source-loc` value ("line:column"). A bare
- * integer is accepted defensively as a line number with no column; anything
- * else is unreadable and yields no position.
- */
+/** Parses "line:column". A bare integer is accepted as a line with no column. */
 function parseAstroSourceLoc(value: string): { line: number; column?: number } | null {
   const match = /^\s*(\d+)(?:\s*:\s*(\d+))?\s*$/.exec(value);
   const lineText = match?.[1];
@@ -331,11 +291,7 @@ function parseAstroSourceLoc(value: string): { line: number; column?: number } |
   return line >= 1 && column >= 1 ? { line, column } : null;
 }
 
-/**
- * Makes an annotation path project-relative. Absolute paths are relativized
- * against the project root; relative paths pass through. Separators are
- * normalized to forward slashes so values stay portable across platforms.
- */
+/** Separators are normalized to forward slashes so values stay portable. */
 function projectRelativePath(filePath: string, projectRoot: string | undefined): string {
   const normalized = filePath.replaceAll("\\", "/");
   if (projectRoot === undefined || !path.isAbsolute(normalized)) return normalized;
@@ -343,12 +299,7 @@ function projectRelativePath(filePath: string, projectRoot: string | undefined):
   return relative === "" ? "." : relative;
 }
 
-/**
- * Capitalizes the authored tag name into the generated label, e.g. h1 ->
- * astro:H1. The island hydration host reads `astro:Island` rather than the
- * awkward `astro:Astro-island`; prompts name this element often enough to
- * deserve a clean label.
- */
+/** h1 -> astro:H1. The island gets `astro:Island`, not `astro:Astro-island`. */
 function astroLabel(tagName: string): string {
   if (tagName === ASTRO_ISLAND_TAG_NAME) return "astro:Island";
   return `astro:${tagName.charAt(0).toUpperCase()}${tagName.slice(1)}`;

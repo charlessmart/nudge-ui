@@ -1,18 +1,10 @@
 #!/usr/bin/env node
-// Enforces the boundaries that keep host integrations independent.
+// Hosts may depend on shared modules but never on each other: a sideways edge
+// traps reusable behaviour inside one host, so every other host must copy it or
+// take on an unrelated toolchain to reach it.
 //
-// A host integrates Nudge UI with exactly one build tool. Hosts may depend on
-// shared modules, but never on each other. A sideways edge means reusable
-// behaviour is trapped inside a host, so every other host must either copy it
-// or take on an unrelated toolchain to reach it.
-//
-// The hosts used to be separate npm packages, so this rule read dependency
-// manifests. They are now directories under one package, which is a finer
-// grain: an import is an edge whether or not a manifest records it.
-//
-// Exceptions are listed in KNOWN_EXCEPTIONS with the work that retires them.
-// An exception that no longer matches a real edge fails too, so the list cannot
-// outlive the coupling it documents.
+// An exception in KNOWN_EXCEPTIONS that no longer matches a real edge also fails,
+// so the list cannot outlive the coupling it documents.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve, dirname } from "node:path";
@@ -33,9 +25,8 @@ const KNOWN_EXCEPTIONS = [
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs"]);
 const IGNORED_DIRECTORIES = new Set(["node_modules", "dist", "build", ".next", "test-results"]);
 
-// Matches the specifier in `from "x"`, `import("x")`, and `require("x")`, which
-// distinguishes a real edge from a package name mentioned in ordinary data
-// (for example Next.js `transpilePackages` lists).
+// Matching the specifier position separates a real edge from a package name that
+// merely appears in data, such as a Next.js `transpilePackages` list.
 const IMPORT_PATTERN = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*)["']([^"']+)["']/g;
 
 function listSourceFiles(dir, files = []) {

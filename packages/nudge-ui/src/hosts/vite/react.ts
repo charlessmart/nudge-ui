@@ -21,18 +21,10 @@ import {
 } from "../../compiler/index.ts";
 
 /**
- * What React means to a host, with no knowledge of which host is asking.
- *
- * The Vite host owns the build tool: the module graph, the dev server, CSS
- * observation, the transport. This module owns React: which modules carry
- * components, what a component's editable contract is, and what has to be
- * true of module resolution for two React copies not to appear.
- *
- * They were one file, which is why the Vite host could not be reasoned about
- * without also reasoning about JSX. The seam is deliberately narrow — see
- * `FrameworkHost` for everything React needs from a host, and note that the
- * Vite host accepts `null` here, which is what proves it does not secretly
- * depend on any of this.
+ * What React means to a host, with no knowledge of which host is asking. The
+ * Vite host owns the build tool; this module owns React semantics. `FrameworkHost`
+ * is everything React needs back, and the Vite host accepts `null` in its place,
+ * which is what proves it does not secretly depend on any of this.
  */
 
 const COMPONENT_EXTENSION = /\.(?:tsx|jsx)(?:$|[?#])/;
@@ -46,18 +38,9 @@ export interface ReactOptions {
    * @deprecated Normal development clients no longer add React aliases.
    */
   skipReactAliases?: boolean;
-  /**
-   * Optional package contract overrides. Local TSX and package declaration
-   * contracts are discovered automatically; explicit metadata fills gaps for
-   * packages whose public type graph cannot describe an editable prop.
-   */
+  /** Fills gaps for packages whose public type graph cannot describe an editable prop. */
   componentMetadata?: ComponentContract[];
-  /**
-   * Package exports whose component protocol is explicitly compatible with
-   * semantic preview instrumentation. The host resolves project imports;
-   * package imports remain fail-closed unless listed here or described by a
-   * component protocol.
-   */
+  /** Package imports are fail-closed unless listed here or described by a component protocol. */
   compatibleComponentImports?: ComponentInstrumentationOptions["compatibleComponentImports"];
   /** Additional package or project component protocols resolved by the host. */
   componentProtocols?: ComponentModuleProtocols;
@@ -65,7 +48,6 @@ export interface ReactOptions {
 
 /** Everything React needs from whichever host is driving it. */
 export interface FrameworkHost {
-  /** The project root, once the host has resolved it. */
   root(): string | undefined;
   /** True when a module belongs to the application rather than a dependency. */
   isHostSource(id: string): boolean;
@@ -88,9 +70,8 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
   );
   let packageFingerprint = "";
 
-  // The host's own copy of the semantic runtime, aliased so the specifier the
-  // compiler injects resolves in a packed install, where the application's
-  // dependency graph has never heard of it.
+  // Aliased so the injected specifier resolves in a packed install, where the
+  // application's dependency graph has never heard of it.
   const componentRuntimePath = resolveComponentRuntime();
 
   if (options.componentMetadata?.length) {
@@ -101,11 +82,8 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
   }
 
   /**
-   * Rebuilds contracts for components imported from packages.
-   *
-   * Keyed by a fingerprint of the module-to-importer mapping so an unchanged
-   * import graph costs nothing, which matters because every component edit
-   * reaches this path.
+   * Fingerprinted on the module-to-importer mapping so an unchanged import
+   * graph costs nothing; every component edit reaches this path.
    */
   function refreshPackageContracts(): void {
     const hostByModule = new Map<string, string>();
@@ -152,12 +130,9 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
     },
 
     /**
-     * React's requirements on module resolution.
-     *
-     * Dedupe is the load-bearing part: the published inspector client is
-     * self-contained, but instrumented callsites must use the application's
-     * own React, and a workspace-linked or nested copy would otherwise create
-     * a second runtime.
+     * Dedupe is the load-bearing part: instrumented callsites must use the
+     * application's own React, and a linked or nested copy would create a
+     * second runtime.
      */
     viteConfig(context: { projectRoot: string; demo: boolean; existingDedupe: readonly string[] }) {
       const demoAliases = context.demo && options.skipReactAliases !== true
@@ -169,9 +144,7 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
       return {
         ...(componentRuntimePath
           ? {
-            // Vite merges this host-owned entry with the application's own
-            // dependency settings, so listing application entries here would
-            // duplicate them.
+            // Vite merges this with the application's own settings, so listing its entries here would duplicate them.
             optimizeDeps: { include: [COMPONENT_RUNTIME_MODULE] },
           }
           : {}),
@@ -184,11 +157,7 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
       };
     },
 
-    /**
-     * Not fatal: a host depending on `nudge-ui/inspector` directly resolves
-     * the injected specifier itself. Packed installs that do not will fail at
-     * the importing module, so say so before that happens.
-     */
+    /** Not fatal, but a packed install that cannot resolve it fails later at the importing module. */
     unresolvedRuntimeWarning(): string | null {
       if (componentRuntimePath) return null;
       return `[nudge-ui] Could not resolve ${COMPONENT_RUNTIME_MODULE} from the Vite adapter. `
@@ -261,12 +230,8 @@ export function createReactSupport(options: ReactOptions, host: FrameworkHost) {
       }
 
       return injectIdentity(code, id, host.root(), {
-        // Runtime component boundaries belong to application callsites.
-        // Workspace packages are included only when sourceRoots declares them;
-        // inspector and generated sources stay outside that scope.
         instrumentComponents,
-        // The resolved policy already folds compatibleComponentImports in, so
-        // identity reads one policy rather than two sources of truth.
+        // Already folds compatibleComponentImports in, so identity reads one policy.
         hostPolicy,
       });
     },

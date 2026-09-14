@@ -3,29 +3,17 @@ import { createVitePlugins, type NudgeUiOptions } from "./vite.ts";
 import { createReactSupport } from "./react.ts";
 
 /**
- * Vite plus React.
- *
- * This package is one composition of two independent halves. `./vite.ts` owns
- * the build tool and knows nothing about JSX; `./react.ts` owns React and
- * knows nothing about Vite. Composing them is this file's only job, and it is
- * deliberately the only place that names both.
- *
- * The halves were one 1,255-line module. Separating them is what lets the
- * Vite host be understood, tested, and changed without reading React code —
- * and `vite.noFramework.test.ts` runs that host with no framework at all,
- * which is the standing proof that the separation is real rather than
- * cosmetic.
+ * Composes two independent halves: `./vite.ts` owns the build tool and knows
+ * nothing about JSX, `./react.ts` owns React and knows nothing about Vite.
+ * This is deliberately the only file that names both.
  */
 export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
   return createVitePlugins(options, createReactSupport);
 }
 
 /**
- * Adds this host to an existing Vite configuration export.
- *
- * Vite configuration exports may be objects, promises, or functions that
- * receive the current command and mode. Resolve those forms at the same
- * boundary where Vite resolves the application configuration, so the host
+ * Adds this host to an existing Vite configuration export. Object, promise,
+ * and function forms are resolved at the same boundary Vite uses, so the host
  * keeps ownership of its runtime root and dependency graph.
  */
 export function withNudgeUi(
@@ -72,9 +60,6 @@ export { extractViteModuleCss, transformIndexHtmlHtml } from "./vite.ts";
 export type { TransformIndexHtmlOptions } from "./vite.ts";
 export { isHostApplicationSource } from "./tokens/viteStylesheetArtifacts.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
-/**
- * Dialect interpretation is host-neutral and lives in `nudge-ui/css/dialects`,
- * where the browser runtime reaches the same grammar. This host only gathers
- * the evidence.
- */
+// Interpretation lives in css/dialects, where the browser runtime reaches the
+// same grammar; this host only gathers evidence.
 export type { TailwindV3Config, ThemeContract } from "../../css/dialects/index.ts";

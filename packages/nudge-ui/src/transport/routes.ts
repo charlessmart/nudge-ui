@@ -1,9 +1,7 @@
 /**
- * The reserved URL namespace every host serves the inspector through.
- *
- * Each host registers these routes with its own middleware and owns its own
- * reload policy, but the paths themselves are one contract: the browser client
- * is built once and requests the same URLs regardless of which host answers.
+ * The reserved URL namespace every host serves the inspector through. Hosts
+ * own their own middleware and reload policy, but the paths are one contract:
+ * the browser client is built once and requests the same URLs everywhere.
  */
 
 /** Root of the reserved namespace. A host must not serve project files here. */

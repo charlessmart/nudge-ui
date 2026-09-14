@@ -1,10 +1,7 @@
 /**
- * Filesystem names that a local prototype server must not expose.
- *
- * Dot-prefixed path segments are hidden by convention and commonly contain
- * credentials, source-control metadata, or local tool state. Treating the
- * whole segment as sensitive keeps the policy consistent for direct requests,
- * symlink targets, token discovery, and file watching.
+ * Dot-prefixed segments commonly hold credentials, source-control metadata, or
+ * local tool state. Treating the whole segment as sensitive keeps one policy
+ * across direct requests, symlink targets, token discovery, and file watching.
  */
 export function isSensitiveProjectPath(projectPath: string): boolean {
   return projectPath.split(/[\\/]/).some((segment) => segment.startsWith("."));

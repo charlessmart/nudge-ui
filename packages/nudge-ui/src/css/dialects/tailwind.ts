@@ -2,16 +2,12 @@ import type { TokenEntry } from "../model/index.ts";
 import type { TokenContribution } from "../token-inventory/types.ts";
 
 /**
- * Tailwind, both major versions.
- *
- * The two versions put design tokens in completely different places, which is
- * why they need different treatment rather than a shared "Tailwind" concept:
- *
- * - v3 keeps them in a JavaScript config and compiles literal values into
- *   utility rules, so the config is the only source of the authored names.
- * - v4 declares them as custom properties in an `@theme` block, so the CSS a
- *   host already parses is the source of truth and this module only corrects
- *   the provenance labels the generic parser cannot infer.
+ * Tailwind's two major versions keep tokens in different places, so they get
+ * separate treatment rather than a shared "Tailwind" concept. v3 keeps them in
+ * a JavaScript config and compiles literal values into utilities, making the
+ * config the only source of authored names. v4 declares them as custom
+ * properties in `@theme`, so parsed CSS is the source of truth and this module
+ * only corrects provenance the generic parser cannot infer.
  */
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -28,12 +24,9 @@ export function detectTailwindV4(css: string): boolean {
 }
 
 /**
- * Corrects provenance on tokens the parser already found.
- *
- * Tailwind v4 tokens appear in CSS whether the project authored them or
- * Tailwind generated them, and the generic parser cannot tell those apart.
- * Authored `@theme` entries stay project-owned and editable; generated ones
- * are framework-owned and are not.
+ * v4 tokens reach the CSS whether authored or Tailwind-generated, and the
+ * generic parser cannot tell those apart. Authored `@theme` entries stay
+ * project-owned and editable; generated ones are framework-owned and are not.
  */
 export function tailwindV4Relabelling(): TokenContribution {
   return {
@@ -58,12 +51,9 @@ export interface TailwindAlphaUtility {
 const V4_ALPHA_UTILITY = /^bg-([\w-]+)\/(\d{1,3}%?)$/;
 
 /**
- * Reads a Tailwind v4 alpha utility, or returns null when the class is not one.
- *
- * Both the build-time catalog and the browser runtime need this, and they must
- * agree: the runtime attributes a computed color to a token, and the catalog
- * decides which token that is. Two copies of the grammar would eventually
- * disagree about an edge case and attribute an edit to the wrong token.
+ * Null when the class is not an alpha utility. The build-time catalog and the
+ * browser runtime both parse this and must agree, or an edit gets attributed
+ * to the wrong token.
  */
 export function readTailwindV4AlphaUtility(className: string): TailwindAlphaUtility | null {
   const match = V4_ALPHA_UTILITY.exec(className.trim());
@@ -138,9 +128,7 @@ function mergeSection(
 
 function leafValue(value: unknown): string | null {
   if (typeof value === "string" || typeof value === "number") return String(value);
-  // A font-size may carry line-height metadata as a tuple. The primary value is
-  // still a useful catalog entry; the companion belongs to the lineHeight
-  // section, where it appears on its own when the config declares it.
+  // A font-size may be a [size, lineHeight] tuple; the companion belongs to the lineHeight section.
   const first = Array.isArray(value) ? value[0] : undefined;
   if (typeof first === "string" || typeof first === "number") return String(first);
   return null;
@@ -159,8 +147,7 @@ function sectionEntries(
     if (leaf !== null) {
       entries.push({
         name: ["theme", section, ...nextPath].join("."),
-        // v3 compiles configured values directly into utility rules, so this is
-        // a literal value rather than a custom property that does not exist.
+        // v3 compiles values into utility rules, so this is a literal, not a custom property.
         value: leaf,
         cssValue: leaf,
         source,

@@ -7,10 +7,7 @@ export interface Insertion {
   readonly attributeCount: number;
 }
 
-/**
- * The offset just inside an opening tag's `>`, or null when the recorded
- * location does not end at a tag boundary.
- */
+/** Offset just inside the opening tag's `>`, or null if it is not a tag boundary. */
 export function insertionOffsetFor(source: string, startTag: StartTagLocation): number | null {
   const { startOffset, endOffset } = startTag;
   if (
@@ -22,8 +19,7 @@ export function insertionOffsetFor(source: string, startTag: StartTagLocation): 
     return null;
   }
 
-  // A self-closing slash belongs before the final `>`; insert before it so the
-  // source remains valid (`<input data-cid="..." />`).
+  // Insert before a self-closing slash: `<input data-cid="..." />`.
   return source[endOffset - 2] === "/" ? endOffset - 2 : endOffset - 1;
 }
 
@@ -47,16 +43,10 @@ export function applyInsertions(source: string, insertions: readonly Insertion[]
 }
 
 /**
- * One-based line/column positions derived from original-source offsets.
- *
- * parse5 normalizes `\r\n` and lone `\r` to `\n` internally, so deriving
- * lines from the parser risks drift from the bytes these operations promise
- * to preserve. Offsets reference the original source, so positions are
- * computed from them directly, treating `\n`, `\r\n`, and lone `\r` as line
- * breaks the same way the HTML preprocessing specification does.
- *
- * Columns count UTF-16 code units from the line start: one column per tab,
- * matching grep-style tooling rather than editor tab stops.
+ * One-based positions computed from the original source, not from parse5,
+ * which normalizes `\r\n` and lone `\r` to `\n` and would drift from the bytes
+ * these operations preserve. Columns count UTF-16 code units, so a tab is one
+ * column, matching grep-style tooling rather than editor tab stops.
  */
 export interface SourcePositionIndex {
   readonly lineStarts: readonly number[];
@@ -67,8 +57,7 @@ export function createSourcePositionIndex(source: string): SourcePositionIndex {
   for (let offset = 0; offset < source.length; offset += 1) {
     const character = source[offset];
     if (character === "\r") {
-      // A `\r\n` pair is one break; advance past its `\n` so the pair does
-      // not register two line starts.
+      // `\r\n` is one break, so skip its `\n`.
       const next = source[offset + 1];
       lineStarts.push(next === "\n" ? offset + 2 : offset + 1);
       if (next === "\n") offset += 1;
@@ -79,7 +68,6 @@ export function createSourcePositionIndex(source: string): SourcePositionIndex {
   return { lineStarts };
 }
 
-/** One-based source position of an offset within the original document. */
 export interface SourcePosition {
   readonly line: number;
   readonly column: number;

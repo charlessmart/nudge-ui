@@ -1,24 +1,15 @@
 import type { TokenEntry } from "../model/index.ts";
 
 /**
- * vanilla-extract theme contracts.
- *
- * A contract is a plain object whose leaves are `var(--name)` references. The
- * compiler generates those custom-property names, so the contract is the only
- * place the authored, semantic path (`theme.color.brand`) survives. Reading it
- * is how a host recovers names the emitted CSS cannot supply on its own.
+ * vanilla-extract generates the custom-property names, so the contract is the
+ * only place the authored path (`theme.color.brand`) survives. Reading it is
+ * how a host recovers names the emitted CSS cannot supply.
  */
 
 /** A compiled contract: nested objects whose leaves are `var()` references. */
 export type ThemeContract = Record<string, unknown>;
 
-/**
- * A contract leaf: a whole `var()` reference, optionally with a fallback.
- *
- * Anchored deliberately. A value that merely *contains* a reference, such as
- * `var(--border) solid`, is a composed style rather than a token identity, and
- * indexing it as one would attach a semantic name to the wrong thing.
- */
+// Anchored: `var(--border) solid` is a composed style, not a token identity.
 const CONTRACT_REFERENCE = /^var\(\s*(--[\w-]+)(?:\s*,[\s\S]*)?\)$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -32,11 +23,7 @@ export interface ReadThemeContractOptions {
   readonly source: string;
   readonly origin: TokenEntry["origin"];
   readonly editable: boolean;
-  /**
-   * Compiled values by custom-property name, when the host observed the
-   * emitted CSS. Without it an entry keeps its `var()` reference, which states
-   * honestly that no value was observed rather than inventing one.
-   */
+  /** Omit when the host did not observe the emitted CSS; entries then keep their `var()` reference. */
   readonly cssValues?: Readonly<Record<string, string>>;
 }
 

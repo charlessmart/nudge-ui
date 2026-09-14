@@ -4,15 +4,12 @@ import { defineConfig } from "vitest/config";
 const compilerSource = (file: string) =>
   fileURLToPath(new URL(`../compiler/src/${file}`, import.meta.url));
 
-// Aliases are exact-match RegExps so the root entry point cannot swallow the
-// documented subpaths. Tests exercise compiler source directly; resolving the
-// package entry point through node_modules would require — and could silently
-// test against — a stale `dist` build.
+// Exact-match RegExps so the root entry cannot swallow the subpaths. Tests run
+// against source; resolving through node_modules could silently test a stale `dist`.
 export default defineConfig({
   test: {
-    // The Next.js host suites spawn real sidecar processes and debounced
-    // filesystem watchers. Running files concurrently makes them contend for
-    // those resources, so a settled batch can miss its timing window.
+    // The Next.js suites spawn real sidecar processes and debounced watchers;
+    // concurrent files contend for them and a settled batch misses its window.
     fileParallelism: false,
     testTimeout: 20_000,
   },

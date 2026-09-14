@@ -1,10 +1,8 @@
 /**
- * Small cross-platform project watcher for the standalone host.
- *
- * Node's recursive fs.watch option is not available on every supported
- * platform, so this Module watches each project directory and adds watches
- * for directories created later. The public Interface exposes only lifecycle
- * and settled batches; debounce and symlink confinement stay internal.
+ * Node's recursive `fs.watch` is not available on every supported platform, so
+ * this watches each directory and adds watches for ones created later. The
+ * public surface is lifecycle and settled batches; debounce and symlink
+ * confinement stay internal.
  */
 import { watch, type FSWatcher, type Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
@@ -118,9 +116,8 @@ export function createProjectFileWatcher(
     }
 
     watches.set(directory, { directory, canonicalDirectory, watcher: directoryWatcher });
-    // The watch is installed before scanning so events raised during the
-    // asynchronous walk are never missed. Scans run serially and re-check
-    // `closed` after every await, so a closed watcher never leaks a late one.
+    // Watch before scanning so events during the async walk are not missed. Scans
+    // run serially and re-check `closed` after every await, so none leak past close().
     pendingScans += 1;
     scanQueue = scanQueue
       .then(() => scanSubdirectories(directory))
@@ -168,8 +165,7 @@ export function createProjectFileWatcher(
       }
       pending.clear();
       for (const directory of [...watches.keys()]) closeDirectory(directory);
-      // In-flight directory scans observe `closed` between entries; waiting
-      // for the serial queue keeps close() deterministic.
+      // Waiting on the serial queue keeps close() deterministic.
       await scanQueue;
     },
   };

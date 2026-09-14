@@ -43,28 +43,24 @@ import {
 } from "../../inspector/clientManifest.ts";
 import type { FrameworkHost, FrameworkSupport, ReactOptions } from "./react.ts";
 
-/**
- * How this host should find the project's vanilla-extract theme contract.
- *
- * Loading a module is a host capability, so the specifier lives here; what the
- * contract *means* is interpreted in `nudge-ui/css/dialects`.
- */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * How to find the project's vanilla-extract theme contract. Loading a module
+ * is a host capability, so the specifier lives here; what the contract means
+ * is interpreted in `nudge-ui/css/dialects`.
+ */
 export interface VanillaExtractOptions {
-  /** Contract values written inline, for simple local configurations. */
   themeContract?: ThemeContract;
   /** A Vite-resolvable module exporting a published compiled contract. */
   themeContractModule?: string;
-  /** Named export holding the contract. Defaults to `vars`. */
+  /** Defaults to `vars`. */
   themeContractExport?: string;
-  /** Path prefix applied to published contract entries. */
   themeContractPrefix?: string;
   /** Known compiled values by custom-property name. */
   cssValues?: Readonly<Record<string, string>>;
-  /** Source label recorded on the resulting tokens. */
   source?: string;
 }
 
@@ -72,11 +68,7 @@ export interface NudgeUiOptions extends ReactOptions {
   enabled?: boolean;
   /** Enables experimental DOM parent/child navigation in the Inspector. */
   debug?: boolean;
-  /**
-   * Enables the landing app's explicit demo runtime. The landing document
-   * mounts the demo inspector at its root in development and in `nudge-demo`
-   * builds; `?nudgeDemo=1` remains available for explicit demo routes.
-   */
+  /** The landing app's demo runtime: mounted at root in dev and `nudge-demo` builds, or via `?nudgeDemo=1`. */
   demo?: boolean;
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
@@ -84,11 +76,8 @@ export interface NudgeUiOptions extends ReactOptions {
   tailwindV3?: { config: TailwindV3Config; source?: string };
   vanillaExtract?: VanillaExtractOptions;
   /**
-   * Authored workspace directories outside Vite's resolved root.
-   *
-   * The Vite host owns this list because only it knows which workspace
-   * packages are part of the application. Dependencies and generated output
-   * remain excluded even when a broad directory is supplied.
+   * Authored workspace directories outside Vite's resolved root. Dependencies
+   * and generated output stay excluded even when a broad directory is given.
    */
   sourceRoots?: readonly string[];
 }
@@ -200,14 +189,11 @@ function invalidateHmrModules(
 }
 
 /**
- * The Vite host.
- *
- * Owns the build tool and nothing else: the module graph, CSS observation,
- * the token inventory, the transport middleware, bootstrap injection, and
- * HMR. Framework semantics arrive through `createFramework`, and passing
- * `null` is a supported composition — see `vite.noFramework.test.ts`, which
- * runs this host with no framework at all. That test is the standing proof
- * that nothing here has quietly grown a React assumption again.
+ * Owns the build tool and nothing else: module graph, CSS observation, token
+ * inventory, transport middleware, bootstrap injection, HMR. Framework
+ * semantics arrive through `createFramework`; passing `null` is a supported
+ * composition, and `vite.noFramework.test.ts` exercises it to prove nothing
+ * here has grown a React assumption.
  */
 export function createVitePlugins(
   options: NudgeUiOptions = {},
@@ -222,16 +208,11 @@ export function createVitePlugins(
   let postTransformPromise: Promise<void> | null = null;
   const inventory = createTokenInventory();
   const activeHostCssFiles = new Set<string>();
-  // Ordering belongs to the stylesheet artifact, rather than to one particular
-  // authored/transformed observation. A transform hook has no import-graph
-  // ordering information of its own.
+  // Belongs to the artifact, not one observation: a transform hook has no import-graph ordering.
   const stylesheetOrdering = new Map<string, { order?: number; discoveryOrder?: number }>();
-  // Tailwind v4 owns its naming contribution only when the authored graph
-  // actually contains its v4 entrypoint. Tailwind v3 also emits --tw-* helper
-  // variables, so transformed output alone is not a safe detector.
+  // Detected from the authored graph: v3 also emits --tw-* helpers, so transformed output is not a safe signal.
   const tailwindV4SourceFiles = new Set<string>();
-  // Before Vite has built its module graph, these are the discovered host CSS
-  // candidates that can supply a transformed first virtual-module snapshot.
+  // Candidates that can supply a transformed first snapshot before Vite builds its module graph.
   const discoveredHostCssFiles = new Set<string>();
   let activePackageCssFiles = new Set<string>();
   let publishedThemeContract: ThemeContract | null = null;
@@ -243,11 +224,7 @@ export function createVitePlugins(
   /** Generation of the last snapshot actually serialized into the virtual module. */
   let lastPublishedGeneration: string | null = null;
 
-  /**
-   * Resolve the source scope at hook time. Vite's final root and output
-   * directory are not known when `nudgeUi()` is called, while every transform
-   * and scan must use the same resolved scope.
-   */
+  /** Resolved at hook time: Vite's root and output directory are unknown when `nudgeUi()` is called. */
   function sourceScope(): ViteSourceScopeOptions {
     return {
       ...(options.sourceRoots ? { sourceRoots: options.sourceRoots } : {}),
@@ -267,9 +244,7 @@ export function createVitePlugins(
     return catalogSourcePath(id, root, sourceScope());
   }
 
-  // The framework, if one was composed. Everything below reaches React through
-  // this and optional chaining, so `null` is a working configuration rather
-  // than a broken one.
+  // Everything below reaches the framework through optional chaining, so `null` is a working configuration.
   const frameworkModuleId = (id: string): boolean =>
     framework !== null && (id === framework.virtualModuleId || id === resolvedFrameworkModule());
   const resolvedFrameworkModule = (): string | null =>
@@ -300,18 +275,10 @@ export function createVitePlugins(
   }
 
   /**
-   * Feed one stylesheet observation to the token inventory. `id` is the Vite
-   * module id (query stripped inside); the inventory row is keyed by the
-   * normalized catalog source path so declaration `source` strings keep their
-   * project/package-relative form.
-   *
-   * Authored and transformed observations for the SAME id are fed as two
-   * artifacts (stage authored / stage transformed). The inventory keeps both
-   * and reconciles them deterministically: the transformed observation is the
+   * Authored and transformed observations of the same id are fed as two
+   * artifacts. The inventory keeps both: the transformed one is the
    * browser-relevant fact set, while names authored in the same artifact keep
-   * project provenance. Tailwind v4 files are tagged `adapter: "tailwind-v4"`
-   * at feed time (content-based, no hook-timing maps); the Tailwind v4 naming
-   * contribution relabels the reconciled rows inside the inventory snapshot.
+   * project provenance.
    */
   function feedCssArtifact(
     id: string,
@@ -322,11 +289,9 @@ export function createVitePlugins(
     if (!CSS_EXT.test(id)) return;
     let code = rawCode;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
-    // Astro compiles component <style> blocks into JS wrapper modules keyed
-    // by `.astro?...&lang.css` ids. No authored .css artifact exists for
-    // them, so unwrap the embedded stylesheet string; otherwise the catalog
-    // never sees component-scoped custom properties (ADR-0011). Plain .css
-    // modules keep their authored observation and are untouched.
+    // Astro compiles component <style> blocks into JS wrappers with no authored .css
+    // artifact, so unwrap the embedded stylesheet or the catalog never sees
+    // component-scoped custom properties (ADR-0011).
     if (!CSS_EXT.test(fileId)) {
       const unwrapped = extractViteModuleCss(code);
       if (unwrapped !== null) code = unwrapped;
@@ -366,12 +331,7 @@ export function createVitePlugins(
     inventory.apply(artifact);
   }
 
-  /**
-   * Report a failed or unavailable transform for one stylesheet. The inventory
-   * retains the last valid authored observation for the id and records a
-   * recoverable `transform-observation-failed` diagnostic instead of dropping
-   * rows (see `StylesheetArtifact.failed`).
-   */
+  /** The inventory keeps the last valid authored observation and records a recoverable diagnostic. */
   function feedCssTransformFailure(id: string): void {
     if (!CSS_EXT.test(id)) return;
     const fileId = id.split(/[?#]/, 1)[0] ?? id;
@@ -395,8 +355,7 @@ export function createVitePlugins(
     try {
       resolvedId = (await devServer.pluginContainer.resolveId(moduleSpecifier))?.id ?? null;
     } catch {
-      // A diagnostic below gives consumers a stable explanation without making
-      // the ordinary CSS catalog unavailable.
+      // The diagnostic below explains it without making the CSS catalog unavailable.
     }
     if (!resolvedId) {
       contractDiagnostics = [{
@@ -407,8 +366,7 @@ export function createVitePlugins(
       publishedThemeContractLoaded = true;
       return;
     }
-    // Retain the resolved id even for an invalid export so a later HMR update
-    // can recover from a package publishing the contract after startup.
+    // Retained even for an invalid export, so HMR can recover if the package publishes it later.
     publishedThemeContractModuleId = stripCssQuery(resolvedId);
 
     let namespace: Awaited<ReturnType<ViteDevServer["ssrLoadModule"]>>;
@@ -452,10 +410,9 @@ export function createVitePlugins(
 
   /**
    * Hands everything this host observed about CSS dialects to the interpreter
-   * and applies what comes back, so the snapshot already carries final
-   * adapter/origin/editable labels. Every contribution is id-keyed and
-   * replaceable, so repeating this with unchanged facts is a no-op and load()
-   * can share one path with the HMR exactly-once guard.
+   * and applies what comes back, so the snapshot carries final labels. Every
+   * contribution is id-keyed and replaceable, so repeating this with unchanged
+   * facts is a no-op and load() shares one path with the HMR exactly-once guard.
    */
   function syncInventoryContributions(): void {
     const { contributions } = interpretDialects({
@@ -490,11 +447,9 @@ export function createVitePlugins(
   }
 
   /**
-   * Publish the virtual token module exactly once per observable snapshot
-   * change. All HMR feeds for one event settle before this is called, so the
-   * snapshot reflects the final facts; a no-op follow-up (identical facts) does
-   * not bump the generation again. Contributions are synced first so the guard
-   * compares against the same facts load() would serialize (idempotent).
+   * Publishes exactly once per observable snapshot change. Every HMR feed for
+   * an event settles first, so identical facts do not bump the generation, and
+   * contributions sync first so the guard compares what load() would serialize.
    */
   function invalidateTokensIfChanged(server: ViteDevServer) {
     const generation = currentTokenGeneration();
@@ -524,8 +479,7 @@ export function createVitePlugins(
       activeHostCssFiles.delete(stripCssQuery(file));
       feedCssRemoval(file);
     } else {
-      // Project CSS participates in the source inventory even before import;
-      // package CSS is admitted only by the active graph refresh below.
+      // Project CSS counts before import; package CSS only via the active graph refresh below.
       if (isHostSource(file)) {
         try {
           feedCssArtifact(file, readFileSync(file, "utf8"), "authored");
@@ -610,9 +564,8 @@ export function createVitePlugins(
     if (!devServer || !root || command !== "serve") return Promise.resolve();
     if (postTransformPromise) return postTransformPromise;
 
-    // The Vite module graph is the source of truth for reachable stylesheet
-    // entries. Asking Vite to transform only those entries drives them through
-    // the companion observer plugin below without activating dead CSS files.
+    // The module graph decides reachability: transforming only those entries drives
+    // them through the observer plugin below without activating dead CSS files.
     postTransformPromise = (async () => {
       await refreshActiveStylesheetTokens();
       const cssPaths = activeHostCssFiles.size > 0
@@ -650,9 +603,8 @@ export function createVitePlugins(
     }));
     return {
       projectId: options.projectId ?? (root ? basename(root) : "vite"),
-      // Without a framework the project is HTML and CSS as far as the
-      // inspector is concerned, which is exactly what a framework-free Vite
-      // app is: no component boundaries exist to describe.
+      // Without a framework there are no component boundaries to describe, so the
+      // project is HTML and CSS as far as the inspector is concerned.
       host: framework?.hostLabel ?? "static-html",
       framework: framework?.framework ?? "HTML",
       stylingSystem: detectStylingSystem(snapshot.tokens),
@@ -677,8 +629,7 @@ export function createVitePlugins(
     enforce: "pre",
     config(userConfig, env) {
       if (!enabled || env.command !== "serve") return;
-      // Module resolution is a framework concern: without one, this host asks
-      // nothing of Vite's resolver.
+      // Module resolution is a framework concern; without one this host asks nothing of the resolver.
       return framework?.viteConfig({
         projectRoot: userConfig.root ?? process.cwd(),
         demo: options.demo === true,
@@ -734,10 +685,8 @@ export function createVitePlugins(
       server.watcher?.on("unlink", (file) => handleStylesheetWatchEvent(server, file, "unlink"));
     },
     buildStart() {
-      // Eager scan so the token table is populated before the virtual module
-      // is first loaded. The browser imports App -> virtual:design-tokens
-      // before styles.css is necessarily transformed, so transform-only
-      // collection would yield an empty first load.
+      // The browser imports virtual:design-tokens before styles.css is necessarily
+      // transformed, so transform-only collection would yield an empty first load.
       if (!enabled || (command !== "serve" && !demoBuild) || !root) return;
       for (const cssPath of scanCssFiles(root, [], root, buildOutputDirectory)) {
         try {
@@ -769,10 +718,8 @@ export function createVitePlugins(
         }
         await ensurePostTransformCss();
         await ensurePublishedThemeContract();
-        // Styling contributions merge INSIDE the inventory (see
-        // `syncInventoryContributions`). load() takes ONE immutable snapshot
-        // and serializes it verbatim — there is no post-snapshot enrichment and
-        // no TOCTOU between the snapshot call and serialization.
+        // Contributions merge inside the inventory; load() serializes one immutable
+        // snapshot verbatim, so there is no post-snapshot enrichment or TOCTOU.
         const runtime = buildRuntimeSnapshot();
         lastPublishedGeneration = runtime.tokenGeneration;
         return `export const tokenCatalog = ${JSON.stringify(runtime.tokenCatalog)};\nexport const tokens = ${JSON.stringify(runtime.tokens)};\nexport const tokenDiagnostics = ${JSON.stringify(runtime.tokenDiagnostics)};\nexport const tokenGeneration = ${JSON.stringify(runtime.tokenGeneration)};\nexport const nudgeUiProjectId = ${JSON.stringify(runtime.projectId)};\nexport default tokens;\n`;
@@ -786,8 +733,7 @@ export function createVitePlugins(
           const landingDemoExpression = demoBuild
             ? "true"
             : '(import.meta.env.DEV && window.location.pathname === "/")';
-          // The labels and component wiring come from the composed framework
-          // rather than being restated here, so the demo bootstrap cannot drift
+          // Taken from the composed framework, so the demo bootstrap cannot drift
           // from the manifest the transport serves.
           const identity = buildRuntimeSnapshot();
           return [
@@ -833,10 +779,9 @@ export function createVitePlugins(
       }
       return null;
     },
-    // React's Vite plugin is also an `enforce: "pre"` plugin. Its transform
-    // hook is declared without an explicit order, so use Vite's hook-level
-    // `order: "pre"` to ensure we parse the authored TSX before React/Babel
-    // prepends refresh helpers and shifts the AST locations used by data-src.
+    // React's Vite plugin is also `enforce: "pre"` with no explicit hook order, so
+    // hook-level `order: "pre"` is what parses authored TSX before Babel prepends
+    // refresh helpers and shifts the AST locations data-src depends on.
     transform: {
       order: "pre",
       async handler(code, id) {
@@ -851,8 +796,7 @@ export function createVitePlugins(
           feedCssArtifact(id, code, "authored");
           return null; // let Vite's CSS pipeline handle the actual stylesheet
         }
-        // Everything past CSS belongs to the framework. With none composed,
-        // the host observes stylesheets and leaves source modules untouched.
+        // Everything past CSS belongs to the framework; with none, source modules are untouched.
         if (!framework) return null;
         return framework.transform({
           resolve: async (specifier, importer) => {
@@ -864,10 +808,8 @@ export function createVitePlugins(
       },
     },
     transformIndexHtml(html) {
-      // The standalone landing app uses the normal HTML injection during
-      // development. Its static demo build imports the virtual module from
-      // the app entry instead, because Vite cannot preserve the development
-      // HTML virtual-module URL in a static build.
+      // The landing app's static demo build imports the virtual module from the app
+      // entry, because Vite cannot preserve the dev HTML virtual-module URL.
       if (!enabled || demoBuild) return;
       const out = transformIndexHtmlHtml(html, command, {
         debug: options.debug === true,
@@ -883,8 +825,7 @@ export function createVitePlugins(
         invalidateHmrModules(ctx.server, ctx.modules, ctx.timestamp);
         publishedThemeContractLoaded = false;
         await ensurePublishedThemeContract();
-        // Same exactly-once path as the CSS branch: invalidate the virtual
-        // module only when the refreshed contract changed the snapshot.
+        // Same exactly-once path as the CSS branch.
         const { changed, generation, virtual } = invalidateTokensIfChanged(ctx.server);
         if (changed && virtual) return [...ctx.modules, virtual];
         if (generation !== previousGeneration) {
@@ -900,15 +841,13 @@ export function createVitePlugins(
         } catch {
           framework.forget(ctx.file);
         }
-        // Re-transform the changed module so Vite updates its importer edges
-        // before package-CSS reachability is rebuilt. A component can add or
-        // remove a stylesheet import while every CSS file remains on disk.
+        // Vite must update importer edges first: a component can add or remove a
+        // stylesheet import while every CSS file remains on disk.
         invalidateHmrModules(ctx.server, ctx.modules, ctx.timestamp);
         try {
           await ctx.server.transformRequest(ctx.file);
         } catch {
-          // Component metadata still refreshes; the next successful transform
-          // will rebuild the active stylesheet roots.
+          // Metadata still refreshes; the next successful transform rebuilds the roots.
         }
         postTransformPromise = null;
         await ensurePostTransformCss();
@@ -933,8 +872,7 @@ export function createVitePlugins(
       if (!CSS_EXT.test(ctx.file)) return;
       const previousGeneration = currentTokenGeneration();
 
-      // Refresh the token inventory immediately so the next virtual-module load
-      // sees the updated tokens (Vite's own CSS reload happens in parallel).
+      // So the next virtual-module load sees updated tokens; Vite's CSS reload runs in parallel.
       let hasAuthoredObservation = false;
       try {
         const code = await ctx.read();
@@ -956,24 +894,19 @@ export function createVitePlugins(
 
       await refreshActiveStylesheetTokens();
 
-      // ctx.read() returns authored source. Re-run the CSS through Vite so the
-      // transform hook can replace that snapshot with Tailwind's generated
-      // stylesheet before the virtual module is invalidated below.
+      // ctx.read() returns authored source, so re-run it through Vite to pick up
+      // Tailwind's generated stylesheet before invalidating below.
       postTransformPromise = null;
       try {
         await ctx.server.transformRequest(ctx.file);
       } catch {
-        // Keep the authored snapshot if the post-transform request fails: feed
-        // a failed-transform marker so the inventory retains the authored rows
-        // plus a recoverable diagnostic. A deleted file (no authored read) is a
-        // removal, not a transform failure.
+        // Marks the transform failed so authored rows survive with a recoverable
+        // diagnostic. A deleted file has no authored read and is a removal instead.
         if (hasAuthoredObservation) feedCssTransformFailure(ctx.file);
       }
 
-      // Exactly-once publish: with every feed for this event settled, invalidate
-      // the virtual module only when the snapshot generation actually changed.
-      // A no-op follow-up (identical facts) is a no-op here too, while Vite's
-      // own CSS update below still refreshes the edited stylesheet visually.
+      // Every feed for this event has settled, so invalidate only on a real
+      // generation change. Vite's own CSS update below still runs either way.
       const { changed, generation, virtual } = invalidateTokensIfChanged(ctx.server);
       if (generation !== previousGeneration && !virtual) {
         ctx.server.ws.send({ type: "full-reload", path: "*" });
@@ -993,10 +926,9 @@ export function createVitePlugins(
     },
   };
 
-  // Tailwind's generator is a pre-transform hook. This companion stays in
-  // Vite's normal group, which places it after every pre plugin regardless of
-  // user configuration order and before Vite's CSS-post JavaScript wrapper.
-  // The main plugin above remains pre-ordered for TSX source locations.
+  // Tailwind's generator is a pre-transform hook, so this companion stays in Vite's
+  // normal group: after every pre plugin regardless of user order, and before Vite's
+  // CSS-post JavaScript wrapper. The main plugin stays pre-ordered for TSX locations.
   const transformedCssObserver: Plugin = {
     name: "nudge-ui:transformed-css",
     apply: "serve",

@@ -1,12 +1,8 @@
 /**
- * Node-only CSS token discovery for the standalone static HTML Adapter.
- *
- * The scanner deliberately reports directory order as discovery evidence.
- * It never supplies stylesheet order because a directory walk cannot prove
- * the order in which a browser imports or applies stylesheets.
- *
- * Every filesystem operation is asynchronous so a large prototype tree never
- * blocks the server's event loop while browser clients hold open connections.
+ * Node-only CSS token discovery for the static HTML host. Reports directory
+ * order as discovery evidence only: a directory walk cannot prove the order in
+ * which a browser applies stylesheets. Every filesystem operation is async so a
+ * large tree never blocks the server's event loop.
  */
 import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
@@ -54,10 +50,7 @@ export interface ProjectCssArtifact {
   readonly readError?: string;
 }
 
-/**
- * Injectable file reader used to keep unreadable-file handling testable.
- * Readers may resolve asynchronously; the scan awaits each result.
- */
+/** Injectable so unreadable-file handling stays testable. */
 export type ProjectCssFileReader = (absolutePath: string) => string | Promise<string>;
 
 /** Options for the deterministic project CSS scan. */
@@ -66,20 +59,14 @@ export interface ProjectTokenSnapshotOptions {
   /** Additional authored roots to include in the same deterministic inventory. */
   readonly additionalRootDirectories?: readonly string[];
   readonly readFile?: ProjectCssFileReader;
-  /**
-   * Namespace prefixed to the snapshot digest, so two hosts scanning the same
-   * project publish distinguishable generations.
-   */
+  /** Prefixed to the digest so two hosts scanning one project publish distinct generations. */
   readonly generationLabel: string;
 }
 
 /**
- * Discovers ordinary project CSS and builds a complete token snapshot.
- *
- * CSS files are identified by project-relative POSIX paths and sorted before
- * receiving discoveryOrder. Symlinked files and directories are followed
- * only when their canonical target remains below rootDirectory. Read and
- * parse failures become diagnostics; they never reject the scan.
+ * Files are sorted by project-relative POSIX path before receiving
+ * discoveryOrder. Symlinks are followed only when their canonical target stays
+ * below rootDirectory. Read and parse failures become diagnostics, never rejections.
  */
 export async function createProjectTokenSnapshot(
   options: ProjectTokenSnapshotOptions,
@@ -99,9 +86,8 @@ export async function createProjectTokenSnapshot(
       const canonicalPath = await realpath(artifact.absolutePath).catch(() => artifact.absolutePath);
       if (seenFiles.has(canonicalPath)) continue;
       seenFiles.add(canonicalPath);
-      // Keep the primary root's paths unchanged. Additional roots are
-      // represented relative to it so one inventory can merge their
-      // declarations without losing provenance.
+      // Additional roots are expressed relative to the primary one so a single
+      // inventory can merge their declarations without losing provenance.
       artifacts.push({
         ...artifact,
         projectPath: index === 0
@@ -154,11 +140,7 @@ export async function createProjectTokenSnapshot(
   };
 }
 
-/**
- * Returns every ordinary CSS file below rootDirectory in stable path order.
- * This is exported as a discovery seam so callers can test provenance and
- * symlink confinement without depending on PostCSS or inventory internals.
- */
+/** Exported as a seam so provenance and symlink confinement are testable without PostCSS. */
 export async function discoverProjectCssArtifacts(
   rootDirectory: string,
   readFile: ProjectCssFileReader = (absolutePath) => readUtf8File(absolutePath, "utf8"),
@@ -276,8 +258,7 @@ async function canonicalWithinRoot(
       return canonical;
     }
   } catch {
-    // A disappearing file is simply absent from this scan. Read failures for
-    // existing CSS are reported by the file-reader branch above.
+    // A disappearing file is absent from this scan; read failures are handled above.
   }
   return null;
 }
