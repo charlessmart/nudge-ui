@@ -62,7 +62,7 @@ const SUPPORTED_NEXT_RANGE = ">=15.3 <17";
 
 /**
  * Both compilers register the esbuild-bundled CommonJS loaders from
- * `dist/loaders/` (built by `pnpm --filter nudge-ui/next build`):
+ * `dist/hosts/next/loaders/` (built by `pnpm --filter nudge-ui build`):
  *
  * - Turbopack's LoaderRunner requires the module itself to be the loader
  *   function (CJS emission), and Node 20 cannot parse TypeScript sources —
@@ -78,10 +78,16 @@ interface LoaderPaths {
   plugin: string;
 }
 
+/**
+ * Resolved from the package root so the path is identical whether this module
+ * runs from `src/hosts/next/` during development or `dist/hosts/next/` when
+ * installed. The loaders only ever exist in `dist`.
+ */
 function loaderPaths(): LoaderPaths {
+  const loaders = new URL("../../../dist/hosts/next/loaders/", import.meta.url);
   return {
-    plugin: fileURLToPath(new URL("../dist/loaders/loader-plugin.cjs", import.meta.url)),
-    identity: fileURLToPath(new URL("../dist/loaders/identity-loader.cjs", import.meta.url)),
+    plugin: fileURLToPath(new URL("loader-plugin.cjs", loaders)),
+    identity: fileURLToPath(new URL("identity-loader.cjs", loaders)),
   };
 }
 

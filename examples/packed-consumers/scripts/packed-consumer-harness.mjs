@@ -10,15 +10,8 @@ const suiteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = resolve(suiteRoot, "../..");
 const maxDiagnosticCharacters = 256_000;
 const upstreamRegistry = "https://registry.npmjs.org";
-const adapterPackages = {
-  astro: "nudge-ui/astro",
-  nextjs: "nudge-ui/next",
-  "nextjs-16.1": "nudge-ui/next",
-  standalone: "nudge-ui/static",
-  "vite-react": "nudge-ui/vite",
-  "vite-react-current": "nudge-ui/vite",
-  "vite-react-monorepo": "nudge-ui/vite",
-};
+/** Every host installs the same distribution package and reaches its host through a subpath. */
+const distributionPackage = "nudge-ui";
 
 /**
  * The packed compatibility matrix deliberately varies one seam at a time:
@@ -207,7 +200,7 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
     "create-nudge-ui": `file:${initializerPackage.tarball}`,
   };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  // The shared core is published unscoped, and npm only supports per-scope registries, so the
+  // The distribution package is unscoped, and npm only supports per-scope registries, so the
   // consumer resolves everything through the local registry and it proxies what it does not pack.
   const registryConfig = `registry=${registryUrl}\n`;
   writeFileSync(join(projectRoot, ".npmrc"), registryConfig);
@@ -234,9 +227,9 @@ async function runConsumer(consumer, packages, registryUrl, temporaryRoot) {
   );
   const adapterRoots = [installDirectory, projectRoot];
   const installedAdapter = adapterRoots
-    .map((directory) => join(directory, "node_modules", ...adapterPackages[consumer.adapter].split("/")))
+    .map((directory) => join(directory, "node_modules", distributionPackage))
     .find((candidate) => lstatSync(candidate, { throwIfNoEntry: false }));
-  if (!installedAdapter) throw new Error(`${consumer.adapter} was not installed.`);
+  if (!installedAdapter) throw new Error(`${consumer.adapter} did not install ${distributionPackage}.`);
   if (lstatSync(installedAdapter).isSymbolicLink()) {
     const resolvedAdapter = realpathSync(installedAdapter);
     const resolvedProjectRoot = realpathSync(projectRoot);
