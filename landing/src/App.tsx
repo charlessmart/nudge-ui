@@ -203,7 +203,11 @@ function useShowcaseWidth(animate: boolean, controls: ShowcaseControls): { ref: 
   return { ref, width: animate ? width : "100%", opacity: animate ? opacity : 1, isFullWidth: animate ? isFullWidth : true };
 }
 
-function useShowcaseInView(ref: RefObject<HTMLDivElement | null>, threshold: number): boolean {
+function useShowcaseInView(
+  ref: RefObject<HTMLDivElement | null>,
+  threshold: number,
+  rootMargin = "0px",
+): boolean {
   const [isInView, setIsInView] = useState(false);
 
   useEffect(() => {
@@ -219,11 +223,11 @@ function useShowcaseInView(ref: RefObject<HTMLDivElement | null>, threshold: num
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry) return;
       setIsInView(entry.isIntersecting && entry.intersectionRatio >= intersectionThreshold);
-    }, { threshold: [0, intersectionThreshold] });
+    }, { rootMargin, threshold: [0, intersectionThreshold] });
 
     observer.observe(element);
     return () => observer.disconnect();
-  }, [ref, threshold]);
+  }, [ref, rootMargin, threshold]);
 
   return isInView;
 }
@@ -239,14 +243,15 @@ function ShowcaseVideo({
 }): ReactNode {
   const { ref, width, opacity, isFullWidth } = useShowcaseWidth(animate, controls);
   const isInView = useShowcaseInView(ref, controls.visibilityThreshold);
+  const shouldLoadVideo = useShowcaseInView(ref, controls.visibilityThreshold, "320px 0px");
   const [videoReady, setVideoReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const loopTimeout = useRef<number | null>(null);
   const isVideoVisible = isInView && isFullWidth;
 
   useEffect(() => {
-    if (!isInView) setVideoReady(false);
-  }, [isInView]);
+    if (!shouldLoadVideo) setVideoReady(false);
+  }, [shouldLoadVideo]);
 
   useEffect(() => {
     if (isVideoVisible) {
@@ -301,9 +306,9 @@ function ShowcaseVideo({
       </div>
       <div className="landing-showcase-video-frame">
         <div className="landing-showcase-placeholder" data-visible={!isVideoVisible || !videoReady}>
-          <img className="landing-showcase-placeholder-image" src={video.poster} alt="" aria-hidden="true" />
+          <img className="landing-showcase-placeholder-image" src={video.poster} alt="" aria-hidden="true" loading="lazy" />
         </div>
-        {isInView ? (
+        {shouldLoadVideo ? (
           <video
             className="landing-showcase-video-element"
             ref={videoRef}
