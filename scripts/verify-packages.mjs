@@ -151,14 +151,14 @@ function verifyPackedAstroConsumers() {
     const packageJson = JSON.parse(tarFile(tarball, "package/package.json"));
     tarballs.set(packageJson.name, tarball);
   }
+  // Package names, not export subpaths: the hosts now ship as subpaths of the
+  // single distribution package, so there is no separate tarball to install.
   const requiredPackages = [
     "@nudge-ui/agent-protocol",
     "@nudge-ui/compiler",
     "@nudge-ui/css",
     "@nudge-ui/inspector",
     "nudge-ui",
-    "nudge-ui/vite",
-    "nudge-ui/astro",
   ];
   for (const packageName of requiredPackages) {
     assert(tarballs.has(packageName), `Packed Astro verification is missing ${packageName}.`);
