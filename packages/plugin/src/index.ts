@@ -169,6 +169,7 @@ const CSS_EXT = /\.css(?:$|[?#])/;
 const COMPONENT_EXT = /\.(?:tsx|jsx)(?:$|[?#])/;
 const CLIENT_PATH = "/__nudge_ui__/client.mjs";
 const MANIFEST_PATH = "/__nudge_ui__/manifest";
+const INSPECTOR_COMPONENT_RUNTIME_MODULE = "@nudge-ui/inspector/component-runtime";
 const packageRequire = createRequire(import.meta.url);
 let inspectorClientPath: string | undefined;
 
@@ -280,7 +281,7 @@ function resolveReactAliases(projectRoot: string): Alias[] {
 
 function resolveInspectorComponentRuntime(): string | null {
   try {
-    return packageRequire.resolve("@nudge-ui/inspector/component-runtime");
+    return packageRequire.resolve(INSPECTOR_COMPONENT_RUNTIME_MODULE);
   } catch {
     return null;
   }
@@ -832,23 +833,17 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
         ? resolveReactAliases(projectRoot)
         : [];
       const existingDedupe = userConfig.resolve?.dedupe ?? [];
-      const existingOptimizeDeps = userConfig.optimizeDeps;
       const runtimeAliases: Alias[] = inspectorComponentRuntimePath
-        ? [{ find: "@nudge-ui/inspector/component-runtime", replacement: inspectorComponentRuntimePath }]
+        ? [{ find: INSPECTOR_COMPONENT_RUNTIME_MODULE, replacement: inspectorComponentRuntimePath }]
         : [];
       return {
-        optimizeDeps: {
-          ...existingOptimizeDeps,
-          // The transformed callsites import the semantic runtime through its
-          // published specifier. Pre-bundling it with the host app keeps its
-          // React imports in the same optimized dependency graph on cold Vite
-          // starts, including Vite versions that optimize late-discovered
-          // imports during dependency crawling.
-          include: [...new Set([
-            ...(existingOptimizeDeps?.include ?? []),
-            "@nudge-ui/inspector/component-runtime",
-          ])],
-        },
+        ...(inspectorComponentRuntimePath ? {
+          optimizeDeps: {
+            // Vite merges this Adapter-owned entry with the host's dependency
+            // settings. Returning host entries here would duplicate arrays.
+            include: [INSPECTOR_COMPONENT_RUNTIME_MODULE],
+          },
+        } : {}),
         resolve: {
           ...(demoAliases.length > 0 || runtimeAliases.length > 0
             ? { alias: [...demoAliases, ...runtimeAliases] }
@@ -877,7 +872,7 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
         // still resolve the injected specifier itself. Packed installs that do
         // not will fail at the importing module, so say so before that happens.
         server.config.logger.warn(
-          "[nudge-ui] Could not resolve @nudge-ui/inspector/component-runtime from the "
+          `[nudge-ui] Could not resolve ${INSPECTOR_COMPONENT_RUNTIME_MODULE} from the `
             + "Vite adapter. Semantic component callsites will fall back to application "
             + "resolution of that specifier.",
         );

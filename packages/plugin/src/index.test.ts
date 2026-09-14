@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createTokenInventory } from "@nudge-ui/css/token-inventory";
+import { mergeConfig } from "vite";
 import {
   nudgeUi as createNudgeUiPlugins,
   extractViteModuleCss,
@@ -303,19 +304,27 @@ describe("nudgeUi react alias configuration", () => {  // A root with React inst
     ]);
   });
 
-  it("preserves host dependency optimization settings while including the component runtime", () => {
+  it("merges the component runtime into host dependency optimization settings once", () => {
     const plugin = nudgeUi() as unknown as { config?: ConfigHook };
-    const result = plugin.config?.({
+    const hostConfig = {
       root: sandboxRoot,
       optimizeDeps: {
-        include: ["host-dependency", "@nudge-ui/inspector/component-runtime"],
+        include: ["host-dependency"],
         exclude: ["host-excluded-dependency"],
         force: true,
       },
-    }, serveEnv);
+    };
+    const pluginConfig = plugin.config?.(hostConfig, serveEnv);
+    const result = mergeConfig(hostConfig, pluginConfig ?? {});
 
-    expect(result?.optimizeDeps).toEqual({
-      include: ["host-dependency", "@nudge-ui/inspector/component-runtime"],
+    expect(result.optimizeDeps?.include).toEqual([
+      "host-dependency",
+      "@nudge-ui/inspector/component-runtime",
+    ]);
+    expect(result.optimizeDeps?.exclude).toEqual(["host-excluded-dependency"]);
+    expect(result.optimizeDeps?.force).toBe(true);
+    expect(hostConfig.optimizeDeps).toEqual({
+      include: ["host-dependency"],
       exclude: ["host-excluded-dependency"],
       force: true,
     });
