@@ -28,11 +28,6 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./html/identity": {
-      "types": "./dist/html/identity.d.ts",
-      "import": "./dist/html/identity.js",
-      "default": "./dist/html/identity.js"
-    },
     "./html/bootstrap": {
       "types": "./dist/html/bootstrap.d.ts",
       "import": "./dist/html/bootstrap.js",
