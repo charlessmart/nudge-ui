@@ -181,6 +181,29 @@ describe("structural delete projection", () => {
     expect(parent.lastElementChild).toBe(anchor);
   });
 
+  it("does not continuously replay an applied change while another change remains unresolved", async () => {
+    const appliedTarget = add("0.1");
+    const missingTarget = add("0.2");
+    const appliedChange = createStructuralDelete(appliedTarget, "delete-applied")!;
+    const missingChange = createStructuralDelete(missingTarget, "delete-missing")!;
+    resetStructuralDeleteProjection();
+    missingTarget.textContent = "changed";
+
+    expect(applyStructuralProjection(document, [appliedChange, missingChange])).toEqual([
+      { changeId: "delete-applied", status: "applied" },
+      { changeId: "delete-missing", status: "missing", reason: "target" },
+    ]);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(getStructuralProjectionReports(document)).toEqual([
+      { changeId: "delete-applied", status: "applied" },
+      { changeId: "delete-missing", status: "missing", reason: "target" },
+    ]);
+    expect(appliedTarget.isConnected).toBe(false);
+    expect(missingTarget.isConnected).toBe(true);
+  });
+
   it("captures a null anchor as append-to-end placement", () => {
     const parent = document.createElement("section");
     parent.dataset.cid = "List";

@@ -169,10 +169,13 @@ test("dev: token unlink action appears over the chip on hover", async ({ page })
   const field = page.locator('[data-test="token-field"][data-property="color"]');
   const chip = field.locator('[data-test="token-chip"]');
   const delink = field.locator('[data-test="delink-btn"]');
+  const action = field.locator(".token-chip__action");
 
   await expect(chip).toBeVisible();
+  await expect(action).toHaveCSS("opacity", "0");
   await chip.hover();
-  await expect(delink).toBeVisible();
+  await expect(action).toHaveCSS("opacity", "1");
+  await expect(delink).toBeEnabled();
 });
 
 test("dev: replacing a hardcoded spacing value with a token writes a rule to the sheet", async ({ page }) => {

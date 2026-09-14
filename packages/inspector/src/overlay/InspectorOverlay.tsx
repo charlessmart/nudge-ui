@@ -369,7 +369,9 @@ export function InspectorOverlay({ host }: { host: HTMLElement }): ReactElement 
           key={`${element.domElement.getAttribute("data-cid") ?? "element"}-${index}`}
           className="selected-outline"
           data-test="selected-outline"
+          data-selected-cid={element.cid}
           data-selected-index={index}
+          data-selected-src={element.src}
           style={overlayStyle(rect)}
           aria-hidden="true"
         />

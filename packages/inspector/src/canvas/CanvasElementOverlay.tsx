@@ -143,8 +143,13 @@ export function CanvasElementOverlay(): ReactElement | null {
   const selectedRect = selectedInCanvas && selectedLocalRect
     ? projectRect(selectedFrame, selectedLocalRect, camera.zoom)
     : null;
-  const projectedSelectedRects = selectedInCanvas
-    ? selectedRects.flatMap((rect) => rect ? [projectRect(selectedFrame!, rect, camera.zoom)] : [])
+  const projectedSelectedGeometry = selectedInCanvas
+    ? selectedRects.flatMap((rect, index) => {
+      const element = selectedElements[index];
+      return rect && element
+        ? [{ element, rect: projectRect(selectedFrame, rect, camera.zoom) }]
+        : [];
+    })
     : [];
   const selectedBorders = selectedInCanvas && selected
     ? readBorderWidths(selected.domElement)
@@ -277,7 +282,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     };
   }, []);
 
-  if (!hover && projectedSelectedRects.length === 0 && !projectedDropGuide) return null;
+  if (!hover && projectedSelectedGeometry.length === 0 && !projectedDropGuide) return null;
 
   const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, camera.zoom) : null;
   const hoverMargins = hover ? scaleMargins(hover.margins, camera.zoom) : null;
@@ -340,12 +345,14 @@ export function CanvasElementOverlay(): ReactElement | null {
           ))}
         </>
       ) : null}
-      {projectedSelectedRects.map((rect, index) => (
+      {projectedSelectedGeometry.map(({ element, rect }, index) => (
         <div
-          key={`canvas-selected-${index}`}
+          key={`${element.cid}-${index}`}
           className="canvas-selected-outline"
           data-test="canvas-selected-outline"
+          data-selected-cid={element.cid}
           data-selected-index={index}
+          data-selected-src={element.src}
           style={overlayStyle(rect)}
           aria-hidden="true"
         />

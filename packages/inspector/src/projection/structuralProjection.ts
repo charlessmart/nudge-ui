@@ -349,6 +349,13 @@ function installDocumentObserver(doc: Document, state: DocumentProjectionState):
   });
 }
 
+function hasUnresolvedAppliedChange(state: DocumentProjectionState): boolean {
+  for (const local of state.applied.values()) {
+    if (local.kind === "unresolved") return true;
+  }
+  return false;
+}
+
 function scheduleValidation(doc: Document, state: DocumentProjectionState): void {
   if (state.validationQueued || state.applied.size === 0) return;
   state.validationQueued = true;
@@ -357,8 +364,12 @@ function scheduleValidation(doc: Document, state: DocumentProjectionState): void
     // A renderer can receive its projection before its application tree has
     // mounted. Retry unresolved records after that tree changes so a valid
     // late mount converges without requiring another controller message.
-    if ([...state.applied.values()].some((local) => local.kind === "unresolved")) {
+    if (hasUnresolvedAppliedChange(state)) {
       rebuildForSnapshot(doc, state, state.snapshot, false);
+      // The replay is synchronous, so external renderer mutations cannot
+      // interleave with it. Discard only the records produced by the replay;
+      // future renderer mutations remain observed and can trigger another try.
+      state.observer?.takeRecords();
       storeReports(doc, reportsForSnapshot(state, state.snapshot));
       return;
     }

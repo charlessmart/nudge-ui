@@ -141,27 +141,16 @@ test("dev: ordinary clicks choose a button wrapper and Command-click chooses its
   const label = button.locator(".btn__label");
   const buttonSrc = await button.getAttribute("data-src");
   const labelSrc = await label.getAttribute("data-src");
-  expect(buttonSrc).toBeTruthy();
-  expect(labelSrc).toBeTruthy();
+  if (!buttonSrc || !labelSrc) throw new Error("Expected source identities for the selection fixture");
   expect(labelSrc).not.toBe(buttonSrc);
 
   await label.click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
-  const wrapperOutline = await page.locator('[data-test="selected-outline"]').boundingBox();
-  const buttonBox = await button.boundingBox();
-  if (!wrapperOutline || !buttonBox) throw new Error("Expected host selection geometry");
-  expect(Math.abs(wrapperOutline.width - buttonBox.width)).toBeLessThan(2);
-  expect(Math.abs(wrapperOutline.height - buttonBox.height)).toBeLessThan(2);
+  await expect(page.locator('[data-test="selected-outline"]')).toHaveAttribute("data-selected-src", buttonSrc);
 
   await label.click({ modifiers: ["Meta"] });
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
-  await expect.poll(async () => {
-    const childOutline = await page.locator('[data-test="selected-outline"]').boundingBox();
-    const labelBox = await label.boundingBox();
-    return Boolean(childOutline && labelBox
-      && Math.abs(childOutline.width - labelBox.width) < 2
-      && Math.abs(childOutline.height - labelBox.height) < 2);
-  }).toBe(true);
+  await expect(page.locator('[data-test="selected-outline"]')).toHaveAttribute("data-selected-src", labelSrc);
 });
 
 test("dev: hover overlay shows margin space while selection keeps only its outline", async ({ page }) => {
