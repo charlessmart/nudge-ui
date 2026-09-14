@@ -1,4 +1,5 @@
 import type { TokenDefinition, TokenEntry } from "@nudge-ui/css/model";
+import { readTailwindV4AlphaUtility, tailwindV4AlphaExpression } from "@nudge-ui/css/dialects";
 import { INTERACTION_STATES } from "../shell/styleState.ts";
 import type { InteractionState } from "../shell/styleState.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
@@ -1241,14 +1242,12 @@ function inferTailwindV4ColorOpacity(
   if (!row || row.tokenName) return;
 
   for (const className of Array.from(el.classList)) {
-    const match = /^bg-([\w-]+)\/(\d{1,3}%?)$/.exec(className);
-    if (!match) continue;
-    const baseName = `--color-${match[1]}`;
+    const utility = readTailwindV4AlphaUtility(className);
+    if (!utility) continue;
+    const { baseName, alpha } = utility;
     const entry = tokenTable[baseName];
     if (!entry || entry.adapter !== "tailwind-v4") continue;
-    const rawAlpha = match[2]!;
-    const alpha = rawAlpha.endsWith("%") ? rawAlpha : `${rawAlpha}%`;
-    const authored = `color-mix(in oklab, var(${baseName}) ${alpha}, transparent)`;
+    const authored = tailwindV4AlphaExpression(baseName, alpha);
     row.tokenName = baseName;
     row.declaredValue = authored;
     row.authored = authored;

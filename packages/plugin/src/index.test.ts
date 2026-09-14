@@ -12,8 +12,7 @@ import {
   transformIndexHtmlHtml,
   withNudgeUi,
 } from "./index.ts";
-import { createTailwindV4NamingContribution } from "./adapters/tailwindV4.ts";
-import { materializeVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
+import { interpretDialects } from "@nudge-ui/css/dialects";
 
 const nudgeUi = (...args: Parameters<typeof createNudgeUiPlugins>) =>
   createNudgeUiPlugins(...args)[0]!;
@@ -1341,12 +1340,16 @@ describe("nudgeUi token catalog compiler", () => {
         order: 0,
         content: themeContent,
       });
-      expected.applyContribution({ id: "adapter-registry", order: -1, tokens: [] });
-      expected.applyContribution(createTailwindV4NamingContribution());
-      expected.applyContribution(materializeVanillaExtractContribution(contract.vars, {
-        source: "@fixture/contract",
-        origin: "package",
-      }));
+      // The same evidence the plugin gathered, interpreted the same way.
+      for (const contribution of interpretDialects({
+        tailwindV4Css: true,
+        publishedThemeContract: {
+          attempted: true,
+          contract: contract.vars,
+          fromPackage: true,
+          source: "@fixture/contract",
+        },
+      }).contributions) expected.applyContribution(contribution);
       const snapshot = expected.snapshot();
 
       expect(published.catalog).toEqual(snapshot.definitions);

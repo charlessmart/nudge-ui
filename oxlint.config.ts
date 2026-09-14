@@ -39,9 +39,7 @@ export default {
     {
       files: [
         "packages/compiler/src/**",
-        "packages/plugin/src/transform/**",
         "packages/plugin/src/components/**",
-        "packages/plugin/src/adapters/**",
         "packages/plugin/src/tokens/**",
         "packages/compatibility/src/playwright.ts",
         "packages/inspector/src/canvas/frameProtocol.ts",

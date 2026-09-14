@@ -34,14 +34,8 @@ import {
 } from "./tokens/viteStylesheetArtifacts.ts";
 import type { ViteSourceScopeOptions } from "./tokens/viteStylesheetArtifacts.ts";
 import type { TokenCatalogDiagnostic } from "./virtual/design-tokens.ts";
-import { createTailwindV4NamingContribution } from "./adapters/tailwindV4.ts";
-import { createTailwindV3Adapter } from "./adapters/tailwindV3.ts";
-import type { TailwindV3Config } from "./adapters/tailwindV3.ts";
-import { createSprinklesAdapter } from "./adapters/vanillaExtract.ts";
-import { isRecord } from "./adapters/isRecord.ts";
-import type { ThemeContract, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
-import { createPublishedVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
-import { createTokenAdapterRegistry } from "./adapters/registry.ts";
+import { interpretDialects } from "@nudge-ui/css/dialects";
+import type { TailwindV3Config, ThemeContract } from "@nudge-ui/css/dialects";
 import { extractComponentContracts } from "@nudge-ui/compiler/component-contracts";
 import {
   collectPackageComponentModules,
@@ -63,6 +57,31 @@ import {
   type ComponentModuleProtocols,
 } from "@nudge-ui/compiler";
 
+/**
+ * How this host should find the project's vanilla-extract theme contract.
+ *
+ * Loading a module is a host capability, so the specifier lives here; what the
+ * contract *means* is interpreted in `@nudge-ui/css/dialects`.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export interface VanillaExtractOptions {
+  /** Contract values written inline, for simple local configurations. */
+  themeContract?: ThemeContract;
+  /** A Vite-resolvable module exporting a published compiled contract. */
+  themeContractModule?: string;
+  /** Named export holding the contract. Defaults to `vars`. */
+  themeContractExport?: string;
+  /** Path prefix applied to published contract entries. */
+  themeContractPrefix?: string;
+  /** Known compiled values by custom-property name. */
+  cssValues?: Readonly<Record<string, string>>;
+  /** Source label recorded on the resulting tokens. */
+  source?: string;
+}
+
 export interface NudgeUiOptions {
   enabled?: boolean;
   /** Enables experimental DOM parent/child navigation in the Inspector. */
@@ -82,7 +101,7 @@ export interface NudgeUiOptions {
   skipReactAliases?: boolean;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
   tailwindV3?: { config: TailwindV3Config; source?: string };
-  vanillaExtract?: VanillaExtractAdapterOptions;
+  vanillaExtract?: VanillaExtractOptions;
   /**
    * Optional package contract overrides. Local TSX and package declaration
    * contracts are discovered automatically; explicit metadata fills gaps for
@@ -367,10 +386,6 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
   // Adapter pins it once per plugin instance.
   const inspectorComponentRuntimePath = resolveInspectorComponentRuntime();
   let packageComponentFingerprint = "";
-  const adapterRegistry = createTokenAdapterRegistry([
-    ...(options.tailwindV3 ? [createTailwindV3Adapter(options.tailwindV3.config, options.tailwindV3.source)] : []),
-    ...(options.vanillaExtract ? [createSprinklesAdapter(options.vanillaExtract)] : []),
-  ]);
 
   /**
    * Resolve the source scope at hook time. Vite's final root and output
@@ -608,38 +623,44 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
     await refreshPublishedThemeContract();
   }
 
-  function publishedThemeContractContribution() {
-    return createPublishedVanillaExtractContribution({
-      moduleSpecifier: options.vanillaExtract?.themeContractModule,
-      loaded: publishedThemeContractLoaded,
-      contract: publishedThemeContract,
-      diagnostics: contractDiagnostics,
-      resolvedModuleId: publishedThemeContractModuleId,
-      projectRoot: root,
-      prefix: options.vanillaExtract?.themeContractPrefix,
-      source: options.vanillaExtract?.source,
-    });
-  }
 
   /**
-   * Merge every styling-Adapter contribution INSIDE the inventory so the
-   * snapshot already carries the final adapter/origin/editable labels: literal
-   * tokens (Tailwind v3 config, Sprinkles), Tailwind v4 relabellings, and the
-   * published vanilla-extract theme-contract
-   * enrichment as id-keyed contributions. Every call is idempotent (identical
-   * facts are no-ops), so load() and the HMR exactly-once guard share one path.
+   * Hands everything this host observed about CSS dialects to the interpreter
+   * and applies what comes back, so the snapshot already carries final
+   * adapter/origin/editable labels. Every contribution is id-keyed and
+   * replaceable, so repeating this with unchanged facts is a no-op and load()
+   * can share one path with the HMR exactly-once guard.
    */
   function syncInventoryContributions(): void {
-    inventory.applyContribution(adapterRegistry.toInventoryContribution([
-      ...sourceScanDiagnostics.values(),
-      ...activeGraphDiagnostics,
-    ]));
-    if (tailwindV4SourceFiles.size > 0) {
-      inventory.applyContribution(createTailwindV4NamingContribution());
-    } else {
-      inventory.applyContribution({ id: "tailwind-v4-naming", order: 0 });
-    }
-    inventory.applyContribution(publishedThemeContractContribution());
+    const { contributions } = interpretDialects({
+      ...(options.tailwindV3 === undefined ? {} : { tailwindV3: options.tailwindV3 }),
+      tailwindV4Css: tailwindV4SourceFiles.size > 0,
+      ...(options.vanillaExtract?.themeContract === undefined ? {} : {
+        inlineThemeContract: {
+          contract: options.vanillaExtract.themeContract,
+          ...(options.vanillaExtract.cssValues === undefined
+            ? {}
+            : { cssValues: options.vanillaExtract.cssValues }),
+          ...(options.vanillaExtract.source === undefined
+            ? {}
+            : { source: options.vanillaExtract.source }),
+        },
+      }),
+      publishedThemeContract: {
+        attempted: options.vanillaExtract?.themeContractModule !== undefined
+          && publishedThemeContractLoaded,
+        contract: publishedThemeContract,
+        fromPackage: publishedThemeContractModuleId !== null
+          && isPackageStylesheet(publishedThemeContractModuleId, root),
+        ...(options.vanillaExtract?.themeContractPrefix === undefined
+          ? {}
+          : { prefix: options.vanillaExtract.themeContractPrefix }),
+        source: options.vanillaExtract?.source ?? options.vanillaExtract?.themeContractModule ?? "",
+        diagnostics: contractDiagnostics,
+      },
+      diagnostics: [...sourceScanDiagnostics.values(), ...activeGraphDiagnostics],
+    });
+    for (const contribution of contributions) inventory.applyContribution(contribution);
   }
 
   /**
@@ -1227,15 +1248,8 @@ export function nudgeUi(options: NudgeUiOptions = {}): Plugin[] {
 
 export { isHostApplicationSource } from "./tokens/viteStylesheetArtifacts.ts";
 export type { TokenContext, TokenDeclaration, TokenDefinition, TokenEntry } from "./virtual/design-tokens.ts";
-export { createTailwindV4Adapter, createTailwindV4NamingContribution, detectTailwindV4, entriesFromTailwindV4Catalog, mapTailwindV4ColorOpacity, tailwindV4ColorExpression } from "./adapters/tailwindV4.ts";
-export type { TailwindAlphaMapping } from "./adapters/tailwindV4.ts";
-export { createTailwindV3Adapter, detectTailwindV3Config, extractTailwindV3Tokens, resolveTailwindV3ClassName, tailwindV3ColorDeclaration } from "./adapters/tailwindV3.ts";
-export type { TailwindV3Config, TailwindV3Mapping } from "./adapters/tailwindV3.ts";
-export { createTokenAdapterRegistry } from "./adapters/registry.ts";
-export { createSprinklesAdapter, createVanillaExtractAdapter, extractVanillaExtractTokens, resolveSprinklesClassName } from "./adapters/vanillaExtract.ts";
-export type { TokenAdapter, TokenMapping } from "./adapters/types.ts";
-export type { ThemeContract, SprinklesClassMap, VanillaExtractAdapterOptions } from "./adapters/vanillaExtract.ts";
-export { materializeVanillaExtractContract, mergeVanillaExtractContract } from "./adapters/vanillaExtractRuntime.ts";
-export type { MaterializedTokenCatalog, MaterializeVanillaExtractOptions } from "./adapters/vanillaExtractRuntime.ts";
-export { materializeVanillaExtractContribution } from "./adapters/vanillaExtractContract.ts";
-export type { MaterializeVanillaExtractContractOptions } from "./adapters/vanillaExtractContract.ts";
+/**
+ * Dialect interpretation is host-neutral and lives in `@nudge-ui/css/dialects`,
+ * where the browser runtime can reach it too. This host only gathers evidence.
+ */
+export type { TailwindV3Config, ThemeContract } from "@nudge-ui/css/dialects";

@@ -34,6 +34,11 @@
       "import": "./dist/value-semantics/index.js",
       "default": "./dist/value-semantics/index.js"
     },
+    "./dialects": {
+      "types": "./dist/dialects/index.d.ts",
+      "import": "./dist/dialects/index.js",
+      "default": "./dist/dialects/index.js"
+    },
     "./token-inventory": {
       "types": "./dist/token-inventory/index.d.ts",
       "import": "./dist/token-inventory/index.js",

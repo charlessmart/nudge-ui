@@ -9,7 +9,7 @@ import type {
   StylesheetArtifact,
 } from "@nudge-ui/css/token-inventory";
 import { relativePath } from "@nudge-ui/compiler";
-import { detectTailwindV4 } from "../adapters/tailwindV4.ts";
+import { detectTailwindV4 } from "@nudge-ui/css/dialects";
 import type { CssImportGraph } from "./activeStylesheets.ts";
 import { stripCssQuery } from "./activeStylesheets.ts";
 

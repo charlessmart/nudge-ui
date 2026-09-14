@@ -28,11 +28,6 @@
       "types": "./dist/virtual/design-tokens.d.ts",
       "import": "./dist/virtual/design-tokens.js",
       "default": "./dist/virtual/design-tokens.js"
-    },
-    "./vanilla-extract-runtime": {
-      "types": "./dist/adapters/vanillaExtractRuntime.d.ts",
-      "import": "./dist/adapters/vanillaExtractRuntime.js",
-      "default": "./dist/adapters/vanillaExtractRuntime.js"
     }
   },
   "scripts": {

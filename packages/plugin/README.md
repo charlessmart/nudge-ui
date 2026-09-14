@@ -107,7 +107,10 @@ package records a `../`-prefixed path, so it stays unique against the
 application's own files and never serialises a machine path into a prompt or a
 DOM attribute.
 
-The adapter exposes optional `tokens` and `vanilla-extract-runtime` subpaths for
-host integrations. Application projects normally need only the root
-`withNudgeUi` export. Identity injection and component-contract extraction are
-host-neutral compilers: import them from `@nudge-ui/compiler`.
+The adapter exposes an optional `tokens` subpath for host integrations.
+Application projects normally need only the root `withNudgeUi` export.
+
+This adapter gathers evidence; it does not interpret it. Identity injection and
+component-contract extraction are host-neutral compilers in
+`@nudge-ui/compiler`, and Tailwind and vanilla-extract interpretation lives in
+`@nudge-ui/css/dialects`, where the browser runtime reads the same grammar.
