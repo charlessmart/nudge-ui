@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
-import { getAppFrame, openEditor } from "./editor.ts";
+import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
 
 type RowInfo = {
   property: string;

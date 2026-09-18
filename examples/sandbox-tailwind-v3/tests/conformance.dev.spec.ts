@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: Tailwind v3 fixture exposes config provenance, literal spacing values, and opacity helper", async ({ page }) => {
   const app = await openEditor(page, "/tailwind-v3");

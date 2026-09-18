@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { appLocator, getAppFrame, openEditor } from "./editor.ts";
+import { appLocator, getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: hover overlay highlights and click selects a host element", async ({ page }) => {
   await openEditor(page, "/playground");

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { getAppFrame, openEditor } from "./editor.ts";
+import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function waitForAtRuleIndicator(
   page: import("@playwright/test").Page,

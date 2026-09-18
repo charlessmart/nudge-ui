@@ -5,6 +5,8 @@ export interface StructuralDelete {
   id: string;
   kind: "delete";
   target: RenderedInstanceRef;
+  /** Hash-independent route where the target was captured. */
+  route?: string;
 }
 
 /** Controller-owned intent to move one rendered instance. */

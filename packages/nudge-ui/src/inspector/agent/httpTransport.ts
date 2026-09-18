@@ -20,8 +20,7 @@ import {
   type BridgeEnvelope,
   type CanvasCommand,
 } from "./protocol.ts";
-import { getRegisteredFrames } from "../canvas/projection.ts";
-import { getFocusedCardId, getSelectedCardId } from "../canvas/canvasStore.ts";
+import { getActiveCanvasDocument } from "../canvas/activeCanvasDocument.ts";
 
 interface AgentWindow extends Window {
   __NUDGE_UI_AGENT_BRIDGE__?: AgentBridgeEndpointConfig;
@@ -67,29 +66,8 @@ function configuredEndpoint(): AgentBridgeEndpointConfig | undefined {
   if (typeof document === "undefined") return undefined;
   const controllerConfig = configuredEndpointInDocument(document);
   if (controllerConfig) return controllerConfig;
-  const activeCardId = getSelectedCardId() ?? getFocusedCardId();
-  if (activeCardId) {
-    const activeFrame = getRegisteredFrames().get(activeCardId);
-    if (!activeFrame) return undefined;
-    try {
-      return activeFrame.contentDocument
-        ? configuredEndpointInDocument(activeFrame.contentDocument)
-        : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-  for (const frame of getRegisteredFrames().values()) {
-    try {
-      const previewConfig = frame.contentDocument
-        ? configuredEndpointInDocument(frame.contentDocument)
-        : undefined;
-      if (previewConfig) return previewConfig;
-    } catch {
-      // Cross-origin frames cannot supply trusted bridge configuration.
-    }
-  }
-  return undefined;
+  const previewDocument = getActiveCanvasDocument();
+  return previewDocument ? configuredEndpointInDocument(previewDocument) : undefined;
 }
 
 /** Returns whether the dev host supplied a trusted project bridge endpoint. */

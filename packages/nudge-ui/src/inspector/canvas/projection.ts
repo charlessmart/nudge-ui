@@ -350,22 +350,16 @@ export function projectToAllReadyCards(): void {
   if (getCanvasMode() !== "canvas") return;
   const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = computeProjection();
   for (const [cardId, iframe] of frameRegistry) {
-    const win = iframe.contentWindow;
-    if (!win) continue;
-    const msg: ReplaceStylesMessage = {
-      type: "replace-styles",
-      protocolVersion: PROTOCOL_VERSION,
-      projectId: PROJECT_ID,
-      workspaceId: WORKSPACE_ID,
+    sendProjectionMessage(
       cardId,
+      iframe,
+      rev,
       css,
-      revision: rev,
-      instanceOverrides: [...instanceOverrides],
-      structuralChanges: [...structuralChanges],
-      textContentChanges: [...textContentChanges],
-      componentOverrides: [...componentOverrides],
-    };
-    markProjectionSent(cardId, iframe, rev, true);
-    win.postMessage(msg, window.location.origin);
+      instanceOverrides,
+      structuralChanges,
+      textContentChanges,
+      componentOverrides,
+      true,
+    );
   }
 }

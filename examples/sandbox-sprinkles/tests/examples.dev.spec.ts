@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("Sprinkles uses named color-mix variants for color opacity", async ({ page }) => {
   const app = await openEditor(page, "/examples");

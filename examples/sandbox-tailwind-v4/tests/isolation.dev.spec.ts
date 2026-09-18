@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("Tailwind v4 owns its stylesheet graph and catalog", async ({ page }) => {
   const app = await openEditor(page, "/examples");

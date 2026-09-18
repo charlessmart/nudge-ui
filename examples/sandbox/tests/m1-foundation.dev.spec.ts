@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: data-cid / data-src / data-cprops injected on JSX elements", async ({ page }) => {
   const app = await openEditor(page, "/playground");

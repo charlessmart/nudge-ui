@@ -22,10 +22,21 @@ export function isStructuralProjectionReport(value: unknown): value is Structura
 export function isStructuralDelete(value: unknown): value is StructuralDelete {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
-  if (!hasOnlyKeys(candidate, ["id", "kind", "target"])) return false;
+  if (!hasOnlyKeys(candidate, ["id", "kind", "target", "route"])) return false;
   return candidate.kind === "delete"
     && typeof candidate.id === "string"
+    && (candidate.route === undefined || isRoute(candidate.route))
     && isRenderedInstanceRef(candidate.target);
+}
+
+function isRoute(value: unknown): boolean {
+  if (typeof value !== "string" || value.length > 2048) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") && url.hash === "";
+  } catch {
+    return false;
+  }
 }
 
 export function isStructuralMove(value: unknown): value is StructuralMove {

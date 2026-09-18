@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
 import { IconRefresh, IconExternalLink, IconCopy, IconArrowsDiagonal } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
-  isRendererMessageFor,
-  type FrameProtocolMessage,
 } from "./frameProtocol.ts";
 import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, invalidateCanvasPreviewDocument, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -23,6 +21,7 @@ import { startClipboardHandoffController } from "../prompt/clipboardHandoff.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, type NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { reconcileRuntimeWithDocumentStylesheets } from "../runtime/documentStylesheetOrder.ts";
+import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -39,7 +38,8 @@ const MIN_CARD_HEIGHT = 150;
 
 export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onOpenApp, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const initialUrlRef = useRef(card.url);
+  const initialUrlRef = useRef(card.navigationUrl ?? card.url);
+  const navigationUrlRef = useRef(card.navigationUrl);
   const documentSessionRef = useRef<{ document: Document; session: DocumentSession } | null>(null);
   const frameRuntimeRef = useRef<NudgeUiRuntimeConfig | null>(null);
   const [loadState, setLoadState] = useState<CardLoadState>("loading");
@@ -57,6 +57,17 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     documentSessionRef.current?.session.dispose();
     documentSessionRef.current = null;
   }, []);
+
+  const loadFrame = useCallback((url?: string): void => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    if (getSelectedCardId() === card.id) setSelectedElement(null);
+    disposeDocumentSession();
+    invalidateCanvasPreviewDocument(card.id);
+    setLoadState("loading");
+    setErrorMessage(null);
+    iframe.setAttribute("src", url ?? iframe.src);
+  }, [card.id, disposeDocumentSession]);
 
   const bindDocumentSession = useCallback((): void => {
     const frameDocument = iframeRef.current?.contentDocument;
@@ -83,15 +94,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   }, [bindDocumentSession, card.id, disposeDocumentSession]);
 
   function handleReload(): void {
-    if (iframeRef.current) {
-      if (getSelectedCardId() === card.id) setSelectedElement(null);
-      disposeDocumentSession();
-      invalidateCanvasPreviewDocument(card.id);
-      setLoadState("loading");
-      setErrorMessage(null);
-      const currentSrc = iframeRef.current.src;
-      iframeRef.current.setAttribute("src", currentSrc);
-    }
+    loadFrame();
   }
 
   function handleRemove(): void {
@@ -139,32 +142,14 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
   }, [isSelected]);
 
   useEffect(() => {
-    function onMessage(event: MessageEvent): void {
-      if (event.origin !== window.location.origin) return;
-      if (event.source !== iframeRef.current?.contentWindow) return;
-
-      const msg = event.data;
-      if (!msg || typeof msg !== "object") return;
-
+    return subscribeCanvasRendererMessages(({ cardId, message: data }) => {
+      if (cardId !== card.id) return;
       // A renderer whose runtime finished booting after the iframe load event
       // asks for the identity announcement it may have missed.
-      // SAFETY: Renderer messages arrive as unvalidated structured clones, so the discriminant must be read structurally.
-      if ((msg as { type?: string }).type === "renderer-hello") {
-        // SAFETY: The `type === "renderer-hello"` branch above selects exactly the hello payload shape.
-        const hello = msg as { protocolVersion?: number };
-        if (hello.protocolVersion !== PROTOCOL_VERSION) return;
+      if (data.type === "renderer-hello") {
         sendParentReady();
         return;
       }
-
-      if (!isRendererMessageFor(msg, {
-        projectId: PROJECT_ID,
-        workspaceId: WORKSPACE_ID,
-        cardId: card.id,
-      })) return;
-
-      // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
-      const data = msg as FrameProtocolMessage;
 
       if (data.type === "frame-ready") {
         adoptFrameRuntime(data.runtime);
@@ -194,15 +179,15 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       if (data.type === "frame-error") {
         setLoadState("error");
         setErrorMessage(data.message || "Frame failed to load");
-        return;
       }
-    }
-
-    window.addEventListener("message", onMessage);
-    return () => {
-      window.removeEventListener("message", onMessage);
-    };
+    });
   }, [card.id]);
+
+  useLayoutEffect(() => {
+    if (!card.navigationUrl || navigationUrlRef.current === card.navigationUrl) return;
+    navigationUrlRef.current = card.navigationUrl;
+    loadFrame(card.navigationUrl);
+  }, [card.navigationUrl, loadFrame]);
 
   useEffect(() => {
     if (loadState !== "loading") return;

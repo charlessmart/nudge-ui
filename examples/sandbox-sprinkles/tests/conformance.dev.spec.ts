@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("Sprinkles conformance uses real generated classes and contract paths", async ({ page }) => {
   const app = await openEditor(page, "/sprinkles");

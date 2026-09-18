@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { appLocator } from "./editor.ts";
+import { appLocator } from "@nudge-ui/compatibility/playwright";
 
 test("dev: landing page renders the Penpot 'Landing V6 — Mono' design", async ({ page }) => {
   await page.goto("/");

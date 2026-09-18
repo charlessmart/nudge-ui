@@ -2,10 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type
 import {
   isElementClickMessage,
   isInlineTextIntentMessage,
-  isRendererMessageFor,
-  type FrameProtocolMessage,
 } from "./frameProtocol.ts";
-import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { useBoardCamera, useCanvasCards, useCanvasPresentation, useCanvasPresentationTransitioning } from "./canvasStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
 import { getSelectedElements, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
@@ -33,6 +30,7 @@ import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
 import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
 import { toggleInspector, useInspectorOpen } from "../shell/openStore.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
+import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 
 interface ElementIdentity {
   elementId: string;
@@ -197,21 +195,13 @@ export function CanvasElementOverlay(): ReactElement | null {
   }, [selected?.domElement]);
 
   useEffect(() => {
-    function onMessage(event: MessageEvent): void {
-      if (event.origin !== window.location.origin) return;
-      if (!event.data || typeof event.data !== "object") return;
-      const sourceFrame = findCanvasFrameBySource(event.source);
-      if (!sourceFrame) return;
-      const { cardId: sourceCardId, iframe: sourceIframe } = sourceFrame;
-      const frameIdentity = {
-        projectId: PROJECT_ID,
-        workspaceId: WORKSPACE_ID,
-        cardId: sourceCardId,
-      };
-      if (!isRendererMessageFor(event.data, frameIdentity)) return;
-
-      // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
-      const data = event.data as FrameProtocolMessage;
+    const unsubscribe = subscribeCanvasRendererMessages(({
+      cardId: sourceCardId,
+      iframe: sourceIframe,
+      identity: frameIdentity,
+      message: data,
+    }) => {
+      if (data.type === "renderer-hello") return;
 
       if (data.type === "element-hover") {
         const msg = data;
@@ -236,12 +226,12 @@ export function CanvasElementOverlay(): ReactElement | null {
           pointerOverPage: msg.pointerOverPage,
         });
       } else if (data.type === "element-click") {
-        if (!isElementClickMessage(event.data, frameIdentity)) return;
+        if (!isElementClickMessage(data, frameIdentity)) return;
         const msg = data;
         if (!msg.cid) return;
         handleElementClick(msg, sourceIframe, sourceCardId);
       } else if (data.type === "inline-text-intent") {
-        if (!isInlineTextIntentMessage(event.data, frameIdentity)) return;
+        if (!isInlineTextIntentMessage(data, frameIdentity)) return;
         if (getSelectedElements().length > 1) return;
         const emptyProjection = data.emptyProjectionId
           ? Array.from(sourceIframe.contentDocument?.querySelectorAll<Element>(`[${EMPTY_TEXT_PROJECTION_ATTR}]`) ?? [])
@@ -317,11 +307,9 @@ export function CanvasElementOverlay(): ReactElement | null {
         }
         showDropGuide("canvas", iframe.contentDocument, drop);
       }
-    }
-
-    window.addEventListener("message", onMessage);
+    });
     return () => {
-      window.removeEventListener("message", onMessage);
+      unsubscribe();
       clearDropGuide("canvas");
     };
   }, []);

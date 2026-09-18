@@ -26,12 +26,11 @@ import {
   applyHostWorkspaceProjection,
   compileWorkspaceProjection,
 } from "../projection/workspaceProjection.ts";
-import { getRegisteredFrames } from "../canvas/projection.ts";
 import {
   isCanvasProjectionRevisionCurrent,
   projectWorkspaceSnapshotToDocument,
 } from "../canvas/projection.ts";
-import { getFocusedCardId, getSelectedCardId } from "../canvas/canvasStore.ts";
+import { getActiveCanvasDocument } from "../canvas/activeCanvasDocument.ts";
 import { getSelectedElement } from "../selection/selectionStore.ts";
 import { isEditorShellDocument } from "../runtime/editorShell.ts";
 
@@ -113,11 +112,17 @@ function verifyText(change: Extract<ChangeRecord, { kind: "text-content" }>, doc
  * verifies.
  */
 function verifyStructuralDelete(change: StructuralDelete, doc: Document): boolean {
-  // A miss cannot prove that this document renders the route where the delete
-  // was authored. Keep the change until route applicability is durable data.
-  void change;
-  void doc;
-  return false;
+  if (!change.route || !doc.location) return false;
+  let currentRoute: string;
+  try {
+    const url = new URL(doc.location.href);
+    url.hash = "";
+    currentRoute = url.href;
+  } catch {
+    return false;
+  }
+  return currentRoute === change.route
+    && resolveRenderedInstance(doc, change.target).status === "missing";
 }
 
 /**
@@ -302,30 +307,7 @@ export async function verifyAndReconcileHandoff(
 function activeVerificationDocument(): Document | null {
   const selectedDocument = getSelectedElement()?.domElement.ownerDocument;
   if (selectedDocument && selectedDocument !== document) return selectedDocument;
-  const selectedCardId = getSelectedCardId();
-  const selectedFrame = selectedCardId
-    ? getRegisteredFrames().get(selectedCardId)
-    : undefined;
-  try {
-    if (selectedFrame?.contentDocument) return selectedFrame.contentDocument;
-  } catch {
-    // Continue to another same-origin preview.
-  }
-  const focusedCardId = getFocusedCardId();
-  const focusedFrame = focusedCardId ? getRegisteredFrames().get(focusedCardId) : undefined;
-  try {
-    if (focusedFrame?.contentDocument) return focusedFrame.contentDocument;
-  } catch {
-    // Continue to another same-origin preview.
-  }
-  for (const frame of getRegisteredFrames().values()) {
-    try {
-      if (frame.contentDocument) return frame.contentDocument;
-    } catch {
-      // Cross-origin previews cannot provide browser-verifiable evidence.
-    }
-  }
-  return isEditorShellDocument() ? null : document;
+  return getActiveCanvasDocument() ?? (isEditorShellDocument() ? null : document);
 }
 
 /** Reconciles the captured records for one completed connected-agent request. */

@@ -214,11 +214,6 @@ export interface InspectorToggleRequestMessage extends RendererMessage {
   type: "inspector-toggle-request";
 }
 
-export interface ExternalNavigationMessage extends RendererMessage {
-  type: "external-navigation";
-  url: string;
-}
-
 export interface PanStartMessage extends RendererMessage {
   type: "pan-start";
   point: { x: number; y: number };
@@ -277,7 +272,6 @@ export type FrameProtocolMessage =
   | ElementNudgeMessage
   | HistoryRequestMessage
   | InspectorToggleRequestMessage
-  | ExternalNavigationMessage
   | PanStartMessage
   | PanMoveMessage
   | PanEndMessage

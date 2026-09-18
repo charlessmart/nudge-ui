@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function shadowClick(page: import("@playwright/test").Page, testId: string): Promise<void> {
   await page.locator(`[data-test="${testId}"]`).click();

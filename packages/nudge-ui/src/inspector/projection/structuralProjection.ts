@@ -194,6 +194,17 @@ function structuralId(): string {
   return `structural-${crypto.randomUUID?.() ?? nextStructuralId++}`;
 }
 
+function documentRoute(doc: Document): string | undefined {
+  if (!doc.location) return undefined;
+  try {
+    const url = new URL(doc.location.href);
+    url.hash = "";
+    return url.href;
+  } catch {
+    return undefined;
+  }
+}
+
 function cloneSnapshot(snapshot: readonly StructuralChange[]): StructuralChange[] {
   // Structural changes are small JSON-safe records. Cloning their top-level
   // array is enough: no operation mutates a change or its nested references.
@@ -208,7 +219,13 @@ function projectStructuralChanges(snapshot: WorkspaceChangesSnapshot): void {
 export function createStructuralDelete(element: HTMLElement, id = structuralId()): StructuralDelete | null {
   const target = captureRenderedInstance(element);
   if (!target) return null;
-  const change: StructuralDelete = { id, kind: "delete", target };
+  const route = documentRoute(element.ownerDocument);
+  const change: StructuralDelete = {
+    id,
+    kind: "delete",
+    target,
+    ...(route ? { route } : {}),
+  };
   if (!workspaceChangeStore.commitStructuralChange(change)) return null;
   projectStructuralChanges(workspaceChangeStore.getSnapshot());
   return change;

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: catalog retains light and dark declarations for one token", async ({ page }) => {
   const app = await openEditor(page, "/playground");

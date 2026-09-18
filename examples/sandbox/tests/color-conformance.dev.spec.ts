@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
-import { appLocator, openEditor } from "./editor.ts";
+import { appLocator, openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect.poll(async () => page.evaluate(() => Boolean(

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
-import { appLocator, openEditor } from "./editor.ts";
+import { appLocator, openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function panelOpen(page: import("@playwright/test").Page): Promise<string | null> {
   return page.evaluate(() => document

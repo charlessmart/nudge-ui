@@ -31,7 +31,6 @@ import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import { beginPreviewAttempt, publishPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
 import { verifyManagedStyleProjection } from "../changes/managedStyleProjection.ts";
 import {
-  findCanvasFrameBySource,
   getCanvasPreviewDocument,
   getRegisteredFrames,
   isCanvasCanonicalProjectionRevisionCurrent,
@@ -45,12 +44,10 @@ import { createNudgeUiEditorUrl } from "../../transport/editor.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import {
   PROTOCOL_VERSION,
-  isRendererMessageFor,
   isProjectionAppliedMessage,
   isRenderedInstanceProjectionReportMessage,
   isTextProjectionReportMessage,
   isStructuralProjectionReportMessage,
-  type FrameProtocolMessage,
 } from "./frameProtocol.ts";
 import { iframePointToClientPoint, zoomCameraAtPointer } from "./canvasGestures.ts";
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
@@ -61,6 +58,7 @@ import { isEditableEvent } from "../shell/shortcuts.ts";
 import { acknowledgeAgentRendererReady } from "./agentPresentation.ts";
 import { useInspectorSession } from "../session/sessionContext.tsx";
 import { createNudgeUiDirectUrl } from "../../transport/editor.ts";
+import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");
 
@@ -87,7 +85,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const spaceHeldRef = useRef(false);
   const fitAllScheduledRef = useRef(false);
   const activatedTargetRef = useRef<string | null>(null);
-  const previousPresentationRef = useRef(presentation);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
@@ -105,7 +102,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
   useEffect(() => {
     if (primaryUrl && activatedTargetRef.current !== primaryUrl) return;
-    const activeCardId = selectedCardId ?? focusedCardId;
+    const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
     const activeCard = cards.find((card) => card.id === activeCardId);
     if (!activeCard) return;
     const editorUrl = createNudgeUiEditorUrl(activeCard.url);
@@ -207,28 +204,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, []);
 
   useLayoutEffect(() => {
-    if (previousPresentationRef.current === presentation) return;
-    previousPresentationRef.current = presentation;
-    if (presentation !== "canvas") {
-      endPanning();
-      spaceHeldRef.current = false;
-      setBoardCursorClass("");
-      broadcastPanModifier(false);
-      return;
-    }
-    const board = boardRef.current;
-    const card = cards.find((candidate) => candidate.id === presentationCardId);
-    if (!board || !card) return;
-    const zoom = 0.75;
-    const focusedWidth = Math.max(200, board.clientWidth);
-    const focusedHeight = Math.max(150, board.clientHeight);
-    resizeCard(card.id, focusedWidth, focusedHeight);
-    setBoardCamera({
-      x: Math.max(40, (board.clientWidth - focusedWidth * zoom) / 2) - card.x * zoom,
-      y: Math.max(64, (board.clientHeight - focusedHeight * zoom) / 2) - card.y * zoom,
-      zoom,
-    });
-  }, [broadcastPanModifier, cards, endPanning, presentation, presentationCardId]);
+    if (presentation !== "focus") return;
+    endPanning();
+    spaceHeldRef.current = false;
+    setBoardCursorClass("");
+    broadcastPanModifier(false);
+  }, [broadcastPanModifier, endPanning, presentation]);
 
   useEffect(() => {
     return subscribeChanges(() => {
@@ -237,32 +218,19 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, []);
 
   useEffect(() => {
-    function onMessage(event: MessageEvent): void {
-      if (event.origin !== window.location.origin) return;
-      if (!event.data || typeof event.data !== "object") return;
-      const frame = findCanvasFrameBySource(event.source);
-      if (!frame) return;
-      if (!isRendererMessageFor(event.data, {
-        projectId: PROJECT_ID,
-        workspaceId: WORKSPACE_ID,
-        cardId: frame.cardId,
-      })) return;
-
-      const identity = {
-        projectId: PROJECT_ID,
-        workspaceId: WORKSPACE_ID,
-        cardId: frame.cardId,
-      };
+    return subscribeCanvasRendererMessages(({ cardId, iframe, identity, message: msg }) => {
+      if (msg.type === "renderer-hello") return;
+      const frame = { cardId, iframe };
       const syncActiveFrameUrl = (url: string): void => {
         updateCardUrl(frame.cardId, url);
-        const activeCardId = getSelectedCardId() ?? getFocusedCardId();
+        const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
         if (activeCardId !== frame.cardId && getCanvasCards().length !== 1) return;
         window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(url));
       };
-      if (isProjectionAppliedMessage(event.data, identity)) {
-        recordCanvasProjectionApplied(frame.cardId, event.data.revision);
+      if (isProjectionAppliedMessage(msg, identity)) {
+        recordCanvasProjectionApplied(frame.cardId, msg.revision);
         const frameDocument = frame.iframe.contentDocument;
-        if (frameDocument && isCanvasCanonicalProjectionRevisionCurrent(frameDocument, event.data.revision)) {
+        if (frameDocument && isCanvasCanonicalProjectionRevisionCurrent(frameDocument, msg.revision)) {
           const attempt = beginPreviewAttempt(
             getCanvasPreviewDocument(frame.cardId),
             getWorkspaceChanges().revision,
@@ -275,7 +243,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
                 publishPreviewDiagnostic(attempt, changeKey(change), result);
                 if (result.status === "conflict" && result.reason === "animation") {
                   window.setTimeout(() => {
-                    if (!isCanvasCanonicalProjectionRevisionCurrent(frameDocument, event.data.revision)) return;
+                    if (!isCanvasCanonicalProjectionRevisionCurrent(frameDocument, msg.revision)) return;
                     const settled = verifyManagedStyleProjection(change, null, frameDocument);
                     if (settled) publishPreviewDiagnostic(attempt, changeKey(change), settled);
                   }, 300);
@@ -286,21 +254,18 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         }
         return;
       }
-      if (isStructuralProjectionReportMessage(event.data, identity)) {
-        recordCanvasStructuralProjectionReports(frame.cardId, event.data.revision, event.data.reports);
+      if (isStructuralProjectionReportMessage(msg, identity)) {
+        recordCanvasStructuralProjectionReports(frame.cardId, msg.revision, msg.reports);
         return;
       }
-      if (isRenderedInstanceProjectionReportMessage(event.data, identity)) {
-        recordCanvasRenderedInstanceProjectionReports(frame.cardId, event.data.revision, event.data.reports);
+      if (isRenderedInstanceProjectionReportMessage(msg, identity)) {
+        recordCanvasRenderedInstanceProjectionReports(frame.cardId, msg.revision, msg.reports);
         return;
       }
-      if (isTextProjectionReportMessage(event.data, identity)) {
-        recordCanvasTextProjectionReports(frame.cardId, event.data.revision, event.data.reports);
+      if (isTextProjectionReportMessage(msg, identity)) {
+        recordCanvasTextProjectionReports(frame.cardId, msg.revision, msg.reports);
         return;
       }
-
-      // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
-      const msg = event.data as FrameProtocolMessage;
       if (msg.type === "frame-ready") {
         acknowledgeAgentRendererReady(frame.cardId);
         syncActiveFrameUrl(msg.url);
@@ -355,12 +320,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         endPanning();
         return;
       }
-      if (msg.type === "external-navigation") {
-        const destination = normalizeUrl(msg.url);
-        if (!destination || destination.origin === window.location.origin) return;
-        window.location.href = msg.url;
-        return;
-      }
       if (msg.type === "frame-metadata") {
         const frameDocument = frame.iframe.contentDocument;
         if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
@@ -373,10 +332,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
       const frameDocument = frame.iframe.contentDocument;
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
-    }
-
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    });
   }, [broadcastPanModifier, endPanning, inspectorOpen, movePanning, presentation, sendBoardGestureState, sendInspectorInteractionState, sendPanModifier, startPanning, zoomAtPointer]);
 
   useEffect(() => {

@@ -62,6 +62,7 @@ describe("agent completion verification", () => {
     clearWorkspace();
     resetAgentVerification();
     resetStructuralDeleteProjection();
+    window.history.replaceState({}, "", "/");
     vi.unstubAllGlobals();
   });
 
@@ -111,7 +112,7 @@ describe("agent completion verification", () => {
     }]);
   });
 
-  it("keeps structural deletes when the active document cannot prove route applicability", async () => {
+  it("reconciles only the structural delete that is absent from its authored route", async () => {
     document.body.replaceChildren();
     const applied = addItem("0.1");
     const pending = addItem("0.2");
@@ -130,14 +131,28 @@ describe("agent completion verification", () => {
     expect(placeholders).toHaveLength(2);
     placeholders[0]!.remove();
 
-    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
-    expect(getStructuralChanges().map((change) => change.id)).toEqual([
-      "delete-applied",
-      "delete-pending",
-    ]);
+    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(1);
+    expect(getStructuralChanges().map((change) => change.id)).toEqual(["delete-pending"]);
     expect(applied.isConnected).toBe(false);
     expect(pending.isConnected).toBe(false);
 
+  });
+
+  it("keeps a structural delete while a different route is active", async () => {
+    window.history.replaceState({}, "", "/authored");
+    document.body.replaceChildren();
+    const target = addItem("0.1");
+    const change = createStructuralDelete(target, "delete-other-route")!;
+    applyStructuralProjection(document, getStructuralChanges());
+    recordAgentDispatch(7, [], getStructuralChanges());
+    const placeholder = Array.from(document.body.childNodes)
+      .find((node): node is Comment => node.nodeType === node.COMMENT_NODE);
+    placeholder?.remove();
+    expect(target.isConnected).toBe(false);
+    window.history.replaceState({}, "", "/other");
+
+    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    expect(getStructuralChanges()).toEqual([change]);
   });
 
   it("keeps a structural delete whose element the source still renders", async () => {

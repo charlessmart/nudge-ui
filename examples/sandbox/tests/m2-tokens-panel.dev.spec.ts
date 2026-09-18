@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function fieldState(page: import("@playwright/test").Page): Promise<{
   topTokenPanel: boolean;

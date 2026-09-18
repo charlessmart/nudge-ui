@@ -233,8 +233,30 @@ describe("iframe workspace startup", () => {
     activateIframeWorkspace(requested, { width: 1200, height: 800 });
 
     expect(getCanvasCards()).toHaveLength(1);
-    expect(getCanvasCards()[0]?.url).toBe(requested);
+    expect(getCanvasCards()[0]).toMatchObject({
+      url: requested,
+      navigationUrl: requested,
+    });
     expect(getFocusedCardId()).toBe("card-42");
+  });
+
+  it("keeps the restored focused duplicate when routes normalize to the same URL", () => {
+    const first = new URL("/playground#first", window.location.href).href;
+    const focused = new URL("/playground#focused", window.location.href).href;
+    hydrateCanvasStore("canvas", [
+      { id: "card-41", url: first, title: null, x: 0, y: 0, width: 600, height: 400 },
+      { id: "card-42", url: focused, title: null, x: 640, y: 0, width: 600, height: 400 },
+    ], { x: 0, y: 0, zoom: 1 }, [], "card-42");
+
+    const requested = new URL("/playground#requested", window.location.href).href;
+    activateIframeWorkspace(requested, { width: 1200, height: 800 });
+
+    expect(getFocusedCardId()).toBe("card-42");
+    expect(getCanvasCards().find((card) => card.id === "card-41")?.url).toBe(first);
+    expect(getCanvasCards().find((card) => card.id === "card-42")).toMatchObject({
+      url: requested,
+      navigationUrl: requested,
+    });
   });
 
   it("adds and focuses a new editor target without removing restored cards", () => {
@@ -617,6 +639,17 @@ describe("canvasStore card selection", () => {
     selectCard(card.id);
     removeCanvasCard(card.id);
     expect(getSelectedCardId()).toBeNull();
+  });
+
+  it("selects a remaining card when the active card is removed", () => {
+    const remaining = addCanvasCard("http://localhost:5173/about", "About");
+    const removed = addCanvasCard("http://localhost:5173/contact", "Contact");
+    selectCard(removed.id);
+
+    removeCanvasCard(removed.id);
+
+    expect(getSelectedCardId()).toBe(remaining.id);
+    expect(getFocusedCardId()).toBe(remaining.id);
   });
 
   it("maintains selection when non-selected card is removed", () => {

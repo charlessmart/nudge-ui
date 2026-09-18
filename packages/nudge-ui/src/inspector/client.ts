@@ -8,9 +8,8 @@ import { installStaticHtmlRuntimeIdentity } from "./runtime/staticHtmlRuntimeIde
 import { reconcileRuntimeWithDocumentStylesheets } from "./runtime/documentStylesheetOrder.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import { isNudgeUiDirectUrl, resolveNudgeUiClientEntry } from "../transport/editor.ts";
-import { getRegisteredFrames } from "./canvas/projection.ts";
-import { getFocusedCardId, getSelectedCardId } from "./canvas/canvasStore.ts";
 import { resetAgentClients } from "./agent/client.ts";
+import { getActiveCanvasDocument } from "./canvas/activeCanvasDocument.ts";
 export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
 
 const DEFAULT_MANIFEST_PATH = "/__nudge_ui__/manifest";
@@ -144,24 +143,7 @@ function prepareRuntime(
 }
 
 function findEditorPreviewDocument(): Document | null {
-  const frames = getRegisteredFrames();
-  const activeCardId = getSelectedCardId() ?? getFocusedCardId();
-  if (activeCardId) {
-    try {
-      const activeDocument = frames.get(activeCardId)?.contentDocument;
-      if (activeDocument) return activeDocument;
-    } catch {
-      // Cross-origin frames cannot supply trusted runtime evidence.
-    }
-  }
-  for (const frame of frames.values()) {
-    try {
-      if (frame.contentDocument) return frame.contentDocument;
-    } catch {
-      // Cross-origin frames cannot supply trusted runtime evidence.
-    }
-  }
-  return null;
+  return getActiveCanvasDocument();
 }
 
 function rememberDirectTabIntent(): void {

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect

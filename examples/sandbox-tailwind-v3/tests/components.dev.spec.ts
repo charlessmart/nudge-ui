@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("the Tailwind v3 component fixture exposes typed UI examples", async ({ page }) => {
   const app = await openEditor(page, "/components");

@@ -1,5 +1,5 @@
 import { test, expect, type FrameLocator, type Page } from "@playwright/test";
-import { ensureEditorOwnership } from "./editor.ts";
+import { ensureEditorOwnership } from "@nudge-ui/compatibility/playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { LEAF_IDS, expectedStyleFor } from "../src/perf-fixture/perfFixture.ts";

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: token picker stays bounded and supports selection", async ({ page }) => {
   const app = await openEditor(page, "/tailwind");

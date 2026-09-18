@@ -57,6 +57,7 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
+  await page.locator('[data-test="presentation-canvas"]').click();
   // Click the duplicate button on the first card
   const duplicateBtn = page.locator('[data-test^="canvas-card-duplicate-"]').first();
   await expect(duplicateBtn).toBeVisible();
@@ -78,6 +79,7 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
 test("dev: delete key removes a comparison card and recovers the final editing surface", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  await page.locator('[data-test="presentation-canvas"]').click();
 
   // Add a second card first
   await page.evaluate(() => {
@@ -106,9 +108,35 @@ test("dev: delete key removes a comparison card and recovers the final editing s
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 });
 
+test("dev: deleting the active route does not recreate it after reload", async ({ page }) => {
+  await page.goto("/playground");
+  await page.locator('[data-test="presentation-canvas"]').click();
+  await page.locator('[data-test^="canvas-card-duplicate-"]').first().click();
+  const cards = page.locator(".canvas-card");
+  const frames = page.frameLocator(".canvas-card__iframe");
+  await expect(cards).toHaveCount(2);
+
+  await frames.nth(1).locator('a[href="/conformance"]').click();
+  await expect.poll(() => frames.nth(1).locator("body").evaluate(() => location.pathname)).toBe("/conformance");
+  await cards.nth(1).locator('[data-test^="canvas-card-drag-"]').click();
+  await expect(cards.nth(1)).toHaveClass(/is-selected/);
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/conformance");
+
+  await page.locator('[data-test="presentation-focus"]').focus();
+  await page.keyboard.press("Delete");
+
+  await expect(cards).toHaveCount(1);
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/playground");
+  await page.reload();
+  await expect(page.locator(".canvas-card")).toHaveCount(1);
+  await expect.poll(() => page.frameLocator(".canvas-card__iframe").locator("body").evaluate(() => location.pathname))
+    .toBe("/playground");
+});
+
 test("dev: open app escapes the editor to the plain application route", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  await page.locator('[data-test="presentation-canvas"]').click();
 
   // Open the focused route as a plain application page.
   const popupPromise = page.waitForEvent("popup");
@@ -130,6 +158,7 @@ test("dev: open app escapes the editor to the plain application route", async ({
 test("dev: canvas card toolbar has open-app, duplicate, and refresh controls", async ({ page }) => {
   await page.goto("/playground");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  await page.locator('[data-test="presentation-canvas"]').click();
   await expect(page.locator('[data-test="mode-canvas"]')).toHaveCount(0);
 
   await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toBeVisible();

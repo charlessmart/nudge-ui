@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: raw sandbox owns a raw CSS graph and catalog", async ({ page }) => {
   const app = await openEditor(page, "/examples/raw-css");

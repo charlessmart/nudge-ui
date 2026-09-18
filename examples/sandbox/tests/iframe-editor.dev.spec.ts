@@ -74,11 +74,19 @@ test("dev: switches the same responsive iframe between Focus and Canvas", async 
   const widthProbe = await page.evaluate(() => (
     window as Window & { __focusWidthProbe?: { initial: number; samples: number[] } }
   ).__focusWidthProbe);
-  expect(widthProbe?.samples.every((width) => width === widthProbe.initial)).toBe(true);
+  expect(widthProbe?.samples.some((width) => width !== widthProbe.initial)).toBe(true);
   await expect(page.locator('[data-test^="canvas-card-resize-"]')).toBeAttached();
   await expect(page.locator('[data-test="presentation-focus"]')).toBeVisible();
   await expect.poll(() => page.locator('[data-test="canvas-board-content"]').evaluate((element: HTMLElement) => element.style.transform))
-    .toContain("scale(0.75)");
+    .toContain("scale(1)");
+  const storedCanvasLayout = await page.locator('[data-test="canvas-workspace"]').evaluate((workspace) => {
+    const card = workspace.querySelector<HTMLElement>(".canvas-card");
+    const content = workspace.querySelector<HTMLElement>('[data-test="canvas-board-content"]');
+    return {
+      card: card ? [card.style.left, card.style.top, card.style.width, card.style.height] : [],
+      transform: content?.style.transform ?? "",
+    };
+  });
 
   await page.locator('[data-test="presentation-focus"]').click();
   await expect(page.locator('[data-test^="canvas-card-resize-"]')).toHaveCount(0);
@@ -95,6 +103,16 @@ test("dev: switches the same responsive iframe between Focus and Canvas", async 
     const frame = await iframe.boundingBox();
     return board && frame ? { width: board.width - frame.width, height: board.height - frame.height } : null;
   }).toEqual({ width: 0, height: 0 });
+
+  await page.locator('[data-test="presentation-canvas"]').click();
+  await expect.poll(() => page.locator('[data-test="canvas-workspace"]').evaluate((workspace) => {
+    const card = workspace.querySelector<HTMLElement>(".canvas-card");
+    const content = workspace.querySelector<HTMLElement>('[data-test="canvas-board-content"]');
+    return {
+      card: card ? [card.style.left, card.style.top, card.style.width, card.style.height] : [],
+      transform: content?.style.transform ?? "",
+    };
+  })).toEqual(storedCanvasLayout);
 });
 
 test("dev: keeps hidden comparison geometry stable until Canvas reveal completes", async ({ page }) => {

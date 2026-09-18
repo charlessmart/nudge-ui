@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { getAppFrame } from "./editor.ts";
+import { getAppFrame } from "@nudge-ui/compatibility/playwright";
 
 /**
  * Cross-iframe element selection. These tests exercise the path where the

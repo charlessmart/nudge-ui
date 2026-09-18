@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
-import { appLocator, openEditor } from "./editor.ts";
+import { appLocator, openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function selectCase(page: import("@playwright/test").Page, id: string): Promise<void> {
   const target = appLocator(page, `[data-test="border-case-${id}"]`);

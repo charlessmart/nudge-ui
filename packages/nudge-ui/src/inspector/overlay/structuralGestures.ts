@@ -9,6 +9,7 @@ import {
   type StructuralDelete,
   type StructuralMove,
 } from "../projection/structuralProjection.ts";
+import { isEditorShellDocument } from "../runtime/editorShell.ts";
 
 export type StructuralNudgeKey = "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight";
 
@@ -177,14 +178,16 @@ export function getDropLocationAtPoint(doc: Document, dragged: HTMLElement, x: n
   return getDropLocationForElement(dragged, target, y < rect.top + rect.height / 2, inContainerInterior);
 }
 
-/** Capture the move as canonical intent, then project only the controller host. */
+function projectInlineHost(node: HTMLElement): void {
+  if (node.ownerDocument !== document || isEditorShellDocument(document)) return;
+  applyStructuralProjection(document, getStructuralChanges());
+}
+
+/** Capture the move as canonical intent, then preview it in an inline host. */
 export function moveElement(node: HTMLElement, destination: DropLocation): StructuralMove | null {
   if (!getStructuralMoveLegality(node, destination).valid) return null;
   const change = createStructuralMove(node, destination);
-  if (!change) return null;
-  // `document` belongs to the controller runtime. A Canvas source element is
-  // deliberately not projected here; its renderer receives this snapshot once.
-  applyStructuralProjection(document, getStructuralChanges());
+  if (change) projectInlineHost(node);
   return change;
 }
 
@@ -200,12 +203,11 @@ export function nudgeElement(node: HTMLElement, key: StructuralNudgeKey): Struct
   return moveElement(node, { parent, before, ...lineFor(parent, before) });
 }
 
-/** Capture delete intent and project only the controller host. */
+/** Capture delete intent, then preview it in an inline host. */
 export function deleteElement(selected: SelectedElement): StructuralDelete | null {
   const node = selected.domElement;
   if (!node.parentElement || !node.isConnected) return null;
   const change = createStructuralDelete(node);
-  if (!change) return null;
-  applyStructuralProjection(document, getStructuralChanges());
+  if (change) projectInlineHost(node);
   return change;
 }

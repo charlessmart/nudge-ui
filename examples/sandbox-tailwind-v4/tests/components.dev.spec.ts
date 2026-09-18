@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("the shadcn gallery renders every installed registry component", async ({ page }) => {
   const app = await openEditor(page, "/components");

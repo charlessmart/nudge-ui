@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { appLocator, getAppFrame } from "./editor.ts";
+import { appLocator, getAppFrame } from "@nudge-ui/compatibility/playwright";
 
 test("dev: diagonal gaps extend dotted construction lines from hovered edges to selected centrelines", async ({ page }) => {
   await page.goto("/playground");

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { appLocator, getAppFrame } from "./editor.ts";
+import { appLocator, getAppFrame } from "@nudge-ui/compatibility/playwright";
 import { managedSheetText } from "./managedSheet.ts";
 
 async function managedSheetContent(page: import("@playwright/test").Page): Promise<string> {

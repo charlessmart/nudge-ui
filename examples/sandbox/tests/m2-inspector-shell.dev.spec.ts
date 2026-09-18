@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: inspector shell mounts in Shadow DOM and toggles from the keyboard", async ({ page }) => {
   await openEditor(page, "/playground");

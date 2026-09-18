@@ -1,5 +1,5 @@
 import { expect, test, type FrameLocator, type Locator, type Page } from "@playwright/test";
-import { ensureEditorOwnership } from "./editor.ts";
+import { ensureEditorOwnership } from "@nudge-ui/compatibility/playwright";
 
 const FIXTURE_URL = "/playground";
 const RUNS = 5;

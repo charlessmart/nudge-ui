@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: standard CSS conformance fixture keeps authored attribution separate from browser output", async ({ page }) => {
   const app = await openEditor(page, "/conformance");

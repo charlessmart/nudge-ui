@@ -9,7 +9,6 @@ import {
   type BoardGestureStateMessage,
 } from "./frameProtocol.ts";
 import type {
-  ExternalNavigationMessage,
   FrameMetadataMessage,
   FrameReadyMessage,
   FrameRuntimeMessage,
@@ -212,21 +211,7 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
       if (!ownsRendererBootstrap(owner)) return;
       const anchor = findClosestAnchor(event.target);
       if (!anchor) return;
-      if (!isEligibleNavigation(anchor, event)) {
-        if (isPrimarySelfNavigation(anchor, event)) {
-          event.preventDefault();
-          const identity = getRendererIdentity();
-          if (!identity) return;
-          const msg: ExternalNavigationMessage = {
-            type: "external-navigation",
-            protocolVersion: PROTOCOL_VERSION,
-            url: anchor.href,
-            ...identity,
-          };
-          sendToParent(msg);
-        }
-        return;
-      }
+      if (!isEligibleNavigation(anchor, event)) return;
       if (!hasDifferentRoute(anchor)) return;
 
       const identity = getRendererIdentity();
@@ -304,13 +289,6 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
   }
 
   return handle;
-}
-
-function isPrimarySelfNavigation(anchor: HTMLAnchorElement, event: MouseEvent): boolean {
-  if (event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) return false;
-  if (anchor.hasAttribute("download")) return false;
-  if (anchor.target && anchor.target !== "" && anchor.target !== "_self") return false;
-  return anchor.protocol === "http:" || anchor.protocol === "https:";
 }
 
 function installRendererPanProxy(owner: RendererBootstrapOwner): void {

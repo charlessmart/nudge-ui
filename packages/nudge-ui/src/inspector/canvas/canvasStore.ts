@@ -7,6 +7,8 @@ export type CanvasPresentation = "focus" | "canvas";
 export interface CanvasCard {
   id: string;
   url: string;
+  /** A controller-requested document load. Renderer metadata must not set this. */
+  navigationUrl?: string;
   title: string | null;
   x: number;
   y: number;
@@ -231,10 +233,15 @@ export function removeCanvasComparisonGroup(id: string): CanvasComparisonGroup |
   const groupCardIds = new Set(group.cardIds);
   cards = cards.filter((card) => !groupCardIds.has(card.id));
   comparisonGroups = comparisonGroups.filter((candidate) => candidate.id !== id);
-  if (groupCardIds.has(selectedCardId ?? "")) selectedCardId = null;
-  if (groupCardIds.has(focusedCardId ?? "")) focusedCardId = null;
+  selectFallbackAfterRemoval(groupCardIds);
   notify();
   return group;
+}
+
+function selectFallbackAfterRemoval(removedIds: ReadonlySet<string>): void {
+  const fallbackId = cards[0]?.id ?? null;
+  if (removedIds.has(selectedCardId ?? "")) selectedCardId = fallbackId;
+  if (removedIds.has(focusedCardId ?? "")) focusedCardId = fallbackId;
 }
 
 /** Clears group metadata while leaving ordinary cards intact. */
@@ -265,13 +272,9 @@ function updateComparisonGroupRoutes(
 
 export function removeCanvasCard(id: string): void {
   const removed = cards.find((card) => card.id === id);
+  if (!removed) return;
   cards = cards.filter((c) => c.id !== id);
-  if (selectedCardId === id) {
-    selectedCardId = null;
-  }
-  if (focusedCardId === id) {
-    focusedCardId = null;
-  }
+  selectFallbackAfterRemoval(new Set([id]));
   if (removed?.comparisonGroupId) {
     updateComparisonGroupRoutes(removed.comparisonGroupId, id, (group, routeIndex) => ({
       ...group,
@@ -296,11 +299,16 @@ export function activateIframeWorkspace(
   const targetHref = new URL(url).href;
 
   mode = "canvas";
-  const existing = findCardByNormalizedUrl(normalized);
+  const focused = cards.find((card) => card.id === focusedCardId);
+  const focusedUrl = focused ? normalizeUrl(focused.url) : null;
+  const existing = focused && focusedUrl
+    && normalizedUrlKey(focusedUrl) === normalizedUrlKey(normalized)
+    ? focused
+    : cards.find((card) => card.url === targetHref) ?? findCardByNormalizedUrl(normalized);
   if (existing) {
     let activated = existing;
     if (existing.url !== targetHref) {
-      activated = { ...existing, url: targetHref };
+      activated = { ...existing, url: targetHref, navigationUrl: targetHref };
       cards = cards.map((card) => card.id === existing.id ? activated : card);
     }
     focusedCardId = existing.id;

@@ -181,6 +181,7 @@ describe("projection", () => {
     expect(after.structuralChanges).toEqual([{
       id: "delete-2",
       kind: "delete",
+      route: new URL("/", window.location.href).href,
       target: {
         sourceSite: { cid: "RepeatedItem", src: "src/App.tsx:12:5" },
         locator: {

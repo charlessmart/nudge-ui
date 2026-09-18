@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
-import { openEditor } from "./editor.ts";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: a blocked managed preview remains visible in the change log", async ({ page }) => {
   const app = await openEditor(page, "/playground");

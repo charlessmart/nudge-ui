@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { appLocator, getAppFrame } from "./editor.ts";
+import { appLocator, getAppFrame } from "@nudge-ui/compatibility/playwright";
 
 test("dev: main demo links to every conformance page", async ({ page }) => {
   await page.goto("/playground");

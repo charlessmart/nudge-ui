@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createLoopbackBridge, type BrowserBridge } from "@nudge-ui/mcp";
-import { getAppFrame, openEditor } from "./editor.ts";
+import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
 
 const DEV_PORT = process.env.NUDGE_UI_DEV_PORT ?? "5173";
 const APP_ORIGIN = `http://localhost:${DEV_PORT}`;

@@ -193,4 +193,24 @@ describe("bootstrapRenderer teardown", () => {
     handle = undefined;
     configureNudgeUiRuntime(previous);
   });
+
+  it("leaves cross-origin self-navigation inside the renderer", () => {
+    setRendererIdentity(identity);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    handle = bootstrapRenderer();
+    const anchor = document.createElement("a");
+    anchor.href = "https://example.com/docs";
+    document.body.append(anchor);
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    let rendererPreventedNavigation = true;
+    anchor.addEventListener("click", (event) => {
+      rendererPreventedNavigation = event.defaultPrevented;
+      event.preventDefault();
+    });
+
+    anchor.dispatchEvent(click);
+
+    expect(rendererPreventedNavigation).toBe(false);
+    expect(messages(postMessage).some((message) => message.type === "external-navigation")).toBe(false);
+  });
 });
