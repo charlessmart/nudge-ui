@@ -42,19 +42,8 @@ describe("McpConnectionDialog", () => {
     vi.restoreAllMocks();
   });
 
-  it("builds a project-scoped command with the README shape", () => {
-    expect(createMcpSetupCommand("my-app", "http://localhost:5173")).toBe(
-      "npx add-mcp 'npx -y @nudge-ui/mcp@latest --project-id my-app --origin http://localhost:5173 --workspace-root .' --name nudge_ui",
-    );
-  });
-
-  it("quotes shell syntax in project diagnostics before nesting the command", () => {
-    const command = createMcpSetupCommand("client $HOME; echo bad", "http://localhost:5173/$(touch pwned)");
-
-    expect(command).toMatch(/--project-id '\\''client \$HOME; echo bad'\\''/);
-    expect(command).toMatch(/--origin '\\''http:\/\/localhost:5173\/\$\(touch pwned\)'\\''/);
-    expect(command).toContain("--workspace-root .");
-    expect(command).toContain("npx add-mcp '");
+  it("uses the guided application setup command", () => {
+    expect(createMcpSetupCommand()).toBe("npx nudge-ui agent setup");
   });
 
   it("shows a paired idle companion as not listening until the listener is active", () => {
@@ -76,12 +65,12 @@ describe("McpConnectionDialog", () => {
     const dialog = document.body.querySelector<HTMLElement>('[data-test="mcp-connection-dialog"]');
     expect(dialog?.getAttribute("role")).toBe("dialog");
     expect(document.body.querySelector('[data-test="mcp-connection-status"]')?.textContent)
-      .toContain("Connected, not listening");
+      .toContain("Project connected · Ask your agent to listen");
     expect(document.body.querySelector('[data-test="mcp-connect"]')).toBeNull();
     expect(document.body.querySelector('[data-test="mcp-disconnect"]')).not.toBeNull();
     expect(document.body.querySelector('[data-test="mcp-project-id"]')?.textContent).toBe("fixture-project");
     expect(document.body.querySelector('[data-test="mcp-origin"]')?.textContent).toBe("http://localhost:5173");
-    expect(document.body.textContent).toContain("call nudge_listen");
+    expect(document.body.textContent).toContain("Listen to Nudge");
     expect(document.body.querySelector('[data-test="mcp-setup-tab-ai"]')?.getAttribute("data-active")).toBe("true");
     expect(document.body.querySelector('[data-test="mcp-setup-tab-terminal"]')?.getAttribute("data-active")).toBe("false");
     expect(document.body.querySelector('[data-test="mcp-setup-tabs"]')?.firstElementChild?.getAttribute("data-test"))
@@ -89,10 +78,8 @@ describe("McpConnectionDialog", () => {
     expect(document.body.querySelector('[data-test="mcp-setup-prompt"]')).not.toBeNull();
     expect(document.body.querySelector('[data-test="mcp-setup-command"]')).toBeNull();
     expect(document.body.querySelector(".mcp-connection__note")).toBeNull();
-    expect(document.body.querySelectorAll('[data-test^="mcp-step-"]')).toHaveLength(3);
-    expect(document.body.querySelector('[data-test="mcp-step-2"]')?.getAttribute("data-complete")).toBe("true");
-    expect(document.body.querySelector('[data-test="mcp-step-2"] svg')).not.toBeNull();
-    expect(document.body.querySelector('[data-test="mcp-step-3"]')?.getAttribute("data-complete")).toBe("false");
+    expect(document.body.querySelectorAll('[data-test^="mcp-step-"]')).toHaveLength(2);
+    expect(document.body.querySelector('[data-test="mcp-step-2"]')?.getAttribute("data-complete")).toBe("false");
   });
 
   it("offers idle pairing and connection recovery as rendered actions", async () => {
@@ -125,9 +112,8 @@ describe("McpConnectionDialog", () => {
 
     const connect = document.body.querySelector<HTMLButtonElement>('[data-test="mcp-connect"]');
     expect(connect).not.toBeNull();
-    expect(document.body.querySelector('[data-test="mcp-step-1"]')?.getAttribute("data-complete")).toBe("true");
+    expect(document.body.querySelector('[data-test="mcp-step-1"]')?.getAttribute("data-complete")).toBe("false");
     expect(document.body.querySelector('[data-test="mcp-step-2"]')?.getAttribute("data-complete")).toBe("false");
-    expect(document.body.querySelector('[data-test="mcp-step-3"]')?.getAttribute("data-complete")).toBe("false");
     act(() => connect!.click());
     expect(onConnect).toHaveBeenCalledOnce();
 
@@ -138,15 +124,15 @@ describe("McpConnectionDialog", () => {
     act(() => document.body.querySelector<HTMLButtonElement>('[data-test="mcp-setup-tab-terminal"]')!.click());
     act(() => document.body.querySelector<HTMLButtonElement>('[data-test="mcp-copy-command"]')!.click());
     await flush();
-    expect(writeText).toHaveBeenCalledWith(expect.stringContaining("--project-id fixture-project"));
+    expect(writeText).toHaveBeenCalledWith("npx nudge-ui agent setup");
 
     act(() => document.body.querySelector<HTMLButtonElement>('[data-test="mcp-setup-tab-ai"]')!.click());
     expect(document.body.querySelector('[data-test="mcp-setup-prompt"]')?.textContent)
-      .toContain("Please configure the Nudge MCP companion");
+      .toContain("Please set up the Nudge coding-agent integration");
     expect(document.body.querySelector('[data-test="mcp-setup-command"]')).toBeNull();
     act(() => document.body.querySelector<HTMLButtonElement>('[data-test="mcp-copy-setup-prompt"]')!.click());
     await flush();
-    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining("--origin http://localhost:5173"));
+    expect(writeText).toHaveBeenLastCalledWith(expect.stringContaining("npx nudge-ui agent setup"));
 
     act(() => {
       root.render(

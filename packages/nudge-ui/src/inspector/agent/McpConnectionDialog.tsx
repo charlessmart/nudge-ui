@@ -19,35 +19,9 @@ import { StatusCallout } from "../ui/StatusCallout.tsx";
 
 export const MCP_DOCS_URL = "https://github.com/charlessmart/nudge-ui#connect-a-coding-agent";
 
-/** Quotes one value for a POSIX shell command. */
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-function shellArgument(value: string): string {
-  // Keep the usual command readable while quoting values that could be
-  // interpreted as shell syntax when add-mcp runs the nested command.
-  return /^[A-Za-z0-9_./:@%+=,-]+$/.test(value) ? value : shellQuote(value);
-}
-
-/** Builds the project-local add-mcp command shown by the connection panel. */
-export function createMcpSetupCommand(projectId: string, origin: string): string {
-  const serverCommand = [
-    "npx -y @nudge-ui/mcp@latest",
-    "--project-id",
-    shellArgument(projectId),
-    "--origin",
-    shellArgument(origin),
-    "--workspace-root .",
-  ].join(" ");
-  return `npx add-mcp ${shellQuote(serverCommand)} --name nudge_ui`;
-}
-
-function formatMcpSetupCommand(command: string): string {
-  return command
-    .replace(" --project-id ", "\n  --project-id ")
-    .replace(" --origin ", "\n  --origin ")
-    .replace(" --workspace-root ", "\n  --workspace-root ");
+/** Uses the guided installer so browser diagnostics never become shell arguments. */
+export function createMcpSetupCommand(): string {
+  return "npx nudge-ui agent setup";
 }
 
 export interface McpConnectionContentProps {
@@ -114,17 +88,16 @@ export function McpConnectionContent({
   const [copiedListener, setCopiedListener] = useState(false);
   const [copyError, setCopyError] = useState<string | undefined>();
   const [checkError, setCheckError] = useState<string | undefined>();
-  const setupCommand = useMemo(() => createMcpSetupCommand(projectId, origin), [origin, projectId]);
-  const displaySetupCommand = useMemo(() => formatMcpSetupCommand(setupCommand), [setupCommand]);
+  const setupCommand = createMcpSetupCommand();
   const setupPrompt = useMemo(() => [
-    "Please configure the Nudge MCP companion for this project.",
+    "Please set up the Nudge coding-agent integration for this application.",
     "",
-    "Run this command from the project root:",
+    "Run this command from the application directory and select this coding agent:",
     setupCommand,
     "",
-    "Then restart or refresh the MCP server so Nudge can connect.",
+    "Start the application normally. Reload the agent if needed, then listen to Nudge.",
   ].join("\n"), [setupCommand]);
-  const listenerInstruction = "Call nudge_listen now and wait for my Nudge UI prompt. After applying it, call nudge_report_status and listen again.";
+  const listenerInstruction = "Listen to Nudge for this application in the current worktree. Use nudge_list_sessions if selection is ambiguous, then call nudge_listen. After applying each prompt, call nudge_report_status and listen again until I ask you to stop.";
   const status = getAgentConnectionStatus(snapshot);
   const canConnect = snapshot.companionReachable
     && !snapshot.paired
@@ -202,8 +175,8 @@ export function McpConnectionContent({
       <ol className="mcp-connection__timeline" data-test="mcp-connection-timeline">
         <TimelineStep
           number={1}
-          complete={snapshot.companionReachable}
-          title="Configure the MCP host"
+          complete={snapshot.listenerActive || snapshot.request !== null}
+          title="Set up your agent once"
         >
           <SegmentedControl
             aria-label="MCP setup method"
@@ -219,9 +192,9 @@ export function McpConnectionContent({
           {setupMethod === "terminal" ? (
             <>
               <p className="mcp-connection__copy">
-                Run this command from your project root.
+                Run this command from the application directory, then start your app normally.
               </p>
-              <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{displaySetupCommand}</code></pre>
+              <pre className="mcp-connection__command"><code data-test="mcp-setup-command">{setupCommand}</code></pre>
               <div className="mcp-connection__command-actions">
                 <Button
                   variant="secondary"
@@ -237,7 +210,7 @@ export function McpConnectionContent({
           ) : (
             <>
               <p className="mcp-connection__copy">
-                Copy this prompt into your coding agent to configure Nudge MCP.
+                Copy these setup instructions into your coding agent.
               </p>
               <pre className="mcp-connection__command"><code data-test="mcp-setup-prompt">{setupPrompt}</code></pre>
               <div className="mcp-connection__command-actions">
@@ -255,7 +228,27 @@ export function McpConnectionContent({
           )}
         </TimelineStep>
 
-        <TimelineStep number={2} complete={snapshot.paired} title="Connect this page">
+        <TimelineStep number={2} complete={snapshot.listenerActive} title="Listen in this agent session">
+          <p className="mcp-connection__copy">
+            Tell your coding agent: “Listen to Nudge.” Reload the agent if Nudge tools are unavailable.
+          </p>
+          <div className="mcp-connection__command-actions">
+            <Button
+              variant="secondary"
+              data-test="mcp-copy-listener"
+              type="button"
+              onClick={() => void handleCopyListener()}
+            >
+              {copiedListener ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
+              {copiedListener ? "Copied" : "Copy listening instruction"}
+            </Button>
+          </div>
+        </TimelineStep>
+      </ol>
+
+      <details className="mcp-connection__details">
+        <summary>Connection details and recovery</summary>
+        <p className="mcp-connection__copy">The page connects automatically when the development integration is available. To diagnose setup, run <code>nudge-ui agent doctor</code> from the application directory.</p>
           <dl className="mcp-connection__diagnostics" data-test="mcp-connection-diagnostics">
             <div className="mcp-connection__diagnostic">
               <dt>Project ID</dt>
@@ -300,25 +293,9 @@ export function McpConnectionContent({
               </Button>
             ) : null}
           </div>
-        </TimelineStep>
+      </details>
 
-        <TimelineStep number={3} complete={snapshot.listenerActive} title="Start the agent listener">
-          <p className="mcp-connection__copy">
-            Ask your coding agent to call <code>nudge_listen</code> and keep it active.
-          </p>
-          <div className="mcp-connection__command-actions">
-            <Button
-              variant="secondary"
-              data-test="mcp-copy-listener"
-              type="button"
-              onClick={() => void handleCopyListener()}
-            >
-              {copiedListener ? <IconCheck size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" /> : <IconClipboard size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />}
-              {copiedListener ? "Copied" : "Copy listener instruction"}
-            </Button>
-          </div>
-        </TimelineStep>
-      </ol>
+
 
       {copyError ? <p className="mcp-connection__error" role="alert">{copyError}</p> : null}
 
@@ -367,7 +344,7 @@ export function McpConnectionDialog({
             <div>
               <Dialog.Title className="mcp-connection__title">Connect MCP</Dialog.Title>
               <Dialog.Description className="mcp-connection__description">
-                Pair this page with your coding agent. You can connect before the agent starts listening.
+                Set up your coding agent once, then ask it to listen to Nudge in this worktree.
               </Dialog.Description>
             </div>
             <Dialog.Close

@@ -224,6 +224,8 @@ export interface CanvasCommandAcknowledgement {
 export interface PairingRequest {
   readonly projectId: string;
   readonly origin: string;
+  /** Reuses an existing pairing across a same-browser reload. */
+  readonly sessionToken?: string;
   /** The active page is retained only while this process is alive. */
   readonly pageUrl?: string;
 }

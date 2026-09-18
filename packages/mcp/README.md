@@ -1,62 +1,88 @@
 # `@nudge-ui/mcp`
 
-> **Early alpha:** This integration is still under heavy testing. Expect
-> breaking changes, incomplete host compatibility, and other rough edges. Do
-> not rely on it for production workflows yet.
+> **Early alpha:** This integration can make breaking changes while host
+> support and the setup workflow stabilize.
 
-`@nudge-ui/mcp` connects a local Nudge UI inspector to an MCP-capable coding
-agent. It combines a standard MCP stdio server with a project-scoped loopback
-browser bridge. The browser does not speak MCP directly.
+`@nudge-ui/mcp` connects a local Nudge inspector to an MCP-capable coding
+agent. The development server owns the browser bridge. The agent host starts a
+small stdio adapter that discovers live bridges in the current checkout or Git
+worktree.
 
-## Install
+## Configure an agent
 
-```sh
-pnpm add -D @nudge-ui/mcp@0.2.0
-```
-
-### Configure automatically
-
-From the application project root, use [`add-mcp`](https://github.com/neon-solutions/add-mcp) to detect supported coding agents and write each host's native configuration format:
+The Nudge initializer can install the dependency and configure supported agent
+hosts. A manual project-scoped configuration uses this command:
 
 ```sh
-npx add-mcp \
-  'npx -y @nudge-ui/mcp@0.2.0 --project-id my-app --origin http://localhost:5173 --workspace-root .' \
-  --name nudge_ui
+node ./node_modules/@nudge-ui/mcp/dist/cli.mjs --workspace-root /path/to/project
 ```
 
-The command prompts for detected project agents. Use `-a codex` (or another
-supported agent name) to target one host, or `-y` to skip the prompt and use
-the detected project agents. Keep this project-scoped; do not use `-g` unless
-the configuration intentionally targets one fixed project.
+The adapter does not need an origin, port, project ID, or branch. A running
+development integration registers those values in a private per-user runtime
+directory. Restart the agent host after changing its MCP configuration, then
+ask it to **Listen to Nudge**. Agent configuration contains absolute checkout
+and application paths, so rerun agent setup in each clone or Git worktree that
+you intend the agent to edit.
 
-`--origin` must exactly match the development application's browser origin.
-The `--project-id` value must match the ID used by the Nudge host integration.
-For standard Vite and Astro projects, `my-app` normally matches the project
-directory name. Next.js and standalone HTML projects use host-specific IDs, so
-retain the explicit ID from their integration configuration.
+Run diagnostics without starting MCP stdio framing:
 
-The generated command pins the published `@nudge-ui/mcp@0.2.0` package through
-`npx` for reproducible tool versions. Update the version deliberately when
-upgrading the MCP integration. After configuration, restart or reload the
-agent host so it refreshes its MCP tool catalog.
+```sh
+node ./node_modules/@nudge-ui/mcp/dist/cli.mjs doctor --workspace-root /path/to/project
+```
 
-The package has no install-time project mutation. The manual configuration
-below remains useful when an agent host is not supported by `add-mcp` or when
-you need an explicit custom command.
+The doctor reports live and exact-workspace session counts. It never prints
+control credentials.
 
-After adding or changing the host configuration, restart or reload the MCP
-server, or start a fresh agent task. Open **Connect MCP** from the inspector's
-prompt menu for setup instructions, connection status, and explicit pairing.
-You can pair a page before the agent starts listening. Ask the agent to call
-`nudge_listen` and keep it active to enable sending. **Copy prompt** remains
-available while the agent is idle; prompts are not queued.
+## Project integration
 
-For Codex desktop, confirm that `nudge_ui` appears in the current task after
-the MCP restart. For Codex CLI, `codex mcp list` verifies the project entry.
-Restart a long-running OpenCode service after adding or changing its MCP
-configuration so it refreshes its tool catalog.
+Framework adapters start and stop the project bridge with the development
+server:
 
-## Run manually
+```ts
+import { startProjectBridge } from "@nudge-ui/mcp/project";
+
+const runtime = await startProjectBridge({
+  workspaceRoot: process.cwd(),
+  appRoot: process.cwd(),
+  projectId: "my-app",
+  origin: "http://localhost:5173",
+  allowedOrigins: ["http://127.0.0.1:5173"],
+});
+
+// Give browser code only these non-secret values.
+console.log(runtime.browser.bridgeUrl, runtime.browser.projectId);
+
+await runtime.close();
+```
+
+`origin` must be the actual canonical development origin after the framework
+chooses its port. `workspaceRoot` defaults to the Git worktree root when one is
+available and otherwise defaults to `appRoot`. `appRoot` distinguishes several
+applications running from one monorepo.
+
+Each live bridge registers a random session ID, canonical workspace and app
+paths, optional Git common directory and branch metadata, origin, and loopback
+endpoint. The descriptor is mode `0600` inside a mode `0700` registry. It also
+contains a private random credential used only between the bridge and adapter.
+
+The adapter lists all live local sessions through `nudge_list_sessions`, but it
+can listen only to sessions whose canonical workspace and configured
+application path match. An adapter configured at the worktree root can select
+any app in that worktree explicitly. A branch name or shared Git common
+directory never causes fallback to another worktree. When several apps run in
+one workspace, pass the chosen `sessionId` to `nudge_listen`. The adapter keeps
+that app selection across a bridge restart and does not replay old requests.
+
+One adapter owns a selected project session until it closes. Other adapters
+receive a claimed-session error instead of taking browser work. A heartbeat
+allows the bridge to recover a claim after an adapter process is killed. Call
+`nudge_release` when the user stops listening so another adapter can claim the
+session without restarting the MCP host.
+
+## Legacy coupled mode
+
+Passing `--origin` retains the previous behavior in which the MCP process also
+owns its browser bridge:
 
 ```sh
 pnpm exec nudge-mcp \
@@ -65,17 +91,9 @@ pnpm exec nudge-mcp \
   --workspace-root /path/to/my-app
 ```
 
-Pass the exact application origin with `--origin` (or
-`NUDGE_UI_ORIGIN`). The bridge rejects browser origins that are not explicitly
-configured; it never trusts the first origin that connects. The bridge chooses
-a deterministic loopback port from the project ID so the inspector can find
-it without a port file. Use `--port 0` for an ephemeral test port.
+This mode remains available for custom integrations during migration. New
+framework integrations should use the project-owned bridge.
 
-For integrations that establish the browser origin out of band, trusted host
-code can use the `pairBrowser` API as an explicit manual approval path. An
-unconfigured bridge does not accept HTTP pairing requests.
-
-The agent should call `nudge_listen` immediately, apply the delivered prompt
-through its normal source-editing workflow, call `nudge_report_status`, and
-listen again. Canvas tools are limited to same-origin routes and agent-owned
-groups.
+The agent calls `nudge_listen`, applies the delivered prompt, reports the
+result through `nudge_report_status`, and listens again. Canvas tools remain
+limited to routes from the paired application origin and agent-owned groups.

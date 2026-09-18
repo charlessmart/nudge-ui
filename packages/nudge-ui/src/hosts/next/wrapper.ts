@@ -228,6 +228,7 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   }
 
   const sourceRoots = options.sourceRoots?.map((sourceRoot) => resolve(root, sourceRoot));
+  const bridgeOrigin = nextDevelopmentOrigin();
 
   // ensureSidecar is a per-process singleton; awaiting it wherever the port
   // is needed removes any config-evaluation race. The same authored roots
@@ -236,6 +237,8 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     ensureSidecar(root, {
       manifest: buildManifest({ root }),
       tokens: true,
+      projectBridgeOrigin: bridgeOrigin.origin,
+      projectBridgeAllowedOrigins: bridgeOrigin.allowedOrigins,
       ...(sourceRoots ? { sourceRoots } : {}),
     })
       .then((handle: SidecarHandle) => handle.port)
@@ -437,4 +440,17 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
   // The structural view carries every original field through the spread;
   // consumers keep their NextConfig typing via the generic passthrough.
   return nextConfig as T;
+}
+
+function nextDevelopmentOrigin(): { origin: string; allowedOrigins: readonly string[] } {
+  const selected = process.env.__NEXT_PRIVATE_ORIGIN
+    ?? `http://localhost:${process.env.PORT ?? "3000"}`;
+  const url = new URL(selected);
+  const port = url.port || (url.protocol === "https:" ? "443" : "80");
+  const aliases = ["localhost", "127.0.0.1", "[::1]"]
+    .map((host) => `${url.protocol}//${host}:${port}`);
+  return {
+    origin: url.origin,
+    allowedOrigins: [...new Set([url.origin, ...aliases])],
+  };
 }

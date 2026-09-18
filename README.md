@@ -121,79 +121,92 @@ not serve dot-prefixed files or directories, including `.env` files.
 > breaking changes, incomplete host compatibility, and other rough edges. Do
 > not rely on it for production workflows yet.
 
-### Configure the MCP host automatically
+### Guided setup
 
-From the application project root, use [`add-mcp`](https://github.com/neon-solutions/add-mcp) to detect supported coding agents and write each host's native configuration format:
-
-```sh
-npx add-mcp \
-  'npx -y @nudge-ui/mcp@0.2.0 --project-id my-app --origin http://localhost:5173 --workspace-root .' \
-  --name nudge_ui
-```
-
-The command prompts for the detected project agents. Pass `-a codex` (or
-another supported agent name) to target one host, or `-y` to skip the prompt
-and use the detected project agents. Keep this project-scoped; do not use
-`-g` unless the configuration intentionally targets one fixed project.
-
-`--origin` must exactly match the development application's browser origin.
-The `--project-id` value must match the ID used by the Nudge host integration.
-For standard Vite and Astro projects, `my-app` normally matches the project
-directory name. Next.js and standalone HTML projects use host-specific IDs, so
-retain the explicit ID from their integration configuration.
-
-The generated command pins the published `@nudge-ui/mcp@0.2.0` package through
-`npx` for reproducible tool versions. Update the version deliberately when
-upgrading the MCP integration. After configuration, restart or reload the
-agent host so it refreshes its MCP tool catalog.
-
-### Install the companion locally
-
-You can also install the optional local companion in the application project:
+Run the initializer from the application directory:
 
 ```sh
-pnpm add -D @nudge-ui/mcp@0.2.0
+npm create nudge-ui@latest
 ```
 
-Installation does not modify project or global tool configuration. Configure
-the MCP host explicitly to run `nudge-mcp` with the project's stable ID,
-workspace root, and exact development origin. For example, the command for a
-Vite project might be:
+Choose **Connect a coding agent**, then select your agent. The initializer
+installs the compatible local MCP package and registers its executable for this
+project. Start the application with its usual development command. Reload the
+agent after changing its configuration, then ask it to **listen to Nudge**.
+
+For an existing Nudge installation, run:
 
 ```sh
-pnpm exec nudge-mcp \
-  --project-id my-app \
-  --origin http://localhost:5173 \
-  --workspace-root /path/to/my-app
+npx nudge-ui agent setup
 ```
 
-After adding or changing the MCP host entry, restart or reload the host's MCP
-server, or start a fresh agent task, so the host refreshes its tool catalog.
+Setup is also available directly through the initializer:
 
-Open **Connect MCP** from the inspector's prompt menu to view setup instructions
-and pair with the local companion. Pairing can complete before the agent starts
-listening. Then ask the coding agent to call `nudge_listen` and leave that call
-active. Once paired and ready, **Send prompt** dispatches the current immutable
-change revision directly to the waiting agent. Only one request can be active
-at a time; **Copy prompt** remains the fallback while the agent is idle.
+```sh
+npm create nudge-ui@latest -- --agent-only
+```
 
-If the inspector continues to show **Copy prompt** while the local companion
-is running, the agent host has probably not started `nudge_listen`. The
-companion can be reachable before a listener exists. In Codex desktop, verify
-that `nudge_ui` is available to the current task after restarting the MCP
-server. In Codex CLI, run `codex mcp list` from the project root. Long-running
-services such as OpenCode should be restarted or reloaded after MCP config
-changes.
+Use `--agent <agent-id>` to select an agent without the interactive selection,
+`--no-mcp` to skip agent setup during initialization, and `--dry-run` to inspect
+planned changes. Package installation itself does not prompt or modify agent
+configuration. Registration uses the locally installed executable, so package
+upgrades and the lockfile determine the MCP version.
+
+### Project and worktree sessions
+
+When `@nudge-ui/mcp` is installed, the development integration starts a local
+browser bridge. The agent's MCP process discovers that bridge using a private
+local session registry. Browser origins and bridge ports are runtime details;
+you do not need to copy them into agent configuration.
+
+The agent can call `nudge_list_sessions` to inspect available applications and
+`nudge_listen` to wait for a prompt. Selection matches the canonical workspace
+and application path. Different Git worktrees remain separate even when they
+share a repository or branch name. Multiple matching application sessions
+require an explicit selection; Nudge never silently selects another worktree.
+Run agent setup once in each checkout or worktree. Generated agent entries bind
+to that application's absolute path; rerun setup after moving a checkout or
+copying an agent configuration from another worktree.
+
+A connected browser is not necessarily ready to send. The agent must keep a
+listening call active. After applying a prompt, it reports status and listens
+again. Only one request can be active for a project, and competing agents cannot
+silently take over its request workflow. Prompts are not queued for an idle
+agent or replayed after a restart. **Copy prompt** remains available.
+
+### Diagnose a connection
+
+Run diagnostics from the application directory:
+
+```sh
+npx nudge-ui agent doctor
+```
+
+Diagnostics report running project sessions and their connection state; they do
+not verify the agent host's loaded tool catalog. If no project session is
+available, start the development server. If the agent's tool catalog does not
+include Nudge, reload the agent
+following registration. If the browser is connected but idle, ask the agent to
+listen to Nudge.
+
+The inspector's connection panel provides status and recovery instructions.
+Disconnecting explicitly revokes the browser connection. Legacy configurations
+with `--project-id`, `--origin`, and `--workspace-root` remain supported; see the
+[MCP package documentation](packages/mcp/README.md).
 
 The agent can also present real, same-origin application routes as a labeled
 Canvas comparison group, focus the group, fit the board, read Canvas state, or
-remove only a group that it created. Nudge preserves user-created cards and
-owns route readiness, placement, and persistence. When the controller page is
-closed, a re-armed agent can reopen only the last paired, reachable page.
+remove only a group it created. Nudge preserves user-created cards and owns
+route readiness, placement, and persistence.
 
-The companion binds only to loopback, keeps pairings and prompts in memory,
-and does not edit source itself. File changes and approvals continue through
-the connected coding agent's normal workflow.
+The bridge binds only to loopback and keeps pairings and prompts in memory. Its
+private registry stores discovery credentials, not prompts. Nudge does not edit
+source itself: file changes and approvals continue through the coding agent's
+normal workflow.
+
+Contributors can run `pnpm test:agent-integration` to verify a built development
+host, a separate stdio MCP process, session discovery, prompt delivery, status
+reporting, and shutdown without configuring a personal agent.
 
 Nudge UI stores development-only inspector state in origin-scoped browser
 storage. See [Browser storage](docs/browser-storage.md) for the stored data,

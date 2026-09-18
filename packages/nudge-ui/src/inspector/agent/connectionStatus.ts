@@ -37,20 +37,20 @@ export function getAgentConnectionStatus(snapshot: AgentClientSnapshot): AgentCo
   if (snapshot.paired && !snapshot.listenerActive) {
     return {
       kind: "connected-not-listening",
-      label: "Connected, not listening",
+      label: "Project connected · Ask your agent to listen",
       tone: "accent",
       action: { kind: "setup", label: "Set up" },
     };
   }
   if (!snapshot.companionReachable) {
-    return { kind: "not-found", label: "Companion not found", tone: "neutral" };
+    return { kind: "not-found", label: "Project bridge unavailable", tone: "neutral" };
   }
   if (snapshot.listenerActive) {
     return { kind: "listening", label: "Agent listening", tone: "accent" };
   }
   return {
     kind: "ready-to-connect",
-    label: "Ready to connect agent",
+    label: "Project available · Connect this page",
     tone: "accent",
     action: { kind: "connect", label: "Connect" },
   };

@@ -23,6 +23,7 @@
     "check:purity": "node scripts/check-production-purity.mjs",
     "test:unit": "pnpm -r test:unit",
     "test:ui-integration": "pnpm --filter nudge-ui test:ui-integration",
+    "test:agent-integration": "pnpm run build:packages && node scripts/check-agent-sessions.mjs",
     "test:full": "pnpm run test:unit && pnpm run test:ui-integration",
     "test:e2e": "pnpm --filter sandbox test:e2e && pnpm --filter sandbox-tailwind-v4 test:e2e && pnpm --filter sandbox-tailwind-v3 test:e2e && pnpm --filter sandbox-sprinkles test:e2e && pnpm --filter standalone-html test:e2e && pnpm --filter sandbox-next test:e2e && pnpm --filter sandbox-astro test:e2e",
     "test:packed-consumers": "pnpm --filter packed-consumers test:e2e",

@@ -42,6 +42,11 @@
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js",
       "default": "./dist/server.js"
+    },
+    "./project": {
+      "types": "./dist/project.d.ts",
+      "import": "./dist/project.js",
+      "default": "./dist/project.js"
     }
   },
   "scripts": {

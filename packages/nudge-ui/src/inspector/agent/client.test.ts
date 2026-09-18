@@ -43,6 +43,7 @@ class FakeTransport implements AgentBridgeTransport {
   pairingError: Error | null = null;
   pairingResult: Promise<PairingResponse> | null = null;
   discoverCalls = 0;
+  pairCalls = 0;
 
   async discover(): Promise<AgentStatusSnapshot> {
     this.discoverCalls += 1;
@@ -50,6 +51,7 @@ class FakeTransport implements AgentBridgeTransport {
   }
 
   async pair(): Promise<PairingResponse> {
+    this.pairCalls += 1;
     if (this.pairingError) throw this.pairingError;
     if (this.pairingResult) return this.pairingResult;
     return {
@@ -143,6 +145,129 @@ describe("AgentClient", () => {
       paired: true,
       listenerActive: false,
     });
+  });
+
+  it("automatically pairs a bridge supplied by the project dev host", async () => {
+    const transport = new FakeTransport();
+    transport.discoveredStatus = status({ connection: "offline", listenerActive: false });
+    transport.pairingStatus = status({ connection: "paired", listenerActive: false, paired: true });
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      autoConnect: true,
+      discoveryIntervalMs: 0,
+    });
+
+    client.start();
+    await flush();
+    await flush();
+
+    expect(client.getSnapshot()).toMatchObject({
+      state: "connected",
+      paired: true,
+      listenerActive: false,
+    });
+  });
+
+  it("preserves an explicit disconnect across page client recreation", async () => {
+    const firstTransport = new FakeTransport();
+    const first = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport: firstTransport,
+      autoConnect: true,
+      discoveryIntervalMs: 0,
+    });
+    first.start();
+    await flush();
+    await flush();
+    expect(first.getSnapshot().paired).toBe(true);
+    first.disconnect();
+    first.stop();
+
+    const reloadedTransport = new FakeTransport();
+    const reloaded = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport: reloadedTransport,
+      autoConnect: true,
+      discoveryIntervalMs: 0,
+    });
+    reloaded.start();
+    await flush();
+    await flush();
+
+    expect(reloaded.getSnapshot()).toMatchObject({
+      paired: false,
+      companionReachable: true,
+    });
+  });
+
+  it("does not adopt another browser tab's pairing without its session token", async () => {
+    const transport = new FakeTransport();
+    transport.discoveredStatus = status({
+      connection: "paired",
+      listenerActive: true,
+      paired: true,
+      request: {
+        requestId: "other-tab-request",
+        projectId: "fixture-project",
+        prompt: "Private prompt from the paired tab",
+        status: "working",
+      },
+    });
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      autoConnect: true,
+      discoveryIntervalMs: 0,
+    });
+
+    client.start();
+    await flush();
+
+    expect(client.getSnapshot()).toMatchObject({
+      state: "available",
+      paired: false,
+      listenerActive: true,
+      request: null,
+    });
+    expect(transport.pairCalls).toBe(0);
+  });
+
+  it("honors another browser tab's explicit disconnect before auto-connecting", async () => {
+    const firstTransport = new FakeTransport();
+    const secondTransport = new FakeTransport();
+    const first = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport: firstTransport,
+      autoConnect: true,
+      discoveryIntervalMs: 0,
+    });
+    const second = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport: secondTransport,
+      autoConnect: true,
+      discoveryIntervalMs: 0,
+    });
+
+    first.start();
+    await flush();
+    await flush();
+    first.disconnect();
+    second.start();
+    await flush();
+    await flush();
+
+    expect(second.getSnapshot()).toMatchObject({
+      paired: false,
+      companionReachable: true,
+    });
+    expect(secondTransport.pairCalls).toBe(0);
   });
 
   it("does not dispatch a paired prompt until the listener becomes active", async () => {
@@ -375,6 +500,29 @@ describe("AgentClient", () => {
       sessionToken: "session-token",
       acknowledgement: { commandId: "canvas-read", ok: true },
     });
+  });
+
+  it("leaves Canvas acknowledgement to the tab that owns the workspace lease", async () => {
+    const transport = new FakeTransport();
+    const client = new AgentClient({
+      projectId: "fixture-project",
+      origin: window.location.origin,
+      transport,
+      discoveryIntervalMs: 0,
+      canvasCommandHandler: async (command) => ({
+        commandId: command.commandId,
+        ok: false,
+        error: { code: "workspace-locked", message: "Another tab owns the workspace." },
+      }),
+    });
+    client.start();
+    await flush();
+    await client.connect();
+
+    transport.emitCanvas({ type: "read-state", commandId: "canvas-secondary-tab" });
+    await flush();
+
+    expect(transport.acknowledgements).toHaveLength(0);
   });
 
   it("restores a paired stream after a transient disconnect without interrupting its request", async () => {

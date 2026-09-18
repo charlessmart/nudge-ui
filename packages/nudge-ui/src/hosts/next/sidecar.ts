@@ -20,6 +20,7 @@ import {
   NUDGE_UI_RELOAD_PATH,
   NUDGE_UI_ROUTE_PREFIX,
 } from "../../transport/index.ts";
+import { startOptionalProjectBridge } from "../projectBridge.ts";
 
 /**
  * Loopback-only manifest/reload sidecar (ADR-0010).
@@ -259,6 +260,10 @@ export interface SidecarOptions {
    * add/change/remove transitions. Diagnostics never disable inspection.
    */
   tokens?: boolean;
+  /** Trusted browser origin established by the Next development process. */
+  projectBridgeOrigin?: string;
+  /** Canonical loopback aliases for the known development port. */
+  projectBridgeAllowedOrigins?: readonly string[];
 }
 
 /**
@@ -277,7 +282,7 @@ export async function ensureSidecar(
   const fsRoot = await realpath(root).catch(() => root);
   const scanRoots = await tokenScanRoots(fsRoot, options.sourceRoots);
   const state = globalState(
-    `${options.tokens ? "tokens" : "manifest"}:${fsRoot}:${scanRoots.join("|")}`,
+    `${options.tokens ? "tokens" : "manifest"}:${options.projectBridgeOrigin ?? "plain"}:${fsRoot}:${scanRoots.join("|")}`,
   );
   // The settled promise doubles as the handle cache: awaiting it replays the
   // same handle for every caller until close/failure clears the slot.
@@ -307,7 +312,35 @@ export async function ensureSidecar(
       }
     };
 
-    const manifest: NudgeUiManifest = options.manifest ?? buildManifest({ root });
+    let manifest: NudgeUiManifest = options.manifest ?? buildManifest({ root });
+    let projectBridge: Awaited<ReturnType<typeof startOptionalProjectBridge>> = null;
+    let projectBridgeStart: Promise<void> | null = null;
+
+    const ensureProjectBridge = (): Promise<void> => {
+      if (!options.projectBridgeOrigin || projectBridge || projectBridgeStart) {
+        return projectBridgeStart ?? Promise.resolve();
+      }
+      projectBridgeStart = startOptionalProjectBridge({
+        appRoot: fsRoot,
+        projectId: manifest.runtime.projectId,
+        origin: options.projectBridgeOrigin,
+        ...(options.projectBridgeAllowedOrigins
+          ? { allowedOrigins: options.projectBridgeAllowedOrigins }
+          : {}),
+        warn: (message) => console.warn(message),
+      }).then((bridge) => {
+        projectBridge = bridge;
+        if (bridge) manifest = { ...manifest, agentBridge: bridge.browser };
+      });
+      return projectBridgeStart;
+    };
+    const closeProjectBridge = async (): Promise<void> => {
+      await projectBridgeStart;
+      const bridge = projectBridge;
+      projectBridge = null;
+      projectBridgeStart = null;
+      await bridge?.close();
+    };
     const additionalTokenRoots = scanRoots.filter((scanRoot) => scanRoot !== fsRoot);
     const tokenSnapshotOptions = {
       rootDirectory: fsRoot,
@@ -349,6 +382,7 @@ export async function ensureSidecar(
       // The port file is diagnostics-only; the rewrite carries the real
       // transport, so an unwritable .next must not break instrumentation.
     }
+    await ensureProjectBridge();
 
     const watchers: Array<{ close: () => Promise<void> }> = [];
     // The startup source scan runs regardless of the token lifecycle so a
@@ -488,16 +522,20 @@ export async function ensureSidecar(
         // close. Closing twice must not throw.
         if (!server.listening) {
           state.starting = undefined;
-          return Promise.resolve();
+          return closeProjectBridge();
         }
         for (const stream of streams) stream.end();
         streams.clear();
         void Promise.all(watchers.map((watcher) => watcher.close().catch(() => {})));
         rmSync(portFilePath(root), { force: true });
         state.starting = undefined;
-        return new Promise((resolveClose, rejectClose) => {
+        const closeServer = new Promise<void>((resolveClose, rejectClose) => {
           server.close((error) => (error ? rejectClose(error) : resolveClose()));
         });
+        return Promise.all([
+          closeServer,
+          closeProjectBridge(),
+        ]).then(() => undefined);
       },
     };
 

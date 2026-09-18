@@ -3,13 +3,14 @@ import { createLoopbackBridge, type BridgeClock } from "./bridge.ts";
 
 class FakeClock implements BridgeClock {
   private nextHandle = 0;
-  private readonly callbacks = new Map<number, () => void>();
+  private time = 0;
+  private readonly callbacks = new Map<number, { at: number; callback: () => void }>();
 
-  now(): number { return 0; }
+  now(): number { return this.time; }
 
-  setTimeout(callback: () => void): number {
+  setTimeout(callback: () => void, delayMs: number): number {
     const handle = ++this.nextHandle;
-    this.callbacks.set(handle, callback);
+    this.callbacks.set(handle, { at: this.time + delayMs, callback });
     return handle;
   }
 
@@ -20,12 +21,27 @@ class FakeClock implements BridgeClock {
   tick(): void {
     const callbacks = [...this.callbacks.values()];
     this.callbacks.clear();
-    for (const callback of callbacks) callback();
+    for (const { callback } of callbacks) callback();
+  }
+
+  advance(delayMs: number): void {
+    this.time += delayMs;
+    const due = [...this.callbacks.entries()].filter(([, scheduled]) => scheduled.at <= this.time);
+    for (const [handle] of due) this.callbacks.delete(handle);
+    for (const [, { callback }] of due) callback();
   }
 }
 
 async function json(response: Response): Promise<Record<string, any>> {
   return await response.json() as Record<string, any>;
+}
+
+async function waitUntil(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) return;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+  throw new Error("condition was not reached");
 }
 
 function bridgeUrl(bridge: ReturnType<typeof createLoopbackBridge>, path: string): string {
@@ -34,6 +50,75 @@ function bridgeUrl(bridge: ReturnType<typeof createLoopbackBridge>, path: string
 }
 
 describe("loopback browser bridge", () => {
+  it("expires an abandoned agent claim and cancels its listener", async () => {
+    const clock = new FakeClock();
+    const controlToken = "a".repeat(32);
+    const bridge = createLoopbackBridge({
+      projectId: "claim-expiry",
+      origin: "http://localhost:5173",
+      port: 0,
+      clock,
+      agentControlToken: controlToken,
+    });
+    await bridge.start();
+    const control = (path: string, agentId: string): Promise<Response> => fetch(bridgeUrl(bridge, path), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${controlToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId }),
+    });
+    try {
+      expect((await control("/__nudge/agent/claim", "abandoned-agent")).status).toBe(200);
+      const listening = control("/__nudge/agent/listen", "abandoned-agent");
+      await waitUntil(() => bridge.getStatus().listenerActive);
+
+      clock.advance(30_000);
+
+      expect((await listening).status).toBe(409);
+      expect(bridge.getStatus().listenerActive).toBe(false);
+      expect((await control("/__nudge/agent/claim", "replacement-agent")).status).toBe(200);
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  it("accepts explicit loopback aliases and makes same-session pairing idempotent", async () => {
+    const bridge = createLoopbackBridge({
+      projectId: "aliases",
+      origin: "http://localhost:5173",
+      allowedOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"],
+      port: 0,
+      tokenFactory: () => "alias-session",
+    });
+    await bridge.start();
+    try {
+      const pair = (sessionToken?: string): Promise<Response> => fetch(bridgeUrl(bridge, "/pair"), {
+        method: "POST",
+        headers: { Origin: "http://127.0.0.1:5173", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: "aliases",
+          origin: "http://127.0.0.1:5173",
+          pageUrl: "http://127.0.0.1:5173/page",
+          ...(sessionToken ? { sessionToken } : {}),
+        }),
+      });
+      const first = await pair();
+      expect(first.status).toBe(200);
+      expect((await json(first)).origin).toBe("http://127.0.0.1:5173");
+      expect(bridge.effectiveOrigin).toBe("http://127.0.0.1:5173");
+
+      const health = await fetch(`${bridgeUrl(bridge, "/health")}?projectId=aliases`, {
+        headers: { Origin: "http://127.0.0.1:5173" },
+      });
+      expect(health.status).toBe(200);
+      expect((await json(health)).origin).toBe("http://127.0.0.1:5173");
+
+      expect((await pair("alias-session")).status).toBe(200);
+      expect((await pair()).status).toBe(409);
+    } finally {
+      await bridge.close();
+    }
+  });
+
   it("rejects a hostile first connection before pairing a configured browser origin", async () => {
     const bridge = createLoopbackBridge({
       projectId: "sandbox",
@@ -64,7 +149,7 @@ describe("loopback browser bridge", () => {
       expect(hostilePair.status).toBe(403);
       expect((await json(hostilePair)).error.code).toBe("origin_not_allowed");
       expect(bridge.sessionToken).toBeNull();
-      expect(() => bridge.pairBrowser("sandbox", "http://evil.test")).toThrow("does not match");
+      expect(() => bridge.pairBrowser("sandbox", "http://evil.test")).toThrow("not in the configured allow-list");
 
       const healthBeforePair = await fetch(`${bridgeUrl(bridge, "/health")}?projectId=sandbox`, {
         headers: { Origin: "http://localhost:5173" },

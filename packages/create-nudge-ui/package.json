@@ -36,6 +36,7 @@
     "test:unit:watch": "vitest"
   },
   "dependencies": {
+    "add-mcp": "^2.4.0",
     "typescript": "^5.9.3"
   },
   "devDependencies": {

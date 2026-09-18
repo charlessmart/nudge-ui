@@ -1,4 +1,17 @@
 export { parseArguments, helpText, type CliOptions } from "./arguments.ts";
+export {
+  configureProjectAgents,
+  detectProjectAgentCandidates,
+  initializerVersion,
+  isAgentServerAvailable,
+  manualAgentConfiguration,
+  planAgentSetup,
+  projectAgentChoices,
+  projectAgentTypes,
+  type AgentInstallOutcome,
+  type AgentSetupPlan,
+} from "./agent-setup.ts";
+export { runAgentSetup, type RunAgentSetupOptions } from "./cli.ts";
 export { configureSource, planConfiguration } from "./configuration.ts";
 export {
   detectFrameworks,

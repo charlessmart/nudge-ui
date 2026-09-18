@@ -34,11 +34,12 @@ import type {
   PairingResponse,
   PromptDispatchResponse,
 } from "@nudge-ui/agent-protocol";
-import { BRIDGE_ENDPOINTS, type BridgeHttpError } from "./protocol.ts";
+import { AGENT_CONTROL_ENDPOINTS, BRIDGE_ENDPOINTS, type BridgeHttpError } from "./protocol.ts";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const MAX_BODY_BYTES = 256 * 1024;
 const DEFAULT_COMMAND_TIMEOUT_MS = 5_000;
+const AGENT_CLAIM_TIMEOUT_MS = 30_000;
 
 /** A clock port keeps command timeout tests deterministic. */
 export interface BridgeClock {
@@ -69,6 +70,8 @@ export interface BrowserBridgeOptions {
   readonly tokenFactory?: () => string;
   /** Test seam; production defaults to random UUIDs. */
   readonly idFactory?: () => string;
+  /** Private credential for a separately running MCP adapter. */
+  readonly agentControlToken?: string;
   /**
    * Best-effort hook used by the CLI to reopen the last paired page when an
    * agent rearms listening but no browser controller stream is attached.
@@ -307,7 +310,10 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
   if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 60_000) {
     throw new TypeError("commandTimeoutMs must be between 1 and 60000 milliseconds");
   }
-  const allowedOrigins = (options.allowedOrigins ?? (configuredOrigin ? [configuredOrigin] : [])).map((candidate) => canonicalOrigin(candidate));
+  const allowedOrigins = [
+    ...(configuredOrigin ? [configuredOrigin] : []),
+    ...(options.allowedOrigins ?? []),
+  ].map((candidate) => canonicalOrigin(candidate));
   if (allowedOrigins.some((candidate) => candidate === null)) {
     throw new TypeError("allowedOrigins must contain canonical HTTP(S) origins");
   }
@@ -315,6 +321,10 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
   const clock = options.clock ?? SYSTEM_CLOCK;
   const tokenFactory = options.tokenFactory ?? randomToken;
   const idFactory = options.idFactory ?? randomId;
+  const agentControlToken = options.agentControlToken;
+  if (agentControlToken !== undefined && (agentControlToken.length < 32 || agentControlToken.length > 256)) {
+    throw new TypeError("agentControlToken must contain between 32 and 256 characters");
+  }
 
   let lifecycle: BridgeLifecycle = "created";
   let currentAddress: BridgeAddress | null = null;
@@ -327,6 +337,9 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
   let pendingCanvas: PendingCanvasCommand | null = null;
   let closePromise: Promise<void> | null = null;
   let startPromise: Promise<BridgeAddress> | null = null;
+  let agentOwner: string | null = null;
+  let agentOwnerSeenAt = 0;
+  let agentOwnerExpiry: unknown | null = null;
 
   const getStatus = (): AgentStatusSnapshot => statusWith(
     options.projectId,
@@ -413,7 +426,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     sendJson(response, 200, {
       protocolVersion: AGENT_PROTOCOL_VERSION,
       projectId: options.projectId,
-      origin: configuredOrigin ?? pairedOrigin,
+      origin: incomingOrigin,
       status: getStatus(),
       sessionRequired: true,
       pageUrl: lastPageUrl,
@@ -431,7 +444,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     const body = await readJsonBody(request);
     parseProjectId(typeof body.projectId === "string" ? body.projectId : null, options.projectId);
     const requestedOrigin = canonicalOrigin(body.origin);
-    if (!requestedOrigin || requestedOrigin !== incomingOrigin || (configuredOrigin !== null && requestedOrigin !== configuredOrigin)) {
+    if (!requestedOrigin || requestedOrigin !== incomingOrigin) {
       throw new BridgeRequestError(403, "origin_mismatch", "Pairing requires an explicitly configured project origin.");
     }
     let requestedPageUrl: string | undefined;
@@ -443,7 +456,20 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
       requestedPageUrl = new URL(body.pageUrl, requestedOrigin).href;
     }
     if (sessionToken) {
-      throw new BridgeRequestError(409, "already_paired", "A browser is already paired with this project.");
+      if (body.sessionToken !== sessionToken) {
+        throw new BridgeRequestError(409, "already_paired", "A browser is already paired with this project.");
+      }
+      lastPageUrl = requestedPageUrl ?? lastPageUrl;
+      const existing: PairingResponse = {
+        protocolVersion: AGENT_PROTOCOL_VERSION,
+        projectId: options.projectId,
+        origin: pairedOrigin!,
+        sessionToken,
+        ...(lastPageUrl === null ? {} : { pageUrl: lastPageUrl }),
+        status: getStatus(),
+      };
+      sendJson(response, 200, existing, incomingOrigin);
+      return;
     }
     sessionToken = tokenFactory();
     if (!sessionToken || sessionToken.length > AGENT_PROTOCOL_LIMITS.sessionToken) {
@@ -456,7 +482,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     const result: PairingResponse = {
       protocolVersion: AGENT_PROTOCOL_VERSION,
       projectId: options.projectId,
-      origin: configuredOrigin ?? pairedOrigin!,
+      origin: pairedOrigin!,
       sessionToken,
       ...(lastPageUrl === null ? {} : { pageUrl: lastPageUrl }),
       status: getStatus(),
@@ -586,9 +612,162 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     sendJson(response, 200, { disconnected: true }, incomingOrigin);
   };
 
+  const requireAgentControl = (request: IncomingMessage, bodyAgentId?: unknown): string | null => {
+    if (!agentControlToken || !loopbackAddress(request.socket.remoteAddress)) {
+      throw new BridgeRequestError(403, "agent_control_unavailable", "Private agent control is unavailable.");
+    }
+    if (headerValue(request, "authorization") !== `Bearer ${agentControlToken}`) {
+      throw new BridgeRequestError(401, "invalid_agent_credential", "The agent control credential is invalid.");
+    }
+    if (bodyAgentId === undefined) return null;
+    if (typeof bodyAgentId !== "string" || bodyAgentId.length === 0 || bodyAgentId.length > 256) {
+      throw new BridgeRequestError(400, "invalid_agent_id", "agentId must be a bounded non-empty string.");
+    }
+    return bodyAgentId;
+  };
+
+  const requireAgentOwner = (request: IncomingMessage, body: Record<string, unknown>): string => {
+    const agentId = requireAgentControl(request, body.agentId);
+    if (!agentId || agentOwner !== agentId) {
+      throw new BridgeRequestError(409, "agent_not_owner", "This MCP adapter does not own the project session.");
+    }
+    agentOwnerSeenAt = clock.now();
+    scheduleAgentOwnerExpiry();
+    return agentId;
+  };
+
+  const releaseAgentOwner = (reason: string): void => {
+    if (agentOwnerExpiry !== null) clock.clearTimeout(agentOwnerExpiry);
+    agentOwnerExpiry = null;
+    agentOwner = null;
+    agentOwnerSeenAt = 0;
+    cancelListener(reason);
+    if (currentRequest?.status === "working") {
+      currentRequest = { ...currentRequest, status: "interrupted", error: reason };
+      broadcastStatus();
+    }
+    if (pendingCanvas) {
+      const pendingCommand = pendingCanvas;
+      pendingCanvas = null;
+      clock.clearTimeout(pendingCommand.timeout);
+      pendingCommand.resolve({
+        commandId: pendingCommand.command.commandId,
+        ok: false,
+        error: { code: "agent_released", message: reason },
+      });
+    }
+  };
+
+  const scheduleAgentOwnerExpiry = (): void => {
+    if (agentOwnerExpiry !== null) clock.clearTimeout(agentOwnerExpiry);
+    const expectedOwner = agentOwner;
+    if (!expectedOwner) {
+      agentOwnerExpiry = null;
+      return;
+    }
+    const expireIfStale = (): void => {
+      agentOwnerExpiry = null;
+      if (agentOwner !== expectedOwner) return;
+      const remaining = AGENT_CLAIM_TIMEOUT_MS - (clock.now() - agentOwnerSeenAt);
+      if (remaining > 0) {
+        agentOwnerExpiry = clock.setTimeout(expireIfStale, remaining);
+        return;
+      }
+      releaseAgentOwner("The MCP adapter claim expired.");
+    };
+    agentOwnerExpiry = clock.setTimeout(expireIfStale, AGENT_CLAIM_TIMEOUT_MS);
+  };
+
+  const handleAgentClaim = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const body = await readJsonBody(request);
+    const agentId = requireAgentControl(request, body.agentId);
+    if (!agentId) throw new BridgeRequestError(400, "invalid_agent_id", "agentId is required.");
+    if (agentOwner && agentOwner !== agentId && clock.now() - agentOwnerSeenAt <= AGENT_CLAIM_TIMEOUT_MS) {
+      throw new BridgeRequestError(409, "session_claimed", "Another MCP adapter owns this project session.");
+    }
+    if (agentOwner && agentOwner !== agentId) releaseAgentOwner("The previous MCP adapter claim expired.");
+    agentOwner = agentId;
+    agentOwnerSeenAt = clock.now();
+    scheduleAgentOwnerExpiry();
+    sendJson(response, 200, { claimed: true }, null);
+  };
+
+  const handleAgentRelease = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const body = await readJsonBody(request);
+    const agentId = requireAgentOwner(request, body);
+    releaseAgentOwner(`Agent ${agentId} released the project session.`);
+    sendJson(response, 200, { released: true }, null);
+  };
+
+  const handleAgentListen = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const body = await readJsonBody(request);
+    requireAgentOwner(request, body);
+    const abort = new AbortController();
+    response.once("close", () => abort.abort());
+    const prompt = await waitForPrompt(abort.signal);
+    sendJson(response, 200, prompt, null);
+  };
+
+  const handleAgentReportStatus = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const body = await readJsonBody(request);
+    requireAgentOwner(request, body);
+    if (!isAgentStatusUpdate(body.update)) {
+      throw new BridgeRequestError(400, "invalid_status", "update must be a valid agent status update.");
+    }
+    updateRequestStatus(body.update);
+    sendJson(response, 200, getStatus(), null);
+  };
+
+  const handleAgentCanvas = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
+    const body = await readJsonBody(request);
+    requireAgentOwner(request, body);
+    if (!isCanvasCommand(body.command)) {
+      throw new BridgeRequestError(400, "invalid_canvas_command", "command must be a valid Canvas command.");
+    }
+    sendJson(response, 200, await dispatchCanvasCommand(body.command), null);
+  };
+
   const httpServer = createServer((request, response) => {
     void (async () => {
       const url = new URL(request.url ?? "/", `http://${host}:${port}`);
+      if (request.method === "GET" && url.pathname === AGENT_CONTROL_ENDPOINTS.health) {
+        requireAgentControl(request);
+        sendJson(response, 200, { projectId: options.projectId, available: true, claimed: agentOwner !== null, status: getStatus() }, null);
+        return;
+      }
+      if (request.method === "POST" && url.pathname === AGENT_CONTROL_ENDPOINTS.claim) {
+        await handleAgentClaim(request, response);
+        return;
+      }
+      if (request.method === "POST" && url.pathname === AGENT_CONTROL_ENDPOINTS.release) {
+        await handleAgentRelease(request, response);
+        return;
+      }
+      if (request.method === "POST" && url.pathname === AGENT_CONTROL_ENDPOINTS.heartbeat) {
+        const body = await readJsonBody(request);
+        requireAgentOwner(request, body);
+        sendJson(response, 200, { alive: true }, null);
+        return;
+      }
+      if (request.method === "POST" && url.pathname === AGENT_CONTROL_ENDPOINTS.listen) {
+        await handleAgentListen(request, response);
+        return;
+      }
+      if (request.method === "GET" && url.pathname === AGENT_CONTROL_ENDPOINTS.status) {
+        const agentId = url.searchParams.get("agentId");
+        requireAgentControl(request, agentId);
+        if (agentOwner !== agentId) throw new BridgeRequestError(409, "agent_not_owner", "This MCP adapter does not own the project session.");
+        sendJson(response, 200, getStatus(), null);
+        return;
+      }
+      if (request.method === "POST" && url.pathname === AGENT_CONTROL_ENDPOINTS.reportStatus) {
+        await handleAgentReportStatus(request, response);
+        return;
+      }
+      if (request.method === "POST" && url.pathname === AGENT_CONTROL_ENDPOINTS.canvas) {
+        await handleAgentCanvas(request, response);
+        return;
+      }
       if (request.method === "OPTIONS") {
         handleOptions(request, response);
         return;
@@ -665,7 +844,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     const pending = listener;
     listener = null;
     if (pending.abortHandler && pending.signal) pending.signal.removeEventListener("abort", pending.abortHandler);
-    pending.reject(new Error(reason));
+    pending.reject(new BridgeRequestError(409, "listener_cancelled", reason));
     broadcastStatus();
   };
 
@@ -765,9 +944,6 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     // This method is the explicit host-side approval path. A bridge without
     // an HTTP allow-list can still be paired by trusted host code, while all
     // browser-originated requests remain closed until that approval exists.
-    if (configuredOrigin !== null && requestCanonicalOrigin !== configuredOrigin) {
-      throw new Error("Browser origin does not match this bridge");
-    }
     if (canonicalAllowedOrigins.length > 0 && !originIsAllowed(requestCanonicalOrigin)) {
       throw new Error("Browser origin is not in the configured allow-list");
     }
@@ -829,6 +1005,10 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
   const close = (): Promise<void> => {
     if (closePromise) return closePromise;
     lifecycle = "closed";
+    if (agentOwnerExpiry !== null) clock.clearTimeout(agentOwnerExpiry);
+    agentOwnerExpiry = null;
+    agentOwner = null;
+    agentOwnerSeenAt = 0;
     cancelListener("bridge_closed");
     if (pendingCanvas) {
       clock.clearTimeout(pendingCanvas.timeout);

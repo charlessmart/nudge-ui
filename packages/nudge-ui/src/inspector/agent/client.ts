@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
-import { HttpAgentBridgeTransport } from "./httpTransport.ts";
+import { HttpAgentBridgeTransport, shouldAutoConnectAgentBridge } from "./httpTransport.ts";
 import {
   AGENT_PROTOCOL_VERSION,
   type AgentBridgeEvent,
@@ -63,6 +63,7 @@ const DISABLED_SNAPSHOT: AgentClientSnapshot = Object.freeze({
 
 const DEFAULT_DISCOVERY_INTERVAL_MS = 2_000;
 const SESSION_STORAGE_PREFIX = "nudge-ui-agent-session:";
+const AUTO_CONNECT_DISABLED_PREFIX = "nudge-ui-agent-auto-connect-disabled:";
 
 interface StoredAgentSession {
   readonly projectId: string;
@@ -133,6 +134,27 @@ function clearStoredSession(projectId: string): void {
   }
 }
 
+function autoConnectDisabled(projectId: string): boolean {
+  if (typeof localStorage === "undefined") return false;
+  try {
+    return localStorage.getItem(`${AUTO_CONNECT_DISABLED_PREFIX}${encodeURIComponent(projectId)}`) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function setAutoConnectDisabled(projectId: string, disabled: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const key = `${AUTO_CONNECT_DISABLED_PREFIX}${encodeURIComponent(projectId)}`;
+    if (disabled) localStorage.setItem(key, "true");
+    else localStorage.removeItem(key);
+  } catch {
+    // Privacy settings can disable storage. The current document still keeps
+    // the explicit disconnect preference in memory.
+  }
+}
+
 function statusForConnection(status: AgentStatusSnapshot): AgentStatusSnapshot["connection"] {
   if (status.connection === "working" || status.request?.status === "working") return "working";
   if (status.paired) return "paired";
@@ -197,6 +219,8 @@ export class AgentClient {
   private companionReachable = false;
   private paired = false;
   private lastError: string | undefined;
+  private readonly autoConnect: boolean;
+  private autoConnectSuppressed = false;
 
   constructor(options: AgentClientOptions) {
     this.projectId = options.projectId;
@@ -204,6 +228,8 @@ export class AgentClient {
     this.transport = options.transport ?? new HttpAgentBridgeTransport(options.endpoint);
     this.discoveryIntervalMs = options.discoveryIntervalMs ?? DEFAULT_DISCOVERY_INTERVAL_MS;
     this.canvasCommandHandler = options.canvasCommandHandler;
+    this.autoConnect = options.autoConnect ?? shouldAutoConnectAgentBridge();
+    this.autoConnectSuppressed = this.autoConnect && autoConnectDisabled(this.projectId);
     // The public demo renders the real inspector but intentionally keeps the
     // local MCP/agent bridge inert.
     this.enabled = isNudgeUiDev() && !isDemoRuntime();
@@ -334,6 +360,8 @@ export class AgentClient {
   /** Pairs the browser with a reachable companion, including an idle agent. */
   async connect(): Promise<boolean> {
     if (!this.enabled || !this.started || this.pairingAbort || this.paired || !this.companionReachable) return false;
+    this.autoConnectSuppressed = false;
+    setAutoConnectDisabled(this.projectId, false);
     if (this.connection === "working" || this.activeRequest?.status === "working") return false;
     const idleListenerActive = this.listenerActive;
     const idleCompanionReachable = this.companionReachable;
@@ -460,6 +488,8 @@ export class AgentClient {
 
   /** Interrupts local request state and asks the companion to revoke pairing. */
   disconnect(reason = "browser_disconnected"): void {
+    this.autoConnectSuppressed = true;
+    if (this.autoConnect) setAutoConnectDisabled(this.projectId, true);
     const token = this.sessionToken;
     const active = this.activeRequest;
     if (active?.status === "working") {
@@ -507,7 +537,20 @@ export class AgentClient {
         } else {
           this.companionReachable = true;
           if (this.connection !== "paired" && this.connection !== "working" && !this.pairingAbort) {
-            this.applyStatus(status);
+            // Discovery is unauthenticated. Another browser tab can own the
+            // pairing, so do not adopt `paired` until this tab restores the
+            // shared token. The next poll runs restore first in case a sibling
+            // tab has just stored that token.
+            this.applyStatus(status.paired ? {
+              ...status,
+              connection: status.listenerActive ? "listening" : "offline",
+              paired: false,
+              request: null,
+            } : status);
+            if (this.autoConnect
+              && !status.paired
+              && !this.autoConnectSuppressed
+              && !autoConnectDisabled(this.projectId)) void this.connect();
           }
         }
       } else if (this.connection !== "paired" && this.connection !== "working" && !this.pairingAbort) {
@@ -540,7 +583,7 @@ export class AgentClient {
     if (!this.started || this.paired || this.pairingAbort || this.discoveryIntervalMs <= 0 || this.discoveryTimer !== null) return;
     this.discoveryTimer = setTimeout(() => {
       this.discoveryTimer = null;
-      void this.discover();
+      void this.restoreOrDiscover();
     }, this.discoveryIntervalMs);
   }
 
@@ -587,6 +630,11 @@ export class AgentClient {
         },
       };
     }
+    // Every tab with the shared browser session receives the SSE command, but
+    // only the Canvas lease owner may answer it. A read-only tab reports this
+    // local sentinel; leave the command pending for the owning tab instead of
+    // racing its acknowledgement with a false failure.
+    if (!acknowledgement.ok && acknowledgement.error?.code === "workspace-locked") return;
     if (acknowledgement.commandId !== command.commandId) {
       acknowledgement = {
         commandId: command.commandId,
