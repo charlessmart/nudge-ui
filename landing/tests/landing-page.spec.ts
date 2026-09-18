@@ -69,7 +69,7 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
   const workspace = inspectorHost.locator('[data-test="canvas-workspace"]');
   await expect(workspace).toBeVisible();
-  await expect(workspace).toHaveAttribute("data-presentation", "canvas");
+  await expect(workspace).toHaveAttribute("data-presentation", "focus");
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot?.querySelector(".panel")?.getAttribute("data-open"))).toBe("true");
 
   const frames = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]");
@@ -77,7 +77,7 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   const appFrame = frames.first();
   const eggFrame = frames.nth(1);
   await expect(appFrame).toBeVisible();
-  await expect(eggFrame).toBeVisible();
+  await expect(eggFrame).toBeHidden();
   await expect.poll(async () => (await appFrame.getAttribute("src")) ?? "").not.toContain("nudge-ui=editor");
   const app = appFrame.contentFrame();
   const egg = eggFrame.contentFrame();
@@ -85,13 +85,13 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(app.locator('[data-test="landing-nudge-launcher"]')).toBeHidden();
   await expect(egg.getByRole("heading", { name: /One pixel/ })).toBeVisible();
 
-  await inspectorHost.locator('[data-test="presentation-focus"]').click();
-  await expect(workspace).toHaveAttribute("data-presentation", "focus");
-  await expect(appFrame).toBeVisible();
-  await expect(eggFrame).toBeHidden();
   await inspectorHost.locator('[data-test="presentation-canvas"]').click();
   await expect(workspace).toHaveAttribute("data-presentation", "canvas");
   await expect(eggFrame).toBeVisible();
+  await expect(inspectorHost.locator(".canvas-workspace__board-content")).toHaveCSS(
+    "transform",
+    /matrix\(0\.75, 0, 0, 0\.75,/,
+  );
 
   const editableDemoText = app.locator(".landing-demo-example-text");
   await editableDemoText.dblclick();
@@ -109,6 +109,10 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await egg.getByRole("heading", { name: /One pixel/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("nudge-egg")).toBe("1");
   await page.reload();
+  await expect(page.locator("#nudge-ui-root").locator('[data-test="canvas-workspace"]')).toHaveAttribute(
+    "data-presentation",
+    "focus",
+  );
   const restoredFrames = page.locator("#nudge-ui-root").locator("iframe[data-nudge-ui-canvas-renderer]");
   await expect(restoredFrames).toHaveCount(2);
   const restoredSources = await restoredFrames.evaluateAll((elements) => elements.map((element) => (

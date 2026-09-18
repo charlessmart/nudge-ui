@@ -18,8 +18,9 @@ editor entry document and support application frames. It also supersedes
 ADR-0016's single-document public landing demo: the landing page opens the
 shared iframe editor when a visitor selects **Open Nudge** or its floating
 launcher. The initial landing page remains a normal application document. The
-demo opens in Canvas with landing-owned sample pages and supports switching to
-Focus. Demo mode retains its restrictions
+demo opens in Focus. Canvas zooms out from the active page, with landing-owned
+sample pages available by panning. Refresh resets the demo presentation and
+camera rather than restoring them. Demo mode retains its restrictions
 on workspace persistence, leasing, and agent access; edits remain browser-local.
 The explicit `nudge-demo` static artifact supports the same document boundary
 without requiring a development server.

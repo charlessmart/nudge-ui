@@ -118,7 +118,15 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         nextX += width + 40;
       }
       focusCard(primaryCard.id);
-      fitAllCards(viewport);
+      const seededPrimary = getCanvasCards().find((card) => card.id === primaryCard.id);
+      if (seededPrimary) {
+        const zoom = 0.75;
+        setBoardCamera({
+          x: Math.max(40, (viewport.width - seededPrimary.width * zoom) / 2) - seededPrimary.x * zoom,
+          y: Math.max(64, (viewport.height - seededPrimary.height * zoom) / 2) - seededPrimary.y * zoom,
+          zoom,
+        });
+      }
     }
   }, [primaryUrl, cards.length, runtimeConfig.demo, runtimeConfig.demoPages]);
 

@@ -35,9 +35,10 @@ compare multiple routes and agent-generated variations. Links navigate within
 their preview. Each live preview runs the application independently, so opening
 more previews also runs more application instances. The public landing page
 opens the same iframe editor from **Open Nudge** or its floating launcher. The
-demo starts in Canvas with the landing page and a small easter-egg page; visitors
-can focus either preview. Demo edits remain browser-local, with workspace
-persistence and the agent bridge disabled.
+demo starts in Focus on the landing page. Canvas zooms out slightly so visitors
+can pan to a small easter-egg page. Refresh resets the demo to Focus without
+restoring zoom. Demo edits remain browser-local, with workspace persistence and
+the agent bridge disabled.
 
 ## Install
 

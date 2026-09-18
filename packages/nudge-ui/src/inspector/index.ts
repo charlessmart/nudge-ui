@@ -30,7 +30,7 @@ import { installInspectionBridge } from "./inspection/bridge.ts";
 import { releaseDocumentProjection, subscribeStructuralChanges } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
-import { setCanvasMode, setCanvasPresentation } from "./canvas/canvasStore.ts";
+import { setCanvasMode } from "./canvas/canvasStore.ts";
 import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import {
   clearClipboardHandoff,
@@ -87,7 +87,6 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
     // The public demo shares the iframe editor while keeping the write lease,
     // persistence, and agent bridge disabled.
     setCanvasMode("canvas");
-    setCanvasPresentation("canvas");
     mountInspector(inspectorHost);
     return;
   }
