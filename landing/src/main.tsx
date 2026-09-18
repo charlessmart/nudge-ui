@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { EasterEggPage } from "./EasterEggPage";
 import "./styles.css";
 
 const root = document.getElementById("root");
@@ -11,7 +12,9 @@ const demoEnabled = params.get("nudgeDemo") === "1";
 const landingDemoBuild = import.meta.env.MODE === "nudge-demo";
 const editorDocument = (import.meta.env.DEV || landingDemoBuild)
   && params.getAll("nudge-ui").includes("editor");
-const page = window.location.pathname === "/demo"
+const page = params.get("nudge-egg") === "1"
+  ? <EasterEggPage />
+  : window.location.pathname === "/demo"
   ? demoEnabled || landingDemoBuild
     ? <App />
     : (

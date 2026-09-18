@@ -1,0 +1,117 @@
+.nudge-egg {
+  min-height: 100vh;
+  padding: 32px clamp(24px, 6vw, 80px);
+  display: flex;
+  flex-direction: column;
+  background: #f6f3eb;
+  color: #272921;
+}
+
+.nudge-egg__header,
+.nudge-egg__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.nudge-egg__header {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.nudge-egg__label,
+.nudge-egg__coordinates,
+.nudge-egg__footer {
+  font-family: var(--landing-mono);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.nudge-egg__label {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.nudge-egg__content {
+  width: min(100%, 680px);
+  margin: auto;
+  padding: 64px 0;
+}
+
+.nudge-egg h1 {
+  margin: 20px 0;
+  font-size: clamp(48px, 7vw, 88px);
+  line-height: 0.98;
+  letter-spacing: -0.065em;
+  font-weight: 600;
+}
+
+.nudge-egg__description {
+  max-width: 360px;
+  color: #686b60;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.nudge-egg__specimen {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 240px;
+  margin: 32px 0 20px;
+  overflow: hidden;
+  background-color: #ddd4f5;
+  background-image: linear-gradient(#2729210a 1px, transparent 1px), linear-gradient(90deg, #2729210a 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.nudge-egg__mark {
+  font-size: 180px;
+  line-height: 1;
+  color: #554292;
+}
+
+.nudge-egg__coordinates {
+  position: absolute;
+  bottom: 16px;
+  left: 20px;
+}
+
+.nudge-egg__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.nudge-egg__actions button {
+  padding: 12px 16px;
+  border: 1px solid #272921;
+  border-radius: 4px;
+  background: #272921;
+  color: #f6f3eb;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.nudge-egg__actions .nudge-egg__reset {
+  border-color: transparent;
+  background: transparent;
+  color: #686b60;
+}
+
+.nudge-egg__actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.nudge-egg__actions button:focus-visible {
+  outline: 2px solid #554292;
+  outline-offset: 4px;
+}
+
+.nudge-egg__footer {
+  flex-wrap: wrap;
+  color: #686b60;
+}

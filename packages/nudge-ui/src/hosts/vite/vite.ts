@@ -81,6 +81,8 @@ export interface NudgeUiOptions extends ReactOptions {
   debug?: boolean;
   /** Enables the landing app's restricted, iframe-backed demo runtime. */
   demo?: boolean;
+  /** Additional same-origin routes shown when the public demo opens. */
+  demoPages?: readonly string[];
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
@@ -646,6 +648,7 @@ export function createVitePlugins(
       framework: framework?.framework ?? "HTML",
       stylingSystem: detectStylingSystem(snapshot.tokens),
       ...(options.demo === true ? { demo: true } : {}),
+      ...(options.demoPages === undefined ? {} : { demoPages: options.demoPages }),
       capabilities: { canvas: true, componentSemantics: framework !== null },
       tokenCatalog: snapshot.definitions.map((definition) => ({
         ...definition,
@@ -800,6 +803,7 @@ export function createVitePlugins(
             'const __nudge_ui_editor_target = readNudgeUiEditorTarget(window.location.href);',
             'const __nudge_ui_renderer = isCanvasRenderer();',
             'if (__nudge_ui_editor_target) document.documentElement.setAttribute("data-nudge-ui-editor", "");',
+            'if (__nudge_ui_renderer) document.documentElement.setAttribute("data-nudge-ui-renderer", "");',
             'if (__nudge_ui_editor_target || __nudge_ui_renderer) {',
             '  configureNudgeUiRuntime({',
             '    projectId: nudgeUiProjectId,',
@@ -807,6 +811,7 @@ export function createVitePlugins(
             `    framework: ${JSON.stringify(identity.framework)},`,
             '    stylingSystem: detectFramework(tokens).stylingSystem,',
             '    demo: true,',
+            `    demoPages: ${JSON.stringify(options.demoPages ?? [])},`,
             `    capabilities: { canvas: true, componentSemantics: ${String(framework !== null)} },`,
             '    tokenCatalog,',
             '    tokens,',

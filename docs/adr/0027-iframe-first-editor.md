@@ -16,8 +16,10 @@ renderers apply projections and report interactions to it. It also supersedes
 ADR-0012's Astro exclusion: Vite, Next.js, Astro, and static HTML all serve the
 editor entry document and support application frames. It also supersedes
 ADR-0016's single-document public landing demo: the landing page opens the
-shared iframe editor when a visitor selects **Open Nudge**. The initial landing
-page remains a normal application document. Demo mode retains its restrictions
+shared iframe editor when a visitor selects **Open Nudge** or its floating
+launcher. The initial landing page remains a normal application document. The
+demo opens in Canvas with landing-owned sample pages and supports switching to
+Focus. Demo mode retains its restrictions
 on workspace persistence, leasing, and agent access; edits remain browser-local.
 The explicit `nudge-demo` static artifact supports the same document boundary
 without requiring a development server.

@@ -65,6 +65,37 @@ body:has(.demo-disabled) {
   justify-content: center;
 }
 
+.landing-nudge-launcher {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 20;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: 0 4px 16px rgb(31 32 30 / 14%);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.landing-nudge-launcher:hover {
+  background: var(--surface-sunken);
+}
+
+.landing-nudge-launcher:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+html[data-nudge-ui-renderer] .landing-nudge-launcher {
+  display: none;
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;

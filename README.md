@@ -34,8 +34,10 @@ Editing and comparison use the same workspace. You can keep one preview or
 compare multiple routes and agent-generated variations. Links navigate within
 their preview. Each live preview runs the application independently, so opening
 more previews also runs more application instances. The public landing page
-opens the same iframe editor when visitors select **Open Nudge**. Demo edits
-remain browser-local, with workspace persistence and the agent bridge disabled.
+opens the same iframe editor from **Open Nudge** or its floating launcher. The
+demo starts in Canvas with the landing page and a small easter-egg page; visitors
+can focus either preview. Demo edits remain browser-local, with workspace
+persistence and the agent bridge disabled.
 
 ## Install
 

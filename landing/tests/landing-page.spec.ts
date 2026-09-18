@@ -36,6 +36,9 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(demo.getByText("Open Nudge and try the loop yourself: select any element on this page, make a small change, and see it immediately.", { exact: true })).toBeVisible();
   const openNudge = demo.getByRole("button", { name: "Open Nudge" });
   await expect(openNudge).toBeVisible();
+  const launcher = page.locator('[data-test="landing-nudge-launcher"]');
+  await expect(launcher).toBeVisible();
+  await expect(launcher).toHaveAttribute("aria-label", "Open Nudge");
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: new URL(page.url()).origin });
   const copyInstallPrompt = page.getByRole("button", { name: "Copy install prompt" });
   await copyInstallPrompt.click();
@@ -57,22 +60,39 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
 
   await Promise.all([
     page.waitForURL((url) => url.searchParams.getAll("nudge-ui").includes("editor")),
-    openNudge.click(),
+    launcher.click(),
   ]);
   await expect(page.locator("html")).toHaveAttribute("data-nudge-ui-editor", "");
   await expect(page.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toHaveCount(0);
 
   const inspectorHost = page.locator("#nudge-ui-root");
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
-  await expect(inspectorHost.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await expect(inspectorHost.locator('[data-test="presentation-canvas"]')).toHaveCount(0);
+  const workspace = inspectorHost.locator('[data-test="canvas-workspace"]');
+  await expect(workspace).toBeVisible();
+  await expect(workspace).toHaveAttribute("data-presentation", "canvas");
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot?.querySelector(".panel")?.getAttribute("data-open"))).toBe("true");
 
-  const appFrame = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]");
+  const frames = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]");
+  await expect(frames).toHaveCount(2);
+  const appFrame = frames.first();
+  const eggFrame = frames.nth(1);
   await expect(appFrame).toBeVisible();
+  await expect(eggFrame).toBeVisible();
   await expect.poll(async () => (await appFrame.getAttribute("src")) ?? "").not.toContain("nudge-ui=editor");
   const app = appFrame.contentFrame();
+  const egg = eggFrame.contentFrame();
   await expect(app.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toBeVisible();
+  await expect(app.locator('[data-test="landing-nudge-launcher"]')).toBeHidden();
+  await expect(egg.getByRole("heading", { name: /One pixel/ })).toBeVisible();
+
+  await inspectorHost.locator('[data-test="presentation-focus"]').click();
+  await expect(workspace).toHaveAttribute("data-presentation", "focus");
+  await expect(appFrame).toBeVisible();
+  await expect(eggFrame).toBeHidden();
+  await inspectorHost.locator('[data-test="presentation-canvas"]').click();
+  await expect(workspace).toHaveAttribute("data-presentation", "canvas");
+  await expect(eggFrame).toBeVisible();
+
   const editableDemoText = app.locator(".landing-demo-example-text");
   await editableDemoText.dblclick();
   const inlineEditor = app.locator('[data-inline-editor="true"]');
@@ -85,6 +105,17 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
 
   const demoStorageKeys = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("nudge-ui:")));
   expect(demoStorageKeys).toEqual([]);
+
+  await egg.getByRole("heading", { name: /One pixel/ }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("nudge-egg")).toBe("1");
+  await page.reload();
+  const restoredFrames = page.locator("#nudge-ui-root").locator("iframe[data-nudge-ui-canvas-renderer]");
+  await expect(restoredFrames).toHaveCount(2);
+  const restoredSources = await restoredFrames.evaluateAll((elements) => elements.map((element) => (
+    (element as HTMLIFrameElement).src
+  )));
+  expect(restoredSources.filter((source) => new URL(source).searchParams.get("nudge-egg") === "1")).toHaveLength(1);
+  expect(restoredSources.filter((source) => new URL(source).searchParams.get("nudge-egg") === null)).toHaveLength(1);
 });
 
 test("keeps the unflagged demo route disabled during development", async ({ page }) => {

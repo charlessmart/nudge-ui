@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type RefObject } from "react";
-import { IconArrowsMove, IconEdit, IconPalette } from "@tabler/icons-react";
+import { IconArrowsMove, IconEdit, IconLayoutSidebarRight, IconPalette } from "@tabler/icons-react";
 import editDirectlyPoster from "../assets/screen-1.png";
 import editDirectlyVideo from "../assets/screen-1.mp4";
 import inspectorArrowHead from "../assets/arrow-head.svg";
@@ -11,7 +11,15 @@ import syncTokensVideo from "../assets/screen3.mp4";
 import { HeroDemoGrid } from "./components/HeroDemoGrid";
 
 const installPrompt = "Run npm create nudge-ui@latest in this project";
-const OPEN_NUDGE_EVENT = "nudge-ui:open";
+const demoLauncherEnabled = import.meta.env.DEV || import.meta.env.MODE === "nudge-demo";
+
+function openNudge(): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.getAll("nudge-ui").includes("editor")) {
+    url.searchParams.append("nudge-ui", "editor");
+  }
+  window.location.assign(url);
+}
 const manualSetupCode = [
   "Vite + React  nudge-ui/vite",
   "Next.js       nudge-ui/next",
@@ -479,7 +487,7 @@ function DemoIntro(): ReactNode {
           type="button"
           variant="primary"
           aria-controls="nudge-ui-root"
-          onClick={() => window.dispatchEvent(new Event(OPEN_NUDGE_EVENT))}
+          onClick={openNudge}
         >
           Open Nudge
           <svg className="landing-button-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -584,6 +592,17 @@ export function App(): ReactNode {
           </div>
         </footer>
       </div>
+
+      {demoLauncherEnabled ? <button
+        type="button"
+        className="landing-nudge-launcher"
+        aria-label="Open Nudge"
+        title="Open Nudge"
+        data-test="landing-nudge-launcher"
+        onClick={openNudge}
+      >
+        <IconLayoutSidebarRight size={18} stroke={1.8} aria-hidden="true" />
+      </button> : null}
 
     </>
   );

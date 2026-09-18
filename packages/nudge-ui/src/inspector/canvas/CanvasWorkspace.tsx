@@ -9,6 +9,7 @@ import {
   setBoardCamera,
   getBoardCamera,
   fitAllCards,
+  focusCard,
   hasFitAllRan,
   useBoardCamera,
   useCanvasPresentation,
@@ -16,6 +17,7 @@ import {
   useSelectedCardId,
   useFocusedCardId,
   resizeCard,
+  setCardPosition,
   type CanvasCard as CanvasCardData,
   updateCardUrl,
 } from "./canvasStore.ts";
@@ -59,6 +61,7 @@ import { acknowledgeAgentRendererReady } from "./agentPresentation.ts";
 import { useInspectorSession } from "../session/sessionContext.tsx";
 import { createNudgeUiDirectUrl } from "../../transport/editor.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
+import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");
 
@@ -68,6 +71,7 @@ export interface CanvasWorkspaceProps {
 
 export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElement | null {
   const mode = useCanvasMode();
+  const runtimeConfig = useNudgeUiRuntimeConfig();
   const inspectorSession = useInspectorSession();
   const inspectorOpen = useInspectorOpen();
   const cards = useCanvasCards();
@@ -85,6 +89,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const spaceHeldRef = useRef(false);
   const fitAllScheduledRef = useRef(false);
   const activatedTargetRef = useRef<string | null>(null);
+  const demoSeededRef = useRef(false);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
@@ -94,11 +99,28 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     if (!primaryUrl || !board) return;
     if (activatedTargetRef.current === primaryUrl && cards.length > 0) return;
     activatedTargetRef.current = primaryUrl;
-    activateIframeWorkspace(primaryUrl, {
+    const viewport = {
       width: board.clientWidth,
       height: board.clientHeight,
-    });
-  }, [primaryUrl, cards.length]);
+    };
+    const primaryCard = activateIframeWorkspace(primaryUrl, viewport);
+    if (runtimeConfig.demo === true && primaryCard && !demoSeededRef.current) {
+      demoSeededRef.current = true;
+      let nextX = 0;
+      for (const [index, route] of (runtimeConfig.demoPages ?? []).entries()) {
+        const url = new URL(route, primaryUrl);
+        if (url.origin !== window.location.origin) continue;
+        const card = activateIframeWorkspace(url.href, viewport);
+        if (!card) continue;
+        const width = index === 0 ? 1024 : 720;
+        resizeCard(card.id, width, 900);
+        setCardPosition(card.id, nextX, 0);
+        nextX += width + 40;
+      }
+      focusCard(primaryCard.id);
+      fitAllCards(viewport);
+    }
+  }, [primaryUrl, cards.length, runtimeConfig.demo, runtimeConfig.demoPages]);
 
   useEffect(() => {
     if (primaryUrl && activatedTargetRef.current !== primaryUrl) return;

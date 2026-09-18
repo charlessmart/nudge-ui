@@ -271,7 +271,7 @@ export function InspectorShell(): ReactElement {
               <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             </IconButton>
             <div className="panel__header-actions">
-              {canvasEnabled && runtimeConfig.demo !== true ? (
+              {canvasEnabled ? (
                 <Button
                   variant="quiet"
                   size="compact"
