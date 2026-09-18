@@ -3,15 +3,22 @@ import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DiscoveredProjectRouter, discoverProjectSessions } from "./discovery.ts";
 import { defaultSessionRegistryRoot, startProjectBridge, type ProjectBridgeRuntime } from "./project.ts";
 
 const running: ProjectBridgeRuntime[] = [];
+const routers: DiscoveredProjectRouter[] = [];
+const listeners: ReturnType<DiscoveredProjectRouter["waitForPrompt"]>[] = [];
 const execFileAsync = promisify(execFile);
 
 afterEach(async () => {
-  await Promise.all(running.splice(0).map((runtime) => runtime.close()));
+  try {
+    await Promise.all(routers.splice(0).map((router) => router.close()));
+  } finally {
+    await Promise.all(running.splice(0).map((runtime) => runtime.close()));
+    await Promise.allSettled(listeners.splice(0));
+  }
 });
 
 async function fixture(name: string): Promise<{ registryRoot: string; workspaceRoot: string; appRoot: string }> {
@@ -36,20 +43,29 @@ async function dispatch(runtime: ProjectBridgeRuntime, prompt: string): Promise<
   });
 }
 
+async function createRouter(workspaceRoot: string, registryRoot: string): Promise<DiscoveredProjectRouter> {
+  const router = await DiscoveredProjectRouter.create(workspaceRoot, registryRoot);
+  routers.push(router);
+  return router;
+}
+
+function trackListener(request: ReturnType<DiscoveredProjectRouter["waitForPrompt"]>) {
+  // Observe errors immediately, including when readiness fails before the test awaits the request.
+  void request.catch(() => undefined);
+  listeners.push(request);
+  return request;
+}
+
 async function waitForListener(runtime: ProjectBridgeRuntime): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (runtime.bridge.getStatus().listenerActive) return;
-    await new Promise<void>((resolve) => setImmediate(resolve));
-  }
-  throw new Error("MCP adapter did not open its listener");
+  await vi.waitFor(() => {
+    expect(runtime.bridge.getStatus().listenerActive, "MCP adapter opens its listener").toBe(true);
+  }, { timeout: 2_000, interval: 10 });
 }
 
 async function waitForNoListener(runtime: ProjectBridgeRuntime): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (!runtime.bridge.getStatus().listenerActive) return;
-    await new Promise<void>((resolve) => setImmediate(resolve));
-  }
-  throw new Error("MCP adapter did not close its listener");
+  await vi.waitFor(() => {
+    expect(runtime.bridge.getStatus().listenerActive, "MCP adapter closes its listener").toBe(false);
+  }, { timeout: 2_000, interval: 10 });
 }
 
 describe("project-owned MCP sessions", () => {
@@ -88,10 +104,10 @@ describe("project-owned MCP sessions", () => {
     expect((await stat(descriptor)).mode & 0o077).toBe(0);
     expect(JSON.parse(await readFile(descriptor, "utf8"))).toHaveProperty("controlToken");
 
-    const router = await DiscoveredProjectRouter.create(first.workspaceRoot, first.registryRoot);
+    const router = await createRouter(first.workspaceRoot, first.registryRoot);
     await expect(router.waitForPrompt(undefined, secondRuntime.session.sessionId))
       .rejects.toThrow("not live in this exact workspace");
-    const listening = router.waitForPrompt();
+    const listening = trackListener(router.waitForPrompt());
     await waitForListener(firstRuntime);
     expect((await dispatch(firstRuntime, "Change the local worktree heading")).status).toBe(202);
     await expect(listening).resolves.toMatchObject({ prompt: "Change the local worktree heading" });
@@ -147,9 +163,9 @@ describe("project-owned MCP sessions", () => {
     const paths = await fixture("claim");
     const runtime = await startProjectBridge({ ...paths, origin: "http://localhost:5173", port: 0 });
     running.push(runtime);
-    const owner = await DiscoveredProjectRouter.create(paths.workspaceRoot, paths.registryRoot);
-    const competitor = await DiscoveredProjectRouter.create(paths.workspaceRoot, paths.registryRoot);
-    const listening = owner.waitForPrompt();
+    const owner = await createRouter(paths.workspaceRoot, paths.registryRoot);
+    const competitor = await createRouter(paths.workspaceRoot, paths.registryRoot);
+    const listening = trackListener(owner.waitForPrompt());
     await waitForListener(runtime);
 
     await expect(competitor.waitForPrompt()).rejects.toThrow("Another MCP adapter owns");
@@ -167,14 +183,14 @@ describe("project-owned MCP sessions", () => {
     const paths = await fixture("release");
     const runtime = await startProjectBridge({ ...paths, origin: "http://localhost:5173", port: 0 });
     running.push(runtime);
-    const owner = await DiscoveredProjectRouter.create(paths.workspaceRoot, paths.registryRoot);
-    const replacement = await DiscoveredProjectRouter.create(paths.workspaceRoot, paths.registryRoot);
-    const abandonedListener = owner.waitForPrompt();
+    const owner = await createRouter(paths.workspaceRoot, paths.registryRoot);
+    const replacement = await createRouter(paths.workspaceRoot, paths.registryRoot);
+    const abandonedListener = trackListener(owner.waitForPrompt());
     await waitForListener(runtime);
 
     await owner.release();
     await expect(abandonedListener).rejects.toThrow("released the project session");
-    const replacementListener = replacement.waitForPrompt();
+    const replacementListener = trackListener(replacement.waitForPrompt());
     await waitForListener(runtime);
     expect((await dispatch(runtime, "Continue in the replacement agent")).status).toBe(202);
     await expect(replacementListener).resolves.toMatchObject({ prompt: "Continue in the replacement agent" });
@@ -186,14 +202,14 @@ describe("project-owned MCP sessions", () => {
     const paths = await fixture("restart");
     const first = await startProjectBridge({ ...paths, origin: "http://localhost:5173", port: 0 });
     running.push(first);
-    const router = await DiscoveredProjectRouter.create(paths.workspaceRoot, paths.registryRoot);
+    const router = await createRouter(paths.workspaceRoot, paths.registryRoot);
     await router.getStatus();
     await first.close();
     running.splice(running.indexOf(first), 1);
 
     const restarted = await startProjectBridge({ ...paths, origin: "http://localhost:5173", port: 0 });
     running.push(restarted);
-    const listening = router.waitForPrompt();
+    const listening = trackListener(router.waitForPrompt());
     await waitForListener(restarted);
     expect((await dispatch(restarted, "Request after restart")).status).toBe(202);
     await expect(listening).resolves.toMatchObject({ prompt: "Request after restart" });
@@ -256,7 +272,7 @@ describe("project-owned MCP sessions", () => {
       port: 0,
     });
     running.push(site, admin);
-    const router = await DiscoveredProjectRouter.create(otherApp, paths.registryRoot);
+    const router = await createRouter(otherApp, paths.registryRoot);
 
     await expect(router.getStatus()).resolves.toMatchObject({ projectId: "admin" });
     const sessions = await router.listSessions();
@@ -278,7 +294,7 @@ describe("project-owned MCP sessions", () => {
       port: 0,
     });
     running.push(admin);
-    const siteRouter = await DiscoveredProjectRouter.create(paths.appRoot, paths.registryRoot);
+    const siteRouter = await createRouter(paths.appRoot, paths.registryRoot);
 
     await expect(siteRouter.getStatus()).rejects.toThrow("exact application");
     await expect(siteRouter.waitForPrompt(undefined, admin.session.sessionId)).rejects.toThrow("exact application");
@@ -292,9 +308,9 @@ describe("project-owned MCP sessions", () => {
     running.push(runtime);
     const descriptorPath = join(paths.registryRoot, `${runtime.session.sessionId}.json`);
     const staleDescriptor = await readFile(descriptorPath, "utf8");
-    const router = await DiscoveredProjectRouter.create(paths.workspaceRoot, paths.registryRoot);
+    const router = await createRouter(paths.workspaceRoot, paths.registryRoot);
     const abort = new AbortController();
-    const listening = router.waitForPrompt(abort.signal);
+    const listening = trackListener(router.waitForPrompt(abort.signal));
     await waitForListener(runtime);
     abort.abort();
     await expect(listening).rejects.toThrow();
