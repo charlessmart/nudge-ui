@@ -791,17 +791,24 @@ export function createVitePlugins(
           return `export {};\n`;
         }
         if (options.demo === true) {
+          const demoControllerExpression = demoBuild
+            ? "true"
+            : '(import.meta.env.DEV && window.location.pathname === "/")';
           // Taken from the composed framework, so the demo bootstrap cannot drift
           // from the manifest the transport serves.
           const identity = buildRuntimeSnapshot();
           return [
-            'import { bootstrapNudgeUi, configureNudgeUiRuntime, createNudgeUiEditorUrl, detectFramework, isCanvasRenderer, readNudgeUiEditorTarget } from "nudge-ui/internal/inspector";',
+            'import { bootstrapNudgeUi, configureNudgeUiRuntime, createNudgeUiEditorUrl, detectFramework, isCanvasRenderer, isNudgeUiDirectUrl, readNudgeUiEditorTarget } from "nudge-ui/internal/inspector";',
             'import { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";',
             ...(framework
               ? [`import { componentContracts } from ${JSON.stringify(framework.virtualModuleId)};`]
               : []),
-            'const __nudge_ui_editor_target = readNudgeUiEditorTarget(window.location.href);',
             'const __nudge_ui_renderer = isCanvasRenderer();',
+            `const __nudge_ui_demo_controller = !__nudge_ui_renderer && !isNudgeUiDirectUrl(window.location.href) && ${demoControllerExpression};`,
+            'const __nudge_ui_editor_target = readNudgeUiEditorTarget(window.location.href) ?? (__nudge_ui_demo_controller ? window.location.href : null);',
+            'if (__nudge_ui_demo_controller && readNudgeUiEditorTarget(window.location.href) === null) {',
+            '  window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(window.location.href));',
+            '}',
             'if (__nudge_ui_editor_target) document.documentElement.setAttribute("data-nudge-ui-editor", "");',
             'if (__nudge_ui_renderer) document.documentElement.setAttribute("data-nudge-ui-renderer", "");',
             'if (__nudge_ui_editor_target || __nudge_ui_renderer) {',
@@ -825,7 +832,7 @@ export function createVitePlugins(
             '  }',
             '}',
             'window.addEventListener("nudge-ui:open", () => {',
-            '  if (!__nudge_ui_editor_target && !__nudge_ui_renderer) window.location.assign(createNudgeUiEditorUrl(window.location.href));',
+            '  if (!__nudge_ui_renderer && isNudgeUiDirectUrl(window.location.href)) window.location.assign(createNudgeUiEditorUrl(window.location.href));',
             '});',
           ].join("\n");
         }

@@ -15,6 +15,11 @@ const TARGET_QUERY_PARAM = "url";
 export function createNudgeUiEditorUrl(applicationHref: string): string {
   const applicationUrl = new URL(applicationHref);
   assertApplicationUrl(applicationUrl);
+  const retainedSegments = applicationUrl.search.slice(1).split("&").filter((segment) => {
+    const entry = new URLSearchParams(segment);
+    return entry.get(NUDGE_UI_DIRECT_QUERY_PARAM) !== "1";
+  });
+  applicationUrl.search = retainedSegments.join("&");
   if (applicationUrl.searchParams.getAll(NUDGE_UI_EDITOR_QUERY_PARAM).includes(NUDGE_UI_EDITOR_QUERY_VALUE)) {
     return applicationUrl.href;
   }

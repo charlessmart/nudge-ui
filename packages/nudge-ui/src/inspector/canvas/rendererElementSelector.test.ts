@@ -229,6 +229,17 @@ describe("renderer hover scheduling", () => {
       },
     }));
     expect(document.documentElement.getAttribute("data-nudge-ui-panel")).toBe("open");
+
+    postMessage.mockClear();
+    window.dispatchEvent(new Event("nudge-ui:open"));
+    window.dispatchEvent(new Event("nudge-ui:open"));
+    expect(postMessage).toHaveBeenCalledTimes(2);
+    expect(postMessage).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      type: "inspector-open-request",
+    }), window.location.origin);
+    expect(postMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      type: "inspector-open-request",
+    }), window.location.origin);
   });
 });
 

@@ -12,6 +12,10 @@ const demoEnabled = params.get("nudgeDemo") === "1";
 const landingDemoBuild = import.meta.env.MODE === "nudge-demo";
 const editorDocument = (import.meta.env.DEV || landingDemoBuild)
   && params.getAll("nudge-ui").includes("editor");
+const directApplication = params.get("__nudge_ui_direct") === "1";
+const demoControllerDocument = !directApplication
+  && window.self === window.top
+  && (landingDemoBuild || (import.meta.env.DEV && window.location.pathname === "/"));
 const page = params.get("nudge-egg") === "1"
   ? <EasterEggPage />
   : window.location.pathname === "/demo"
@@ -33,6 +37,6 @@ if (landingDemoBuild && !import.meta.env.DEV) {
   void import("virtual:nudge-ui-inspector");
 }
 
-if (!editorDocument) {
+if (!editorDocument && !demoControllerDocument) {
   createRoot(root).render(<StrictMode>{page}</StrictMode>);
 }

@@ -28,7 +28,7 @@ import { projectMeasurementSegments } from "./measurementProjection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
 import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
-import { toggleInspector, useInspectorOpen } from "../shell/openStore.ts";
+import { setInspectorOpen, toggleInspector, useInspectorOpen } from "../shell/openStore.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 
@@ -295,6 +295,8 @@ export function CanvasElementOverlay(): ReactElement | null {
         }
       } else if (data.type === "inspector-toggle-request") {
         toggleInspector();
+      } else if (data.type === "inspector-open-request") {
+        setInspectorOpen(true);
       }
 
       function updateDropGuide(point: { x: number; y: number }, iframe: HTMLIFrameElement): void {
