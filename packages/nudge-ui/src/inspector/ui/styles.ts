@@ -26,7 +26,6 @@ import tokenFieldStyles from "../tokens/TokenField.css?inline";
 import tokenDropdownStyles from "../tokens/TokenDropdown.css?inline";
 import tokensPanelStyles from "../tokens/TokensPanel.css?inline";
 import changesLogStyles from "../shell/ChangesLog.css?inline";
-import inspectorOverlayStyles from "../overlay/InspectorOverlay.css?inline";
 import domNavigationStyles from "../shell/DomNavigation.css?inline";
 import promptSettingsStyles from "../prompt/PromptSettingsDialog.css?inline";
 import mcpConnectionStyles from "../agent/McpConnectionDialog.css?inline";
@@ -61,7 +60,6 @@ export const UI_STYLES = [
   tokenDropdownStyles,
   tokensPanelStyles,
   changesLogStyles,
-  inspectorOverlayStyles,
   domNavigationStyles,
   promptSettingsStyles,
   mcpConnectionStyles,

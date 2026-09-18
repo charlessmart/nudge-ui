@@ -34,7 +34,11 @@ Editing and comparison use the same workspace. You can keep one preview or
 compare multiple routes and agent-generated variations. Links navigate within
 their preview. Each live preview runs the application independently, so opening
 more previews also runs more application instances. The public landing demo
-continues to edit its own page directly.
+loads in the same iframe editor, in Focus with the inspector collapsed. Its
+regular restore button and the page's **Open Nudge** button open the panel.
+Canvas zooms out slightly so visitors can pan to a small easter-egg page.
+Refresh resets the demo to collapsed Focus without restoring zoom. Demo edits
+remain browser-local, with workspace persistence and the agent bridge disabled.
 
 ## Install
 

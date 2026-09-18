@@ -10,6 +10,7 @@ import {
   type ElementNudgeMessage,
   type HistoryRequestMessage,
   type InspectorToggleRequestMessage,
+  type InspectorOpenRequestMessage,
   type ElementDragEndMessage,
   type ElementDragMoveMessage,
   type ElementDragStartMessage,
@@ -200,6 +201,17 @@ export function installRendererElementSelector(): () => void {
   let lastSelected: HTMLElement | null = null;
   let interactionsSuspended = false;
 
+  trackListener<Event>(window, "nudge-ui:open", () => {
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    const message: InspectorOpenRequestMessage = {
+      type: "inspector-open-request",
+      protocolVersion: PROTOCOL_VERSION,
+      ...identity,
+    };
+    sendToParent(message);
+  });
+
   trackListener<MessageEvent>(window, "message", (event: MessageEvent) => {
     if (event.origin !== window.location.origin || event.source !== window.parent) return;
     const identity = getRendererIdentity();
@@ -211,6 +223,11 @@ export function installRendererElementSelector(): () => void {
       || message.cardId !== identity.cardId
       || typeof message.open !== "boolean") return;
     interactionsSuspended = !message.open;
+    if (message.open) {
+      document.documentElement.setAttribute("data-nudge-ui-panel", "open");
+    } else {
+      document.documentElement.removeAttribute("data-nudge-ui-panel");
+    }
     if (interactionsSuspended) {
       pendingDrag = null;
       dragging = false;
@@ -498,5 +515,6 @@ export function installRendererElementSelector(): () => void {
     lastSelected = null;
     measurePointerOverPage = false;
     measureAltKey = false;
+    document.documentElement.removeAttribute("data-nudge-ui-panel");
   };
 }

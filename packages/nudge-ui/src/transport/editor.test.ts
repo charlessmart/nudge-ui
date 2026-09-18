@@ -29,6 +29,12 @@ describe("editor transport", () => {
     )).toBe("https://example.test/products?q=linen#details");
   });
 
+  it("replaces the direct-view marker without rewriting application parameters", () => {
+    expect(createNudgeUiEditorUrl(
+      "https://example.test/products?q=linen%20shirt&__nudge_ui_direct=1&flag=%2F#details",
+    )).toBe("https://example.test/products?q=linen%20shirt&flag=%2F&nudge-ui=editor#details");
+  });
+
   it("recognizes only marked document GET and HEAD requests", () => {
     const url = "/products?q=linen&nudge-ui=editor";
     expect(isNudgeUiEditorDocumentRequest(url, "GET", { accept: "text/html" })).toBe(true);

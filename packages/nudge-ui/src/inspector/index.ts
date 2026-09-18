@@ -1,11 +1,10 @@
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
-import { InspectorShell, toggleInspector, setInspectorOpen, setInspectorHost } from "./shell/InspectorShell.tsx";
+import { InspectorShell, toggleInspector, setInspectorOpen } from "./shell/InspectorShell.tsx";
 import { setSelectedElement } from "./selection/selectionStore.ts";
 import { removeManagedSheet } from "./projection/managedStylesheet.ts";
 import { isInspectorToggleShortcut } from "./shell/shortcuts.ts";
-import { clearInspectorLayout } from "./shell/panelLayout.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import { bootstrapRenderer, type RendererBootstrapHandle } from "./canvas/rendererBootstrap.ts";
 import {
@@ -28,7 +27,6 @@ import { cancelStaleDetection, startStaleDetection } from "./canvas/staleChangeD
 import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
 import { installInspectionBridge } from "./inspection/bridge.ts";
-import { disposeBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
 import { releaseDocumentProjection, subscribeStructuralChanges } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
@@ -43,7 +41,6 @@ import {
   InspectorSessionProvider,
   type InspectorSession,
 } from "./session/index.ts";
-import { isEditorShellDocument } from "./runtime/editorShell.ts";
 
 export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
 
@@ -83,11 +80,15 @@ export function bootstrapNudgeUi(inspectorHost: HTMLElement): void {
     // for its own document. The bundle mode name alone must never flip it,
     // so every build without both opt-ins stays governed by ADR-0002.
     setNudgeUiHostDevFlag(true);
-    // Public demo builds intentionally expose only the static inspector. The
-    // Canvas workspace, write lease, persistence, and agent bridge stay out
-    // of the embedded frame.
-    setCanvasMode("inspect");
+    if (runtimeConfig.capabilities.canvas && isCanvasRenderer()) {
+      rendererBootstrapHandle = bootstrapRenderer() ?? null;
+      return;
+    }
+    // The public demo shares the iframe editor while keeping the write lease,
+    // persistence, and agent bridge disabled.
+    setCanvasMode("canvas");
     mountInspector(inspectorHost);
+    setInspectorOpen(false);
     return;
   }
 
@@ -178,7 +179,6 @@ function mountLockedNotice(host: HTMLElement): void {
     setInspectorOpen(false);
     cancelInlineTextEdit();
     setSelectedElement(null);
-    clearInspectorLayout();
     removeManagedSheet();
     releaseDocumentProjection(document);
     hostElement = null;
@@ -216,17 +216,11 @@ export function mountInspector(host: HTMLElement): void {
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
     inspectorSession = workspace.createInspectorSession(host);
-    const documentSession = demo || !isEditorShellDocument()
-      ? inspectorSession.createDocumentSession(document)
-      : null;
-    documentSession?.registerCleanup(() => disposeBrowserCssInspection(document));
-    documentSession?.registerCleanup(() => releaseDocumentProjection(document));
     inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
-    setInspectorHost(host);
     reactRoot.render(createElement(
       InspectorSessionProvider,
-      { inspector: inspectorSession, documentSession },
-      createElement(demo ? InspectorShell : AppShell),
+      { inspector: inspectorSession, documentSession: null },
+      createElement(AppShell),
     ));
     window.addEventListener("keydown", onKeydown);
   }
@@ -258,7 +252,6 @@ export function unmountInspector(): void {
     releaseDocumentProjection(document);
     clearClipboardHandoff();
     removeManagedSheet();
-    clearInspectorLayout();
     removeInspectionBridge?.();
     removeInspectionBridge = null;
     hostElement = null;
@@ -275,6 +268,7 @@ export {
   RUNTIME_UNKNOWN_SOURCE_PREFIX,
 } from "./runtime/staticHtmlRuntimeIdentity.ts";
 export { isCanvasRenderer } from "./canvas/roleDetection.ts";
+export { createNudgeUiEditorUrl, isNudgeUiDirectUrl, readNudgeUiEditorTarget } from "../transport/editor.ts";
 export { NUDGE_UI_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection/bridge.ts";
 export type { NudgeUiInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection/bridge.ts";
 export {

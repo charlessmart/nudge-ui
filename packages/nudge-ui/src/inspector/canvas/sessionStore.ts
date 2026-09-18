@@ -23,7 +23,6 @@ import {
 import { applyRules } from "../projection/managedStylesheet.ts";
 import { clearWorkspace as clearWorkspaceLog } from "../changes/changesLog.ts";
 import { removeManagedSheet } from "../projection/managedStylesheet.ts";
-import { clearInspectorLayout } from "../shell/panelLayout.ts";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { canWriteWorkspace } from "./workspaceLease.ts";
 import {
@@ -492,7 +491,6 @@ export function clearSession(): void {
   resetStructuralDeleteProjection();
   removeManagedSheet();
   setSelectedElement(null);
-  clearInspectorLayout();
 
   for (const card of getCanvasCards()) {
     removeCanvasCard(card.id);
