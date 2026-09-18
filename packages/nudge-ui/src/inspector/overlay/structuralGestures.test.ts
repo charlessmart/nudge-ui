@@ -10,7 +10,7 @@ import {
 } from "./structuralGestures.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { clearWorkspace } from "../changes/changesLog.ts";
-import { getStructuralChanges, resetStructuralDeleteProjection } from "../projection/structuralProjection.ts";
+import { getStructuralChangeDiagnostics, getStructuralChanges, resetStructuralDeleteProjection } from "../projection/structuralProjection.ts";
 
 function fixture() {
   const root = document.createElement("div");
@@ -28,6 +28,7 @@ function fixture() {
 }
 
 afterEach(() => {
+  document.documentElement.removeAttribute("data-nudge-ui-editor");
   clearWorkspace();
   resetStructuralDeleteProjection();
   document.body.replaceChildren();
@@ -136,6 +137,7 @@ describe("structuralGestures", () => {
   });
 
   it("does not directly project a Canvas-document delete before its renderer message", () => {
+    document.documentElement.setAttribute("data-nudge-ui-editor", "");
     const frameDocument = document.implementation.createHTMLDocument("Canvas frame");
     const root = frameDocument.createElement("div");
     root.dataset.cid = "List";
@@ -145,7 +147,9 @@ describe("structuralGestures", () => {
     target.dataset.src = "src/App.tsx:1:1";
     root.append(target);
     frameDocument.body.append(root);
-    expect(deleteElement(resolveSelectionFromElement(target)!)).not.toBeNull();
+    const change = deleteElement(resolveSelectionFromElement(target)!);
+    expect(change).not.toBeNull();
     expect(target.isConnected).toBe(true);
+    expect(getStructuralChangeDiagnostics(change!.id)).toEqual([]);
   });
 });

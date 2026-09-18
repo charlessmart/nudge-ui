@@ -28,6 +28,7 @@ import {
   applyHostWorkspaceProjection,
   compileWorkspaceProjection,
 } from "../projection/workspaceProjection.ts";
+import { isEditorShellDocument } from "../runtime/editorShell.ts";
 
 export {
   isComponentChange,
@@ -75,7 +76,7 @@ export function getPendingRules(): StyleRule[] {
 }
 
 function reapply(workspace: WorkspaceChangesSnapshot): void {
-  applyHostWorkspaceProjection(compileWorkspaceProjection(workspace));
+  if (!isEditorShellDocument()) applyHostWorkspaceProjection(compileWorkspaceProjection(workspace));
 }
 
 function flushVerification(): void {
@@ -83,6 +84,9 @@ function flushVerification(): void {
   const targets = pendingVerificationTargets;
   pendingVerificationTargets = new Map<string, HTMLElement | null>();
   if (targets.size === 0) return;
+  // The editor shell has no application document. Renderer diagnostics are
+  // owned by renderer projection reports.
+  if (isEditorShellDocument()) return;
   const current = getChangesSnapshot();
   const attempt = beginPreviewAttempt(
     getHostPreviewDocument(),

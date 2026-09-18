@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { appendChange, clearWorkspace, getChangesList, undo, type ElementChangeRecord } from "../changes/changesLog.ts";
+import { appendChange, clearWorkspace, getChangesList, type ElementChangeRecord } from "../changes/changesLog.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   applyStructuralProjection,
   createStructuralDelete,
@@ -42,6 +43,7 @@ function addItem(text: string): HTMLElement {
 describe("agent completion verification", () => {
   beforeEach(() => {
     setNudgeUiHostDevFlag(true);
+    configureNudgeUiRuntime({ ...getNudgeUiRuntimeConfig(), demo: true });
     clearWorkspace();
     resetAgentVerification();
     resetStructuralDeleteProjection();
@@ -56,19 +58,22 @@ describe("agent completion verification", () => {
   });
 
   afterEach(() => {
+    document.documentElement.removeAttribute("data-nudge-ui-editor");
     clearWorkspace();
     resetAgentVerification();
     resetStructuralDeleteProjection();
+    window.history.replaceState({}, "", "/");
     vi.unstubAllGlobals();
   });
 
-  it("does not treat Nudge's own managed preview as source verification", () => {
+  it("does not project application edits into the controller shell", () => {
+    document.documentElement.setAttribute("data-nudge-ui-editor", "");
     const change = styleChange("color", "rgb(255, 0, 0)");
     appendChange(change);
 
-    expect(verifiedChangeKeys([change])).toEqual(new Set([expect.any(String)]));
-    document.getElementById("nudge-ui-styles")?.remove();
+    expect(document.getElementById("nudge-ui-styles")).toBeNull();
     expect(verifiedChangeKeys([change])).toEqual(new Set());
+    document.documentElement.removeAttribute("data-nudge-ui-editor");
   });
 
   it("removes only the sent record that the refreshed source now renders", async () => {
@@ -107,7 +112,7 @@ describe("agent completion verification", () => {
     }]);
   });
 
-  it("reconciles only the structural deletes the source verifiably applied", async () => {
+  it("reconciles only the structural delete that is absent from its authored route", async () => {
     document.body.replaceChildren();
     const applied = addItem("0.1");
     const pending = addItem("0.2");
@@ -131,13 +136,23 @@ describe("agent completion verification", () => {
     expect(applied.isConnected).toBe(false);
     expect(pending.isConnected).toBe(false);
 
-    // Reconciled ids are pruned from history, so undo/redo can never
-    // resurrect the source-verified delete preview.
-    while (undo()) {
-      expect(getStructuralChanges().some((change) => change.id === "delete-applied")).toBe(false);
-    }
-    expect(getStructuralChanges().map((change) => change.id)).toEqual([]);
-    expect(applied.isConnected).toBe(false);
+  });
+
+  it("keeps a structural delete while a different route is active", async () => {
+    window.history.replaceState({}, "", "/authored");
+    document.body.replaceChildren();
+    const target = addItem("0.1");
+    const change = createStructuralDelete(target, "delete-other-route")!;
+    applyStructuralProjection(document, getStructuralChanges());
+    recordAgentDispatch(7, [], getStructuralChanges());
+    const placeholder = Array.from(document.body.childNodes)
+      .find((node): node is Comment => node.nodeType === node.COMMENT_NODE);
+    placeholder?.remove();
+    expect(target.isConnected).toBe(false);
+    window.history.replaceState({}, "", "/other");
+
+    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    expect(getStructuralChanges()).toEqual([change]);
   });
 
   it("keeps a structural delete whose element the source still renders", async () => {

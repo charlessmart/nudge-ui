@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("Sprinkles owns generated identifiers and its contract catalog", async ({ page }) => {
-  await page.goto("/examples");
-  const facts = await page.evaluate(() => ({
+  const app = await openEditor(page, "/examples");
+  const facts = await app.locator("html").evaluate(() => ({
     classes: Array.from(document.querySelectorAll("[data-cid]"), (element) => element.className).join(" "),
     css: Array.from(document.styleSheets).flatMap((sheet) => {
       try { return Array.from(sheet.cssRules).map((rule) => rule.cssText); } catch { return []; }

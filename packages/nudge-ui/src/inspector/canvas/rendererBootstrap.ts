@@ -6,11 +6,12 @@ import {
   sendToParent,
   setRendererIdentity,
   type ParentReadyMessage,
+  type BoardGestureStateMessage,
 } from "./frameProtocol.ts";
 import type {
-  ExternalNavigationMessage,
   FrameMetadataMessage,
   FrameReadyMessage,
+  FrameRuntimeMessage,
   NavigationIntentMessage,
   PanEndMessage,
   PanModifierMessage,
@@ -24,7 +25,7 @@ import { findClosestAnchor, isEligibleNavigation, hasDifferentRoute } from "./li
 import { installRendererElementSelector } from "./rendererElementSelector.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import { getNudgeUiRuntimeConfig, subscribeNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 
 export interface RendererBootstrapHandle {
   teardown(): void;
@@ -64,10 +65,24 @@ function sendFrameReady(owner: RendererBootstrapOwner): void {
     protocolVersion: PROTOCOL_VERSION,
     url: window.location.href,
     title: document.title,
+    runtime: getNudgeUiRuntimeConfig(),
     ...identity,
   };
 
   sendToParent(msg);
+}
+
+function sendFrameRuntime(owner: RendererBootstrapOwner): void {
+  if (!ownsRendererBootstrap(owner)) return;
+  const identity = getRendererIdentity();
+  if (!identity) return;
+  const message: FrameRuntimeMessage = {
+    type: "frame-runtime",
+    protocolVersion: PROTOCOL_VERSION,
+    runtime: getNudgeUiRuntimeConfig(),
+    ...identity,
+  };
+  sendToParent(message);
 }
 
 function sendFrameMetadata(owner: RendererBootstrapOwner): void {
@@ -185,6 +200,7 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
 
   try {
     observeFrameMetadata(owner);
+    owner.resourceDisposers.push(subscribeNudgeUiRuntime(() => sendFrameRuntime(owner)));
     const disposeDiagnostics = startRendererProjectionDiagnostics();
     if (disposeDiagnostics) owner.resourceDisposers.push(disposeDiagnostics);
     const disposeSelector = installRendererElementSelector();
@@ -195,24 +211,9 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
       if (!ownsRendererBootstrap(owner)) return;
       const anchor = findClosestAnchor(event.target);
       if (!anchor) return;
-      if (!isEligibleNavigation(anchor, event)) {
-        if (isPrimarySelfNavigation(anchor, event)) {
-          event.preventDefault();
-          const identity = getRendererIdentity();
-          if (!identity) return;
-          const msg: ExternalNavigationMessage = {
-            type: "external-navigation",
-            protocolVersion: PROTOCOL_VERSION,
-            url: anchor.href,
-            ...identity,
-          };
-          sendToParent(msg);
-        }
-        return;
-      }
+      if (!isEligibleNavigation(anchor, event)) return;
       if (!hasDifferentRoute(anchor)) return;
 
-      event.preventDefault();
       const identity = getRendererIdentity();
       if (!identity) return;
 
@@ -290,16 +291,10 @@ export function bootstrapRenderer(): RendererBootstrapHandle | undefined {
   return handle;
 }
 
-function isPrimarySelfNavigation(anchor: HTMLAnchorElement, event: MouseEvent): boolean {
-  if (event.ctrlKey || event.metaKey || event.shiftKey || event.button !== 0) return false;
-  if (anchor.hasAttribute("download")) return false;
-  if (anchor.target && anchor.target !== "" && anchor.target !== "_self") return false;
-  return anchor.protocol === "http:" || anchor.protocol === "https:";
-}
-
 function installRendererPanProxy(owner: RendererBootstrapOwner): void {
   let spaceHeld = false;
   let panning = false;
+  let boardGesturesEnabled = false;
 
   const panMoveUpdate = createFrameThrottle((point: { x: number; y: number }) => {
     if (!ownsRendererBootstrap(owner)) return;
@@ -341,13 +336,20 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
     if ((event.data as PanModifierMessage).type === "pan-modifier") {
       spaceHeld = (event.data as PanModifierMessage).spaceHeld;
     }
+    if ((event.data as BoardGestureStateMessage).type === "board-gesture-state") {
+      boardGesturesEnabled = (event.data as BoardGestureStateMessage).enabled;
+      if (!boardGesturesEnabled) {
+        spaceHeld = false;
+        endPan();
+      }
+    }
   };
   window.addEventListener("message", onMessage);
   owner.listenerRemovers.push(() => window.removeEventListener("message", onMessage));
 
   const onKeyDown = (event: KeyboardEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
-    if (event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
+    if (boardGesturesEnabled && event.code === "Space" && !event.repeat && !isEditableTarget(event.target)) {
       spaceHeld = true;
       if (getRendererIdentity()) event.preventDefault();
       sendSpaceState();
@@ -392,7 +394,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const onPointerDown = (event: PointerEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
-    if (!spaceHeld || event.button !== 0 || isEditableTarget(event.target)) return;
+    if (!boardGesturesEnabled || !spaceHeld || event.button !== 0 || isEditableTarget(event.target)) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     panning = true;
@@ -435,7 +437,7 @@ function installRendererPanProxy(owner: RendererBootstrapOwner): void {
 
   const onWheel = (event: WheelEvent): void => {
     if (!ownsRendererBootstrap(owner)) return;
-    if (!event.ctrlKey && !event.metaKey) return;
+    if (!boardGesturesEnabled || (!event.ctrlKey && !event.metaKey)) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     event.preventDefault();

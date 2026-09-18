@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect
@@ -16,20 +17,20 @@ async function waitForInspector(page: import("@playwright/test").Page): Promise<
 }
 
 test("dev: Tailwind landing page renders utility-styled content", async ({ page }) => {
-  await page.goto("/tailwind");
+  const app = await openEditor(page, "/tailwind");
 
-  await expect(page.getByRole("heading", { name: /Less ceremony/i })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Start a workspace/i })).toBeVisible();
+  await expect(app.getByRole("heading", { name: /Less ceremony/i })).toBeVisible();
+  await expect(app.getByRole("link", { name: /Start a workspace/i })).toBeVisible();
 
-  const hero = page.locator("main");
+  const hero = app.locator("main");
   await expect(hero).toHaveClass(/bg-stone-950/);
-  await expect(page.locator("[class*='bg-lime-300']").first()).toBeVisible();
+  await expect(app.locator("[class*='bg-lime-300']").first()).toBeVisible();
 });
 
 test("dev: Tailwind post-transform theme tokens reach the virtual catalog", async ({ page }) => {
-  await page.goto("/tailwind");
+  const app = await openEditor(page, "/tailwind");
 
-  await expect.poll(async () => page.evaluate(() => {
+  await expect.poll(async () => app.locator("html").evaluate(() => {
     const catalog = (window as unknown as {
       __designTokenCatalog?: { cssName: string; declarations: { source: string; context?: { selector?: string } }[] }[];
     }).__designTokenCatalog ?? [];
@@ -45,9 +46,9 @@ test("dev: Tailwind post-transform theme tokens reach the virtual catalog", asyn
 });
 
 test("dev: Tailwind local aliases remain identifiable in the inspector", async ({ page }) => {
-  await page.goto("/tailwind");
+  const app = await openEditor(page, "/tailwind");
   await waitForInspector(page);
-  await page.locator("#notes blockquote").evaluate((element) => {
+  await app.locator("#notes blockquote").evaluate((element) => {
     element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
   });
 
@@ -60,9 +61,9 @@ test("dev: Tailwind local aliases remain identifiable in the inspector", async (
 });
 
 test("dev: Tailwind inherited color resolves from an ancestor utility", async ({ page }) => {
-  await page.goto("/tailwind");
+  const app = await openEditor(page, "/tailwind");
   await waitForInspector(page);
-  await page.locator("#tailwind-title").evaluate((element) => {
+  await app.locator("#tailwind-title").evaluate((element) => {
     element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
   });
 
@@ -73,9 +74,9 @@ test("dev: Tailwind inherited color resolves from an ancestor utility", async ({
 });
 
 test("dev: Tailwind v4 color opacity keeps base token, alpha, and painted preview separate", async ({ page }) => {
-  await page.goto("/tailwind");
+  const app = await openEditor(page, "/tailwind");
   await waitForInspector(page);
-  const fixture = page.locator('[data-test="tailwind-alpha"]');
+  const fixture = app.locator('[data-test="tailwind-alpha"]');
   await expect(fixture).toBeVisible();
   const facts = await fixture.evaluate((element) => ({
     authored: [...document.styleSheets].flatMap((sheet) => {
@@ -100,9 +101,9 @@ test("dev: Tailwind v4 color opacity keeps base token, alpha, and painted previe
 });
 
 test("dev: Tailwind side border utilities parse into independent inspector fields", async ({ page }) => {
-  await page.goto("/tailwind");
+  const app = await openEditor(page, "/tailwind");
   await waitForInspector(page);
-  const fixture = page.locator('[data-test="tailwind-border-mixed"]');
+  const fixture = app.locator('[data-test="tailwind-border-mixed"]');
   await fixture.evaluate((element) => {
     element.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
   });

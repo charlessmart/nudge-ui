@@ -22,7 +22,13 @@ import {
   type ArtifactStage,
   type InventoryDiagnostic,
 } from "../../css/token-inventory/index.ts";
-import { NUDGE_UI_CLIENT_PATH, NUDGE_UI_MANIFEST_PATH } from "../../transport/index.ts";
+import {
+  NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_EDITOR_PATH,
+  NUDGE_UI_MANIFEST_PATH,
+  createNudgeUiEditorDocument,
+  isNudgeUiEditorDocumentRequest,
+} from "../../transport/index.ts";
 import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
 import {
   catalogSourcePath,
@@ -690,9 +696,21 @@ export function createVitePlugins(
       if (runtimeWarning) server.config.logger.warn(runtimeWarning);
       server.middlewares?.use(async (request, response, next) => {
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
-        if ((pathname === CLIENT_PATH || pathname === MANIFEST_PATH) && request.method !== "GET") {
+        const invalidReservedMethod = (pathname === CLIENT_PATH || pathname === MANIFEST_PATH)
+          ? request.method !== "GET"
+          : pathname === NUDGE_UI_EDITOR_PATH
+            && request.method !== "GET"
+            && request.method !== "HEAD";
+        if (invalidReservedMethod) {
           response.statusCode = 405;
           response.end();
+          return;
+        }
+        if (isNudgeUiEditorDocumentRequest(request.url ?? "/", request.method, request.headers)) {
+          response.statusCode = 200;
+          response.setHeader("Content-Type", "text/html; charset=utf-8");
+          response.setHeader("Cache-Control", "no-store");
+          response.end(request.method === "HEAD" ? undefined : createNudgeUiEditorDocument());
           return;
         }
         if (pathname === CLIENT_PATH) {

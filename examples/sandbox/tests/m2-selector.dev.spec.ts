@@ -1,32 +1,22 @@
 import { test, expect } from "@playwright/test";
+import { appLocator, getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: hover overlay highlights and click selects a host element", async ({ page }) => {
-  await page.goto("/playground");
-  await expect(page.locator(".site-shell")).toBeVisible();
+  await openEditor(page, "/playground");
+  await expect(appLocator(page, ".site-shell")).toBeVisible();
 
   const hasMount = await page.evaluate(() => {
     return document.getElementById("nudge-ui-root") !== null;
   });
   expect(hasMount).toBe(true);
 
-  await page.hover("text=Save");
+  await appLocator(page, "button.btn").first().hover();
 
   await page.waitForTimeout(200);
 
-  const hoverOverlay = await page.evaluate(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const outline = sr?.querySelector(".hover-outline") ?? null;
-    if (!outline) return null;
-    const rect = outline.getBoundingClientRect();
-    const style = (outline as HTMLElement).style;
-    return {
-      display: style.display || "",
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
-    };
-  });
+  const hoverOutline = page.locator('[data-test="canvas-hover-outline"]');
+  await expect(hoverOutline).toBeVisible();
+  const hoverOverlay = await hoverOutline.boundingBox();
   expect(hoverOverlay).not.toBeNull();
   expect(hoverOverlay!.width).toBeGreaterThan(0);
   expect(hoverOverlay!.height).toBeGreaterThan(0);
@@ -37,7 +27,7 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
   });
   expect(selectionBefore).toBeNull();
 
-  await page.click("text=Save");
+  await appLocator(page, "button.btn").first().click();
 
   const panelText = await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
@@ -67,10 +57,10 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
 });
 
 test("dev: primary demo button sizes to its label", async ({ page }) => {
-  await page.goto("/playground");
-  await expect(page.locator(".site-shell")).toBeVisible();
+  await openEditor(page, "/playground");
+  await expect(appLocator(page, ".site-shell")).toBeVisible();
 
-  const buttonMetrics = await page.evaluate(() => {
+  const buttonMetrics = await (await getAppFrame(page)).evaluate(() => {
     const button = document.querySelector("button.btn");
     const label = button?.querySelector<HTMLElement>(".btn__label");
     if (!button || !label) return null;
@@ -89,11 +79,12 @@ test("dev: primary demo button sizes to its label", async ({ page }) => {
 });
 
 test("dev: selection shares one stylesheet snapshot across inspector fields", async ({ page }) => {
-  await page.goto("/playground");
-  await expect(page.locator(".site-shell")).toBeVisible();
+  await openEditor(page, "/playground");
+  await expect(appLocator(page, ".site-shell")).toBeVisible();
+  const appFrame = await getAppFrame(page);
 
-  const stylesheetCount = await page.evaluate(() => document.styleSheets.length);
-  await page.evaluate(() => {
+  const stylesheetCount = await appFrame.evaluate(() => document.styleSheets.length);
+  await appFrame.evaluate(() => {
     const descriptor = Object.getOwnPropertyDescriptor(CSSStyleSheet.prototype, "cssRules");
     if (!descriptor?.get) throw new Error("CSSStyleSheet.cssRules getter is unavailable");
     const state = { reads: 0, descriptor };
@@ -109,15 +100,15 @@ test("dev: selection shares one stylesheet snapshot across inspector fields", as
 
   let reads = 0;
   try {
-    await page.locator("#hero-title").click();
+    await appLocator(page, "#hero-title").click();
     await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
     await page.waitForTimeout(100);
   } finally {
-    reads = await page.evaluate(() => {
+    reads = await appFrame.evaluate(() => {
       const state = (window as Window & { __nudgeCssRuleReadState?: { reads: number } }).__nudgeCssRuleReadState;
       return state?.reads ?? 0;
     });
-    await page.evaluate(() => {
+    await appFrame.evaluate(() => {
       const state = (window as Window & { __nudgeCssRuleReadState?: { reads: number; descriptor: PropertyDescriptor } }).__nudgeCssRuleReadState;
       if (!state) return;
       Object.defineProperty(CSSStyleSheet.prototype, "cssRules", state.descriptor);
@@ -134,10 +125,10 @@ test("dev: selection shares one stylesheet snapshot across inspector fields", as
 });
 
 test("dev: ordinary clicks choose a button wrapper and Command-click chooses its child", async ({ page }) => {
-  await page.goto("/playground");
-  await expect(page.locator(".site-shell")).toBeVisible();
+  await openEditor(page, "/playground");
+  await expect(appLocator(page, ".site-shell")).toBeVisible();
 
-  const button = page.locator("button.btn").first();
+  const button = appLocator(page, "button.btn").first();
   const label = button.locator(".btn__label");
   const buttonSrc = await button.getAttribute("data-src");
   const labelSrc = await label.getAttribute("data-src");
@@ -146,25 +137,25 @@ test("dev: ordinary clicks choose a button wrapper and Command-click chooses its
 
   await label.click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
-  await expect(page.locator('[data-test="selected-outline"]')).toHaveAttribute("data-selected-src", buttonSrc);
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toHaveAttribute("data-selected-src", buttonSrc);
 
   await label.click({ modifiers: ["Meta"] });
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
-  await expect(page.locator('[data-test="selected-outline"]')).toHaveAttribute("data-selected-src", labelSrc);
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toHaveAttribute("data-selected-src", labelSrc);
 });
 
 test("dev: hover overlay shows margin space while selection keeps only its outline", async ({ page }) => {
-  await page.goto("/playground");
-  await expect(page.locator(".site-shell")).toBeVisible();
+  await openEditor(page, "/playground");
+  await expect(appLocator(page, ".site-shell")).toBeVisible();
 
-  await page.locator("#hero-title").hover();
+  await appLocator(page, "#hero-title").hover();
   await page.waitForTimeout(100);
 
   const marginGuides = await page.evaluate(() => {
     const root = document.getElementById("nudge-ui-root");
     const shadow = root?.shadowRoot;
-    const outline = shadow?.querySelector(".hover-outline")?.getBoundingClientRect();
-    const guides = [...(shadow?.querySelectorAll(".hover-margin") ?? [])].map((node) => {
+    const outline = shadow?.querySelector('[data-test="canvas-hover-outline"]')?.getBoundingClientRect();
+    const guides = [...(shadow?.querySelectorAll(".canvas-hover-margin") ?? [])].map((node) => {
       const guide = node as HTMLElement;
       const rect = guide.getBoundingClientRect();
       const style = getComputedStyle(guide);
@@ -179,7 +170,7 @@ test("dev: hover overlay shows margin space while selection keeps only its outli
           : Math.abs(rect.left - (outline?.left ?? 0)),
       };
     });
-    const fills = [...(shadow?.querySelectorAll(".hover-margin-fill") ?? [])].map((node) => {
+    const fills = [...(shadow?.querySelectorAll(".canvas-hover-margin-fill") ?? [])].map((node) => {
       const fill = node as HTMLElement;
       const rect = fill.getBoundingClientRect();
       return { side: fill.dataset.side, width: rect.width, height: rect.height };
@@ -199,10 +190,11 @@ test("dev: hover overlay shows margin space while selection keeps only its outli
     expect.objectContaining({ side: "bottom", height: 22 }),
   ]));
 
-  await page.locator("#hero-title").click();
+  await appLocator(page, "#hero-title").click();
+  await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible();
   const selectedMarginOverlay = await page.evaluate(() => {
     const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const outline = shadow?.querySelector(".selected-outline") as HTMLElement | null;
+    const outline = shadow?.querySelector('[data-test="canvas-selected-outline"]') as HTMLElement | null;
     return {
       fills: shadow?.querySelectorAll(".selected-margin-fill").length ?? 0,
       guides: shadow?.querySelectorAll(".selected-margin").length ?? 0,

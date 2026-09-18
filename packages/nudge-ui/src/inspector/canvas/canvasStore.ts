@@ -2,10 +2,13 @@ import { useSyncExternalStore } from "react";
 import { normalizeUrl, normalizedUrlKey, type NormalizedUrl } from "./normalizeUrl.ts";
 
 export type CanvasMode = "inspect" | "canvas";
+export type CanvasPresentation = "focus" | "canvas";
 
 export interface CanvasCard {
   id: string;
   url: string;
+  /** A controller-requested document load. Renderer metadata must not set this. */
+  navigationUrl?: string;
   title: string | null;
   x: number;
   y: number;
@@ -43,6 +46,7 @@ export const MIN_CAMERA_ZOOM = 0.25;
 export const MAX_CAMERA_ZOOM = 3;
 export const CARD_GAP = 40;
 export const FIT_ALL_PADDING = 80;
+export const PRIMARY_CARD_INSET = 40;
 
 const DEFAULT_CAMERA: CanvasCamera = { x: 0, y: 0, zoom: 1 };
 
@@ -54,6 +58,9 @@ function defaultViewportSize() {
 }
 
 let mode: CanvasMode = "inspect";
+let presentation: CanvasPresentation = "focus";
+let presentationTransitioning = false;
+let presentationTransitionTimer: number | null = null;
 let cards: CanvasCard[] = [];
 let comparisonGroups: CanvasComparisonGroup[] = [];
 let focusedCardId: string | null = null;
@@ -73,6 +80,14 @@ function subscribe(cb: () => void): () => void {
 
 function getMode(): CanvasMode {
   return mode;
+}
+
+function getPresentation(): CanvasPresentation {
+  return presentation;
+}
+
+function getPresentationTransitioning(): boolean {
+  return presentationTransitioning;
 }
 
 function getCards(): CanvasCard[] {
@@ -123,51 +138,20 @@ export function setCanvasMode(newMode: CanvasMode): void {
   notify();
 }
 
-export function enterCanvas(): void {
-  if (mode === "canvas") return;
-  mode = "canvas";
-  if (cards.length === 0) {
-    const size = lastUsedCardSize ?? defaultViewportSize();
-    const card: CanvasCard = {
-      id: `card-${++cardIdCounter}`,
-      url: window.location.href,
-      title: document.title,
-      x: 0,
-      y: 0,
-      width: size.width,
-      height: size.height,
-    };
-    cards = [card];
-    lastUsedCardSize = { width: size.width, height: size.height };
-    cachedBoardCamera = { ...DEFAULT_CAMERA };
-    fitAllRan = false;
-  } else {
-    const currentRoute = normalizeUrl(window.location.href);
-    const existing = currentRoute ? findCardByNormalizedUrl(currentRoute) : undefined;
-    if (existing) {
-      focusCard(existing.id);
-    } else {
-      const added = addCanvasCard(window.location.href, document.title);
-      focusCard(added.id);
-      fitAllRan = false;
-    }
-  }
+/** Changes only how the mounted iframe workspace is presented. */
+export function setCanvasPresentation(next: CanvasPresentation): void {
+  if (presentation === next) return;
+  presentation = next;
+  presentationTransitioning = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (presentationTransitionTimer !== null) window.clearTimeout(presentationTransitionTimer);
+  presentationTransitionTimer = presentationTransitioning
+    ? window.setTimeout(() => {
+      presentationTransitionTimer = null;
+      presentationTransitioning = false;
+      notify();
+    }, 220)
+    : null;
   notify();
-}
-
-export function exitCanvas(): void {
-  if (mode === "inspect") return;
-  mode = "inspect";
-  notify();
-}
-
-/** Return to inspect mode on a canvas card's route. */
-export function exitCanvasToCard(card: CanvasCard): void {
-  exitCanvas();
-  resetFitAllFlag();
-  if (card.url !== window.location.href) {
-    window.location.href = card.url;
-  }
 }
 
 /** Adds one card while retaining the existing placement policy. */
@@ -249,11 +233,15 @@ export function removeCanvasComparisonGroup(id: string): CanvasComparisonGroup |
   const groupCardIds = new Set(group.cardIds);
   cards = cards.filter((card) => !groupCardIds.has(card.id));
   comparisonGroups = comparisonGroups.filter((candidate) => candidate.id !== id);
-  if (groupCardIds.has(selectedCardId ?? "")) selectedCardId = null;
-  if (groupCardIds.has(focusedCardId ?? "")) focusedCardId = null;
-  if (cards.length === 0 && mode === "canvas") mode = "inspect";
+  selectFallbackAfterRemoval(groupCardIds);
   notify();
   return group;
+}
+
+function selectFallbackAfterRemoval(removedIds: ReadonlySet<string>): void {
+  const fallbackId = cards[0]?.id ?? null;
+  if (removedIds.has(selectedCardId ?? "")) selectedCardId = fallbackId;
+  if (removedIds.has(focusedCardId ?? "")) focusedCardId = fallbackId;
 }
 
 /** Clears group metadata while leaving ordinary cards intact. */
@@ -284,13 +272,9 @@ function updateComparisonGroupRoutes(
 
 export function removeCanvasCard(id: string): void {
   const removed = cards.find((card) => card.id === id);
+  if (!removed) return;
   cards = cards.filter((c) => c.id !== id);
-  if (selectedCardId === id) {
-    selectedCardId = null;
-  }
-  if (focusedCardId === id) {
-    focusedCardId = null;
-  }
+  selectFallbackAfterRemoval(new Set([id]));
   if (removed?.comparisonGroupId) {
     updateComparisonGroupRoutes(removed.comparisonGroupId, id, (group, routeIndex) => ({
       ...group,
@@ -299,10 +283,67 @@ export function removeCanvasCard(id: string): void {
     }));
     comparisonGroups = comparisonGroups.filter((group) => group.cardIds.length > 0);
   }
-  if (cards.length === 0 && mode === "canvas") {
-    mode = "inspect";
-  }
   notify();
+}
+
+/**
+ * Opens one editor target in the iframe workspace without replacing restored
+ * cards or their dimensions.
+ */
+export function activateIframeWorkspace(
+  url: string,
+  viewport: { width: number; height: number },
+): CanvasCard | null {
+  const normalized = normalizeUrl(url);
+  if (!normalized || normalized.origin !== window.location.origin) return null;
+  const targetHref = new URL(url).href;
+
+  mode = "canvas";
+  const focused = cards.find((card) => card.id === focusedCardId);
+  const focusedUrl = focused ? normalizeUrl(focused.url) : null;
+  const existing = focused && focusedUrl
+    && normalizedUrlKey(focusedUrl) === normalizedUrlKey(normalized)
+    ? focused
+    : cards.find((card) => card.url === targetHref) ?? findCardByNormalizedUrl(normalized);
+  if (existing) {
+    let activated = existing;
+    if (existing.url !== targetHref) {
+      activated = { ...existing, url: targetHref, navigationUrl: targetHref };
+      cards = cards.map((card) => card.id === existing.id ? activated : card);
+    }
+    focusedCardId = existing.id;
+    selectedCardId = existing.id;
+    notify();
+    return activated;
+  }
+
+  if (cards.length === 0) {
+    const width = Math.max(200, viewport.width - PRIMARY_CARD_INSET * 2);
+    const height = Math.max(150, viewport.height - PRIMARY_CARD_INSET * 2);
+    const card: CanvasCard = {
+      id: `card-${++cardIdCounter}`,
+      url: targetHref,
+      title: null,
+      x: 0,
+      y: 0,
+      width,
+      height,
+    };
+    cards = [card];
+    lastUsedCardSize = { width, height };
+    focusedCardId = card.id;
+    selectedCardId = card.id;
+    cachedBoardCamera = { x: PRIMARY_CARD_INSET, y: PRIMARY_CARD_INSET, zoom: 1 };
+    fitAllRan = true;
+    notify();
+    return card;
+  }
+
+  const card = addCanvasCard(targetHref);
+  focusedCardId = card.id;
+  selectedCardId = card.id;
+  focusCanvasCards([card.id], viewport);
+  return card;
 }
 
 export function updateCardTitle(id: string, title: string): void {
@@ -476,6 +517,7 @@ export function getFocusedCardId(): string | null {
 }
 
 export function selectCard(id: string): void {
+  focusedCardId = id;
   selectedCardId = id;
   notify();
 }
@@ -507,6 +549,7 @@ export function hydrateCanvasStore(
   newCards: CanvasCard[],
   newCamera: CanvasCamera,
   newComparisonGroups: CanvasComparisonGroup[] = [],
+  restoredFocusedCardId: string | null = null,
 ): void {
   mode = newMode;
   cards = newCards.map((card) => ({ ...card }));
@@ -516,9 +559,15 @@ export function hydrateCanvasStore(
     cardIds: [...group.cardIds],
     routes: group.routes.map((route) => ({ ...route })),
   }));
-  focusedCardId = null;
+  focusedCardId = newCards.some((card) => card.id === restoredFocusedCardId)
+    ? restoredFocusedCardId
+    : null;
   selectedCardId = null;
   cachedBoardCamera = { ...newCamera };
+  const lastCard = newCards.at(-1);
+  lastUsedCardSize = lastCard
+    ? { width: lastCard.width, height: lastCard.height }
+    : null;
   if (newCards.length > 0) {
     let maxNum = 0;
     for (const c of newCards) {
@@ -546,6 +595,14 @@ export {
 
 export function useCanvasMode(): CanvasMode {
   return useSyncExternalStore(subscribe, getMode, getMode);
+}
+
+export function useCanvasPresentation(): CanvasPresentation {
+  return useSyncExternalStore(subscribe, getPresentation, getPresentation);
+}
+
+export function useCanvasPresentationTransitioning(): boolean {
+  return useSyncExternalStore(subscribe, getPresentationTransitioning, getPresentationTransitioning);
 }
 
 export function useCanvasCards(): CanvasCard[] {

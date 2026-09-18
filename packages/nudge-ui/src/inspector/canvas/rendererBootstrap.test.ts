@@ -5,6 +5,7 @@ import { bootstrapRenderer, type RendererBootstrapHandle } from "./rendererBoots
 import { installRendererElementSelector } from "./rendererElementSelector.ts";
 import { startRendererProjectionDiagnostics } from "./rendererStylesheet.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
 vi.mock("./rendererElementSelector.ts", () => ({
   installRendererElementSelector: vi.fn(() => vi.fn()),
@@ -139,6 +140,12 @@ describe("bootstrapRenderer teardown", () => {
       const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
       handle = bootstrapRenderer();
 
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: window.location.origin,
+        source: window.parent,
+        data: { type: "board-gesture-state", protocolVersion: PROTOCOL_VERSION, enabled: true, ...identity },
+      }));
+
       window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space", cancelable: true }));
       document.body.dispatchEvent(new MouseEvent("pointerdown", {
         bubbles: true,
@@ -167,5 +174,43 @@ describe("bootstrapRenderer teardown", () => {
       window.requestAnimationFrame = originalRequestAnimationFrame;
       window.cancelAnimationFrame = originalCancelAnimationFrame;
     }
+  });
+
+  it("publishes refreshed renderer runtime metadata to the controller", () => {
+    const previous = getNudgeUiRuntimeConfig();
+    setRendererIdentity(identity);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    handle = bootstrapRenderer();
+
+    configureNudgeUiRuntime({ ...previous, tokenGeneration: "hmr-generation" });
+
+    expect(messages(postMessage)).toContainEqual(expect.objectContaining({
+      type: "frame-runtime",
+      runtime: expect.objectContaining({ tokenGeneration: "hmr-generation" }),
+      ...identity,
+    }));
+    handle?.teardown();
+    handle = undefined;
+    configureNudgeUiRuntime(previous);
+  });
+
+  it("leaves cross-origin self-navigation inside the renderer", () => {
+    setRendererIdentity(identity);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    handle = bootstrapRenderer();
+    const anchor = document.createElement("a");
+    anchor.href = "https://example.com/docs";
+    document.body.append(anchor);
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    let rendererPreventedNavigation = true;
+    anchor.addEventListener("click", (event) => {
+      rendererPreventedNavigation = event.defaultPrevented;
+      event.preventDefault();
+    });
+
+    anchor.dispatchEvent(click);
+
+    expect(rendererPreventedNavigation).toBe(false);
+    expect(messages(postMessage).some((message) => message.type === "external-navigation")).toBe(false);
   });
 });

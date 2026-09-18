@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("the raw CSS component fixture exposes local UI components", async ({ page }) => {
-  await page.goto("/components");
+  const app = await openEditor(page, "/components");
 
-  await expect(page.getByRole("heading", { name: /Raw CSS/ })).toBeVisible();
-  await expect(page.locator('[data-test^="examples-components-raw-"]')).toHaveCount(7);
-  await expect(page.locator(".semantic-button")).toHaveCount(2);
+  await expect(app.getByRole("heading", { name: /Raw CSS/ })).toBeVisible();
+  await expect(app.locator('[data-test^="examples-components-raw-"]')).toHaveCount(7);
+  await expect(app.locator(".semantic-button")).toHaveCount(2);
 });

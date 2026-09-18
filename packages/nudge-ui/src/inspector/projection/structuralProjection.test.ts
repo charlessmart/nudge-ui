@@ -40,6 +40,7 @@ describe("structural delete projection", () => {
     expect(change).toEqual({
       id: "delete-1",
       kind: "delete",
+      route: new URL("/", window.location.href).href,
       target: {
         sourceSite: { cid: "RepeatedItem", src: "src/App.tsx:12:5" },
         locator: { kind: "evidence", occurrence: 1, props: null, text: "0.2", ariaLabel: null },

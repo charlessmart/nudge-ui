@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -22,8 +22,8 @@ interface CatalogEntry {
 }
 
 /** Inspect an element through the page's bridge and return its token catalog. */
-function bridgeCatalog(page: Page, selector: string): Promise<CatalogEntry[]> {
-  return page.evaluate((sel) =>
+function bridgeCatalog(frame: Frame, selector: string): Promise<CatalogEntry[]> {
+  return frame.evaluate((sel) =>
     (
       window as unknown as {
         __nudgeUi?: {
@@ -38,13 +38,19 @@ function findEntry(catalog: CatalogEntry[], cssName: string): CatalogEntry | und
   return catalog.find((definition) => definition.cssName === cssName);
 }
 
-async function waitForInspector(page: Page): Promise<void> {
-  await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
-    .toBe(true);
+async function waitForInspector(page: Page): Promise<Frame> {
+  await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
   await expect
     .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
+  await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
+    && frame.url().startsWith("http")
+    && !frame.url().includes("/__nudge_ui__/editor"))?.url() ?? "").not.toBe("");
+  const frame = page.frames().find((candidate) => candidate !== page.mainFrame()
+    && candidate.url().startsWith("http")
+    && !candidate.url().includes("/__nudge_ui__/editor"));
+  if (!frame) throw new Error("Astro preview frame did not become ready");
+  return frame;
 }
 
 /** Parse the serialized virtual token module served by the dev server. */
@@ -78,7 +84,7 @@ test("dev: :root custom properties are listed with project-relative provenance",
   });
 
   await page.goto("/");
-  await waitForInspector(page);
+  const frame = await waitForInspector(page);
 
   // Tokens settings lists the fixture's global custom properties.
   await page.locator('[data-test="tokens-button"]').click();
@@ -97,7 +103,7 @@ test("dev: :root custom properties are listed with project-relative provenance",
   // Provenance is project-relative with authored line numbers, carried through
   // the inspection bridge's catalog.
   await expect.poll(async () => {
-    const entry = findEntry(await bridgeCatalog(page, ".site-header .site-title"), "--color-accent");
+    const entry = findEntry(await bridgeCatalog(frame, ".site-header .site-title"), "--color-accent");
     return entry?.declarations[0]?.source ?? "";
   }).toBe("src/styles/global.css:2");
 
@@ -106,13 +112,13 @@ test("dev: :root custom properties are listed with project-relative provenance",
 
 test("dev: editing project CSS refreshes tokens once through exactly one reload", async ({ page }) => {
   await page.goto("/");
-  await waitForInspector(page);
+  let frame = await waitForInspector(page);
 
   const before = await readVirtualTokenModule(page.request);
 
   let navigations = 0;
   page.on("framenavigated", (frame) => {
-    if (frame === page.mainFrame()) navigations += 1;
+    if (frame !== page.mainFrame() && !frame.url().includes("/__nudge_ui__/editor")) navigations += 1;
   });
 
   const originalCss = await readFile(CSS_PATH, "utf8");
@@ -132,11 +138,11 @@ test("dev: editing project CSS refreshes tokens once through exactly one reload"
     // Exactly ONE full reload carries the new document; token knowledge is
     // already refreshed when it arrives (one coherent snapshot).
     await expect.poll(() => navigations, { timeout: 20_000 }).toBe(1);
-    await waitForInspector(page);
+    frame = await waitForInspector(page);
 
     // The reloaded document renders the edited token value...
     await expect.poll(() =>
-      page.locator(".site-header .site-title").evaluate((element) =>
+      frame.locator(".site-header .site-title").evaluate((element) =>
         getComputedStyle(element).getPropertyValue("color").trim()),
     ).toBe("rgb(222, 68, 110)");
 
@@ -144,7 +150,7 @@ test("dev: editing project CSS refreshes tokens once through exactly one reload"
     // appended declaration with correct provenance (a fresh snapshot, not a
     // stale cached one).
     await expect.poll(async () => {
-      const catalog = await bridgeCatalog(page, ".site-header .site-title");
+      const catalog = await bridgeCatalog(frame, ".site-header .site-title");
       const accent = findEntry(catalog, "--color-accent");
       const probe = findEntry(catalog, "--stage4-reload-probe");
       return [
@@ -161,7 +167,7 @@ test("dev: editing project CSS refreshes tokens once through exactly one reload"
 
     // No second reload followed the first.
     await expect.poll(() => navigations, { timeout: 10_000 }).toBe(1);
-    expect(await page.locator("#nudge-ui-root").count()).toBe(1);
+    await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   } finally {
     await writeFile(CSS_PATH, originalCss);
     await expect.poll(async () => {
@@ -216,14 +222,14 @@ test("dev: malformed CSS publishes a diagnostic and keeps raw CSS inspection ali
 
 test("dev: scoped-style tokens resolve per-element with author-vocabulary prompts (ADR-0011)", async ({ page }) => {
   await page.goto("/");
-  await waitForInspector(page);
+  const frame = await waitForInspector(page);
 
   // Card.astro declares eight scoped custom properties so the theme-table
   // policy admits the scoped rule into the build catalog. Scoped tokens do
   // not apply to the document root, so the Tokens panel intentionally omits
   // them; they surface through per-element inspection instead.
   await expect.poll(async () => {
-    const catalog = await bridgeCatalog(page, "article.card");
+    const catalog = await bridgeCatalog(frame, "article.card");
     const cardBg = findEntry(catalog, "--card-bg");
     return [
       cardBg ? "present" : "missing",
@@ -234,7 +240,7 @@ test("dev: scoped-style tokens resolve per-element with author-vocabulary prompt
 
   // The raw scoped selector is retained on the declaration so managed-rule
   // resolution keeps matching the rendered DOM.
-  const rawSelector = await page.evaluate(() => {
+  const rawSelector = await frame.evaluate(() => {
     const catalog = (
       window as unknown as { __nudgeUi?: { inspect(selector: string): { catalog: CatalogEntry[] } | null } }
     ).__nudgeUi?.inspect("article.card")?.catalog ?? [];
@@ -248,12 +254,12 @@ test("dev: scoped-style tokens resolve per-element with author-vocabulary prompt
   // without leaking Astro's scoping structure. border-radius starts backed by
   // the global --radius-card; swapping it to the scoped --card-radius creates
   // an element change record.
-  const card = page.locator("article.card").first();
+  const card = frame.locator("article.card").first();
   await expect(card).toHaveAttribute("data-cid", /astro:/);
   await card.click();
   await selectToken(page, "border-radius", "--card-radius");
   await expect.poll(() =>
-    page.locator("article.card").first().evaluate((element) =>
+    frame.locator("article.card").first().evaluate((element) =>
       getComputedStyle(element).getPropertyValue("--card-bg").trim()),
   ).toBeTruthy();
   const prompt = await copyPrompt(page);

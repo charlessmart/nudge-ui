@@ -22,13 +22,14 @@ import {
   getCanvasCards,
   getBoardCamera,
   setCanvasMode,
-  enterCanvas,
-  exitCanvas,
   addCanvasCard,
   appendCanvasComparisonGroup,
   getCanvasComparisonGroups,
   removeCanvasCard as removeCanvasCardStore,
   setBoardCamera,
+  focusCard,
+  getFocusedCardId,
+  resizeCard,
 } from "./canvasStore.ts";
 import { nudgeUiProjectId } from "virtual:design-tokens";
 import {
@@ -118,7 +119,7 @@ function resetAllState(): void {
   clearClipboardHandoff();
   resetStructuralDeleteProjection();
   document.body.replaceChildren();
-  if (getCanvasMode() === "canvas") exitCanvas();
+  setCanvasMode("inspect");
   for (const card of getCanvasCards()) {
     removeCanvasCardStore(card.id);
   }
@@ -347,6 +348,8 @@ describe("sessionStore persistence", () => {
   it("serializes card and camera state", () => {
     setCanvasMode("canvas");
     const card = addCanvasCard(localUrl("/about"), "About");
+    resizeCard(card.id, 731, 509);
+    focusCard(card.id);
     setBoardCamera({ x: 100, y: 200, zoom: 2 });
     persistSession();
 
@@ -356,9 +359,11 @@ describe("sessionStore persistence", () => {
     expect(parsed.cards).toHaveLength(1);
     expect(parsed.cards[0].url).toBe(localUrl("/about"));
     expect(parsed.cards[0].title).toBe("About");
+    expect(parsed.cards[0]).toMatchObject({ width: 731, height: 509 });
     expect(parsed.camera.x).toBe(100);
     expect(parsed.camera.y).toBe(200);
     expect(parsed.camera.zoom).toBe(2);
+    expect(parsed.focusedCardId).toBe(card.id);
   });
 
   it("persists inspect mode state", () => {
@@ -445,11 +450,13 @@ describe("sessionStore hydration", () => {
   it("hydrates canvas mode, cards, and camera", () => {
     setCanvasMode("canvas");
     const card = addCanvasCard(localUrl("/about"), "About");
+    resizeCard(card.id, 731, 509);
+    focusCard(card.id);
     setBoardCamera({ x: 50, y: 100, zoom: 1.5 });
     persistSession();
 
     // Reset state
-    exitCanvas();
+    setCanvasMode("inspect");
     for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
     setBoardCamera({ x: 0, y: 0, zoom: 1 });
 
@@ -458,6 +465,8 @@ describe("sessionStore hydration", () => {
     expect(getCanvasMode()).toBe("canvas");
     expect(getCanvasCards()).toHaveLength(1);
     expect(getCanvasCards()[0]!.url).toBe(localUrl("/about"));
+    expect(getCanvasCards()[0]).toMatchObject({ width: 731, height: 509 });
+    expect(getFocusedCardId()).toBe(card.id);
 
     const camera = getBoardCamera();
     expect(camera.x).toBe(50);
@@ -659,7 +668,7 @@ describe("sessionStore hydration", () => {
     const card = addCanvasCard(localUrl("/page"));
     persistSession();
 
-    exitCanvas();
+    setCanvasMode("inspect");
     for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
 
     const result = hydrateSession();
@@ -947,7 +956,7 @@ describe("sessionStore round trip", () => {
     setBoardCamera({ x: 42, y: 7, zoom: 0.5 });
     persistSession();
 
-    exitCanvas();
+    setCanvasMode("inspect");
     for (const c of getCanvasCards()) removeCanvasCardStore(c.id);
     setBoardCamera({ x: 0, y: 0, zoom: 1 });
 

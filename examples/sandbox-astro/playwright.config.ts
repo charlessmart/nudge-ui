@@ -16,7 +16,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `pnpm dev --port ${DEV_PORT}`,
+    // Astro backgrounds dev servers when it detects an agent environment.
+    // Playwright must own the foreground process so it can track readiness
+    // and shut the fixture down after the suite.
+    command: `ASTRO_DEV_BACKGROUND=0 pnpm dev --port ${DEV_PORT}`,
     url: `${DEV_URL}/`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

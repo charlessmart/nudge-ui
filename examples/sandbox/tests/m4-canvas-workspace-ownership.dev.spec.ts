@@ -73,7 +73,7 @@ async function expandSpacing(page: import("@playwright/test").Page): Promise<voi
 test.describe("Canvas workspace lease — single ownership", () => {
   test("dev: second tab shows locked workspace notice with takeover", async ({ page, context }) => {
     await page.goto("/playground");
-    await page.click("text=Save");
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
     await waitForInspector(page);
 
     // Tab 1 has inspector working normally
@@ -82,7 +82,6 @@ test.describe("Canvas workspace lease — single ownership", () => {
     // Open a second tab
     const page2 = await context.newPage();
     await page2.goto("/playground");
-    await page2.click("text=Save");
     await waitForLockedNotice(page2);
 
     // Second tab should show locked notice, not inspector
@@ -104,13 +103,12 @@ test.describe("Canvas workspace lease — single ownership", () => {
 
   test("dev: takeover transfers ownership and old tab loses authority", async ({ page, context }) => {
     await page.goto("/playground");
-    await page.click("text=Save");
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
     await waitForInspector(page);
 
     // Open second tab
     const page2 = await context.newPage();
     await page2.goto("/playground");
-    await page2.click("text=Save");
     await waitForLockedNotice(page2);
 
     // Take over in second tab
@@ -120,6 +118,8 @@ test.describe("Canvas workspace lease — single ownership", () => {
     // A is replaced by the locked panel before it can issue another edit.
     await waitForInspector(page2);
     await expect(page2.locator('[data-test="locked-workspace-notice"]')).not.toBeVisible();
+    await page2.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
+    await expect(page2.locator('[data-test="style-editors"]')).toBeVisible();
     await waitForLockedNotice(page);
     await expect(page.locator('[data-test="inspect-tab"]')).not.toBeVisible();
 
@@ -131,7 +131,7 @@ test.describe("Canvas workspace lease — single ownership", () => {
 test.describe("Canvas workspace lease — expiry recovery", () => {
   test("dev: expired lease allows new tab to acquire ownership", async ({ page, context }) => {
     await page.goto("/playground");
-    await page.click("text=Save");
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
     await waitForInspector(page);
 
     // Simulate an expired lease by writing one with old heartbeat
@@ -150,11 +150,12 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
     // Open a second tab — should acquire the expired lease
     const page2 = await context.newPage();
     await page2.goto("/playground");
-    await page2.click("text=Save");
 
     // Should get inspector (not locked notice), since lease was expired
     await waitForInspector(page2);
     await expect(page2.locator('[data-test="inspect-tab"]')).toBeVisible();
+    await page2.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
+    await expect(page2.locator('[data-test="style-editors"]')).toBeVisible();
 
     await page2.close();
   });
@@ -163,7 +164,7 @@ test.describe("Canvas workspace lease — expiry recovery", () => {
 test.describe("Canvas workspace — stale change detection", () => {
   test("dev: restored stale change shows stale indicator", async ({ page }) => {
     await page.goto("/playground");
-    await page.click("text=Save");
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
     await waitForInspector(page);
 
     // Make an edit so we have a persisted change
@@ -217,7 +218,7 @@ test.describe("Canvas workspace — stale change detection", () => {
 
   test("dev: stale state retains exact selector and source data", async ({ page }) => {
     await page.goto("/playground");
-    await page.click("text=Save");
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
     await waitForInspector(page);
 
     // Prepare a session with a known stale change

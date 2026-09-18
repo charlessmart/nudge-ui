@@ -29,14 +29,13 @@ import { LockedWorkspaceNotice } from "./canvas/LockedWorkspaceNotice.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
 import { installInspectionBridge } from "./inspection/bridge.ts";
 import { disposeBrowserCssInspection } from "./inspection/browserCssInspectionRegistry.ts";
-import { releaseDocumentProjection } from "./projection/structuralProjection.ts";
+import { releaseDocumentProjection, subscribeStructuralChanges } from "./projection/structuralProjection.ts";
 import { cancelInlineTextEdit } from "./inline-text/inlineTextEditor.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, isDemoRuntime } from "./runtime/runtimeConfig.ts";
 import { setCanvasMode } from "./canvas/canvasStore.ts";
 import { isNudgeUiDev, setNudgeUiHostDevFlag } from "./runtime/devFlag.ts";
 import {
   clearClipboardHandoff,
-  startClipboardHandoffController,
   subscribeClipboardHandoff,
 } from "./prompt/clipboardHandoff.ts";
 import {
@@ -44,6 +43,9 @@ import {
   InspectorSessionProvider,
   type InspectorSession,
 } from "./session/index.ts";
+import { isEditorShellDocument } from "./runtime/editorShell.ts";
+
+export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
 
 let hostElement: HTMLElement | null = null;
 let reactRoot: Root | null = null;
@@ -55,7 +57,6 @@ let beforeUnloadAttached = false;
 let persistenceSubscribed = false;
 let unsubscribeOwnership: (() => void) | null = null;
 let removeInspectionBridge: (() => void) | null = null;
-let stopClipboardHandoffController: (() => void) | null = null;
 
 function onKeydown(e: KeyboardEvent): void {
   if (isInspectorToggleShortcut(e)) {
@@ -141,11 +142,13 @@ function startController(inspectorHost: HTMLElement): void {
       startStaleDetection(restored);
     }
   }
+  if (getNudgeUiRuntimeConfig().capabilities.canvas) {
+    // Normal controllers always host the iframe workspace. Hydration runs
+    // first so this mode change cannot discard cards, camera, or edits.
+    setCanvasMode("canvas");
+  }
 
   mountInspector(inspectorHost);
-  stopClipboardHandoffController?.();
-  stopClipboardHandoffController = startClipboardHandoffController(document);
-
   enableAutoSave();
   if (!beforeUnloadAttached) {
     // enableAutoSave registers its flush listener first. Release the lease only
@@ -156,6 +159,7 @@ function startController(inspectorHost: HTMLElement): void {
   }
   if (!persistenceSubscribed) {
     subscribeChanges(() => scheduleAutoSave());
+    subscribeStructuralChanges(() => scheduleAutoSave());
     subscribeClipboardHandoff(() => scheduleAutoSave());
     subscribeCanvas(() => scheduleCanvasSave());
     persistenceSubscribed = true;
@@ -163,8 +167,6 @@ function startController(inspectorHost: HTMLElement): void {
 }
 
 function mountLockedNotice(host: HTMLElement): void {
-  stopClipboardHandoffController?.();
-  stopClipboardHandoffController = null;
   if (reactRoot) {
     reactRoot.unmount();
     reactRoot = null;
@@ -214,9 +216,11 @@ export function mountInspector(host: HTMLElement): void {
   if (!reactRoot) {
     reactRoot = createRoot(shadow);
     inspectorSession = workspace.createInspectorSession(host);
-    const documentSession = inspectorSession.createDocumentSession(document);
-    documentSession.registerCleanup(() => disposeBrowserCssInspection(document));
-    documentSession.registerCleanup(() => releaseDocumentProjection(document));
+    const documentSession = demo || !isEditorShellDocument()
+      ? inspectorSession.createDocumentSession(document)
+      : null;
+    documentSession?.registerCleanup(() => disposeBrowserCssInspection(document));
+    documentSession?.registerCleanup(() => releaseDocumentProjection(document));
     inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
     setInspectorHost(host);
     reactRoot.render(createElement(
@@ -232,8 +236,6 @@ export function mountInspector(host: HTMLElement): void {
 export function unmountInspector(): void {
   rendererBootstrapHandle?.teardown();
   rendererBootstrapHandle = null;
-  stopClipboardHandoffController?.();
-  stopClipboardHandoffController = null;
   unsubscribeOwnership?.();
   unsubscribeOwnership = null;
   if (lockedRoot) {

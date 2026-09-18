@@ -15,9 +15,9 @@ import {
 
 const diagnosedAdapters = new WeakSet<ComponentRuntimeAdapter>();
 
-function enabledRuntimeAdapters(): ComponentRuntimeAdapter[] {
+function enabledRuntimeAdapters(ownerGlobal: typeof globalThis): ComponentRuntimeAdapter[] {
   if (!getNudgeUiRuntimeConfig().capabilities.componentSemantics) return [];
-  return [...getHostRuntimeAdapters()];
+  return [...getHostRuntimeAdapters(ownerGlobal)];
 }
 
 /** Register a framework adapter without coupling semantic resolution to React. */
@@ -27,7 +27,8 @@ export function registerComponentRuntimeAdapter(adapter: ComponentRuntimeAdapter
 
 export function inspectComponentTargets(element: HTMLElement): RuntimeComponentTarget[] {
   const targets: RuntimeComponentTarget[] = [];
-  for (const adapter of enabledRuntimeAdapters()) {
+  const ownerGlobal = element.ownerDocument.defaultView ?? globalThis;
+  for (const adapter of enabledRuntimeAdapters(ownerGlobal)) {
     let inspected: RuntimeComponentTarget[];
     try {
       inspected = adapter.inspect(element);

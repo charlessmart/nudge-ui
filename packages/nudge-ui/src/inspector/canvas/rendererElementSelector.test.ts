@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { setRendererIdentity, type ElementHoverMessage } from "./frameProtocol.ts";
+import { PROTOCOL_VERSION, setRendererIdentity, type ElementHoverMessage } from "./frameProtocol.ts";
 import { buildSelector, installRendererElementSelector } from "./rendererElementSelector.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 
@@ -165,6 +165,57 @@ describe("renderer hover scheduling", () => {
       .map(([message]) => message)
       .find((message) => typeof message === "object" && message !== null && "type" in message && message.type === "element-click");
     expect(click).toMatchObject({ type: "element-click", additive: true });
+  });
+
+  it("forwards double-click text intent to the controller", () => {
+    const heading = trackedElement("editable-heading");
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    heading.dispatchEvent(new MouseEvent("dblclick", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 12,
+      clientY: 24,
+    }));
+
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "inline-text-intent",
+      intent: "double-click",
+      cid: "editable-heading",
+      point: { x: 12, y: 24 },
+    }), window.location.origin);
+  });
+
+  it("forwards the visibility shortcut and restores native app clicks while hidden", () => {
+    const button = trackedElement("app-action");
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    const shortcut = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "Backslash",
+      key: "\\",
+      ctrlKey: true,
+    });
+
+    document.dispatchEvent(shortcut);
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: {
+        type: "inspector-interaction-state",
+        protocolVersion: PROTOCOL_VERSION,
+        open: false,
+        ...identity,
+      },
+    }));
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    button.dispatchEvent(click);
+
+    expect(shortcut.defaultPrevented).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "inspector-toggle-request",
+    }), window.location.origin);
+    expect(click.defaultPrevented).toBe(false);
   });
 });
 

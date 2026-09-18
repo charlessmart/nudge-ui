@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { createElement, type ReactElement } from "react";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { PROTOCOL_VERSION } from "./frameProtocol.ts";
-import { getCanvasCards, hydrateCanvasStore, resizeCard, type CanvasCard as CanvasCardData, useCanvasCards } from "./canvasStore.ts";
+import { activateIframeWorkspace, getCanvasCards, hydrateCanvasStore, resizeCard, type CanvasCard as CanvasCardData, useCanvasCards } from "./canvasStore.ts";
 import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -176,6 +176,58 @@ describe("CanvasCard renderer handshake", () => {
     act(() => resizeCard(card.id, 1024, 768));
 
     expect(dimensions()).toBe("1024 × 768 px");
+  });
+
+  it("loads an explicit restored fragment requested after the iframe mounts", () => {
+    const previous = new URL("/playground#previous", window.location.href).href;
+    const requested = new URL("/playground#requested", window.location.href).href;
+    const card: CanvasCardData = {
+      id: "card-restored-route",
+      url: previous,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(StoreBackedCard));
+    });
+
+    const iframe = host.querySelector("iframe");
+    expect(iframe?.getAttribute("src")).toBe(previous);
+
+    act(() => {
+      activateIframeWorkspace(requested, { width: 1200, height: 800 });
+    });
+
+    expect(iframe?.getAttribute("src")).toBe(requested);
+  });
+
+  it("opens the application through the card toolbar control", () => {
+    const card: CanvasCardData = {
+      id: "card-open-app",
+      url: window.location.href,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    const onOpenApp = vi.fn();
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCard, { card, onOpenApp }));
+    });
+
+    const control = host.querySelector(`[data-test="canvas-card-open-app-${card.id}"]`);
+    if (!(control instanceof HTMLButtonElement)) throw new Error("Open app control did not mount");
+    act(() => control.click());
+
+    expect(control.textContent).toContain("Open app");
+    expect(onOpenApp).toHaveBeenCalledWith(card);
   });
 
   it("moves the card when dragging from the dimension surface", () => {

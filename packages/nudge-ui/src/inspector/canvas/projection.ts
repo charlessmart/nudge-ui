@@ -1,12 +1,14 @@
-import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { getWorkspaceChanges, type WorkspaceContents } from "../changes/workspaceChanges.ts";
 import type { CanvasCard } from "./canvasStore.ts";
 import { getCanvasMode } from "./canvasStore.ts";
 import { PROTOCOL_VERSION, type ReplaceStylesMessage } from "./frameProtocol.ts";
 import {
   clearCanvasRenderedInstanceProjectionReports,
+  setCanonicalRenderedInstanceOverrides,
 } from "../projection/renderedInstance.ts";
 import {
   clearCanvasTextProjectionReports,
+  setCanonicalTextContentChanges,
 } from "../projection/textProjection.ts";
 import { clearCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import {
@@ -15,7 +17,6 @@ import {
   type PreviewDocument,
 } from "../changes/previewDiagnostics.ts";
 import {
-  applyHostWorkspaceProjection,
   compileWorkspaceProjection,
   type CompiledManagedStyles,
   type WorkspaceProjectionPlan,
@@ -35,6 +36,7 @@ interface FrameProjectionState {
   previewDocument: PreviewDocument;
   sentRevision: number;
   appliedRevision: number;
+  canonicalSentRevision: number;
 }
 
 export interface CanvasProjectionStatus {
@@ -83,7 +85,8 @@ function projectionKey(plan: WorkspaceProjectionPlan<CompiledManagedStyles>): st
 
 export function computeProjection() {
   const plan = compileWorkspaceProjection(getWorkspaceChanges());
-  applyHostWorkspaceProjection(plan);
+  setCanonicalRenderedInstanceOverrides(plan.instanceOverrides);
+  setCanonicalTextContentChanges(plan.textContentChanges);
   const key = projectionKey(plan);
   if (key !== lastRulesKey) {
     lastRulesKey = key;
@@ -98,6 +101,7 @@ export function resetProjectionRevision(): void {
   for (const state of frameProjectionStates.values()) {
     state.sentRevision = -1;
     state.appliedRevision = -1;
+    state.canonicalSentRevision = -1;
   }
   projectionAcknowledgementVersion += 1;
   notifyProjectionAcknowledgementListeners();
@@ -110,12 +114,28 @@ export function sendProjectionToCard(
   const win = iframe.contentWindow;
   if (!win) return;
   const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = computeProjection();
+  sendProjectionMessage(card.id, iframe, rev, css, instanceOverrides, structuralChanges, textContentChanges, componentOverrides, true);
+}
+
+function sendProjectionMessage(
+  cardId: string,
+  iframe: HTMLIFrameElement,
+  rev: number,
+  css: string,
+  instanceOverrides: readonly ReplaceStylesMessage["instanceOverrides"][number][],
+  structuralChanges: readonly ReplaceStylesMessage["structuralChanges"][number][],
+  textContentChanges: readonly ReplaceStylesMessage["textContentChanges"][number][],
+  componentOverrides: readonly ReplaceStylesMessage["componentOverrides"][number][],
+  canonical = false,
+): void {
+  const win = iframe.contentWindow;
+  if (!win) return;
   const msg: ReplaceStylesMessage = {
     type: "replace-styles",
     protocolVersion: PROTOCOL_VERSION,
     projectId: PROJECT_ID,
     workspaceId: WORKSPACE_ID,
-    cardId: card.id,
+    cardId,
     css,
     revision: rev,
     instanceOverrides: [...instanceOverrides],
@@ -123,8 +143,80 @@ export function sendProjectionToCard(
     textContentChanges: [...textContentChanges],
     componentOverrides: [...componentOverrides],
   };
-  markProjectionSent(card.id, iframe, rev);
+  markProjectionSent(cardId, iframe, rev, canonical);
   win.postMessage(msg, window.location.origin);
+}
+
+/** Temporarily projects a snapshot through the renderer that owns the document. */
+export async function projectWorkspaceSnapshotToDocument(
+  doc: Document,
+  snapshot: WorkspaceContents,
+): Promise<number | null> {
+  const entry = [...frameProjectionStates.entries()].find(([, state]) => state.document === doc);
+  if (!entry) return null;
+  const [cardId, state] = entry;
+  const plan = compileWorkspaceProjection({ ...snapshot, revision: 0 });
+  revision += 1;
+  sendProjectionMessage(
+    cardId,
+    state.iframe,
+    revision,
+    plan.managedStyles.css,
+    plan.instanceOverrides,
+    plan.structuralChanges,
+    plan.textContentChanges,
+    plan.componentOverrides,
+  );
+  if (state.appliedRevision === revision && state.sentRevision === revision) return revision;
+  const requestedRevision = revision;
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const finish = (appliedRevision: number | null): void => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      if (timer !== undefined) clearTimeout(timer);
+      resolve(appliedRevision);
+    };
+    const unsubscribe = subscribeCanvasProjectionAcknowledgements(() => {
+      const current = frameProjectionStates.get(cardId);
+      if (!current || current.document !== doc) finish(null);
+      else if (current.sentRevision > requestedRevision || current.appliedRevision > requestedRevision) finish(null);
+      else if (current.appliedRevision === requestedRevision) finish(requestedRevision);
+    });
+    timer = setTimeout(() => finish(null), 2_000);
+  });
+}
+
+/** Returns whether an acknowledged temporary projection is still authoritative. */
+export function isCanvasProjectionRevisionCurrent(doc: Document, expectedRevision: number): boolean {
+  for (const state of frameProjectionStates.values()) {
+    if (state.document !== doc) continue;
+    try {
+      if (state.iframe.contentDocument !== doc) return false;
+    } catch {
+      return false;
+    }
+    return state.sentRevision === expectedRevision && state.appliedRevision === expectedRevision;
+  }
+  return false;
+}
+
+/** Returns whether the live frame acknowledged its latest canonical workspace projection. */
+export function isCanvasCanonicalProjectionRevisionCurrent(doc: Document, expectedRevision: number): boolean {
+  for (const state of frameProjectionStates.values()) {
+    if (state.document !== doc) continue;
+    try {
+      if (state.iframe.contentDocument !== doc) return false;
+    } catch {
+      return false;
+    }
+    return state.canonicalSentRevision === expectedRevision
+      && state.sentRevision === expectedRevision
+      && state.appliedRevision === expectedRevision;
+  }
+  return false;
 }
 
 const frameRegistry = new Map<string, HTMLIFrameElement>();
@@ -150,6 +242,7 @@ export function registerCardFrame(cardId: string, iframe: HTMLIFrameElement): vo
       previewDocument,
       sentRevision: -1,
       appliedRevision: -1,
+      canonicalSentRevision: -1,
     });
   } else {
     startPreviewDocumentSession(existing.previewDocument);
@@ -164,6 +257,8 @@ export function unregisterCardFrame(cardId: string): void {
   frameRegistry.delete(cardId);
   invalidateCanvasPreviewDocument(cardId);
   frameProjectionStates.delete(cardId);
+  projectionAcknowledgementVersion += 1;
+  notifyProjectionAcknowledgementListeners();
   clearCanvasStructuralProjectionReports(cardId);
   clearCanvasRenderedInstanceProjectionReports(cardId);
   clearCanvasTextProjectionReports(cardId);
@@ -200,10 +295,11 @@ function getFrameDocument(iframe: HTMLIFrameElement): Document | null {
   }
 }
 
-function markProjectionSent(cardId: string, iframe: HTMLIFrameElement, sentRevision: number): void {
+function markProjectionSent(cardId: string, iframe: HTMLIFrameElement, sentRevision: number, canonical = false): void {
   const state = frameProjectionStates.get(cardId);
   if (!state || state.iframe !== iframe) return;
   state.sentRevision = Math.max(state.sentRevision, sentRevision);
+  if (canonical) state.canonicalSentRevision = sentRevision;
 }
 
 /** Records the highest complete projection revision accepted by one frame. */
@@ -254,22 +350,16 @@ export function projectToAllReadyCards(): void {
   if (getCanvasMode() !== "canvas") return;
   const { css, revision: rev, instanceOverrides, structuralChanges, textContentChanges, componentOverrides } = computeProjection();
   for (const [cardId, iframe] of frameRegistry) {
-    const win = iframe.contentWindow;
-    if (!win) continue;
-    const msg: ReplaceStylesMessage = {
-      type: "replace-styles",
-      protocolVersion: PROTOCOL_VERSION,
-      projectId: PROJECT_ID,
-      workspaceId: WORKSPACE_ID,
+    sendProjectionMessage(
       cardId,
+      iframe,
+      rev,
       css,
-      revision: rev,
-      instanceOverrides: [...instanceOverrides],
-      structuralChanges: [...structuralChanges],
-      textContentChanges: [...textContentChanges],
-      componentOverrides: [...componentOverrides],
-    };
-    markProjectionSent(cardId, iframe, rev);
-    win.postMessage(msg, window.location.origin);
+      instanceOverrides,
+      structuralChanges,
+      textContentChanges,
+      componentOverrides,
+      true,
+    );
   }
 }

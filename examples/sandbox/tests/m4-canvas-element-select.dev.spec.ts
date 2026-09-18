@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { getAppFrame } from "@nudge-ui/compatibility/playwright";
 
 /**
  * Cross-iframe element selection. These tests exercise the path where the
@@ -9,9 +10,8 @@ import { test, expect } from "@playwright/test";
  * 1. Clicking a plain tracked element (heading, button, paragraph) inside a
  *    single-card canvas selects it in the inspector without triggering its
  *    application action or unmounting the workspace.
- * 2. Clicking a same-origin anchor (`<a href="/conformance">`) that has been
- *    authored inside a tracked React component still spawns a new card, so
- *    users can navigate from one route to the next without losing canvas.
+ * 2. Clicking a same-origin anchor (`<a href="/conformance">`) keeps the
+ *    editing surface and lets the application handle its own navigation.
  * 3. Clicking a tracked element inside a sibling card whose URL differs from
  *    the parent's route must NOT navigate the parent page away from canvas
  *    mode (regression: `selectCard` used to call `window.location.href = ...`
@@ -20,7 +20,6 @@ import { test, expect } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 });
 
@@ -62,7 +61,7 @@ test("dev: clicking a tracked non-anchor element inside an iframe selects it in 
   await expect(page.locator('[data-test="canvas-selected-outline"]')).toBeVisible({ timeout: 5000 });
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  expect(page.url()).toMatch(/\/playground$/);
+  await expect.poll(async () => (await getAppFrame(page)).url()).toMatch(/\/playground$/);
 });
 
 test("dev: canvas mirrors inspector hover margins and selected outline over the iframe", async ({ page }) => {
@@ -159,7 +158,7 @@ test("dev: reloading the selected card clears its stale element selection", asyn
   await waitForIframeReady(page, 0);
 });
 
-test("dev: clicking a navigable same-origin anchor inside a tracked tree still spawns a new card", async ({ page }) => {
+test("dev: clicking a navigable same-origin anchor navigates the same editing surface", async ({ page }) => {
   await waitForIframeReady(page, 0);
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
@@ -170,7 +169,8 @@ test("dev: clicking a navigable same-origin anchor inside a tracked tree still s
     .locator('a[href="/conformance"]')
     .click();
 
-  await expect(board.locator(".canvas-card")).toHaveCount(2);
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
+  await expect.poll(async () => (await getAppFrame(page)).url()).toMatch(/\/conformance$/);
 });
 
 test("dev: Command-click selects a canvas link without opening a route card", async ({ page }) => {
@@ -190,15 +190,17 @@ test("dev: clicking a tracked element inside a sibling card whose URL differs fr
   await waitForIframeReady(page, 0);
   const parentUrlBefore = page.url();
 
-  // Create a sibling through the renderer's normal, identity-bound navigation
-  // protocol. The regression under test is that selecting in that sibling must
-  // not navigate the parent away from Canvas.
-  await page.frameLocator(".canvas-card__iframe").first()
+  // Create an explicit comparison, then navigate that card. Selecting in the
+  // comparison must not navigate the editor shell.
+  await page.locator('[data-test^="canvas-card-duplicate-"]').first().click();
+  await expect(page.locator(".canvas-card")).toHaveCount(2);
+  await waitForIframeReady(page, 1);
+  await page.frameLocator(".canvas-card__iframe").nth(1)
     .locator('a[href="/conformance"]')
     .click();
 
   await expect(page.locator(".canvas-card")).toHaveCount(2);
-  await waitForIframeReady(page, 1);
+  await expect.poll(() => page.frames().filter((frame) => frame.url().endsWith("/conformance")).length).toBe(1);
 
   const secondFrame = page.frameLocator(".canvas-card__iframe").nth(1);
   const heading = secondFrame.locator("h1, h2, [data-cid]").first();

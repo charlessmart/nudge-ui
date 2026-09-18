@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: catalog retains light and dark declarations for one token", async ({ page }) => {
-  await page.goto("/playground");
-  await expect.poll(() => page.evaluate(() => {
+  const app = await openEditor(page, "/playground");
+  await expect.poll(() => app.locator("html").evaluate(() => {
     const catalog = (window as unknown as { __designTokenCatalog?: { cssName: string }[] }).__designTokenCatalog ?? [];
     return catalog.some((token) => token.cssName === "--color-surface-raised");
   })).toBe(true);
-  const surface = await page.evaluate(() => {
+  const surface = await app.locator("html").evaluate(() => {
     const catalog = (window as unknown as { __designTokenCatalog?: { cssName: string; declarations: unknown[] }[] }).__designTokenCatalog ?? [];
     return catalog.find((token) => token.cssName === "--color-surface-raised");
   });
@@ -24,8 +25,8 @@ test("dev: catalog retains light and dark declarations for one token", async ({ 
 });
 
 test("dev: tokenized and raw values appear in their relevant editors", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  const app = await openEditor(page, "/playground");
+  await app.getByRole("button", { name: "Save" }).click();
   await expect.poll(async () => page.evaluate(() => {
     const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return {

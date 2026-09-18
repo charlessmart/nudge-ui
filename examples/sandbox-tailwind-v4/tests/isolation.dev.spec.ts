@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("Tailwind v4 owns its stylesheet graph and catalog", async ({ page }) => {
-  await page.goto("/examples");
-  const facts = await page.evaluate(() => ({
+  const app = await openEditor(page, "/examples");
+  const facts = await app.locator("html").evaluate(() => ({
     sheets: Array.from(document.querySelectorAll("style[data-vite-dev-id], link[rel~='stylesheet']"), (element) => element.getAttribute("data-vite-dev-id") ?? element.getAttribute("href") ?? "").join("\n"),
     css: Array.from(document.styleSheets).flatMap((sheet) => {
       try { return Array.from(sheet.cssRules).map((rule) => rule.cssText); } catch { return []; }

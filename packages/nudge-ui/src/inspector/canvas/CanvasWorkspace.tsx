@@ -1,19 +1,23 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import {
   useCanvasCards,
-  exitCanvas,
-  exitCanvasToCard,
-  addCanvasCard,
+  activateIframeWorkspace,
   removeCanvasCard,
-  findCardByNormalizedUrl,
-  focusCard,
   getSelectedCardId,
+  getFocusedCardId,
+  getCanvasCards,
   setBoardCamera,
   getBoardCamera,
   fitAllCards,
   hasFitAllRan,
   useBoardCamera,
+  useCanvasPresentation,
+  useCanvasPresentationTransitioning,
+  useSelectedCardId,
+  useFocusedCardId,
+  resizeCard,
   type CanvasCard as CanvasCardData,
+  updateCardUrl,
 } from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
 import { useCanvasMode } from "./canvasStore.ts";
@@ -21,23 +25,29 @@ import { subscribeChanges } from "../changes/changesLog.ts";
 import { recordCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { recordCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
 import { recordCanvasTextProjectionReports } from "../projection/textProjection.ts";
+import { getChangesList, isPreviewableChange } from "../changes/changesLog.ts";
+import { changeKey } from "../changes/model.ts";
+import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
+import { beginPreviewAttempt, publishPreviewDiagnostic } from "../changes/previewDiagnostics.ts";
+import { verifyManagedStyleProjection } from "../changes/managedStyleProjection.ts";
 import {
-  findCanvasFrameBySource,
+  getCanvasPreviewDocument,
   getRegisteredFrames,
+  isCanvasCanonicalProjectionRevisionCurrent,
   PROJECT_ID,
   projectToAllReadyCards,
   recordCanvasProjectionApplied,
   WORKSPACE_ID,
 } from "./projection.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
+import { createNudgeUiEditorUrl } from "../../transport/editor.ts";
+import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import {
   PROTOCOL_VERSION,
-  isRendererMessageFor,
   isProjectionAppliedMessage,
   isRenderedInstanceProjectionReportMessage,
   isTextProjectionReportMessage,
   isStructuralProjectionReportMessage,
-  type FrameProtocolMessage,
 } from "./frameProtocol.ts";
 import { iframePointToClientPoint, zoomCameraAtPointer } from "./canvasGestures.ts";
 import canvasWorkspaceStyles from "./CanvasWorkspace.css?inline";
@@ -47,15 +57,25 @@ import { useInspectorOpen } from "../shell/openStore.ts";
 import { isEditableEvent } from "../shell/shortcuts.ts";
 import { acknowledgeAgentRendererReady } from "./agentPresentation.ts";
 import { useInspectorSession } from "../session/sessionContext.tsx";
+import { createNudgeUiDirectUrl } from "../../transport/editor.ts";
+import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");
 
-export function CanvasWorkspace(): ReactElement | null {
+export interface CanvasWorkspaceProps {
+  readonly primaryUrl: string | null;
+}
+
+export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElement | null {
   const mode = useCanvasMode();
   const inspectorSession = useInspectorSession();
   const inspectorOpen = useInspectorOpen();
   const cards = useCanvasCards();
   const camera = useBoardCamera();
+  const presentation = useCanvasPresentation();
+  const presentationTransitioning = useCanvasPresentationTransitioning();
+  const selectedCardId = useSelectedCardId();
+  const focusedCardId = useFocusedCardId();
 
   const boardRef = useRef<HTMLDivElement>(null);
   const panningRef = useRef(false);
@@ -64,8 +84,32 @@ export function CanvasWorkspace(): ReactElement | null {
   const framePanContextRef = useRef<{ left: number; top: number; zoom: number } | null>(null);
   const spaceHeldRef = useRef(false);
   const fitAllScheduledRef = useRef(false);
+  const activatedTargetRef = useRef<string | null>(null);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
+  const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
+
+  useLayoutEffect(() => {
+    const board = boardRef.current;
+    if (!primaryUrl || !board) return;
+    if (activatedTargetRef.current === primaryUrl && cards.length > 0) return;
+    activatedTargetRef.current = primaryUrl;
+    activateIframeWorkspace(primaryUrl, {
+      width: board.clientWidth,
+      height: board.clientHeight,
+    });
+  }, [primaryUrl, cards.length]);
+
+  useEffect(() => {
+    if (primaryUrl && activatedTargetRef.current !== primaryUrl) return;
+    const activeCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id;
+    const activeCard = cards.find((card) => card.id === activeCardId);
+    if (!activeCard) return;
+    const editorUrl = createNudgeUiEditorUrl(activeCard.url);
+    if (window.location.href !== editorUrl) {
+      window.history.replaceState(window.history.state, "", editorUrl);
+    }
+  }, [cards, focusedCardId, primaryUrl, selectedCardId]);
 
   const sendPanModifier = useCallback((iframe: HTMLIFrameElement, cardId: string, spaceHeld: boolean) => {
     iframe.contentWindow?.postMessage({
@@ -77,6 +121,39 @@ export function CanvasWorkspace(): ReactElement | null {
       spaceHeld,
     }, window.location.origin);
   }, []);
+
+  const sendInspectorInteractionState = useCallback((
+    iframe: HTMLIFrameElement,
+    cardId: string,
+    open: boolean,
+  ) => {
+    iframe.contentWindow?.postMessage({
+      type: "inspector-interaction-state",
+      protocolVersion: PROTOCOL_VERSION,
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+      cardId,
+      open,
+    }, window.location.origin);
+  }, []);
+
+  const sendBoardGestureState = useCallback((iframe: HTMLIFrameElement, cardId: string, enabled: boolean) => {
+    iframe.contentWindow?.postMessage({
+      type: "board-gesture-state",
+      protocolVersion: PROTOCOL_VERSION,
+      projectId: PROJECT_ID,
+      workspaceId: WORKSPACE_ID,
+      cardId,
+      enabled,
+    }, window.location.origin);
+  }, []);
+
+  useEffect(() => {
+    for (const [cardId, iframe] of getRegisteredFrames()) {
+      sendInspectorInteractionState(iframe, cardId, inspectorOpen);
+      sendBoardGestureState(iframe, cardId, presentation === "canvas");
+    }
+  }, [inspectorOpen, presentation, sendBoardGestureState, sendInspectorInteractionState]);
 
   const broadcastPanModifier = useCallback((spaceHeld: boolean) => {
     for (const [cardId, iframe] of getRegisteredFrames()) {
@@ -126,6 +203,14 @@ export function CanvasWorkspace(): ReactElement | null {
     setBoardCursorClass(spaceHeldRef.current ? "is-grabbable" : "");
   }, []);
 
+  useLayoutEffect(() => {
+    if (presentation !== "focus") return;
+    endPanning();
+    spaceHeldRef.current = false;
+    setBoardCursorClass("");
+    broadcastPanModifier(false);
+  }, [broadcastPanModifier, endPanning, presentation]);
+
   useEffect(() => {
     return subscribeChanges(() => {
       projectToAllReadyCards();
@@ -133,48 +218,65 @@ export function CanvasWorkspace(): ReactElement | null {
   }, []);
 
   useEffect(() => {
-    function onMessage(event: MessageEvent): void {
-      if (event.origin !== window.location.origin) return;
-      if (!event.data || typeof event.data !== "object") return;
-      const frame = findCanvasFrameBySource(event.source);
-      if (!frame) return;
-      if (!isRendererMessageFor(event.data, {
-        projectId: PROJECT_ID,
-        workspaceId: WORKSPACE_ID,
-        cardId: frame.cardId,
-      })) return;
-
-      const identity = {
-        projectId: PROJECT_ID,
-        workspaceId: WORKSPACE_ID,
-        cardId: frame.cardId,
+    return subscribeCanvasRendererMessages(({ cardId, iframe, identity, message: msg }) => {
+      if (msg.type === "renderer-hello") return;
+      const frame = { cardId, iframe };
+      const syncActiveFrameUrl = (url: string): void => {
+        updateCardUrl(frame.cardId, url);
+        const activeCardId = getSelectedCardId() ?? getFocusedCardId() ?? getCanvasCards()[0]?.id;
+        if (activeCardId !== frame.cardId && getCanvasCards().length !== 1) return;
+        window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(url));
       };
-      if (isProjectionAppliedMessage(event.data, identity)) {
-        recordCanvasProjectionApplied(frame.cardId, event.data.revision);
+      if (isProjectionAppliedMessage(msg, identity)) {
+        recordCanvasProjectionApplied(frame.cardId, msg.revision);
+        const frameDocument = frame.iframe.contentDocument;
+        if (frameDocument && isCanvasCanonicalProjectionRevisionCurrent(frameDocument, msg.revision)) {
+          const attempt = beginPreviewAttempt(
+            getCanvasPreviewDocument(frame.cardId),
+            getWorkspaceChanges().revision,
+          );
+          if (attempt) {
+            for (const change of getChangesList()) {
+              if (!isPreviewableChange(change)) continue;
+              const result = verifyManagedStyleProjection(change, null, frameDocument);
+              if (result) {
+                publishPreviewDiagnostic(attempt, changeKey(change), result);
+                if (result.status === "conflict" && result.reason === "animation") {
+                  window.setTimeout(() => {
+                    if (!isCanvasCanonicalProjectionRevisionCurrent(frameDocument, msg.revision)) return;
+                    const settled = verifyManagedStyleProjection(change, null, frameDocument);
+                    if (settled) publishPreviewDiagnostic(attempt, changeKey(change), settled);
+                  }, 300);
+                }
+              }
+            }
+          }
+        }
         return;
       }
-      if (isStructuralProjectionReportMessage(event.data, identity)) {
-        recordCanvasStructuralProjectionReports(frame.cardId, event.data.revision, event.data.reports);
+      if (isStructuralProjectionReportMessage(msg, identity)) {
+        recordCanvasStructuralProjectionReports(frame.cardId, msg.revision, msg.reports);
         return;
       }
-      if (isRenderedInstanceProjectionReportMessage(event.data, identity)) {
-        recordCanvasRenderedInstanceProjectionReports(frame.cardId, event.data.revision, event.data.reports);
+      if (isRenderedInstanceProjectionReportMessage(msg, identity)) {
+        recordCanvasRenderedInstanceProjectionReports(frame.cardId, msg.revision, msg.reports);
         return;
       }
-      if (isTextProjectionReportMessage(event.data, identity)) {
-        recordCanvasTextProjectionReports(frame.cardId, event.data.revision, event.data.reports);
+      if (isTextProjectionReportMessage(msg, identity)) {
+        recordCanvasTextProjectionReports(frame.cardId, msg.revision, msg.reports);
         return;
       }
-
-      // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
-      const msg = event.data as FrameProtocolMessage;
       if (msg.type === "frame-ready") {
         acknowledgeAgentRendererReady(frame.cardId);
+        syncActiveFrameUrl(msg.url);
         // A card can finish loading after Space was pressed on the controller.
         // Seed it with the current modifier state before its first pointer event.
         sendPanModifier(frame.iframe, frame.cardId, spaceHeldRef.current);
+        sendInspectorInteractionState(frame.iframe, frame.cardId, inspectorOpen);
+        sendBoardGestureState(frame.iframe, frame.cardId, presentation === "canvas");
       }
       if (msg.type === "pan-modifier") {
+        if (presentation !== "canvas") return;
         spaceHeldRef.current = msg.spaceHeld;
         if (!panningRef.current) {
           setBoardCursorClass(msg.spaceHeld ? "is-grabbable" : "");
@@ -183,6 +285,7 @@ export function CanvasWorkspace(): ReactElement | null {
         return;
       }
       if (msg.type === "zoom") {
+        if (presentation !== "canvas") return;
         const iframeRect = frame.iframe.getBoundingClientRect();
         const point = iframePointToClientPoint(iframeRect, msg.point, getBoardCamera().zoom);
         zoomAtPointer(point, msg.deltaY);
@@ -217,28 +320,20 @@ export function CanvasWorkspace(): ReactElement | null {
         endPanning();
         return;
       }
-      if (msg.type === "external-navigation") {
-        const destination = normalizeUrl(msg.url);
-        if (!destination || destination.origin === window.location.origin) return;
-        exitCanvas();
-        window.location.href = msg.url;
+      if (msg.type === "frame-metadata") {
+        const frameDocument = frame.iframe.contentDocument;
+        if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
+        if (msg.url) syncActiveFrameUrl(msg.url);
         return;
       }
       if (msg.type !== "navigation-intent") return;
       const normalized = normalizeUrl(msg.url);
       if (!normalized || normalized.origin !== window.location.origin) return;
 
-      const existing = findCardByNormalizedUrl(normalized);
-      if (existing) {
-        focusCard(existing.id);
-      } else {
-        addCanvasCard(msg.url);
-      }
-    }
-
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [broadcastPanModifier, endPanning, movePanning, sendPanModifier, startPanning, zoomAtPointer]);
+      const frameDocument = frame.iframe.contentDocument;
+      if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
+    });
+  }, [broadcastPanModifier, endPanning, inspectorOpen, movePanning, presentation, sendBoardGestureState, sendInspectorInteractionState, sendPanModifier, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -254,7 +349,7 @@ export function CanvasWorkspace(): ReactElement | null {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent): void {
-      if (mode !== "canvas") return;
+      if (mode !== "canvas" || presentation !== "canvas") return;
       if ((e.key === "Delete" || e.key === "Backspace") && !isEditableEvent(e)) {
         const selectedCardId = getSelectedCardId();
         if (!selectedCardId) return;
@@ -291,9 +386,10 @@ export function CanvasWorkspace(): ReactElement | null {
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
     };
-  }, [broadcastPanModifier, mode]);
+  }, [broadcastPanModifier, mode, presentation]);
 
   const handleBoardPointerDown = useCallback((e: React.PointerEvent) => {
+    if (presentation !== "canvas") return;
     if (panningRef.current) return;
 
     if (!spaceHeldRef.current) return;
@@ -317,10 +413,10 @@ export function CanvasWorkspace(): ReactElement | null {
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-  }, [endPanning, movePanning, startPanning]);
+  }, [endPanning, movePanning, presentation, startPanning]);
 
   useEffect(() => {
-    if (mode !== "canvas") return;
+    if (mode !== "canvas" || presentation !== "canvas") return;
 
     function handleGlobalWheel(e: WheelEvent): void {
       if (!e.ctrlKey && !e.metaKey) return;
@@ -333,20 +429,21 @@ export function CanvasWorkspace(): ReactElement | null {
 
     window.addEventListener("wheel", handleGlobalWheel, { capture: true, passive: false });
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
-  }, [mode, zoomAtPointer]);
+  }, [mode, presentation, zoomAtPointer]);
 
-  function handleEdit(card: CanvasCardData): void {
-    exitCanvasToCard(card);
+  function handleOpenApp(card: CanvasCardData): void {
+    window.open(createNudgeUiDirectUrl(card.url), "_blank", "noopener,noreferrer");
   }
 
-  if (mode !== "canvas" || cards.length === 0) return null;
+  if (mode !== "canvas") return null;
 
   return (
     <>
       <style data-test="canvas-styles">{WORKSPACE_STYLES}</style>
       <div
-        className="canvas-workspace"
+        className={`canvas-workspace${presentationTransitioning ? " is-presentation-transitioning" : ""}`}
         data-test="canvas-workspace"
+        data-presentation={presentation}
         style={{ right: inspectorOpen ? "min(320px, 100vw)" : 0 }}
       >
         <div
@@ -355,6 +452,11 @@ export function CanvasWorkspace(): ReactElement | null {
           ref={boardRef}
           onPointerDown={handleBoardPointerDown}
         >
+          {!primaryUrl ? (
+            <div className="canvas-workspace__target-error" data-test="canvas-target-error">
+              This editor URL does not identify an application page.
+            </div>
+          ) : null}
           <div
             className="canvas-workspace__board-content"
             style={{
@@ -364,7 +466,14 @@ export function CanvasWorkspace(): ReactElement | null {
             data-test="canvas-board-content"
           >
             {cards.map((card) => (
-              <CanvasCard key={card.id} card={card} onEdit={handleEdit} documentOwner={inspectorSession} />
+              <CanvasCard
+                key={card.id}
+                card={card}
+                presentation={presentation}
+                presentationCard={card.id === presentationCardId}
+                onOpenApp={handleOpenApp}
+                documentOwner={inspectorSession}
+              />
             ))}
           </div>
         </div>

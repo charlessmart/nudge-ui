@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { IconAdjustmentsHorizontal, IconArrowsMaximize, IconArrowsMinimize, IconCheck, IconLetterH, IconLetterW, IconSettings, IconSpacingHorizontal, IconSpacingVertical, IconTextWrap } from "@tabler/icons-react";
 import type { TokenEntry } from "../../css/model/index.ts";
@@ -25,6 +25,10 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
+import {
+  getCanvasProjectionAcknowledgementVersion,
+  subscribeCanvasProjectionAcknowledgements,
+} from "../canvas/projection.ts";
 
 const DISPLAY_OPTIONS = ["block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none", "contents"];
 const POSITION_OPTIONS = ["static", "relative", "absolute", "fixed", "sticky"];
@@ -63,8 +67,14 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
   const [primaryIsGridChild, setPrimaryIsGridChild] = useState(false);
   const [primaryPosition, setPrimaryPosition] = useState(() => getStateStyleValue(el, "position", "static"));
   const [layoutRevision, setLayoutRevision] = useState(0);
-  const [flexDirection] = useComputedLayoutValue(el, "flex-direction", "row", layoutRevision);
-  const [flexWrap] = useComputedLayoutValue(el, "flex-wrap", "nowrap", layoutRevision);
+  const projectionAcknowledgementVersion = useSyncExternalStore(
+    subscribeCanvasProjectionAcknowledgements,
+    getCanvasProjectionAcknowledgementVersion,
+    getCanvasProjectionAcknowledgementVersion,
+  );
+  const computedRevision = layoutRevision + projectionAcknowledgementVersion;
+  const [flexDirection] = useComputedLayoutValue(el, "flex-direction", "row", computedRevision);
+  const [flexWrap] = useComputedLayoutValue(el, "flex-wrap", "nowrap", computedRevision);
   const selectedDirection = selection?.getProperty("flex-direction")?.value;
   const selectedWrap = selection?.getProperty("flex-wrap")?.value;
   const mixedFlexDirection = selectedDirection?.kind === "mixed";
@@ -94,7 +104,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
     } catch {
       // noop
     }
-  }, [el, layoutRevision]);
+  }, [el, computedRevision]);
 
   useEffect(() => {
     try {
@@ -111,7 +121,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
       setPrimaryIsFlexChild(false);
       setPrimaryIsGridChild(false);
     }
-  }, [el, layoutRevision]);
+  }, [el, computedRevision]);
 
   const isFlexContainer = selection ? selection.supportsRole("flex-container") : primaryIsFlexContainer;
   const isFlexChild = selection ? selection.supportsRole("flex-child") : primaryIsFlexChild;
@@ -134,7 +144,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             selection={selection}
             entries={allEntries}
             tokenRows={tokenRows}
-            revision={layoutRevision}
+            revision={computedRevision}
             onAfterEdit={notifyAfterEdit}
           />
 
@@ -145,7 +155,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
               domElement={el}
               editTarget={editTarget}
               selection={selection}
-              revision={layoutRevision}
+              revision={computedRevision}
               onAfterEdit={notifyAfterEdit}
             />
 
@@ -155,7 +165,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
               domElement={el}
               editTarget={editTarget}
               selection={selection}
-              revision={layoutRevision}
+              revision={computedRevision}
               onAfterEdit={notifyAfterEdit}
             />
           </div>
@@ -166,9 +176,9 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             <div className="editor__title">Flex</div>
             <div className="layout__flex-toolbar">
               <div className="layout__direction-tools">
-                <FlexDirectionControl domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
-                <FlexWrapToggle domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
-                <FlexSettingsMenu domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+                <FlexDirectionControl domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
+                <FlexWrapToggle domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
+                <FlexSettingsMenu domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
               </div>
             </div>
             <div className="layout__flex-lower">
@@ -177,7 +187,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                   Choose a shared flex direction to edit physical alignment.
                 </div>
               ) : (
-                <FlexAlignmentGrid domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+                <FlexAlignmentGrid domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
               )}
               <div className="layout__gap-column" data-test="layout-gap">
                 <div className="layout__gap-fields">
@@ -191,7 +201,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                       tokenRows={tokenRows}
                       onAfterEdit={notifyAfterEdit}
                     />
-                    <FlexDistributionControl domElement={el} editTarget={editTarget} selection={selection} revision={layoutRevision} onAfterEdit={notifyAfterEdit} />
+                    <FlexDistributionControl domElement={el} editTarget={editTarget} selection={selection} revision={computedRevision} onAfterEdit={notifyAfterEdit} />
                   </div>
                   {isFlexWrapped ? (
                     <FlexGapField
@@ -222,7 +232,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                 editTarget={editTarget}
                 selection={selection}
                 inputOnly
-                revision={layoutRevision}
+                revision={computedRevision}
                 onAfterEdit={notifyAfterEdit}
               />
               <FlexChildValueField
@@ -233,7 +243,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                 editTarget={editTarget}
                 selection={selection}
                 inputOnly
-                revision={layoutRevision}
+                revision={computedRevision}
                 onAfterEdit={notifyAfterEdit}
               />
               <FlexChildValueField
@@ -244,14 +254,14 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
                 editTarget={editTarget}
                 selection={selection}
                 inputOnly
-                revision={layoutRevision}
+                revision={computedRevision}
                 onAfterEdit={notifyAfterEdit}
               />
               <FlexChildSettingsMenu
                 domElement={el}
                 editTarget={editTarget}
                 selection={selection}
-                revision={layoutRevision}
+                revision={computedRevision}
                 onAfterEdit={notifyAfterEdit}
               />
             </div>
@@ -267,7 +277,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             selection={selection}
             entries={allEntries}
             tokenRows={tokenRows}
-            revision={layoutRevision}
+            revision={computedRevision}
             onAfterEdit={notifyAfterEdit}
           />
         ) : null}
@@ -279,7 +289,7 @@ export function LayoutSection(props: LayoutSectionProps): ReactElement {
             selection={selection}
             entries={allEntries}
             tokenRows={tokenRows}
-            revision={layoutRevision}
+            revision={computedRevision}
             onAfterEdit={notifyAfterEdit}
           />
         ) : null}

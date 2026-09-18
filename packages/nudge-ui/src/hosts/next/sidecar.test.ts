@@ -90,6 +90,35 @@ describe("sidecar transport", () => {
     expect(body).toContain("bootstrapNudgeUiClient");
   });
 
+  it("serves the pure editor document through the reserved rewrite target", async () => {
+    const { handle } = await sidecar();
+    const response = await fetch(
+      `http://127.0.0.1:${handle.port}/__nudge_ui__/editor?url=%2Fpricing`,
+    );
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(body).toContain("data-nudge-ui-editor");
+    expect(body).not.toContain("pricing");
+  });
+
+  it("serves marked document routes while leaving non-document requests alone", async () => {
+    const { handle } = await sidecar();
+    const editor = await fetch(
+      `http://127.0.0.1:${handle.port}/pricing?plan=pro&nudge-ui=editor`,
+      { headers: { Accept: "text/html" } },
+    );
+    expect(editor.status).toBe(200);
+    expect(await editor.text()).toContain("data-nudge-ui-editor");
+
+    const data = await fetch(
+      `http://127.0.0.1:${handle.port}/pricing?plan=pro&nudge-ui=editor`,
+      { headers: { Accept: "application/json" } },
+    );
+    expect(data.status).toBe(404);
+  });
+
   it("streams SSE reload notifications with revision coalescing", async () => {
     const { handle } = await sidecar();
 

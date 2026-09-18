@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { appLocator, openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function selectCase(page: import("@playwright/test").Page, id: string): Promise<void> {
-  const target = page.locator(`[data-test="border-case-${id}"]`);
+  const target = appLocator(page, `[data-test="border-case-${id}"]`);
   // The specimen contains instrumented text children. Click its empty corner
   // so the fixture element, rather than a child text node, receives the real
   // browser event.
@@ -26,7 +27,7 @@ async function setInput(page: import("@playwright/test").Page, property: string,
 }
 
 async function computedValue(page: import("@playwright/test").Page, id: string, property: string): Promise<string> {
-  return page.locator(`[data-test="border-case-${id}"]`).evaluate((element, prop) => getComputedStyle(element).getPropertyValue(prop), property);
+  return appLocator(page, `[data-test="border-case-${id}"]`).evaluate((element, prop) => getComputedStyle(element).getPropertyValue(prop), property);
 }
 
 async function expectLinkedBorderStyle(page: import("@playwright/test").Page, style: string): Promise<void> {
@@ -34,13 +35,13 @@ async function expectLinkedBorderStyle(page: import("@playwright/test").Page, st
 }
 
 test("dev: border conformance gallery renders every shared case and selects a sample", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
 
-  const cards = page.locator(".border-case-card");
+  const cards = appLocator(page, ".border-case-card");
   await expect(cards).toHaveCount(22);
-  await expect(page.locator(".border-conformance-meta")).toContainText("22 shared cases");
+  await expect(appLocator(page, ".border-conformance-meta")).toContainText("22 shared cases");
 
-  const targets = page.locator(".border-target");
+  const targets = appLocator(page, ".border-target");
   await expect(targets).toHaveCount(22);
   for (let index = 0; index < await targets.count(); index += 1) {
     const target = targets.nth(index);
@@ -50,7 +51,7 @@ test("dev: border conformance gallery renders every shared case and selects a sa
 });
 
 test("dev: border shorthand decomposes into structured fields", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-shorthand-literal");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-width"] [data-test="raw-input"]')).toHaveValue("2px");
@@ -59,7 +60,7 @@ test("dev: border shorthand decomposes into structured fields", async ({ page })
 });
 
 test("dev: border token color renders as token chip", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-shorthand-token-color");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-color"] [data-test="token-chip"]')).toContainText("--color-border");
@@ -67,7 +68,7 @@ test("dev: border token color renders as token chip", async ({ page }) => {
 });
 
 test("dev: border side-specific shorthand decomposes correctly", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-side-specific");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("3px");
@@ -76,7 +77,7 @@ test("dev: border side-specific shorthand decomposes correctly", async ({ page }
 });
 
 test("dev: incomplete border shorthand decomposes with CSS initials", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-incomplete-shorthand");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-width"] [data-test="raw-input"]')).toHaveValue("2px");
@@ -85,7 +86,7 @@ test("dev: incomplete border shorthand decomposes with CSS initials", async ({ p
 });
 
 test("dev: border none exposes style and hides width/color until drawn", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-none-style");
 
   await expectLinkedBorderStyle(page, "none");
@@ -94,7 +95,7 @@ test("dev: border none exposes style and hides width/color until drawn", async (
 });
 
 test("dev: all-sides-different expands individual side fields by default", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-all-sides-different");
 
   await expect(page.locator('.border')).toHaveAttribute("data-expanded", "true");
@@ -104,7 +105,7 @@ test("dev: all-sides-different expands individual side fields by default", async
 });
 
 test("dev: order-permuted shorthand shows literal hex color not a token chip", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-shorthand-order-permutation");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-width"] [data-test="raw-input"]')).toHaveValue("3px");
@@ -114,7 +115,7 @@ test("dev: order-permuted shorthand shows literal hex color not a token chip", a
 });
 
 test("dev: border hidden exposes style control", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-hidden-style");
 
   await expectLinkedBorderStyle(page, "hidden");
@@ -122,7 +123,7 @@ test("dev: border hidden exposes style control", async ({ page }) => {
 });
 
 test("dev: linked border style is edited from the settings picker", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-shorthand-literal");
 
   await expectLinkedBorderStyle(page, "solid");
@@ -135,13 +136,13 @@ test("dev: linked border style is edited from the settings picker", async ({ pag
 });
 
 test("dev: border radius token is editable as atomic", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-radius-token");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-radius"] [data-test="token-chip"]')).toContainText("12");
   await expect(page.locator('[data-test="token-field"][data-property="border-radius"] .token-chip__label')).toHaveAttribute("title", "--space-3");
 
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-radius-atomic");
   await expect(page.locator('[data-test="token-field"][data-property="border-radius"] [data-test="raw-input"]')).toHaveValue("8px");
   await setInput(page, "border-radius", "16px");
@@ -149,7 +150,7 @@ test("dev: border radius token is editable as atomic", async ({ page }) => {
 });
 
 test("dev: border longhands edit produces managed stylesheet updates", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-top-width-longhand");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("5px");
@@ -157,11 +158,11 @@ test("dev: border longhands edit produces managed stylesheet updates", async ({ 
   await expect.poll(() => computedValue(page, "border-top-width-longhand", "border-top-width")).toBe("10px");
   await expect.poll(() => managedSheetText(page))
     .toContain("border-top-width: 10px;");
-  await expect(page.locator('[data-test="border-case-border-top-width-longhand"]')).not.toHaveAttribute("style", /.*/);
+  await expect(appLocator(page, '[data-test="border-case-border-top-width-longhand"]')).not.toHaveAttribute("style", /.*/);
 });
 
 test("dev: all four side-specific borders render and are selectable", async ({ page }) => {
-  await page.goto("/border-conformance");
+  await openEditor(page, "/border-conformance");
   await selectCase(page, "border-all-sides-different");
 
   await expect(page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]')).toHaveValue("1px");

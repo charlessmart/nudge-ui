@@ -20,6 +20,7 @@ import {
   type BridgeEnvelope,
   type CanvasCommand,
 } from "./protocol.ts";
+import { getActiveCanvasDocument } from "../canvas/activeCanvasDocument.ts";
 
 interface AgentWindow extends Window {
   __NUDGE_UI_AGENT_BRIDGE__?: AgentBridgeEndpointConfig;
@@ -50,15 +51,23 @@ function endpointValue(value: unknown): AgentBridgeEndpointConfig | undefined {
   return Object.values(config).some((entry) => entry !== undefined) ? config : undefined;
 }
 
-function configuredEndpoint(): AgentBridgeEndpointConfig | undefined {
-  if (typeof window === "undefined") return undefined;
-  const target = window as AgentWindow;
+function configuredEndpointInDocument(doc: Document): AgentBridgeEndpointConfig | undefined {
+  const target = doc.defaultView as AgentWindow | null;
+  if (!target) return undefined;
   const globalConfig = endpointValue(target.__NUDGE_UI_AGENT_BRIDGE__)
     ?? endpointValue(target.__NUDGE_UI_AGENT__);
   if (globalConfig) return globalConfig;
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="nudge-ui-agent-bridge"]');
+  const meta = doc.querySelector<HTMLMetaElement>('meta[name="nudge-ui-agent-bridge"]');
   const content = meta?.content.trim();
   return content ? { baseUrl: content } : undefined;
+}
+
+function configuredEndpoint(): AgentBridgeEndpointConfig | undefined {
+  if (typeof document === "undefined") return undefined;
+  const controllerConfig = configuredEndpointInDocument(document);
+  if (controllerConfig) return controllerConfig;
+  const previewDocument = getActiveCanvasDocument();
+  return previewDocument ? configuredEndpointInDocument(previewDocument) : undefined;
 }
 
 /** Returns whether the dev host supplied a trusted project bridge endpoint. */

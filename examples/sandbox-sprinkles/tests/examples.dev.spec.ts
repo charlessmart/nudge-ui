@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("Sprinkles uses named color-mix variants for color opacity", async ({ page }) => {
-  await page.goto("/examples");
+  const app = await openEditor(page, "/examples");
 
-  const facts = await page.evaluate(() => {
+  const facts = await app.locator("html").evaluate(() => {
     const ruleTextFor = (classes: string[]): string => {
       const rules: string[] = [];
       for (const sheet of Array.from(document.styleSheets)) {

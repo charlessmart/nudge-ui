@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
-import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard } from "./canvasStore.ts";
-import { IconRefresh, IconPlayerPlay, IconCopy, IconArrowsDiagonal } from "@tabler/icons-react";
+import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
+import { IconRefresh, IconExternalLink, IconCopy, IconArrowsDiagonal } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
-  isRendererMessageFor,
-  type FrameProtocolMessage,
 } from "./frameProtocol.ts";
 import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, invalidateCanvasPreviewDocument, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -19,10 +17,17 @@ import { getCanvasResizeHandleScale } from "./resizeHandleScale.ts";
 import type { DocumentSession, InspectorSession } from "../session/sessionFactory.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import { releaseDocumentProjection } from "../projection/structuralProjection.ts";
+import { startClipboardHandoffController } from "../prompt/clipboardHandoff.ts";
+import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
+import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, type NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import { reconcileRuntimeWithDocumentStylesheets } from "../runtime/documentStylesheetOrder.ts";
+import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
-  onEdit?: (card: CanvasCard) => void;
+  presentation?: CanvasPresentation;
+  presentationCard?: boolean;
+  onOpenApp?: (card: CanvasCard) => void;
   documentOwner?: InspectorSession;
 }
 
@@ -31,9 +36,12 @@ type CardLoadState = "loading" | "ready" | "error";
 const MIN_CARD_WIDTH = 200;
 const MIN_CARD_HEIGHT = 150;
 
-export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): ReactElement {
+export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onOpenApp, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const initialUrlRef = useRef(card.navigationUrl ?? card.url);
+  const navigationUrlRef = useRef(card.navigationUrl);
   const documentSessionRef = useRef<{ document: Document; session: DocumentSession } | null>(null);
+  const frameRuntimeRef = useRef<NudgeUiRuntimeConfig | null>(null);
   const [loadState, setLoadState] = useState<CardLoadState>("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const camera = useBoardCamera();
@@ -41,6 +49,7 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
   const focusedCardId = useFocusedCardId();
   const isSelected = selectedCardId === card.id;
   const isFocused = focusedCardId === card.id;
+  const isFocusPresentationCard = presentation === "focus" && presentationCard;
   const toolbarScale = getCanvasToolbarScale(camera.zoom);
   const resizeHandleScale = getCanvasResizeHandleScale(camera.zoom);
 
@@ -48,6 +57,17 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
     documentSessionRef.current?.session.dispose();
     documentSessionRef.current = null;
   }, []);
+
+  const loadFrame = useCallback((url?: string): void => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    if (getSelectedCardId() === card.id) setSelectedElement(null);
+    disposeDocumentSession();
+    invalidateCanvasPreviewDocument(card.id);
+    setLoadState("loading");
+    setErrorMessage(null);
+    iframe.setAttribute("src", url ?? iframe.src);
+  }, [card.id, disposeDocumentSession]);
 
   const bindDocumentSession = useCallback((): void => {
     const frameDocument = iframeRef.current?.contentDocument;
@@ -57,6 +77,8 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
     const session = documentOwner.createDocumentSession(frameDocument);
     session.registerCleanup(() => disposeBrowserCssInspection(frameDocument));
     session.registerCleanup(() => releaseDocumentProjection(frameDocument));
+    session.registerCleanup(() => disposeInlineTextEdit("frame-disposed", frameDocument));
+    session.registerCleanup(startClipboardHandoffController(frameDocument));
     documentSessionRef.current = { document: frameDocument, session };
   }, [disposeDocumentSession, documentOwner]);
 
@@ -72,15 +94,7 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
   }, [bindDocumentSession, card.id, disposeDocumentSession]);
 
   function handleReload(): void {
-    if (iframeRef.current) {
-      if (getSelectedCardId() === card.id) setSelectedElement(null);
-      disposeDocumentSession();
-      invalidateCanvasPreviewDocument(card.id);
-      setLoadState("loading");
-      setErrorMessage(null);
-      const currentSrc = iframeRef.current.src;
-      iframeRef.current.setAttribute("src", currentSrc);
-    }
+    loadFrame();
   }
 
   function handleRemove(): void {
@@ -88,8 +102,8 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
     removeCanvasCard(card.id);
   }
 
-  function handleEdit(): void {
-    onEdit?.(card);
+  function handleOpenApp(): void {
+    onOpenApp?.(card);
   }
 
   function handleDuplicate(): void {
@@ -107,35 +121,38 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
     }, window.location.origin);
   }
 
+  function adoptFrameRuntime(runtime: NudgeUiRuntimeConfig): void {
+    frameRuntimeRef.current = runtime;
+    if (getSelectedCardId() !== card.id) return;
+    const frameDocument = iframeRef.current?.contentDocument;
+    if (!frameDocument) return;
+    try {
+      configureNudgeUiRuntime(runtime);
+      const configured = getNudgeUiRuntimeConfig();
+      const reconciled = reconcileRuntimeWithDocumentStylesheets(configured, frameDocument);
+      if (reconciled !== configured) configureNudgeUiRuntime(reconciled);
+    } catch {
+      // Ignore malformed same-origin renderer metadata and keep the last valid runtime.
+    }
+  }
+
   useEffect(() => {
-    function onMessage(event: MessageEvent): void {
-      if (event.origin !== window.location.origin) return;
-      if (event.source !== iframeRef.current?.contentWindow) return;
+    if (!isSelected || !frameRuntimeRef.current) return;
+    adoptFrameRuntime(frameRuntimeRef.current);
+  }, [isSelected]);
 
-      const msg = event.data;
-      if (!msg || typeof msg !== "object") return;
-
+  useEffect(() => {
+    return subscribeCanvasRendererMessages(({ cardId, message: data }) => {
+      if (cardId !== card.id) return;
       // A renderer whose runtime finished booting after the iframe load event
       // asks for the identity announcement it may have missed.
-      // SAFETY: Renderer messages arrive as unvalidated structured clones, so the discriminant must be read structurally.
-      if ((msg as { type?: string }).type === "renderer-hello") {
-        // SAFETY: The `type === "renderer-hello"` branch above selects exactly the hello payload shape.
-        const hello = msg as { protocolVersion?: number };
-        if (hello.protocolVersion !== PROTOCOL_VERSION) return;
+      if (data.type === "renderer-hello") {
         sendParentReady();
         return;
       }
 
-      if (!isRendererMessageFor(msg, {
-        projectId: PROJECT_ID,
-        workspaceId: WORKSPACE_ID,
-        cardId: card.id,
-      })) return;
-
-      // SAFETY: isRendererMessageFor validated the frame identity and message shape above.
-      const data = msg as FrameProtocolMessage;
-
       if (data.type === "frame-ready") {
+        adoptFrameRuntime(data.runtime);
         setLoadState("ready");
         setErrorMessage(null);
         if (data.title) updateCardTitle(card.id, data.title);
@@ -144,6 +161,12 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
           registerCardFrame(card.id, iframeRef.current);
           sendProjectionToCard(card, iframeRef.current);
         }
+        return;
+      }
+
+
+      if (data.type === "frame-runtime") {
+        adoptFrameRuntime(data.runtime);
         return;
       }
 
@@ -156,15 +179,15 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
       if (data.type === "frame-error") {
         setLoadState("error");
         setErrorMessage(data.message || "Frame failed to load");
-        return;
       }
-    }
-
-    window.addEventListener("message", onMessage);
-    return () => {
-      window.removeEventListener("message", onMessage);
-    };
+    });
   }, [card.id]);
+
+  useLayoutEffect(() => {
+    if (!card.navigationUrl || navigationUrlRef.current === card.navigationUrl) return;
+    navigationUrlRef.current = card.navigationUrl;
+    loadFrame(card.navigationUrl);
+  }, [card.navigationUrl, loadFrame]);
 
   useEffect(() => {
     if (loadState !== "loading") return;
@@ -286,18 +309,20 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
 
   return (
     <div
-      className={`canvas-card${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}`}
+      className={`canvas-card${isDragging ? " is-dragging" : ""}${isSelected ? " is-selected" : ""}${isFocused ? " is-focused" : ""}${isFocusPresentationCard ? " is-focus-presentation" : ""}${presentationCard ? " is-presentation-card" : ""}`}
       data-card-id={card.id}
       style={{
         position: "absolute",
-        left: card.x,
-        top: card.y,
-        width: card.width,
-        height: card.height,
+        visibility: presentation === "focus" && !presentationCard ? "hidden" : undefined,
+        pointerEvents: presentation === "focus" && !presentationCard ? "none" : undefined,
+        left: isFocusPresentationCard ? 0 : card.x,
+        top: isFocusPresentationCard ? 0 : card.y,
+        width: isFocusPresentationCard ? "100%" : card.width,
+        height: isFocusPresentationCard ? "100%" : card.height,
       }}
-      onPointerDown={handleCardPointerDown}
+      onPointerDown={presentation === "canvas" ? handleCardPointerDown : undefined}
     >
-      <div
+      {presentation === "canvas" ? <div
         className="canvas-card__toolbar"
         onPointerDown={handleToolbarPointerDown}
       >
@@ -326,11 +351,11 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
           <Button
             variant="secondary"
             size="default"
-            data-test={`canvas-card-preview-${card.id}`}
-            onClick={handleEdit}
+            data-test={`canvas-card-open-app-${card.id}`}
+            onClick={handleOpenApp}
           >
-            <IconPlayerPlay size={14} stroke={1.8} aria-hidden="true" />
-            Page view
+            <IconExternalLink size={14} stroke={1.8} aria-hidden="true" />
+            Open app
           </Button>
           <IconButton
             label="Duplicate card"
@@ -351,7 +376,7 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
             <IconRefresh size={14} stroke={1.8} aria-hidden="true" />
           </IconButton>
         </div>
-      </div>
+      </div> : null}
       <div className="canvas-card__frame">
         {loadState === "loading" ? (
           <div className="canvas-card__loading" data-test={`canvas-card-loading-${card.id}`}>
@@ -369,14 +394,14 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
         <iframe
           ref={iframeRef}
           className="canvas-card__iframe"
-          src={card.url}
+          src={initialUrlRef.current}
           title={card.title || card.url}
           {...{ [CANVAS_RENDERER_ATTR]: "" }}
           sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
           data-test={`canvas-card-iframe-${card.id}`}
         />
       </div>
-      <div
+      {presentation === "canvas" ? <div
         className="canvas-card__resize-handle"
         data-test={`canvas-card-resize-${card.id}`}
         style={{
@@ -390,7 +415,7 @@ export function CanvasCard({ card, onEdit, documentOwner }: CanvasCardProps): Re
         tabIndex={0}
       >
         <IconArrowsDiagonal size={12} aria-hidden="true" />
-      </div>
+      </div> : null}
     </div>
   );
 }

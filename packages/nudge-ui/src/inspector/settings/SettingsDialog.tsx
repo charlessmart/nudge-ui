@@ -16,6 +16,10 @@ import {
   PromptSettingsFields,
 } from "../prompt/PromptSettingsDialog.tsx";
 import { TokensPanel } from "../tokens/TokensPanel.tsx";
+import { useSelectedElement } from "../selection/selectionStore.ts";
+import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
+import { getRegisteredFrames } from "../canvas/projection.ts";
+import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 
 export type SettingsSection = "instructions" | "mcp" | "tokens";
 
@@ -74,8 +78,14 @@ export function SettingsDialog({
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
   const closeRef = useRef<HTMLButtonElement>(null);
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
+  const selectedElement = useSelectedElement();
+  const selectedCardId = useSelectedCardId();
+  const focusedCardId = useFocusedCardId();
+  const activeFrame = getRegisteredFrames().get(selectedCardId ?? focusedCardId ?? "");
+  const activeDocument = selectedElement?.domElement.ownerDocument ?? activeFrame?.contentDocument ?? document;
   const tokenInspection = useBrowserCssInspection(null, "base", {
     includeDocumentTokens: activeSection === "tokens",
+    session: getBrowserCssInspection(activeDocument),
   });
   const tokenRows = tokenInspection.documentTokens?.tokens ?? [];
   const activeDefinition = SETTINGS_SECTIONS.find((section) => section.id === activeSection) ?? SETTINGS_SECTIONS[0]!;
