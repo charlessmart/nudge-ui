@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { chmod, lstat, mkdir, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, realpath, rename, rm } from "node:fs/promises";
 import { userInfo } from "node:os";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
@@ -76,28 +76,32 @@ async function gitValue(cwd: string, args: readonly string[]): Promise<string | 
   }
 }
 
-async function workspaceMetadata(appRootInput: string, workspaceRootInput?: string): Promise<{
-  appRoot: string;
-  workspaceRoot: string;
-  gitCommonDir?: string;
-  branch?: string;
-}> {
+type WorkspaceMetadata = Pick<ProjectSession, "appRoot" | "workspaceRoot" | "gitCommonDir" | "branch">;
+
+async function workspaceMetadata(appRootInput: string, workspaceRootInput?: string): Promise<WorkspaceMetadata> {
   const appRoot = await realpath(resolve(appRootInput));
-  const requestedWorkspace = workspaceRootInput === undefined
-    ? undefined
-    : await realpath(resolve(workspaceRootInput));
-  const gitTopLevel = await gitValue(requestedWorkspace ?? appRoot, ["rev-parse", "--show-toplevel"]);
-  const workspaceRoot = gitTopLevel ? await realpath(gitTopLevel) : (requestedWorkspace ?? appRoot);
+  const workspaceRoot = await resolveWorkspaceRoot(workspaceRootInput ?? appRoot);
+  assertAppInsideWorkspace(appRoot, workspaceRoot);
+  const git = await readGitMetadata(workspaceRoot);
+  return { appRoot, workspaceRoot, ...git };
+}
+
+function assertAppInsideWorkspace(appRoot: string, workspaceRoot: string): void {
   const appRelative = relative(workspaceRoot, appRoot);
   if (appRelative === ".." || appRelative.startsWith(`..${sep}`) || isAbsolute(appRelative)) {
     throw new TypeError("appRoot must be inside the canonical workspace root");
   }
-  const commonDirectory = await gitValue(workspaceRoot, ["rev-parse", "--git-common-dir"]);
+}
+
+async function readGitMetadata(workspaceRoot: string): Promise<Pick<ProjectSession, "gitCommonDir" | "branch">> {
+  const [commonDirectory, branch] = await Promise.all([
+    gitValue(workspaceRoot, ["rev-parse", "--git-common-dir"]),
+    gitValue(workspaceRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"]),
+  ]);
   const gitCommonDir = commonDirectory === undefined
     ? undefined
     : await realpath(resolve(workspaceRoot, commonDirectory));
-  const branch = await gitValue(workspaceRoot, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
-  return { appRoot, workspaceRoot, ...(gitCommonDir ? { gitCommonDir } : {}), ...(branch ? { branch } : {}) };
+  return { ...(gitCommonDir ? { gitCommonDir } : {}), ...(branch ? { branch } : {}) };
 }
 
 /** Resolves a checkout or worktree without conflating related worktrees. */
@@ -107,11 +111,7 @@ export async function resolveWorkspaceRoot(input: string): Promise<string> {
   return gitTopLevel ? await realpath(gitTopLevel) : canonicalInput;
 }
 
-function sessionPath(registryRoot: string, sessionId: string): string {
-  return join(registryRoot, `${sessionId}.json`);
-}
-
-async function writeDescriptor(registryRoot: string, descriptor: StoredProjectSession): Promise<string> {
+async function ensurePrivateRegistryDirectory(registryRoot: string): Promise<void> {
   await mkdir(registryRoot, { recursive: true, mode: 0o700 });
   const directory = await lstat(registryRoot);
   if (!directory.isDirectory() || directory.isSymbolicLink()) {
@@ -121,12 +121,31 @@ async function writeDescriptor(registryRoot: string, descriptor: StoredProjectSe
     throw new Error("The Nudge session registry must be owned by the current user.");
   }
   await chmod(registryRoot, 0o700);
-  const destination = sessionPath(registryRoot, descriptor.sessionId);
+}
+
+async function writeDescriptor(registryRoot: string, descriptor: StoredProjectSession): Promise<string> {
+  await ensurePrivateRegistryDirectory(registryRoot);
+  const destination = join(registryRoot, `${descriptor.sessionId}.json`);
   const temporary = join(registryRoot, `.${descriptor.sessionId}.${process.pid}.tmp`);
-  await writeFile(temporary, `${JSON.stringify(descriptor)}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
-  await rename(temporary, destination);
-  await chmod(destination, 0o600);
+
+  // Publish by renaming a private file so discovery never reads a partial record.
+  const file = await open(temporary, "wx", 0o600);
+  try {
+    await file.writeFile(`${JSON.stringify(descriptor)}\n`, "utf8").finally(() => file.close());
+    await rename(temporary, destination);
+    await chmod(destination, 0o600);
+  } finally {
+    await rm(temporary, { force: true });
+  }
   return destination;
+}
+
+async function closeProjectBridge(descriptorPath: string, bridge: BrowserBridge): Promise<void> {
+  try {
+    await rm(descriptorPath, { force: true });
+  } finally {
+    await bridge.close();
+  }
 }
 
 /**
@@ -157,10 +176,7 @@ export async function startProjectBridge(options: ProjectBridgeOptions): Promise
     protocolVersion: AGENT_PROTOCOL_VERSION,
     sessionId,
     projectId,
-    workspaceRoot: metadata.workspaceRoot,
-    appRoot: metadata.appRoot,
-    ...(metadata.gitCommonDir ? { gitCommonDir: metadata.gitCommonDir } : {}),
-    ...(metadata.branch ? { branch: metadata.branch } : {}),
+    ...metadata,
     origin,
     endpoint: address.url,
     startedAt: new Date().toISOString(),
@@ -175,11 +191,7 @@ export async function startProjectBridge(options: ProjectBridgeOptions): Promise
   }
   let closePromise: Promise<void> | null = null;
   const close = (): Promise<void> => {
-    if (closePromise) return closePromise;
-    closePromise = (async () => {
-      await rm(descriptorPath, { force: true });
-      await bridge.close();
-    })();
+    closePromise ??= closeProjectBridge(descriptorPath, bridge);
     return closePromise;
   };
   return {

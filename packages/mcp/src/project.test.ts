@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -96,6 +96,51 @@ describe("project-owned MCP sessions", () => {
     expect((await dispatch(firstRuntime, "Change the local worktree heading")).status).toBe(202);
     await expect(listening).resolves.toMatchObject({ prompt: "Change the local worktree heading" });
     await router.close();
+  });
+
+  it("resolves a symlinked app inside a non-Git workspace", async () => {
+    const paths = await fixture("canonical-paths");
+    const alias = join(paths.workspaceRoot, "site-alias");
+    await symlink(paths.appRoot, alias);
+    const runtime = await startProjectBridge({ ...paths, appRoot: alias, origin: "http://localhost:5173" });
+    running.push(runtime);
+
+    expect(runtime.session.appRoot).toBe(await realpath(paths.appRoot));
+    expect(runtime.session.workspaceRoot).toBe(await realpath(paths.workspaceRoot));
+    expect(runtime.session.branch).toBeUndefined();
+    expect(runtime.session.gitCommonDir).toBeUndefined();
+  });
+
+  it("rejects an app outside the requested workspace", async () => {
+    const paths = await fixture("outside-workspace");
+    const outside = await fixture("unrelated-app");
+    await expect(startProjectBridge({ ...paths, appRoot: outside.appRoot, origin: "http://localhost:5173" }))
+      .rejects.toThrow("appRoot must be inside the canonical workspace root");
+  });
+
+  it("rejects a symlinked registry directory", async () => {
+    const paths = await fixture("symlink-registry");
+    const target = join(paths.workspaceRoot, "registry-target");
+    await mkdir(target);
+    await symlink(target, paths.registryRoot);
+    await expect(startProjectBridge({ ...paths, origin: "http://localhost:5173" }))
+      .rejects.toThrow("The Nudge session registry must be a real directory");
+  });
+
+  it("closes the bridge even when its descriptor cannot be removed", async () => {
+    const paths = await fixture("failed-unregister");
+    const runtime = await startProjectBridge({ ...paths, origin: "http://localhost:5173" });
+    const descriptorPath = join(paths.registryRoot, `${runtime.session.sessionId}.json`);
+    try {
+      // A directory in place of the descriptor makes non-recursive removal fail.
+      await rm(descriptorPath);
+      await mkdir(descriptorPath);
+      await expect(runtime.close()).rejects.toThrow();
+      await expect(fetch(`${runtime.address.url}/health`)).rejects.toThrow();
+    } finally {
+      await runtime.bridge.close();
+      await rm(descriptorPath, { recursive: true, force: true });
+    }
   });
 
   it("allows one adapter to own a session through work and status reporting", async () => {
