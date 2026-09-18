@@ -45,6 +45,7 @@ function endpointValue(value: unknown): AgentBridgeEndpointConfig | undefined {
     statusUrl: stringValue(value.statusUrl),
     canvasAckUrl: stringValue(value.canvasAckUrl),
     disconnectUrl: stringValue(value.disconnectUrl),
+    ...(value.autoConnect === true ? { autoConnect: true } : {}),
   };
   return Object.values(config).some((entry) => entry !== undefined) ? config : undefined;
 }
@@ -58,6 +59,11 @@ function configuredEndpoint(): AgentBridgeEndpointConfig | undefined {
   const meta = document.querySelector<HTMLMetaElement>('meta[name="nudge-ui-agent-bridge"]');
   const content = meta?.content.trim();
   return content ? { baseUrl: content } : undefined;
+}
+
+/** Returns whether the dev host supplied a trusted project bridge endpoint. */
+export function shouldAutoConnectAgentBridge(): boolean {
+  return configuredEndpoint()?.autoConnect === true;
 }
 
 function isLoopback(hostname: string): boolean {
@@ -90,7 +96,7 @@ function safeUrl(value: string, origin: string): URL | null {
 function endpointUrl(
   config: AgentBridgeEndpointConfig,
   projectId: string,
-  key: keyof AgentBridgeEndpointConfig,
+  key: Exclude<keyof AgentBridgeEndpointConfig, "autoConnect">,
   fallbackPath: string,
   origin: string,
 ): URL | null {

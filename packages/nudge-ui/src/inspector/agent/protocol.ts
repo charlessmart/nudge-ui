@@ -79,6 +79,8 @@ export interface AgentBridgeEndpointConfig {
   readonly statusUrl?: string;
   readonly canvasAckUrl?: string;
   readonly disconnectUrl?: string;
+  /** Pair automatically when this endpoint came from the trusted dev host. */
+  readonly autoConnect?: boolean;
 }
 
 export interface AgentDiscoveryRequest {
@@ -176,6 +178,7 @@ export interface AgentClientOptions {
   readonly origin?: string;
   readonly transport?: AgentBridgeTransport;
   readonly endpoint?: AgentBridgeEndpointConfig;
+  readonly autoConnect?: boolean;
   readonly discoveryIntervalMs?: number;
   readonly canvasCommandHandler?: (
     command: CanvasCommand,

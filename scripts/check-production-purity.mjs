@@ -28,6 +28,9 @@ const FORBIDDEN_MARKERS = [
   "__NudgeUiCreateElement",
   "__nudge_ui__",
   "virtual:design-tokens",
+  "__NUDGE_UI_AGENT_BRIDGE__",
+  "nudge_listen",
+  "nudge_list_sessions",
 ];
 
 const SCANNABLE = /\.(js|mjs|cjs|html|css|rsc|json|txt|map)$/;

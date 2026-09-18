@@ -55,6 +55,7 @@ class ButtonTransport implements AgentBridgeTransport {
   dispatches: AgentPromptDispatch[] = [];
   rejectDispatch = false;
   discoveredStatus: AgentStatusSnapshot | null = listeningStatus();
+  pairingStatus: AgentStatusSnapshot = listeningStatus({ connection: "paired", paired: true });
 
   async discover(): Promise<AgentStatusSnapshot | null> { return this.discoveredStatus; }
 
@@ -64,7 +65,7 @@ class ButtonTransport implements AgentBridgeTransport {
       projectId: "handoff-project",
       origin: window.location.origin,
       sessionToken: "button-session",
-      status: listeningStatus({ connection: "paired", paired: true }),
+      status: this.pairingStatus,
     };
   }
 
@@ -132,13 +133,13 @@ describe("CopyPromptButton agent handoff", () => {
     const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
     const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
     expect(button.textContent).toContain("Copy prompt");
-    expect(status?.textContent).toContain("Ready to connect agent");
+    expect(status?.textContent).toContain("Project available · Connect this page");
     expect(status?.textContent).toContain("Connect");
     expect(status?.className).toContain("status-callout--accent");
 
     act(() => status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.click());
     expect(document.body.querySelector('[data-test="mcp-connection-dialog"]')?.textContent)
-      .toContain("Ready to connect agent");
+      .toContain("Project available · Connect this page");
   });
 
   it("shows no connection status when the companion is not found", async () => {
@@ -153,13 +154,20 @@ describe("CopyPromptButton agent handoff", () => {
 
   it("shows setup for a paired page whose agent is not listening", async () => {
     const transport = new ButtonTransport();
-    transport.discoveredStatus = listeningStatus({ connection: "paired", listenerActive: false, paired: true });
+    transport.discoveredStatus = listeningStatus({ connection: "offline", listenerActive: false });
+    transport.pairingStatus = listeningStatus({ connection: "paired", listenerActive: false, paired: true });
     configureAgentBridgeTransport(transport);
     act(() => root.render(<CopyPromptButton />));
     await flush();
 
+    act(() => container
+      .querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')
+      ?.click());
+    const connect = document.body.querySelector<HTMLButtonElement>('[data-test="mcp-connect"]')!;
+    await act(async () => { connect.click(); });
+
     const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
-    expect(status?.textContent).toContain("Connected, not listening");
+    expect(status?.textContent).toContain("Project connected · Ask your agent to listen");
     expect(status?.textContent).toContain("Set up");
     expect(status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.dataset.action)
       .toBe("setup");

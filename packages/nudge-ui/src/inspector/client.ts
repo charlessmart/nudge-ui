@@ -7,10 +7,15 @@ import {
 import { installStaticHtmlRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
 import { reconcileRuntimeWithDocumentStylesheets } from "./runtime/documentStylesheetOrder.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
+import { resetAgentClients } from "./agent/client.ts";
 
 const DEFAULT_MANIFEST_PATH = "/__nudge_ui__/manifest";
 const MOUNT_ID = "nudge-ui-root";
 const identityPreparedDocuments = new WeakSet<Document>();
+
+interface AgentBridgeWindow extends Window {
+  __NUDGE_UI_AGENT_BRIDGE__?: { baseUrl: string; autoConnect?: boolean };
+}
 
 /** Fetches one host manifest and mounts the self-contained inspector client. */
 export async function bootstrapNudgeUiClient(): Promise<void> {
@@ -19,6 +24,8 @@ export async function bootstrapNudgeUiClient(): Promise<void> {
   );
   const manifestUrl = script?.dataset.nudgeUiManifest ?? DEFAULT_MANIFEST_PATH;
   const payload = await fetchManifest(manifestUrl);
+
+  applyAgentBridge(payload, false);
 
   configureNudgeUiRuntime(prepareRuntime(payload));
   bootstrapNudgeUi(createMountElement());
@@ -58,6 +65,7 @@ export function subscribeToManifestReloads(
     refreshInFlight = true;
     try {
       const refreshed = await fetchManifest(manifestUrl);
+      applyAgentBridge(refreshed, true);
       configureNudgeUiRuntime(prepareRuntime(refreshed));
       seenRevision = Math.max(seenRevision, refreshed.revision);
       if (refreshed.revision < requestedRevision) {
@@ -86,6 +94,18 @@ export function subscribeToManifestReloads(
   };
   for (const eventName of manifest.reload.events ?? ["message"]) {
     source.addEventListener(eventName, handleRevision);
+  }
+}
+
+function applyAgentBridge(manifest: NudgeUiClientManifest, reloadOnChange: boolean): void {
+  const target = window as AgentBridgeWindow;
+  const current = target.__NUDGE_UI_AGENT_BRIDGE__;
+  const next = manifest.agentBridge;
+  if (current?.baseUrl !== next?.baseUrl || current?.autoConnect !== next?.autoConnect) {
+    if (next) target.__NUDGE_UI_AGENT_BRIDGE__ = next;
+    else delete target.__NUDGE_UI_AGENT_BRIDGE__;
+    resetAgentClients();
+    if (reloadOnChange) window.location.reload();
   }
 }
 

@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { runAgentCommand } from "../../cli/agentCommand.ts";
 import { createStandaloneServer, type StandaloneServer } from "./server.ts";
 
 /** Parsed arguments for `nudge-ui serve`. */
@@ -53,7 +54,11 @@ export async function runServeCommand(options: ServeCommandOptions): Promise<voi
 }
 
 /** Runs the standalone command. */
-export async function main(args = process.argv.slice(2)): Promise<void> {
+export async function main(args = process.argv.slice(2), packageVersion?: string): Promise<void> {
+  if (args[0] === "agent") {
+    runAgentCommand(args.slice(1), packageVersion);
+    return;
+  }
   const options = parseServeArguments(args);
   await runServeCommand(options);
 }

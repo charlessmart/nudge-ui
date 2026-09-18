@@ -2,9 +2,15 @@ import { createHash } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { basename, resolve } from "node:path";
 import { defaultBridgePort } from "@nudge-ui/agent-protocol";
-import { createAgentCompanion, type AgentCompanion } from "./server.ts";
+import { discoverProjectSessions } from "./discovery.ts";
+import {
+  createAgentCompanion,
+  createDiscoveredAgentAdapter,
+  type AgentCompanion,
+} from "./server.ts";
 
 export interface CliOptions {
+  readonly command: "serve" | "doctor";
   readonly projectId: string;
   readonly origin?: string;
   readonly workspaceRoot: string;
@@ -99,6 +105,8 @@ export function parseCliArguments(
   argv: readonly string[] = process.argv.slice(2),
   environment: CliEnvironment = process.env,
 ): CliOptions {
+  const command = argv[0] === "doctor" ? "doctor" : "serve";
+  const argumentsToParse = command === "doctor" ? argv.slice(1) : argv;
   const root = resolve(environment.NUDGE_UI_WORKSPACE_ROOT ?? environment.INIT_CWD ?? process.cwd());
   let projectId = environment.NUDGE_UI_PROJECT_ID ?? projectIdFor(root);
   let origin = environment.NUDGE_UI_ORIGIN;
@@ -114,27 +122,27 @@ export function parseCliArguments(
   let help = false;
   let explicitPort = environment.NUDGE_UI_BRIDGE_PORT !== undefined;
 
-  for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv[index];
+  for (let index = 0; index < argumentsToParse.length; index += 1) {
+    const argument = argumentsToParse[index];
     switch (argument) {
       case "--help":
       case "-h":
         help = true;
         break;
       case "--project-id":
-        projectId = valueAfter(argv, index, argument);
+        projectId = valueAfter(argumentsToParse, index, argument);
         index += 1;
         break;
       case "--origin":
-        origin = valueAfter(argv, index, argument);
+        origin = valueAfter(argumentsToParse, index, argument);
         index += 1;
         break;
       case "--workspace-root":
-        workspaceRoot = resolve(valueAfter(argv, index, argument));
+        workspaceRoot = resolve(valueAfter(argumentsToParse, index, argument));
         index += 1;
         break;
       case "--host": {
-        const candidate = valueAfter(argv, index, argument);
+        const candidate = valueAfter(argumentsToParse, index, argument);
         if (candidate !== "127.0.0.1" && candidate !== "::1" && candidate !== "localhost") {
           throw new TypeError("--host must be 127.0.0.1, ::1, or localhost");
         }
@@ -143,12 +151,12 @@ export function parseCliArguments(
         break;
       }
       case "--port":
-        port = parseInteger(valueAfter(argv, index, argument), argument, 65_535);
+        port = parseInteger(valueAfter(argumentsToParse, index, argument), argument, 65_535);
         explicitPort = true;
         index += 1;
         break;
       case "--command-timeout-ms":
-        commandTimeoutMs = parseInteger(valueAfter(argv, index, argument), argument, 60_000);
+        commandTimeoutMs = parseInteger(valueAfter(argumentsToParse, index, argument), argument, 60_000);
         if (commandTimeoutMs === 0) throw new TypeError("--command-timeout-ms must be greater than zero");
         index += 1;
         break;
@@ -158,12 +166,13 @@ export function parseCliArguments(
   }
   if (projectId.length === 0 || projectId.length > 256) throw new TypeError("--project-id must be a bounded non-empty string");
   if (!explicitPort) port = defaultBridgePort(projectId);
-  return { projectId, origin, workspaceRoot, host, port, commandTimeoutMs, help };
+  return { command, projectId, origin, workspaceRoot, host, port, commandTimeoutMs, help };
 }
 
-export const CLI_USAGE = `Usage: nudge-mcp [options]
+export const CLI_USAGE = `Usage: nudge-mcp [doctor] [options]
 
-Starts a project-scoped standard MCP stdio server and loopback browser bridge.
+Starts a standard MCP stdio adapter. It discovers the bridge owned by the
+running project unless --origin selects the legacy coupled mode.
 
 Options:
   --project-id <id>             Stable project pairing identity
@@ -183,6 +192,53 @@ export async function runCli(
   const options = parseCliArguments(argv, environment);
   if (options.help) {
     process.stdout.write(CLI_USAGE);
+    return;
+  }
+  if (options.command === "doctor") {
+    const sessions = await discoverProjectSessions(options.workspaceRoot);
+    const matches = sessions.filter((session) => session.matchesApplication);
+    process.stdout.write([
+      `[nudge-ui] workspace: ${options.workspaceRoot}`,
+      `[nudge-ui] live sessions: ${sessions.length}`,
+      `[nudge-ui] matching sessions: ${matches.length}`,
+      ...(matches.length === 0
+        ? ["[nudge-ui] no matching project bridge is running; start the development server to make Nudge available"]
+        : matches.map((session) => {
+          const state = session.status.connection === "working"
+            ? "working"
+            : session.status.listenerActive ? "listening" : "available";
+          return `[nudge-ui] ${state}: ${session.projectId} (${session.origin})${session.claimed ? " [claimed]" : ""}`;
+        })),
+    ].join("\n") + "\n");
+    return;
+  }
+  if (!options.origin) {
+    const adapter = await createDiscoveredAgentAdapter({ workspaceRoot: options.workspaceRoot });
+    let stopping = false;
+    let resolveAdapterWait: (() => void) | null = null;
+    const stop = (): void => {
+      if (stopping) return;
+      stopping = true;
+      void adapter.close();
+      resolveAdapterWait?.();
+    };
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
+    try {
+      await adapter.start();
+      await new Promise<void>((resolveAdapter) => {
+        const finish = (): void => resolveAdapter();
+        // Keep a direct resolver so signal handlers terminate even though
+        // installing a signal handler suppresses Node's default process exit.
+        resolveAdapterWait = finish;
+        process.stdin.once("end", finish);
+        process.once("exit", finish);
+      });
+    } finally {
+      process.off("SIGINT", stop);
+      process.off("SIGTERM", stop);
+      await adapter.close();
+    }
     return;
   }
   const companion: AgentCompanion = createAgentCompanion({

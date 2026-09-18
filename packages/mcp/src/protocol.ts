@@ -70,6 +70,18 @@ export const BRIDGE_ENDPOINTS = {
   disconnect: "/disconnect",
 } as const;
 
+/** Private, loopback-only endpoints used by an MCP adapter process. */
+export const AGENT_CONTROL_ENDPOINTS = {
+  health: "/__nudge/agent/health",
+  claim: "/__nudge/agent/claim",
+  heartbeat: "/__nudge/agent/heartbeat",
+  release: "/__nudge/agent/release",
+  listen: "/__nudge/agent/listen",
+  status: "/__nudge/agent/status",
+  reportStatus: "/__nudge/agent/report-status",
+  canvas: "/__nudge/agent/canvas",
+} as const;
+
 export type BridgeEndpoint = (typeof BRIDGE_ENDPOINTS)[keyof typeof BRIDGE_ENDPOINTS];
 
 /** Error body returned by every rejected bridge request. */

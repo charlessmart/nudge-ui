@@ -5,6 +5,14 @@ import { defaultBridgePort } from "@nudge-ui/agent-protocol";
 import { openPairedPage, parseCliArguments, type PageLaunchDependencies } from "./cli.ts";
 
 describe("nudge-mcp CLI", () => {
+  it("parses doctor as a diagnostic command without requiring bridge options", () => {
+    expect(parseCliArguments(["doctor", "--workspace-root", "/workspace/product-site"], {})).toMatchObject({
+      command: "doctor",
+      workspaceRoot: "/workspace/product-site",
+      origin: undefined,
+    });
+  });
+
   it("derives a stable project identity and discovery port with an explicit origin", () => {
     const options = parseCliArguments([], {
       INIT_CWD: "/workspace/product-site",

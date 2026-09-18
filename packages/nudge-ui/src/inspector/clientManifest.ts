@@ -14,6 +14,11 @@ export interface NudgeUiClientManifest {
   readonly version: typeof NUDGE_UI_CLIENT_MANIFEST_VERSION;
   readonly revision: number;
   readonly runtime: NudgeUiRuntimeConfig;
+  /** Project-owned, loopback-only agent bridge started by the dev host. */
+  readonly agentBridge?: {
+    readonly baseUrl: string;
+    readonly autoConnect?: boolean;
+  };
   /** Optional document preparation requested by the host Adapter. */
   readonly document?: {
     readonly runtimeIdentity?: "static-html";
@@ -45,6 +50,7 @@ export function parseNudgeUiClientManifest(
       version: NUDGE_UI_CLIENT_MANIFEST_VERSION,
       revision: value.revision,
       runtime: normalizeNudgeUiRuntimeConfig(value.runtime),
+      ...(isAgentBridge(value.agentBridge) ? { agentBridge: value.agentBridge } : {}),
       ...(value.document === undefined ? {} : { document: value.document }),
       ...(value.reload === undefined ? {} : { reload: value.reload }),
     };
@@ -59,6 +65,15 @@ interface CandidateManifest {
   readonly runtime?: unknown;
   readonly document?: unknown;
   readonly reload?: unknown;
+  readonly agentBridge?: unknown;
+}
+
+function isAgentBridge(value: unknown): value is NudgeUiClientManifest["agentBridge"] {
+  if (value === undefined) return false;
+  if (!isRecord(value)) return false;
+  const candidate = value as { baseUrl?: unknown; autoConnect?: unknown };
+  if (typeof candidate.baseUrl !== "string" || candidate.baseUrl.length === 0) return false;
+  return candidate.autoConnect === undefined || typeof candidate.autoConnect === "boolean";
 }
 
 interface CandidateDocumentOptions {

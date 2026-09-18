@@ -29,3 +29,4 @@ ADRs capture the architectural decisions made on the Design Tool project. Each A
 - [ADR-0023: One package with host subpaths](./0023-one-package-with-host-subpaths.md)
 - [ADR-0024: Fold the compiler, CSS, and inspector into the distribution](./0024-fold-libraries-into-the-distribution.md)
 - [ADR-0025: Separate supported and internal export subpaths](./0025-supported-and-internal-export-subpaths.md)
+- [ADR-0026: Project-owned agent sessions and guided setup](./0026-project-owned-agent-sessions.md)
