@@ -60,8 +60,8 @@ import { isEditableEvent } from "../shell/shortcuts.ts";
 import { acknowledgeAgentRendererReady } from "./agentPresentation.ts";
 import { useInspectorSession } from "../session/sessionContext.tsx";
 import { createNudgeUiDirectUrl } from "../../transport/editor.ts";
-import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
+import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles].join("\n");
 

@@ -610,7 +610,9 @@ export function createVitePlugins(
   }
 
   function startProjectBridge(server: ViteDevServer): void {
-    if (!root || projectBridgeStart) return;
+    // The public demo uses the shared editor runtime without project-owned
+    // sessions, an agent bridge, or filesystem persistence.
+    if (options.demo === true || !root || projectBridgeStart) return;
     const address = server.httpServer?.address();
     if (!address || typeof address === "string") return;
     const origin = server.resolvedUrls?.local[0]
