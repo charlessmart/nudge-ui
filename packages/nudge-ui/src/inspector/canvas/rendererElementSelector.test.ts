@@ -208,6 +208,7 @@ describe("renderer hover scheduling", () => {
         ...identity,
       },
     }));
+    expect(document.documentElement.hasAttribute("data-nudge-ui-panel")).toBe(false);
     const click = new MouseEvent("click", { bubbles: true, cancelable: true });
     button.dispatchEvent(click);
 
@@ -216,6 +217,18 @@ describe("renderer hover scheduling", () => {
       type: "inspector-toggle-request",
     }), window.location.origin);
     expect(click.defaultPrevented).toBe(false);
+
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: {
+        type: "inspector-interaction-state",
+        protocolVersion: PROTOCOL_VERSION,
+        open: true,
+        ...identity,
+      },
+    }));
+    expect(document.documentElement.getAttribute("data-nudge-ui-panel")).toBe("open");
   });
 });
 
@@ -228,9 +241,11 @@ describe("renderer selector lifecycle", () => {
     expect(scheduled).toHaveLength(1);
     expect(document.head.querySelector("style#nudge-ui-interaction-styles")).not.toBeNull();
     postMessage.mockClear();
+    document.documentElement.setAttribute("data-nudge-ui-panel", "open");
 
     disposeRendererElementSelector();
     disposeRendererElementSelector();
+    expect(document.documentElement.hasAttribute("data-nudge-ui-panel")).toBe(false);
     runScheduledFrame();
 
     button.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));

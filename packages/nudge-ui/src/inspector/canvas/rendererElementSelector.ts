@@ -211,6 +211,11 @@ export function installRendererElementSelector(): () => void {
       || message.cardId !== identity.cardId
       || typeof message.open !== "boolean") return;
     interactionsSuspended = !message.open;
+    if (message.open) {
+      document.documentElement.setAttribute("data-nudge-ui-panel", "open");
+    } else {
+      document.documentElement.removeAttribute("data-nudge-ui-panel");
+    }
     if (interactionsSuspended) {
       pendingDrag = null;
       dragging = false;
@@ -498,5 +503,6 @@ export function installRendererElementSelector(): () => void {
     lastSelected = null;
     measurePointerOverPage = false;
     measureAltKey = false;
+    document.documentElement.removeAttribute("data-nudge-ui-panel");
   };
 }

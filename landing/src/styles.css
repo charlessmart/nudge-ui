@@ -573,6 +573,10 @@ a {
   transition-delay: var(--landing-demo-arrow-wipe-duration);
 }
 
+html[data-nudge-ui-panel="open"] .landing-demo-arrow {
+  display: none;
+}
+
 .landing-demo h2 {
   font-size: 22px;
   font-weight: 600;
