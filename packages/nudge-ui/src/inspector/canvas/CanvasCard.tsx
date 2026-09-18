@@ -338,7 +338,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
               transformOrigin: "left bottom",
             }}
           >
-            {Math.round(card.width)} × {Math.round(card.height)} px
+            {card.title || `${Math.round(card.width)} × ${Math.round(card.height)} px`}
           </span>
         </div>
         <div

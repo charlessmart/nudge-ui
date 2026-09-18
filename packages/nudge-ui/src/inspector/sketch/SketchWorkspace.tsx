@@ -120,6 +120,7 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
         <SketchOverlay
           open={liveOpen}
           hostElement={hostElement}
+          initialTool={interaction.initialTool}
           onCancel={cancelSketchInteraction}
           onDone={saveLive}
         />
@@ -135,9 +136,12 @@ export function SketchWorkspace({ hostElement, projectId }: SketchWorkspaceProps
   );
 }
 
-export function startSketchCapture(hostElement: HTMLElement | null): void {
+export function startSketchCapture(
+  hostElement: HTMLElement | null,
+  initialTool: Parameters<typeof beginSketchCapture>[0] = "pen",
+): void {
   if (!hostElement) return;
-  beginSketchCapture();
+  beginSketchCapture(initialTool);
 }
 
 export function editSketch(sketchId: string): void {

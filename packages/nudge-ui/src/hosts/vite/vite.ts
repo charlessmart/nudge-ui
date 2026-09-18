@@ -83,6 +83,8 @@ export interface NudgeUiOptions extends ReactOptions {
   demo?: boolean;
   /** Additional same-origin routes shown when the public demo opens. */
   demoPages?: readonly string[];
+  /** Labels for the seeded demo cards in display order, including the primary card. */
+  demoCardLabels?: readonly string[];
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
@@ -651,6 +653,7 @@ export function createVitePlugins(
       stylingSystem: detectStylingSystem(snapshot.tokens),
       ...(options.demo === true ? { demo: true } : {}),
       ...(options.demoPages === undefined ? {} : { demoPages: options.demoPages }),
+      ...(options.demoCardLabels === undefined ? {} : { demoCardLabels: options.demoCardLabels }),
       capabilities: { canvas: true, componentSemantics: framework !== null },
       tokenCatalog: snapshot.definitions.map((definition) => ({
         ...definition,
@@ -821,6 +824,7 @@ export function createVitePlugins(
             '    stylingSystem: detectFramework(tokens).stylingSystem,',
             '    demo: true,',
             `    demoPages: ${JSON.stringify(options.demoPages ?? [])},`,
+            `    demoCardLabels: ${JSON.stringify(options.demoCardLabels ?? [])},`,
             `    capabilities: { canvas: true, componentSemantics: ${String(framework !== null)} },`,
             '    tokenCatalog,',
             '    tokens,',

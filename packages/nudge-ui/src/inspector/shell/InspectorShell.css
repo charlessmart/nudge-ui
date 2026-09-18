@@ -97,10 +97,6 @@
   background: var(--border-subtle);
 }
 
-.panel__canvas-button {
-  white-space: nowrap;
-}
-
 .panel__copy-row {
   width: 100%;
 }

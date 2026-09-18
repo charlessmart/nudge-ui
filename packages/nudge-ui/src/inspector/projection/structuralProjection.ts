@@ -205,6 +205,68 @@ function documentRoute(doc: Document): string | undefined {
   }
 }
 
+function stableStateValue(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (!value || typeof value !== "object") return value;
+  if (seen.has(value)) return "[Circular]";
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((entry) => stableStateValue(entry, seen));
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, stableStateValue(entry, seen)]),
+  );
+}
+
+function textWithoutExcluded(element: HTMLElement, excluded?: HTMLElement): string | null {
+  let text = "";
+  const visit = (node: Node): void => {
+    if (node === excluded) return;
+    if (node.nodeType === node.TEXT_NODE) {
+      text += node.nodeValue ?? "";
+      return;
+    }
+    node.childNodes.forEach(visit);
+  };
+  visit(element);
+  return text.replace(/\s+/g, " ").trim().slice(0, 120) || null;
+}
+
+function renderedInstanceState(doc: Document, excluded?: HTMLElement): unknown[] | undefined {
+  try {
+    return Array.from(doc.querySelectorAll<HTMLElement>("[data-cid][data-src]"))
+      .filter((element) => element !== excluded && !excluded?.contains(element))
+      .map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        cid: element.getAttribute("data-cid"),
+        src: element.getAttribute("data-src"),
+        props: element.getAttribute("data-cprops"),
+        text: textWithoutExcluded(element, excluded),
+        ariaLabel: element.getAttribute("aria-label"),
+      }));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Returns bounded view state used to verify a delete in the same rendered view. */
+export function documentStateKey(doc: Document, excluded?: HTMLElement): string | undefined {
+  const view = doc.defaultView;
+  if (!view || !doc.location) return undefined;
+  try {
+    const url = new URL(doc.location.href);
+    const rendered = renderedInstanceState(doc, excluded);
+    if (!rendered) return undefined;
+    const state = JSON.stringify({
+      hash: url.hash,
+      history: stableStateValue(view.history.state),
+      rendered,
+    });
+    return state.length <= 4096 ? state : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function cloneSnapshot(snapshot: readonly StructuralChange[]): StructuralChange[] {
   // Structural changes are small JSON-safe records. Cloning their top-level
   // array is enough: no operation mutates a change or its nested references.
@@ -220,11 +282,13 @@ export function createStructuralDelete(element: HTMLElement, id = structuralId()
   const target = captureRenderedInstance(element);
   if (!target) return null;
   const route = documentRoute(element.ownerDocument);
+  const state = documentStateKey(element.ownerDocument, element);
   const change: StructuralDelete = {
     id,
     kind: "delete",
     target,
     ...(route ? { route } : {}),
+    ...(state ? { state } : {}),
   };
   if (!workspaceChangeStore.commitStructuralChange(change)) return null;
   projectStructuralChanges(workspaceChangeStore.getSnapshot());

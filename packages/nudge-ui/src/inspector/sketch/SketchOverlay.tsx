@@ -35,6 +35,7 @@ import {
   type SketchElementReference,
 } from "./geometry.ts";
 import { drawSketchAnnotations, drawSketchStrokes } from "./raster.ts";
+import type { SketchEntryTool } from "./interaction.ts";
 
 type SketchTool = "move" | "pen" | "rectangle" | "annotate";
 
@@ -55,6 +56,7 @@ export interface SketchLiveDraft {
 export interface SketchOverlayProps {
   readonly open: boolean;
   readonly hostElement: HTMLElement;
+  readonly initialTool?: SketchEntryTool;
   readonly onCancel: () => void;
   readonly onDone: (draft: SketchLiveDraft) => Promise<void>;
 }
@@ -137,7 +139,7 @@ function annotationEditorStyle(
   };
 }
 
-export function SketchOverlay({ open, hostElement, onCancel, onDone }: SketchOverlayProps): ReactElement | null {
+export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel, onDone }: SketchOverlayProps): ReactElement | null {
   const [viewport, setViewport] = useState<SketchViewport>(() => getSketchViewport(hostElement));
   const [tool, setTool] = useState<SketchTool>("pen");
   const [strokes, setStrokes] = useState<SketchStroke[]>([]);
@@ -160,7 +162,7 @@ export function SketchOverlay({ open, hostElement, onCancel, onDone }: SketchOve
   useEffect(() => {
     if (!open) return;
     setViewport(getSketchViewport(hostElement));
-    setTool("pen");
+    setTool(initialTool);
     setStrokes([]);
     setRedoStrokes([]);
     setAnnotations([]);
@@ -171,7 +173,7 @@ export function SketchOverlay({ open, hostElement, onCancel, onDone }: SketchOve
     moveState.current = null;
     setSubmitting(false);
     setError(null);
-  }, [hostElement, open]);
+  }, [hostElement, initialTool, open]);
 
   useEffect(() => {
     if (!open) return;

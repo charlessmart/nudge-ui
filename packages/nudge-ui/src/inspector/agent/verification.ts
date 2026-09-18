@@ -13,6 +13,7 @@ import {
 import { verifyPreview } from "../projection/managedStylesheet.ts";
 import { resolveRenderedInstance } from "../projection/renderedInstance.ts";
 import {
+  documentStateKey,
   getStructuralChanges,
   type StructuralChange,
   type StructuralDelete,
@@ -112,7 +113,7 @@ function verifyText(change: Extract<ChangeRecord, { kind: "text-content" }>, doc
  * verifies.
  */
 function verifyStructuralDelete(change: StructuralDelete, doc: Document): boolean {
-  if (!change.route || !doc.location) return false;
+  if (!change.route || !change.state || !doc.location) return false;
   let currentRoute: string;
   try {
     const url = new URL(doc.location.href);
@@ -122,6 +123,7 @@ function verifyStructuralDelete(change: StructuralDelete, doc: Document): boolea
     return false;
   }
   return currentRoute === change.route
+    && documentStateKey(doc) === change.state
     && resolveRenderedInstance(doc, change.target).status === "missing";
 }
 

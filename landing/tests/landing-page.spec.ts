@@ -12,13 +12,16 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(inspectorHost.locator('[data-test="show-inspector"]')).toBeVisible();
 
   const frames = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]");
-  await expect(frames).toHaveCount(2);
+  await expect(frames).toHaveCount(3);
   const appFrame = frames.first();
-  const eggFrame = frames.nth(1);
+  const versionOneFrame = frames.nth(1);
+  const versionTwoFrame = frames.nth(2);
   await expect(appFrame).toBeVisible();
-  await expect(eggFrame).toBeHidden();
+  await expect(versionOneFrame).toBeHidden();
+  await expect(versionTwoFrame).toBeHidden();
   const app = appFrame.contentFrame();
-  const egg = eggFrame.contentFrame();
+  const versionOne = versionOneFrame.contentFrame();
+  const versionTwo = versionTwoFrame.contentFrame();
   await expect(page.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toHaveCount(0);
   await expect(app.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toBeVisible();
   const hero = app.getByRole("region", { name: "Nudge, a design panel for your codebase." });
@@ -39,6 +42,12 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(app.getByText("Made for design engineers.", { exact: true })).toHaveCount(0);
   await expect(app.locator(".landing-hero-demo-grid")).toHaveCount(1);
   await expect(app.locator(".landing-hero-demo")).toHaveCount(4);
+  await expect(versionOne.locator(".landing-hero-demo-grid")).toHaveCount(0);
+  await expect(versionTwo.locator(".landing-hero-demo-grid")).toHaveCount(0);
+  await expect(versionOne.getByRole("heading", { name: "Nudge is for designing in code." })).toHaveCount(1);
+  await expect(versionTwo.getByRole("heading", { name: "Nudge is a tool for designing in code." })).toHaveCount(1);
+  await expect(versionOne.getByText("@nudge-ui/plugin in this project", { exact: false })).toBeVisible();
+  await expect(versionTwo.getByText("@nudge-ui/vite-react in this project", { exact: false })).toBeVisible();
   const fidelityDemos = app.locator(".landing-hero-demo-board-layer--full");
   await expect(fidelityDemos.getByText("Add accounts", { exact: true })).toHaveCount(0);
   await expect(fidelityDemos.getByText("Link an institution", { exact: true })).toBeVisible();
@@ -65,17 +74,24 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(footer.getByText("data-cid", { exact: false })).toHaveCount(0);
 
   await expect.poll(async () => (await appFrame.getAttribute("src")) ?? "").not.toContain("nudge-ui=editor");
-  await expect(egg.getByRole("heading", { name: /One pixel/ })).toHaveCount(1);
+  const sources = await frames.evaluateAll((elements) => elements.map((element) => (
+    (element as HTMLIFrameElement).src
+  )));
+  expect(sources.filter((source) => new URL(source).searchParams.get("landing-version") === "1")).toHaveLength(1);
+  expect(sources.filter((source) => new URL(source).searchParams.get("landing-version") === "2")).toHaveLength(1);
 
   await openNudge.click();
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot?.querySelector(".panel")?.getAttribute("data-open"))).toBe("true");
 
   await inspectorHost.locator('[data-test="presentation-canvas"]').click();
   await expect(workspace).toHaveAttribute("data-presentation", "canvas");
-  await expect(eggFrame).toBeVisible();
+  await expect(versionOneFrame).toBeVisible();
+  await expect(versionTwoFrame).toBeVisible();
+  const cardLabels = await inspectorHost.locator('[data-test^="canvas-card-dimensions-"]').allTextContents();
+  expect(cardLabels.sort()).toEqual(["Version 1", "Version 2", "Version 3"]);
   await expect(inspectorHost.locator(".canvas-workspace__board-content")).toHaveCSS(
     "transform",
-    /matrix\(0\.75, 0, 0, 0\.75,/,
+    /matrix\(1, 0, 0, 1,/,
   );
 
   const editableDemoText = app.locator(".landing-demo-example-text");
@@ -90,21 +106,6 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
 
   const demoStorageKeys = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("nudge-ui:")));
   expect(demoStorageKeys).toEqual([]);
-
-  await egg.getByRole("heading", { name: /One pixel/ }).click();
-  await expect.poll(() => new URL(page.url()).searchParams.get("nudge-egg")).toBe("1");
-  await page.reload();
-  await expect(page.locator("#nudge-ui-root").locator('[data-test="canvas-workspace"]')).toHaveAttribute(
-    "data-presentation",
-    "focus",
-  );
-  const restoredFrames = page.locator("#nudge-ui-root").locator("iframe[data-nudge-ui-canvas-renderer]");
-  await expect(restoredFrames).toHaveCount(2);
-  const restoredSources = await restoredFrames.evaluateAll((elements) => elements.map((element) => (
-    (element as HTMLIFrameElement).src
-  )));
-  expect(restoredSources.filter((source) => new URL(source).searchParams.get("nudge-egg") === "1")).toHaveLength(1);
-  expect(restoredSources.filter((source) => new URL(source).searchParams.get("nudge-egg") === null)).toHaveLength(1);
 });
 
 test("opens the editor from an explicit direct application view", async ({ page }) => {
@@ -127,16 +128,6 @@ test("opens the editor from an explicit direct application view", async ({ page 
   }).toEqual({ direct: null, editor: "editor", state: "one", hash: "#demo" });
   await expect(page.locator("html")).toHaveAttribute("data-nudge-ui-editor", "");
   await expect(page.locator("#nudge-ui-root").locator('[data-test="show-inspector"]')).toBeVisible();
-});
-
-test("keeps the unflagged demo route disabled during development", async ({ page }) => {
-  test.skip(process.env.NUDGE_UI_LANDING_TARGET === "prod", "The explicit nudge-demo artifact makes the landing document the demo surface.");
-  await page.goto("/demo");
-  await expect(page.getByRole("heading", { name: "This route needs the explicit demo flag." })).toBeVisible();
-  const inspectorHost = page.locator("#nudge-ui-root");
-  if (await inspectorHost.count() === 1) {
-    expect(await inspectorHost.evaluate((host) => host.shadowRoot !== null && host.shadowRoot.querySelector(".panel") !== null)).toBe(false);
-  }
 });
 
 test("reveals the inspector arrow when the demo enters the viewport", async ({ page }) => {

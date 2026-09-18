@@ -178,6 +178,22 @@ describe("CanvasCard renderer handshake", () => {
     expect(dimensions()).toBe("1024 × 768 px");
   });
 
+  it("shows a card title in place of dimensions when one is available", () => {
+    const card: CanvasCardData = {
+      id: "card-title",
+      url: window.location.href,
+      title: "Version 1",
+      x: 20,
+      y: 30,
+      width: 1024,
+      height: 768,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    renderCard(card);
+
+    expect(host.querySelector(`[data-test="canvas-card-dimensions-${card.id}"]`)?.textContent).toBe("Version 1");
+  });
+
   it("loads an explicit restored fragment requested after the iframe mounts", () => {
     const previous = new URL("/playground#previous", window.location.href).href;
     const requested = new URL("/playground#requested", window.location.href).href;

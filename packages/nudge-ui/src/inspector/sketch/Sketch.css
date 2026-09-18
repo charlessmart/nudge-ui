@@ -77,6 +77,8 @@
   overflow: visible;
   background: transparent;
   pointer-events: none;
+  /* Let the live controls and CanvasToolbar participate in one layer stack. */
+  z-index: auto;
 }
 
 .sketch__canvas-frame {
@@ -232,6 +234,13 @@
   transform: translateX(-50%);
   animation: sketch-toolbar-enter 300ms ease-out both;
   pointer-events: auto;
+}
+
+/* Keep the live sketch controls above the permanent Canvas toolbar. */
+.sketch__live-popup .sketch__floating-panel {
+  /* Leave room for the persistent CanvasToolbar and a small visual gap. */
+  bottom: calc(var(--control-height-large) + var(--control-height-large) + var(--space-20) + var(--space-12) + var(--space-8));
+  z-index: calc(var(--z-index) - 1);
 }
 
 @keyframes sketch-toolbar-enter {

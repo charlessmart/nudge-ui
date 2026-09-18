@@ -75,6 +75,8 @@ export interface NudgeUiRuntimeConfig {
   readonly demo?: boolean;
   /** Additional same-origin pages seeded into the public demo canvas. */
   readonly demoPages?: readonly string[];
+  /** Labels for demo cards in display order, including the primary card. */
+  readonly demoCardLabels?: readonly string[];
 }
 
 function cloneAndFreeze<T>(value: T, seen = new WeakMap<object, unknown>()): T {
@@ -285,6 +287,7 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
   if (isNormalizedRuntimeConfig(input)) return input;
   const demo = optionalDemoFlag(input);
   const demoPages = optionalStringArray(input, "demoPages");
+  const demoCardLabels = optionalStringArray(input, "demoCardLabels");
   const normalized = cloneAndFreeze<NudgeUiRuntimeConfig>({
     projectId: requireString(input, "projectId"),
     host: requireEnum(input, "host", RUNTIME_HOSTS) as NudgeUiRuntimeHost,
@@ -304,6 +307,7 @@ export function normalizeNudgeUiRuntimeConfig(input: unknown): NudgeUiRuntimeCon
     ) as NudgeUiRuntimeConfig["componentContracts"],
     ...(demo === true ? { demo: true } : {}),
     ...(demoPages === undefined ? {} : { demoPages }),
+    ...(demoCardLabels === undefined ? {} : { demoCardLabels }),
   });
   normalizedRuntimeConfigs.add(normalized);
   return normalized;

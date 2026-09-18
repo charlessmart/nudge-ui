@@ -2,7 +2,7 @@
   position: fixed;
   pointer-events: none;
   z-index: 3;
-  background: rgb(59 130 246 / 10%);
+  background: transparent;
   outline: 1.5px solid var(--accent);
   outline-offset: -1px;
 }

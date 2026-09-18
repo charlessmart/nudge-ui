@@ -20,6 +20,7 @@ test("dev: hover overlay highlights and click selects a host element", async ({ 
   expect(hoverOverlay).not.toBeNull();
   expect(hoverOverlay!.width).toBeGreaterThan(0);
   expect(hoverOverlay!.height).toBeGreaterThan(0);
+  await expect(hoverOutline).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
   const selectionBefore = await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;

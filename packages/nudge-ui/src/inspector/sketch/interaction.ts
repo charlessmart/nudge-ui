@@ -6,12 +6,14 @@ import {
 } from "./capture.ts";
 
 export type SketchCaptureState = "idle" | "sketching" | "capturing" | "ready" | "error";
+export type SketchEntryTool = "pen" | "annotate";
 
 export interface SketchInteractionSnapshot {
   readonly captureState: SketchCaptureState;
   readonly captured: CapturedSketch | null;
   readonly editingId: string | null;
   readonly error: string | null;
+  readonly initialTool: SketchEntryTool;
 }
 
 const EMPTY_SNAPSHOT: SketchInteractionSnapshot = {
@@ -19,6 +21,7 @@ const EMPTY_SNAPSHOT: SketchInteractionSnapshot = {
   captured: null,
   editingId: null,
   error: null,
+  initialTool: "pen",
 };
 
 let snapshot = EMPTY_SNAPSHOT;
@@ -62,23 +65,24 @@ export function useSketchInteractionActive(): boolean {
   return current.captureState !== "idle" || current.captured !== null || current.editingId !== null;
 }
 
-export function beginSketchCapture(): void {
+export function beginSketchCapture(initialTool: SketchEntryTool = "pen"): void {
   captureController?.abort();
   captureController = null;
-  publish({ captureState: "sketching", captured: null, editingId: null, error: null });
+  publish({ captureState: "sketching", captured: null, editingId: null, error: null, initialTool });
 }
 
 export function completeSketchCapture(hostElement: HTMLElement): Promise<CapturedSketch> {
   captureController?.abort();
   const controller = new AbortController();
   captureController = controller;
-  publish({ captureState: "capturing", captured: null, editingId: null, error: null });
+  const initialTool = snapshot.initialTool;
+  publish({ captureState: "capturing", captured: null, editingId: null, error: null, initialTool });
   const options: SketchCaptureOptions = { hostElement, signal: controller.signal, method: "dom" };
   return captureViewport(options)
     .then((captured) => {
       if (captureController !== controller) return captured;
       captureController = null;
-      publish({ captureState: "ready", captured, editingId: null, error: null });
+      publish({ captureState: "ready", captured, editingId: null, error: null, initialTool });
       return captured;
     })
     .catch((error: unknown) => {
@@ -93,6 +97,7 @@ export function completeSketchCapture(hostElement: HTMLElement): Promise<Capture
         captured: null,
         editingId: null,
         error: error instanceof Error ? error.message : "The viewport could not be captured.",
+        initialTool,
       });
       throw error;
     });
@@ -107,7 +112,7 @@ export function cancelSketchInteraction(): void {
 export function openSketchEditor(sketchId: string): void {
   captureController?.abort();
   captureController = null;
-  publish({ captureState: "idle", captured: null, editingId: sketchId, error: null });
+  publish({ captureState: "idle", captured: null, editingId: sketchId, error: null, initialTool: "pen" });
 }
 
 export function closeSketchEditor(): void {

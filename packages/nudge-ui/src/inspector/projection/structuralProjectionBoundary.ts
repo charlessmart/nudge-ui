@@ -22,11 +22,16 @@ export function isStructuralProjectionReport(value: unknown): value is Structura
 export function isStructuralDelete(value: unknown): value is StructuralDelete {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
-  if (!hasOnlyKeys(candidate, ["id", "kind", "target", "route"])) return false;
+  if (!hasOnlyKeys(candidate, ["id", "kind", "target", "route", "state"])) return false;
   return candidate.kind === "delete"
     && typeof candidate.id === "string"
     && (candidate.route === undefined || isRoute(candidate.route))
+    && (candidate.state === undefined || isStateKey(candidate.state))
     && isRenderedInstanceRef(candidate.target);
+}
+
+function isStateKey(value: unknown): boolean {
+  return typeof value === "string" && value.length > 0 && value.length <= 4096;
 }
 
 function isRoute(value: unknown): boolean {
