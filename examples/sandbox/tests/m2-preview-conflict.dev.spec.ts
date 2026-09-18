@@ -1,10 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { openEditor } from "./editor.ts";
 
 test("dev: a blocked managed preview remains visible in the change log", async ({ page }) => {
-  await page.goto("/playground");
-  await page.addStyleTag({ content: ".btn { font-size: 13px !important; }" });
-  await page.click("text=Save");
+  const app = await openEditor(page, "/playground");
+  await app.locator("head").evaluate((head) => {
+    const style = document.createElement("style");
+    style.textContent = ".btn { font-size: 13px !important; }";
+    head.append(style);
+  });
+  await app.getByRole("button", { name: "Save" }).click();
 
   await page.evaluate(() => {
     const root = document.getElementById("nudge-ui-root")?.shadowRoot;
@@ -18,7 +23,7 @@ test("dev: a blocked managed preview remains visible in the change log", async (
     input.blur();
   });
 
-  await expect.poll(() => page.locator(".btn").evaluate((el) => getComputedStyle(el).fontSize)).toBe("13px");
+  await expect.poll(() => app.locator(".btn").evaluate((el) => getComputedStyle(el).fontSize)).toBe("13px");
   await expect.poll(() => page.evaluate(() => {
     const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     return root?.querySelector('[data-test="preview-conflict"]')?.textContent ?? "";

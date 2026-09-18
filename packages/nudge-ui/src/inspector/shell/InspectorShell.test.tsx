@@ -7,7 +7,7 @@ import * as selectionResolver from "../selection/resolveSelection.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { appendChange, clearWorkspace, getChangesList } from "../changes/changesLog.ts";
 import { acquireLease, releaseLease } from "../canvas/workspaceLease.ts";
-import { exitCanvas } from "../canvas/canvasStore.ts";
+import { setCanvasMode } from "../canvas/canvasStore.ts";
 import { clearRestoreCount } from "../canvas/sessionStore.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { setInputValue } from "../styleEditors/_testUtils.ts";
@@ -333,26 +333,18 @@ describe("InspectorShell", () => {
     ]);
   });
 
-  it("uses a single Canvas action and a direct settings control in the header", () => {
+  it("keeps the iframe workspace active without a page-mode switch", () => {
+    setCanvasMode("canvas");
     act(() => {
       mountInspector(host);
     });
     const shadow = host.shadowRoot!;
-    const canvas = shadow.querySelector('[data-test="mode-canvas"]') as HTMLButtonElement;
 
-    expect(canvas.textContent).toContain("Canvas");
-    expect(canvas.querySelector(".tabler-icon-arrow-up-right")).not.toBeNull();
+    expect(shadow.querySelector('[data-test="mode-canvas"]')).toBeNull();
+    expect(shadow.querySelector('[data-test="canvas-workspace"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="copy-prompt-control"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="settings-button"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="copy-prompt-menu"]')).toBeNull();
-
-    act(() => canvas.click());
-    expect(shadow.querySelector('[data-test="canvas-workspace"]')).not.toBeNull();
-    expect(shadow.querySelector('[data-test="mode-canvas"]')).toBeNull();
-    act(() => exitCanvas());
-    const canvasAfterExit = shadow.querySelector('[data-test="mode-canvas"]') as HTMLButtonElement;
-    expect(canvasAfterExit.textContent).toContain("Canvas");
-    expect(canvasAfterExit.querySelector(".tabler-icon-arrow-up-right")).not.toBeNull();
   });
 
   it("omits Canvas entry points when the host disables the capability", () => {

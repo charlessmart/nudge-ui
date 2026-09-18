@@ -16,9 +16,11 @@ import { dirname, extname, isAbsolute, join, relative, resolve } from "node:path
 import { createRequire } from "node:module";
 import { instrumentSourceHtml } from "../../html/identity.ts";
 import { injectStandaloneBootstrap } from "./html/bootstrap.ts";
+import { createNudgeUiEditorDocument, isNudgeUiEditorDocumentRequest } from "../../transport/editor.ts";
 import {
   createStandaloneRuntimeManifest,
   NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_EDITOR_PATH,
   NUDGE_UI_MANIFEST_PATH,
   NUDGE_UI_RELOAD_PATH,
   NUDGE_UI_ROUTE_PREFIX,
@@ -479,6 +481,14 @@ async function handleRequest(input: {
     return;
   }
 
+  if (isNudgeUiEditorDocumentRequest(request.url ?? "/", request.method, request.headers)) {
+    const body = request.method === "HEAD"
+      ? Buffer.alloc(0)
+      : Buffer.from(createNudgeUiEditorDocument(), "utf8");
+    sendBody(response, 200, body, "text/html; charset=utf-8", { "Cache-Control": "no-store" });
+    return;
+  }
+
   const resolution = resolveDecodedStaticFile(input.rootDirectory, decodedPath);
   if (!resolution) {
     sendText(response, 404, "Not Found");
@@ -554,6 +564,15 @@ async function handleNudgeUiRoute(
   if (pathname === NUDGE_UI_MANIFEST_PATH) {
     const body = Buffer.from(JSON.stringify(input.getManifest()), "utf8");
     sendBody(input.response, 200, body, "application/json; charset=utf-8", {
+      "Cache-Control": "no-store",
+    });
+    return;
+  }
+  if (pathname === NUDGE_UI_EDITOR_PATH) {
+    const body = input.request.method === "HEAD"
+      ? Buffer.alloc(0)
+      : Buffer.from(createNudgeUiEditorDocument(), "utf8");
+    sendBody(input.response, 200, body, "text/html; charset=utf-8", {
       "Cache-Control": "no-store",
     });
     return;

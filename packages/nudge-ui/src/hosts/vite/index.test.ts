@@ -135,6 +135,46 @@ describe("transformIndexHtmlHtml", () => {
 });
 
 describe("nudgeUi client transport", () => {
+  it("serves a pure editor document", async () => {
+    type Middleware = (
+      request: { url: string; method: string; headers?: Record<string, string> },
+      response: { statusCode: number; setHeader(name: string, value: string): void; end(body?: string): void },
+      next: () => void,
+    ) => Promise<void>;
+    let middleware: Middleware | undefined;
+    const plugin = nudgeUi() as unknown as {
+      configResolved(config: { root: string; command: "serve" }): void;
+      configureServer(server: unknown): void;
+    };
+    plugin.configResolved({ root: "/project", command: "serve" });
+    plugin.configureServer({
+      middlewares: { use: (handler: Middleware) => { middleware = handler; } },
+      watcher: { on: () => undefined },
+    });
+    let body = "";
+    const response = {
+      statusCode: 0,
+      setHeader: vi.fn(),
+      end: (value = "") => { body = value; },
+    };
+
+    await middleware!({ url: "/__nudge_ui__/editor?url=%2Fproducts", method: "GET" }, response, vi.fn());
+
+    expect(response.statusCode).toBe(200);
+    expect(body).toContain("data-nudge-ui-editor");
+    expect(body).toContain('<div id="nudge-ui-root"></div>');
+    expect(body).not.toContain("products");
+
+    body = "";
+    await middleware!({
+      url: "/products?q=linen&nudge-ui=editor",
+      method: "GET",
+      headers: { accept: "text/html" },
+    }, response, vi.fn());
+    expect(response.statusCode).toBe(200);
+    expect(body).toContain("data-nudge-ui-editor");
+  });
+
   it("rejects non-GET requests to reserved client routes", async () => {
     type Middleware = (
       request: { url: string; method: string },

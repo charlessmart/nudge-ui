@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { createElement, type ReactElement } from "react";
@@ -176,6 +176,30 @@ describe("CanvasCard renderer handshake", () => {
     act(() => resizeCard(card.id, 1024, 768));
 
     expect(dimensions()).toBe("1024 × 768 px");
+  });
+
+  it("opens the application through the card toolbar control", () => {
+    const card: CanvasCardData = {
+      id: "card-open-app",
+      url: window.location.href,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    const onOpenApp = vi.fn();
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCard, { card, onOpenApp }));
+    });
+
+    const control = host.querySelector(`[data-test="canvas-card-open-app-${card.id}"]`);
+    if (!(control instanceof HTMLButtonElement)) throw new Error("Open app control did not mount");
+    act(() => control.click());
+
+    expect(control.textContent).toContain("Open app");
+    expect(onOpenApp).toHaveBeenCalledWith(card);
   });
 
   it("moves the card when dragging from the dimension surface", () => {

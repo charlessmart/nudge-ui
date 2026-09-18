@@ -9,21 +9,28 @@ type GlobalWithHostRuntime = typeof globalThis & {
 
 test("dev: prebuilt client and host React Adapter meet at the runtime seam", async ({ page }) => {
   await page.goto("/");
-  await expect.poll(() => page.evaluate(() => {
+  await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
+  await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
+    && frame.url().startsWith("http")
+    && !frame.url().includes("/__nudge_ui__/editor"))?.url() ?? "").toMatch(/\/$/);
+  const frame = page.frames().find((candidate) => candidate !== page.mainFrame()
+    && candidate.url().startsWith("http")
+    && !candidate.url().includes("/__nudge_ui__/editor"));
+  if (!frame) throw new Error("Astro preview frame did not become ready");
+  await expect.poll(() => frame.evaluate(() => {
     const registry = (globalThis as GlobalWithHostRuntime)[
       Symbol.for("nudge-ui.host-runtime.v1")
     ];
     const adapter = registry?.adapters.get("react");
     const element = document.querySelector<HTMLElement>(".counter-label");
     return Boolean(
-      document.getElementById("nudge-ui-root")?.shadowRoot
-      && adapter
+      adapter
       && element
       && adapter.inspect(element)[0],
     );
   })).toBe(true);
 
-  const manifest = await page.evaluate(async () => {
+  const manifest = await frame.evaluate(async () => {
     const response = await fetch("/__nudge_ui__/manifest");
     return response.json() as Promise<{
       version: number;
@@ -35,7 +42,7 @@ test("dev: prebuilt client and host React Adapter meet at the runtime seam", asy
     runtime: { host: "astro", framework: "Astro" },
   });
 
-  const target = await page.evaluate(() => {
+  const target = await frame.evaluate(() => {
     const registry = (globalThis as GlobalWithHostRuntime)[
       Symbol.for("nudge-ui.host-runtime.v1")
     ];
@@ -50,7 +57,7 @@ test("dev: prebuilt client and host React Adapter meet at the runtime seam", asy
     meta: { componentName: "IslandCounter" },
     props: { label: "Island", variant: "primary", disabled: false },
   });
-  await page.evaluate((callsiteId) => {
+  await frame.evaluate((callsiteId) => {
     const registry = (globalThis as GlobalWithHostRuntime)[
       Symbol.for("nudge-ui.host-runtime.v1")
     ];
@@ -63,7 +70,7 @@ test("dev: prebuilt client and host React Adapter meet at the runtime seam", asy
       value: "ghost",
     }]);
   }, target.meta.callsiteId);
-  await expect(page.locator(".counter-label")).toHaveAttribute(
+  await expect(frame.locator(".counter-label")).toHaveAttribute(
     "data-rendered-variant",
     "ghost",
   );

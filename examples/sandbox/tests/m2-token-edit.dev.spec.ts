@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { getAppFrame, openEditor } from "./editor.ts";
 
 type RowInfo = {
   property: string;
@@ -47,7 +48,7 @@ async function sheetText(page: import("@playwright/test").Page): Promise<string>
 }
 
 async function btnBackground(page: import("@playwright/test").Page): Promise<string> {
-  return await page.evaluate(() => {
+  return await (await getAppFrame(page)).evaluate(() => {
     const btn = document.querySelector(".btn") as HTMLElement | null;
     return btn ? getComputedStyle(btn).backgroundColor : "";
   });
@@ -89,8 +90,8 @@ async function selectPromote(page: import("@playwright/test").Page, property: st
 }
 
 test("dev: swapping a token writes a managed-stylesheet rule and changes background live", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
 
   const before = await btnBackground(page);
@@ -107,8 +108,8 @@ test("dev: swapping a token writes a managed-stylesheet rule and changes backgro
 });
 
 test("dev: selection defaults to Base and can target an authored hover state", async ({ page }) => {
-  await page.goto("/playground");
-  await page.locator('[data-test="stateful-button"]').click();
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).locator('[data-test="stateful-button"]').click();
   await waitForRow(page);
 
   const state = page.locator('[data-test="style-state"]');
@@ -162,8 +163,8 @@ test("dev: selection defaults to Base and can target an authored hover state", a
 });
 
 test("dev: token unlink action appears over the chip on hover", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
 
   const field = page.locator('[data-test="token-field"][data-property="color"]');
@@ -179,8 +180,8 @@ test("dev: token unlink action appears over the chip on hover", async ({ page })
 });
 
 test("dev: replacing a hardcoded spacing value with a token writes a rule to the sheet", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
   await expandSpacing(page);
 
@@ -195,8 +196,8 @@ test("dev: replacing a hardcoded spacing value with a token writes a rule to the
 });
 
 test("dev: typing a spacing value keeps its matching token suggestion visible", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
   await expandSpacing(page);
 
@@ -212,8 +213,8 @@ test("dev: typing a spacing value keeps its matching token suggestion visible", 
 });
 
 test("dev: Enter applies a typed spacing value with no matching token", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
   await expandSpacing(page);
 
@@ -232,8 +233,8 @@ test("dev: Enter applies a typed spacing value with no matching token", async ({
 });
 
 test("dev: Enter completes a bare spacing number with px", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
   await expandSpacing(page);
 
@@ -247,8 +248,8 @@ test("dev: Enter completes a bare spacing number with px", async ({ page }) => {
 });
 
 test("dev: Enter completes a bare font-size number with px", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
 
   const input = page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]');
@@ -261,8 +262,8 @@ test("dev: Enter completes a bare font-size number with px", async ({ page }) =>
 });
 
 test("dev: Enter applies a typed hex colour with no matching token", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
 
   await page.locator('[data-test="token-field"][data-property="color"] [data-test="delink-btn"]').click();
@@ -283,8 +284,8 @@ test("dev: Enter applies a typed hex colour with no matching token", async ({ pa
 });
 
 test("dev: edits survive a React re-render of the host app", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
 
   await selectBackground(page, "--color-surface-sunken");
@@ -293,15 +294,16 @@ test("dev: edits survive a React re-render of the host app", async ({ page }) =>
     .poll(async () => sheetText(page), { timeout: 5000 })
     .toContain("--color-surface-sunken");
 
-  await expect(page.locator('[data-test="click-counter"]')).toHaveText(/clicks: 0/);
+  const appFrame = await getAppFrame(page);
+  await expect(appFrame.locator('[data-test="click-counter"]')).toHaveText(/clicks: 0/);
 
-  await page.evaluate(() => {
+  await appFrame.evaluate(() => {
     const fn = (window as unknown as { __nudgeUiRerender?: () => void }).__nudgeUiRerender;
     fn?.();
     fn?.();
   });
 
-  await expect(page.locator('[data-test="click-counter"]')).toHaveText(/clicks: 2/);
+  await expect(appFrame.locator('[data-test="click-counter"]')).toHaveText(/clicks: 2/);
 
   await expect
     .poll(async () => sheetText(page), { timeout: 5000 })

@@ -1,9 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { openEditor } from "./editor.ts";
 
 test("dev: data-cid / data-src / data-cprops injected on JSX elements", async ({ page }) => {
-  await page.goto("/playground");
+  const app = await openEditor(page, "/playground");
 
-  const button = page.locator("button").first();
+  const button = app.locator("button").first();
   await expect(button).toBeVisible();
   await expect(button).toHaveAttribute("data-cid", "Button");
   // data-src points back into Button.tsx as relativePath:line:col.
@@ -18,7 +19,7 @@ test("dev: data-cid / data-src / data-cprops injected on JSX elements", async ({
   expect(cprops!).toContain("className:btn");
   expect(cprops!).not.toContain("onClick:fn");
 
-  const appDiv = page.locator('[data-cid="App"]').first();
+  const appDiv = app.locator('[data-cid="App"]').first();
   await expect(appDiv).toBeVisible();
   // The app shell's className is serialisable, so the identity contract
   // records it alongside data-cid and data-src.

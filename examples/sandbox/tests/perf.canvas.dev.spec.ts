@@ -1,4 +1,5 @@
 import { test, expect, type FrameLocator, type Page } from "@playwright/test";
+import { ensureEditorOwnership } from "./editor.ts";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { LEAF_IDS } from "../src/perf-fixture/perfFixture.ts";
@@ -92,9 +93,7 @@ async function persistBaseline(): Promise<void> {
 
 async function loadCanvas(page: Page): Promise<FrameLocator> {
   await page.goto(FIXTURE_URL);
-  await page.waitForSelector('[data-perf-id="perf-0"]');
-  await page.waitForSelector("#nudge-ui-root");
-  await page.locator('[data-test="mode-canvas"]').click();
+  await ensureEditorOwnership(page);
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await expect(page.locator(".canvas-card__iframe").first()).toBeAttached();
   const frame = page.frameLocator(".canvas-card__iframe").first();
@@ -135,6 +134,7 @@ async function probeThenMeasure(
   pollTimeoutMs: number,
 ): Promise<number> {
   const leaf = frame.locator(`[data-perf-id="perf-${perfId}"]`);
+  await leaf.scrollIntoViewIfNeeded();
   const targetBox = await leaf.boundingBox();
   const targetCid = await leaf.getAttribute("data-cid");
   if (!targetBox || !targetCid) return -1;
@@ -147,38 +147,45 @@ async function probeThenMeasure(
       if (!parentW.__canvasProbe) parentW.__canvasProbe = parentW.performance.now();
     }, { capture: true, once: true });
   }, { type: eventName });
-  if (eventName === "mouseover") {
-    await leaf.hover();
-  } else {
-    await leaf.click();
-  }
-  const elapsed = await page.evaluate(({ testId, timeoutMs, target, cid }) => new Promise<number>((resolve) => {
+  await page.evaluate(({ testId, timeoutMs, target }) => {
+    const scope = window as unknown as {
+      __canvasOverlayResult?: { done: boolean; elapsed: number };
+      __canvasProbe?: number;
+    };
+    scope.__canvasOverlayResult = { done: false, elapsed: -1 };
     const started = performance.now();
     const check = (): void => {
-      const root = document.getElementById("nudge-ui-root")?.shadowRoot;
-      const outline = root?.querySelector(`[data-test="${testId}"]`);
-      const probe = (window as unknown as { __canvasProbe?: number }).__canvasProbe ?? 0;
+      const outline = document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector(`[data-test="${testId}"]`);
       const rect = outline?.getBoundingClientRect();
-      const selection = root?.querySelector('[data-test="selection"]');
-      const matchesTarget = testId === "canvas-selected-outline"
-        ? Boolean(rect && selection?.getAttribute("data-selected-cid") === cid)
-        : Boolean(rect
-          && Math.abs(rect.left - target.x) <= 2
-          && Math.abs(rect.top - target.y) <= 2
-          && Math.abs(rect.width - target.width) <= 2
-          && Math.abs(rect.height - target.height) <= 2);
+      const matchesTarget = Boolean(rect
+        && Math.abs(rect.left - target.x) <= 2
+        && Math.abs(rect.top - target.y) <= 2
+        && Math.abs(rect.width - target.width) <= 2
+        && Math.abs(rect.height - target.height) <= 2);
+      const probe = scope.__canvasProbe ?? 0;
       if (matchesTarget && probe > 0) {
-        resolve(performance.now() - probe);
+        scope.__canvasOverlayResult = { done: true, elapsed: performance.now() - probe };
         return;
       }
       if (performance.now() - started > timeoutMs) {
-        resolve(-1);
+        scope.__canvasOverlayResult = { done: true, elapsed: -1 };
         return;
       }
       requestAnimationFrame(check);
     };
     requestAnimationFrame(check);
-  }), { testId: overlayTestId, timeoutMs: pollTimeoutMs, target: targetBox, cid: targetCid });
+  }, { testId: overlayTestId, timeoutMs: pollTimeoutMs, target: targetBox });
+  if (eventName === "mouseover") {
+    await leaf.hover();
+  } else {
+    await leaf.click();
+  }
+  await page.waitForFunction(() => (
+    window as unknown as { __canvasOverlayResult?: { done: boolean } }
+  ).__canvasOverlayResult?.done === true, undefined, { timeout: pollTimeoutMs + 1_000 });
+  const elapsed = await page.evaluate(() => (
+    window as unknown as { __canvasOverlayResult?: { elapsed: number } }
+  ).__canvasOverlayResult?.elapsed ?? -1);
   // Park the pointer outside the iframe so the next run's hover re-enters the
   // leaf and fires a fresh mouseover (a pointer already resting on the element
   // would not fire one).

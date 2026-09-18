@@ -321,6 +321,22 @@ describe("withNudgeUi — development output shape", () => {
     expect(proxy?.source).toBe("/__nudge_ui__/:path*");
     expect(proxy?.destination).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/__nudge_ui__/);
     expect(Number(proxy!.destination.match(/:(\d+)/)?.[1])).toBeGreaterThan(0);
+    expect(resolved.beforeFiles.slice(1, 3)).toEqual([
+      expect.objectContaining({
+        source: "/:path*",
+        has: expect.arrayContaining([
+          { type: "query", key: "nudge-ui", value: "editor" },
+          { type: "header", key: "accept", value: ".*text/html.*" },
+        ]),
+      }),
+      expect.objectContaining({
+        source: "/:path*",
+        has: expect.arrayContaining([
+          { type: "query", key: "nudge-ui", value: "editor" },
+          { type: "header", key: "sec-fetch-dest", value: "document" },
+        ]),
+      }),
+    ]);
 
     // The transport is live end-to-end.
     const port = Number(proxy!.destination.match(/:(\d+)/)?.[1]);

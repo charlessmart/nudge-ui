@@ -9,9 +9,11 @@ import {
   type ElementDeleteMessage,
   type ElementNudgeMessage,
   type HistoryRequestMessage,
+  type InspectorToggleRequestMessage,
   type ElementDragEndMessage,
   type ElementDragMoveMessage,
   type ElementDragStartMessage,
+  type InlineTextIntentMessage,
 } from "./frameProtocol.ts";
 import {
   findClosestAnchor,
@@ -24,10 +26,11 @@ import { installInteractionStyles } from "../overlay/interactionStyles.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { createCidIndex } from "./rendererCidIndex.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { isEditableEvent } from "../shell/shortcuts.ts";
+import { isEditableEvent, isInspectorToggleShortcut } from "../shell/shortcuts.ts";
 import { resolveSelectionTarget, selectionTargetMode } from "../selection/selectionTarget.ts";
 import { escapeCssString } from "../projection/cssEscapes.ts";
 import { blockApplicationClick, isApplicationActivationClick } from "../overlay/clickPolicy.ts";
+import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -180,6 +183,7 @@ export function installRendererElementSelector(): () => void {
     document,
     "mouseover",
     (event: MouseEvent) => {
+      if (interactionsSuspended) return;
       updateMeasureState(event.altKey, true);
       const target = event.target;
       if (!(target instanceof Element)) return;
@@ -194,6 +198,27 @@ export function installRendererElementSelector(): () => void {
   let pendingDrag: { element: HTMLElement; point: { x: number; y: number } } | null = null;
   let dragging = false;
   let lastSelected: HTMLElement | null = null;
+  let interactionsSuspended = false;
+
+  trackListener<MessageEvent>(window, "message", (event: MessageEvent) => {
+    if (event.origin !== window.location.origin || event.source !== window.parent) return;
+    const identity = getRendererIdentity();
+    const message = event.data as Record<string, unknown> | null;
+    if (!identity || !message || message.type !== "inspector-interaction-state"
+      || message.protocolVersion !== PROTOCOL_VERSION
+      || message.projectId !== identity.projectId
+      || message.workspaceId !== identity.workspaceId
+      || message.cardId !== identity.cardId
+      || typeof message.open !== "boolean") return;
+    interactionsSuspended = !message.open;
+    if (interactionsSuspended) {
+      pendingDrag = null;
+      dragging = false;
+      dragMoveUpdate.cancel();
+      hoverUpdate.cancel();
+      updateMeasureState(false, false);
+    }
+  });
 
   const dragMoveUpdate = createFrameThrottle((point: { x: number; y: number }) => {
     if (disposed) return;
@@ -204,9 +229,29 @@ export function installRendererElementSelector(): () => void {
   });
 
   trackListener<MouseEvent>(document, "mousedown", (event: MouseEvent) => {
+    if (interactionsSuspended) return;
     if (event.button !== 0) return;
     const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
     if (!element) return;
+    const identity = getRendererIdentity();
+    if (identity) {
+      const emptyProjectionId = event.target instanceof Element
+        ? event.target.closest(`[${EMPTY_TEXT_PROJECTION_ATTR}]`)?.getAttribute(EMPTY_TEXT_PROJECTION_ATTR) ?? undefined
+        : undefined;
+      const message: InlineTextIntentMessage = {
+        type: "inline-text-intent",
+        protocolVersion: PROTOCOL_VERSION,
+        intent: emptyProjectionId && event.detail >= 2 ? "double-click" : "pointer-down",
+        cid: element.getAttribute("data-cid")!,
+        src: element.getAttribute("data-src") ?? "",
+        elementId: cidIndex.elementId(element),
+        point: { x: event.clientX, y: event.clientY },
+        clickCount: event.detail,
+        emptyProjectionId,
+        ...identity,
+      };
+      sendToParent(message);
+    }
     lastSelected = element;
     pendingDrag = { element, point: { x: event.clientX, y: event.clientY } };
   }, true);
@@ -250,8 +295,21 @@ export function installRendererElementSelector(): () => void {
   trackListener<MouseEvent>(document, "mouseup", finishDrag, true);
 
   trackListener<KeyboardEvent>(document, "keydown", (event: KeyboardEvent) => {
-    if (event.key === "Alt") updateMeasureState(true, measurePointerOverPage);
     if (isEditableEvent(event)) return;
+    if (isInspectorToggleShortcut(event)) {
+      const identity = getRendererIdentity();
+      if (!identity) return;
+      event.preventDefault();
+      const msg: InspectorToggleRequestMessage = {
+        type: "inspector-toggle-request",
+        protocolVersion: PROTOCOL_VERSION,
+        ...identity,
+      };
+      sendToParent(msg);
+      return;
+    }
+    if (interactionsSuspended) return;
+    if (event.key === "Alt") updateMeasureState(true, measurePointerOverPage);
     const scrollKey = event.code === "Space"
       || event.key === "ArrowUp"
       || event.key === "ArrowDown"
@@ -319,6 +377,7 @@ export function installRendererElementSelector(): () => void {
     document,
     "mouseout",
     (event: MouseEvent) => {
+      if (interactionsSuspended) return;
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
       const related = event.relatedTarget;
@@ -340,18 +399,43 @@ export function installRendererElementSelector(): () => void {
 
   trackListener<MouseEvent>(
     document,
+    "dblclick",
+    (event: MouseEvent) => {
+      if (interactionsSuspended) return;
+      const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
+      const identity = getRendererIdentity();
+      if (!element || !identity) return;
+      blockApplicationClick(event);
+      const message: InlineTextIntentMessage = {
+        type: "inline-text-intent",
+        protocolVersion: PROTOCOL_VERSION,
+        intent: "double-click",
+        cid: element.getAttribute("data-cid")!,
+        src: element.getAttribute("data-src") ?? "",
+        elementId: cidIndex.elementId(element),
+        point: { x: event.clientX, y: event.clientY },
+        emptyProjectionId: event.target instanceof Element
+          ? event.target.closest(`[${EMPTY_TEXT_PROJECTION_ATTR}]`)?.getAttribute(EMPTY_TEXT_PROJECTION_ATTR) ?? undefined
+          : undefined,
+        ...identity,
+      };
+      sendToParent(message);
+    },
+    true,
+  );
+
+  trackListener<MouseEvent>(
+    document,
     "click",
     (event: MouseEvent) => {
+      if (interactionsSuspended) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
 
       // Defer to navigation-intent when the user clicked a navigable same-origin
-      // anchor that points to a different route. In canvas mode, anchor clicks
-      // should create (or focus) a sibling card rather than selecting the anchor
-      // itself. The navigation-intent listener is registered AFTER this one, so
-      // we must NOT stop propagation here. Left to its own default the click would
-      // perform a full-frame navigation inside the iframe; the navigation-intent
-      // handler calls preventDefault once it has gathered the anchor href.
+      // anchor that points to a different route. The later listener reports the
+      // intent to the controller while leaving native or framework navigation in
+      // charge of the live application document.
       const anchor = findClosestAnchor(target);
       if (anchor && isEligibleNavigation(anchor, event) && hasDifferentRoute(anchor)) {
         return;

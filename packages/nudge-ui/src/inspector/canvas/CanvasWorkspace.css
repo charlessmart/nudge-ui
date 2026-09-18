@@ -32,5 +32,41 @@
 
 .canvas-workspace__board-content {
   position: absolute;
+  width: 100%;
+  height: 100%;
   will-change: transform;
+}
+
+.canvas-workspace.is-presentation-transitioning .canvas-workspace__board-content {
+  transition: transform 200ms ease;
+}
+
+.canvas-workspace[data-presentation="focus"] .canvas-workspace__board-content {
+  inset: 0;
+  transform: none !important;
+}
+
+.canvas-workspace.is-presentation-transitioning .canvas-card.is-presentation-card {
+  transition: left 200ms ease, top 200ms ease;
+}
+
+.canvas-workspace.is-presentation-transitioning .canvas-card:not(.is-presentation-card) {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-workspace.is-presentation-transitioning .canvas-workspace__board-content,
+  .canvas-workspace.is-presentation-transitioning .canvas-card.is-presentation-card {
+    transition: none;
+  }
+}
+
+.canvas-workspace__target-error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #6b7280;
+  font: 500 14px/1.4 system-ui, sans-serif;
 }

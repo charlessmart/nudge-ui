@@ -1,8 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-test("dev: clicking same-origin link inside canvas iframe creates a new card", async ({ page }) => {
+test("dev: clicking a same-origin link navigates the focused card", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   const board = page.locator('[data-test="canvas-board"]');
@@ -14,20 +13,30 @@ test("dev: clicking same-origin link inside canvas iframe creates a new card", a
   await expect(conformanceLink).toBeVisible({ timeout: 20000 });
   await conformanceLink.click();
 
-  // A second card should appear for the retained conformance route
-  await expect(board.locator(".canvas-card")).toHaveCount(2);
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
 
-  const cards = board.locator(".canvas-card");
-  const frameUrls = await cards.locator(".canvas-card__iframe").evaluateAll((frames) =>
-    frames.map((frame) => (frame as HTMLIFrameElement).src),
-  );
-  const hasConformance = frameUrls.some((url) => url.includes("/conformance"));
-  expect(hasConformance).toBe(true);
+  await expect.poll(() => frame.locator("body").evaluate(() => location.pathname)).toBe("/conformance");
+});
+
+test("dev: observed SPA navigation preserves the live application document", async ({ page }) => {
+  await page.goto("/playground");
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+
+  const frame = page.frameLocator(".canvas-card__iframe").first();
+  await frame.locator("body").evaluate(() => {
+    (window as Window & { __nudgeProbe?: string }).__nudgeProbe = "retained";
+    history.pushState({}, "", "/playground?state=probe");
+  });
+
+  await expect.poll(() => frame.locator("body").evaluate(() => location.search)).toBe("?state=probe");
+  await expect.poll(() => frame.locator("body").evaluate(() =>
+    (window as Window & { __nudgeProbe?: string }).__nudgeProbe,
+  )).toBe("retained");
+  await expect.poll(() => new URL(page.url()).searchParams.get("state")).toBe("probe");
 });
 
 test("dev: same-document hash links do not create new cards", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   const board = page.locator('[data-test="canvas-board"]');
@@ -43,7 +52,6 @@ test("dev: same-document hash links do not create new cards", async ({ page }) =
 
 test("dev: duplicate button creates a distinct card with independent iframe", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   const board = page.locator('[data-test="canvas-board"]');
@@ -67,9 +75,8 @@ test("dev: duplicate button creates a distinct card with independent iframe", as
   expect(ids[0]).not.toBe(ids[1]);
 });
 
-test("dev: delete key removes the selected card and exits canvas when it is the last card", async ({ page }) => {
+test("dev: delete key removes a comparison card and recovers the final editing surface", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   // Add a second card first
@@ -91,46 +98,45 @@ test("dev: delete key removes the selected card and exits canvas when it is the 
   // One card remains
   await expect(board.locator(".canvas-card")).toHaveCount(1);
 
-  // Select the remaining card, then delete it (should exit Canvas).
+  // Select the remaining card, then delete it. The primary route recovers.
   await board.locator('[data-test^="canvas-card-reload-"]').click();
   await page.keyboard.press("Delete");
 
-  // Workspace should be hidden
-  await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  await expect(board.locator(".canvas-card")).toHaveCount(1);
 });
 
-test("dev: edit handoff switches to inspect mode without reloading when editing current route", async ({ page }) => {
+test("dev: open app escapes the editor to the plain application route", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
-  // Click edit on the first card (which should be the current route)
-  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
-
-  // Canvas workspace should be gone
-  await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
-
-  // The inspector should be back in inspect mode
-  await expect(page.locator('[data-test="mode-canvas"]')).toBeVisible();
-
-  // The host page content should still be present
-  const root = page.locator("#root");
-  await expect(root).toBeVisible();
+  // Open the focused route as a plain application page.
+  const popupPromise = page.waitForEvent("popup");
+  await page.locator('[data-test^="canvas-card-open-app-"]').first().click();
+  const application = await popupPromise;
+  await expect(application.locator("#root")).toBeVisible();
+  await expect(application.locator('[data-test="canvas-workspace"]')).toHaveCount(0);
+  await application.locator('a[href="/conformance"]').click();
+  await expect(application).toHaveURL(/\/conformance$/);
+  await expect(application.locator("#root")).toBeVisible();
+  await expect(application.locator("#nudge-ui-root")).toHaveJSProperty("shadowRoot", null);
+  await application.reload();
+  await expect(application).toHaveURL(/\/conformance$/);
+  await expect(application.locator("#nudge-ui-root")).toHaveJSProperty("shadowRoot", null);
 });
 
 
 
-test("dev: canvas card toolbar has preview, duplicate, and refresh controls", async ({ page }) => {
+test("dev: canvas card toolbar has open-app, duplicate, and refresh controls", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await expect(page.locator('[data-test="mode-canvas"]')).toHaveCount(0);
 
   await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toBeVisible();
-  const preview = page.locator('[data-test^="canvas-card-preview-"]');
-  await expect(preview).toHaveText("Page view");
-  await expect(preview).toHaveClass(/button--secondary/);
-  await expect(preview).toHaveClass(/button--default/);
+  const openApp = page.locator('[data-test^="canvas-card-open-app-"]');
+  await expect(openApp).toHaveText("Open app");
+  await expect(openApp).toHaveClass(/button--secondary/);
+  await expect(openApp).toHaveClass(/button--default/);
   await expect(page.locator('[data-test^="canvas-card-reload-"]')).toBeVisible();
   await expect(page.locator('[data-test^="canvas-card-duplicate-"]')).toHaveClass(/icon-button--secondary/);
   await expect(page.locator('[data-test^="canvas-card-reload-"]')).toHaveClass(/icon-button--secondary/);

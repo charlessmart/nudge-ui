@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "./editor.ts";
 
 test("dev: Tailwind's nested @supports color override wins over its fallback", async ({ page }) => {
-  await page.goto("/tailwind");
-  const fixture = page.locator('[data-test="tailwind-alpha"]');
+  const app = await openEditor(page, "/tailwind");
+  const fixture = app.locator('[data-test="tailwind-alpha"]');
   await fixture.click({ position: { x: 5, y: 5 } });
 
   const field = page.locator('[data-test="token-field"][data-property="background-color"]');

@@ -5,7 +5,11 @@ import type { ComponentModuleProtocols } from "../../compiler/componentPolicyRes
 import { ensureSidecar, type SidecarHandle } from "./sidecar.ts";
 import { buildManifest } from "./manifest.ts";
 import { nudgeUiRepositoryPackagePath } from "./repositoryScope.ts";
-import { NUDGE_UI_ROUTE_PREFIX } from "../../transport/index.ts";
+import {
+  NUDGE_UI_EDITOR_QUERY_PARAM,
+  NUDGE_UI_EDITOR_QUERY_VALUE,
+  NUDGE_UI_ROUTE_PREFIX,
+} from "../../transport/index.ts";
 
 /**
  * `withNudgeUi(nextConfig)` — the single user touchpoint (ADR-0010).
@@ -404,6 +408,15 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
     destination: `http://127.0.0.1:${port}${NUDGE_UI_ROUTE_PREFIX}:path*`,
   });
 
+  const editorRewrite = (port: number, header: { key: string; value: string }): RewritesSource => ({
+    source: "/:path*",
+    has: [
+      { type: "query", key: NUDGE_UI_EDITOR_QUERY_PARAM, value: NUDGE_UI_EDITOR_QUERY_VALUE },
+      { type: "header", ...header },
+    ],
+    destination: `http://127.0.0.1:${port}/:path*`,
+  });
+
   const resolveRewrites = async (): Promise<RewritesShape> => {
     const port = await sidecarPort();
     const userRewrites =
@@ -428,7 +441,12 @@ function instrumentConfig<T extends object>(config: T, options: NudgeUiNextOptio
       // Port 0 (sidecar failed to bind) yields a dead destination; the mount
       // surfaces an honest fetch failure instead of silently pretending to
       // work.
-      beforeFiles: [proxyRewrite(port), ...(shape.beforeFiles ?? [])],
+      beforeFiles: [
+        proxyRewrite(port),
+        editorRewrite(port, { key: "accept", value: ".*text/html.*" }),
+        editorRewrite(port, { key: "sec-fetch-dest", value: "document" }),
+        ...(shape.beforeFiles ?? []),
+      ],
       afterFiles: shape.afterFiles ?? [],
       fallback: shape.fallback ?? [],
     };

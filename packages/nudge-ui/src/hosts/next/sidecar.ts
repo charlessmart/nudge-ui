@@ -16,9 +16,12 @@ import {
 import { createProjectTokenSnapshot } from "../../project/tokens.ts";
 import {
   NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_EDITOR_PATH,
   NUDGE_UI_MANIFEST_PATH,
   NUDGE_UI_RELOAD_PATH,
   NUDGE_UI_ROUTE_PREFIX,
+  createNudgeUiEditorDocument,
+  isNudgeUiEditorDocumentRequest,
 } from "../../transport/index.ts";
 import { startOptionalProjectBridge } from "../projectBridge.ts";
 
@@ -561,7 +564,8 @@ function respond(
   streams: Set<ServerResponse>,
   receiveContracts: (file: string, contracts: unknown[]) => void,
 ): void {
-  const url = (req.url ?? "").split("?")[0];
+  const requestUrl = req.url ?? "";
+  const url = requestUrl.split("?")[0];
 
   // Loader postings aggregate component contracts (Stage 5). Loopback-only by
   // virtue of the bind address; payload size is capped defensively.
@@ -585,6 +589,15 @@ function respond(
         res.writeHead(400).end();
       }
     });
+    return;
+  }
+
+  if (isNudgeUiEditorDocumentRequest(requestUrl, req.method, req.headers)) {
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    });
+    res.end(req.method === "HEAD" ? undefined : createNudgeUiEditorDocument());
     return;
   }
 

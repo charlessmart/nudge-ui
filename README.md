@@ -8,6 +8,34 @@ creates a structured prompt for a coding agent. It does not edit application
 source files. Production builds receive no inspector bootstrap, identity
 attributes, or token data.
 
+## Editor workspace
+
+Open your application with its usual development command. Nudge opens an editor
+workspace with the application in a same-origin iframe. The frame provides the
+application's viewport boundary, so viewport units and fixed elements remain
+independent of the inspector panel.
+
+The editor starts in **Focus**, with one square-edged preview at 100% zoom and no
+inset. The preview resizes with the browser and the available space beside
+the inspector. Select **Canvas** in the inspector header to zoom out into the
+comparison workspace, where previews have resize handles. Select **Focus** to
+return to the active preview. Switching presentation preserves the running
+application. Use **Open app** on a canvas preview to open the application in a
+separate tab without the editor.
+
+Editor URLs retain the application path, query parameters, and hash, with
+`nudge-ui=editor` added to the query string. For example,
+`/products?category=tools&nudge-ui=editor#details` edits
+`/products?category=tools#details`. The application iframe receives the URL
+without the editor marker. Existing `/__nudge_ui__/editor?url=...` links remain
+supported.
+
+Editing and comparison use the same workspace. You can keep one preview or
+compare multiple routes and agent-generated variations. Links navigate within
+their preview. Each live preview runs the application independently, so opening
+more previews also runs more application instances. The public landing demo
+continues to edit its own page directly.
+
 ## Install
 
 Run the framework-detecting initializer from the application root:
@@ -221,9 +249,12 @@ bootstrap into dev HTML. The Next.js and Astro integrations adapt the same
 contracts to their host pipelines. The standalone host uses an HTML response
 instrumenter and a manifest instead of build-tool virtual modules.
 
-The browser runtime mounts in a Shadow DOM. It reads the browser's CSSOM and
-computed styles to determine what is actually applied. CSS and token previews
-use one managed stylesheet; semantic component changes use a framework adapter.
+The editor mounts its controls in a Shadow DOM in a dedicated development
+document. Application iframes run renderer clients, which report selection and
+apply the editor's shared changes. The runtime reads each application's CSSOM
+and computed styles to determine what is actually applied. CSS and token
+previews use a managed stylesheet in each application document; semantic
+component changes use a framework adapter.
 The change log is the handoff boundary: the inspector records the change and
 the user either copies a prompt or dispatches that exact revision to a paired
 agent. After completion, Nudge removes only changes whose refreshed browser
@@ -255,7 +286,7 @@ Vitest tests the shared modules and host adapters in `packages/**`. Playwright
 drives real consumer applications in `examples/**`, including Vite and React,
 Tailwind 3 and 4, vanilla-extract/Sprinkles, static HTML, Next.js, and Astro.
 The browser suites cover identity, selection, CSS and token previews, semantic
-component behavior, reloads, Canvas where supported, and production stripping.
+component behavior, reloads, iframe workspaces, and production stripping.
 
 Run the fast checks from the repository root:
 

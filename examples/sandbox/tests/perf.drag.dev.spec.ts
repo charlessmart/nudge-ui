@@ -1,4 +1,5 @@
 import { expect, test, type FrameLocator, type Locator, type Page } from "@playwright/test";
+import { ensureEditorOwnership } from "./editor.ts";
 
 const FIXTURE_URL = "/playground";
 const RUNS = 5;
@@ -157,37 +158,22 @@ async function dragToGuide(
   await resetParentProbe(page);
   await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + sourceBox.height / 2);
   await page.mouse.down();
+  const guideVisible = waitForVisibleGuide(page, guideSelector);
   await page.mouse.move(
     isFlexRow ? destinationBox.x + 4 : destinationBox.x + destinationBox.width / 2,
     isFlexRow ? destinationBox.y + destinationBox.height / 2 : destinationBox.y + 4,
-    { steps: 3 },
   );
-  const elapsed = await waitForVisibleGuide(page, guideSelector);
+  const elapsed = await guideVisible;
   await page.mouse.up();
   return elapsed;
 }
 
-async function loadInspect(page: Page): Promise<{ source: Locator; destination: Locator }> {
+async function loadEditingSurface(page: Page): Promise<{ frame: FrameLocator; source: Locator; destination: Locator }> {
   await page.goto(FIXTURE_URL);
-  // Structural previews are persisted for the session. Reload after clearing
-  // that state so every sample starts from the same ABC fixture.
+  await ensureEditorOwnership(page);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  const source = page.locator('[data-test="flex-child-a"]');
-  const destination = page.locator('[data-test="flex-child-c"]');
-  await expect(source).toBeVisible();
-  await expect(destination).toBeVisible();
-  await installParentProbe(page);
-  return { source, destination };
-}
-
-async function loadCanvas(page: Page): Promise<{ frame: FrameLocator; source: Locator; destination: Locator }> {
-  await page.goto(FIXTURE_URL);
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator(".canvas-card__iframe").first()).toBeAttached();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator("body")).toBeVisible({ timeout: 20_000 });
   const source = frame.locator('[data-test="flex-child-a"]');
@@ -198,24 +184,11 @@ async function loadCanvas(page: Page): Promise<{ frame: FrameLocator; source: Lo
   return { frame, source, destination };
 }
 
-async function loadStructuralInspect(page: Page): Promise<{ source: Locator; destination: Locator }> {
+async function loadStructuralEditingSurface(page: Page): Promise<{ frame: FrameLocator; source: Locator; destination: Locator }> {
   await page.goto(FIXTURE_URL);
+  await ensureEditorOwnership(page);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  const source = page.locator('[data-test="structural-move-target"]');
-  const destination = page.locator('[data-test="structural-anchor"]');
-  await expect(source).toBeVisible();
-  await expect(destination).toBeVisible();
-  await installParentProbe(page);
-  return { source, destination };
-}
-
-async function loadStructuralCanvas(page: Page): Promise<{ frame: FrameLocator; source: Locator; destination: Locator }> {
-  await page.goto(FIXTURE_URL);
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  await page.locator('[data-test="mode-canvas"]').click();
-  await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20_000 });
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator("body")).toBeVisible({ timeout: 20_000 });
   const source = frame.locator('[data-test="structural-move-target"]');
@@ -226,58 +199,30 @@ async function loadStructuralCanvas(page: Page): Promise<{ frame: FrameLocator; 
   return { frame, source, destination };
 }
 
-test("perf: inspect drag threshold to first visible insertion guide", async ({ page }) => {
+test("perf: editing-surface drag threshold to first visible insertion guide", async ({ page }) => {
   test.setTimeout(120_000);
   const runs: number[] = [];
   for (let run = 0; run < RUNS; run += 1) {
-    const { source, destination } = await loadInspect(page);
-    const elapsed = await dragToGuide(page, source, destination, '[data-test="dom-drop-line"]');
-    expect(elapsed, `inspect drag run ${run + 1} did not produce a visible guide`).toBeGreaterThan(0);
-    runs.push(elapsed);
-  }
-  const metric = summarize(runs);
-  logMetric("inspect drag guide", metric);
-  checkBudget("inspect drag guide", metric);
-});
-
-test("perf: canvas drag threshold to first visible insertion guide", async ({ page }) => {
-  test.setTimeout(120_000);
-  const runs: number[] = [];
-  for (let run = 0; run < RUNS; run += 1) {
-    const { frame, source, destination } = await loadCanvas(page);
+    const { source, destination } = await loadEditingSurface(page);
     const elapsed = await dragToGuide(page, source, destination, '[data-test="canvas-dom-drop-line"]');
-    expect(elapsed, `canvas drag run ${run + 1} did not produce a visible guide`).toBeGreaterThan(0);
+    expect(elapsed, `editing-surface drag run ${run + 1} did not produce a visible guide`).toBeGreaterThan(0);
     runs.push(elapsed);
   }
   const metric = summarize(runs);
-  logMetric("canvas drag guide", metric);
-  checkBudget("canvas drag guide", metric);
+  logMetric("editing-surface drag guide", metric);
+  checkBudget("editing-surface drag guide", metric);
 });
 
-test("perf: inspect cross-container drag threshold to first visible insertion guide", async ({ page }) => {
+test("perf: editing-surface cross-container drag threshold to first visible insertion guide", async ({ page }) => {
   test.setTimeout(120_000);
   const runs: number[] = [];
   for (let run = 0; run < RUNS; run += 1) {
-    const { source, destination } = await loadStructuralInspect(page);
-    const elapsed = await dragToGuide(page, source, destination, '[data-test="dom-drop-line"]');
-    expect(elapsed, `inspect cross-container drag run ${run + 1} did not produce a visible guide`).toBeGreaterThan(0);
-    runs.push(elapsed);
-  }
-  const metric = summarize(runs);
-  logMetric("inspect cross-container", metric);
-  checkBudget("inspect cross-container", metric);
-});
-
-test("perf: canvas cross-container drag threshold to first visible insertion guide", async ({ page }) => {
-  test.setTimeout(120_000);
-  const runs: number[] = [];
-  for (let run = 0; run < RUNS; run += 1) {
-    const { source, destination } = await loadStructuralCanvas(page);
+    const { source, destination } = await loadStructuralEditingSurface(page);
     const elapsed = await dragToGuide(page, source, destination, '[data-test="canvas-dom-drop-line"]');
-    expect(elapsed, `canvas cross-container drag run ${run + 1} did not produce a visible guide`).toBeGreaterThan(0);
+    expect(elapsed, `editing-surface cross-container drag run ${run + 1} did not produce a visible guide`).toBeGreaterThan(0);
     runs.push(elapsed);
   }
   const metric = summarize(runs);
-  logMetric("canvas cross-container", metric);
-  checkBudget("canvas cross-container", metric);
+  logMetric("editing-surface cross-container", metric);
+  checkBudget("editing-surface cross-container", metric);
 });

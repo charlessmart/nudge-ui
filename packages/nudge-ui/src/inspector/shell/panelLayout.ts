@@ -9,6 +9,7 @@ html[${PANEL_LAYOUT_ATTRIBUTE}="open"] body {
 `;
 
 function ensureLayoutStyles(): void {
+  if (document.documentElement.hasAttribute("data-nudge-ui-editor")) return;
   if (document.getElementById(LAYOUT_STYLE_ID)) return;
   const style = document.createElement("style");
   style.id = LAYOUT_STYLE_ID;

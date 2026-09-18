@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type FrameLocator, type Page } from "@playwright/test";
+import { ensureEditorOwnership } from "./editor.ts";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { LEAF_IDS, expectedStyleFor } from "../src/perf-fixture/perfFixture.ts";
@@ -134,12 +135,13 @@ async function persistBaseline(): Promise<void> {
 // edited session and breaks the fixture's expected values).
 const fixtureStorageResetPages = new WeakSet<Page>();
 
-async function loadFixture(page: Page): Promise<void> {
+async function loadFixture(page: Page): Promise<FrameLocator> {
   // Clear storage in an init script on the *next* document so a previous
   // page's beforeunload autosave cannot repopulate localStorage after we
   // intended a clean fixture load.
   if (!fixtureStorageResetPages.has(page)) {
     await page.addInitScript(() => {
+      if (window !== window.top) return;
       try {
         localStorage.clear();
         sessionStorage.clear();
@@ -150,9 +152,11 @@ async function loadFixture(page: Page): Promise<void> {
     fixtureStorageResetPages.add(page);
   }
   await page.goto(FIXTURE_URL);
-  await page.waitForSelector('[data-perf-id="perf-0"]');
-  await page.waitForFunction(() => document.querySelectorAll("style[data-perf-style]").length === 4);
-  await page.waitForSelector("#nudge-ui-root");
+  await ensureEditorOwnership(page);
+  const frame = page.frameLocator('.canvas-card__iframe').first();
+  await expect(frame.locator('[data-perf-id="perf-0"]')).toBeVisible();
+  await expect.poll(() => frame.locator('style[data-perf-style]').count()).toBe(4);
+  return frame;
 }
 
 function revealCandidates(perfId: number): string[] {
@@ -162,81 +166,84 @@ function revealCandidates(perfId: number): string[] {
   return [hex, hex.toUpperCase(), rgb, rgb.replaceAll(" ", "")];
 }
 
-async function revealMs(page: Page, perfId: number): Promise<number> {
+async function revealMs(page: Page, frame: FrameLocator, perfId: number): Promise<number> {
   const candidates = revealCandidates(perfId);
-  await page.evaluate(() => {
-    const w = window as unknown as { __perfProbe?: Probe };
-    w.__perfProbe = { clickAt: 0, done: false, ms: 0 };
-    document.addEventListener("click", () => {
-      const p = w.__perfProbe;
-      if (p && p.clickAt === 0) p.clickAt = performance.now();
+  const target = frame.locator(`[data-perf-id="perf-${perfId}"]`);
+  await target.scrollIntoViewIfNeeded();
+  await target.evaluate((element) => {
+    const parent = window.parent as Window & { __perfProbe?: Probe };
+    parent.__perfProbe = { clickAt: 0, done: false, ms: 0 };
+    // Window capture precedes the renderer's document-capture handler, which
+    // intentionally stops application clicks before they reach the element.
+    element.ownerDocument.defaultView?.addEventListener("click", () => {
+      const probe = parent.__perfProbe;
+      if (probe && probe.clickAt === 0) probe.clickAt = parent.performance.now();
     }, { capture: true, once: true });
   });
-  await page.click(`[data-perf-id="perf-${perfId}"]`);
-  const result = await page.evaluate(({ cands, pollTimeoutMs }) => {
-    return new Promise<number>((resolve) => {
-      const w = window as unknown as { __perfProbe?: Probe };
-      const probe = w.__perfProbe;
-      if (!probe) {
-        resolve(-1);
+  await page.evaluate(({ cands, pollTimeoutMs }) => {
+    const scope = window as unknown as {
+      __perfProbe?: Probe;
+      __perfRevealResult?: { done: boolean; elapsed: number };
+    };
+    scope.__perfRevealResult = { done: false, elapsed: -1 };
+    const armedAt = performance.now();
+    const check = (): void => {
+      const probe = scope.__perfProbe;
+      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
+      const rows = Array.from(sr?.querySelectorAll('[data-test="token-field"]') ?? []);
+      const hit = rows.some((row) => {
+        if (row.getAttribute("data-property") !== "background-color") return false;
+        const raw = row.querySelector<HTMLInputElement>('[data-test="raw-input"]');
+        return raw !== null && cands.includes(raw.value.trim());
+      });
+      if (hit && probe && probe.clickAt > 0) {
+        probe.done = true;
+        probe.ms = performance.now() - probe.clickAt;
+        scope.__perfRevealResult = { done: true, elapsed: probe.ms };
         return;
       }
-      const start = probe.clickAt > 0 ? probe.clickAt : performance.now();
-      const check = (): void => {
-        const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-        const rows = Array.from(sr?.querySelectorAll('[data-test="token-field"]') ?? []);
-        const hit = rows.some((row) => {
-          if (row.getAttribute("data-property") !== "background-color") return false;
-          const raw = row.querySelector('[data-test="raw-input"]');
-          return raw !== null && cands.includes((raw.getAttribute("value") ?? "").trim());
-        });
-        if (hit) {
-          probe.done = true;
-          probe.ms = performance.now() - start;
-          resolve(probe.ms);
-          return;
-        }
-        if (performance.now() - start > pollTimeoutMs) {
-          const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-          const rows = Array.from(sr?.querySelectorAll('[data-test="token-field"]') ?? []).map((row) => {
-            const raw = row.querySelector('[data-test="raw-input"]');
-            return `${row.getAttribute("data-property")}=${raw?.getAttribute("value") ?? ""}`;
-          });
-          console.log(`perf | reveal timeout; candidates=${JSON.stringify(cands)}; rows=${JSON.stringify(rows.slice(0, 20))}`);
-          resolve(-1);
-          return;
-        }
-        requestAnimationFrame(check);
-      };
+      if (performance.now() - armedAt > pollTimeoutMs) {
+        scope.__perfRevealResult = { done: true, elapsed: -1 };
+        return;
+      }
       requestAnimationFrame(check);
-    });
+    };
+    requestAnimationFrame(check);
   }, { cands: candidates, pollTimeoutMs: POLL_TIMEOUT_MS });
-  return result;
+  await target.click();
+  await page.waitForFunction(() => (
+    window as unknown as { __perfRevealResult?: { done: boolean } }
+  ).__perfRevealResult?.done === true, undefined, { timeout: POLL_TIMEOUT_MS + 1_000 });
+  return page.evaluate(() => (
+    window as unknown as { __perfRevealResult?: { elapsed: number } }
+  ).__perfRevealResult?.elapsed ?? -1);
 }
 
 async function commitMs(page: Page, perfId: number, property: string, hostProperty: string, value: string): Promise<number> {
   const pre = await page.evaluate(({ id, prop, hostProp }) => {
-    const el = document.querySelector(`[data-perf-id="perf-${id}"]`);
+    const el = document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector<HTMLIFrameElement>('.canvas-card__iframe')?.contentDocument?.querySelector(`[data-perf-id="perf-${id}"]`);
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const raw = sr?.querySelector(`[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`);
-    if (!(el instanceof HTMLElement)) return { host: "", panel: "", expectedHost: "" };
+    const raw = sr?.querySelector<HTMLInputElement>(`[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`);
+    const ownerWindow = el?.ownerDocument.defaultView;
+    if (!el || !ownerWindow) return { host: "", panel: "", expectedHost: "" };
     return {
-      host: getComputedStyle(el).getPropertyValue(hostProp).trim(),
-      panel: (raw?.getAttribute("value") ?? "").trim(),
+      host: ownerWindow.getComputedStyle(el).getPropertyValue(hostProp).trim(),
+      panel: (raw?.value ?? "").trim(),
       expectedHost: "",
     };
   }, { id: perfId, prop: property, hostProp: hostProperty });
   const expectedHost = await page.evaluate(({ id, hostProp, value }) => {
-    const el = document.querySelector(`[data-perf-id="perf-${id}"]`);
-    if (!(el instanceof HTMLElement)) return "";
+    const el = document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector<HTMLIFrameElement>('.canvas-card__iframe')?.contentDocument?.querySelector(`[data-perf-id="perf-${id}"]`);
+    const ownerWindow = el?.ownerDocument.defaultView;
+    if (!el || !ownerWindow) return "";
     // Compute the browser-normalized target value on a same-class clone. This
     // catches a commit that merely changes the panel while leaving the host
     // element unchanged, including values such as percentages and colors.
     const probe = el.cloneNode(false) as HTMLElement;
     probe.removeAttribute("data-perf-id");
     probe.style.setProperty(hostProp, value);
-    document.body.appendChild(probe);
-    const result = getComputedStyle(probe).getPropertyValue(hostProp).trim();
+    el.parentElement?.appendChild(probe);
+    const result = ownerWindow.getComputedStyle(probe).getPropertyValue(hostProp).trim();
     probe.remove();
     return result;
   }, { id: perfId, hostProp: hostProperty, value });
@@ -260,13 +267,14 @@ async function commitMs(page: Page, perfId: number, property: string, hostProper
       w.__perfProbe = { clickAt: start, done: false, ms: 0 };
       raw.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
       const check = (): void => {
-        const el = document.querySelector(`[data-perf-id="perf-${id}"]`);
+        const el = document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector<HTMLIFrameElement>('.canvas-card__iframe')?.contentDocument?.querySelector(`[data-perf-id="perf-${id}"]`);
         const sr2 = document.getElementById("nudge-ui-root")?.shadowRoot;
-        const raw2 = sr2?.querySelector(
+        const raw2 = sr2?.querySelector<HTMLInputElement>(
           `[data-test="token-field"][data-property="${prop}"] [data-test="raw-input"]`,
         );
-        const host = el ? getComputedStyle(el).getPropertyValue(hostProp).trim() : "";
-        const panel = (raw2?.getAttribute("value") ?? "").trim();
+        const ownerWindow = el?.ownerDocument.defaultView;
+        const host = el && ownerWindow ? ownerWindow.getComputedStyle(el).getPropertyValue(hostProp).trim() : "";
+        const panel = (raw2?.value ?? "").trim();
         if (host !== "" && host !== preHost && host === targetHost && panel === value && panel !== prePanel) {
           const probe = w.__perfProbe;
           if (probe) {
@@ -319,8 +327,8 @@ async function expandBorderSides(page: Page): Promise<void> {
 test("perf: cold selection reveal stays under 100ms", async ({ page }) => {
   const runs: number[] = [];
   for (let i = 0; i < RUNS; i += 1) {
-    await loadFixture(page);
-    const ms = await revealMs(page, COLD_LEAF);
+    const frame = await loadFixture(page);
+    const ms = await revealMs(page, frame, COLD_LEAF);
     expect(ms, `cold reveal run ${i + 1} did not complete within ${POLL_TIMEOUT_MS}ms`).toBeGreaterThan(0);
     runs.push(ms);
   }
@@ -331,12 +339,12 @@ test("perf: cold selection reveal stays under 100ms", async ({ page }) => {
 });
 
 test("perf: warm repeat selection reveal stays under 30ms", async ({ page }) => {
-  await loadFixture(page);
+  const frame = await loadFixture(page);
   const runs: number[] = [];
   for (let i = 0; i < RUNS; i += 1) {
-    const warmup = await revealMs(page, WARM_OTHER);
+    const warmup = await revealMs(page, frame, WARM_OTHER);
     expect(warmup, `warm reveal warmup run ${i + 1} did not complete within ${POLL_TIMEOUT_MS}ms`).toBeGreaterThan(0);
-    const ms = await revealMs(page, WARM_LEAF);
+    const ms = await revealMs(page, frame, WARM_LEAF);
     expect(ms, `warm reveal run ${i + 1} did not complete within ${POLL_TIMEOUT_MS}ms`).toBeGreaterThan(0);
     runs.push(ms);
   }
@@ -350,8 +358,8 @@ test("perf: edit commit stays under 50ms", async ({ page }) => {
   const values = ["#ef4444", "#22c55e", "#a855f7"];
   const runs: number[] = [];
   for (let i = 0; i < values.length; i += 1) {
-    await loadFixture(page);
-    const reveal = await revealMs(page, COMMIT_LEAF);
+    const frame = await loadFixture(page);
+    const reveal = await revealMs(page, frame, COMMIT_LEAF);
     expect(reveal, `commit run ${i + 1} selection did not complete`).toBeGreaterThan(0);
     const ms = await commitMs(page, COMMIT_LEAF, "background-color", "background-color", values[i]!);
     expect(ms, `edit commit run ${i + 1} did not complete within ${POLL_TIMEOUT_MS}ms`).toBeGreaterThan(0);
@@ -368,8 +376,8 @@ test("perf: session growth stays sublinear (commit #20 <= 2x commit #1)", async 
   const firsts: number[] = [];
   const lasts: number[] = [];
   for (let run = 0; run < RUNS; run += 1) {
-    await loadFixture(page);
-    const reveal = await revealMs(page, COMMIT_LEAF);
+    const frame = await loadFixture(page);
+    const reveal = await revealMs(page, frame, COMMIT_LEAF);
     expect(reveal, `growth run ${run + 1} selection did not complete`).toBeGreaterThan(0);
     const durations: number[] = [];
     for (let step = 0; step < COMMIT_STEPS.length; step += 1) {

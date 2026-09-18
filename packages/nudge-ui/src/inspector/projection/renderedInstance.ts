@@ -263,7 +263,7 @@ export function applyRenderedInstanceProjection(
 ): DocumentProjectionReport[] {
   if (!isNudgeUiDev()) return [];
   const state = getDocumentState(doc);
-  canonicalOverrides = new Map(overrides.map((override) => [override.id, override]));
+  setCanonicalRenderedInstanceOverrides(overrides);
   const key = JSON.stringify(overrides);
   if (state.snapshotKey === key) {
     const reports = reportsForSnapshot(state, overrides);
@@ -288,6 +288,13 @@ export function applyRenderedInstanceProjection(
   const reports = reportsForSnapshot(state, overrides);
   storeReports(doc, reports);
   return reports;
+}
+
+/** Registers controller-owned overrides without projecting them into the editor shell. */
+export function setCanonicalRenderedInstanceOverrides(
+  overrides: ReadonlyArray<RenderedInstanceOverride>,
+): void {
+  canonicalOverrides = new Map(overrides.map((override) => [override.id, override]));
 }
 
 export function getRenderedInstanceProjectionReports(doc: Document): readonly DocumentProjectionReport[] {

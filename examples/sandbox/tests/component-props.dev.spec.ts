@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { openEditor } from "./editor.ts";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
 test("edits typed React component props through the real component invocation", async ({ page }) => {
-  await page.goto("/component-props");
+  const app = await openEditor(page, "/component-props");
 
-  const button = page.getByRole("button", { name: "Publish changes" });
+  const button = app.getByRole("button", { name: "Publish changes" });
   await expect(button).toHaveAttribute("data-rendered-variant", "primary");
   await expect(button).toHaveAttribute("data-rendered-size", "small");
   await expect(button).toBeEnabled();

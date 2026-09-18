@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactElement } from "react";
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
   isElementClickMessage,
+  isInlineTextIntentMessage,
   isRendererMessageFor,
   type FrameProtocolMessage,
 } from "./frameProtocol.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
-import { useBoardCamera, useCanvasCards } from "./canvasStore.ts";
+import { useBoardCamera, useCanvasCards, useCanvasPresentation, useCanvasPresentationTransitioning } from "./canvasStore.ts";
 import { handleElementClick } from "./rendererSelectionProxy.ts";
 import { getSelectedElements, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 import {
@@ -29,6 +30,9 @@ import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx"
 import { projectMeasurementSegments } from "./measurementProjection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
+import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
+import { toggleInspector, useInspectorOpen } from "../shell/openStore.ts";
+import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 
 interface ElementIdentity {
   elementId: string;
@@ -91,7 +95,11 @@ function findFrameElement(iframe: HTMLIFrameElement, elementId: string, cid: str
   const candidates = doc.querySelectorAll(`[${RENDERER_ELEMENT_ID_ATTR}="${elementId}"]`);
   if (candidates.length !== 1) return null;
   const candidate = candidates[0] ?? null;
-  if (!candidate || candidate.getAttribute("data-cid") !== cid || candidate.getAttribute("data-src") !== src) return null;
+  if (
+    !candidate
+    || candidate.getAttribute("data-cid") !== cid
+    || (candidate.getAttribute("data-src") ?? "") !== src
+  ) return null;
   const frameWindow = doc.defaultView;
   return frameWindow && candidate instanceof frameWindow.HTMLElement ? candidate : null;
 }
@@ -115,16 +123,24 @@ function projectGuideToCanvas(guide: DropGuide | null, zoom: number): ViewportDr
 }
 
 export function CanvasElementOverlay(): ReactElement | null {
+  const isInspectorOpen = useInspectorOpen();
   const [hover, setHover] = useState<FrameOverlayState | null>(null);
   const [measureState, setMeasureState] = useState<FrameMeasureState | null>(null);
   const [, refreshSelectedGeometry] = useReducer((revision: number) => revision + 1, 0);
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
+  const inlineTextSession = useInlineTextSession();
   const camera = useBoardCamera();
-  useCanvasCards(); // Projected geometry must follow card drag and resize updates.
+  const presentation = useCanvasPresentation();
+  const presentationTransitioning = useCanvasPresentationTransitioning();
+  const projectionZoom = presentation === "focus" ? 1 : camera.zoom;
+  const cards = useCanvasCards(); // Projected geometry must follow card drag and resize updates.
+  const cardGeometryKey = cards.map((card) => `${card.id}:${card.x}:${card.y}:${card.width}:${card.height}`).join("|");
+  const projectionGeometryKey = `${presentation}:${camera.x}:${camera.y}:${projectionZoom}:${cardGeometryKey}`;
+  const previousProjectionGeometryKey = useRef(projectionGeometryKey);
   const dragRef = useRef<CanvasDragState | null>(null);
   const dropGuide = useDropGuide("canvas");
-  const projectedDropGuide = projectGuideToCanvas(dropGuide, camera.zoom);
+  const projectedDropGuide = projectGuideToCanvas(dropGuide, projectionZoom);
 
   const selectedFrame = selected?.domElement.ownerDocument.defaultView?.frameElement;
   const selectedInCanvas = selectedFrame instanceof HTMLIFrameElement
@@ -141,16 +157,25 @@ export function CanvasElementOverlay(): ReactElement | null {
     ? toRect(selectedFrame.getBoundingClientRect())
     : null;
   const selectedRect = selectedInCanvas && selectedLocalRect
-    ? projectRect(selectedFrame, selectedLocalRect, camera.zoom)
+    ? projectRect(selectedFrame, selectedLocalRect, projectionZoom)
     : null;
   const projectedSelectedGeometry = selectedInCanvas
     ? selectedRects.flatMap((rect, index) => {
       const element = selectedElements[index];
       return rect && element
-        ? [{ element, rect: projectRect(selectedFrame, rect, camera.zoom) }]
+        ? [{ element, rect: projectRect(selectedFrame, rect, projectionZoom) }]
         : [];
     })
     : [];
+
+  // Camera transforms commit on the board before iframe viewport geometry is
+  // readable. Re-render once after that commit so overlays use the transformed
+  // frame rectangle rather than the previous camera position.
+  useLayoutEffect(() => {
+    const geometryChanged = previousProjectionGeometryKey.current !== projectionGeometryKey;
+    previousProjectionGeometryKey.current = projectionGeometryKey;
+    if (selectedInCanvas && geometryChanged) refreshSelectedGeometry();
+  }, [projectionGeometryKey, selectedInCanvas]);
   const selectedBorders = selectedInCanvas && selected
     ? readBorderWidths(selected.domElement)
     : null;
@@ -215,6 +240,23 @@ export function CanvasElementOverlay(): ReactElement | null {
         const msg = data;
         if (!msg.cid) return;
         handleElementClick(msg, sourceIframe, sourceCardId);
+      } else if (data.type === "inline-text-intent") {
+        if (!isInlineTextIntentMessage(event.data, frameIdentity)) return;
+        if (getSelectedElements().length > 1) return;
+        const emptyProjection = data.emptyProjectionId
+          ? Array.from(sourceIframe.contentDocument?.querySelectorAll<Element>(`[${EMPTY_TEXT_PROJECTION_ATTR}]`) ?? [])
+            .find((candidate) => candidate.getAttribute(EMPTY_TEXT_PROJECTION_ATTR) === data.emptyProjectionId)
+          : null;
+        const element = emptyProjection ?? findFrameElement(sourceIframe, data.elementId, data.cid, data.src);
+        if (!element) return;
+        handleInlineTextEditIntent(data.intent === "double-click"
+          ? { kind: "double-click", target: element, point: data.point }
+          : {
+            kind: "pointer-down",
+            target: element,
+            point: data.point,
+            clickCount: data.clickCount ?? 0,
+          });
       } else if (data.type === "element-deselect") {
         setSelectedElement(null);
       } else if (data.type === "element-drag-start") {
@@ -261,6 +303,8 @@ export function CanvasElementOverlay(): ReactElement | null {
         } else {
           undo();
         }
+      } else if (data.type === "inspector-toggle-request") {
+        toggleInspector();
       }
 
       function updateDropGuide(point: { x: number; y: number }, iframe: HTMLIFrameElement): void {
@@ -282,10 +326,12 @@ export function CanvasElementOverlay(): ReactElement | null {
     };
   }, []);
 
+  if (!isInspectorOpen) return null;
+  if (inlineTextSession && inlineTextSession.host.ownerDocument === selected?.domElement.ownerDocument) return null;
   if (!hover && projectedSelectedGeometry.length === 0 && !projectedDropGuide) return null;
 
-  const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, camera.zoom) : null;
-  const hoverMargins = hover ? scaleMargins(hover.margins, camera.zoom) : null;
+  const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, projectionZoom) : null;
+  const hoverMargins = hover ? scaleMargins(hover.margins, projectionZoom) : null;
   const hoverMarginGuides = projectedHoverRect && hoverMargins
     ? getMarginGuides(projectedHoverRect, hoverMargins)
     : [];
@@ -319,9 +365,11 @@ export function CanvasElementOverlay(): ReactElement | null {
         selectedBorders: selectedBorders ?? undefined,
         hoveredBorders: hoverInSelectedFrame.borders,
       }).segments,
-      camera.zoom,
+      projectionZoom,
     )
     : [];
+
+  if (presentationTransitioning) return <style data-test="canvas-element-overlay-styles">{overlayStyles}</style>;
 
   return (
     <>

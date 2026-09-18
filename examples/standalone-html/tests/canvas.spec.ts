@@ -1,143 +1,84 @@
-import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import { expect, test, type Frame, type Page } from "@playwright/test";
 
-/**
- * Canvas workspace specs for the standalone static HTML host (ADR-0006 over
- * ADR-0012): multi-page same-origin previews served by the loopback CLI,
- * projection into renderer cards, link-discovered page cards, and durable
- * sessions — with no framework runtime in the prototype.
- */
+function previewFrame(page: Page): Frame | undefined {
+  return page.frames().find((frame) => frame !== page.mainFrame()
+    && frame.url().startsWith("http")
+    && !frame.url().includes("/__nudge_ui__/editor"));
+}
 
-async function inspectorReady(page: Page): Promise<void> {
-  // The server prints "/" as the project root; users open the directory URL,
-  // not /index.html. Card deduplication must treat both as one route.
+async function openEditor(page: Page): Promise<Frame> {
   await page.goto("/");
-  await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
-    .toBe(true);
-  await expect(page.locator('[data-test="inspect-tab"]')).toBeAttached();
+  await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => previewFrame(page)?.url() ?? "", { timeout: 30_000 }).toMatch(/\/$/);
+  const frame = previewFrame(page);
+  if (!frame) throw new Error("Static HTML preview frame did not become ready");
+  return frame;
 }
 
-async function cardsReady(page: Page, expected: number): Promise<void> {
-  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await page.waitForFunction((count) => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const iframes = [...(sr?.querySelectorAll<HTMLIFrameElement>("iframe[data-test^='canvas-card-iframe-']") ?? [])];
-    return iframes.length >= count && iframes.every((f) => {
-      try {
-        return Boolean((f.contentWindow as (Window & { __nudgeUi?: unknown }) | null)?.__nudgeUi);
-      } catch {
-        return false;
-      }
-    });
-  }, expected, { timeout: 30_000 });
-}
-
-test("dev: canvas mounts a live renderer card for the current page", async ({ page }) => {
-  await inspectorReady(page);
-  await page.locator('[data-test="mode-canvas"]').click();
-  await cardsReady(page, 1);
-
-  const cardFrame = page.frames().find((f) => f !== page.mainFrame());
-  expect(cardFrame).toBeTruthy();
-  await expect(cardFrame!.locator("#hero-title")).toBeVisible({ timeout: 20_000 });
-});
-
-test("dev: canonical edits project into renderer cards", async ({ page }) => {
-  await inspectorReady(page);
-
-  // Edit the hero title width through the panel.
-  await page.locator("#hero-title").evaluate((el) => {
-    if (!(el instanceof HTMLElement)) throw new Error("target is not an HTMLElement");
-    el.click();
-  });
+async function setWidth(page: Page, frame: Frame, value: string): Promise<void> {
+  const title = frame.locator("#hero-title");
+  await title.click();
   const input = page.locator('[data-test="token-field"][data-property="width"] [data-test="raw-input"]');
   await input.waitFor({ state: "visible", timeout: 15_000 });
-  await input.evaluate((el) => {
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
-    el.focus();
-    setter.call(el, "313px");
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-    el.blur();
-  });
+  await input.evaluate((element, nextValue) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    if (!setter) throw new Error("Missing native input value setter");
+    element.focus();
+    setter.call(element, nextValue);
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+    element.blur();
+  }, value);
+  await expect(title).toHaveCSS("width", value);
+}
 
-  await page.locator('[data-test="mode-canvas"]').click();
-  await cardsReady(page, 1);
-
-  const cardFrame = page.frames().find((f) => f !== page.mainFrame())!;
-  await expect.poll(() =>
-    cardFrame.evaluate(() => {
-      const title = document.querySelector("#hero-title");
-      return title ? getComputedStyle(title).width : null;
-    }),
-  ).toBe("313px");
+test("dev: static HTML opens as the live editor renderer", async ({ page }) => {
+  const frame = await openEditor(page);
+  await expect(page.locator('[data-test^="canvas-card-iframe-"]')).toHaveCount(1);
+  await expect(frame.locator("#hero-title")).toBeVisible();
 });
 
-test("dev: links inside a card discover sibling page cards", async ({ page }) => {
-  await inspectorReady(page);
-  await page.locator('[data-test="mode-canvas"]').click();
-  await cardsReady(page, 1);
-
-  const cardFrame = page.frames().find((f) => f !== page.mainFrame())!;
-  await cardFrame.locator('a[href="/second.html"]').evaluate((el) => {
-    if (!(el instanceof HTMLElement)) throw new Error("nav link is not an HTMLElement");
-    el.click();
-  });
-
-  await page.waitForFunction(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    const paths = [...(sr?.querySelectorAll("[data-card-id]") ?? [])].map((c) => {
-      const f = c.querySelector("iframe");
-      try {
-        return new URL(f!.contentWindow!.location.href).pathname;
-      } catch {
-        return "?";
-      }
-    });
-    return paths.includes("/second.html");
-  }, undefined, { timeout: 30_000 });
-  await cardsReady(page, 2);
-
-  // Navigating the second card back home via /index.html must focus the
-  // existing "/" card: directory and index-file URLs are one route.
-  const secondFrame = page.frames().find((f) => f.url().endsWith("/second.html"));
-  expect(secondFrame).toBeTruthy();
-  await secondFrame!.locator('a[href="/index.html"]').evaluate((el) => {
-    if (!(el instanceof HTMLElement)) throw new Error("nav link is not an HTMLElement");
-    el.click();
-  });
-  await expect
-    .poll(() => page.evaluate(() => {
-      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-      return sr?.querySelectorAll("[data-card-id]").length ?? 0;
-    }), { timeout: 15_000 })
-    .toBe(2);
+test("dev: canonical edits project into the static renderer", async ({ page }) => {
+  const frame = await openEditor(page);
+  await setWidth(page, frame, "313px");
+  await page.locator('[data-test^="canvas-card-reload-"]').click();
+  await expect.poll(() => previewFrame(page)?.url() ?? "", { timeout: 20_000 }).toMatch(/\/$/);
+  await expect(previewFrame(page)!.locator("#hero-title")).toHaveCSS("width", "313px");
 });
 
-test("dev: canvas layout is durable across a controller reload", async ({ page }) => {
-  await inspectorReady(page);
-  await page.locator('[data-test="mode-canvas"]').click();
-  await cardsReady(page, 1);
+test("dev: static links navigate the focused renderer", async ({ page }) => {
+  const frame = await openEditor(page);
+  await frame.locator('a[href="/second.html"]').click();
+  await expect.poll(() => previewFrame(page)?.url() ?? "", { timeout: 20_000 }).toMatch(/\/second\.html$/);
+  await expect(previewFrame(page)!.locator("h1")).toBeVisible();
+  await expect(page.locator('[data-test^="canvas-card-iframe-"]')).toHaveCount(1);
+});
 
-  const cardFrame = page.frames().find((f) => f !== page.mainFrame())!;
-  await cardFrame.locator('a[href="/second.html"]').evaluate((el) => {
-    if (!(el instanceof HTMLElement)) throw new Error("nav link is not an HTMLElement");
-    el.click();
-  });
-  await page.waitForFunction(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return (sr?.querySelectorAll("[data-card-id]") ?? []).length >= 2;
-  }, undefined, { timeout: 30_000 });
+test("dev: Open app stays plain across static navigation and reload", async ({ page }) => {
+  await openEditor(page);
+  const popupPromise = page.waitForEvent("popup");
+  await page.locator('[data-test^="canvas-card-open-app-"]').click();
+  const application = await popupPromise;
 
+  await expect(application.locator("#hero-title")).toBeVisible();
+  await expect(application.locator("#nudge-ui-root")).toHaveJSProperty("shadowRoot", null);
+  await application.locator('a[href="/second.html"]').click();
+  await expect(application).toHaveURL(/\/second\.html$/);
+  await expect(application.locator("#nudge-ui-root")).toHaveJSProperty("shadowRoot", null);
+  await application.reload();
+  await expect(application).toHaveURL(/\/second\.html$/);
+  await expect(application.locator("#nudge-ui-root")).toHaveJSProperty("shadowRoot", null);
+});
+
+test("dev: static comparison layout and edits survive an editor reload", async ({ page }) => {
+  const frame = await openEditor(page);
+  await setWidth(page, frame, "314px");
+  await page.locator('[data-test^="canvas-card-duplicate-"]').click();
+  await expect(page.locator('[data-test^="canvas-card-iframe-"]')).toHaveCount(2);
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
-    .toBe(true);
-  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible({ timeout: 20_000 });
-  await expect
-    .poll(() => page.evaluate(() => {
-      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-      return sr?.querySelectorAll("[data-card-id]").length ?? 0;
-    }))
-    .toBe(2);
+  await expect(page.locator('[data-test^="canvas-card-iframe-"]')).toHaveCount(2, { timeout: 30_000 });
+  await expect.poll(() => page.frames().filter((candidate) => candidate !== page.mainFrame()
+    && candidate.url().startsWith("http")
+    && !candidate.url().includes("/__nudge_ui__/editor")).length, { timeout: 30_000 }).toBe(2);
+  await expect(previewFrame(page)!.locator("#hero-title")).toHaveCSS("width", "314px");
 });

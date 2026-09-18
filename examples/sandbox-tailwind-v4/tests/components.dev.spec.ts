@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "./editor.ts";
 
 test("the shadcn gallery renders every installed registry component", async ({ page }) => {
-  await page.goto("/components");
+  const app = await openEditor(page, "/components");
 
-  await expect(page.getByRole("heading", { name: /Every component/ })).toBeVisible();
-  await expect(page.getByText("61 components")).toBeVisible();
-  await expect(page.locator('[data-test="shadcn-item"]')).toHaveCount(1);
-  await expect(page.locator('[data-test^="shadcn-"]')).toHaveCount(61);
+  await expect(app.getByRole("heading", { name: /Every component/ })).toBeVisible();
+  await expect(app.getByText("61 components")).toBeVisible();
+  await expect(app.locator('[data-test="shadcn-item"]')).toHaveCount(1);
+  await expect(app.locator('[data-test^="shadcn-"]')).toHaveCount(61);
 });

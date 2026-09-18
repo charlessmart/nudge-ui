@@ -15,6 +15,7 @@ import {
 } from "./server.ts";
 import {
   NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_EDITOR_PATH,
   NUDGE_UI_MANIFEST_PATH,
   NUDGE_UI_RELOAD_PATH,
 } from "./manifest.ts";
@@ -193,6 +194,22 @@ describe("createStandaloneServer", () => {
       componentContracts: [],
     });
     expect(manifest.runtime.tokenGeneration).toMatch(/^static-html:/);
+
+    const editorResponse = await fetch(
+      address.url + NUDGE_UI_EDITOR_PATH.slice(1) + "?url=%2Fprototype%2Findex.html",
+    );
+    const editorHtml = await editorResponse.text();
+    expect(editorResponse.status).toBe(200);
+    expect(editorResponse.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(editorHtml).toContain("data-nudge-ui-editor");
+    expect(editorHtml).not.toContain("prototype/index.html");
+
+    const markedEditorResponse = await fetch(
+      address.url + "prototype/index.html?theme=dark&nudge-ui=editor",
+      { headers: { Accept: "text/html" } },
+    );
+    expect(markedEditorResponse.status).toBe(200);
+    expect(await markedEditorResponse.text()).toContain("data-nudge-ui-editor");
 
     const reservedShadow = await fetch(address.url + "__nudge_ui__/manifest");
     expect(reservedShadow.status).toBe(200);

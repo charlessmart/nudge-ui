@@ -185,8 +185,10 @@ function ownerHTMLElement(element: Element): HTMLElement | null {
 }
 
 function currentIntentTarget(intent: InlineTextTargetIntent): Element | null {
+  const pointed = intent.ownerDocument.elementFromPoint?.(intent.point.x, intent.point.y) ?? null;
+  if (pointed?.closest(`[${EMPTY_TEXT_PROJECTION_ATTR}]`)) return pointed;
   if (intent.target.isConnected) return intent.target;
-  return intent.ownerDocument.elementFromPoint?.(intent.point.x, intent.point.y) ?? null;
+  return pointed;
 }
 
 function resolveInlineTextEditIntent(
@@ -597,7 +599,8 @@ function resolveEmptyProjectionCandidate(
 function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   const doc = candidate.element.ownerDocument;
   const originalSelection = captureSelection(doc);
-  const previousActiveElement = doc.activeElement instanceof HTMLElement
+  const OwnerHTMLElement = doc.defaultView?.HTMLElement;
+  const previousActiveElement = OwnerHTMLElement && doc.activeElement instanceof OwnerHTMLElement
     ? doc.activeElement
     : null;
   const originalParent = candidate.textNode.parentNode;
@@ -771,7 +774,8 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
 
   function editorOwnsFocus(): boolean {
     const active = doc.activeElement;
-    return active === host || (active instanceof Node && host.contains(active));
+    const OwnerNode = doc.defaultView?.Node;
+    return active === host || Boolean(OwnerNode && active instanceof OwnerNode && host.contains(active));
   }
 
   function cancelForReconciliation(discardedDraft?: string): void {
@@ -1057,7 +1061,8 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   function suppressInteractiveAction(event: Event): void {
     if (finished) return;
     const target = event.target;
-    if (!(target instanceof Node)) return;
+    const OwnerNode = doc.defaultView?.Node;
+    if (!OwnerNode || !(target instanceof OwnerNode)) return;
     if (host.contains(target)) {
       // All down/up events must reach the native editing host so caret and
       // drag-selection behavior remains intact. The click itself is held so

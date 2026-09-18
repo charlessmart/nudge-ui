@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 
 /**
  * Stage 5 conformance — React island support (docs/features/
@@ -26,19 +26,25 @@ function trackSevereErrors(page: Page): () => string[] {
   return () => errors;
 }
 
-async function waitForInspector(page: Page): Promise<void> {
-  await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
-    .toBe(true);
+async function waitForInspector(page: Page): Promise<Frame> {
+  await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
   await expect
     .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
+  await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
+    && frame.url().startsWith("http")
+    && !frame.url().includes("/__nudge_ui__/editor"))?.url() ?? "").not.toBe("");
+  const frame = page.frames().find((candidate) => candidate !== page.mainFrame()
+    && candidate.url().startsWith("http")
+    && !candidate.url().includes("/__nudge_ui__/editor"));
+  if (!frame) throw new Error("Astro preview frame did not become ready");
+  return frame;
 }
 
 /** Hydration must have attached React fibers before selection can resolve semantic targets. */
-async function waitForHydratedIsland(page: Page): Promise<void> {
+async function waitForHydratedIsland(frame: Frame): Promise<void> {
   await expect.poll(() =>
-    page.evaluate(() => {
+    frame.evaluate(() => {
       const badge = document.querySelector(".counter-label");
       return Boolean(
         badge instanceof HTMLElement
@@ -48,17 +54,17 @@ async function waitForHydratedIsland(page: Page): Promise<void> {
   ).toBe(true);
 }
 
-async function selectIslandBadge(page: Page): Promise<() => string[]> {
+async function selectIslandBadge(page: Page): Promise<{ frame: Frame; severeErrors: () => string[] }> {
   const severeErrors = trackSevereErrors(page);
   await page.goto("/");
-  await waitForInspector(page);
-  await waitForHydratedIsland(page);
+  const frame = await waitForInspector(page);
+  await waitForHydratedIsland(frame);
 
-  await page.locator(".counter-label").click();
+  await frame.locator(".counter-label").click();
   // The panel is the supported selection contract. The old top-level
   // selection badge was removed from the inspector shell.
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
-  return severeErrors;
+  return { frame, severeErrors };
 }
 
 async function copyPrompt(page: Page): Promise<string> {
@@ -73,7 +79,7 @@ async function copyPrompt(page: Page): Promise<string> {
 }
 
 test("dev: selecting inside the hydrated island exposes component-semantics controls", async ({ page }) => {
-  const severeErrors = await selectIslandBadge(page);
+  const { severeErrors } = await selectIslandBadge(page);
 
   // The island internals carry React-transform identity; the panel names the
   // island component and lists every typed prop with a current value.
@@ -91,12 +97,12 @@ test("dev: selecting inside the hydrated island exposes component-semantics cont
 test("dev: page-level .astro elements expose no component-semantics controls", async ({ page }) => {
   const severeErrors = trackSevereErrors(page);
   await page.goto("/");
-  await waitForInspector(page);
-  await waitForHydratedIsland(page);
+  const frame = await waitForInspector(page);
+  await waitForHydratedIsland(frame);
 
   // The site title is rendered by Header.astro: response-layer identity, no
   // runtime to rerender, therefore no semantic controls.
-  await page.locator(".site-header .site-title").click();
+  await frame.locator(".site-header .site-title").click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   await expect(page.locator('[data-test="component-props-section"]')).toHaveCount(0);
 
@@ -104,9 +110,9 @@ test("dev: page-level .astro elements expose no component-semantics controls", a
 });
 
 test("dev: flipping typed props rerenders the real island component without managed stylesheet declarations", async ({ page }) => {
-  const severeErrors = await selectIslandBadge(page);
+  const { frame, severeErrors } = await selectIslandBadge(page);
 
-  const badge = page.locator(".counter-label").first();
+  const badge = frame.locator(".counter-label").first();
   await expect(badge).toHaveClass(/counter-label--primary/);
   await expect(badge).toHaveAttribute("data-rendered-variant", "primary");
 
@@ -120,8 +126,8 @@ test("dev: flipping typed props rerenders the real island component without mana
   await page.locator(
     '[data-test="component-prop-boolean"][data-property="disabled"] button[aria-label="On"]',
   ).click();
-  await expect(page.locator(".counter-label").first()).toHaveText("Island (off)");
-  await expect(page.locator(".counter-button")).toBeDisabled();
+  await expect(frame.locator(".counter-label").first()).toHaveText("Island (off)");
+  await expect(frame.locator(".counter-button")).toBeDisabled();
 
   // ADR-0007 holds inside islands: any managed stylesheet that exists carries
   // ZERO rules after either override — semantic changes never project into
@@ -129,7 +135,7 @@ test("dev: flipping typed props rerenders the real island component without mana
   // mutated (the class/text assertions above are only coherent from a real
   // rerender).
   await expect.poll(async () => {
-    return page.evaluate(() => {
+    return frame.evaluate(() => {
       const sheet = document.getElementById("nudge-ui-styles") as HTMLStyleElement | null;
       // The sheet may be created lazily by unrelated preview machinery; what
       // matters is that a semantic override contributes no rules to it.
@@ -141,11 +147,11 @@ test("dev: flipping typed props rerenders the real island component without mana
 });
 
 test("dev: the generated prompt carries the island component record without identity leakage", async ({ page }) => {
-  const severeErrors = await selectIslandBadge(page);
+  const { frame, severeErrors } = await selectIslandBadge(page);
 
   await page.locator('[data-test="component-prop-variant"]').click();
   await page.locator('.select__item[data-value="ghost"]').click();
-  await expect(page.locator(".counter-label").first()).toHaveClass(/counter-label--ghost/);
+  await expect(frame.locator(".counter-label").first()).toHaveClass(/counter-label--ghost/);
 
   const prompt = await copyPrompt(page);
   expect(prompt).toContain("## Component prop changes");
@@ -183,8 +189,8 @@ test("dev: the astro-island host keeps Astro-derived identity across hydration",
   });
 
   await page.goto("/");
-  await waitForInspector(page);
-  await waitForHydratedIsland(page);
+  const frame = await waitForInspector(page);
+  await waitForHydratedIsland(frame);
 
   // Identity handoff: the server HTML already carried React-transform cids
   // inside the island (the shared plugin transforms island JSX for SSR too),
@@ -193,7 +199,7 @@ test("dev: the astro-island host keeps Astro-derived identity across hydration",
   expect(rawHtml).toContain('data-cid="IslandCounter"');
   expect(rawHtml).toMatch(/<astro-island[^>]*data-cid="astro:Island"/);
 
-  const islandHost = page.locator("astro-island");
+  const islandHost = frame.locator("astro-island");
   await expect(islandHost).toHaveAttribute("data-cid", "astro:Island");
   // Astro does not annotate its compiler-generated hydration host with source
   // annotations, so the host degrades to the generated label without an
@@ -201,13 +207,13 @@ test("dev: the astro-island host keeps Astro-derived identity across hydration",
   // only exact authored coordinates are acceptable.
   const hostSrc = await islandHost.getAttribute("data-src");
   if (hostSrc !== null) expect(hostSrc).toMatch(/\.astro:\d+:\d+$/);
-  await expect(page.locator(".counter-label")).toHaveAttribute("data-cid", "IslandCounter");
-  await expect(page.locator(".counter-label")).toHaveAttribute(
+  await expect(frame.locator(".counter-label")).toHaveAttribute("data-cid", "IslandCounter");
+  await expect(frame.locator(".counter-label")).toHaveAttribute(
     "data-src",
     /src\/components\/Counter\.tsx:\d+:\d+/,
   );
 
-  const removedTracked = await page.evaluate(
+  const removedTracked = await frame.evaluate(
     () => (window as unknown as { __dtRemovedTracked?: string[] }).__dtRemovedTracked ?? [],
   );
   expect(removedTracked).toEqual([]);
@@ -248,10 +254,10 @@ test("dev: a slow react-refresh runtime does not break the page", async ({ page 
   });
 
   await page.goto("/");
-  await waitForInspector(page);
-  await waitForHydratedIsland(page);
+  const frame = await waitForInspector(page);
+  await waitForHydratedIsland(frame);
 
-  const summary = await page.evaluate(() => {
+  const summary = await frame.evaluate(() => {
     const reads = (window as unknown as { __dtRefreshRegReads?: unknown[] }).__dtRefreshRegReads
       ?? [];
     return {

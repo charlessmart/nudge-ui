@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { appLocator, getAppFrame } from "./editor.ts";
 
 async function dragBefore(
   page: import("@playwright/test").Page,
@@ -99,10 +100,10 @@ async function dragIntoFlexGap(
   await page.mouse.up();
 }
 
-test("dev: Inspect drags a tracked element with an insertion guide and records the DOM move", async ({ page }) => {
+test("dev: editing surface drags a tracked element with an insertion guide and records the DOM move", async ({ page }) => {
   await page.goto("/playground");
-  const source = page.locator('[data-test="flex-child-a"]');
-  const destination = page.locator('[data-test="flex-child-c"]');
+  const source = appLocator(page, '[data-test="flex-child-a"]');
+  const destination = appLocator(page, '[data-test="flex-child-c"]');
   expect(await source.getAttribute("data-cid")).toBeTruthy();
 
   await expect.poll(() => source.evaluate((element) => ({
@@ -114,33 +115,32 @@ test("dev: Inspect drags a tracked element with an insertion guide and records t
     page,
     source,
     destination,
-    page.locator('[data-test="dom-drop-line"]'),
-    page.locator('[data-test="dom-drop-target"]'),
+    page.locator('[data-test="canvas-dom-drop-line"]'),
+    page.locator('[data-test="canvas-dom-drop-target"]'),
   );
 
-  await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+  await expect.poll(() => appLocator(page, '[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
   await page.locator('[data-test="changes-toggle"]').click();
   await expect(page.locator('[data-test="dom-change-row"][data-action="move"]')).toBeVisible();
 });
 
-test("dev: Inspect moves an element across containers, preserves destination inheritance, and reloads it", async ({ page }) => {
+test("dev: editing surface moves an element across containers, preserves destination inheritance, and reloads it", async ({ page }) => {
   await page.goto("/playground");
-  const source = page.locator('[data-test="structural-move-target"]');
-  const anchor = page.locator('[data-test="structural-anchor"]');
-  const destination = page.locator('[data-test="structural-destination"]');
+  const source = appLocator(page, '[data-test="structural-move-target"]');
+  const anchor = appLocator(page, '[data-test="structural-anchor"]');
+  const destination = appLocator(page, '[data-test="structural-destination"]');
 
   await expect(source).toHaveCSS("color", "rgb(67, 56, 202)");
-  await dragBefore(page, source, anchor, page.locator('[data-test="dom-drop-line"]'));
+  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
   await expect(source).toHaveCSS("color", "rgb(180, 83, 9)");
   await expect(destination).toContainText("Move this card");
 
   await page.locator('[data-test="changes-toggle"]').click();
   await expect(page.locator('[data-test="dom-change-row"][data-action="move"]')).toContainText("position");
   await page.reload();
-  await expect(page.locator('[data-test="structural-destination"]')).toContainText("Move this card");
-  await expect(page.locator('[data-test="structural-move-target"]')).toHaveCSS("color", "rgb(180, 83, 9)");
+  await expect(appLocator(page, '[data-test="structural-destination"]')).toContainText("Move this card");
+  await expect(appLocator(page, '[data-test="structural-move-target"]')).toHaveCSS("color", "rgb(180, 83, 9)");
 
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator('[data-test="structural-destination"]')).toContainText("Move this card");
@@ -150,9 +150,8 @@ test("dev: Inspect moves an element across containers, preserves destination inh
   await expect(frame.locator('[data-test="structural-destination"]')).toContainText("Move this card");
 });
 
-test("dev: a Canvas-originated cross-container move projects back to Inspect", async ({ page }) => {
+test("dev: a Canvas-originated cross-container move projects back to editing surface", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const source = frame.locator('[data-test="structural-move-target"]');
@@ -160,21 +159,19 @@ test("dev: a Canvas-originated cross-container move projects back to Inspect", a
   await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
 
   await expect(frame.locator('[data-test="structural-destination"]')).toContainText("Move this card");
-  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
-  await expect(page.locator('[data-test="structural-destination"]')).toContainText("Move this card");
-  await expect(page.locator('[data-test="structural-move-target"]')).toHaveCSS("color", "rgb(180, 83, 9)");
+  await expect(appLocator(page, '[data-test="structural-destination"]')).toContainText("Move this card");
+  await expect(appLocator(page, '[data-test="structural-move-target"]')).toHaveCSS("color", "rgb(180, 83, 9)");
 });
 
 test("dev: a cross-container move can append into an empty grid", async ({ page }) => {
   await page.goto("/playground");
-  const source = page.locator('[data-test="structural-move-target"]');
-  const destination = page.locator('[data-test="structural-empty-grid"]');
+  const source = appLocator(page, '[data-test="structural-move-target"]');
+  const destination = appLocator(page, '[data-test="structural-empty-grid"]');
 
-  await dragIntoContainer(page, source, destination, page.locator('[data-test="dom-drop-line"]'));
+  await dragIntoContainer(page, source, destination, page.locator('[data-test="canvas-dom-drop-line"]'));
   await expect(destination.locator('[data-test="structural-move-target"]')).toHaveCount(1);
   await expect(source).toHaveCSS("color", "rgb(22, 101, 52)");
 
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator('[data-test="structural-empty-grid"] [data-test="structural-move-target"]')).toHaveCount(1);
@@ -182,14 +179,14 @@ test("dev: a cross-container move can append into an empty grid", async ({ page 
 
 test("dev: a cross-container move can place an item after an anchor in a row-reverse destination", async ({ page }) => {
   await page.goto("/playground");
-  const source = page.locator('[data-test="structural-move-target"]');
-  const anchor = page.locator('[data-test="structural-anchor"]');
-  const destination = page.locator('[data-test="structural-destination"]');
+  const source = appLocator(page, '[data-test="structural-move-target"]');
+  const anchor = appLocator(page, '[data-test="structural-anchor"]');
+  const destination = appLocator(page, '[data-test="structural-destination"]');
   await destination.evaluate((element) => {
     (element as HTMLElement).style.flexDirection = "row-reverse";
   });
 
-  await dragBefore(page, source, anchor, page.locator('[data-test="dom-drop-line"]'), undefined, true);
+  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'), undefined, true);
   const cards = destination.locator(".structural-move-card");
   await expect(cards).toHaveCount(2);
   await expect(cards.nth(0)).toHaveClass(/structural-move-card--anchor/);
@@ -198,12 +195,12 @@ test("dev: a cross-container move can place an item after an anchor in a row-rev
 
 test("dev: cross-container moves support undo, redo, revert, and clear", async ({ page }) => {
   await page.goto("/playground");
-  const source = page.locator('[data-test="structural-move-target"]');
-  const anchor = page.locator('[data-test="structural-anchor"]');
-  const sourceContainer = page.locator('[data-test="structural-source"]');
-  const destination = page.locator('[data-test="structural-destination"]');
+  const source = appLocator(page, '[data-test="structural-move-target"]');
+  const anchor = appLocator(page, '[data-test="structural-anchor"]');
+  const sourceContainer = appLocator(page, '[data-test="structural-source"]');
+  const destination = appLocator(page, '[data-test="structural-destination"]');
 
-  await dragBefore(page, source, anchor, page.locator('[data-test="dom-drop-line"]'));
+  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
   await expect(destination).toContainText("Move this card");
   await page.keyboard.press("Control+z");
   await expect(sourceContainer).toContainText("Move this card");
@@ -215,18 +212,19 @@ test("dev: cross-container moves support undo, redo, revert, and clear", async (
   await expect(sourceContainer).toContainText("Move this card");
   await expect(destination).not.toContainText("Move this card");
 
-  await dragBefore(page, source, anchor, page.locator('[data-test="dom-drop-line"]'));
+  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
+  await expect(destination).toContainText("Move this card");
+  await expect(page.locator('[data-test="changes-toggle"]')).toBeVisible();
   await page.reload();
-  await expect(page.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+  await expect(appLocator(page, '[data-test="structural-destination"]')).toContainText("Move this card");
   await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
   await page.locator('[data-test="clear-session"]').click();
-  await expect(page.locator('[data-test="structural-source"]')).toContainText("Move this card");
-  await expect(page.locator('[data-test="structural-destination"]')).not.toContainText("Move this card");
+  await expect(appLocator(page, '[data-test="structural-source"]')).toContainText("Move this card");
+  await expect(appLocator(page, '[data-test="structural-destination"]')).not.toContainText("Move this card");
 });
 
 test("dev: a cross-container snapshot reaches every ready Canvas card", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   await page.locator('[data-test^="canvas-card-duplicate-"]').click();
   await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
@@ -247,12 +245,12 @@ test("dev: a cross-container snapshot reaches every ready Canvas card", async ({
 
 test("dev: an application snap-back reports a cross-container preview override without reapplying it", async ({ page }) => {
   await page.goto("/playground");
-  const source = page.locator('[data-test="structural-move-target"]');
-  const anchor = page.locator('[data-test="structural-anchor"]');
-  await dragBefore(page, source, anchor, page.locator('[data-test="dom-drop-line"]'));
-  await expect(page.locator('[data-test="structural-destination"]')).toContainText("Move this card");
+  const source = appLocator(page, '[data-test="structural-move-target"]');
+  const anchor = appLocator(page, '[data-test="structural-anchor"]');
+  await dragBefore(page, source, anchor, page.locator('[data-test="canvas-dom-drop-line"]'));
+  await expect(appLocator(page, '[data-test="structural-destination"]')).toContainText("Move this card");
 
-  await page.evaluate(() => {
+  await (await getAppFrame(page)).evaluate(() => {
     // Simulate the authored React tree winning reconciliation. The real
     // framework owns this parent relationship; the inspector must report the
     // conflict and leave the application-owned placement alone.
@@ -262,29 +260,29 @@ test("dev: an application snap-back reports a cross-container preview override w
     if (!source || !target) throw new Error("Expected structural move fixture");
     source.insertBefore(target, source.firstElementChild);
   });
-  await expect(page.locator('[data-test="structural-destination"]')).not.toContainText("Move this card");
-  await expect(page.locator('[data-test="structural-source"]')).toContainText("Move this card");
+  await expect(appLocator(page, '[data-test="structural-destination"]')).not.toContainText("Move this card");
+  await expect(appLocator(page, '[data-test="structural-source"]')).toContainText("Move this card");
   await page.locator('[data-test="changes-toggle"]').click();
-  await expect(page.locator('[data-test="structural-diagnostic"][data-document="Inspect"][data-status="overridden"][data-reason="react-override"]')).toBeVisible();
+  await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="overridden"][data-reason="react-override"]')).toBeVisible();
   await page.waitForTimeout(100);
-  await expect(page.locator('[data-test="structural-source"]')).toContainText("Move this card");
+  await expect(appLocator(page, '[data-test="structural-source"]')).toContainText("Move this card");
 });
 
-test("dev: Inspect centres a flex-row insertion guide in a space-between gap", async ({ page }) => {
+test("dev: editing surface centres a flex-row insertion guide in a space-between gap", async ({ page }) => {
   await page.goto("/playground");
   await dragIntoFlexGap(
     page,
-    page.locator('[data-test="flex-child-a"]'),
-    page.locator('[data-test="flex-child-b"]'),
-    page.locator('[data-test="flex-child-c"]'),
-    page.locator('[data-test="dom-drop-line"]'),
+    appLocator(page, '[data-test="flex-child-a"]'),
+    appLocator(page, '[data-test="flex-child-b"]'),
+    appLocator(page, '[data-test="flex-child-c"]'),
+    page.locator('[data-test="canvas-dom-drop-line"]'),
   );
-  await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+  await expect.poll(() => appLocator(page, '[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
-test("dev: Inspect deletes the selected tracked element with the macOS Backspace key and records the removal", async ({ page }) => {
+test("dev: editing surface deletes the selected tracked element with the macOS Backspace key and records the removal", async ({ page }) => {
   await page.goto("/playground");
-  const heading = page.locator("#hero-title");
+  const heading = appLocator(page, "#hero-title");
   await heading.click();
   await page.keyboard.press("Backspace");
 
@@ -294,14 +292,14 @@ test("dev: Inspect deletes the selected tracked element with the macOS Backspace
 
   await expect(page.locator('[data-test="clear-session"]')).toBeVisible();
   await page.locator('[data-test="clear-session"]').click();
-  await expect(page.locator("#hero-title")).toBeVisible();
+  await expect(appLocator(page, "#hero-title")).toBeVisible();
   await expect(page.locator('[data-test="changes-log"]')).not.toBeAttached();
   await expect(page.locator('[data-test="clear-session"]')).not.toBeAttached();
 });
 
-test("dev: Inspect revert and undo/redo operate on canonical structural history", async ({ page }) => {
+test("dev: editing surface revert and undo/redo operate on canonical structural history", async ({ page }) => {
   await page.goto("/playground");
-  const repeated = page.getByText("Repeated 3", { exact: true });
+  const repeated = page.frameLocator(".canvas-card__iframe").first().getByText("Repeated 3", { exact: true });
   await repeated.click();
   await page.keyboard.press("Backspace");
   await expect(repeated).not.toBeAttached();
@@ -310,20 +308,19 @@ test("dev: Inspect revert and undo/redo operate on canonical structural history"
   await expect(page.locator('[data-test="structural-source-site"]')).toContainText("RepeatedItem");
   await expect(page.locator('[data-test="structural-scope"]')).toHaveText("This rendered item only");
   await page.locator('[data-test="dom-change-revert"]').click();
-  await expect(page.getByText("Repeated 3", { exact: true })).toBeVisible();
+  await expect(page.frameLocator(".canvas-card__iframe").first().getByText("Repeated 3", { exact: true })).toBeVisible();
 
   await repeated.click();
   await page.keyboard.press("Backspace");
   await expect(repeated).not.toBeAttached();
   await page.keyboard.press("Control+z");
-  await expect(page.getByText("Repeated 3", { exact: true })).toBeVisible();
+  await expect(page.frameLocator(".canvas-card__iframe").first().getByText("Repeated 3", { exact: true })).toBeVisible();
   await page.keyboard.press("Control+Shift+z");
-  await expect(page.getByText("Repeated 3", { exact: true })).not.toBeAttached();
+  await expect(page.frameLocator(".canvas-card__iframe").first().getByText("Repeated 3", { exact: true })).not.toBeAttached();
 });
 
 test("dev: Canvas revert and undo/redo are controller-owned and the card reload keeps the current history", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const repeated = frame.getByText("Repeated 3", { exact: true });
   await repeated.click();
@@ -345,12 +342,12 @@ test("dev: Canvas revert and undo/redo are controller-owned and the card reload 
 
 test("dev: an application replacement is reported as overridden and is not reapplied", async ({ page }) => {
   await page.goto("/playground");
-  const repeated = page.getByText("Repeated 3", { exact: true });
+  const repeated = page.frameLocator(".canvas-card__iframe").first().getByText("Repeated 3", { exact: true });
   await repeated.click();
   await page.keyboard.press("Backspace");
   await expect(repeated).not.toBeAttached();
 
-  await page.evaluate(() => {
+  await (await getAppFrame(page)).evaluate(() => {
     const list = document.querySelector('[data-test="repeated-items"]');
     const placeholder = Array.from(list?.childNodes ?? []).find((node) =>
       node.nodeType === Node.COMMENT_NODE && node.nodeValue === "nudge-ui-deleted");
@@ -363,20 +360,20 @@ test("dev: an application replacement is reported as overridden and is not reapp
   });
 
   await page.locator('[data-test="changes-toggle"]').click();
-  await expect(page.locator('[data-test="structural-diagnostic"][data-document="Inspect"][data-status="overridden"]')).toBeVisible();
-  await expect(page.locator('[data-application-rendered="true"]')).toHaveText("Application replacement");
+  await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="overridden"]')).toBeVisible();
+  await expect(appLocator(page, '[data-application-rendered="true"]')).toHaveText("Application replacement");
   await page.waitForTimeout(100);
-  await expect(page.locator('[data-application-rendered="true"]')).toHaveText("Application replacement");
+  await expect(appLocator(page, '[data-application-rendered="true"]')).toHaveText("Application replacement");
 });
 
-test("dev: duplicate structural evidence stays ambiguous instead of rebinding", async ({ page }) => {
+test("dev: duplicate structural evidence refuses an ambiguous delete", async ({ page }) => {
   await page.goto("/playground");
-  const target = page.getByText("Repeated 3", { exact: true });
+  const target = page.frameLocator(".canvas-card__iframe").first().getByText("Repeated 3", { exact: true });
   await target.click();
 
   // Keep the selected element, but add an indistinguishable rendered sibling
   // before creating intent. The structural resolver must decline to guess.
-  await page.evaluate(() => {
+  await (await getAppFrame(page)).evaluate(() => {
     const original = Array.from(document.querySelectorAll<HTMLElement>(".repeated-item"))
       .find((element) => element.textContent?.trim() === "Repeated 3");
     if (!original?.parentElement) throw new Error("Expected repeated target");
@@ -386,16 +383,12 @@ test("dev: duplicate structural evidence stays ambiguous instead of rebinding", 
   });
 
   await page.keyboard.press("Backspace");
-  await page.locator('[data-test="changes-toggle"]').click();
-  await expect(page.locator(
-    '[data-test="structural-diagnostic"][data-document="Inspect"][data-status="ambiguous"]',
-  )).toBeVisible();
-  await expect(page.locator(".repeated-item").filter({ hasText: "Repeated 3" })).toHaveCount(2);
+  await expect(appLocator(page, ".repeated-item").filter({ hasText: "Repeated 3" })).toHaveCount(2);
+  await expect(page.locator('[data-test="changes-toggle"]')).toHaveCount(0);
 });
 
 test("dev: the same Canvas edit keeps diagnostics separate per document", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   const board = page.locator('[data-test="canvas-board"]');
   await expect(board.locator(".canvas-card")).toHaveCount(1);
   await page.locator('[data-test^="canvas-card-duplicate-"]').first().click();
@@ -440,36 +433,34 @@ test("dev: the same Canvas edit keeps diagnostics separate per document", async 
   )).toHaveCount(1);
 });
 
-test("dev: Inspect DOM moves survive switching to Canvas", async ({ page }) => {
+test("dev: editing surface DOM moves survive switching to Canvas", async ({ page }) => {
   await page.goto("/playground");
   await dragBefore(
     page,
-    page.locator('[data-test="flex-child-a"]'),
-    page.locator('[data-test="flex-child-c"]'),
-    page.locator('[data-test="dom-drop-line"]'),
-    page.locator('[data-test="dom-drop-target"]'),
+    appLocator(page, '[data-test="flex-child-a"]'),
+    appLocator(page, '[data-test="flex-child-c"]'),
+    page.locator('[data-test="canvas-dom-drop-line"]'),
+    page.locator('[data-test="canvas-dom-drop-target"]'),
   );
 
-  await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
-  await page.locator('[data-test="mode-canvas"]').click();
+  await expect.poll(() => appLocator(page, '[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
-test("dev: Inspect arrow keys reorder a selected sibling", async ({ page }) => {
+test("dev: editing surface arrow keys reorder a selected sibling", async ({ page }) => {
   await page.goto("/playground");
-  const first = page.locator('[data-test="flex-child-a"]');
+  const first = appLocator(page, '[data-test="flex-child-a"]');
   await first.click();
-  const outline = page.locator('[data-test="selected-outline"]');
+  const outline = page.locator('[data-test="canvas-selected-outline"]');
   await expect(outline).toBeVisible();
   const before = await outline.boundingBox();
   await page.keyboard.press("ArrowDown");
 
-  await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+  await expect.poll(() => appLocator(page, '[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
   await expect.poll(async () => (await outline.boundingBox())?.x ?? 0).toBeGreaterThan(before?.x ?? 0);
 
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   const frame = page.frameLocator(".canvas-card__iframe").first();
@@ -477,10 +468,10 @@ test("dev: Inspect arrow keys reorder a selected sibling", async ({ page }) => {
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
-test("dev: Inspect selected outline follows a position-only flex-column nudge", async ({ page }) => {
+test("dev: editing surface selected outline follows a position-only flex-column nudge", async ({ page }) => {
   await page.goto("/playground");
-  const selected = page.getByText("Repeated 1", { exact: true });
-  const outline = page.locator('[data-test="selected-outline"]');
+  const selected = page.frameLocator(".canvas-card__iframe").first().getByText("Repeated 1", { exact: true });
+  const outline = page.locator('[data-test="canvas-selected-outline"]');
   await selected.scrollIntoViewIfNeeded();
   await selected.click();
   await page.mouse.move(0, 0);
@@ -489,7 +480,7 @@ test("dev: Inspect selected outline follows a position-only flex-column nudge", 
   const before = await Promise.all([selected.boundingBox(), outline.boundingBox()]);
   await page.keyboard.press("ArrowDown");
 
-  await expect(page.locator('[data-test="repeated-items"] .repeated-item')).toHaveText([
+  await expect(appLocator(page, '[data-test="repeated-items"] .repeated-item')).toHaveText([
     "Repeated 2", "Repeated 1", "Repeated 3", "Repeated 4", "Repeated 5", "Repeated 6",
   ]);
   await expect.poll(async () => {
@@ -505,7 +496,6 @@ test("dev: Inspect selected outline follows a position-only flex-column nudge", 
 
 test("dev: Canvas drags a tracked element through the controller with an insertion guide", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const source = frame.locator('[data-test="flex-child-a"]');
   const destination = frame.locator('[data-test="flex-child-c"]');
@@ -525,13 +515,11 @@ test("dev: Canvas drags a tracked element through the controller with an inserti
   await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="applied"]')).toBeVisible();
   await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="missing"]')).toHaveCount(0);
 
-  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
-  await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+  await expect.poll(() => appLocator(page, '[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
 test("dev: Canvas selected outline follows a position-only flex-column nudge", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const source = frame.getByText("Repeated 1", { exact: true });
   const outline = page.locator('[data-test="canvas-selected-outline"]');
@@ -557,7 +545,6 @@ test("dev: Canvas selected outline follows a position-only flex-column nudge", a
 
 test("dev: Canvas centres a flex-row insertion guide in a space-between gap", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await dragIntoFlexGap(
     page,
@@ -571,7 +558,6 @@ test("dev: Canvas centres a flex-row insertion guide in a space-between gap", as
 
 test("dev: Canvas deletes a selected tracked element through the controller", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const heading = frame.locator("#hero-title");
   await expect(heading).toBeVisible();
@@ -585,17 +571,16 @@ test("dev: Canvas deletes a selected tracked element through the controller", as
   await expect(page.locator('[data-test="structural-diagnostic"][data-document^="Canvas "][data-status="missing"]')).toHaveCount(0);
 });
 
-test("dev: Inspect deletes one repeated item in Canvas and a reloaded card receives the delete", async ({ page }) => {
+test("dev: editing surface deletes one repeated item in Canvas and a reloaded card receives the delete", async ({ page }) => {
   await page.goto("/playground");
-  const repeated = page.getByText("Repeated 3", { exact: true });
+  const repeated = page.frameLocator(".canvas-card__iframe").first().getByText("Repeated 3", { exact: true });
   await repeated.click();
   await page.keyboard.press("Backspace");
   await expect(repeated).not.toBeAttached();
-  await expect(page.locator(".repeated-item")).toHaveText([
+  await expect(appLocator(page, ".repeated-item")).toHaveText([
     "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
   ]);
 
-  await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator(".repeated-item")).toHaveText([
     "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
@@ -608,9 +593,8 @@ test("dev: Inspect deletes one repeated item in Canvas and a reloaded card recei
   ]);
 });
 
-test("dev: Canvas deletes one repeated item and the identical host target disappears", async ({ page }) => {
+test("dev: deleting a repeated item keeps the unified workspace active", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const repeated = frame.getByText("Repeated 3", { exact: true });
   await expect(repeated).toBeVisible();
@@ -621,16 +605,12 @@ test("dev: Canvas deletes one repeated item and the identical host target disapp
     "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
   ]);
 
-  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
-  await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
-  await expect(page.locator(".repeated-item")).toHaveText([
-    "Repeated 1", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
-  ]);
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  await expect(page.locator('[data-test="changes-toggle"]')).toBeVisible();
 });
 
 test("dev: Canvas delete-only projection advances into every already-ready card", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
   await page.locator('[data-test^="canvas-card-duplicate-"]').click();
   await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
@@ -649,7 +629,6 @@ test("dev: Canvas delete-only projection advances into every already-ready card"
 
 test("dev: Canvas arrow keys reorder a selected flex-row sibling", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const first = frame.locator('[data-test="flex-child-a"]');
   await first.click();
@@ -657,13 +636,11 @@ test("dev: Canvas arrow keys reorder a selected flex-row sibling", async ({ page
 
   await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 
-  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
-  await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
+  await expect.poll(() => appLocator(page, '[data-test="flex-container"]').evaluate((element) => element.textContent)).toBe("BAC");
 });
 
 test("dev: a Canvas reload receives the current sibling reorder snapshot", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   const frame = page.frameLocator(".canvas-card__iframe").first();
   const first = frame.locator('[data-test="flex-child-a"]');
   await first.click();
@@ -677,13 +654,12 @@ test("dev: a Canvas reload receives the current sibling reorder snapshot", async
 
 test("dev: reordering one repeated rendered sibling leaves every other instance intact", async ({ page }) => {
   await page.goto("/playground");
-  const selected = page.getByText("Repeated 3", { exact: true });
+  const selected = page.frameLocator(".canvas-card__iframe").first().getByText("Repeated 3", { exact: true });
   await selected.click();
   await page.keyboard.press("ArrowDown");
 
   const expectedOrder = ["Repeated 1", "Repeated 2", "Repeated 4", "Repeated 3", "Repeated 5", "Repeated 6"];
-  await expect(page.locator(".repeated-item")).toHaveText(expectedOrder);
-  await page.locator('[data-test="mode-canvas"]').click();
+  await expect(appLocator(page, ".repeated-item")).toHaveText(expectedOrder);
   const frame = page.frameLocator(".canvas-card__iframe").first();
   await expect(frame.locator(".repeated-item")).toHaveText(expectedOrder);
 });

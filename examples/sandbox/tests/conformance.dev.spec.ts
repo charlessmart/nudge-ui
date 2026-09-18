@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "./editor.ts";
 
 test("dev: standard CSS conformance fixture keeps authored attribution separate from browser output", async ({ page }) => {
-  await page.goto("/conformance");
-  const card = page.locator(".conformance-card");
+  const app = await openEditor(page, "/conformance");
+  const card = app.locator(".conformance-card");
   await expect(card).toBeVisible();
   const facts = await card.evaluate((element) => ({
     authoredPadding: [...document.styleSheets].flatMap((sheet) => {
@@ -21,8 +22,8 @@ test("dev: standard CSS conformance fixture keeps authored attribution separate 
 });
 
 test("dev: logical spacing projects onto physical inspector side controls", async ({ page }) => {
-  await page.goto("/conformance");
-  await page.locator(".conformance-copy").click();
+  const app = await openEditor(page, "/conformance");
+  await app.locator(".conformance-copy").click();
   const expandButton = page.locator('[data-test="spacing-padding"] [data-test="individual-sides"]');
   await expect(expandButton).toHaveClass(/toggle-button/);
   await expect(expandButton).toHaveClass(/toggle-button--quiet/);

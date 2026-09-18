@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { getAppFrame, openEditor } from "./editor.ts";
 
 async function sheetText(page: import("@playwright/test").Page): Promise<string> {
   return managedSheetText(page);
@@ -43,7 +44,7 @@ async function openChangesLog(page: import("@playwright/test").Page): Promise<vo
 }
 
 async function btnBackground(page: import("@playwright/test").Page): Promise<string> {
-  return await page.evaluate(() => {
+  return await (await getAppFrame(page)).evaluate(() => {
     const btn = document.querySelector(".btn") as HTMLElement | null;
     return btn ? getComputedStyle(btn).backgroundColor : "";
   });
@@ -92,14 +93,14 @@ async function revertChange(page: import("@playwright/test").Page, property: str
 }
 
 test("dev: changes log records token swap and font-size edit, single-change revert rebuilds sheet", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  const app = await openEditor(page, "/playground");
+  await app.getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
   await waitForEditors(page);
 
   // Selection happens on pointer down; let the host button's hover transition
   // settle before recording the baseline that revert should restore.
-  await page.mouse.move(0, 0);
+  await app.locator("body").hover({ position: { x: 1, y: 1 } });
   await page.waitForTimeout(220);
   const originalBg = await btnBackground(page);
 
@@ -134,20 +135,24 @@ test("dev: changes log records token swap and font-size edit, single-change reve
     .toBe(originalBg);
 });
 
-test("dev: changes log survives inspector toggle (Alt+I) without losing entries", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+test("dev: changes log survives inspector toggle without losing entries", async ({ page }) => {
+  const app = await openEditor(page, "/playground");
+  await app.getByRole("button", { name: "Save" }).click();
   await waitForRow(page);
 
   await selectBackground(page, "--color-surface-sunken");
   await expect.poll(async () => changeCount(page), { timeout: 5000 }).toBe(1);
 
-  await page.keyboard.press("Alt+i");
+  const panel = page.locator(".panel");
+  await expect(panel).toHaveAttribute("data-open", "true");
+  await page.keyboard.press("Control+\\");
+  await expect(panel).toHaveAttribute("data-open", "false");
   await expect
     .poll(async () => changeCount(page), { timeout: 5000 })
     .toBe(1);
 
-  await page.keyboard.press("Alt+i");
+  await page.keyboard.press("Control+\\");
+  await expect(panel).toHaveAttribute("data-open", "true");
   await expect.poll(async () => changeCount(page), { timeout: 5000 }).toBe(1);
   await expect
     .poll(async () => sheetText(page), { timeout: 5000 })

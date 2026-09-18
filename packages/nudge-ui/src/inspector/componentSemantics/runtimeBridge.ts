@@ -80,9 +80,24 @@ export function registerHostRuntimeAdapter(
   };
 }
 
-/** Returns the active host runtime Adapters for this browser realm. */
-export function getHostRuntimeAdapters(): readonly ComponentRuntimeAdapter[] {
-  return [...registry().adapters.values()];
+/** Returns the active host runtime Adapters for the requested browser realm. */
+export function getHostRuntimeAdapters(
+  ownerGlobal: typeof globalThis = globalThis,
+): readonly ComponentRuntimeAdapter[] {
+  if (ownerGlobal === globalThis) return [...registry().adapters.values()];
+  const current = (ownerGlobal as GlobalWithHostRuntime)[HOST_RUNTIME_KEY];
+  if (current === undefined) return [];
+  const mapConstructor = Reflect.get(ownerGlobal, "Map") as MapConstructor | undefined;
+  if (!mapConstructor
+    || typeof current !== "object"
+    || current === null
+    || (current as HostRuntimeRegistryCandidate).version !== NUDGE_UI_HOST_RUNTIME_VERSION
+    || !((current as HostRuntimeRegistryCandidate).adapters instanceof mapConstructor)) {
+    throw new Error(
+      `Nudge UI host runtime is incompatible with version ${NUDGE_UI_HOST_RUNTIME_VERSION}.`,
+    );
+  }
+  return [...((current as HostRuntimeRegistry).adapters.values())];
 }
 
 /** Stores the latest projection and sends it to every registered host Adapter. */

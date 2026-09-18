@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { IconArrowUpRight, IconColorSwatch, IconLayoutSidebarRight, IconSettings } from "@tabler/icons-react";
+import { IconColorSwatch, IconLayoutSidebarRight, IconSettings } from "@tabler/icons-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -46,13 +46,13 @@ import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
-import { enterCanvas, useCanvasMode } from "../canvas/canvasStore.ts";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
+import { setCanvasPresentation, useCanvasPresentation } from "../canvas/canvasStore.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "../componentSemantics/ComponentPropsSection.tsx";
-import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
+import { cancelInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
@@ -114,8 +114,6 @@ export function InspectorShell(): ReactElement {
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const canvasEnabled = runtimeConfig.capabilities.canvas;
   const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
-  const activeCanvasMode = useCanvasMode();
-  const canvasMode = canvasEnabled ? activeCanvasMode : "inspect";
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
   const hierarchy = useHierarchy();
@@ -126,6 +124,7 @@ export function InspectorShell(): ReactElement {
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const cssInspection = useBrowserCssInspection(selectedElements, styleState);
   const isMultiSelection = selectedElements.length > 1;
+  const canvasPresentation = useCanvasPresentation();
 
   useEffect(() => {
     setInspectorLayoutOpen(isOpen);
@@ -261,14 +260,6 @@ export function InspectorShell(): ReactElement {
     refreshScope((revision) => revision + 1);
   }
 
-  function handleCanvasModeButton(): void {
-    // Inline text editing is controller-owned. Canvas renderer documents
-    // receive projections only, so dispose the active controller session
-    // before mounting cards rather than probing a stale iframe document.
-    disposeInlineTextEdit("frame-disposed");
-    enterCanvas();
-  }
-
   function openSettings(section: SettingsSection): void {
     setSettingsSection(section);
     setSettingsOpen(true);
@@ -277,7 +268,7 @@ export function InspectorShell(): ReactElement {
   return (
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
-      {canvasMode === "inspect" && <InspectorOverlay host={resolveHost()} />}
+      {(!canvasEnabled || runtimeConfig.demo === true) && <InspectorOverlay host={resolveHost()} />}
       <div className="panel" data-open={isOpen ? "true" : "false"}>
         <div className="panel__tabs" aria-label="Inspector controls">
           <div
@@ -297,6 +288,16 @@ export function InspectorShell(): ReactElement {
               <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             </IconButton>
             <div className="panel__header-actions">
+              {canvasEnabled && runtimeConfig.demo !== true ? (
+                <Button
+                  variant="quiet"
+                  size="compact"
+                  data-test={`presentation-${canvasPresentation === "focus" ? "canvas" : "focus"}`}
+                  onClick={() => setCanvasPresentation(canvasPresentation === "focus" ? "canvas" : "focus")}
+                >
+                  {canvasPresentation === "focus" ? "Canvas" : "Focus"}
+                </Button>
+              ) : null}
               <IconButton
                 variant="quiet"
                 data-test="tokens-button"
@@ -315,21 +316,6 @@ export function InspectorShell(): ReactElement {
               >
                 <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               </IconButton>
-              {canvasEnabled && canvasMode !== "canvas" ? (
-                <>
-                  <span className="panel__header-divider" aria-hidden="true" />
-                  <Button
-                    variant="quiet"
-                    className="panel__canvas-button"
-                    data-test="mode-canvas"
-                    type="button"
-                    onClick={handleCanvasModeButton}
-                  >
-                    Canvas
-                    <IconArrowUpRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-                  </Button>
-                </>
-              ) : null}
             </div>
           </div>
           <div className="panel__copy-row">

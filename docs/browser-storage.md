@@ -16,6 +16,12 @@ or untrusted scripts.
 | `nudge-ui:<project-id>:lease` | The current workspace owner ID and heartbeat timestamps. | The lease expires after 15 seconds without a heartbeat and is removed when released. |
 | `nudge-ui:<project-id>:prompt-settings` | Custom instructions used when generating prompts. | Until overwritten or site data is removed. |
 
+The **Open app** action also sets `nudge-ui:direct-tab` in `sessionStorage`.
+This tab-scoped flag keeps application navigation and reloads outside the editor
+after the initial bypass URL marker is gone. It lasts until the tab closes or
+the key is removed. Explicit editor URLs and renderer frames still enter their
+assigned roles.
+
 The browser sends the MCP session token in query parameters for the bridge's
 `/status` and `/events` endpoints. The companion is loopback-only by default,
 but URLs can still appear in browser tooling or local proxy and server logs.

@@ -1,12 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { getAppFrame, openEditor } from "./editor.ts";
 
 async function managedSheet(page: import("@playwright/test").Page): Promise<string> {
   return managedSheetText(page);
 }
 
 async function consumerBackgrounds(page: import("@playwright/test").Page): Promise<string[]> {
-  return page.evaluate(() => [".btn", ".demo-panel"].map((selector) => {
+  return (await getAppFrame(page)).evaluate(() => [".btn", ".demo-panel"].map((selector) => {
     const element = document.querySelector(selector) as HTMLElement | null;
     return element ? getComputedStyle(element).backgroundColor : "";
   }));
@@ -18,8 +19,8 @@ async function openTokensSettings(page: import("@playwright/test").Page): Promis
 }
 
 test("dev: Tokens settings edits only the active theme token and updates every consumer", async ({ page }) => {
-  await page.goto("/playground");
-  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
   await openTokensSettings(page);
 
   const row = page.locator('[data-test="global-token-row"][data-token-name="--color-surface-raised"]');
@@ -39,13 +40,13 @@ test("dev: Tokens settings edits only the active theme token and updates every c
   await expect.poll(() => managedSheet(page)).toContain("--color-surface-raised: #123456;");
   await expect.poll(() => consumerBackgrounds(page)).toEqual(["rgb(18, 52, 86)", "rgb(18, 52, 86)"]);
 
-  await page.evaluate(() => document.documentElement.removeAttribute("data-theme"));
+  await (await getAppFrame(page)).evaluate(() => document.documentElement.removeAttribute("data-theme"));
   await expect(row.locator('[data-test="token-context"]')).toHaveCount(0);
   await expect.poll(() => consumerBackgrounds(page)).toEqual(["rgb(255, 255, 255)", "rgb(255, 255, 255)"]);
 });
 
 test("dev: Tokens settings searches the global catalog", async ({ page }) => {
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
   await openTokensSettings(page);
   await page.locator('[data-test="token-search"]').fill("text-primary");
   await expect(page.locator('[data-test="global-token-row"]')).toHaveCount(1);
@@ -53,7 +54,7 @@ test("dev: Tokens settings searches the global catalog", async ({ page }) => {
 });
 
 test("dev: nested token wrappers are preserved through the catalog and managed preview", async ({ page }) => {
-  await page.goto("/conformance");
+  await openEditor(page, "/conformance");
   await openTokensSettings(page);
 
   const row = page.locator('[data-test="global-token-row"][data-token-name="--conformance-nested"]');
@@ -65,7 +66,7 @@ test("dev: nested token wrappers are preserved through the catalog and managed p
   await expect.poll(async () => (await managedSheet(page)).replace(/\s+/g, " ")).toContain(
     "@media (min-width: 1px) { @supports (display: grid) { @layer conformance { @media (min-width: 1px)",
   );
-  await expect.poll(() => page.evaluate(() =>
+  await expect.poll(async () => (await getAppFrame(page)).evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--conformance-nested").trim(),
   )).toBe("4rem");
 });

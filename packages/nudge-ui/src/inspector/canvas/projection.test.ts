@@ -11,7 +11,10 @@ import {
   findCanvasFrameBySource,
   getRegisteredFrames,
   getCanvasProjectionStatus,
+  isCanvasCanonicalProjectionRevisionCurrent,
+  isCanvasProjectionRevisionCurrent,
   projectToAllReadyCards,
+  projectWorkspaceSnapshotToDocument,
   PROJECT_ID,
   recordCanvasProjectionApplied,
   sendProjectionToCard,
@@ -315,8 +318,90 @@ describe("projection", () => {
       sentRevision: 1,
       appliedRevision: 1,
     });
+    expect(isCanvasCanonicalProjectionRevisionCurrent(iframe.contentDocument, 1)).toBe(true);
 
     unregisterCardFrame("card-1");
+  });
+
+  it("does not classify a temporary verification projection as canonical", async () => {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    if (!iframe.contentDocument || !iframe.contentWindow) throw new Error("iframe did not initialise");
+    vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
+    registerCardFrame("card-temporary", iframe);
+    sendProjectionToCard({
+      id: "card-temporary", url: window.location.href, title: null,
+      x: 0, y: 0, width: 800, height: 600,
+    }, iframe);
+    recordCanvasProjectionApplied("card-temporary", 1);
+
+    const pending = projectWorkspaceSnapshotToDocument(iframe.contentDocument, {
+      changes: [], structuralChanges: [],
+    });
+    recordCanvasProjectionApplied("card-temporary", 2);
+
+    await expect(pending).resolves.toBe(2);
+    expect(isCanvasProjectionRevisionCurrent(iframe.contentDocument, 2)).toBe(true);
+    expect(isCanvasCanonicalProjectionRevisionCurrent(iframe.contentDocument, 2)).toBe(false);
+    unregisterCardFrame("card-temporary");
+  });
+
+  it("rejects a temporary verification projection superseded by a canonical edit", async () => {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    if (!iframe.contentDocument || !iframe.contentWindow) throw new Error("iframe did not initialise");
+    vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
+    registerCardFrame("card-verification", iframe);
+
+    const pending = projectWorkspaceSnapshotToDocument(iframe.contentDocument, {
+      changes: [],
+      structuralChanges: [],
+    });
+    sendProjectionToCard({
+      id: "card-verification", url: window.location.href, title: null,
+      x: 0, y: 0, width: 800, height: 600,
+    }, iframe);
+    recordCanvasProjectionApplied("card-verification", 1);
+
+    await expect(pending).resolves.toBeNull();
+    unregisterCardFrame("card-verification");
+  });
+
+  it("ends temporary verification when its frame is disposed", async () => {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    if (!iframe.contentDocument || !iframe.contentWindow) throw new Error("iframe did not initialise");
+    vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
+    registerCardFrame("card-disposed", iframe);
+
+    const pending = projectWorkspaceSnapshotToDocument(iframe.contentDocument, {
+      changes: [],
+      structuralChanges: [],
+    });
+    unregisterCardFrame("card-disposed");
+
+    await expect(pending).resolves.toBeNull();
+  });
+
+  it("rejects an acknowledged revision after navigation replaces the frame document", () => {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    const originalDocument = iframe.contentDocument;
+    if (!originalDocument || !iframe.contentWindow) throw new Error("iframe did not initialise");
+    vi.spyOn(iframe.contentWindow, "postMessage").mockImplementation(() => undefined);
+    registerCardFrame("card-navigated", iframe);
+    sendProjectionToCard({
+      id: "card-navigated", url: window.location.href, title: null,
+      x: 0, y: 0, width: 800, height: 600,
+    }, iframe);
+    recordCanvasProjectionApplied("card-navigated", 1);
+    expect(isCanvasProjectionRevisionCurrent(originalDocument, 1)).toBe(true);
+
+    const replacementDocument = document.implementation.createHTMLDocument("replacement");
+    vi.spyOn(iframe, "contentDocument", "get").mockReturnValue(replacementDocument);
+
+    expect(isCanvasProjectionRevisionCurrent(originalDocument, 1)).toBe(false);
+    unregisterCardFrame("card-navigated");
   });
 
   describe("revision ordering", () => {

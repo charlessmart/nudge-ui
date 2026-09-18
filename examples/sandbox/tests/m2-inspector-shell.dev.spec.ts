@@ -1,7 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { openEditor } from "./editor.ts";
 
-test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({ page }) => {
-  await page.goto("/playground");
+test("dev: inspector shell mounts in Shadow DOM and toggles from the keyboard", async ({ page }) => {
+  await openEditor(page, "/playground");
 
   const hasMount = await page.evaluate(() => {
     const el = document.getElementById("nudge-ui-root");
@@ -21,7 +22,6 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   expect(hasShellText).not.toContain("Inspector shell ready");
   await expect(page.locator('[data-test="copy-prompt"]')).toBeDisabled();
   await expect(page.locator('[data-test="copy-prompt"]')).toHaveClass(/button--primary/);
-  await expect(page.locator('[data-test="mode-canvas"] svg')).toHaveClass(/tabler-icon-arrow-up-right/);
   await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/button--secondary|button--quiet/);
   await expect(page.locator('[data-test="tokens-button"]')).toHaveClass(/icon-button--quiet/);
   const headerState = await page.evaluate(() => {
@@ -35,12 +35,10 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
           .map((child) => child.getAttribute("data-test"))
           .filter((value): value is string => value !== null)
         : [],
-      hasDivider: header?.querySelector(".panel__header-divider") !== null,
     };
   });
   expect(headerState.background).toBe("rgba(0, 0, 0, 0)");
-  expect(headerState.actions).toEqual(["tokens-button", "settings-button", "mode-canvas"]);
-  expect(headerState.hasDivider).toBe(true);
+  expect(headerState.actions).toEqual(["tokens-button", "settings-button"]);
   const copyRowInset = await page.evaluate(() => {
     const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
     const tabs = sr?.querySelector(".panel__tabs");
@@ -78,14 +76,14 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
     };
   });
   expect(reservedWidth.layoutOpen).toBe("open");
-  expect(reservedWidth.bodyMarginRight).not.toBe("0px");
+  expect(reservedWidth.bodyMarginRight).toBe("0px");
 
-  await page.keyboard.press("Alt+i");
+  await page.keyboard.press("Control+\\");
   const afterToggle = await getOpen();
   expect(afterToggle).not.toBe(before);
   await expect.poll(() => page.evaluate(() => document.documentElement.hasAttribute("data-nudge-ui-panel"))).toBe(false);
 
-  await page.keyboard.press("Alt+i");
+  await page.keyboard.press("Control+\\");
   const afterSecond = await getOpen();
   expect(afterSecond).toBe(before);
   await expect.poll(() => page.evaluate(() => document.documentElement.getAttribute("data-nudge-ui-panel"))).toBe("open");
@@ -97,25 +95,22 @@ test("dev: inspector shell mounts in Shadow DOM and toggles via Alt+I", async ({
   await expect(page.locator('[data-test="inspect-tab"]')).not.toHaveClass(/button--secondary|button--quiet/);
 });
 
-test("dev: inspector icon buttons respond to clicks while the element selector is active", async ({ page }) => {
+test("dev: inspector controls respond while the iframe element selector is active", async ({ page }) => {
   // Regression guard: the element selector swallows ordinary application
   // clicks at the document capture phase, but real browser clicks are
   // composed and their propagation path includes the document even when they
   // originate inside the inspector's shadow root. The selector must let
   // inspector-UI clicks through so the panel's own controls keep working.
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
 
-  const canvasButton = page.locator('[data-test="mode-canvas"]');
-  await expect(canvasButton).toBeVisible();
-
-  await canvasButton.click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-  await expect(canvasButton).toHaveCount(0);
+  await page.locator('[data-test="settings-button"]').click();
+  await expect(page.locator('[data-test="settings-dialog"]')).toBeVisible();
 });
 
 test("dev: inspector can collapse and reopen from its icon controls on a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
 
   const panel = page.locator(".panel");
   await expect(panel).toHaveAttribute("data-open", "true");
@@ -132,8 +127,8 @@ test("dev: inspector can collapse and reopen from its icon controls on a mobile 
 });
 
 test("dev: inspector header scrolls with the editor content", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  const app = await openEditor(page, "/playground");
+  await app.getByRole("button", { name: "Save" }).click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 
   const scrollState = await page.evaluate(() => {

@@ -3,6 +3,7 @@ import { getSelectedElements, setSelectedElement, toggleSelectedElement } from "
 import type { ElementClickMessage } from "./frameProtocol.ts";
 import { selectCard } from "./canvasStore.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
+import { inspectComponentTargets } from "../componentSemantics/index.ts";
 
 function isHtmlElementInDocument(node: Element | null, doc: Document): node is HTMLElement {
   const frameWindow = doc.defaultView;
@@ -32,7 +33,11 @@ function findClickedElement(
   const candidates = doc.querySelectorAll(`[${RENDERER_ELEMENT_ID_ATTR}="${elementId}"]`);
   if (candidates.length !== 1) return null;
   const candidate = candidates[0] ?? null;
-  if (!candidate || candidate.getAttribute("data-cid") !== cid || candidate.getAttribute("data-src") !== src) return null;
+  if (
+    !candidate
+    || candidate.getAttribute("data-cid") !== cid
+    || (candidate.getAttribute("data-src") ?? "") !== src
+  ) return null;
   return isHtmlElementInDocument(candidate, doc) ? candidate : null;
 }
 
@@ -46,6 +51,7 @@ export function handleElementClick(msg: ElementClickMessage, iframe: HTMLIFrameE
     return;
   }
 
+  const componentTargets = inspectComponentTargets(el);
   const selected: SelectedElement = {
     cid: msg.cid,
     src: el.getAttribute("data-src") ?? msg.src,
@@ -54,7 +60,7 @@ export function handleElementClick(msg: ElementClickMessage, iframe: HTMLIFrameE
     line: msg.line,
     column: 0,
     domElement: el,
-    componentTargets: [],
+    componentTargets,
   };
 
   // setSelectedElement must run before any side effect that could reload the

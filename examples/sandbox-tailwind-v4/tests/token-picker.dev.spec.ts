@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "./editor.ts";
 
 test("dev: token picker stays bounded and supports selection", async ({ page }) => {
-  await page.goto("/tailwind");
-  await page.locator("#tailwind-title").click();
+  const app = await openEditor(page, "/tailwind");
+  await app.locator("#tailwind-title").click();
 
   const field = page.locator('[data-test="token-field"][data-property="color"]');
   const chip = field.locator('[data-test="token-chip"]');

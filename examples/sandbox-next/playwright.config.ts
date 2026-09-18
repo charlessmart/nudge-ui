@@ -4,6 +4,26 @@ const DEV_PORT = process.env.NUDGE_UI_DEV_PORT ?? "5177";
 const DEV_URL = `http://localhost:${DEV_PORT}`;
 const PROD_PORT = process.env.NUDGE_UI_PROD_PORT ?? "5180";
 const PROD_URL = `http://localhost:${PROD_PORT}`;
+const SERVER_MODE = process.env.NUDGE_UI_PLAYWRIGHT_SERVER;
+
+const devServer = {
+  command: `pnpm dev --port ${DEV_PORT}`,
+  url: `${DEV_URL}/second`,
+  reuseExistingServer: !process.env.CI,
+  timeout: 180_000,
+  name: "dev",
+} as const;
+
+const prodServer = {
+  // ADR-0002 production proof: the wrapper must be a complete no-op
+  // under next build / next start.
+  command: `NODE_ENV=production pnpm build && pnpm start --port ${PROD_PORT}`,
+  url: PROD_URL,
+  reuseExistingServer: false,
+  timeout: 300_000,
+  name: "prod",
+  env: { NODE_ENV: "production" },
+} as const;
 
 export default defineConfig({
   testDir: "./tests",
@@ -22,23 +42,9 @@ export default defineConfig({
       testMatch: /.*\.prod\.spec\.ts/,
     },
   ],
-  webServer: [
-    {
-      command: `pnpm dev --port ${DEV_PORT}`,
-      url: `${DEV_URL}/second`,
-      reuseExistingServer: !process.env.CI,
-      timeout: 180_000,
-      name: "dev",
-    },
-    {
-      // ADR-0002 production proof: the wrapper must be a complete no-op
-      // under next build / next start.
-      command: `NODE_ENV=production pnpm build && pnpm start --port ${PROD_PORT}`,
-      url: PROD_URL,
-      reuseExistingServer: false,
-      timeout: 300_000,
-      name: "prod",
-      env: { NODE_ENV: "production" },
-    },
-  ],
+  webServer: SERVER_MODE === "dev"
+    ? devServer
+    : SERVER_MODE === "prod"
+      ? prodServer
+      : [devServer, prodServer],
 });

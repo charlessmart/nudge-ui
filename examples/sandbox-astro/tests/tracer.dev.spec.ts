@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 
 /**
  * Tracer-bullet conformance for the Astro host Adapter (ADR-0011, Stage 3).
@@ -8,20 +8,29 @@ import type { Page } from "@playwright/test";
  * the same checks as a standalone script.
  */
 
-async function inspectorReady(page: Page): Promise<void> {
+async function inspectorReady(page: Page): Promise<Frame> {
   await page.goto("/");
-  await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
-    .toBe(true);
+  await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
   await expect
     .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
+  await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
+    && frame.url().startsWith("http")
+    && !frame.url().includes("/__nudge_ui__/editor"))?.url() ?? "").toMatch(/\/$/);
+  const frame = page.frames().find((candidate) => candidate !== page.mainFrame()
+    && candidate.url().startsWith("http")
+    && !candidate.url().includes("/__nudge_ui__/editor"));
+  if (!frame) throw new Error("Astro preview frame did not become ready");
+  await expect.poll(() => frame.evaluate(() =>
+    Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi),
+  )).toBe(true);
+  return frame;
 }
 
 test("dev: inspector mounts and rendered pages carry honest Astro identity", async ({ page }) => {
-  await inspectorReady(page);
+  const frame = await inspectorReady(page);
 
-  const identity = await page.evaluate(() => {
+  const identity = await frame.evaluate(() => {
     const element = document.querySelector('[data-cid^="astro:"]');
     return {
       cid: element?.getAttribute("data-cid") ?? null,
@@ -49,9 +58,9 @@ test("dev: server HTML carries the response identity layer", async ({ request })
 });
 
 test("dev: the inspection bridge preserves degraded Header identity", async ({ page }) => {
-  await inspectorReady(page);
+  const frame = await inspectorReady(page);
 
-  const inspection = await page.evaluate(() =>
+  const inspection = await frame.evaluate(() =>
     (window as unknown as {
       __nudgeUi?: { inspect(selector: string): { identity: { cid: string | null; src: string } } | null };
     }).__nudgeUi?.inspect(".site-header .site-title") ?? null,

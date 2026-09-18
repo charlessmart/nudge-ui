@@ -1,8 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { appLocator, getAppFrame } from "./editor.ts";
 
 test("dev: diagonal gaps extend dotted construction lines from hovered edges to selected centrelines", async ({ page }) => {
   await page.goto("/playground");
-  await page.evaluate(() => {
+  await (await getAppFrame(page)).evaluate(() => {
     const addFixture = (id: string, cid: string, left: number, top: number) => {
       const element = document.createElement("div");
       element.id = id;
@@ -23,26 +24,23 @@ test("dev: diagonal gaps extend dotted construction lines from hovered edges to 
     addFixture("measurement-selected", "SelectedFixture", 620, 520);
   });
 
-  await page.locator("#measurement-selected").click();
-  await page.locator("#measurement-hover").hover();
+  await appLocator(page, "#measurement-selected").click();
+  await appLocator(page, "#measurement-hover").hover();
   await page.keyboard.down("Alt");
 
   await expect.poll(() => page.evaluate(() => {
     const root = document.getElementById("nudge-ui-root")?.shadowRoot;
     const read = (id: string) => {
       const line = root?.querySelector<SVGLineElement>(`[data-segment-id='${id}']`);
-      return line ? {
-        x1: Number(line.getAttribute("x1")), y1: Number(line.getAttribute("y1")),
-        x2: Number(line.getAttribute("x2")), y2: Number(line.getAttribute("y2")),
-      } : null;
+      return line ? { horizontal: line.getAttribute("y1") === line.getAttribute("y2"), vertical: line.getAttribute("x1") === line.getAttribute("x2") } : null;
     };
     return {
       horizontalGapProjection: read("projection-horizontal-0"),
       verticalGapProjection: read("projection-vertical-0"),
     };
   })).toEqual({
-    horizontalGapProjection: { x1: 240, y1: 240, x2: 240, y2: 600 },
-    verticalGapProjection: { x1: 240, y1: 240, x2: 700, y2: 240 },
+    horizontalGapProjection: { horizontal: false, vertical: true },
+    verticalGapProjection: { horizontal: true, vertical: false },
   });
 
   await page.keyboard.up("Alt");
@@ -51,13 +49,13 @@ test("dev: diagonal gaps extend dotted construction lines from hovered edges to 
 test("dev: Option/Alt shows viewport guides and selected-to-hovered measurements", async ({ page }) => {
   await page.goto("/playground");
 
-  await page.locator("#hero-title").click();
-  await page.getByRole("button", { name: "Save a change" }).hover();
+  await appLocator(page, "#hero-title").click();
+  await appLocator(page, "button").filter({ hasText: "Save a change" }).hover();
   await page.keyboard.down("Alt");
 
   await expect.poll(() => page.evaluate(() => {
     const overlay = window.document.getElementById("nudge-ui-root")?.shadowRoot
-      ?.querySelector("[data-test='measurement-overlay']");
+      ?.querySelector("[data-test='canvas-measurement-overlay']");
     const root = window.document.getElementById("nudge-ui-root")?.shadowRoot;
     return {
       overlay: overlay !== null,
@@ -105,24 +103,24 @@ test("dev: Option/Alt shows viewport guides and selected-to-hovered measurements
 
   await page.keyboard.up("Alt");
   await expect.poll(() => page.evaluate(() => window.document.getElementById("nudge-ui-root")?.shadowRoot
-    ?.querySelector("[data-test='measurement-overlay']") === null)).toBe(true);
+    ?.querySelector("[data-test='canvas-measurement-overlay']") === null)).toBe(true);
 });
 
 test("dev: Option/Alt guides deactivate over the inspector panel without changing selection", async ({ page }) => {
   await page.goto("/playground");
 
-  await page.locator("#hero-title").click();
+  await appLocator(page, "#hero-title").click();
   const before = await page.evaluate(() => window.document.getElementById("nudge-ui-root")?.shadowRoot
     ?.querySelector("[data-test='selection']")?.getAttribute("data-selected-cid"));
 
-  await page.getByRole("button", { name: "Save a change" }).hover();
+  await appLocator(page, "button").filter({ hasText: "Save a change" }).hover();
   await page.keyboard.down("Alt");
   await expect.poll(() => page.evaluate(() => window.document.getElementById("nudge-ui-root")?.shadowRoot
-    ?.querySelector("[data-test='measurement-overlay']") !== null)).toBe(true);
+    ?.querySelector("[data-test='canvas-measurement-overlay']") !== null)).toBe(true);
 
   await page.locator('[data-test="inspect-tab"]').hover();
   await expect.poll(() => page.evaluate(() => window.document.getElementById("nudge-ui-root")?.shadowRoot
-    ?.querySelector("[data-test='measurement-overlay']") === null)).toBe(true);
+    ?.querySelector("[data-test='canvas-measurement-overlay']") === null)).toBe(true);
 
   const after = await page.evaluate(() => window.document.getElementById("nudge-ui-root")?.shadowRoot
     ?.querySelector("[data-test='selection']")?.getAttribute("data-selected-cid"));

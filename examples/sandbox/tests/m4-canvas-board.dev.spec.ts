@@ -3,8 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("Canvas spatial board", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="mode-canvas"]').click();
-    await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+      await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   });
 
   test("dev: board has spatial transform with board-content child", async ({ page }) => {
@@ -77,8 +76,7 @@ test.describe("Canvas spatial board", () => {
 test.describe("Canvas spatial board — two responsive sizes", () => {
   test("dev: resize a card to a smaller viewport triggers different iframe dimensions", async ({ page }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="mode-canvas"]').click();
-    await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+      await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
     const card = page.locator(".canvas-card").first();
     const iframe = card.locator(".canvas-card__iframe").first();
@@ -112,8 +110,7 @@ test.describe("Canvas spatial board — two responsive sizes", () => {
 test.describe("Canvas board gesture handling", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/playground");
-    await page.locator('[data-test="mode-canvas"]').click();
-    await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+      await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   });
 
   test("dev: unmodified wheel event does not change board transform", async ({ page }) => {

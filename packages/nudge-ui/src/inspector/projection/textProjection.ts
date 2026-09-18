@@ -87,7 +87,8 @@ function markerKey(target: TextProjectionTarget): string {
 }
 
 function isEmptyTextAffordance(node: Node | null | undefined): node is HTMLElement {
-  return node instanceof HTMLElement && node.hasAttribute(EMPTY_TEXT_PROJECTION_ATTR);
+  return node?.nodeType === 1
+    && (node as HTMLElement).hasAttribute(EMPTY_TEXT_PROJECTION_ATTR);
 }
 
 function hasInlineTextEditor(element: HTMLElement): boolean {
@@ -397,7 +398,8 @@ function emptyTextAffordanceFor(
   const textNode = resolveTextProjectionTextNode(element, change.target, "");
   if (!textNode || textNode.nodeValue !== "") return null;
   const parent = textNode.parentNode;
-  if (!(parent instanceof HTMLElement)) return null;
+  if (parent?.nodeType !== 1) return null;
+  const parentElement = parent as HTMLElement;
 
   const path = markerKey(change.target);
   // During re-entry the temporary editor wraps the empty Text node. The
@@ -422,7 +424,7 @@ function emptyTextAffordanceFor(
   // It has no application text and is never a source identity. The
   // interaction stylesheet supplies its visible, borderless hit geometry.
   affordance.hidden = !isInteractionStylesInstalled(doc);
-  parent.insertBefore(affordance, textNode.nextSibling);
+  parentElement.insertBefore(affordance, textNode.nextSibling);
   state.emptyAffordances.set(change.id, affordance);
   return affordance;
 }
@@ -648,7 +650,7 @@ export function applyTextContentProjection(
 ): TextProjectionReport[] {
   if (!isNudgeUiDev()) return [];
   const state = getDocumentState(doc);
-  canonicalChanges = new Map(changes.map((change) => [change.id, change]));
+  setCanonicalTextContentChanges(changes);
   const key = JSON.stringify(changes);
   if (state.snapshotKey === key) {
     // Reconciliation can happen between controller snapshots. Validate before
@@ -727,6 +729,13 @@ export function applyTextContentProjection(
   const reports = reportsForSnapshot(state, changes);
   storeReports(doc, reports);
   return reports;
+}
+
+/** Registers controller-owned text changes without projecting them into the editor shell. */
+export function setCanonicalTextContentChanges(
+  changes: ReadonlyArray<TextContentChangeRecord>,
+): void {
+  canonicalChanges = new Map(changes.map((change) => [change.id, change]));
 }
 
 export function getTextProjectionReports(doc: Document): readonly TextProjectionReport[] {

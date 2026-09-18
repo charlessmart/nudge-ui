@@ -1,12 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { openEditor } from "./editor.ts";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
 test("dev: virtual:design-tokens module renders populated token table", async ({ page }) => {
-  await page.goto("/playground");
+  const app = await openEditor(page, "/playground");
 
-  const tokensSection = page.locator('[data-test="tokens"]');
+  const tokensSection = app.locator('[data-test="tokens"]');
   await expect(tokensSection).toBeVisible();
 
   // styles.css declares a semantic color, spacing, radius, and elevation foundation.
@@ -20,7 +21,7 @@ test("dev: virtual:design-tokens module renders populated token table", async ({
   await expect(tokensSection).toContainText("--space-1");
 
   // Console-visible per acceptance criterion.
-  const designTokens = await page.evaluate(
+  const designTokens = await app.locator("html").evaluate(
     () => (window as unknown as { __designTokens?: unknown }).__designTokens,
   );
   expect(Array.isArray(designTokens)).toBe(true);
@@ -28,9 +29,9 @@ test("dev: virtual:design-tokens module renders populated token table", async ({
 });
 
 test("dev: first catalog load follows the active package CSS import graph", async ({ page }) => {
-  await page.goto("/playground");
+  const app = await openEditor(page, "/playground");
 
-  await expect.poll(() => page.evaluate(() => {
+  await expect.poll(() => app.locator("html").evaluate(() => {
     const catalog = (window as unknown as {
       __designTokenCatalog?: Array<{ cssName: string }>;
     }).__designTokenCatalog ?? [];
@@ -42,7 +43,7 @@ test("dev: first catalog load follows the active package CSS import graph", asyn
     ].every((cssName) => catalog.some((token) => token.cssName === cssName));
   })).toBe(true);
 
-  const packageTokens = await page.evaluate(() => {
+  const packageTokens = await app.locator("html").evaluate(() => {
     const catalog = (window as unknown as {
       __designTokenCatalog?: Array<{ cssName: string; origin?: string; editable?: boolean; declarations: Array<{ source: string }> }>;
     }).__designTokenCatalog ?? [];
@@ -64,9 +65,9 @@ test("dev: first catalog load follows the active package CSS import graph", asyn
 });
 
 test("dev: ordinary CSS inventory reaches browser inspection, managed preview, and prompt", async ({ page }) => {
-  await page.goto("/playground");
+  const app = await openEditor(page, "/playground");
 
-  await expect.poll(() => page.evaluate(() => {
+  await expect.poll(() => app.locator("html").evaluate(() => {
     const catalog = (window as unknown as {
       __designTokenCatalog?: Array<{
         cssName: string;
@@ -77,7 +78,7 @@ test("dev: ordinary CSS inventory reaches browser inspection, managed preview, a
       ?.declarations[0]?.contribution ?? null;
   })).toMatchObject({ kind: "stylesheet", buildTool: "vite" });
 
-  const inventoryEvidence = await page.evaluate(() => {
+  const inventoryEvidence = await app.locator("html").evaluate(() => {
     const catalog = (window as unknown as {
       __designTokenCatalog?: Array<{
         cssName: string;
@@ -89,7 +90,7 @@ test("dev: ordinary CSS inventory reaches browser inspection, managed preview, a
   });
   expect(inventoryEvidence).toMatchObject({ kind: "stylesheet", buildTool: "vite" });
 
-  await page.getByRole("button", { name: "Save" }).click();
+  await app.getByRole("button", { name: "Save" }).click();
   const chip = page.locator(
     '[data-test="token-field"][data-property="background-color"] [data-test="token-chip"]',
   );

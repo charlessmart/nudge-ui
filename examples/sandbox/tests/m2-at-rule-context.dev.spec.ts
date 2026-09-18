@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { getAppFrame, openEditor } from "./editor.ts";
 
 async function waitForAtRuleIndicator(
   page: import("@playwright/test").Page,
@@ -12,15 +13,15 @@ async function waitForAtRuleIndicator(
 }
 
 test("dev: a winning media-query declaration has a compact context indicator", async ({ page }) => {
-  await page.goto("/playground");
-  await page.addStyleTag({ content: `
+  const app = await openEditor(page, "/playground");
+  await (await getAppFrame(page)).addStyleTag({ content: `
     @media (min-width: 1px) {
       @media (min-width: 1px) {
         @media (min-width: 1px) { .btn { font-size: 17px; } }
       }
     }
   ` });
-  await page.click("text=Save");
+  await app.getByRole("button", { name: "Save" }).click();
 
   const indicator = await waitForAtRuleIndicator(page, "font-size");
   await expect(indicator).toHaveText("3");
@@ -31,12 +32,12 @@ test("dev: a winning media-query declaration has a compact context indicator", a
 });
 
 test("dev: a media-query popover lists all property candidates and highlights the winner", async ({ page }) => {
-  await page.goto("/playground");
-  await page.addStyleTag({ content: `
+  const app = await openEditor(page, "/playground");
+  await (await getAppFrame(page)).addStyleTag({ content: `
     @media (min-width: 1px) { .btn { font-size: 17px; } }
     @media (min-width: 9999px) { .btn { font-size: 19px; } }
   ` });
-  await page.click("text=Save");
+  await app.getByRole("button", { name: "Save" }).click();
 
   const indicator = await waitForAtRuleIndicator(page, "font-size");
   await indicator.hover();
@@ -47,16 +48,17 @@ test("dev: a media-query popover lists all property candidates and highlights th
 });
 
 test("dev: a matching container-query declaration is shown in the context popover", async ({ page }) => {
-  await page.goto("/playground");
-  await expect(page.locator(".site-shell")).toBeVisible();
-  await page.evaluate(() => {
+  const app = await openEditor(page, "/playground");
+  await expect(app.locator(".site-shell")).toBeVisible();
+  const appFrame = await getAppFrame(page);
+  await appFrame.evaluate(() => {
     const button = document.querySelector(".btn") as HTMLElement | null;
     if (!button?.parentElement) throw new Error("Expected sandbox Save button");
     button.parentElement.style.setProperty("container-type", "inline-size");
     button.parentElement.style.width = "480px";
   });
-  await page.addStyleTag({ content: "@container (width > 100px) { .btn { font-size: 19px; } }" });
-  await page.click("text=Save");
+  await appFrame.addStyleTag({ content: "@container (width > 100px) { .btn { font-size: 19px; } }" });
+  await app.getByRole("button", { name: "Save" }).click();
 
   const indicator = await waitForAtRuleIndicator(page, "font-size");
   await expect(indicator).toHaveText("1");

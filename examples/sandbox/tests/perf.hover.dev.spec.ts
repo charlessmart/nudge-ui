@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type FrameLocator, type Page } from "@playwright/test";
+import { ensureEditorOwnership } from "./editor.ts";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { LEAF_IDS } from "../src/perf-fixture/perfFixture.ts";
@@ -48,7 +49,7 @@ function checkBudget(key: string, result: MetricResult): void {
 }
 
 function logSummary(): void {
-  console.log("perf | === same-document hover breakdown ===");
+  console.log("perf | === iframe hover breakdown ===");
   if (METRICS.hover) logRow("hover reveal", METRICS.hover);
   if (METRICS.hoverSwitch) logRow("hover switch", METRICS.hoverSwitch);
 }
@@ -77,116 +78,85 @@ async function persistBaseline(): Promise<void> {
   console.log("perf | baseline written to test-results/perf-baseline-hover.json");
 }
 
-async function loadFixture(page: Page): Promise<void> {
+async function loadFixture(page: Page): Promise<FrameLocator> {
   await page.goto(FIXTURE_URL);
-  await page.waitForSelector('[data-perf-id="perf-0"]');
-  await page.waitForFunction(() => document.querySelectorAll("style[data-perf-style]").length === 4);
-  await page.waitForSelector("#nudge-ui-root");
+  await ensureEditorOwnership(page);
+  const frame = page.frameLocator('.canvas-card__iframe').first();
+  await expect(frame.locator('[data-perf-id="perf-0"]')).toBeVisible();
+  await expect.poll(() => frame.locator('style[data-perf-style]').count()).toBe(4);
+  return frame;
 }
 
-/** Outline matches when the shadow-root `.hover-outline` rect is within a
- * pixel of the leaf's bounding rect. */
-async function hoverMs(page: Page, perfId: number): Promise<number> {
-  const leaf = page.locator(`[data-perf-id="perf-${perfId}"]`);
-  await leaf.evaluate((el) => {
-    const w = window as unknown as { __hoverProbe?: number };
-    w.__hoverProbe = 0;
-    el.addEventListener("mouseover", () => {
-      const w2 = window as unknown as { __hoverProbe?: number };
-      if (!w2.__hoverProbe) w2.__hoverProbe = performance.now();
+async function measureHover(page: Page, leaf: import("@playwright/test").Locator): Promise<number> {
+  await leaf.scrollIntoViewIfNeeded();
+  // Scrolling can move the destination underneath the pointer and dispatch
+  // mouseover before the one-shot probe is armed. Park outside the iframe so
+  // the measured hover always delivers a fresh event.
+  await page.mouse.move(0, 0);
+  const target = await leaf.boundingBox();
+  if (!target) return -1;
+  await leaf.evaluate((element) => {
+    const parent = window.parent as Window & { __hoverProbe?: number };
+    parent.__hoverProbe = 0;
+    element.addEventListener("mouseover", () => {
+      if (!parent.__hoverProbe) parent.__hoverProbe = parent.performance.now();
     }, { capture: true, once: true });
   });
+  await page.evaluate(({ target, timeoutMs }) => {
+    const scope = window as unknown as {
+      __hoverProbe?: number;
+      __hoverResult?: { done: boolean; elapsed: number };
+    };
+    scope.__hoverResult = { done: false, elapsed: -1 };
+    const started = performance.now();
+    const check = (): void => {
+      const probe = scope.__hoverProbe ?? 0;
+      const outline = document.getElementById("nudge-ui-root")?.shadowRoot?.querySelector('[data-test="canvas-hover-outline"]');
+      const rect = outline?.getBoundingClientRect();
+      if (probe > 0 && rect
+        && Math.abs(rect.left - target.x) <= 1
+        && Math.abs(rect.top - target.y) <= 1
+        && Math.abs(rect.width - target.width) <= 1
+        && Math.abs(rect.height - target.height) <= 1) {
+        scope.__hoverResult = { done: true, elapsed: performance.now() - probe };
+        return;
+      }
+      if (performance.now() - started > timeoutMs) {
+        scope.__hoverResult = { done: true, elapsed: -1 };
+        return;
+      }
+      requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+  }, { target, timeoutMs: POLL_TIMEOUT_MS });
   await leaf.hover();
-  const elapsed = await page.evaluate(({ id, timeoutMs }) => new Promise<number>((resolve) => {
-    const started = performance.now();
-    const check = (): void => {
-      const probe = (window as unknown as { __hoverProbe?: number }).__hoverProbe ?? 0;
-      const leaf = document.querySelector(`[data-perf-id="perf-${id}"]`);
-      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-      const outline = sr?.querySelector(".hover-outline") ?? null;
-      if (probe > 0 && leaf && outline) {
-        const leafRect = leaf.getBoundingClientRect();
-        const outlineRect = outline.getBoundingClientRect();
-        const matches = Math.abs(outlineRect.left - leafRect.left) <= 1
-          && Math.abs(outlineRect.top - leafRect.top) <= 1
-          && Math.abs(outlineRect.width - leafRect.width) <= 1
-          && Math.abs(outlineRect.height - leafRect.height) <= 1;
-        if (matches) {
-          resolve(performance.now() - probe);
-          return;
-        }
-      }
-      if (performance.now() - started > timeoutMs) {
-        resolve(-1);
-        return;
-      }
-      requestAnimationFrame(check);
-    };
-    requestAnimationFrame(check);
-  }), { id: perfId, timeoutMs: POLL_TIMEOUT_MS });
-  await page.mouse.move(0, 0);
-  // Let the hover-clear settle so the next run measures a fresh reveal.
-  await page.waitForTimeout(50);
-  return elapsed;
-}
-
-/** Pointer already rests on `fromId` (outline matches it); move to `toId`
- * and measure until the outline matches `toId`. */
-async function hoverSwitchMs(page: Page, fromId: number, toId: number): Promise<number> {
-  const from = page.locator(`[data-perf-id="perf-${fromId}"]`);
-  const to = page.locator(`[data-perf-id="perf-${toId}"]`);
-  await from.hover();
-  await page.waitForFunction(() => {
-    const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return sr?.querySelector(".hover-outline") !== null;
-  }, undefined, { timeout: POLL_TIMEOUT_MS });
-  await to.evaluate((el) => {
-    const w = window as unknown as { __hoverProbe?: number };
-    w.__hoverProbe = 0;
-    el.addEventListener("mouseover", () => {
-      const w2 = window as unknown as { __hoverProbe?: number };
-      if (!w2.__hoverProbe) w2.__hoverProbe = performance.now();
-    }, { capture: true, once: true });
-  });
-  await to.hover();
-  const elapsed = await page.evaluate(({ id, timeoutMs }) => new Promise<number>((resolve) => {
-    const started = performance.now();
-    const check = (): void => {
-      const probe = (window as unknown as { __hoverProbe?: number }).__hoverProbe ?? 0;
-      const leaf = document.querySelector(`[data-perf-id="perf-${id}"]`);
-      const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
-      const outline = sr?.querySelector(".hover-outline") ?? null;
-      if (probe > 0 && leaf && outline) {
-        const leafRect = leaf.getBoundingClientRect();
-        const outlineRect = outline.getBoundingClientRect();
-        const matches = Math.abs(outlineRect.left - leafRect.left) <= 1
-          && Math.abs(outlineRect.top - leafRect.top) <= 1
-          && Math.abs(outlineRect.width - leafRect.width) <= 1
-          && Math.abs(outlineRect.height - leafRect.height) <= 1;
-        if (matches) {
-          resolve(performance.now() - probe);
-          return;
-        }
-      }
-      if (performance.now() - started > timeoutMs) {
-        resolve(-1);
-        return;
-      }
-      requestAnimationFrame(check);
-    };
-    requestAnimationFrame(check);
-  }), { id: toId, timeoutMs: POLL_TIMEOUT_MS });
+  await page.waitForFunction(() => (
+    window as unknown as { __hoverResult?: { done: boolean } }
+  ).__hoverResult?.done === true, undefined, { timeout: POLL_TIMEOUT_MS + 1_000 });
+  const elapsed = await page.evaluate(() => (
+    window as unknown as { __hoverResult?: { elapsed: number } }
+  ).__hoverResult?.elapsed ?? -1);
   await page.mouse.move(0, 0);
   await page.waitForTimeout(50);
   return elapsed;
 }
 
-test("perf: same-document hover outline reveal stays under budget", async ({ page }) => {
+async function hoverMs(page: Page, frame: FrameLocator, perfId: number): Promise<number> {
+  return measureHover(page, frame.locator(`[data-perf-id="perf-${perfId}"]`));
+}
+
+async function hoverSwitchMs(page: Page, frame: FrameLocator, fromId: number, toId: number): Promise<number> {
+  await frame.locator(`[data-perf-id="perf-${fromId}"]`).hover();
+  await expect(page.locator('[data-test="canvas-hover-outline"]')).toBeVisible({ timeout: POLL_TIMEOUT_MS });
+  return measureHover(page, frame.locator(`[data-perf-id="perf-${toId}"]`));
+}
+
+test("perf: iframe hover outline reveal stays under budget", async ({ page }) => {
   test.setTimeout(120_000);
-  await loadFixture(page);
+  const frame = await loadFixture(page);
   const runs: number[] = [];
   for (let i = 0; i < RUNS; i += 1) {
-    const ms = await hoverMs(page, HOVER_LEAF);
+    const ms = await hoverMs(page, frame, HOVER_LEAF);
     expect(ms, `hover reveal run ${i + 1} did not complete within ${POLL_TIMEOUT_MS}ms`).toBeGreaterThan(0);
     runs.push(ms);
   }
@@ -196,12 +166,12 @@ test("perf: same-document hover outline reveal stays under budget", async ({ pag
   checkBudget("hover reveal", result);
 });
 
-test("perf: same-document hover outline switch stays under budget", async ({ page }) => {
+test("perf: iframe hover outline switch stays under budget", async ({ page }) => {
   test.setTimeout(120_000);
-  await loadFixture(page);
+  const frame = await loadFixture(page);
   const runs: number[] = [];
   for (let i = 0; i < RUNS; i += 1) {
-    const ms = await hoverSwitchMs(page, SWITCH_FROM, SWITCH_TO);
+    const ms = await hoverSwitchMs(page, frame, SWITCH_FROM, SWITCH_TO);
     expect(ms, `hover switch run ${i + 1} did not complete within ${POLL_TIMEOUT_MS}ms`).toBeGreaterThan(0);
     runs.push(ms);
   }

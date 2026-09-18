@@ -76,7 +76,7 @@ async function expandSpacing(page: import("@playwright/test").Page): Promise<voi
 test("dev: element edits project into canvas renderer frame", async ({ page }) => {
   await page.goto("/playground");
 
-  await page.click("text=Save");
+  await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
   await waitForInspector(page);
 
   // Make an element edit in Inspect mode
@@ -87,7 +87,6 @@ test("dev: element edits project into canvas renderer frame", async ({ page }) =
   await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 32px;");
 
   // Switch to Canvas mode
-  await page.locator('[data-test="mode-canvas"]').click();
 
   // Wait for the canvas workspace and card
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
@@ -104,9 +103,8 @@ test("dev: element edits project into canvas renderer frame", async ({ page }) =
   expect(frameContent).toContain("padding-top: 32px;");
 });
 
-test("dev: canvas element edits survive switching back to Inspect", async ({ page }) => {
+test("dev: canvas element edits remain on the unified editing surface", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
     timeout: 20000,
@@ -121,17 +119,12 @@ test("dev: canvas element edits survive switching back to Inspect", async ({ pag
   await setInput(page, "padding-top", "37px");
   await expect.poll(() => button.evaluate((element) => getComputedStyle(element).paddingTop)).toBe("37px");
 
-  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
-  await waitForInspector(page);
-
-  const hostButton = page.locator("button.btn").first();
-  await expect.poll(() => hostButton.evaluate((element) => getComputedStyle(element).paddingTop)).toBe("37px");
+  await expect.poll(() => button.evaluate((element) => getComputedStyle(element).paddingTop)).toBe("37px");
   await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 37px;");
 });
 
 test("dev: repeated Canvas flex gap nudges survive projection acknowledgement and blur", async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
     timeout: 20000,
@@ -183,7 +176,6 @@ test("dev: global token edit projects into canvas frame", async ({ page }) => {
   await page.locator('[data-test="settings-close"]').click();
 
   // Switch to Canvas
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   // Wait for frame to load
@@ -199,7 +191,7 @@ test("dev: global token edit projects into canvas frame", async ({ page }) => {
 test("dev: frame reload converges on latest projection", async ({ page }) => {
   await page.goto("/playground");
 
-  await page.click("text=Save");
+  await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
   await waitForInspector(page);
 
   // Make a source-site element edit
@@ -207,7 +199,6 @@ test("dev: frame reload converges on latest projection", async ({ page }) => {
   await setInput(page, "padding-top", "48px");
 
   // Switch to Canvas
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   // Wait for frame to load
@@ -242,7 +233,7 @@ test("dev: frame reload converges on latest projection", async ({ page }) => {
 test("dev: reverting the final change projects empty CSS to canvas frame", async ({ page }) => {
   await page.goto("/playground");
 
-  await page.click("text=Save");
+  await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
   await waitForInspector(page);
 
   // Make an edit
@@ -252,7 +243,6 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
   await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 60px;");
 
   // Switch to Canvas
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({
@@ -264,10 +254,7 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
     .poll(() => frameManagedSheetContent(page, ".canvas-card__iframe"))
     .toContain("padding-top: 60px;");
 
-  // Switch back to Inspect and clear changes
-  await page.locator('[data-test^="canvas-card-preview-"]').first().click();
-  await waitForInspector(page);
-
+  // Clear the change without leaving the editing surface.
   await page.locator('[data-test="changes-toggle"]').click();
   await page.locator(
     '[data-test="change-revert"][data-property="padding-top"]',
@@ -277,7 +264,6 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
   await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 60px;");
 
   // Switch back to Canvas
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
   // Use the already-loaded frame
@@ -289,6 +275,5 @@ test("dev: reverting the final change projects empty CSS to canvas frame", async
 test("dev: canvas renderer protocol is present in dev mode", async ({ page }) => {
   await page.goto("/playground");
 
-  // In dev mode, the Canvas action should be present
-  await expect(page.locator('[data-test="mode-canvas"]')).toBeVisible();
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 });

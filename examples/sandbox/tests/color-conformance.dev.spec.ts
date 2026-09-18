@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { appLocator, openEditor } from "./editor.ts";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect.poll(async () => page.evaluate(() => Boolean(
@@ -24,12 +25,12 @@ async function setOpacityInput(page: import("@playwright/test").Page, property: 
 }
 
 test("dev: color conformance gallery renders every shared case and exposes authored values", async ({ page }) => {
-  await page.goto("/color-conformance");
+  await openEditor(page, "/color-conformance");
 
-  await expect(page.locator(".color-case")).toHaveCount(23);
-  await expect(page.locator(".color-conformance-hero__support")).toContainText("23 shared cases");
+  await expect(appLocator(page, ".color-case")).toHaveCount(23);
+  await expect(appLocator(page, ".color-conformance-hero__support")).toContainText("23 shared cases");
 
-  await page.locator('[data-test="color-case-color-named-keywords"]').click();
+  await appLocator(page, '[data-test="color-case-color-named-keywords"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]')).toHaveValue("red");
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]')).toHaveValue("linen");
@@ -38,9 +39,9 @@ test("dev: color conformance gallery renders every shared case and exposes autho
 });
 
 test("dev: color hex values retain their color meaning through CSSOM serialization", async ({ page }) => {
-  await page.goto("/color-conformance");
+  await openEditor(page, "/color-conformance");
 
-  await page.locator('[data-test="color-case-color-hex-six-digit"]').click();
+  await appLocator(page, '[data-test="color-case-color-hex-six-digit"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
     .toHaveValue("rgb(26, 26, 46)");
@@ -51,7 +52,7 @@ test("dev: color hex values retain their color meaning through CSSOM serializati
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
     .toHaveValue("100%");
 
-  await page.locator('[data-test="color-case-color-hex-alpha-eight"]').click();
+  await appLocator(page, '[data-test="color-case-color-hex-alpha-eight"]').click();
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
     .toHaveValue(/^rgba\(/);
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="color-opacity-input"]'))
@@ -59,9 +60,9 @@ test("dev: color hex values retain their color meaning through CSSOM serializati
 });
 
 test("dev: rgb and hsl retain color functions and opacity through CSSOM serialization", async ({ page }) => {
-  await page.goto("/color-conformance");
+  await openEditor(page, "/color-conformance");
 
-  await page.locator('[data-test="color-case-color-rgb-legacy"]').click();
+  await appLocator(page, '[data-test="color-case-color-rgb-legacy"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
     .toHaveValue(/^rgb\(/);
@@ -72,7 +73,7 @@ test("dev: rgb and hsl retain color functions and opacity through CSSOM serializ
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
     .toHaveValue("80%");
 
-  await page.locator('[data-test="color-case-color-hsl-modern"]').click();
+  await appLocator(page, '[data-test="color-case-color-hsl-modern"]').click();
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
     .toHaveValue(/^rgba\(/);
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="color-opacity-input"]'))
@@ -80,9 +81,9 @@ test("dev: rgb and hsl retain color functions and opacity through CSSOM serializ
 });
 
 test("dev: modern color spaces render in the inspector after CSSOM normalization", async ({ page }) => {
-  await page.goto("/color-conformance");
+  await openEditor(page, "/color-conformance");
 
-  await page.locator('[data-test="color-case-color-oklch"]').click();
+  await appLocator(page, '[data-test="color-case-color-oklch"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
     .toHaveValue(/^oklch\(/);
@@ -95,9 +96,9 @@ test("dev: modern color spaces render in the inspector after CSSOM normalization
 });
 
 test("dev: transparent foreground remains editable and an empty currentColor background can be added", async ({ page }) => {
-  await page.goto("/color-conformance");
+  await openEditor(page, "/color-conformance");
 
-  await page.locator('[data-test="color-case-color-transparent-currentcolor"]').click();
+  await appLocator(page, '[data-test="color-case-color-transparent-currentcolor"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
     .toHaveValue("transparent");
@@ -106,8 +107,8 @@ test("dev: transparent foreground remains editable and an empty currentColor bac
 });
 
 test("dev: color fixture tokens render as chips with type suggestions", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-token-simple"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-token-simple"]').click();
   await waitForEditors(page);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
@@ -126,8 +127,8 @@ test("dev: color fixture tokens render as chips with type suggestions", async ({
 });
 
 test("dev: picker offers another concrete-color token from the active catalog", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-token-simple"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-token-simple"]').click();
   await waitForEditors(page);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
@@ -142,8 +143,8 @@ test("dev: picker offers another concrete-color token from the active catalog", 
 });
 
 test("dev: color token fallback keeps the fallback in the authored expression", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-token-fallback"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-token-fallback"]').click();
   await waitForEditors(page);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
@@ -155,8 +156,8 @@ test("dev: color token fallback keeps the fallback in the authored expression", 
 });
 
 test("dev: unknown foreground tokens surface their raw expression and an empty fallback background can be added", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-token-unknown-fallback"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-token-unknown-fallback"]').click();
   await waitForEditors(page);
 
   await expect(page.locator('[data-test="token-field"][data-property="color"] [data-test="raw-input"]'))
@@ -166,8 +167,8 @@ test("dev: unknown foreground tokens surface their raw expression and an empty f
 });
 
 test("dev: separable color-mix tokens render as a chip with opacity", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-mix-token"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-mix-token"]').click();
   await waitForEditors(page);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
@@ -183,8 +184,8 @@ test("dev: separable color-mix tokens render as a chip with opacity", async ({ p
 });
 
 test("dev: opacity tokens stay separate from the color token chrome", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-opacity-token"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-opacity-token"]').click();
   await waitForEditors(page);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
@@ -201,28 +202,30 @@ test("dev: opacity tokens stay separate from the color token chrome", async ({ p
 });
 
 test("dev: literal opacity edits preserve the color format", async ({ page }) => {
-  await page.goto("/color-conformance");
+  await openEditor(page, "/color-conformance");
 
-  const hex = page.locator('[data-test="color-case-color-hex-alpha-eight"]');
+  const hex = appLocator(page, '[data-test="color-case-color-hex-alpha-eight"]');
   await hex.click();
   await waitForEditors(page);
   await setOpacityInput(page, "color", "25%");
   await expect.poll(() => managedSheetText(page))
     .toContain("color: rgba(255, 0, 0, 0.25);");
 
-  const rgb = page.locator('[data-test="color-case-color-rgb-legacy"]');
+  const rgb = appLocator(page, '[data-test="color-case-color-rgb-legacy"]');
   await rgb.click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
     .toHaveValue(/^rgba\(/);
+  await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
+    .toHaveValue("80%");
   await setOpacityInput(page, "background-color", "50%");
   await expect.poll(() => managedSheetText(page))
     .toContain("background-color: rgba(0, 0, 0, 0.5);");
 });
 
 test("dev: opacity fields nudge by one percent or ten percent with Shift", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-rgb-legacy"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-rgb-legacy"]').click();
   await waitForEditors(page);
 
   const opacity = page.locator(
@@ -236,8 +239,8 @@ test("dev: opacity fields nudge by one percent or ten percent with Shift", async
 });
 
 test("dev: color swatches are present on color-capable fields", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-hex-six-digit"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-hex-six-digit"]').click();
   await waitForEditors(page);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
@@ -249,8 +252,8 @@ test("dev: color swatches are present on color-capable fields", async ({ page })
 });
 
 test("dev: browser-supported oklch values render in color swatches", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-oklch"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-oklch"]').click();
   await waitForEditors(page);
 
   const swatch = page.locator('[data-test="token-field"][data-property="color"] [data-test="token-color-swatch"]');
@@ -259,9 +262,9 @@ test("dev: browser-supported oklch values render in color swatches", async ({ pa
 });
 
 test("dev: color value edits round-trip through the managed stylesheet", async ({ page }) => {
-  await page.goto("/color-conformance");
+  await openEditor(page, "/color-conformance");
 
-  const hex = page.locator('[data-test="color-case-color-hex-six-digit"]');
+  const hex = appLocator(page, '[data-test="color-case-color-hex-six-digit"]');
   await hex.click();
   await waitForEditors(page);
   await setInput(page, "color", "#ef4444");
@@ -274,8 +277,8 @@ test("dev: color value edits round-trip through the managed stylesheet", async (
 });
 
 test("dev: token alias chain resolves correctly", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-token-alias-chain"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-token-alias-chain"]').click();
   await waitForEditors(page);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');
@@ -286,8 +289,8 @@ test("dev: token alias chain resolves correctly", async ({ page }) => {
 });
 
 test("dev: inherited local color tokens remain attributable", async ({ page }) => {
-  await page.goto("/color-conformance");
-  await page.locator('[data-test="color-case-color-token-bg-only"]').click();
+  await openEditor(page, "/color-conformance");
+  await appLocator(page, '[data-test="color-case-color-token-bg-only"]').click();
   await waitForEditors(page);
 
   const fg = page.locator('[data-test="token-field"][data-property="color"]');

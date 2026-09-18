@@ -20,6 +20,8 @@ import {
   type BridgeEnvelope,
   type CanvasCommand,
 } from "./protocol.ts";
+import { getRegisteredFrames } from "../canvas/projection.ts";
+import { getFocusedCardId, getSelectedCardId } from "../canvas/canvasStore.ts";
 
 interface AgentWindow extends Window {
   __NUDGE_UI_AGENT_BRIDGE__?: AgentBridgeEndpointConfig;
@@ -50,15 +52,44 @@ function endpointValue(value: unknown): AgentBridgeEndpointConfig | undefined {
   return Object.values(config).some((entry) => entry !== undefined) ? config : undefined;
 }
 
-function configuredEndpoint(): AgentBridgeEndpointConfig | undefined {
-  if (typeof window === "undefined") return undefined;
-  const target = window as AgentWindow;
+function configuredEndpointInDocument(doc: Document): AgentBridgeEndpointConfig | undefined {
+  const target = doc.defaultView as AgentWindow | null;
+  if (!target) return undefined;
   const globalConfig = endpointValue(target.__NUDGE_UI_AGENT_BRIDGE__)
     ?? endpointValue(target.__NUDGE_UI_AGENT__);
   if (globalConfig) return globalConfig;
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="nudge-ui-agent-bridge"]');
+  const meta = doc.querySelector<HTMLMetaElement>('meta[name="nudge-ui-agent-bridge"]');
   const content = meta?.content.trim();
   return content ? { baseUrl: content } : undefined;
+}
+
+function configuredEndpoint(): AgentBridgeEndpointConfig | undefined {
+  if (typeof document === "undefined") return undefined;
+  const controllerConfig = configuredEndpointInDocument(document);
+  if (controllerConfig) return controllerConfig;
+  const activeCardId = getSelectedCardId() ?? getFocusedCardId();
+  if (activeCardId) {
+    const activeFrame = getRegisteredFrames().get(activeCardId);
+    if (!activeFrame) return undefined;
+    try {
+      return activeFrame.contentDocument
+        ? configuredEndpointInDocument(activeFrame.contentDocument)
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  for (const frame of getRegisteredFrames().values()) {
+    try {
+      const previewConfig = frame.contentDocument
+        ? configuredEndpointInDocument(frame.contentDocument)
+        : undefined;
+      if (previewConfig) return previewConfig;
+    } catch {
+      // Cross-origin frames cannot supply trusted bridge configuration.
+    }
+  }
+  return undefined;
 }
 
 /** Returns whether the dev host supplied a trusted project bridge endpoint. */

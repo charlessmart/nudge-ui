@@ -26,6 +26,14 @@ import {
   applyHostWorkspaceProjection,
   compileWorkspaceProjection,
 } from "../projection/workspaceProjection.ts";
+import { getRegisteredFrames } from "../canvas/projection.ts";
+import {
+  isCanvasProjectionRevisionCurrent,
+  projectWorkspaceSnapshotToDocument,
+} from "../canvas/projection.ts";
+import { getFocusedCardId, getSelectedCardId } from "../canvas/canvasStore.ts";
+import { getSelectedElement } from "../selection/selectionStore.ts";
+import { isEditorShellDocument } from "../runtime/editorShell.ts";
 
 export interface HandoffSnapshot {
   readonly changes: readonly ChangeRecord[];
@@ -105,7 +113,11 @@ function verifyText(change: Extract<ChangeRecord, { kind: "text-content" }>, doc
  * verifies.
  */
 function verifyStructuralDelete(change: StructuralDelete, doc: Document): boolean {
-  return resolveRenderedInstance(doc, change.target).status === "missing";
+  // A miss cannot prove that this document renders the route where the delete
+  // was authored. Keep the change until route applicability is durable data.
+  void change;
+  void doc;
+  return false;
 }
 
 /**
@@ -184,10 +196,23 @@ export function getAgentDispatchSize(revision: number): number {
   return snapshot.changes.length + snapshot.structuralChanges.length;
 }
 
-function afterBrowserPaint(): Promise<void> {
-  if (typeof requestAnimationFrame !== "function") return Promise.resolve();
+function afterBrowserPaint(doc: Document): Promise<void> {
+  const ownerWindow = doc.defaultView;
+  const requestFrame = ownerWindow?.requestAnimationFrame.bind(ownerWindow);
+  if (!ownerWindow || !requestFrame) return Promise.resolve();
   return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    let settled = false;
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve();
+    };
+    const timeout = setTimeout(finish, 250);
+    requestFrame(() => {
+      if (doc.defaultView !== ownerWindow) return finish();
+      requestFrame(finish);
+    });
   });
 }
 
@@ -196,7 +221,21 @@ function afterBrowserPaint(): Promise<void> {
  * observable after removing Nudge's own preview. Newer edits and ambiguous
  * records are preserved.
  */
-export async function verifyAndReconcileHandoff(snapshot: HandoffSnapshot): Promise<number> {
+export async function verifyAndReconcileHandoff(
+  snapshot: HandoffSnapshot,
+  doc: Document | null = activeVerificationDocument(),
+): Promise<number> {
+  if (!doc) return 0;
+  const applyProjection = async (
+    snapshot: Parameters<typeof compileWorkspaceProjection>[0],
+  ): Promise<number | "host" | null> => {
+    if (doc === document && !isEditorShellDocument(doc)) {
+      applyHostWorkspaceProjection(compileWorkspaceProjection(snapshot));
+      return "host";
+    }
+    if (doc === document) return null;
+    return projectWorkspaceSnapshotToDocument(doc, snapshot);
+  };
   const sentByKey = new Map(
     snapshot.changes.map((change) => [changeKey(change), handoffChangeFingerprint(change)]),
   );
@@ -221,14 +260,17 @@ export async function verifyAndReconcileHandoff(snapshot: HandoffSnapshot): Prom
 
   try {
     const currentWorkspace = getWorkspaceChanges();
-    applyHostWorkspaceProjection(compileWorkspaceProjection({
+    const previewRevision = await applyProjection({
       revision: currentWorkspace.revision,
       changes: remaining,
       structuralChanges: remainingStructural,
-    }));
-    await afterBrowserPaint();
-    const verified = verifiedChangeKeys(eligible);
-    const verifiedStructural = verifiedStructuralChangeIds(eligibleStructural, document);
+    });
+    if (previewRevision === null) return 0;
+    await afterBrowserPaint(doc);
+    if (typeof previewRevision === "number"
+      && !isCanvasProjectionRevisionCurrent(doc, previewRevision)) return 0;
+    const verified = verifiedChangeKeys(eligible, doc);
+    const verifiedStructural = verifiedStructuralChangeIds(eligibleStructural, doc);
     // A user can make another inspector edit while the two-frame verification
     // window is open. Recheck byte identity immediately before reconciliation
     // so a newer value at the same key can never be removed.
@@ -246,13 +288,44 @@ export async function verifyAndReconcileHandoff(snapshot: HandoffSnapshot): Prom
         (id) => currentStructuralById.get(id) === sentStructural.get(id),
       ),
     );
+    if (typeof previewRevision === "number"
+      && !isCanvasProjectionRevisionCurrent(doc, previewRevision)) return 0;
     return reconcileVerifiedWorkspaceChanges(stillVerified, stillVerifiedStructural);
   } finally {
     // Reconciliation reapplies the canonical set. If it was unable to write
     // (for example, a read-only Canvas lease), restore the untouched set here.
     const canonicalWorkspace = getWorkspaceChanges();
-    applyHostWorkspaceProjection(compileWorkspaceProjection(canonicalWorkspace));
+    await applyProjection(canonicalWorkspace);
   }
+}
+
+function activeVerificationDocument(): Document | null {
+  const selectedDocument = getSelectedElement()?.domElement.ownerDocument;
+  if (selectedDocument && selectedDocument !== document) return selectedDocument;
+  const selectedCardId = getSelectedCardId();
+  const selectedFrame = selectedCardId
+    ? getRegisteredFrames().get(selectedCardId)
+    : undefined;
+  try {
+    if (selectedFrame?.contentDocument) return selectedFrame.contentDocument;
+  } catch {
+    // Continue to another same-origin preview.
+  }
+  const focusedCardId = getFocusedCardId();
+  const focusedFrame = focusedCardId ? getRegisteredFrames().get(focusedCardId) : undefined;
+  try {
+    if (focusedFrame?.contentDocument) return focusedFrame.contentDocument;
+  } catch {
+    // Continue to another same-origin preview.
+  }
+  for (const frame of getRegisteredFrames().values()) {
+    try {
+      if (frame.contentDocument) return frame.contentDocument;
+    } catch {
+      // Cross-origin previews cannot provide browser-verifiable evidence.
+    }
+  }
+  return isEditorShellDocument() ? null : document;
 }
 
 /** Reconciles the captured records for one completed connected-agent request. */

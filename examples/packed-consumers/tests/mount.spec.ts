@@ -30,6 +30,7 @@ test(`${adapter}: the packed Adapter mounts the versioned browser bridge`, async
 
   await page.goto(url);
   try {
+    await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
     await expect.poll(() => page.evaluate(() => {
       const host = document.getElementById("nudge-ui-root");
       const bridge = (window as NudgeUiWindow).__nudgeUi;
@@ -41,8 +42,16 @@ test(`${adapter}: the packed Adapter mounts the versioned browser bridge`, async
       hasShadowRoot: true,
       bridgeVersion: 1,
     });
+    await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
+      && frame.url().startsWith("http")
+      && !frame.url().includes("/__nudge_ui__/editor"))?.url() ?? "", { timeout: 30_000 })
+      .not.toBe("");
     if (expectedApplicationText) {
-      await expect(page.locator("body")).toContainText(expectedApplicationText);
+      const preview = page.frames().find((frame) => frame !== page.mainFrame()
+        && frame.url().startsWith("http")
+        && !frame.url().includes("/__nudge_ui__/editor"));
+      if (!preview) throw new Error("Packed Adapter preview frame did not become ready.");
+      await expect(preview.locator("body")).toContainText(expectedApplicationText);
     }
     expect(reactIdentityDiagnostics, reactIdentityDiagnostics.join("\n")).toEqual([]);
   } catch (error) {

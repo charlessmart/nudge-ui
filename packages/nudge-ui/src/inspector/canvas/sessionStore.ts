@@ -11,6 +11,7 @@ import {
   getCanvasMode,
   getCanvasCards,
   getCanvasComparisonGroups,
+  getFocusedCardId,
   getBoardCamera,
   setBoardCamera,
   hydrateCanvasStore,
@@ -144,6 +145,7 @@ export interface DurableSession {
   cards: SerializableCard[];
   comparisonGroups: SerializableComparisonGroup[];
   camera: { x: number; y: number; zoom: number };
+  focusedCardId?: string | null;
   changes: SerializableChange[];
   structuralChanges: StructuralChange[];
   clipboardHandoff: ClipboardHandoffSnapshot | null;
@@ -207,6 +209,7 @@ function buildSession(): DurableSession {
       })),
     })),
     camera: { x: camera.x, y: camera.y, zoom: camera.zoom },
+    focusedCardId: getFocusedCardId(),
     changes: serializableChanges,
     structuralChanges: workspace.structuralChanges.map((change) => ({ ...change })),
     clipboardHandoff: getClipboardHandoffSnapshot(),
@@ -437,12 +440,22 @@ export function hydrateSession(): HydrationResult {
     y: (cameraRaw as Record<string, unknown>).y as number,
     zoom: (cameraRaw as Record<string, unknown>).zoom as number,
   };
+  const focusedCardId = s.focusedCardId === undefined || s.focusedCardId === null
+    ? null
+    : typeof s.focusedCardId === "string" && cardsById.has(s.focusedCardId)
+      ? s.focusedCardId
+      : undefined;
+  if (focusedCardId === undefined) {
+    safeDiscard();
+    return { restored: false, changeCount: 0 };
+  }
 
   hydrateCanvasStore(
     s.mode as CanvasMode,
     serializableCards,
     camera,
     serializableComparisonGroups as CanvasComparisonGroup[],
+    focusedCardId,
   );
   // Structural intent and instance evidence become visible atomically. The
   // projection layer preserves structural-first document application order.

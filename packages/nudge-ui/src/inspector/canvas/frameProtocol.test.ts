@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PROTOCOL_VERSION,
   isElementClickMessage,
+  isInlineTextIntentMessage,
   isProjectionAppliedMessage,
   isRenderedInstanceProjectionReportMessage,
   isRendererMessageFor,
@@ -73,6 +74,40 @@ describe("element click schema", () => {
     { localId: "forbidden" },
   ])("rejects malformed click data: %o", (override) => {
     expect(isElementClickMessage({ ...message, ...override }, identity)).toBe(false);
+  });
+});
+
+describe("inline text intent schema", () => {
+  const message = {
+    type: "inline-text-intent",
+    protocolVersion: PROTOCOL_VERSION,
+    intent: "double-click",
+    cid: "Heading",
+    src: "src/Heading.tsx:1:1",
+    elementId: "r2",
+    point: { x: 12, y: 24 },
+    ...identity,
+  };
+
+  it("accepts a bounded renderer intent for the matching card", () => {
+    expect(isInlineTextIntentMessage(message, identity)).toBe(true);
+    expect(isInlineTextIntentMessage({
+      ...message,
+      intent: "pointer-down",
+      clickCount: 2,
+      emptyProjectionId: "empty-text-1",
+    }, identity)).toBe(true);
+  });
+
+  it.each([
+    { intent: "click" },
+    { point: { x: "12", y: 24 } },
+    { point: { x: 12, y: 24, node: "forbidden" } },
+    { clickCount: -1 },
+    { emptyProjectionId: 1 },
+    { localId: "forbidden" },
+  ])("rejects malformed inline text data: %o", (override) => {
+    expect(isInlineTextIntentMessage({ ...message, ...override }, identity)).toBe(false);
   });
 });
 

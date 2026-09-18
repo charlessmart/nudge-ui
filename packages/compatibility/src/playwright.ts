@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 import type {
   CompatibilityInspection,
   CompatibilityInvariant,
@@ -22,8 +22,23 @@ export interface CompatibilityManagedPreview {
   revertedComputed: string;
 }
 
-async function inspectionFor(page: Page, selector: string): Promise<CompatibilityInspection | null> {
-  return page.evaluate((target) => {
+type ApplicationSurface = Page | Frame;
+
+async function applicationSurface(page: Page): Promise<ApplicationSurface> {
+  if (!await page.locator("html[data-nudge-ui-editor]").count()) return page;
+  await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
+    && frame.url().startsWith("http")
+    && !frame.url().includes("/__nudge_ui__/editor"))?.url() ?? "").not.toBe("");
+  const frame = page.frames().find((candidate) => candidate !== page.mainFrame()
+    && candidate.url().startsWith("http")
+    && !candidate.url().includes("/__nudge_ui__/editor"));
+  if (!frame) throw new Error("Nudge UI preview frame did not become ready");
+  await expect(frame.locator("body")).toBeVisible();
+  return frame;
+}
+
+async function inspectionFor(app: ApplicationSurface, selector: string): Promise<CompatibilityInspection | null> {
+  return app.evaluate((target) => {
     const bridge = (window as Window & {
       __nudgeUi?: { inspect(value: string): CompatibilityInspection | null };
     }).__nudgeUi;
@@ -39,9 +54,9 @@ function controlOf(inspection: CompatibilityInspection, property: string) {
   return inspection.controls.find((candidate) => candidate.property === property);
 }
 
-async function callAction(page: Page, action: CompatibilityScenario["beforeInspect"]): Promise<void> {
+async function callAction(app: ApplicationSurface, action: CompatibilityScenario["beforeInspect"]): Promise<void> {
   if (!action) return;
-  await page.evaluate((name) => {
+  await app.evaluate((name) => {
     const hook = Reflect.get(window, name);
     if (typeof hook !== "function") throw new Error(`Compatibility hook ${name} is not a function`);
     hook();
@@ -80,16 +95,17 @@ async function assertScenario(page: Page, scenario: CompatibilityScenario): Prom
   managedPreview?: CompatibilityManagedPreview;
 }> {
   await page.goto(scenario.path ?? "/");
-  await expect(page.locator(scenario.selector)).toBeVisible();
-  await expect.poll(() => page.evaluate(() => (window as Window & {
+  const app = await applicationSurface(page);
+  await expect(app.locator(scenario.selector)).toBeVisible();
+  await expect.poll(() => app.evaluate(() => (window as Window & {
     __nudgeUi?: { version: number };
   }).__nudgeUi?.version ?? null)).toBe(1);
-  await callAction(page, scenario.beforeInspect);
-  await expect(page.locator(scenario.selector)).toBeVisible();
+  await callAction(app, scenario.beforeInspect);
+  await expect(app.locator(scenario.selector)).toBeVisible();
 
   let inspection: CompatibilityInspection | null = null;
   await expect.poll(async () => {
-    inspection = await inspectionFor(page, scenario.selector);
+    inspection = await inspectionFor(app, scenario.selector);
     return inspection;
   }).not.toBeNull();
   const actual = inspection!;
@@ -139,19 +155,19 @@ async function assertScenario(page: Page, scenario: CompatibilityScenario): Prom
 
   if (scenario.edit) {
     const before = getComputedStyleValue(actual, scenario.edit.property);
-    const inlineStyleBefore = await page.locator(scenario.selector).getAttribute("style");
-    await page.locator(scenario.selector).click();
+    const inlineStyleBefore = await app.locator(scenario.selector).getAttribute("style");
+    await app.locator(scenario.selector).click();
     await selectToken(page, scenario.edit.property, scenario.edit.selectToken);
-    await expect.poll(() => page.locator(scenario.selector).evaluate((element, property) =>
+    await expect.poll(() => app.locator(scenario.selector).evaluate((element, property) =>
       getComputedStyle(element).getPropertyValue(property).trim(), scenario.edit!.property))
       .toBe(scenario.edit.computedAfter);
-    await expect.poll(async () => (await inspectionFor(page, scenario.selector))?.prompt ?? null).not.toBeNull();
-    const edited = (await inspectionFor(page, scenario.selector))!;
+    await expect.poll(async () => (await inspectionFor(app, scenario.selector))?.prompt ?? null).not.toBeNull();
+    const edited = (await inspectionFor(app, scenario.selector))!;
     for (const text of scenario.edit.promptContains) expect(edited.prompt).toContain(text);
     const selectedToken = edited.catalog.find((entry) => entry.name === scenario.edit!.selectToken);
     expect(selectedToken, `${scenario.id}: selected token catalog entry`).toBeDefined();
     const tokenReference = `var(${selectedToken!.cssName})`;
-    const frozenTokenValue = await page.locator(scenario.selector).evaluate((element, cssName) =>
+    const frozenTokenValue = await app.locator(scenario.selector).evaluate((element, cssName) =>
       getComputedStyle(element).getPropertyValue(cssName).trim(), selectedToken!.cssName);
     const previewResult = edited.managedPreview.results.find((result) =>
       result.property === scenario.edit!.property);
@@ -170,13 +186,13 @@ async function assertScenario(page: Page, scenario: CompatibilityScenario): Prom
       computedValue: scenario.edit.computedAfter,
       status: "applied",
     });
-    const inlineStyleAfter = await page.locator(scenario.selector).getAttribute("style");
+    const inlineStyleAfter = await app.locator(scenario.selector).getAttribute("style");
     expect(inlineStyleAfter, `${scenario.id}: tracked element inline style`).toBe(inlineStyleBefore);
     const changeRow = page.locator(`[data-test="change-row"][data-property="${scenario.edit.property}"]`);
     await expect(changeRow).toHaveCount(1);
     await expect(changeRow).toContainText(scenario.edit.selectToken);
     await revertProperty(page, scenario.edit.property);
-    await expect.poll(() => page.locator(scenario.selector).evaluate((element, property) =>
+    await expect.poll(() => app.locator(scenario.selector).evaluate((element, property) =>
       getComputedStyle(element).getPropertyValue(property).trim(), scenario.edit!.property))
       .toBe(scenario.edit.revertTo || before);
     await expect(changeRow).toHaveCount(0);

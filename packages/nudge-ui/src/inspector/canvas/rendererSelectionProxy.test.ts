@@ -51,6 +51,60 @@ describe("handleElementClick", () => {
     expect(getSelectedElement()?.domElement.ownerDocument).toBe(frameDocument);
   });
 
+  it("selects a renderer-owned element whose optional source metadata is absent", () => {
+    const iframe = createFrame();
+    const frameDocument = iframe.contentDocument!;
+    const button = frameDocument.createElement("button");
+    button.setAttribute("data-cid", "Button");
+    button.setAttribute("data-renderer-id", "r1");
+    frameDocument.body.appendChild(button);
+
+    handleElementClick(clickMessage({ src: "" }), iframe, "card-1");
+
+    expect(getSelectedElement()?.domElement).toBe(button);
+    expect(getSelectedElement()?.src).toBe("");
+  });
+
+  it("keeps component prop controls available for an iframe selection", () => {
+    const iframe = createFrame();
+    const frameDocument = iframe.contentDocument!;
+    const button = frameDocument.createElement("button");
+    button.setAttribute("data-cid", "Button");
+    button.setAttribute("data-src", "/src/Button.tsx:32:5");
+    button.setAttribute("data-renderer-id", "r1");
+    frameDocument.body.appendChild(button);
+    const FrameMap = Reflect.get(iframe.contentWindow!, "Map") as MapConstructor;
+    Reflect.set(iframe.contentWindow!, Symbol.for("nudge-ui.host-runtime.v1"), {
+      version: 1,
+      adapters: new FrameMap([["react", {
+        framework: "react",
+        inspect: () => [{
+          framework: "react",
+          meta: {
+            callsiteId: "callsite-1",
+            componentId: "/src/Button#Button",
+            componentName: "Button",
+            file: "/src/Button.tsx",
+            line: 32,
+            column: 5,
+            authoredProps: { disabled: "literal" },
+          },
+          props: { disabled: false },
+        }],
+        replaceOverrides: () => undefined,
+      }]]),
+      overrides: new FrameMap(),
+    });
+
+    handleElementClick(clickMessage(), iframe, "card-1");
+
+    expect(getSelectedElement()?.componentTargets).toMatchObject([{
+      framework: "react",
+      meta: { componentName: "Button" },
+      props: { disabled: false },
+    }]);
+  });
+
   it("does not counterfeit a selection with the iframe body when identity is stale", () => {
     const iframe = createFrame();
 
