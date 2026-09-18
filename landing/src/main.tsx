@@ -9,6 +9,8 @@ if (!root) throw new Error("#root not found");
 const params = new URLSearchParams(window.location.search);
 const demoEnabled = params.get("nudgeDemo") === "1";
 const landingDemoBuild = import.meta.env.MODE === "nudge-demo";
+const editorDocument = (import.meta.env.DEV || landingDemoBuild)
+  && params.getAll("nudge-ui").includes("editor");
 const page = window.location.pathname === "/demo"
   ? demoEnabled || landingDemoBuild
     ? <App />
@@ -21,11 +23,13 @@ const page = window.location.pathname === "/demo"
     )
   : <App />;
 
-if ((demoEnabled || landingDemoBuild) && !import.meta.env.DEV) {
+if (landingDemoBuild && !import.meta.env.DEV) {
   const inspectorRoot = document.createElement("div");
   inspectorRoot.id = "nudge-ui-root";
   document.body.appendChild(inspectorRoot);
   void import("virtual:nudge-ui-inspector");
 }
 
-createRoot(root).render(<StrictMode>{page}</StrictMode>);
+if (!editorDocument) {
+  createRoot(root).render(<StrictMode>{page}</StrictMode>);
+}

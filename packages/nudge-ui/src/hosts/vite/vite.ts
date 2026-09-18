@@ -79,7 +79,7 @@ export interface NudgeUiOptions extends ReactOptions {
   enabled?: boolean;
   /** Enables experimental DOM parent/child navigation in the Inspector. */
   debug?: boolean;
-  /** The landing app's demo runtime: mounted at root in dev and `nudge-demo` builds, or via `?nudgeDemo=1`. */
+  /** Enables the landing app's restricted, iframe-backed demo runtime. */
   demo?: boolean;
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
@@ -645,6 +645,7 @@ export function createVitePlugins(
       host: framework?.hostLabel ?? "static-html",
       framework: framework?.framework ?? "HTML",
       stylingSystem: detectStylingSystem(snapshot.tokens),
+      ...(options.demo === true ? { demo: true } : {}),
       capabilities: { canvas: true, componentSemantics: framework !== null },
       tokenCatalog: snapshot.definitions.map((definition) => ({
         ...definition,
@@ -787,29 +788,26 @@ export function createVitePlugins(
           return `export {};\n`;
         }
         if (options.demo === true) {
-          const landingDemoExpression = demoBuild
-            ? "true"
-            : '(import.meta.env.DEV && window.location.pathname === "/")';
           // Taken from the composed framework, so the demo bootstrap cannot drift
           // from the manifest the transport serves.
           const identity = buildRuntimeSnapshot();
           return [
-            'import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework, setInspectorOpen } from "nudge-ui/internal/inspector";',
+            'import { bootstrapNudgeUi, configureNudgeUiRuntime, createNudgeUiEditorUrl, detectFramework, isCanvasRenderer, readNudgeUiEditorTarget } from "nudge-ui/internal/inspector";',
             'import { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";',
             ...(framework
               ? [`import { componentContracts } from ${JSON.stringify(framework.virtualModuleId)};`]
               : []),
-            'const __nudge_ui_demo_frame = new URLSearchParams(window.location.search).get("nudgeDemo") === "1";',
-            `const __nudge_ui_landing_demo = ${landingDemoExpression};`,
-            'const __nudge_ui_demo_runtime = __nudge_ui_demo_frame || __nudge_ui_landing_demo;',
-            'if (__nudge_ui_demo_runtime || (import.meta.env.DEV && window.location.pathname !== "/demo")) {',
+            'const __nudge_ui_editor_target = readNudgeUiEditorTarget(window.location.href);',
+            'const __nudge_ui_renderer = isCanvasRenderer();',
+            'if (__nudge_ui_editor_target) document.documentElement.setAttribute("data-nudge-ui-editor", "");',
+            'if (__nudge_ui_editor_target || __nudge_ui_renderer) {',
             '  configureNudgeUiRuntime({',
             '    projectId: nudgeUiProjectId,',
             `    host: ${JSON.stringify(identity.host)},`,
             `    framework: ${JSON.stringify(identity.framework)},`,
             '    stylingSystem: detectFramework(tokens).stylingSystem,',
-            '    ...(__nudge_ui_demo_runtime ? { demo: true } : {}),',
-            `    capabilities: { canvas: __nudge_ui_demo_runtime ? false : true, componentSemantics: ${String(framework !== null)} },`,
+            '    demo: true,',
+            `    capabilities: { canvas: true, componentSemantics: ${String(framework !== null)} },`,
             '    tokenCatalog,',
             '    tokens,',
             '    tokenDiagnostics,',
@@ -819,12 +817,11 @@ export function createVitePlugins(
             '  const __dt_root = document.getElementById("nudge-ui-root");',
             '  if (__dt_root) {',
             '    bootstrapNudgeUi(__dt_root);',
-            '    if (__nudge_ui_demo_runtime) {',
-            '      setInspectorOpen(false);',
-            '      window.addEventListener("nudge-ui:open", () => setInspectorOpen(true));',
-            '    }',
             '  }',
             '}',
+            'window.addEventListener("nudge-ui:open", () => {',
+            '  if (!__nudge_ui_editor_target && !__nudge_ui_renderer) window.location.assign(createNudgeUiEditorUrl(window.location.href));',
+            '});',
           ].join("\n");
         }
         return null;

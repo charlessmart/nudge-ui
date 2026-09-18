@@ -496,24 +496,6 @@ describe("InspectorShell", () => {
     }
   });
 
-  it("reserves the panel width while open and releases it when hidden", () => {
-    act(() => {
-      mountInspector(host);
-    });
-    expect(document.documentElement.getAttribute("data-nudge-ui-panel")).toBe("open");
-    expect(document.getElementById("nudge-ui-panel-layout")).not.toBeNull();
-
-    act(() => {
-      pressKey({ key: "i", code: "KeyI", altKey: true });
-    });
-    expect(document.documentElement.hasAttribute("data-nudge-ui-panel")).toBe(false);
-
-    act(() => {
-      unmountInspector();
-    });
-    expect(document.getElementById("nudge-ui-panel-layout")).toBeNull();
-  });
-
   it("collapses from the header and restores through the floating icon button", () => {
     act(() => {
       mountInspector(host);
@@ -528,13 +510,11 @@ describe("InspectorShell", () => {
 
     act(() => collapse.click());
     expect(panel.getAttribute("data-open")).toBe("false");
-    expect(document.documentElement.hasAttribute("data-nudge-ui-panel")).toBe(false);
 
     const show = shadow.querySelector('[data-test="show-inspector"]') as HTMLButtonElement;
     expect(show.getAttribute("aria-label")).toBe("Show inspector");
     act(() => show.click());
     expect(panel.getAttribute("data-open")).toBe("true");
-    expect(document.documentElement.getAttribute("data-nudge-ui-panel")).toBe("open");
   });
 
   it("non-Alt+I keys do not toggle", () => {

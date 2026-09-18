@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-test("runs the real inspector on the landing document", async ({ page }) => {
+test("opens the restricted demo in the shared iframe editor", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Nudge is a tool for designing in code." })).toBeVisible();
-  const hero = page.getByRole("region", { name: "Nudge is a tool for designing in code." });
+  await expect(page.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toBeVisible();
+  const hero = page.getByRole("region", { name: "Nudge, a design panel for your codebase." });
   await expect(hero.getByText("Run npm create nudge-ui@latest in this project", { exact: true })).toBeVisible();
   await expect(page.getByText("Try the demo", { exact: true })).toHaveCount(0);
   await expect(page.getByText("localhost:5173/sandbox", { exact: true })).toHaveCount(0);
@@ -49,26 +49,42 @@ test("runs the real inspector on the landing document", async ({ page }) => {
   await expect(footer.getByText("dev-only by design", { exact: false })).toHaveCount(0);
   await expect(footer.getByText("data-cid", { exact: false })).toHaveCount(0);
 
+  const initialInspectorHost = page.locator("#nudge-ui-root");
+  await expect(page.locator("iframe")).toHaveCount(0);
+  if (await initialInspectorHost.count()) {
+    expect(await initialInspectorHost.evaluate((host) => host.shadowRoot)).toBeNull();
+  }
+
+  await Promise.all([
+    page.waitForURL((url) => url.searchParams.getAll("nudge-ui").includes("editor")),
+    openNudge.click(),
+  ]);
+  await expect(page.locator("html")).toHaveAttribute("data-nudge-ui-editor", "");
+  await expect(page.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toHaveCount(0);
+
   const inspectorHost = page.locator("#nudge-ui-root");
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
-
-  const collapsedState = await inspectorHost.evaluate((host) => {
-    const shadow = host.shadowRoot;
-    return {
-      panelOpen: shadow?.querySelector(".panel")?.getAttribute("data-open"),
-      hasRestoreButton: shadow?.querySelector('[data-test="show-inspector"]') !== null,
-      hasCanvas: shadow?.querySelector('[data-test="canvas-workspace"]') !== null,
-      hasCopyControl: shadow?.querySelector('[data-test="copy-prompt-control"]') !== null,
-    };
-  });
-  expect(collapsedState).toEqual({ panelOpen: "false", hasRestoreButton: true, hasCanvas: false, hasCopyControl: true });
-
-  await openNudge.click();
+  await expect(inspectorHost.locator('[data-test="canvas-workspace"]')).toBeVisible();
+  await expect(inspectorHost.locator('[data-test="presentation-canvas"]')).toHaveCount(0);
   await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot?.querySelector(".panel")?.getAttribute("data-open"))).toBe("true");
-  await expect(inspectorHost.locator('[data-test="show-inspector"]')).toHaveCount(0);
 
-  await page.locator("#landing-hero-title").click();
+  const appFrame = inspectorHost.locator("iframe[data-nudge-ui-canvas-renderer]");
+  await expect(appFrame).toBeVisible();
+  await expect.poll(async () => (await appFrame.getAttribute("src")) ?? "").not.toContain("nudge-ui=editor");
+  const app = appFrame.contentFrame();
+  await expect(app.getByRole("heading", { name: "Nudge, a design panel for your codebase." })).toBeVisible();
+  const editableDemoText = app.locator(".landing-demo-example-text");
+  await editableDemoText.dblclick();
+  const inlineEditor = app.locator('[data-inline-editor="true"]');
+  await expect(inlineEditor).toHaveText("Edit me");
+  await inlineEditor.fill("Edited in iframe");
+  await inlineEditor.press("Enter");
+  await expect(editableDemoText).toHaveText("Edited in iframe");
+  await app.locator("#landing-hero-title").click();
   await expect(inspectorHost.locator('[data-test="empty-state"]')).toHaveCount(0);
+
+  const demoStorageKeys = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("nudge-ui:")));
+  expect(demoStorageKeys).toEqual([]);
 });
 
 test("keeps the unflagged demo route disabled during development", async ({ page }) => {

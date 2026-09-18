@@ -9,7 +9,6 @@ import {
   setSelectedElement,
   removeSelectedElement,
 } from "../selection/selectionStore.ts";
-import { InspectorOverlay } from "../overlay/InspectorOverlay.tsx";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { findTokenRow } from "../styleEditors/rowLookup.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
@@ -42,7 +41,6 @@ import { UI_STYLES } from "../ui/styles.ts";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
 import type { InteractionState } from "./styleState.ts";
 import { isEditableEvent } from "./shortcuts.ts";
-import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
@@ -73,16 +71,6 @@ function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): Reso
 
 export { toggleInspector, setInspectorOpen };
 export type { SelectedElement } from "../selection/selectionStore.ts";
-
-let inspectorHost: HTMLElement | null = null;
-
-export function setInspectorHost(host: HTMLElement | null): void {
-  inspectorHost = host;
-}
-
-function resolveHost(): HTMLElement {
-  return inspectorHost ?? document.getElementById("nudge-ui-root") ?? document.body;
-}
 
 function nodeMatchesSelector(node: Node, selector: string | null): boolean {
   if (!selector || node.nodeType !== node.ELEMENT_NODE) return false;
@@ -126,10 +114,6 @@ export function InspectorShell(): ReactElement {
   const isMultiSelection = selectedElements.length > 1;
   const canvasPresentation = useCanvasPresentation();
 
-  useEffect(() => {
-    setInspectorLayoutOpen(isOpen);
-    return clearInspectorLayout;
-  }, [isOpen]);
 
   useEffect(() => {
     // A new selection should never inherit an incidental state from the
@@ -268,7 +252,6 @@ export function InspectorShell(): ReactElement {
   return (
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
-      {(!canvasEnabled || runtimeConfig.demo === true) && <InspectorOverlay host={resolveHost()} />}
       <div className="panel" data-open={isOpen ? "true" : "false"}>
         <div className="panel__tabs" aria-label="Inspector controls">
           <div
