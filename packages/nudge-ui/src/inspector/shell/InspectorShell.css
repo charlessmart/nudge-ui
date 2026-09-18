@@ -157,6 +157,12 @@
   text-align: center;
 }
 
+.copy-prompt__sketch-fallback {
+  display: grid;
+  gap: var(--space-8);
+  margin-top: var(--space-8);
+}
+
 .panel__body {
   min-height: auto;
   padding: 0 20px 28px;

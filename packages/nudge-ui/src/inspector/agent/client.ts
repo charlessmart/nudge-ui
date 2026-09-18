@@ -13,6 +13,8 @@ import {
   type AgentEventsRequest,
   type AgentPairRequest,
   type AgentPromptDispatch,
+  type AgentSketchAttachment,
+  type AgentSketchMetadata,
   type AgentRequestStatus,
   type AgentStatusSnapshot,
   type CanvasCommand,
@@ -34,6 +36,8 @@ export type AgentClientState =
 export interface AgentRequestSnapshot {
   readonly requestId: string;
   readonly changeRevision?: number;
+  readonly clientDispatchId?: string;
+  readonly sketches?: readonly AgentSketchMetadata[];
   readonly status: AgentRequestStatus;
   readonly summary?: string;
   readonly error?: string;
@@ -76,6 +80,8 @@ interface ActiveRequest {
   requestId: string;
   prompt: string;
   changeRevision?: number;
+  clientDispatchId?: string;
+  sketches?: readonly AgentSketchMetadata[];
   status: AgentRequestStatus;
   summary?: string;
   error?: string;
@@ -179,10 +185,11 @@ function hashRevision(value: string): number {
 export function createPromptRevision(
   changes: readonly unknown[],
   structuralChanges: readonly unknown[] = [],
+  sketches: readonly unknown[] = [],
 ): number {
   let serialized: string;
   try {
-    serialized = JSON.stringify({ changes, structuralChanges }) ?? "";
+    serialized = JSON.stringify({ changes, structuralChanges, sketches }) ?? "";
   } catch {
     serialized = `${changes.length}:${structuralChanges.length}`;
   }
@@ -439,7 +446,11 @@ export class AgentClient {
    * synchronously, before the transport promise resolves, so the UI cannot
    * issue a second prompt while the first one is in flight.
    */
-  async dispatchPrompt(prompt: string, changeRevision?: number): Promise<PromptDispatchResponse | null> {
+  async dispatchPrompt(
+    prompt: string,
+    changeRevision?: number,
+    options: { readonly clientDispatchId?: string; readonly attachments?: readonly AgentSketchAttachment[] } = {},
+  ): Promise<PromptDispatchResponse | null> {
     if (!this.enabled || !this.started || !this.paired || !this.listenerActive || !this.sessionToken) return null;
     if (!prompt || this.activeRequest?.status === "working") return null;
     const localRequestId = randomId("request");
@@ -448,12 +459,17 @@ export class AgentClient {
       sessionToken: this.sessionToken,
       prompt,
       ...(changeRevision === undefined ? {} : { changeRevision }),
+      ...(options.clientDispatchId === undefined ? {} : { clientDispatchId: options.clientDispatchId }),
+      ...(options.attachments === undefined ? {} : { attachments: options.attachments }),
     };
+    const sketches = options.attachments?.map(({ data: _data, ...metadata }) => metadata);
     this.activeRequest = {
       localRequestId,
       requestId: localRequestId,
       prompt,
       ...(changeRevision === undefined ? {} : { changeRevision }),
+      ...(options.clientDispatchId === undefined ? {} : { clientDispatchId: options.clientDispatchId }),
+      ...(sketches === undefined ? {} : { sketches }),
       status: "working",
     };
     this.connection = "working";
@@ -466,7 +482,12 @@ export class AgentClient {
       if (abortController.signal.aborted) return null;
       if (response?.request?.requestId) {
         this.activeRequest = this.activeRequest && this.activeRequest.localRequestId === localRequestId
-          ? { ...this.activeRequest, requestId: response.request.requestId }
+          ? {
+            ...this.activeRequest,
+            requestId: response.request.requestId,
+            ...(response.request.clientDispatchId === undefined ? {} : { clientDispatchId: response.request.clientDispatchId }),
+            ...(response.request.sketches === undefined ? {} : { sketches: response.request.sketches }),
+          }
           : this.activeRequest;
       }
       if (response?.status && response.status !== "working") {
@@ -667,7 +688,15 @@ export class AgentClient {
       this.discoveryTimer = null;
     }
     if (status.request) {
-      this.applyRequestStatus(status.request.status, status.request.requestId, status.request.summary, status.request.error, status.request.changeRevision);
+      this.applyRequestStatus(
+        status.request.status,
+        status.request.requestId,
+        status.request.summary,
+        status.request.error,
+        status.request.changeRevision,
+        status.request.clientDispatchId,
+        status.request.sketches,
+      );
     } else if (status.listenerActive && status.paired && this.activeRequest?.status !== "working") {
       // A re-armed MCP listen call is the lifecycle boundary for the previous
       // terminal request. Drop only that terminal status; newer edits remain
@@ -701,6 +730,8 @@ export class AgentClient {
     summary?: string,
     error?: string,
     changeRevision?: number,
+    clientDispatchId?: string,
+    sketches?: readonly AgentSketchMetadata[],
   ): void {
     const active = this.activeRequest;
     if (active && active.requestId !== requestId && active.localRequestId !== requestId) {
@@ -715,6 +746,8 @@ export class AgentClient {
         requestId,
         prompt: "",
         ...(changeRevision === undefined ? {} : { changeRevision }),
+        ...(clientDispatchId === undefined ? {} : { clientDispatchId }),
+        ...(sketches === undefined ? {} : { sketches }),
         status,
         ...(summary === undefined ? {} : { summary }),
         ...(error === undefined ? {} : { error }),
@@ -725,6 +758,8 @@ export class AgentClient {
         requestId,
         status,
         ...(changeRevision === undefined ? {} : { changeRevision }),
+        ...(clientDispatchId === undefined ? {} : { clientDispatchId }),
+        ...(sketches === undefined ? {} : { sketches }),
         ...(summary === undefined ? {} : { summary }),
         ...(error === undefined ? {} : { error }),
       };
@@ -760,6 +795,8 @@ export class AgentClient {
       request: request ? {
         requestId: request.requestId,
         ...(request.changeRevision === undefined ? {} : { changeRevision: request.changeRevision }),
+        ...(request.clientDispatchId === undefined ? {} : { clientDispatchId: request.clientDispatchId }),
+        ...(request.sketches === undefined ? {} : { sketches: request.sketches }),
         status: request.status,
         ...(request.summary === undefined ? {} : { summary: request.summary }),
         ...(request.error === undefined ? {} : { error: request.error }),

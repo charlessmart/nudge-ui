@@ -46,6 +46,8 @@ import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { setCanvasPresentation, useCanvasPresentation } from "../canvas/canvasStore.ts";
+import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
+import { getActiveCanvasFrame } from "../canvas/activeCanvasDocument.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
@@ -56,6 +58,11 @@ import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { createStyleSelection } from "../selection/styleSelection.ts";
 import { intersectTokenEntries } from "../inspection/selectionProperty.ts";
+import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
+import { SketchEntryButton } from "../sketch/SketchEntryButton.tsx";
+import { SketchWorkspace } from "../sketch/SketchWorkspace.tsx";
+import { useSketchInteractionActive } from "../sketch/interaction.ts";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
   for (const property of properties) {
@@ -102,6 +109,11 @@ export function InspectorShell(): ReactElement {
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const canvasEnabled = runtimeConfig.capabilities.canvas;
   const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
+  const sketchEnabled = isNudgeUiDev() && !isDemoRuntime();
+  const sketchActive = useSketchInteractionActive();
+  const selectedCardId = useSelectedCardId();
+  const focusedCardId = useFocusedCardId();
+  const sketchHost = selectedCardId || focusedCardId ? getActiveCanvasFrame() : null;
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
   const hierarchy = useHierarchy();
@@ -157,7 +169,7 @@ export function InspectorShell(): ReactElement {
   }, [selectedElements, scopeRevision]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || sketchActive) return;
     function onKeydown(event: KeyboardEvent): void {
       if (isInlineTextEditingActive()) return;
       const mod = event.metaKey || event.ctrlKey;
@@ -204,7 +216,7 @@ export function InspectorShell(): ReactElement {
     }
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, [isOpen, isMultiSelection, selected]);
+  }, [isOpen, isMultiSelection, selected, sketchActive]);
 
   const inspectionSnapshot = cssInspection.element;
   const styleSelection = useMemo(
@@ -262,6 +274,7 @@ export function InspectorShell(): ReactElement {
               variant="quiet"
               label="Collapse inspector"
               data-test="collapse-inspector"
+              disabled={sketchActive}
               style={{ marginLeft: "-8px" }}
               onClick={() => {
                 cancelInlineTextEdit();
@@ -299,6 +312,7 @@ export function InspectorShell(): ReactElement {
               >
                 <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               </IconButton>
+              {sketchEnabled ? <SketchEntryButton hostElement={sketchHost} /> : null}
             </div>
           </div>
           <div className="panel__copy-row">
@@ -495,6 +509,9 @@ export function InspectorShell(): ReactElement {
           />
         </div>
       </div>
+      {sketchEnabled ? (
+        <SketchWorkspace hostElement={sketchHost} projectId={runtimeConfig.projectId} />
+      ) : null}
       {!isOpen ? (
         <div className="panel__restore">
           <IconButton

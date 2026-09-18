@@ -25,7 +25,7 @@ import {
 
 function listeningStatus(overrides: Partial<AgentStatusSnapshot> = {}): AgentStatusSnapshot {
   return {
-    protocolVersion: 1,
+    protocolVersion: 2,
     projectId: "handoff-project",
     connection: "listening",
     listenerActive: true,
@@ -61,7 +61,7 @@ class ButtonTransport implements AgentBridgeTransport {
 
   async pair(): Promise<PairingResponse> {
     return {
-      protocolVersion: 1,
+      protocolVersion: 2,
       projectId: "handoff-project",
       origin: window.location.origin,
       sessionToken: "button-session",

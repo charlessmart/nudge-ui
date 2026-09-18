@@ -26,6 +26,8 @@ import {
   getTextProjectionDiagnosticRevision,
   subscribeTextProjectionDiagnostics,
 } from "../projection/textProjection.ts";
+import { SketchChanges } from "../sketch/SketchChanges.tsx";
+import { useSketchStore } from "../sketch/store.ts";
 
 interface Group {
   key: string;
@@ -96,6 +98,8 @@ function structuralDiagnosticText(diagnostic: StructuralChangeDiagnostic): strin
 
 export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | null {
   const changes = useChanges();
+  const sketchStore = useSketchStore();
+  const sketches = sketchStore.items;
   const structuralChanges = useSyncExternalStore(
     subscribeStructuralChanges,
     getStructuralChanges,
@@ -119,9 +123,9 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
     getTextProjectionDiagnosticRevision,
   );
   const groups = useMemo(() => groupChanges(changes), [changes]);
-  const total = changes.length + structuralChanges.length;
+  const total = changes.length + structuralChanges.length + sketches.length;
 
-  if (total === 0) return null;
+  if (total === 0 && sketchStore.error === null) return null;
 
   return (
     <>
@@ -132,7 +136,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
           <IconChevronDown className="changes__toggle-icon" size={15} stroke={2} aria-hidden="true" />
         </summary>
         <div className="changes__content">
-          {groups.length === 0 && structuralChanges.length === 0 ? (
+          {groups.length === 0 && structuralChanges.length === 0 && sketches.length === 0 && sketchStore.error === null ? (
             <div className="changes__empty" data-test="changes-empty">
               No changes yet
             </div>
@@ -256,6 +260,7 @@ export function ChangesLog({ onClearSession }: ChangesLogProps): ReactElement | 
                   </div>
                 </div>
               ))}
+              <SketchChanges />
             </>
           )}
         </div>

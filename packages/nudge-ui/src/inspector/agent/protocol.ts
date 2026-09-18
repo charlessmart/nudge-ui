@@ -3,6 +3,7 @@ import type {
   CanvasCommand,
   CanvasCommandAcknowledgement,
   CanvasCommandResult,
+  AgentSketchAttachment,
   PairingResponse,
   PromptDispatchResponse,
 } from "@nudge-ui/agent-protocol";
@@ -22,6 +23,10 @@ export {
   CANVAS_COMMAND_TYPES,
   canonicalOrigin,
   isAgentPromptRequest,
+  isAgentSketchAttachment,
+  isAgentSketchAnnotation,
+  isAgentSketchCaptureMetadata,
+  isAgentSketchMetadata,
   isAgentStatusUpdate,
   isAllowedOrigin,
   isCanvasCommand,
@@ -31,6 +36,7 @@ export {
   isProjectIdentity,
   isSameOriginRoute,
   protocolError,
+  validateSketchAttachments,
   validateRoutes,
 } from "@nudge-ui/agent-protocol";
 
@@ -38,6 +44,11 @@ export type {
   AgentConnectionState,
   AgentProjectIdentity,
   AgentPromptRequest,
+  AgentDeliveredPrompt,
+  AgentSketchAttachment,
+  AgentSketchAnnotation,
+  AgentSketchCaptureMetadata,
+  AgentSketchMetadata,
   AgentRequestOutcome,
   AgentRequestStatus,
   AgentRoute,
@@ -111,6 +122,8 @@ export interface AgentPromptDispatch {
   readonly sessionToken: string;
   readonly prompt: string;
   readonly changeRevision?: number;
+  readonly clientDispatchId?: string;
+  readonly attachments?: readonly AgentSketchAttachment[];
 }
 
 export interface AgentDisconnectRequest {

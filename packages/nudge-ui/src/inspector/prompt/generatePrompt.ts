@@ -23,6 +23,7 @@ import {
   normalizeRuntimeText,
 } from "../runtime/staticHtmlRuntimeIdentity.ts";
 import { getSourceCoordinatePolicy, type SourceCoordinatePolicy } from "../runtime/runtimeConfig.ts";
+import type { AgentSketchMetadata } from "../agent/protocol.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
 
 export interface FrameworkHints {
@@ -309,6 +310,19 @@ function structuralChangeLine(change: StructuralChange): string {
     : `- Move ${target} to the end of ${destinationParent}.`;
 }
 
+function sketchLines(sketches: readonly AgentSketchMetadata[]): string[] {
+  const titles = [...new Set(sketches.map((sketch) => sketch.capture.title || "(untitled)"))];
+  return [
+    ...titles.map((title) => `- Page title: ${promptText(title)}`),
+    ...sketches.flatMap((sketch) => [
+      ...(sketch.description ? [`- Description: ${promptText(sketch.description)}`] : []),
+      ...(sketch.annotations ?? []).map((annotation) =>
+        `- Annotation ${annotation.number}: ${promptText(annotation.description)}`),
+    ]),
+    "- Interpret the attached frozen screenshot, blue strokes, and numbered annotations as visual feedback. Do not derive selectors, source coordinates, or semantics from the strokes. Use each annotation number to match the note to its numbered dot.",
+  ];
+}
+
 function renderedInstanceKey(ref: RenderedInstanceRef): string {
   const { sourceSite, locator } = ref;
   return JSON.stringify([
@@ -379,10 +393,11 @@ export function generatePrompt(
   frameworkHints?: FrameworkHints,
   structuralChanges: readonly StructuralChange[] = [],
   customInstructions: string = DEFAULT_CUSTOM_INSTRUCTIONS,
+  sketches: readonly AgentSketchMetadata[] = [],
 ): string {
   const deduplicated = canonicalizeChanges(changes);
   const structuralIntent = canonicalizeStructuralChanges(structuralChanges);
-  if (deduplicated.length === 0 && structuralIntent.length === 0) return EMPTY_SENTINEL;
+  if (deduplicated.length === 0 && structuralIntent.length === 0 && sketches.length === 0) return EMPTY_SENTINEL;
 
   const tokenChanges = deduplicated.filter(isTokenChange);
   const componentChanges = deduplicated.filter(isComponentChange);
@@ -462,6 +477,13 @@ export function generatePrompt(
     sections.push({
       heading: "Structural changes",
       lines: structuralIntent.map(structuralChangeLine),
+    });
+  }
+
+  if (sketches.length > 0) {
+    sections.push({
+      heading: "Sketch annotations",
+      lines: sketchLines(sketches),
     });
   }
 

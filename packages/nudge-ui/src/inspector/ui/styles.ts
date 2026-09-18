@@ -30,6 +30,7 @@ import domNavigationStyles from "../shell/DomNavigation.css?inline";
 import promptSettingsStyles from "../prompt/PromptSettingsDialog.css?inline";
 import mcpConnectionStyles from "../agent/McpConnectionDialog.css?inline";
 import settingsStyles from "../settings/SettingsDialog.css?inline";
+import sketchStyles from "../sketch/Sketch.css?inline";
 
 export const UI_STYLES = [
   foundationStyles,
@@ -64,4 +65,5 @@ export const UI_STYLES = [
   promptSettingsStyles,
   mcpConnectionStyles,
   settingsStyles,
+  sketchStyles,
 ].join("\n");

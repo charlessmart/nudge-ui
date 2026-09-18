@@ -35,3 +35,11 @@ function getCanvasDocumentsInPriorityOrder(): Document[] {
 export function getActiveCanvasDocument(): Document | null {
   return getCanvasDocumentsInPriorityOrder()[0] ?? null;
 }
+
+/** Returns the iframe that owns the active renderer document. */
+export function getActiveCanvasFrame(): HTMLIFrameElement | null {
+  const document = getActiveCanvasDocument();
+  if (!document) return null;
+  const frame = document.defaultView?.frameElement;
+  return frame instanceof HTMLIFrameElement ? frame : null;
+}
