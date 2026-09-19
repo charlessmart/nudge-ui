@@ -178,6 +178,22 @@ describe("CanvasCard renderer handshake", () => {
     expect(dimensions()).toBe("1024 × 768 px");
   });
 
+  it("shows a card title in place of dimensions when one is available", () => {
+    const card: CanvasCardData = {
+      id: "card-title",
+      url: window.location.href,
+      title: "Version 1",
+      x: 20,
+      y: 30,
+      width: 1024,
+      height: 768,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    renderCard(card);
+
+    expect(host.querySelector(`[data-test="canvas-card-dimensions-${card.id}"]`)?.textContent).toBe("Version 1");
+  });
+
   it("loads an explicit restored fragment requested after the iframe mounts", () => {
     const previous = new URL("/playground#previous", window.location.href).href;
     const requested = new URL("/playground#requested", window.location.href).href;
@@ -206,9 +222,9 @@ describe("CanvasCard renderer handshake", () => {
     expect(iframe?.getAttribute("src")).toBe(requested);
   });
 
-  it("opens the application through the card toolbar control", () => {
+  it("returns the selected card to the focused preview", () => {
     const card: CanvasCardData = {
-      id: "card-open-app",
+      id: "card-focus-preview",
       url: window.location.href,
       title: null,
       x: 0,
@@ -216,18 +232,19 @@ describe("CanvasCard renderer handshake", () => {
       width: 800,
       height: 600,
     };
-    const onOpenApp = vi.fn();
+    const onShowFocus = vi.fn();
     root = createRoot(host);
     act(() => {
-      root!.render(createElement(CanvasCard, { card, onOpenApp }));
+      root!.render(createElement(CanvasCard, { card, onShowFocus }));
     });
 
-    const control = host.querySelector(`[data-test="canvas-card-open-app-${card.id}"]`);
-    if (!(control instanceof HTMLButtonElement)) throw new Error("Open app control did not mount");
+    const control = host.querySelector(`[data-test="canvas-card-focus-${card.id}"]`);
+    if (!(control instanceof HTMLButtonElement)) throw new Error("Focus control did not mount");
     act(() => control.click());
 
-    expect(control.textContent).toContain("Open app");
-    expect(onOpenApp).toHaveBeenCalledWith(card);
+    expect(control.classList.contains("button--primary")).toBe(true);
+    expect(control.textContent).toContain("Focus");
+    expect(onShowFocus).toHaveBeenCalledWith(card.id);
   });
 
   it("moves the card when dragging from the dimension surface", () => {
@@ -304,17 +321,61 @@ describe("CanvasCard renderer handshake", () => {
       height: 600,
     };
     hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
-    renderCard(card);
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCard, { card, onShowFocus: vi.fn() }));
+    });
 
     const dimensions = host.querySelector(
       `[data-test="canvas-card-dimensions-${card.id}"]`,
     );
-    const actions = host.querySelector(".canvas-card__actions");
-    if (!(dimensions instanceof HTMLElement) || !(actions instanceof HTMLElement)) {
+    const focus = host.querySelector(`[data-test="canvas-card-focus-${card.id}"]`);
+    if (!(dimensions instanceof HTMLElement) || !(focus instanceof HTMLElement)) {
       throw new Error("toolbar content did not mount");
     }
 
     expect(dimensions.style.transformOrigin).toBe("left bottom");
-    expect(actions.style.transformOrigin).toBe("right bottom");
+    expect(focus.style.transformOrigin).toBe("left bottom");
+  });
+
+  it("does not render card action buttons", () => {
+    const card: CanvasCardData = {
+      id: "card-actions-removed",
+      url: window.location.href,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    renderCard(card);
+
+    expect(host.querySelector(`[data-test="canvas-card-open-app-${card.id}"]`)).toBeNull();
+    expect(host.querySelector(`[data-test="canvas-card-duplicate-${card.id}"]`)).toBeNull();
+    expect(host.querySelector(`[data-test="canvas-card-reload-${card.id}"]`)).toBeNull();
+  });
+
+  it("renders the Open app action when the workspace supplies it", () => {
+    const card: CanvasCardData = {
+      id: "card-open-app",
+      url: window.location.href,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    const onOpenApp = vi.fn();
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCard, { card, onOpenApp }));
+    });
+
+    const control = host.querySelector(`[data-test="canvas-card-open-app-${card.id}"]`);
+    if (!(control instanceof HTMLButtonElement)) throw new Error("Open app control did not mount");
+    act(() => control.click());
+
+    expect(control.textContent).toContain("Open app");
+    expect(onOpenApp).toHaveBeenCalledWith(card);
   });
 });

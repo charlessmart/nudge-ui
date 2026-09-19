@@ -5,6 +5,7 @@ import type { ElementChangeRecord, TextContentChangeRecord } from "../changes/ch
 import type { TokenEntry } from "../../css/model/index.ts";
 import { makeComponentChange } from "../changes/_testUtils.ts";
 import type { StructuralChange } from "../projection/structuralProjection.ts";
+import type { AgentSketchMetadata } from "../agent/protocol.ts";
 import { configureNudgeUiRuntime } from "../runtime/runtimeConfig.ts";
 import { DEFAULT_CUSTOM_INSTRUCTIONS } from "./promptSettings.ts";
 
@@ -219,6 +220,49 @@ describe("generatePrompt", () => {
     expect(out).not.toContain("data-cid");
     expect(out).not.toContain("data-projection-instance");
     expect(out).not.toContain("elementId");
+  });
+
+  it("includes sketch intent with the page title and annotation guidance", () => {
+    const sketch: AgentSketchMetadata = {
+      id: "sketch-checkout",
+      revision: 3,
+      filename: "sketch-sketch-checkout-r3.png",
+      mimeType: "image/png",
+      width: 1200,
+      height: 800,
+      byteSize: 1024,
+      capture: {
+        url: "http://localhost:5173/checkout?step=2#payment",
+        title: "Checkout",
+        timestamp: Date.UTC(2026, 0, 2, 3, 4, 5),
+        viewportWidth: 1200,
+        viewportHeight: 800,
+        scrollX: 0,
+        scrollY: 240,
+        devicePixelRatio: 2,
+        host: "vite-react",
+        framework: "React",
+      },
+      description: "Give the payment card more breathing room.",
+      annotations: [{ number: 1, description: "Make the Done button more prominent." }],
+    };
+
+    const out = generatePrompt([], undefined, [], "Keep the implementation concise.", [sketch]);
+
+    expect(out).toContain("## Sketch annotations");
+    expect(out).toContain("Page title: `Checkout`");
+    expect(out).toContain("Annotation 1: `Make the Done button more prominent.`");
+    expect(out).toContain("Description: `Give the payment card more breathing room.`");
+    expect(out).toContain("blue strokes, and numbered annotations as visual feedback");
+    expect(out).not.toContain("red strokes as visual feedback");
+    expect(out).toContain("Do not derive selectors, source coordinates, or semantics from the strokes.");
+    expect(out).toContain("## Custom instructions\n\nKeep the implementation concise.");
+    expect(out).not.toContain("sketch-sketch-checkout-r3.png");
+    expect(out).not.toContain("Sketch ID");
+    expect(out).not.toContain("Captured route");
+    expect(out).not.toContain("Viewport");
+    expect(out).not.toContain("Runtime");
+    expect(out).not.toContain("No changes to export");
   });
 
   it("describes a cross-container move with source and destination sites", () => {

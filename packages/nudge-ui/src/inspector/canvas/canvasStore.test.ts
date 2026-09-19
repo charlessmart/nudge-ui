@@ -27,6 +27,8 @@ import {
   subscribe,
   activateIframeWorkspace,
   PRIMARY_CARD_INSET,
+  setCanvasPresentation,
+  setCardPosition,
   type CanvasMode,
 } from "./canvasStore.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
@@ -466,6 +468,39 @@ describe("canvasStore camera", () => {
     setBoardCamera({ x: 10, y: 20, zoom: 2 });
     expect(fired).toBe(true);
     unsub();
+  });
+
+  it("resets to the active card inset when entering Canvas", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    resizeCard(card.id, 800, 600);
+    setCardPosition(card.id, 320, 180);
+    focusCard(card.id);
+    setBoardCamera({ x: -240, y: 560, zoom: 0.5 });
+
+    setCanvasPresentation("canvas");
+
+    expect(getBoardCamera()).toEqual({
+      x: PRIMARY_CARD_INSET - 320,
+      y: PRIMARY_CARD_INSET - 180,
+      zoom: 1,
+    });
+    expect(getCanvasCards()[0]).toMatchObject({
+      x: 320,
+      y: 180,
+      width: 800,
+      height: 600,
+    });
+
+    setCanvasPresentation("focus");
+    setBoardCamera({ x: 900, y: -300, zoom: 2 });
+    setCanvasPresentation("canvas");
+
+    expect(getBoardCamera()).toEqual({
+      x: PRIMARY_CARD_INSET - 320,
+      y: PRIMARY_CARD_INSET - 180,
+      zoom: 1,
+    });
+    setCanvasPresentation("focus");
   });
 });
 

@@ -15,7 +15,7 @@ import type {
 
 function status(overrides: Partial<AgentStatusSnapshot> = {}): AgentStatusSnapshot {
   return {
-    protocolVersion: 1,
+    protocolVersion: 2,
     projectId: "fixture-project",
     connection: "listening",
     listenerActive: true,
@@ -55,7 +55,7 @@ class FakeTransport implements AgentBridgeTransport {
     if (this.pairingError) throw this.pairingError;
     if (this.pairingResult) return this.pairingResult;
     return {
-      protocolVersion: 1,
+      protocolVersion: 2,
       projectId: "fixture-project",
       origin: window.location.origin,
       sessionToken: "session-token",
@@ -416,7 +416,7 @@ describe("AgentClient", () => {
     await client.checkConnection();
     expect(transport.discoverCalls).toBe(1);
     pairing.resolve({
-      protocolVersion: 1,
+      protocolVersion: 2,
       projectId: "fixture-project",
       origin: window.location.origin,
       sessionToken: "session-token",

@@ -97,10 +97,6 @@
   background: var(--border-subtle);
 }
 
-.panel__canvas-button {
-  white-space: nowrap;
-}
-
 .panel__copy-row {
   width: 100%;
 }
@@ -155,6 +151,12 @@
   font-size: 14px;
   line-height: 1.4;
   text-align: center;
+}
+
+.copy-prompt__sketch-fallback {
+  display: grid;
+  gap: var(--space-8);
+  margin-top: var(--space-8);
 }
 
 .panel__body {

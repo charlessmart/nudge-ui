@@ -41,6 +41,9 @@ import {
   InspectorSessionProvider,
   type InspectorSession,
 } from "./session/index.ts";
+import { clearSketchClipboardHandoff } from "./sketch/handoff.ts";
+import { cancelSketchInteraction, isSketchInteractionActive } from "./sketch/interaction.ts";
+import { initializeSketchStore } from "./sketch/store.ts";
 
 export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
 
@@ -56,6 +59,7 @@ let unsubscribeOwnership: (() => void) | null = null;
 let removeInspectionBridge: (() => void) | null = null;
 
 function onKeydown(e: KeyboardEvent): void {
+  if (isSketchInteractionActive()) return;
   if (isInspectorToggleShortcut(e)) {
     toggleInspector();
     e.preventDefault();
@@ -130,6 +134,8 @@ function startController(inspectorHost: HTMLElement): void {
     lockedRoot = null;
   }
 
+  void initializeSketchStore(getNudgeUiRuntimeConfig().projectId).catch(() => undefined);
+
   unsubscribeOwnership?.();
   unsubscribeOwnership = subscribeOwnership((hasLease) => {
     if (!hasLease) mountLockedNotice(inspectorHost);
@@ -178,6 +184,8 @@ function mountLockedNotice(host: HTMLElement): void {
     cancelStaleDetection();
     setInspectorOpen(false);
     cancelInlineTextEdit();
+    cancelSketchInteraction();
+    clearSketchClipboardHandoff();
     setSelectedElement(null);
     removeManagedSheet();
     releaseDocumentProjection(document);
@@ -238,6 +246,7 @@ export function unmountInspector(): void {
   }
   cancelStaleDetection();
   cancelInlineTextEdit();
+  cancelSketchInteraction();
   setSelectedElement(null);
   if (reactRoot) {
     reactRoot.unmount();
@@ -251,6 +260,7 @@ export function unmountInspector(): void {
     // a session (gestures, workspace projection) cannot leak across unmount.
     releaseDocumentProjection(document);
     clearClipboardHandoff();
+    clearSketchClipboardHandoff();
     removeManagedSheet();
     removeInspectionBridge?.();
     removeInspectionBridge = null;

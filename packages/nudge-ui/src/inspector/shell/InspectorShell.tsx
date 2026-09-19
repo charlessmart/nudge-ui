@@ -45,7 +45,9 @@ import { formatInspectorLabel } from "../ui/labels.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
-import { setCanvasPresentation, useCanvasPresentation } from "../canvas/canvasStore.ts";
+import { hasWriteLease } from "../canvas/workspaceLease.ts";
+import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
+import { getActiveCanvasFrame } from "../canvas/activeCanvasDocument.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
@@ -56,6 +58,13 @@ import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { createStyleSelection } from "../selection/styleSelection.ts";
 import { intersectTokenEntries } from "../inspection/selectionProperty.ts";
+import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
+import { SketchWorkspace } from "../sketch/SketchWorkspace.tsx";
+import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
+import { clearSketchClipboardHandoff } from "../sketch/handoff.ts";
+import { clearSketchesForProject } from "../sketch/store.ts";
+import { closeSketchNote } from "../sketch/sketchNote.ts";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
   for (const property of properties) {
@@ -100,8 +109,12 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const runtimeConfig = useNudgeUiRuntimeConfig();
-  const canvasEnabled = runtimeConfig.capabilities.canvas;
   const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
+  const sketchEnabled = isNudgeUiDev() && !isDemoRuntime();
+  const sketchActive = useSketchInteractionActive();
+  const selectedCardId = useSelectedCardId();
+  const focusedCardId = useFocusedCardId();
+  const sketchHost = selectedCardId || focusedCardId ? getActiveCanvasFrame() : null;
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
   const hierarchy = useHierarchy();
@@ -112,9 +125,6 @@ export function InspectorShell(): ReactElement {
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const cssInspection = useBrowserCssInspection(selectedElements, styleState);
   const isMultiSelection = selectedElements.length > 1;
-  const canvasPresentation = useCanvasPresentation();
-
-
   useEffect(() => {
     // A new selection should never inherit an incidental state from the
     // previous element. Base is the inspector's deliberate default.
@@ -157,7 +167,7 @@ export function InspectorShell(): ReactElement {
   }, [selectedElements, scopeRevision]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || sketchActive) return;
     function onKeydown(event: KeyboardEvent): void {
       if (isInlineTextEditingActive()) return;
       const mod = event.metaKey || event.ctrlKey;
@@ -204,7 +214,7 @@ export function InspectorShell(): ReactElement {
     }
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, [isOpen, isMultiSelection, selected]);
+  }, [isOpen, isMultiSelection, selected, sketchActive]);
 
   const inspectionSnapshot = cssInspection.element;
   const styleSelection = useMemo(
@@ -249,6 +259,16 @@ export function InspectorShell(): ReactElement {
     setSettingsOpen(true);
   }
 
+  function clearInspectorSession(): void {
+    clearSession();
+    clearRestoreCount();
+    if (!hasWriteLease()) return;
+    cancelSketchInteraction();
+    closeSketchNote();
+    clearSketchClipboardHandoff();
+    void clearSketchesForProject(runtimeConfig.projectId).catch(() => undefined);
+  }
+
   return (
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
@@ -262,6 +282,7 @@ export function InspectorShell(): ReactElement {
               variant="quiet"
               label="Collapse inspector"
               data-test="collapse-inspector"
+              disabled={sketchActive}
               style={{ marginLeft: "-8px" }}
               onClick={() => {
                 cancelInlineTextEdit();
@@ -271,16 +292,6 @@ export function InspectorShell(): ReactElement {
               <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             </IconButton>
             <div className="panel__header-actions">
-              {canvasEnabled ? (
-                <Button
-                  variant="quiet"
-                  size="compact"
-                  data-test={`presentation-${canvasPresentation === "focus" ? "canvas" : "focus"}`}
-                  onClick={() => setCanvasPresentation(canvasPresentation === "focus" ? "canvas" : "focus")}
-                >
-                  {canvasPresentation === "focus" ? "Canvas" : "Focus"}
-                </Button>
-              ) : null}
               <IconButton
                 variant="quiet"
                 data-test="tokens-button"
@@ -488,13 +499,13 @@ export function InspectorShell(): ReactElement {
             <EmptyState />
           )}
           <ChangesLog
-            onClearSession={() => {
-              clearSession();
-              clearRestoreCount();
-            }}
+            onClearSession={clearInspectorSession}
           />
         </div>
       </div>
+      {sketchEnabled ? (
+        <SketchWorkspace hostElement={sketchHost} projectId={runtimeConfig.projectId} />
+      ) : null}
       {!isOpen ? (
         <div className="panel__restore">
           <IconButton

@@ -6,6 +6,7 @@ import {
   isAllowedOrigin,
   isCanvasCommand,
   isSameOriginRoute,
+  validateSketchAttachments,
   validateRoutes,
 } from "./index.ts";
 
@@ -55,5 +56,48 @@ describe("agent protocol public contracts", () => {
     expect(isCanvasCommand({ type: "fit-all", commandId: "command-1" })).toBe(true);
     expect(isCanvasCommand({ type: "remove-group", commandId: "command-2", groupId: "agent-1" })).toBe(true);
     expect(isCanvasCommand({ type: "delete-everything", commandId: "command-3" })).toBe(false);
+  });
+
+  it("validates bounded sketch metadata and attachment batches", () => {
+    const data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+    const attachment = {
+      id: "sketch-1",
+      revision: 1,
+      filename: "sketch-sketch-1-r1.png",
+      mimeType: "image/png",
+      width: 1,
+      height: 1,
+      byteSize: 68,
+      capture: {
+        url: "http://localhost:5173/",
+        title: "Fixture",
+        timestamp: 1,
+        viewportWidth: 800,
+        viewportHeight: 600,
+        scrollX: 0,
+        scrollY: 0,
+        devicePixelRatio: 1,
+        host: "vite-react",
+        framework: "React",
+      },
+      annotations: [{ number: 1, description: "Done button" }],
+      data,
+    };
+    expect(validateSketchAttachments([attachment])).toEqual([attachment]);
+    const { data: _data, ...metadata } = attachment;
+    expect(isAgentPromptRequest({
+      requestId: "request-1",
+      projectId: "project-1",
+      prompt: "Review the screenshot",
+      sketches: [metadata],
+    })).toBe(true);
+    expect(isAgentPromptRequest({
+      requestId: "request-1",
+      projectId: "project-1",
+      prompt: "Review the screenshot",
+      sketches: [attachment],
+    })).toBe(false);
+    expect(() => validateSketchAttachments([{ ...attachment, byteSize: 67 }])).toThrow();
+    expect(() => validateSketchAttachments([{ ...attachment, data: `${data}AAAA` }])).toThrow();
   });
 });

@@ -7,6 +7,8 @@ export interface StructuralDelete {
   target: RenderedInstanceRef;
   /** Hash-independent route where the target was captured. */
   route?: string;
+  /** Bounded view identity where the target was captured. */
+  state?: string;
 }
 
 /** Controller-owned intent to move one rendered instance. */

@@ -1,0 +1,28 @@
+.canvas-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-20);
+  /* Keep the persistent controls above the live sketch surface. The sketch
+     toolbar gets the next layer so both toolbars remain available together. */
+  z-index: calc(var(--z-index) - 2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-12);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.canvas-toolbar__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.canvas-toolbar__tool[data-active="true"] {
+  background: var(--accent-surface);
+  color: var(--accent);
+}

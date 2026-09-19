@@ -15,10 +15,12 @@ import {
   isCanvasGroup,
   isCanvasState,
   isSameOriginRoute,
+  validateSketchAttachments,
   validateRoutes,
 } from "@nudge-ui/agent-protocol";
 import type {
   AgentConnectionState,
+  AgentDeliveredPrompt,
   AgentPromptRequest,
   AgentRequestOutcome,
   AgentStatusSnapshot,
@@ -33,11 +35,13 @@ import type {
   CanvasCommandResult,
   PairingResponse,
   PromptDispatchResponse,
+  AgentSketchAttachment,
 } from "@nudge-ui/agent-protocol";
 import { AGENT_CONTROL_ENDPOINTS, BRIDGE_ENDPOINTS, type BridgeHttpError } from "./protocol.ts";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 const MAX_BODY_BYTES = 256 * 1024;
+const MAX_PROMPT_BODY_BYTES = 12 * 1024 * 1024;
 const DEFAULT_COMMAND_TIMEOUT_MS = 5_000;
 const AGENT_CLAIM_TIMEOUT_MS = 30_000;
 
@@ -102,7 +106,7 @@ export interface BrowserBridge {
   start(): Promise<BridgeAddress>;
   close(): Promise<void>;
   /** Blocks until a paired browser dispatches a prompt. */
-  waitForPrompt(signal?: AbortSignal): Promise<AgentPromptRequest>;
+  waitForPrompt(signal?: AbortSignal): Promise<AgentDeliveredPrompt>;
   /** Marks the agent-side listener as stopped without ending the project. */
   cancelListener(reason?: string): void;
   /** Reports the terminal result for the currently running browser request. */
@@ -135,7 +139,7 @@ class BridgeRequestError extends Error {
 }
 
 interface PendingPrompt {
-  readonly resolve: (request: AgentPromptRequest) => void;
+  readonly resolve: (request: AgentDeliveredPrompt) => void;
   readonly reject: (error: Error) => void;
   readonly signal?: AbortSignal;
   abortHandler?: () => void;
@@ -228,13 +232,16 @@ function sendError(response: ServerResponse, error: unknown, origin: string | nu
   sendJson(response, 500, { error: { code: "internal_error", message: "The bridge could not complete the request." } }, origin);
 }
 
-async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
+async function readJsonBody(
+  request: IncomingMessage,
+  maxBytes = MAX_BODY_BYTES,
+): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     total += buffer.length;
-    if (total > MAX_BODY_BYTES) {
+    if (total > maxBytes) {
       throw new BridgeRequestError(413, "body_too_large", "The bridge request body is too large.");
     }
     chunks.push(buffer);
@@ -250,6 +257,37 @@ async function readJsonBody(request: IncomingMessage): Promise<Record<string, un
     throw new BridgeRequestError(400, "invalid_body", "The bridge request body must be a JSON object.");
   }
   return parsed as Record<string, unknown>;
+}
+
+function pngDimensions(bytes: Buffer): { width: number; height: number } | null {
+  if (bytes.length < 24
+    || !bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    || bytes.toString("ascii", 12, 16) !== "IHDR") return null;
+  return {
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20),
+  };
+}
+
+function parseSketchAttachments(value: unknown): AgentSketchAttachment[] {
+  let attachments: AgentSketchAttachment[];
+  try {
+    attachments = validateSketchAttachments(value);
+  } catch (error) {
+    throw new BridgeRequestError(400, "invalid_sketches", error instanceof Error ? error.message : "Sketch attachments are invalid.");
+  }
+  for (const [index, attachment] of attachments.entries()) {
+    const bytes = Buffer.from(attachment.data, "base64");
+    if (bytes.length !== attachment.byteSize || bytes.toString("base64") !== attachment.data) {
+      throw new BridgeRequestError(400, "invalid_sketches", `attachments[${index}] is not canonical base64 PNG data.`);
+    }
+    const dimensions = pngDimensions(bytes);
+    if (!dimensions || dimensions.width !== attachment.width || dimensions.height !== attachment.height
+      || dimensions.width > 2_048 || dimensions.height > 2_048) {
+      throw new BridgeRequestError(400, "invalid_sketches", `attachments[${index}] has invalid PNG dimensions.`);
+    }
+  }
+  return attachments;
 }
 
 function createEnvelope(projectId: string, sessionToken: string, event: BridgeEvent): BridgeEnvelope {
@@ -520,7 +558,7 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
   };
 
   const handlePrompt = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
-    const body = await readJsonBody(request);
+    const body = await readJsonBody(request, MAX_PROMPT_BODY_BYTES);
     const incomingOrigin = requireBrowserRequest(
       request,
       new URL("http://bridge.invalid"),
@@ -534,6 +572,13 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
       && (!Number.isSafeInteger(body.changeRevision) || (body.changeRevision as number) < 0)) {
       throw new BridgeRequestError(400, "invalid_revision", "changeRevision must be a non-negative safe integer");
     }
+    if (body.clientDispatchId !== undefined
+      && (typeof body.clientDispatchId !== "string"
+        || body.clientDispatchId.length === 0
+        || body.clientDispatchId.length > AGENT_PROTOCOL_LIMITS.clientDispatchId)) {
+      throw new BridgeRequestError(400, "invalid_dispatch_id", "clientDispatchId must be a bounded non-empty string");
+    }
+    const attachments = parseSketchAttachments(body.attachments);
     if (!listener) {
       throw new BridgeRequestError(409, "listener_unavailable", "The agent has not opened a listening call.");
     }
@@ -545,12 +590,18 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
       projectId: options.projectId,
       prompt: body.prompt,
       ...(body.changeRevision === undefined ? {} : { changeRevision: body.changeRevision as number }),
+      ...(body.clientDispatchId === undefined ? {} : { clientDispatchId: body.clientDispatchId }),
+      ...(attachments.length === 0 ? {} : { sketches: attachments.map(({ data: _data, ...metadata }) => metadata) }),
+    };
+    const delivered: AgentDeliveredPrompt = {
+      ...prompt,
+      ...(attachments.length === 0 ? {} : { attachments }),
     };
     const pending = listener;
     listener = null;
     if (pending.abortHandler && pending.signal) pending.signal.removeEventListener("abort", pending.abortHandler);
     currentRequest = { ...prompt, status: "working" };
-    pending.resolve(prompt);
+    pending.resolve(delivered);
     const result: PromptDispatchResponse = { request: prompt, status: "working" };
     sendJson(response, 202, result, incomingOrigin);
     broadcastStatus();
@@ -848,14 +899,14 @@ export function createLoopbackBridge(options: BrowserBridgeOptions): BrowserBrid
     broadcastStatus();
   };
 
-  const waitForPrompt = (signal?: AbortSignal): Promise<AgentPromptRequest> => {
+  const waitForPrompt = (signal?: AbortSignal): Promise<AgentDeliveredPrompt> => {
     if (lifecycle === "closed") return Promise.reject(new Error("The browser bridge is closed."));
     if (listener) return Promise.reject(new Error("A listening call is already active for this project."));
     if (currentRequest?.status === "working") return Promise.reject(new Error("A request is already in flight for this project."));
     // Keep the terminal outcome visible until the agent explicitly rearms its
     // listening call. Rearming is the lifecycle boundary for the old request.
     if (currentRequest) currentRequest = null;
-    const pendingDeferred = deferred<AgentPromptRequest>();
+    const pendingDeferred = deferred<AgentDeliveredPrompt>();
     const pending: PendingPrompt = {
       resolve: pendingDeferred.resolve,
       reject: pendingDeferred.reject,

@@ -138,9 +138,16 @@ export function setCanvasMode(newMode: CanvasMode): void {
   notify();
 }
 
-/** Changes only how the mounted iframe workspace is presented. */
+/**
+ * Changes how the mounted iframe workspace is presented.
+ *
+ * Canvas always starts from the active card with the standard inset. Card
+ * geometry remains durable, but the camera does not carry over from a prior
+ * Canvas session.
+ */
 export function setCanvasPresentation(next: CanvasPresentation): void {
   if (presentation === next) return;
+  if (next === "canvas") resetCameraToActiveCard();
   presentation = next;
   presentationTransitioning = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   if (presentationTransitionTimer !== null) window.clearTimeout(presentationTransitionTimer);
@@ -152,6 +159,18 @@ export function setCanvasPresentation(next: CanvasPresentation): void {
     }, 220)
     : null;
   notify();
+}
+
+function resetCameraToActiveCard(): void {
+  const activeCardId = selectedCardId ?? focusedCardId;
+  const activeCard = cards.find((card) => card.id === activeCardId) ?? cards[0];
+  cachedBoardCamera = activeCard
+    ? {
+      x: PRIMARY_CARD_INSET - activeCard.x,
+      y: PRIMARY_CARD_INSET - activeCard.y,
+      zoom: 1,
+    }
+    : { ...DEFAULT_CAMERA };
 }
 
 /** Adds one card while retaining the existing placement policy. */

@@ -3,7 +3,7 @@
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--surface-panel);
   pointer-events: auto;
 }
 
@@ -11,7 +11,22 @@
   flex: 1;
   overflow: hidden;
   position: relative;
-  background: #ffffff;
+  background: var(--surface-panel);
+}
+
+.canvas-workspace__focus-action {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
+  z-index: calc(var(--z-index) - 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  border-radius: var(--radius-12);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  pointer-events: auto;
 }
 
 .canvas-workspace__board.is-grabbable {

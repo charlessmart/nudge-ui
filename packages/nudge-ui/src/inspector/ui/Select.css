@@ -50,7 +50,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   pointer-events: auto;
-  background: var(--surface-raised);
+  background: var(--surface-raised-2x);
   color: var(--text-primary);
   border-radius: var(--radius-8);
   box-shadow: var(--shadow-popup);

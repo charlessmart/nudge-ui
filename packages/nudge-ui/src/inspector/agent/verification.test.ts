@@ -155,6 +155,63 @@ describe("agent completion verification", () => {
     expect(getStructuralChanges()).toEqual([change]);
   });
 
+  it("keeps a structural delete when the same route has different navigation state", async () => {
+    window.history.replaceState({ panel: "closed" }, "", "/authored#first");
+    document.body.replaceChildren();
+    const target = addItem("0.1");
+    const change = createStructuralDelete(target, "delete-other-state")!;
+    applyStructuralProjection(document, getStructuralChanges());
+    recordAgentDispatch(7, [], getStructuralChanges());
+    const placeholder = Array.from(document.body.childNodes)
+      .find((node): node is Comment => node.nodeType === node.COMMENT_NODE);
+    placeholder?.remove();
+    expect(target.isConnected).toBe(false);
+
+    window.history.replaceState({ panel: "open" }, "", "/authored#second");
+
+    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    expect(getStructuralChanges()).toEqual([change]);
+  });
+
+  it("keeps a structural delete when the same route renders a different state", async () => {
+    window.history.replaceState({}, "", "/authored");
+    document.body.replaceChildren();
+    const target = addItem("0.1");
+    const change = createStructuralDelete(target, "delete-rendered-state")!;
+    applyStructuralProjection(document, getStructuralChanges());
+    recordAgentDispatch(7, [], getStructuralChanges());
+    const placeholder = Array.from(document.body.childNodes)
+      .find((node): node is Comment => node.nodeType === node.COMMENT_NODE);
+    placeholder?.remove();
+    document.body.append(addItem("0.2"));
+
+    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(0);
+    expect(getStructuralChanges()).toEqual([change]);
+  });
+
+  it("reconciles a nested delete when the surrounding rendered view is unchanged", async () => {
+    window.history.replaceState({}, "", "/authored");
+    const parent = document.createElement("section");
+    parent.dataset.cid = "Card";
+    parent.dataset.src = "src/Card.tsx:4:1";
+    const target = document.createElement("button");
+    target.dataset.cid = "RepeatedItem";
+    target.dataset.src = "src/App.tsx:12:5";
+    target.textContent = "0.1";
+    parent.append(target);
+    document.body.replaceChildren(parent);
+
+    const change = createStructuralDelete(target, "delete-nested")!;
+    applyStructuralProjection(document, getStructuralChanges());
+    recordAgentDispatch(7, [], getStructuralChanges());
+    const placeholder = Array.from(parent.childNodes)
+      .find((node): node is Comment => node.nodeType === node.COMMENT_NODE);
+    placeholder?.remove();
+
+    await expect(verifyAndReconcileAgentDispatch(7)).resolves.toBe(1);
+    expect(getStructuralChanges()).toEqual([]);
+  });
+
   it("keeps a structural delete whose element the source still renders", async () => {
     document.body.replaceChildren();
     const target = addItem("0.1");
