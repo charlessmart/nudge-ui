@@ -6,7 +6,8 @@ export default defineConfig({
   // SAFETY: nudgeUi returns a Vite plugin, which Vite's PluginOption union accepts, so the cast only widens to the union member.
   plugins: [react(), nudgeUi({
     demo: true,
-    demoPages: ["/", "/?nudge-egg=1"],
+    demoPages: ["/?landing-version=1", "/?landing-version=2", "/"],
+    demoCardLabels: ["V1", "V2", "Final"],
     projectId: "nudge-ui-landing-demo",
   }) as PluginOption],
   server: {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
+import { IconCornerLeftUp } from "@tabler/icons-react";
 import {
   useCanvasCards,
   activateIframeWorkspace,
@@ -9,6 +10,7 @@ import {
   setBoardCamera,
   getBoardCamera,
   fitAllCards,
+  setCanvasPresentation,
   focusCard,
   hasFitAllRan,
   useBoardCamera,
@@ -18,10 +20,13 @@ import {
   useFocusedCardId,
   resizeCard,
   setCardPosition,
+  updateCardTitle,
+  CARD_GAP,
   type CanvasCard as CanvasCardData,
   updateCardUrl,
 } from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
+import { Button } from "../ui/Button.tsx";
 import { useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changes/changesLog.ts";
 import { recordCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
@@ -106,29 +111,43 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     const primaryCard = activateIframeWorkspace(primaryUrl, viewport);
     if (runtimeConfig.demo === true && primaryCard && !demoSeededRef.current) {
       demoSeededRef.current = true;
+      const demoPages = runtimeConfig.demoPages ?? [];
+      const demoCardLabels = runtimeConfig.demoCardLabels ?? [];
+      const orderedDemoCards = demoCardLabels.length > 0;
+      const seededCards: CanvasCardData[] = [];
+      const demoCardWidth = primaryCard.width;
       let nextX = 0;
-      for (const [index, route] of (runtimeConfig.demoPages ?? []).entries()) {
+      for (const [index, route] of demoPages.entries()) {
         const url = new URL(route, primaryUrl);
         if (url.origin !== window.location.origin) continue;
         const card = activateIframeWorkspace(url.href, viewport);
         if (!card) continue;
-        const width = index === 0 ? 1024 : 720;
-        resizeCard(card.id, width, 900);
-        setCardPosition(card.id, nextX, 0);
-        nextX += width + 40;
+        resizeCard(card.id, demoCardWidth, 900);
+        seededCards.push(card);
+        if (!orderedDemoCards) {
+          setCardPosition(card.id, nextX, 0);
+          nextX += demoCardWidth + CARD_GAP;
+        }
+        if (orderedDemoCards && demoCardLabels[index]) {
+          updateCardTitle(card.id, demoCardLabels[index]);
+        }
+      }
+      if (orderedDemoCards) {
+        resizeCard(primaryCard.id, demoCardWidth, primaryCard.height);
+        let layoutX = 0;
+        const orderedCardIds = new Set([...seededCards.map((card) => card.id), primaryCard.id]);
+        for (const cardId of orderedCardIds) {
+          const card = getCanvasCards().find((candidate) => candidate.id === cardId);
+          if (!card) continue;
+          setCardPosition(card.id, layoutX, 0);
+          layoutX += card.width + CARD_GAP;
+        }
+        const primaryLabel = demoCardLabels[demoPages.length];
+        if (primaryLabel) updateCardTitle(primaryCard.id, primaryLabel);
       }
       focusCard(primaryCard.id);
-      const seededPrimary = getCanvasCards().find((card) => card.id === primaryCard.id);
-      if (seededPrimary) {
-        const zoom = 0.75;
-        setBoardCamera({
-          x: Math.max(40, (viewport.width - seededPrimary.width * zoom) / 2) - seededPrimary.x * zoom,
-          y: Math.max(64, (viewport.height - seededPrimary.height * zoom) / 2) - seededPrimary.y * zoom,
-          zoom,
-        });
-      }
     }
-  }, [primaryUrl, cards.length, runtimeConfig.demo, runtimeConfig.demoPages]);
+  }, [primaryUrl, cards.length, runtimeConfig.demo, runtimeConfig.demoPages, runtimeConfig.demoCardLabels]);
 
   useEffect(() => {
     if (primaryUrl && activatedTargetRef.current !== primaryUrl) return;
@@ -461,6 +480,15 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
   }, [mode, presentation, zoomAtPointer]);
 
+  const showCanvas = useCallback(() => {
+    setCanvasPresentation("canvas");
+  }, []);
+
+  const showFocus = useCallback((cardId: string) => {
+    focusCard(cardId);
+    setCanvasPresentation("focus");
+  }, []);
+
   function handleOpenApp(card: CanvasCardData): void {
     window.open(createNudgeUiDirectUrl(card.url), "_blank", "noopener,noreferrer");
   }
@@ -487,6 +515,19 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
               This editor URL does not identify an application page.
             </div>
           ) : null}
+          {inspectorOpen && presentation === "focus" ? (
+            <div className="canvas-workspace__focus-action" data-test="canvas-show-canvas">
+              <Button
+                variant="quiet"
+                size="default"
+                type="button"
+                onClick={showCanvas}
+              >
+                <IconCornerLeftUp size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                Canvas
+              </Button>
+            </div>
+          ) : null}
           <div
             className="canvas-workspace__board-content"
             style={{
@@ -502,6 +543,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
                 presentation={presentation}
                 presentationCard={card.id === presentationCardId}
                 onOpenApp={handleOpenApp}
+                onShowFocus={showFocus}
                 documentOwner={inspectorSession}
               />
             ))}

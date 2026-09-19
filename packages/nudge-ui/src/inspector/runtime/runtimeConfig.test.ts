@@ -191,8 +191,17 @@ describe("runtime configuration validation and defaults", () => {
 
   it("preserves the explicit demo flag without enabling it by default", () => {
     previousConfig = getNudgeUiRuntimeConfig();
-    configureNudgeUiRuntime({ ...makeConfig("generation-demo"), demo: true });
-    expect(getNudgeUiRuntimeConfig().demo).toBe(true);
+    configureNudgeUiRuntime({
+      ...makeConfig("generation-demo"),
+      demo: true,
+      demoPages: ["/?landing-version=1"],
+      demoCardLabels: ["V1", "Final"],
+    });
+    expect(getNudgeUiRuntimeConfig()).toMatchObject({
+      demo: true,
+      demoPages: ["/?landing-version=1"],
+      demoCardLabels: ["V1", "Final"],
+    });
 
     configureNudgeUiRuntime(makeConfig("generation-normal"));
     expect(getNudgeUiRuntimeConfig().demo).toBeUndefined();

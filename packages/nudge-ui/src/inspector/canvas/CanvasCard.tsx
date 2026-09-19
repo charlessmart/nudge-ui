@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
-import { IconRefresh, IconExternalLink, IconCopy, IconArrowsDiagonal } from "@tabler/icons-react";
+import { IconRefresh, IconExternalLink, IconCopy, IconArrowsDiagonal, IconCornerLeftDown } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
 } from "./frameProtocol.ts";
@@ -28,6 +28,7 @@ interface CanvasCardProps {
   presentation?: CanvasPresentation;
   presentationCard?: boolean;
   onOpenApp?: (card: CanvasCard) => void;
+  onShowFocus?: (cardId: string) => void;
   documentOwner?: InspectorSession;
 }
 
@@ -36,7 +37,7 @@ type CardLoadState = "loading" | "ready" | "error";
 const MIN_CARD_WIDTH = 200;
 const MIN_CARD_HEIGHT = 150;
 
-export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onOpenApp, documentOwner }: CanvasCardProps): ReactElement {
+export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onOpenApp, onShowFocus, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initialUrlRef = useRef(card.navigationUrl ?? card.url);
   const navigationUrlRef = useRef(card.navigationUrl);
@@ -102,6 +103,13 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     removeCanvasCard(card.id);
   }
 
+  function updateFrameTitle(title: string | undefined): void {
+    if (!title) return;
+    const runtime = getNudgeUiRuntimeConfig();
+    if (runtime.demo === true && (runtime.demoCardLabels?.length ?? 0) > 0) return;
+    updateCardTitle(card.id, title);
+  }
+
   function handleOpenApp(): void {
     onOpenApp?.(card);
   }
@@ -155,7 +163,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         adoptFrameRuntime(data.runtime);
         setLoadState("ready");
         setErrorMessage(null);
-        if (data.title) updateCardTitle(card.id, data.title);
+        updateFrameTitle(data.title);
         if (data.url) updateCardUrl(card.id, data.url);
         if (iframeRef.current) {
           registerCardFrame(card.id, iframeRef.current);
@@ -171,7 +179,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
       }
 
       if (data.type === "frame-metadata") {
-        if (data.title) updateCardTitle(card.id, data.title);
+        updateFrameTitle(data.title);
         if (data.url) updateCardUrl(card.id, data.url);
         return;
       }
@@ -330,6 +338,22 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
           className="canvas-card__drag-surface"
           data-test={`canvas-card-drag-${card.id}`}
         >
+          {onShowFocus ? (
+            <Button
+              title="Focus"
+              variant="primary"
+              size="default"
+              data-test={`canvas-card-focus-${card.id}`}
+              style={{
+                transform: `scale(${toolbarScale})`,
+                transformOrigin: "left bottom",
+              }}
+              onClick={() => onShowFocus(card.id)}
+            >
+              <IconCornerLeftDown size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+              Focus
+            </Button>
+          ) : null}
           <span
             className="canvas-card__dimensions"
             data-test={`canvas-card-dimensions-${card.id}`}
@@ -338,7 +362,7 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
               transformOrigin: "left bottom",
             }}
           >
-            {Math.round(card.width)} × {Math.round(card.height)} px
+            {card.title || `${Math.round(card.width)} × ${Math.round(card.height)} px`}
           </span>
         </div>
         <div
