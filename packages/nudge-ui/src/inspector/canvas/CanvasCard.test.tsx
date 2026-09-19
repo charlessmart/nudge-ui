@@ -354,4 +354,28 @@ describe("CanvasCard renderer handshake", () => {
     expect(host.querySelector(`[data-test="canvas-card-duplicate-${card.id}"]`)).toBeNull();
     expect(host.querySelector(`[data-test="canvas-card-reload-${card.id}"]`)).toBeNull();
   });
+
+  it("renders the Open app action when the workspace supplies it", () => {
+    const card: CanvasCardData = {
+      id: "card-open-app",
+      url: window.location.href,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    const onOpenApp = vi.fn();
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCard, { card, onOpenApp }));
+    });
+
+    const control = host.querySelector(`[data-test="canvas-card-open-app-${card.id}"]`);
+    if (!(control instanceof HTMLButtonElement)) throw new Error("Open app control did not mount");
+    act(() => control.click());
+
+    expect(control.textContent).toContain("Open app");
+    expect(onOpenApp).toHaveBeenCalledWith(card);
+  });
 });

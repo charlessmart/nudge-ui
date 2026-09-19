@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { projectSketchPoint } from "./SketchFrameOverlay.tsx";
+import { projectSketchPoint, sketchRouteKey } from "./SketchFrameOverlay.tsx";
 import type { SketchDocument } from "./model.ts";
 
 function frameWindow({
@@ -50,6 +50,12 @@ function sketchDocument(): SketchDocument {
 }
 
 describe("SketchFrameOverlay projection", () => {
+  it("keeps the same sketch identity across anchor navigation", () => {
+    expect(sketchRouteKey("http://localhost:5173/docs?view=wide#overview")).toBe(
+      sketchRouteKey("http://localhost:5173/docs?view=wide#details"),
+    );
+  });
+
   it("keeps a sketch in the responsive viewport when the iframe gets narrower", () => {
     const point = projectSketchPoint(
       { x: 900, y: 200 },

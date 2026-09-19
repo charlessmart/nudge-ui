@@ -11,7 +11,7 @@ interface SketchFrameOverlayProps {
   readonly ready: boolean;
 }
 
-function routeKey(url: string): string | null {
+export function sketchRouteKey(url: string): string | null {
   try {
     const parsed = new URL(url);
     // These parameters belong to the inspector host, not to the application
@@ -19,7 +19,9 @@ function routeKey(url: string): string | null {
     // the canvas, and a direct editor launch.
     parsed.searchParams.delete("__nudge_ui_direct");
     parsed.searchParams.delete("nudge-ui");
-    return `${parsed.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    // Hashes identify an in-document location, not a different sketch canvas.
+    // Keep saved marks attached when navigation changes only the anchor.
+    return `${parsed.origin}${parsed.pathname}${parsed.search}`;
   } catch {
     return null;
   }
@@ -27,14 +29,14 @@ function routeKey(url: string): string | null {
 
 function frameRoute(iframe: HTMLIFrameElement, fallback: string): string | null {
   try {
-    return routeKey(iframe.contentWindow?.location.href ?? fallback);
+    return sketchRouteKey(iframe.contentWindow?.location.href ?? fallback);
   } catch {
-    return routeKey(fallback);
+    return sketchRouteKey(fallback);
   }
 }
 
 function sameFrame(document: SketchDocument, iframe: HTMLIFrameElement, cardUrl: string): boolean {
-  const sketchRoute = routeKey(document.capture.url);
+  const sketchRoute = sketchRouteKey(document.capture.url);
   if (!sketchRoute) return false;
   return sketchRoute === frameRoute(iframe, cardUrl);
 }

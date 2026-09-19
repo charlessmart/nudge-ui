@@ -47,7 +47,7 @@ import {
   WORKSPACE_ID,
 } from "./projection.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
-import { createNudgeUiEditorUrl } from "../../transport/editor.ts";
+import { createNudgeUiDirectUrl, createNudgeUiEditorUrl } from "../../transport/editor.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import {
   PROTOCOL_VERSION,
@@ -317,6 +317,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const showFocus = useCallback((cardId: string) => {
     focusCard(cardId);
     setCanvasPresentation("focus");
+  }, []);
+
+  const openApp = useCallback((card: CanvasCardData) => {
+    window.open(createNudgeUiDirectUrl(card.url), "_blank", "noopener,noreferrer");
   }, []);
 
   useEffect(() => {
@@ -602,6 +606,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
                 card={card}
                 presentation={presentation}
                 presentationCard={card.id === presentationCardId}
+                onOpenApp={openApp}
                 onShowFocus={showFocus}
                 documentOwner={inspectorSession}
               />

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
 import { removeCanvasCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
-import { IconArrowsDiagonal, IconCornerLeftDown } from "@tabler/icons-react";
+import { IconArrowsDiagonal, IconCornerLeftDown, IconExternalLink } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
 } from "./frameProtocol.ts";
@@ -27,6 +27,7 @@ interface CanvasCardProps {
   card: CanvasCard;
   presentation?: CanvasPresentation;
   presentationCard?: boolean;
+  onOpenApp?: (card: CanvasCard) => void;
   onShowFocus?: (cardId: string) => void;
   documentOwner?: InspectorSession;
 }
@@ -36,7 +37,7 @@ type CardLoadState = "loading" | "ready" | "error";
 const MIN_CARD_WIDTH = 200;
 const MIN_CARD_HEIGHT = 150;
 
-export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onShowFocus, documentOwner }: CanvasCardProps): ReactElement {
+export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onOpenApp, onShowFocus, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initialUrlRef = useRef(card.navigationUrl ?? card.url);
   const navigationUrlRef = useRef(card.navigationUrl);
@@ -356,6 +357,25 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
             {card.title || `${Math.round(card.width)} × ${Math.round(card.height)} px`}
           </span>
         </div>
+        {onOpenApp ? (
+          <div
+            className="canvas-card__actions"
+            style={{
+              transform: `scale(${toolbarScale})`,
+              transformOrigin: "right bottom",
+            }}
+          >
+            <Button
+              variant="secondary"
+              size="default"
+              data-test={`canvas-card-open-app-${card.id}`}
+              onClick={() => onOpenApp(card)}
+            >
+              <IconExternalLink size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+              Open app
+            </Button>
+          </div>
+        ) : null}
       </div> : null}
       <div className="canvas-card__frame">
         {loadState === "loading" ? (

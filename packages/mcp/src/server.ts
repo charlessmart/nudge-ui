@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { z } from "zod";
 import type {
   AgentDeliveredPrompt,
+  AgentPromptRequest,
   AgentProjectIdentity,
   AgentRequestOutcome,
   AgentStatusSnapshot,
