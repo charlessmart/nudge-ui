@@ -141,7 +141,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           setCardPosition(card.id, nextX, 0);
           nextX += demoCardWidth + CARD_GAP;
         }
-        if (orderedDemoCards && demoCardLabels[index]) updateCardTitle(card.id, demoCardLabels[index]);
+        if (orderedDemoCards && demoCardLabels[index]) {
+          updateCardTitle(card.id, demoCardLabels[index]);
+        }
       }
       if (orderedDemoCards) {
         resizeCard(primaryCard.id, demoCardWidth, primaryCard.height);

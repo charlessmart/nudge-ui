@@ -168,7 +168,7 @@ function resetCameraToActiveCard(): void {
     ? {
       x: PRIMARY_CARD_INSET - activeCard.x,
       y: PRIMARY_CARD_INSET - activeCard.y,
-      zoom: 1,
+      zoom: 0.9,
     }
     : { ...DEFAULT_CAMERA };
 }

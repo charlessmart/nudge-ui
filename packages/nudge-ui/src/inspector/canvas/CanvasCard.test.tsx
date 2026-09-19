@@ -247,6 +247,30 @@ describe("CanvasCard renderer handshake", () => {
     expect(onShowFocus).toHaveBeenCalledWith(card.id);
   });
 
+  it("returns a selected card to the focused preview", () => {
+    const card: CanvasCardData = {
+      id: "card-focus-preview",
+      url: window.location.href,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    const onShowFocus = vi.fn();
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCard, { card, onShowFocus }));
+    });
+
+    const control = host.querySelector(`[data-test="canvas-card-focus-${card.id}"]`);
+    if (!(control instanceof HTMLButtonElement)) throw new Error("Focus control did not mount");
+    act(() => control.click());
+
+    expect(control.textContent).toContain("Focus");
+    expect(onShowFocus).toHaveBeenCalledWith(card.id);
+  });
+
   it("moves the card when dragging from the dimension surface", () => {
     const card: CanvasCardData = {
       id: "card-drag-surface",

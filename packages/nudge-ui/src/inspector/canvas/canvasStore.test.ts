@@ -482,7 +482,7 @@ describe("canvasStore camera", () => {
     expect(getBoardCamera()).toEqual({
       x: PRIMARY_CARD_INSET - 320,
       y: PRIMARY_CARD_INSET - 180,
-      zoom: 1,
+      zoom: 0.9,
     });
     expect(getCanvasCards()[0]).toMatchObject({
       x: 320,
@@ -498,7 +498,7 @@ describe("canvasStore camera", () => {
     expect(getBoardCamera()).toEqual({
       x: PRIMARY_CARD_INSET - 320,
       y: PRIMARY_CARD_INSET - 180,
-      zoom: 1,
+      zoom: 0.9,
     });
     setCanvasPresentation("focus");
   });
