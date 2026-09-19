@@ -10,15 +10,20 @@ import type { SketchQueueItem } from "./model.ts";
 
 function SketchThumbnail({ item }: { readonly item: SketchQueueItem }): ReactElement {
   const [url, setUrl] = useState<string | null>(null);
+  const hasMarks = item.document.strokes.length > 0 || (item.document.annotations?.length ?? 0) > 0;
 
   useEffect(() => {
+    if (!hasMarks) {
+      setUrl(null);
+      return;
+    }
     if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return;
     const next = URL.createObjectURL(item.document.annotatedImage);
     setUrl(next);
     return () => URL.revokeObjectURL(next);
-  }, [item.document.annotatedImage]);
+  }, [hasMarks, item.document.annotatedImage]);
 
-  return url ? (
+  return hasMarks && url ? (
     <img className="sketch-layers__thumbnail" src={url} alt="" aria-hidden="true" />
   ) : (
     <span className="sketch-layers__thumbnail sketch-layers__thumbnail--empty" aria-hidden="true" />

@@ -431,15 +431,16 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
     if (submitting) return;
     const committedAnnotations = commitActiveAnnotation();
     if (committedAnnotations === null) return;
-    if (strokes.length === 0 && committedAnnotations.length === 0) {
-      setError("Draw a mark or add an annotation before saving the sketch.");
+    const trimmedDescription = description.trim();
+    if (strokes.length === 0 && committedAnnotations.length === 0 && trimmedDescription === "") {
+      setError("Add a mark or a short description before saving the sketch.");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
       await onDone({
-        description,
+        description: trimmedDescription,
         strokes: strokes.map((stroke) => ({
           ...stroke,
           points: stroke.points.map((point) => ({ ...point })),
@@ -560,19 +561,18 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
                 </Button>
               </div>
             ) : null}
-            <SketchPromptPanel
-              dataTest="sketch-live-prompt"
-              className="sketch__live-note-panel"
-              description={description}
-              error={error}
-              saving={submitting}
-              doneDisabled={strokes.length === 0 && annotations.length === 0}
-              autoFocus
-              onDescriptionChange={setDescription}
-              onDone={done}
-              onCancel={onCancel}
-            />
           </div>
+          <SketchPromptPanel
+            dataTest="sketch-live-prompt"
+            className="sketch__live-note-panel"
+            description={description}
+            error={error}
+            saving={submitting}
+            autoFocus
+            onDescriptionChange={setDescription}
+            onDone={done}
+            onCancel={onCancel}
+          />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

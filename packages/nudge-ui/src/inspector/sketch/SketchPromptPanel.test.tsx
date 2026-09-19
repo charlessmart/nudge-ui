@@ -68,4 +68,31 @@ describe("SketchPromptPanel", () => {
 
     expect(onDone).not.toHaveBeenCalled();
   });
+
+  it("keeps Escape available for cancelling without rendering a cancel button", () => {
+    const onCancel = vi.fn();
+    act(() => root.render(
+      <SketchPromptPanel
+        dataTest="sketch-prompt"
+        description="A note"
+        onDescriptionChange={vi.fn()}
+        onDone={vi.fn()}
+        onCancel={onCancel}
+      />,
+    ));
+
+    const prompt = host.querySelector('[data-test="sketch-prompt"]');
+    const footer = host.querySelector('[data-test="sketch-prompt"] .sketch__prompt-footer');
+    const cancel = host.querySelector<HTMLButtonElement>('[data-test="sketch-prompt-cancel"]');
+    const input = host.querySelector<HTMLTextAreaElement>('[data-test="sketch-prompt-input"]');
+    if (!prompt || !footer || !input) throw new Error("Sketch prompt did not mount");
+    expect(prompt.querySelector(".sketch__prompt-input-surface")).toBeNull();
+    expect(prompt.querySelector<HTMLButtonElement>('[data-test="sketch-prompt-done"]')?.classList.contains("button--compact")).toBe(true);
+    expect(cancel).toBeNull();
+
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
 });

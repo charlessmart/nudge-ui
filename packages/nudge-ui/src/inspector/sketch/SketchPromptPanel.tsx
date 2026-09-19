@@ -8,7 +8,6 @@ export interface SketchPromptPanelProps {
   readonly description: string;
   readonly error?: string | null;
   readonly disabled?: boolean;
-  readonly doneDisabled?: boolean;
   readonly saving?: boolean;
   readonly autoFocus?: boolean;
   readonly onDescriptionChange: (value: string) => void;
@@ -23,7 +22,6 @@ export function SketchPromptPanel({
   description,
   error = null,
   disabled = false,
-  doneDisabled = false,
   saving = false,
   autoFocus = false,
   onDescriptionChange,
@@ -36,7 +34,7 @@ export function SketchPromptPanel({
       onCancel();
       return;
     }
-    if (event.key === "Enter" && !event.shiftKey && !disabled && !saving && !doneDisabled) {
+    if (event.key === "Enter" && !event.shiftKey && !disabled && !saving) {
       event.preventDefault();
       void onDone();
     }
@@ -68,9 +66,10 @@ export function SketchPromptPanel({
         {error ? <span className="sketch__prompt-error" role="status">{error}</span> : <span />}
         <Button
           variant="primary"
+          size="compact"
           type="button"
           data-test={`${dataTest}-done`}
-          disabled={disabled || saving || doneDisabled}
+          disabled={disabled || saving}
           onClick={() => { void onDone(); }}
         >
           {saving ? "Saving…" : "Done"}

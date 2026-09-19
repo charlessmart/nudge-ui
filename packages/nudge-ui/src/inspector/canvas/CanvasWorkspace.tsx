@@ -614,7 +614,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
               />
             ))}
           </div>
-          {inspectorOpen ? (
+          {inspectorOpen && !sketchActive ? (
             <CanvasToolbar
               tool={interactionTool}
               sketchEnabled={sketchAvailable}
@@ -623,6 +623,19 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           ) : null}
         </div>
       </div>
+      {inspectorOpen && sketchActive ? (
+        <div
+          className="canvas-toolbar__portal"
+          data-test="canvas-toolbar-portal"
+          style={{ right: inspectorOpen ? "min(320px, 100vw)" : 0 }}
+        >
+          <CanvasToolbar
+            tool={interactionTool}
+            sketchEnabled={sketchAvailable}
+            onToolChange={handleToolChange}
+          />
+        </div>
+      ) : null}
     </>
   );
 }

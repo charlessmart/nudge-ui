@@ -75,6 +75,7 @@
 .icon-button--compact {
   width: var(--control-height-small);
   height: var(--control-height-small);
+  border-radius: var(--radius-4);
 }
 
 .icon-button--large {

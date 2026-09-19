@@ -79,6 +79,7 @@
 .toggle-button--compact {
   width: 26px;
   height: 26px;
+  border-radius: var(--radius-4);
 }
 
 .toggle-button--large {

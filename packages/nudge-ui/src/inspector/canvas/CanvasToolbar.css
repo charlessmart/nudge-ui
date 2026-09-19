@@ -16,6 +16,20 @@
   pointer-events: auto;
 }
 
+/* The live sketch surface is a separate stacking context. Keep a copy of the
+   toolbar at the root layer while sketching so pointer events reach the
+   controls instead of the full-screen SVG drawing surface. */
+.canvas-toolbar__portal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-index);
+  pointer-events: none;
+}
+
+.canvas-toolbar__portal > .canvas-toolbar {
+  pointer-events: auto;
+}
+
 .canvas-toolbar__tools {
   display: flex;
   align-items: center;
