@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { IconCheck, IconCopy, IconEdit, IconX } from "@tabler/icons-react";
+import { IconCheck, IconCopy, IconX } from "@tabler/icons-react";
 import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { copyImageToClipboard } from "./raster.ts";
-import { closeSketchNote, openSketchNote } from "./sketchNote.ts";
+import { closeSketchNote } from "./sketchNote.ts";
 import { removeSketch, useSketchStore } from "./store.ts";
 import type { SketchQueueItem } from "./model.ts";
 
@@ -64,24 +64,16 @@ function SketchLayer({ item, index }: { readonly item: SketchQueueItem; readonly
         onClick={() => void copyImage()}
         disabled={busy}
       >
-        {copied
-          ? <IconCheck size="var(--icon-size-small)" aria-hidden="true" />
-          : <IconCopy size="var(--icon-size-small)" aria-hidden="true" />}
-        <span className="sketch-layers__name">{copied ? "Copied" : `Sketch ${index + 1}`}</span>
+        <span className="sketch-layers__copy-label">
+          {copied
+            ? <IconCheck size="var(--icon-size-small)" aria-hidden="true" />
+            : <IconCopy size="var(--icon-size-small)" aria-hidden="true" />}
+          <span className="sketch-layers__name">{copied ? "Copied" : `Sketch ${index + 1}`}</span>
+        </span>
         <SketchThumbnail item={item} />
       </Button>
       <IconButton
-        variant="quiet"
-        size="compact"
-        label="Edit sketch"
-        title="Edit sketch"
-        data-test="sketch-layer-open"
-        onClick={() => openSketchNote(item.document.id)}
-        disabled={busy}
-      >
-        <IconEdit size="var(--icon-size-small)" aria-hidden="true" />
-      </IconButton>
-      <IconButton
+        className="sketch-layers__delete"
         variant="quiet"
         size="compact"
         label="Delete sketch"

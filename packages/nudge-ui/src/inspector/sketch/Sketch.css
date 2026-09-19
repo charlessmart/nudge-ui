@@ -6,6 +6,7 @@
 }
 
 .sketch-layers__item {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -15,10 +16,21 @@
 
 .sketch-layers__copy {
   flex: 1 1 auto;
-  justify-content: flex-start;
+  position: relative;
+  justify-content: center;
   min-width: 0;
   padding-inline: var(--space-12);
-  text-align: left;
+  text-align: center;
+}
+
+.sketch-layers__copy-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  gap: var(--space-4);
+  font-size: 14px;
+  font-weight: var(--font-weight-base);
 }
 
 .sketch-layers__name {
@@ -29,15 +41,17 @@
 }
 
 .sketch-layers__thumbnail {
-  flex: 0 0 auto;
+  position: absolute;
+  top: 50%;
+  right: var(--space-8);
   width: 44px;
   height: 54px;
-  margin: -8px var(--space-4) -8px auto;
+  margin: 0;
   border-radius: var(--radius-control);
   background: var(--surface-panel);
   box-shadow: var(--shadow-control);
   object-fit: cover;
-  transform: rotate(-7deg);
+  transform: translateY(-50%) rotate(-7deg);
 }
 
 .sketch-layers__thumbnail--empty {
@@ -47,8 +61,24 @@
 .sketch-layers__hint {
   margin: var(--space-8) 0 0;
   color: var(--text-secondary);
-  font-size: var(--font-size-small);
+  font-size: 14px;
   line-height: 1.4;
+}
+
+.sketch-layers__delete {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.sketch-layers__item:hover .sketch-layers__delete,
+.sketch-layers__item:focus-within .sketch-layers__delete {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .sketch-layers__error {
@@ -144,9 +174,11 @@
 
 .sketch__live-note-panel {
   position: absolute;
-  right: 24px;
-  bottom: 24px;
+  left: 50%;
+  bottom: calc(var(--control-height-xlarge) + var(--space-20) + var(--space-8));
+  width: min(400px, calc(100% - var(--space-32)));
   z-index: calc(var(--z-index) - 1);
+  transform: translateX(-50%);
 }
 
 .sketch__saved-note-panel {
@@ -188,9 +220,11 @@
 
 .sketch__prompt-footer {
   position: absolute;
-  inset: var(--space-8);
+  right: var(--space-8);
+  bottom: var(--space-8);
+  left: var(--space-8);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: flex-end;
   pointer-events: none;
 }

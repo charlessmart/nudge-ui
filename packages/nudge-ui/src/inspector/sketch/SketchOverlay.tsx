@@ -560,20 +560,19 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
                 </Button>
               </div>
             ) : null}
+            <SketchPromptPanel
+              dataTest="sketch-live-prompt"
+              className="sketch__live-note-panel"
+              description={description}
+              error={error}
+              saving={submitting}
+              doneDisabled={strokes.length === 0 && annotations.length === 0}
+              autoFocus
+              onDescriptionChange={setDescription}
+              onDone={done}
+              onCancel={onCancel}
+            />
           </div>
-
-          <SketchPromptPanel
-            dataTest="sketch-live-prompt"
-            className="sketch__live-note-panel"
-            description={description}
-            error={error}
-            saving={submitting}
-            doneDisabled={strokes.length === 0 && annotations.length === 0}
-            autoFocus
-            onDescriptionChange={setDescription}
-            onDone={done}
-            onCancel={onCancel}
-          />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
