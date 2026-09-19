@@ -3,8 +3,10 @@ import {
   createNudgeUiDirectUrl,
   createNudgeUiEditorDocument,
   createNudgeUiEditorUrl,
+  hasNudgeUiDirectTabIntent,
   isNudgeUiDirectUrl,
   isNudgeUiEditorDocumentRequest,
+  rememberNudgeUiDirectTabIntent,
   readNudgeUiEditorTarget,
 } from "./editor.ts";
 
@@ -64,5 +66,20 @@ describe("editor transport", () => {
     expect(html).not.toContain("products");
     expect(isNudgeUiDirectUrl(direct)).toBe(true);
     expect(new URL(direct).hash).toBe("#details");
+  });
+
+  it("keeps a direct application tab direct after its URL marker is removed", () => {
+    const values = new Map<string, string>();
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+    expect(hasNudgeUiDirectTabIntent()).toBe(false);
+    rememberNudgeUiDirectTabIntent();
+    expect(hasNudgeUiDirectTabIntent()).toBe(true);
+    delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
   });
 });

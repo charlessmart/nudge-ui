@@ -241,6 +241,30 @@ describe("renderer hover scheduling", () => {
       type: "inspector-open-request",
     }), window.location.origin);
   });
+
+  it("accepts Alt state from the parent when the iframe is not focused", () => {
+    const button = trackedElement("measure-target");
+    dispatchMouseOver(button);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    postMessage.mockClear();
+
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: {
+        type: "measure-modifier",
+        protocolVersion: PROTOCOL_VERSION,
+        altKey: true,
+        ...identity,
+      },
+    }));
+
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "element-measure-state",
+      altKey: true,
+      pointerOverPage: true,
+    }), window.location.origin);
+  });
 });
 
 describe("renderer selector lifecycle", () => {

@@ -49,7 +49,7 @@ describe("sketch interaction", () => {
     await completeSketchCapture(hostElement);
     await vi.waitFor(() => expect(getSketchInteractionSnapshot().captureState).toBe("ready"));
 
-    expect(captureViewport).toHaveBeenCalledWith(expect.objectContaining({ method: "dom" }));
+    expect(captureViewport).toHaveBeenCalledWith(expect.not.objectContaining({ method: expect.anything() }));
 
     closeSketchEditor();
 

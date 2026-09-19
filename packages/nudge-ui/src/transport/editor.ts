@@ -10,6 +10,7 @@ import {
 } from "./routes.ts";
 
 const TARGET_QUERY_PARAM = "url";
+const DIRECT_TAB_SESSION_KEY = "nudge-ui:direct-tab";
 
 /** Returns the editor URL for one same-origin application location. */
 export function createNudgeUiEditorUrl(applicationHref: string): string {
@@ -90,6 +91,24 @@ export function createNudgeUiDirectUrl(applicationHref: string): string {
 export function isNudgeUiDirectUrl(href: string): boolean {
   const url = new URL(href);
   return url.searchParams.get(NUDGE_UI_DIRECT_QUERY_PARAM) === "1";
+}
+
+/** Remembers that this browser tab was explicitly opened outside the editor. */
+export function rememberNudgeUiDirectTabIntent(): void {
+  try {
+    sessionStorage.setItem(DIRECT_TAB_SESSION_KEY, "1");
+  } catch {
+    // Storage denial must not prevent a one-page direct application view.
+  }
+}
+
+/** Returns whether this browser tab should remain outside the editor. */
+export function hasNudgeUiDirectTabIntent(): boolean {
+  try {
+    return sessionStorage.getItem(DIRECT_TAB_SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 export type NudgeUiClientEntry =

@@ -80,6 +80,8 @@ test("dev: Canvas measurements stay within the active iframe and omit self-ruler
     };
   })).toEqual({ guides: 4, rulers: 0 });
 
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await expect(page.locator('[data-test="canvas-workspace"][data-presentation="canvas"]')).toBeVisible();
   await page.locator('[data-test="canvas-workspace"]').hover({ position: { x: 4, y: 60 } });
   await expect(page.locator('[data-test="canvas-measurement-overlay"]')).not.toBeAttached();
   await page.keyboard.up("Alt");

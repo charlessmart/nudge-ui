@@ -803,13 +803,16 @@ export function createVitePlugins(
           // from the manifest the transport serves.
           const identity = buildRuntimeSnapshot();
           return [
-            'import { bootstrapNudgeUi, configureNudgeUiRuntime, createNudgeUiEditorUrl, detectFramework, isCanvasRenderer, isNudgeUiDirectUrl, readNudgeUiEditorTarget } from "nudge-ui/internal/inspector";',
+            'import { bootstrapNudgeUi, configureNudgeUiRuntime, createNudgeUiEditorUrl, detectFramework, hasNudgeUiDirectTabIntent, isCanvasRenderer, isNudgeUiDirectUrl, readNudgeUiEditorTarget, rememberNudgeUiDirectTabIntent } from "nudge-ui/internal/inspector";',
             'import { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";',
             ...(framework
               ? [`import { componentContracts } from ${JSON.stringify(framework.virtualModuleId)};`]
               : []),
             'const __nudge_ui_renderer = isCanvasRenderer();',
-            `const __nudge_ui_demo_controller = !__nudge_ui_renderer && !isNudgeUiDirectUrl(window.location.href) && ${demoControllerExpression};`,
+            'const __nudge_ui_explicit_direct = isNudgeUiDirectUrl(window.location.href);',
+            'if (__nudge_ui_explicit_direct) rememberNudgeUiDirectTabIntent();',
+            'const __nudge_ui_direct_tab = hasNudgeUiDirectTabIntent();',
+            `const __nudge_ui_demo_controller = !__nudge_ui_renderer && !__nudge_ui_explicit_direct && !__nudge_ui_direct_tab && ${demoControllerExpression};`,
             'const __nudge_ui_editor_target = readNudgeUiEditorTarget(window.location.href) ?? (__nudge_ui_demo_controller ? window.location.href : null);',
             'if (__nudge_ui_demo_controller && readNudgeUiEditorTarget(window.location.href) === null) {',
             '  window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(window.location.href));',
@@ -838,7 +841,7 @@ export function createVitePlugins(
             '  }',
             '}',
             'window.addEventListener("nudge-ui:open", () => {',
-            '  if (!__nudge_ui_renderer && isNudgeUiDirectUrl(window.location.href)) window.location.assign(createNudgeUiEditorUrl(window.location.href));',
+            '  if (!__nudge_ui_renderer && (__nudge_ui_explicit_direct || __nudge_ui_direct_tab)) window.location.assign(createNudgeUiEditorUrl(window.location.href));',
             '});',
           ].join("\n");
         }

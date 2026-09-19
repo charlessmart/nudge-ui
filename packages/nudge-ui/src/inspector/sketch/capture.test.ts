@@ -47,7 +47,7 @@ describe("DOM sketch capture", () => {
     document.body.append(hostElement);
     document.documentElement.setAttribute("data-nudge-ui-panel", "open");
 
-    const captured = await captureViewport({ hostElement, method: "dom" });
+    const captured = await captureViewport({ hostElement });
     type DomCaptureOptions = {
       readonly type?: string;
       readonly width?: number;
@@ -87,7 +87,7 @@ describe("DOM sketch capture", () => {
     shadowRoot.append(panel);
     document.body.append(hostElement);
 
-    await captureViewport({ hostElement, method: "dom" });
+    await captureViewport({ hostElement });
 
     const calls = vi.mocked(domToBlob).mock.calls as unknown as Array<[Node, { readonly width?: number }]>;
     expect(calls.at(-1)?.[1].width).toBe(640);

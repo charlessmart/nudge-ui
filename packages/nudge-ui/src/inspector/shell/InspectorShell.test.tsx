@@ -341,6 +341,7 @@ describe("InspectorShell", () => {
     const shadow = host.shadowRoot!;
 
     expect(shadow.querySelector('[data-test="mode-canvas"]')).toBeNull();
+    expect(shadow.querySelector('[data-test="presentation-canvas"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="canvas-workspace"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="copy-prompt-control"]')).not.toBeNull();
     expect(shadow.querySelector('[data-test="settings-button"]')).not.toBeNull();

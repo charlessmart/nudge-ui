@@ -8,8 +8,6 @@ const DEFAULT_PROCESSING_TIMEOUT_MS = 10_000;
 export type SketchCaptureErrorCode =
   | "unsupported"
   | "cancelled"
-  | "permission-denied"
-  | "wrong-surface"
   | "capture-failed"
   | "processing-timeout";
 
@@ -48,26 +46,6 @@ export interface SketchCaptureOptions {
   readonly hostElement: HTMLElement;
   readonly signal?: AbortSignal;
   readonly processingTimeoutMs?: number;
-  readonly method?: SketchCaptureMethod;
-}
-
-export type SketchCaptureMethod = "dom" | "screen";
-
-interface CropTargetApi {
-  readonly fromElement: (element: Element) => Promise<unknown>;
-}
-
-interface CropTrack extends MediaStreamTrack {
-  cropTo?: (target: unknown) => Promise<void>;
-}
-
-interface CaptureMediaDevices {
-  getDisplayMedia?: (constraints?: DisplayMediaStreamOptions & { readonly preferCurrentTab?: boolean }) => Promise<MediaStream>;
-}
-
-function cropTargetApi(): CropTargetApi | null {
-  const candidate = (globalThis as typeof globalThis & { CropTarget?: CropTargetApi }).CropTarget;
-  return candidate && typeof candidate.fromElement === "function" ? candidate : null;
 }
 
 function abortError(): SketchCaptureError {
@@ -107,13 +85,6 @@ async function waitForLayout(signal?: AbortSignal, targetDocument?: Document): P
   }
   await waitForAnimationFrame(signal);
   await waitForAnimationFrame(signal);
-}
-
-function imageDimensions(width: number, height: number, scale: number): { width: number; height: number } {
-  return {
-    width: Math.max(1, Math.round(width * scale)),
-    height: Math.max(1, Math.round(height * scale)),
-  };
 }
 
 function domContentWidth(hostElement: HTMLElement): number {
@@ -236,76 +207,6 @@ function prepareDomClone(node: Node): void {
   if (node.localName === "body") node.style.setProperty("margin-right", "0", "important");
 }
 
-function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("The browser could not encode the captured viewport."));
-    }, "image/png");
-  });
-}
-
-function disposeVideo(video: HTMLVideoElement | null): void {
-  if (!video) return;
-  video.pause();
-  video.srcObject = null;
-  video.remove();
-}
-
-async function captureVideoFrame(video: HTMLVideoElement, signal?: AbortSignal): Promise<{ blob: Blob; width: number; height: number }> {
-  const sourceWidth = video.videoWidth;
-  const sourceHeight = video.videoHeight;
-  if (!sourceWidth || !sourceHeight) {
-    throw new SketchCaptureError("capture-failed", "The selected tab did not provide a video frame.");
-  }
-  let scale = Math.min(1, SKETCH_LIMITS.imageEdge / Math.max(sourceWidth, sourceHeight));
-  let result: Blob | null = null;
-  let dimensions = imageDimensions(sourceWidth, sourceHeight, scale);
-  for (let attempt = 0; attempt < 7; attempt += 1) {
-    assertNotAborted(signal);
-    dimensions = imageDimensions(sourceWidth, sourceHeight, scale);
-    const canvas = document.createElement("canvas");
-    canvas.width = dimensions.width;
-    canvas.height = dimensions.height;
-    const context = canvas.getContext("2d");
-    if (!context) throw new SketchCaptureError("capture-failed", "The browser could not create a capture canvas.");
-    context.drawImage(video, 0, 0, dimensions.width, dimensions.height);
-    result = await canvasToPng(canvas);
-    assertNotAborted(signal);
-    if (result.size <= SKETCH_LIMITS.imageBytes || dimensions.width <= 1 || dimensions.height <= 1) break;
-    scale *= 0.8;
-  }
-  if (!result || result.size > SKETCH_LIMITS.imageBytes) {
-    throw new SketchCaptureError("capture-failed", "This viewport is too detailed to save within the 2 MiB image limit.");
-  }
-  return { blob: result, ...dimensions };
-}
-
-async function waitForVideoFrame(video: HTMLVideoElement, signal?: AbortSignal): Promise<void> {
-  assertNotAborted(signal);
-  await new Promise<void>((resolve, reject) => {
-    let settled = false;
-    const finish = (): void => {
-      if (settled) return;
-      settled = true;
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    };
-    const onAbort = (): void => {
-      if (settled) return;
-      settled = true;
-      signal?.removeEventListener("abort", onAbort);
-      reject(abortError());
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
-    if (typeof video.requestVideoFrameCallback === "function") {
-      video.requestVideoFrameCallback(() => finish());
-    } else {
-      setTimeout(finish, 50);
-    }
-  });
-}
-
 async function runWithProcessingTimeout<T>(
   operation: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
@@ -343,20 +244,6 @@ async function runWithProcessingTimeout<T>(
     if (onParentAbort && parentSignal) parentSignal.removeEventListener("abort", onParentAbort);
     controller.abort();
   }
-}
-
-export function isSketchCaptureSupported(): { supported: boolean; reason?: string } {
-  if (typeof document === "undefined" || typeof navigator === "undefined") {
-    return { supported: false, reason: "Viewport capture is only available in a browser." };
-  }
-  const devices = navigator.mediaDevices as CaptureMediaDevices | undefined;
-  if (!devices || typeof devices.getDisplayMedia !== "function") {
-    return { supported: false, reason: "This browser does not support tab capture." };
-  }
-  if (!cropTargetApi()) {
-    return { supported: false, reason: "This browser does not support current-tab region capture. Use a recent Chrome or Edge release." };
-  }
-  return { supported: true };
 }
 
 async function captureDomFrame(
@@ -403,7 +290,7 @@ async function captureDomFrame(
 }
 
 /** Renders the current viewport from its DOM without invoking screen capture permissions. */
-export async function captureViewportWithDom(options: SketchCaptureOptions): Promise<CapturedSketch> {
+export async function captureViewport(options: SketchCaptureOptions): Promise<CapturedSketch> {
   if (typeof document === "undefined" || typeof window === "undefined") {
     throw new SketchCaptureError("unsupported", "Viewport capture is only available in a browser.");
   }
@@ -439,120 +326,6 @@ export async function captureViewportWithDom(options: SketchCaptureOptions): Pro
     if (error instanceof DOMException && error.name === "AbortError") throw abortError();
     throw new SketchCaptureError("capture-failed", "The viewport could not be rendered from the page DOM. Try again.", { cause: error });
   }
-}
-
-/**
- * Captures the current viewport through the browser's display-media picker.
- * The picker promise is intentionally not timed out: permission prompts can
- * remain open while the user decides. Processing is bounded after selection.
- */
-export async function captureViewportWithScreenShare(options: SketchCaptureOptions): Promise<CapturedSketch> {
-  const support = isSketchCaptureSupported();
-  if (!support.supported) throw new SketchCaptureError("unsupported", support.reason!);
-  assertNotAborted(options.signal);
-
-  const devices = navigator.mediaDevices as CaptureMediaDevices;
-  const getDisplayMedia = devices.getDisplayMedia;
-  if (typeof getDisplayMedia !== "function") {
-    throw new SketchCaptureError("unsupported", "This browser does not support tab capture.");
-  }
-  let stream: MediaStream | null = null;
-  let video: HTMLVideoElement | null = null;
-  const surface = getSketchSurface(options.hostElement);
-  const target = document.createElement("div");
-  const previousPanelState = document.documentElement.getAttribute("data-nudge-ui-panel");
-  const previousVisibility = options.hostElement.style.visibility;
-  target.setAttribute("data-nudge-sketch-capture-target", "true");
-  target.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;opacity:0;z-index:-2147483648;";
-  document.body.appendChild(target);
-
-  try {
-    stream = await getDisplayMedia.call(devices, {
-      video: {
-        displaySurface: "browser",
-      },
-      audio: false,
-      preferCurrentTab: true,
-      selfBrowserSurface: "include",
-      surfaceSwitching: "exclude",
-    });
-    assertNotAborted(options.signal);
-    const track = stream.getVideoTracks()[0] as CropTrack | undefined;
-    const displaySurface = track?.getSettings().displaySurface;
-    if (!track || displaySurface !== "browser") {
-      throw new SketchCaptureError("wrong-surface", "Choose this browser tab in the share dialog, not a window or monitor.");
-    }
-    const cropTarget = cropTargetApi();
-    if (!cropTarget || typeof track.cropTo !== "function") {
-      throw new SketchCaptureError("unsupported", "This browser cannot crop capture to the current tab viewport.");
-    }
-
-    await runWithProcessingTimeout(async (processingSignal) => {
-      assertNotAborted(processingSignal);
-      try {
-        await track.cropTo!(await cropTarget.fromElement(surface.iframe ?? target));
-      } catch (error) {
-        if (processingSignal.aborted) throw abortError();
-        throw new SketchCaptureError("wrong-surface", "Choose the current browser tab in the share dialog and try again.", { cause: error });
-      }
-      if (!surface.iframe) options.hostElement.style.visibility = "hidden";
-      await waitForLayout(processingSignal);
-      assertNotAborted(processingSignal);
-      video = document.createElement("video");
-      video.muted = true;
-      video.playsInline = true;
-      video.srcObject = stream;
-      video.style.display = "none";
-      document.body.appendChild(video);
-      await video.play();
-      await waitForVideoFrame(video, processingSignal);
-      await waitForAnimationFrame(processingSignal);
-    }, options.processingTimeoutMs ?? DEFAULT_PROCESSING_TIMEOUT_MS, options.signal);
-
-    assertNotAborted(options.signal);
-    const frame = await runWithProcessingTimeout(
-      (processingSignal) => captureVideoFrame(video!, processingSignal),
-      options.processingTimeoutMs ?? DEFAULT_PROCESSING_TIMEOUT_MS,
-      options.signal,
-    );
-    const runtime = getNudgeUiRuntimeConfig();
-    const scroll = getSketchScrollPosition(surface.window);
-    const capture = {
-      url: surface.window.location.href,
-      title: surface.document.title,
-      timestamp: Date.now(),
-      viewportWidth: surface.window.innerWidth,
-      viewportHeight: surface.window.innerHeight,
-      scrollX: scroll.x,
-      scrollY: scroll.y,
-      devicePixelRatio: surface.window.devicePixelRatio || 1,
-      host: runtime.host,
-      framework: runtime.framework,
-      imageWidth: frame.width,
-      imageHeight: frame.height,
-    } as const;
-    return { originalImage: frame.blob, imageWidth: frame.width, imageHeight: frame.height, capture };
-  } catch (error) {
-    if (error instanceof SketchCaptureError) throw error;
-    if (error instanceof DOMException && error.name === "NotAllowedError") {
-      throw new SketchCaptureError("permission-denied", "Capture was cancelled. Choose this browser tab to continue.", { cause: error });
-    }
-    throw new SketchCaptureError("capture-failed", "The viewport could not be captured. Try again.", { cause: error });
-  } finally {
-    disposeVideo(video as HTMLVideoElement | null);
-    for (const track of stream?.getTracks() ?? []) track.stop();
-    target.remove();
-    options.hostElement.style.visibility = previousVisibility;
-    if (previousPanelState !== null) document.documentElement.setAttribute("data-nudge-ui-panel", previousPanelState);
-    else document.documentElement.removeAttribute("data-nudge-ui-panel");
-  }
-}
-
-/** Captures a viewport using the requested method; DOM rendering is opt-in for API callers. */
-export async function captureViewport(options: SketchCaptureOptions): Promise<CapturedSketch> {
-  return options.method === "dom"
-    ? captureViewportWithDom(options)
-    : captureViewportWithScreenShare(options);
 }
 
 export function createSketchCaptureOperation(options: SketchCaptureOptions): {

@@ -77,7 +77,7 @@ export function completeSketchCapture(hostElement: HTMLElement): Promise<Capture
   captureController = controller;
   const initialTool = snapshot.initialTool;
   publish({ captureState: "capturing", captured: null, editingId: null, error: null, initialTool });
-  const options: SketchCaptureOptions = { hostElement, signal: controller.signal, method: "dom" };
+  const options: SketchCaptureOptions = { hostElement, signal: controller.signal };
   return captureViewport(options)
     .then((captured) => {
       if (captureController !== controller) return captured;

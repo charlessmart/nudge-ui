@@ -239,6 +239,8 @@ describe("nudgeUi plugin virtual inspector module", () => {
     plugin.configResolved?.({ root: "/project", command: "build", mode: "nudge-demo" });
     const code = await plugin.load!("\0virtual:nudge-ui-inspector");
     expect(code).toContain("readNudgeUiEditorTarget(window.location.href)");
+    expect(code).toContain("hasNudgeUiDirectTabIntent()");
+    expect(code).toContain("rememberNudgeUiDirectTabIntent()");
     expect(code).toContain("isCanvasRenderer()");
     expect(code).toContain('document.documentElement.setAttribute("data-nudge-ui-editor", "")');
     expect(code).toContain("demo: true");

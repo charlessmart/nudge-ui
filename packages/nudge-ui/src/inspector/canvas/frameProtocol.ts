@@ -5,6 +5,7 @@ import type { ComponentOverride } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
+// v18 adds parent-to-renderer Alt modifier forwarding for Canvas measurements.
 // v17 adds an idempotent renderer request to open the parent inspector. v16
 // adds controller-owned inline-text intents for Canvas frames. v15 adds
 // renderer-to-controller element deselection for Canvas frames. v14
@@ -15,7 +16,7 @@ import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 // rereading a Canvas iframe until the renderer has applied its revision. v11
 // added the renderer-hello handshake solicitation for runtimes whose boot
 // completes after the controller's load-time parent-ready.
-export const PROTOCOL_VERSION = 17;
+export const PROTOCOL_VERSION = 18;
 
 export interface FrameMessage {
   type: string;
@@ -240,6 +241,12 @@ export interface PanModifierMessage extends RendererMessage {
   spaceHeld: boolean;
 }
 
+/** Keeps iframe measurement state synchronized when focus is in the parent. */
+export interface MeasureModifierMessage extends RendererMessage {
+  type: "measure-modifier";
+  altKey: boolean;
+}
+
 /** Enables board-only pan and zoom interception inside a mounted preview. */
 export interface BoardGestureStateMessage extends RendererMessage {
   type: "board-gesture-state";
@@ -283,6 +290,7 @@ export type FrameProtocolMessage =
   | PanMoveMessage
   | PanEndMessage
   | PanModifierMessage
+  | MeasureModifierMessage
   | BoardGestureStateMessage
   | ZoomMessage;
 

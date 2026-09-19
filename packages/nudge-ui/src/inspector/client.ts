@@ -7,7 +7,12 @@ import {
 import { installStaticHtmlRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
 import { reconcileRuntimeWithDocumentStylesheets } from "./runtime/documentStylesheetOrder.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
-import { isNudgeUiDirectUrl, resolveNudgeUiClientEntry } from "../transport/editor.ts";
+import {
+  hasNudgeUiDirectTabIntent,
+  isNudgeUiDirectUrl,
+  rememberNudgeUiDirectTabIntent,
+  resolveNudgeUiClientEntry,
+} from "../transport/editor.ts";
 import { resetAgentClients } from "./agent/client.ts";
 import { getActiveCanvasDocument } from "./canvas/activeCanvasDocument.ts";
 export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
@@ -15,7 +20,6 @@ export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
 const DEFAULT_MANIFEST_PATH = "/__nudge_ui__/manifest";
 const MOUNT_ID = "nudge-ui-root";
 const identityPreparedDocuments = new WeakSet<Document>();
-const DIRECT_TAB_SESSION_KEY = "nudge-ui:direct-tab";
 
 interface AgentBridgeWindow extends Window {
   __NUDGE_UI_AGENT_BRIDGE__?: { baseUrl: string; autoConnect?: boolean };
@@ -28,12 +32,12 @@ export async function bootstrapNudgeUiClient(): Promise<void> {
   );
   const editorDocument = document.documentElement.hasAttribute("data-nudge-ui-editor");
   const explicitDirect = isNudgeUiDirectUrl(window.location.href);
-  if (explicitDirect) rememberDirectTabIntent();
+  if (explicitDirect) rememberNudgeUiDirectTabIntent();
   const entry = resolveNudgeUiClientEntry(
     window.location.href,
     editorDocument,
     isCanvasRenderer(),
-    hasDirectTabIntent(),
+    hasNudgeUiDirectTabIntent(),
   );
   if (entry.kind === "direct") return;
   if (entry.kind === "redirect") {
@@ -144,22 +148,6 @@ function prepareRuntime(
 
 function findEditorPreviewDocument(): Document | null {
   return getActiveCanvasDocument();
-}
-
-function rememberDirectTabIntent(): void {
-  try {
-    sessionStorage.setItem(DIRECT_TAB_SESSION_KEY, "1");
-  } catch {
-    // Storage denial must not prevent a one-page direct application view.
-  }
-}
-
-function hasDirectTabIntent(): boolean {
-  try {
-    return sessionStorage.getItem(DIRECT_TAB_SESSION_KEY) === "1";
-  } catch {
-    return false;
-  }
 }
 
 function parseReloadRevision(event: Event): number | null {

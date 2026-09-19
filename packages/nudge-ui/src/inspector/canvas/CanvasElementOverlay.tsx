@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
+  PROTOCOL_VERSION,
   isElementClickMessage,
   isInlineTextIntentMessage,
 } from "./frameProtocol.ts";
@@ -25,6 +26,7 @@ import { DropGuideOverlay, type ViewportDropGuide } from "../overlay/DropGuideOv
 import { getMeasurementGeometry } from "../overlay/measurementGeometry.ts";
 import { MeasurementGuideOverlay } from "../overlay/MeasurementGuideOverlay.tsx";
 import { projectMeasurementSegments } from "./measurementProjection.ts";
+import { getRegisteredFrames, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
 import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
@@ -120,6 +122,17 @@ function projectGuideToCanvas(guide: DropGuide | null, zoom: number): ViewportDr
   };
 }
 
+function sendMeasureModifier(iframe: HTMLIFrameElement, cardId: string, altKey: boolean): void {
+  iframe.contentWindow?.postMessage({
+    type: "measure-modifier",
+    protocolVersion: PROTOCOL_VERSION,
+    projectId: PROJECT_ID,
+    workspaceId: WORKSPACE_ID,
+    cardId,
+    altKey,
+  }, window.location.origin);
+}
+
 export function CanvasElementOverlay(): ReactElement | null {
   const isInspectorOpen = useInspectorOpen();
   const [hover, setHover] = useState<FrameOverlayState | null>(null);
@@ -137,6 +150,7 @@ export function CanvasElementOverlay(): ReactElement | null {
   const projectionGeometryKey = `${presentation}:${camera.x}:${camera.y}:${projectionZoom}:${cardGeometryKey}`;
   const previousProjectionGeometryKey = useRef(projectionGeometryKey);
   const dragRef = useRef<CanvasDragState | null>(null);
+  const measureAltKeyRef = useRef(false);
   const dropGuide = useDropGuide("canvas");
   const projectedDropGuide = projectGuideToCanvas(dropGuide, projectionZoom);
 
@@ -184,6 +198,31 @@ export function CanvasElementOverlay(): ReactElement | null {
     return () => stops.forEach((stop) => stop());
   }, [selected, selectedElements, selectedInCanvas]);
 
+  useEffect(() => {
+    const broadcastMeasureModifier = (altKey: boolean): void => {
+      measureAltKeyRef.current = altKey;
+      for (const [cardId, iframe] of getRegisteredFrames()) {
+        sendMeasureModifier(iframe, cardId, altKey);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Alt" || measureAltKeyRef.current) return;
+      broadcastMeasureModifier(true);
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (event.key === "Alt") broadcastMeasureModifier(false);
+    };
+    const onBlur = (): void => broadcastMeasureModifier(false);
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
+
   // The selected element's identity is computed once per selection change
   // (never per hover), so the measurement self-rulers exclusion can compare
   // identities without a per-hover scan of the frame document.
@@ -201,6 +240,9 @@ export function CanvasElementOverlay(): ReactElement | null {
       identity: frameIdentity,
       message: data,
     }) => {
+      if (data.type === "renderer-hello" || data.type === "frame-ready") {
+        sendMeasureModifier(sourceIframe, sourceCardId, measureAltKeyRef.current);
+      }
       if (data.type === "renderer-hello") return;
 
       if (data.type === "element-hover") {

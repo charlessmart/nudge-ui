@@ -14,6 +14,7 @@ import popoverListboxStyles from "./PopoverListbox.css?inline";
 import inspectorPopoverStyles from "./InspectorPopover.css?inline";
 import sideValuesFieldStyles from "./SideValuesField.css?inline";
 import inspectorShellStyles from "../shell/InspectorShell.css?inline";
+import inspectorOverlayStyles from "../overlay/InspectorOverlay.css?inline";
 import emptyStateStyles from "../shell/EmptyState.css?inline";
 import styleEditorStyles from "../styleEditors/StyleEditor.css?inline";
 import borderEditorStyles from "../styleEditors/BorderEditor.css?inline";
@@ -49,6 +50,7 @@ export const UI_STYLES = [
   inspectorPopoverStyles,
   sideValuesFieldStyles,
   inspectorShellStyles,
+  inspectorOverlayStyles,
   emptyStateStyles,
   styleEditorStyles,
   borderEditorStyles,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act } from "react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { getSelectedElement, setSelectedElement } from "../selection/selectionStore.ts";
@@ -13,7 +13,7 @@ import {
 import {
   PROJECT_ID,
   WORKSPACE_ID,
-  registerCardFrameSource,
+  registerCardFrame,
   unregisterCardFrame,
 } from "./projection.ts";
 
@@ -30,7 +30,7 @@ describe("CanvasElementOverlay", () => {
     iframe = document.createElement("iframe");
     iframe.setAttribute("data-nudge-ui-canvas-renderer", "true");
     document.body.append(host, iframe);
-    registerCardFrameSource(cardId, iframe);
+    registerCardFrame(cardId, iframe);
 
     root = createRoot(host);
     act(() => {
@@ -82,5 +82,20 @@ describe("CanvasElementOverlay", () => {
     });
 
     expect(getSelectedElement()).toBeNull();
+  });
+
+  it("forwards parent Alt state to registered renderer frames", () => {
+    const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Alt", altKey: true }));
+    });
+
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "measure-modifier",
+      cardId,
+      altKey: true,
+    }), window.location.origin);
+    postMessage.mockRestore();
   });
 });

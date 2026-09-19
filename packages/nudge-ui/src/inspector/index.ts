@@ -278,7 +278,13 @@ export {
   RUNTIME_UNKNOWN_SOURCE_PREFIX,
 } from "./runtime/staticHtmlRuntimeIdentity.ts";
 export { isCanvasRenderer } from "./canvas/roleDetection.ts";
-export { createNudgeUiEditorUrl, isNudgeUiDirectUrl, readNudgeUiEditorTarget } from "../transport/editor.ts";
+export {
+  createNudgeUiEditorUrl,
+  hasNudgeUiDirectTabIntent,
+  isNudgeUiDirectUrl,
+  readNudgeUiEditorTarget,
+  rememberNudgeUiDirectTabIntent,
+} from "../transport/editor.ts";
 export { NUDGE_UI_INSPECTION_VERSION, inspectElement, installInspectionBridge } from "./inspection/bridge.ts";
 export type { NudgeUiInspectionBridge, ElementInspection, InspectElementOptions, InspectionCatalogEntry, InspectionControl } from "./inspection/bridge.ts";
 export {

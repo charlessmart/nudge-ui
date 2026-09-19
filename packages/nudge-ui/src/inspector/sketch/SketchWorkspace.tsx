@@ -20,7 +20,7 @@ function clamp(value: number, maximum: number): number {
   return Math.max(0, Math.min(maximum, value));
 }
 
-function projectLiveStrokes(draft: SketchLiveDraft, captured: CapturedSketch): SketchStroke[] {
+export function projectLiveStrokes(draft: SketchLiveDraft, captured: CapturedSketch): SketchStroke[] {
   const scaleX = captured.imageWidth / Math.max(1, draft.viewport.width);
   const scaleY = captured.imageHeight / Math.max(1, draft.viewport.height);
   const captureScrollX = captured.capture.scrollX;
@@ -28,19 +28,21 @@ function projectLiveStrokes(draft: SketchLiveDraft, captured: CapturedSketch): S
   const visibleRight = captureScrollX + draft.viewport.width;
   const visibleBottom = captureScrollY + draft.viewport.height;
 
-  return draft.strokes
-    .filter((stroke) => stroke.points.some((point) => point.x >= captureScrollX
+  return draft.strokes.flatMap((stroke) => {
+    const visiblePoints = stroke.points.filter((point) => point.x >= captureScrollX
       && point.x <= visibleRight
       && point.y >= captureScrollY
-      && point.y <= visibleBottom))
-    .map((stroke) => ({
+      && point.y <= visibleBottom);
+    if (visiblePoints.length === 0) return [];
+    return [{
       ...stroke,
       width: stroke.width * Math.max(scaleX, scaleY),
-      points: stroke.points.map((point) => ({
+      points: visiblePoints.map((point) => ({
         x: clamp((point.x - captureScrollX) * scaleX, captured.imageWidth),
         y: clamp((point.y - captureScrollY) * scaleY, captured.imageHeight),
       })),
-    }));
+    }];
+  });
 }
 
 function projectLiveAnnotations(draft: SketchLiveDraft, captured: CapturedSketch): SketchAnnotation[] {

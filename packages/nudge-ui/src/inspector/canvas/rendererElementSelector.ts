@@ -216,12 +216,16 @@ export function installRendererElementSelector(): () => void {
     if (event.origin !== window.location.origin || event.source !== window.parent) return;
     const identity = getRendererIdentity();
     const message = event.data as Record<string, unknown> | null;
-    if (!identity || !message || message.type !== "inspector-interaction-state"
+    if (!identity || !message
       || message.protocolVersion !== PROTOCOL_VERSION
       || message.projectId !== identity.projectId
       || message.workspaceId !== identity.workspaceId
-      || message.cardId !== identity.cardId
-      || typeof message.open !== "boolean") return;
+      || message.cardId !== identity.cardId) return;
+    if (message.type === "measure-modifier" && typeof message.altKey === "boolean") {
+      updateMeasureState(message.altKey, measurePointerOverPage);
+      return;
+    }
+    if (message.type !== "inspector-interaction-state" || typeof message.open !== "boolean") return;
     interactionsSuspended = !message.open;
     if (message.open) {
       document.documentElement.setAttribute("data-nudge-ui-panel", "open");

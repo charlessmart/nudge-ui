@@ -46,7 +46,12 @@ import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { hasWriteLease } from "../canvas/workspaceLease.ts";
-import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
+import {
+  setCanvasPresentation,
+  useCanvasPresentation,
+  useFocusedCardId,
+  useSelectedCardId,
+} from "../canvas/canvasStore.ts";
 import { getActiveCanvasFrame } from "../canvas/activeCanvasDocument.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
@@ -109,6 +114,7 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const runtimeConfig = useNudgeUiRuntimeConfig();
+  const canvasEnabled = runtimeConfig.capabilities.canvas;
   const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
   const sketchEnabled = isNudgeUiDev() && !isDemoRuntime();
   const sketchActive = useSketchInteractionActive();
@@ -125,6 +131,7 @@ export function InspectorShell(): ReactElement {
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const cssInspection = useBrowserCssInspection(selectedElements, styleState);
   const isMultiSelection = selectedElements.length > 1;
+  const canvasPresentation = useCanvasPresentation();
   useEffect(() => {
     // A new selection should never inherit an incidental state from the
     // previous element. Base is the inspector's deliberate default.
@@ -292,6 +299,16 @@ export function InspectorShell(): ReactElement {
               <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             </IconButton>
             <div className="panel__header-actions">
+              {canvasEnabled ? (
+                <Button
+                  variant="quiet"
+                  size="compact"
+                  data-test={`presentation-${canvasPresentation === "focus" ? "canvas" : "focus"}`}
+                  onClick={() => setCanvasPresentation(canvasPresentation === "focus" ? "canvas" : "focus")}
+                >
+                  {canvasPresentation === "focus" ? "Canvas" : "Focus"}
+                </Button>
+              ) : null}
               <IconButton
                 variant="quiet"
                 data-test="tokens-button"
