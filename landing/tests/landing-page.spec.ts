@@ -102,7 +102,7 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   expect(new Set(cardWidths).size).toBe(1);
   await expect(inspectorHost.locator(".canvas-workspace__board-content")).toHaveCSS(
     "transform",
-    /matrix\(1, 0, 0, 1,/,
+    /matrix\(0\.9, 0, 0, 0\.9,/,
   );
 
   const editableDemoText = app.locator(".landing-demo-example-text");
