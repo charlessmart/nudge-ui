@@ -40,10 +40,8 @@ import {
   createSketchAttachments,
   createSketchHandoffSnapshot,
   sketchMetadataForHandoff,
-  recordSketchClipboardHandoff,
-  type SketchClipboardHandoffSnapshot,
 } from "../sketch/handoff.ts";
-import { SketchClipboardPanel } from "../sketch/SketchClipboardPanel.tsx";
+import { SketchLayersPanel } from "../sketch/SketchLayersPanel.tsx";
 
 export interface CopyPromptButtonProps {
   readonly settingsOpen?: boolean;
@@ -75,10 +73,8 @@ export function CopyPromptButton({
   const [copied, setCopied] = useState(false);
   const [agentCompletionStatus, setAgentCompletionStatus] = useState<AgentCompletionStatus | null>(null);
   const [agentCompletionSent, setAgentCompletionSent] = useState(0);
-  const [clipboardPrompt, setClipboardPrompt] = useState<string | null>(null);
   const [sketchFallback, setSketchFallback] = useState<{
     readonly prompt: string;
-    readonly handoff: SketchClipboardHandoffSnapshot;
     readonly error: string;
   } | null>(null);
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
@@ -233,7 +229,6 @@ export function CopyPromptButton({
           const latestAgent = agentClient.getSnapshot();
           setSketchFallback({
             prompt: text,
-            handoff: sketchHandoff,
             error: latestAgent.request?.error
               ?? latestAgent.error
               ?? "The agent did not accept the sketch attachments.",
@@ -246,7 +241,6 @@ export function CopyPromptButton({
           await settleSketchDispatch(revision, "failed", undefined, sketchHandoff.localBatchId).catch(() => undefined);
           setSketchFallback({
             prompt: text,
-            handoff: sketchHandoff,
             error: error instanceof Error ? error.message : "The sketch could not be sent to the agent.",
           });
           return;
@@ -255,10 +249,6 @@ export function CopyPromptButton({
       discardAgentDispatch(revision);
     }
     await copyToClipboard(text);
-    if (sketchHandoff) {
-      recordSketchClipboardHandoff(sketchHandoff);
-      setClipboardPrompt(text);
-    }
     if (changes.length > 0 || structuralChanges.length > 0) {
       recordClipboardHandoff(changes, structuralChanges);
     }
@@ -306,6 +296,7 @@ export function CopyPromptButton({
         {icon}
         {label}
       </Button>
+      <SketchLayersPanel />
       {statusAction ? (
         <StatusCallout
           className="copy-prompt__agent-status"
@@ -362,20 +353,17 @@ export function CopyPromptButton({
             data-test="sketch-copy-fallback"
             onClick={() => {
               void copyToClipboard(sketchFallback.prompt).then(() => {
-                recordSketchClipboardHandoff(sketchFallback.handoff);
                 if (changes.length > 0 || structuralChanges.length > 0) {
                   recordClipboardHandoff(changes, structuralChanges);
                 }
-                setClipboardPrompt(sketchFallback.prompt);
                 setSketchFallback(null);
               }).catch(() => undefined);
             }}
           >
-            Copy prompt and review images
+            Copy prompt
           </Button>
         </StatusCallout>
       ) : null}
-      <SketchClipboardPanel prompt={clipboardPrompt} />
       <SettingsDialog
         open={settingsOpen}
         initialSection={settingsSection}

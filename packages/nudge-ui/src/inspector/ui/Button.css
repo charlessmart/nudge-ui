@@ -24,6 +24,16 @@
   font-size: var(--font-size-base);
 }
 
+.button--large {
+  min-height: var(--control-height-xlarge);
+  padding: 0 var(--space-12);
+}
+
+.button--large svg {
+  width: var(--icon-size-large);
+  height: var(--icon-size-large);
+}
+
 .button--primary {
   background: var(--surface-raised-2x);
   color: var(--text-primary);

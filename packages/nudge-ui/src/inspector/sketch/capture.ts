@@ -141,6 +141,37 @@ interface SketchSurface {
   readonly iframe: HTMLIFrameElement | null;
 }
 
+export interface SketchScrollPosition {
+  readonly x: number;
+  readonly y: number;
+}
+
+function nonNegativeOffset(...values: readonly number[]): number {
+  return Math.max(0, ...values.filter((value) => Number.isFinite(value)));
+}
+
+/** Reads root scrolling from both window and document APIs. */
+export function getSketchScrollPosition(targetWindow: Window): SketchScrollPosition {
+  const targetDocument = targetWindow.document;
+  const scrollingElement = targetDocument.scrollingElement;
+  return {
+    x: nonNegativeOffset(
+      targetWindow.scrollX,
+      targetWindow.pageXOffset,
+      scrollingElement?.scrollLeft ?? 0,
+      targetDocument.documentElement?.scrollLeft ?? 0,
+      targetDocument.body?.scrollLeft ?? 0,
+    ),
+    y: nonNegativeOffset(
+      targetWindow.scrollY,
+      targetWindow.pageYOffset,
+      scrollingElement?.scrollTop ?? 0,
+      targetDocument.documentElement?.scrollTop ?? 0,
+      targetDocument.body?.scrollTop ?? 0,
+    ),
+  };
+}
+
 function getSketchSurface(hostElement: HTMLElement): SketchSurface {
   const iframe = typeof HTMLIFrameElement !== "undefined" && hostElement instanceof HTMLIFrameElement
     ? hostElement
@@ -158,13 +189,14 @@ function getSketchSurface(hostElement: HTMLElement): SketchSurface {
 
 export function getSketchViewport(hostElement: HTMLElement): SketchViewport {
   const surface = getSketchSurface(hostElement);
+  const scroll = getSketchScrollPosition(surface.window);
   if (surface.iframe) {
     const rect = surface.iframe.getBoundingClientRect();
     return {
       width: Math.max(1, Math.round(surface.window.innerWidth || surface.iframe.clientWidth || rect.width)),
       height: Math.max(1, Math.round(surface.window.innerHeight || surface.iframe.clientHeight || rect.height)),
-      scrollX: Math.max(0, surface.window.scrollX || 0),
-      scrollY: Math.max(0, surface.window.scrollY || 0),
+      scrollX: scroll.x,
+      scrollY: scroll.y,
       offsetX: rect.left,
       offsetY: rect.top,
       displayWidth: Math.max(1, rect.width),
@@ -176,8 +208,8 @@ export function getSketchViewport(hostElement: HTMLElement): SketchViewport {
   return {
     width,
     height,
-    scrollX: Math.max(0, surface.window.scrollX || 0),
-    scrollY: Math.max(0, surface.window.scrollY || 0),
+    scrollX: scroll.x,
+    scrollY: scroll.y,
     offsetX: 0,
     offsetY: 0,
     displayWidth: width,
@@ -386,14 +418,15 @@ export async function captureViewportWithDom(options: SketchCaptureOptions): Pro
     assertNotAborted(options.signal);
 
     const runtime = getNudgeUiRuntimeConfig();
+    const scroll = getSketchScrollPosition(surface.window);
     const capture = {
       url: surface.window.location.href,
       title: surface.document.title,
       timestamp: Date.now(),
       viewportWidth: surface.window.innerWidth,
       viewportHeight: surface.window.innerHeight,
-      scrollX: surface.window.scrollX,
-      scrollY: surface.window.scrollY,
+      scrollX: scroll.x,
+      scrollY: scroll.y,
       devicePixelRatio: surface.window.devicePixelRatio || 1,
       host: runtime.host,
       framework: runtime.framework,
@@ -483,14 +516,15 @@ export async function captureViewportWithScreenShare(options: SketchCaptureOptio
       options.signal,
     );
     const runtime = getNudgeUiRuntimeConfig();
+    const scroll = getSketchScrollPosition(surface.window);
     const capture = {
       url: surface.window.location.href,
       title: surface.document.title,
       timestamp: Date.now(),
       viewportWidth: surface.window.innerWidth,
       viewportHeight: surface.window.innerHeight,
-      scrollX: surface.window.scrollX,
-      scrollY: surface.window.scrollY,
+      scrollX: scroll.x,
+      scrollY: scroll.y,
       devicePixelRatio: surface.window.devicePixelRatio || 1,
       host: runtime.host,
       framework: runtime.framework,

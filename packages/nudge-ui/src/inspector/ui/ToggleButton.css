@@ -80,3 +80,13 @@
   width: 26px;
   height: 26px;
 }
+
+.toggle-button--large {
+  width: var(--control-height-xlarge);
+  height: var(--control-height-xlarge);
+}
+
+.toggle-button--large svg {
+  width: var(--icon-size-large);
+  height: var(--icon-size-large);
+}

@@ -1,14 +1,61 @@
-.panel__sketch-button {
-  flex: 0 0 auto;
+.sketch-layers {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  margin-top: var(--space-8);
+}
+
+.sketch-layers__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.sketch-layers__copy {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  min-width: 0;
+  padding-inline: var(--space-12);
+  text-align: left;
+}
+
+.sketch-layers__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.panel__sketch-label {
-  display: none;
+.sketch-layers__thumbnail {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 54px;
+  margin: -8px var(--space-4) -8px auto;
+  border-radius: var(--radius-control);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-control);
+  object-fit: cover;
+  transform: rotate(-7deg);
 }
 
-@media (min-width: 300px) {
-  .panel__sketch-label { display: inline; }
+.sketch-layers__thumbnail--empty {
+  border: 1px solid var(--border-subtle);
+}
+
+.sketch-layers__hint {
+  margin: var(--space-8) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  line-height: 1.4;
+}
+
+.sketch-layers__error {
+  flex: 0 0 100%;
+  color: var(--warning-text);
+  font-size: var(--font-size-small);
+  line-height: 1.35;
 }
 
 .sketch__backdrop {
@@ -81,6 +128,88 @@
   z-index: auto;
 }
 
+.sketch__prompt-panel {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: min(400px, calc(100vw - var(--panel-width) - 32px));
+  padding: var(--space-8);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-popup);
+  pointer-events: auto;
+}
+
+.sketch__live-note-panel {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  z-index: calc(var(--z-index) - 1);
+}
+
+.sketch__saved-note-panel {
+  position: fixed;
+  right: calc(var(--panel-width) + 24px);
+  bottom: 24px;
+  z-index: calc(var(--z-index) - 1);
+}
+
+.sketch__prompt-label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-label);
+}
+
+.sketch__prompt-input {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: calc(2 * 1.4em + var(--space-16));
+  resize: none;
+  padding: var(--space-8) 96px var(--space-8) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  line-height: 1.4;
+  outline: 0;
+}
+
+.sketch__prompt-input:focus {
+  box-shadow: none;
+}
+
+.sketch__prompt-input::placeholder {
+  color: var(--text-muted);
+}
+
+.sketch__prompt-footer {
+  position: absolute;
+  inset: var(--space-8);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.sketch__prompt-footer .button {
+  min-width: 80px;
+  pointer-events: auto;
+}
+
+.sketch__prompt-error {
+  min-width: 0;
+  margin-right: auto;
+  max-width: calc(100% - 88px);
+  color: var(--warning-text);
+  font-size: var(--font-size-small);
+  line-height: 1.35;
+  pointer-events: auto;
+}
+
 .sketch__canvas-frame {
   position: absolute;
   inset: 0;
@@ -127,18 +256,6 @@
 
 .sketch__live-frame {
   background: transparent;
-  pointer-events: none;
-}
-
-.sketch__live-frame::before {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background-image: radial-gradient(circle, var(--border-tertiary, var(--border-subtle)) 1px, transparent 1px);
-  background-position: 8px 8px;
-  background-size: 16px 16px;
-  content: "";
-  opacity: 0.55;
   pointer-events: none;
 }
 
@@ -226,7 +343,6 @@
   max-height: calc(100dvh - 40px);
   padding: var(--space-4);
   overflow: auto;
-  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-12);
   background: var(--surface-raised-2x);
   color: var(--text-primary);
@@ -234,13 +350,6 @@
   transform: translateX(-50%);
   animation: sketch-toolbar-enter 300ms ease-out both;
   pointer-events: auto;
-}
-
-/* Keep the live sketch controls above the permanent Canvas toolbar. */
-.sketch__live-popup .sketch__floating-panel {
-  /* Leave room for the persistent CanvasToolbar and a small visual gap. */
-  bottom: calc(var(--control-height-large) + var(--control-height-large) + var(--space-20) + var(--space-12) + var(--space-8));
-  z-index: calc(var(--z-index) - 1);
 }
 
 @keyframes sketch-toolbar-enter {
@@ -440,54 +549,3 @@
 .sketch-change__status[data-status="dispatching"],
 .sketch-change__status[data-status="handing-off"] { color: var(--accent); }
 .sketch-change__error { color: var(--warning-text); }
-
-.sketch-clipboard {
-  display: grid;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.sketch-clipboard__title {
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.sketch-clipboard__copy,
-.sketch-clipboard__error {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.sketch-clipboard__items {
-  display: grid;
-  gap: 4px;
-}
-
-.sketch-clipboard__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  color: var(--text-primary);
-  font-size: 11px;
-}
-
-.sketch-clipboard__item > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sketch-clipboard__item-actions,
-.sketch-clipboard__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.sketch-clipboard__actions { justify-content: flex-end; }
-.sketch-clipboard__error { color: var(--warning-text); }

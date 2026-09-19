@@ -6,6 +6,7 @@ import {
   type SketchPoint,
   type SketchStroke,
 } from "./model.ts";
+import { sketchStrokeOutline } from "./freehand.tsx";
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -68,18 +69,31 @@ function drawPointPath(ctx: CanvasRenderingContext2D, points: readonly SketchPoi
 
 export function drawSketchStroke(
   ctx: CanvasRenderingContext2D,
-  stroke: Pick<SketchStroke, "points" | "width">,
+  stroke: Pick<SketchStroke, "points" | "width"> & Partial<Pick<SketchStroke, "kind" | "color">>,
   scaleX = 1,
   scaleY = scaleX,
 ): void {
   if (stroke.points.length === 0) return;
   ctx.save();
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = SKETCH_STROKE_COLOR;
-  ctx.lineWidth = stroke.width * Math.max(scaleX, scaleY);
-  drawPointPath(ctx, stroke.points, scaleX, scaleY);
-  ctx.stroke();
+  if (stroke.kind === "rectangle") {
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = stroke.color || SKETCH_STROKE_COLOR;
+    ctx.lineWidth = stroke.width * Math.max(scaleX, scaleY);
+    drawPointPath(ctx, stroke.points, scaleX, scaleY);
+    ctx.stroke();
+  } else {
+    const outline = sketchStrokeOutline(stroke, scaleX, scaleY);
+    const first = outline[0];
+    if (first) {
+      ctx.beginPath();
+      ctx.moveTo(first[0], first[1]);
+      for (const point of outline.slice(1)) ctx.lineTo(point[0], point[1]);
+      ctx.closePath();
+      ctx.fillStyle = stroke.color || SKETCH_STROKE_COLOR;
+      ctx.fill();
+    }
+  }
   ctx.restore();
 }
 

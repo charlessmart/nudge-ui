@@ -9,7 +9,6 @@
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4);
-  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-12);
   background: var(--surface-raised-2x);
   box-shadow: var(--shadow-popup);
@@ -17,8 +16,7 @@
   pointer-events: auto;
 }
 
-.canvas-toolbar__tools,
-.canvas-toolbar__zoom {
+.canvas-toolbar__tools {
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -27,14 +25,4 @@
 .canvas-toolbar__tool[data-active="true"] {
   background: var(--accent-surface);
   color: var(--accent);
-}
-
-.canvas-toolbar__separator {
-  width: 1px;
-  height: var(--control-height-large);
-  background: var(--border-subtle);
-}
-
-.canvas-toolbar__zoom-select {
-  min-width: 76px;
 }

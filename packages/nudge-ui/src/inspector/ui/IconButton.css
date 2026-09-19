@@ -76,3 +76,13 @@
   width: var(--control-height-small);
   height: var(--control-height-small);
 }
+
+.icon-button--large {
+  width: var(--control-height-xlarge);
+  height: var(--control-height-xlarge);
+}
+
+.icon-button--large svg {
+  width: var(--icon-size-large);
+  height: var(--icon-size-large);
+}

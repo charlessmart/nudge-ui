@@ -222,9 +222,9 @@ describe("CanvasCard renderer handshake", () => {
     expect(iframe?.getAttribute("src")).toBe(requested);
   });
 
-  it("opens the application through the card toolbar control", () => {
+  it("returns the selected card to the focused preview", () => {
     const card: CanvasCardData = {
-      id: "card-open-app",
+      id: "card-focus-preview",
       url: window.location.href,
       title: null,
       x: 0,
@@ -232,18 +232,19 @@ describe("CanvasCard renderer handshake", () => {
       width: 800,
       height: 600,
     };
-    const onOpenApp = vi.fn();
+    const onShowFocus = vi.fn();
     root = createRoot(host);
     act(() => {
-      root!.render(createElement(CanvasCard, { card, onOpenApp }));
+      root!.render(createElement(CanvasCard, { card, onShowFocus }));
     });
 
-    const control = host.querySelector(`[data-test="canvas-card-open-app-${card.id}"]`);
-    if (!(control instanceof HTMLButtonElement)) throw new Error("Open app control did not mount");
+    const control = host.querySelector(`[data-test="canvas-card-focus-${card.id}"]`);
+    if (!(control instanceof HTMLButtonElement)) throw new Error("Focus control did not mount");
     act(() => control.click());
 
-    expect(control.textContent).toContain("Open app");
-    expect(onOpenApp).toHaveBeenCalledWith(card);
+    expect(control.classList.contains("button--primary")).toBe(true);
+    expect(control.textContent).toContain("Focus");
+    expect(onShowFocus).toHaveBeenCalledWith(card.id);
   });
 
   it("moves the card when dragging from the dimension surface", () => {
@@ -320,17 +321,37 @@ describe("CanvasCard renderer handshake", () => {
       height: 600,
     };
     hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
-    renderCard(card);
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(CanvasCard, { card, onShowFocus: vi.fn() }));
+    });
 
     const dimensions = host.querySelector(
       `[data-test="canvas-card-dimensions-${card.id}"]`,
     );
-    const actions = host.querySelector(".canvas-card__actions");
-    if (!(dimensions instanceof HTMLElement) || !(actions instanceof HTMLElement)) {
+    const focus = host.querySelector(`[data-test="canvas-card-focus-${card.id}"]`);
+    if (!(dimensions instanceof HTMLElement) || !(focus instanceof HTMLElement)) {
       throw new Error("toolbar content did not mount");
     }
 
     expect(dimensions.style.transformOrigin).toBe("left bottom");
-    expect(actions.style.transformOrigin).toBe("right bottom");
+    expect(focus.style.transformOrigin).toBe("left bottom");
+  });
+
+  it("does not render card action buttons", () => {
+    const card: CanvasCardData = {
+      id: "card-actions-removed",
+      url: window.location.href,
+      title: null,
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    renderCard(card);
+
+    expect(host.querySelector(`[data-test="canvas-card-open-app-${card.id}"]`)).toBeNull();
+    expect(host.querySelector(`[data-test="canvas-card-duplicate-${card.id}"]`)).toBeNull();
+    expect(host.querySelector(`[data-test="canvas-card-reload-${card.id}"]`)).toBeNull();
   });
 });

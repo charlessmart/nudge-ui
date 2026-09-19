@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
+import { IconCornerLeftUp } from "@tabler/icons-react";
 import {
   useCanvasCards,
   activateIframeWorkspace,
@@ -25,6 +26,7 @@ import {
   updateCardUrl,
 } from "./canvasStore.ts";
 import { CanvasCard } from "./CanvasCard.tsx";
+import { Button } from "../ui/Button.tsx";
 import { useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changes/changesLog.ts";
 import { recordCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
@@ -62,7 +64,6 @@ import { useInspectorOpen } from "../shell/openStore.ts";
 import { isEditableEvent } from "../shell/shortcuts.ts";
 import { acknowledgeAgentRendererReady } from "./agentPresentation.ts";
 import { useInspectorSession } from "../session/sessionContext.tsx";
-import { createNudgeUiDirectUrl } from "../../transport/editor.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 import {
@@ -73,7 +74,7 @@ import {
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
-import { useSketchInteractionActive } from "../sketch/interaction.ts";
+import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
@@ -126,20 +127,33 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const demoPages = runtimeConfig.demoPages ?? [];
       const demoCardLabels = runtimeConfig.demoCardLabels ?? [];
       const orderedDemoCards = demoCardLabels.length > 0;
+      const seededCards: CanvasCardData[] = [];
+      const demoCardWidth = primaryCard.width;
       let nextX = 0;
       for (const [index, route] of demoPages.entries()) {
         const url = new URL(route, primaryUrl);
         if (url.origin !== window.location.origin) continue;
         const card = activateIframeWorkspace(url.href, viewport);
         if (!card) continue;
-        const width = index === 0 ? 1024 : 720;
-        resizeCard(card.id, width, 900);
-        setCardPosition(card.id, nextX, 0);
+        resizeCard(card.id, demoCardWidth, 900);
+        seededCards.push(card);
+        if (!orderedDemoCards) {
+          setCardPosition(card.id, nextX, 0);
+          nextX += demoCardWidth + CARD_GAP;
+        }
         if (orderedDemoCards && demoCardLabels[index]) updateCardTitle(card.id, demoCardLabels[index]);
-        nextX += width + CARD_GAP;
       }
       if (orderedDemoCards) {
-        setCardPosition(primaryCard.id, nextX, 0);
+        resizeCard(primaryCard.id, demoCardWidth, primaryCard.height);
+        let layoutX = 0;
+        // Read each card's final width so restored or resized cards cannot overlap.
+        const orderedCardIds = new Set([...seededCards.map((card) => card.id), primaryCard.id]);
+        for (const cardId of orderedCardIds) {
+          const card = getCanvasCards().find((candidate) => candidate.id === cardId);
+          if (!card) continue;
+          setCardPosition(card.id, layoutX, 0);
+          layoutX += card.width + CARD_GAP;
+        }
         const primaryLabel = demoCardLabels[demoPages.length];
         if (primaryLabel) updateCardTitle(primaryCard.id, primaryLabel);
       }
@@ -258,15 +272,17 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [broadcastPanModifier, endPanning]);
 
   const handleToolChange = useCallback((nextTool: CanvasInteractionTool) => {
-    if (nextTool === "sketch" || nextTool === "annotate") {
+    if (nextTool === "sketch") {
       if (!sketchEnabled) return;
       const hostElement = getActiveCanvasFrame();
       if (!hostElement) return;
       stopPanMode();
       setInteractionTool(nextTool);
-      startSketchCapture(hostElement, nextTool === "annotate" ? "annotate" : "pen");
+      startSketchCapture(hostElement);
       return;
     }
+
+    if (sketchActive) cancelSketchInteraction();
 
     if (nextTool === "pan") {
       if (presentation === "focus") setCanvasPresentation("canvas");
@@ -279,18 +295,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
 
     setInteractionTool(nextTool);
     stopPanMode();
-  }, [broadcastPanModifier, presentation, sketchEnabled, stopPanMode]);
-
-  const handleZoomChange = useCallback((value: string) => {
-    if (value === "focus") {
-      setCanvasPresentation("focus");
-      return;
-    }
-    const zoom = Number(value);
-    if (!Number.isFinite(zoom)) return;
-    if (presentation === "focus") setCanvasPresentation("canvas");
-    setBoardCamera({ ...getBoardCamera(), zoom });
-  }, [presentation]);
+  }, [broadcastPanModifier, presentation, sketchActive, sketchEnabled, stopPanMode]);
 
   const handleZoomStep = useCallback((direction: -1 | 1) => {
     if (presentation === "focus") {
@@ -305,8 +310,17 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     setBoardCamera({ ...getBoardCamera(), zoom: nextZoom });
   }, [presentation]);
 
+  const showCanvas = useCallback(() => {
+    handleZoomStep(-1);
+  }, [handleZoomStep]);
+
+  const showFocus = useCallback((cardId: string) => {
+    focusCard(cardId);
+    setCanvasPresentation("focus");
+  }, []);
+
   useEffect(() => {
-    if (!sketchActive && (interactionTool === "sketch" || interactionTool === "annotate")) {
+    if (!sketchActive && interactionTool === "sketch") {
       setInteractionTool("move");
     }
   }, [interactionTool, sketchActive]);
@@ -539,10 +553,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     return () => window.removeEventListener("wheel", handleGlobalWheel, { capture: true });
   }, [mode, presentation, sketchActive, zoomAtPointer]);
 
-  function handleOpenApp(card: CanvasCardData): void {
-    window.open(createNudgeUiDirectUrl(card.url), "_blank", "noopener,noreferrer");
-  }
-
   if (mode !== "canvas") return null;
 
   return (
@@ -565,6 +575,19 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
               This editor URL does not identify an application page.
             </div>
           ) : null}
+          {inspectorOpen && presentation === "focus" ? (
+            <div className="canvas-workspace__focus-action" data-test="canvas-show-canvas">
+              <Button
+                variant="quiet"
+                size="default"
+                type="button"
+                onClick={showCanvas}
+              >
+                <IconCornerLeftUp size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />
+                Canvas
+              </Button>
+            </div>
+          ) : null}
           <div
             className="canvas-workspace__board-content"
             style={{
@@ -579,20 +602,18 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
                 card={card}
                 presentation={presentation}
                 presentationCard={card.id === presentationCardId}
-                onOpenApp={handleOpenApp}
+                onShowFocus={showFocus}
                 documentOwner={inspectorSession}
               />
             ))}
           </div>
-          <CanvasToolbar
-            tool={interactionTool}
-            presentation={presentation}
-            zoom={camera.zoom}
-            sketchEnabled={sketchAvailable}
-            onToolChange={handleToolChange}
-            onZoomChange={handleZoomChange}
-            onZoomStep={handleZoomStep}
-          />
+          {inspectorOpen ? (
+            <CanvasToolbar
+              tool={interactionTool}
+              sketchEnabled={sketchAvailable}
+              onToolChange={handleToolChange}
+            />
+          ) : null}
         </div>
       </div>
     </>

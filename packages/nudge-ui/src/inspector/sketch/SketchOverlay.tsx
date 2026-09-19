@@ -7,16 +7,11 @@ import type {
 } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import {
-  IconArrowsMove,
   IconCheck,
-  IconMessageCirclePlus,
-  IconPencil,
-  IconRectangle,
   IconX,
 } from "@tabler/icons-react";
 import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
-import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { getSketchViewport, type SketchViewport } from "./capture.ts";
 import {
   SKETCH_ANNOTATION_RADIUS,
@@ -34,8 +29,9 @@ import {
   translateSketchStroke,
   type SketchElementReference,
 } from "./geometry.ts";
-import { drawSketchAnnotations, drawSketchStrokes } from "./raster.ts";
 import type { SketchEntryTool } from "./interaction.ts";
+import { SketchPromptPanel } from "./SketchPromptPanel.tsx";
+import { SketchSvgLayer } from "./freehand.tsx";
 
 type SketchTool = "move" | "pen" | "rectangle" | "annotate";
 
@@ -72,8 +68,8 @@ function clamp(value: number, maximum: number): number {
 }
 
 function pointFromEvent(
-  event: ReactPointerEvent<HTMLCanvasElement>,
-  canvas: HTMLCanvasElement,
+  event: ReactPointerEvent<SVGSVGElement>,
+  canvas: SVGSVGElement,
   viewport: SketchViewport,
 ): SketchPoint {
   const bounds = canvas.getBoundingClientRect();
@@ -142,6 +138,7 @@ function annotationEditorStyle(
 export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel, onDone }: SketchOverlayProps): ReactElement | null {
   const [viewport, setViewport] = useState<SketchViewport>(() => getSketchViewport(hostElement));
   const [tool, setTool] = useState<SketchTool>("pen");
+  const [description, setDescription] = useState("");
   const [strokes, setStrokes] = useState<SketchStroke[]>([]);
   const [redoStrokes, setRedoStrokes] = useState<SketchStroke[]>([]);
   const [annotations, setAnnotations] = useState<SketchAnnotation[]>([]);
@@ -151,7 +148,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
   const [draftPoints, setDraftPoints] = useState<readonly SketchPoint[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const annotationInputRef = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
   const moveState = useRef<SketchMoveState | null>(null);
@@ -162,7 +159,10 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
   useEffect(() => {
     if (!open) return;
     setViewport(getSketchViewport(hostElement));
+    // Sketch starts with a freehand pen. The separate Annotate entry point
+    // still opens directly in annotation mode without the old live toolbar.
     setTool(initialTool);
+    setDescription("");
     setStrokes([]);
     setRedoStrokes([]);
     setAnnotations([]);
@@ -199,29 +199,8 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
   }, [activeAnnotationId]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !viewport.width || !viewport.height) return;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    context.clearRect(0, 0, viewport.width, viewport.height);
-    drawSketchStrokes(context, strokes.map((stroke) => visibleStroke(stroke, viewport)), 1, 1);
-    drawSketchAnnotations(context, annotations.map((annotation) => visibleAnnotation(annotation, viewport)), 1, 1);
-    if (draftPoints.length > 0) {
-      const points = tool === "rectangle" && draftPoints.length > 1
-        ? rectanglePoints(draftPoints[0]!, draftPoints.at(-1)!)
-        : draftPoints;
-      drawSketchStrokes(context, [{
-        id: "draft",
-        width: SKETCH_STROKE_WIDTH,
-        color: SKETCH_STROKE_COLOR,
-        outlineColor: SKETCH_STROKE_OUTLINE,
-        points: points.map((point) => ({
-          x: point.x - viewport.scrollX,
-          y: point.y - viewport.scrollY,
-        })),
-      }], 1, 1);
-    }
-  }, [annotations, draftPoints, strokes, tool, viewport]);
+    if (open) svgRef.current?.focus();
+  }, [open]);
 
   function openAnnotation(annotation: SketchAnnotation): void {
     setActiveAnnotationId(annotation.id);
@@ -264,13 +243,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
     setError(null);
   }
 
-  function selectTool(nextTool: SketchTool): void {
-    if (activeAnnotationId !== null && !commitActiveAnnotation()) return;
-    setTool(nextTool);
-    setError(null);
-  }
-
-  function onPointerDown(event: ReactPointerEvent<HTMLCanvasElement>): void {
+  function onPointerDown(event: ReactPointerEvent<SVGSVGElement>): void {
     if (submitting || pointerId.current !== null || moveState.current !== null) return;
     const point = pointFromEvent(event, event.currentTarget, viewport);
 
@@ -322,7 +295,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
     setDraftPoints([point]);
   }
 
-  function onPointerMove(event: ReactPointerEvent<HTMLCanvasElement>): void {
+  function onPointerMove(event: ReactPointerEvent<SVGSVGElement>): void {
     const activeMove = moveState.current;
     if (activeMove?.pointerId === event.pointerId) {
       event.preventDefault();
@@ -361,7 +334,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
     });
   }
 
-  function finishPointer(event: ReactPointerEvent<HTMLCanvasElement>): void {
+  function finishPointer(event: ReactPointerEvent<SVGSVGElement>): void {
     const activeMove = moveState.current;
     if (activeMove?.pointerId === event.pointerId) {
       moveState.current = null;
@@ -466,7 +439,7 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
     setError(null);
     try {
       await onDone({
-        description: "",
+        description,
         strokes: strokes.map((stroke) => ({
           ...stroke,
           points: stroke.points.map((point) => ({ ...point })),
@@ -483,6 +456,23 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
     }
   }
 
+  const visibleStrokes = strokes.map((stroke) => visibleStroke(stroke, viewport));
+  const visibleAnnotations = annotations.map((annotation) => visibleAnnotation(annotation, viewport));
+  const draftStroke: SketchStroke | null = draftPoints.length > 0 ? {
+    id: "draft",
+    kind: tool === "rectangle" ? "rectangle" as const : "freehand" as const,
+    width: SKETCH_STROKE_WIDTH,
+    color: SKETCH_STROKE_COLOR,
+    outlineColor: SKETCH_STROKE_OUTLINE,
+    points: (tool === "rectangle" && draftPoints.length > 1
+      ? rectanglePoints(draftPoints[0]!, draftPoints.at(-1)!)
+      : draftPoints
+    ).map((point) => ({
+      x: point.x - viewport.scrollX,
+      y: point.y - viewport.scrollY,
+    })),
+  } : null;
+
   if (!open) return null;
 
   return (
@@ -494,10 +484,10 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
     >
       <Dialog.Portal container={portalContainer()}>
         <Dialog.Backdrop className="sketch__backdrop sketch__live-backdrop" data-test="sketch-live-backdrop" />
-        <Dialog.Popup className="sketch__popup sketch__live-popup" data-test="sketch-live-editor" initialFocus={canvasRef} onKeyDown={onEditorKeyDown}>
+        <Dialog.Popup className="sketch__popup sketch__live-popup" data-test="sketch-live-editor" onKeyDown={onEditorKeyDown}>
           <Dialog.Title className="sketch__title sketch__sr-only">Sketch viewport</Dialog.Title>
           <Dialog.Description className="sketch__description sketch__sr-only">
-            Draw directly over the live interface. Select Annotate to label an area with a numbered note.
+            Draw directly over the live interface, then add a short note for the sketch.
           </Dialog.Description>
           <div
             className="sketch__canvas-frame sketch__live-frame"
@@ -508,18 +498,26 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
               height: viewport.displayHeight,
             }}
           >
-            <canvas
-              ref={canvasRef}
+            <svg
+              ref={svgRef}
               className={`sketch__canvas sketch__live-canvas sketch__canvas--${tool}`}
               width={viewport.width}
               height={viewport.height}
+              viewBox={`0 0 ${viewport.width} ${viewport.height}`}
+              preserveAspectRatio="none"
+              pointerEvents="all"
               tabIndex={0}
               aria-label="Sketch over the live interface"
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={finishPointer}
               onPointerCancel={finishPointer}
-            />
+            >
+              <SketchSvgLayer
+                strokes={draftStroke ? [...visibleStrokes, draftStroke] : visibleStrokes}
+                annotations={visibleAnnotations}
+              />
+            </svg>
             {activeAnnotation ? (
               <div
                 className="sketch__annotation-editor"
@@ -564,79 +562,18 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
             ) : null}
           </div>
 
-          <div className="sketch__floating-panel">
-            <div className="sketch__toolbar" role="toolbar" aria-label="Sketch tools">
-              <IconButton
-                label="Move"
-                title="Move"
-                variant="quiet"
-                aria-pressed={tool === "move"}
-                data-active={tool === "move"}
-                data-test="sketch-live-move"
-                onClick={() => selectTool("move")}
-                disabled={submitting}
-              >
-                <IconArrowsMove size="var(--icon-size-small)" aria-hidden="true" />
-              </IconButton>
-              <IconButton
-                label="Pen"
-                title="Pen"
-                variant="quiet"
-                aria-pressed={tool === "pen"}
-                data-active={tool === "pen"}
-                data-test="sketch-live-pen"
-                onClick={() => selectTool("pen")}
-                disabled={submitting}
-              >
-                <IconPencil size="var(--icon-size-small)" aria-hidden="true" />
-              </IconButton>
-              <IconButton
-                label="Rectangle"
-                title="Rectangle"
-                variant="quiet"
-                aria-pressed={tool === "rectangle"}
-                data-active={tool === "rectangle"}
-                data-test="sketch-live-rectangle"
-                onClick={() => selectTool("rectangle")}
-                disabled={submitting}
-              >
-                <IconRectangle size="var(--icon-size-small)" aria-hidden="true" />
-              </IconButton>
-              <IconButton
-                label="Annotate"
-                title="Annotate"
-                variant="quiet"
-                aria-pressed={tool === "annotate"}
-                data-active={tool === "annotate"}
-                data-test="sketch-live-annotate"
-                onClick={() => selectTool("annotate")}
-                disabled={submitting}
-              >
-                <IconMessageCirclePlus size="var(--icon-size-small)" aria-hidden="true" />
-              </IconButton>
-              <span className="sketch__toolbar-divider" aria-hidden="true" />
-              <Button
-                variant="quiet"
-                type="button"
-                data-test="sketch-live-cancel"
-                onClick={onCancel}
-                disabled={submitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                type="button"
-                data-test="sketch-live-done"
-                onClick={() => void done()}
-                disabled={submitting}
-              >
-                <IconCheck size="var(--icon-size-small)" aria-hidden="true" />
-                {submitting ? "Saving…" : "Done"}
-              </Button>
-            </div>
-            {error ? <StatusCallout tone="danger" data-test="sketch-live-error">{error}</StatusCallout> : null}
-          </div>
+          <SketchPromptPanel
+            dataTest="sketch-live-prompt"
+            className="sketch__live-note-panel"
+            description={description}
+            error={error}
+            saving={submitting}
+            doneDisabled={strokes.length === 0 && annotations.length === 0}
+            autoFocus
+            onDescriptionChange={setDescription}
+            onDone={done}
+            onCancel={onCancel}
+          />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

@@ -45,6 +45,7 @@ import { formatInspectorLabel } from "../ui/labels.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
+import { hasWriteLease } from "../canvas/workspaceLease.ts";
 import { useFocusedCardId, useSelectedCardId } from "../canvas/canvasStore.ts";
 import { getActiveCanvasFrame } from "../canvas/activeCanvasDocument.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
@@ -59,9 +60,11 @@ import { createStyleSelection } from "../selection/styleSelection.ts";
 import { intersectTokenEntries } from "../inspection/selectionProperty.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
-import { SketchEntryButton } from "../sketch/SketchEntryButton.tsx";
 import { SketchWorkspace } from "../sketch/SketchWorkspace.tsx";
-import { useSketchInteractionActive } from "../sketch/interaction.ts";
+import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
+import { clearSketchClipboardHandoff } from "../sketch/handoff.ts";
+import { clearSketchesForProject } from "../sketch/store.ts";
+import { closeSketchNote } from "../sketch/sketchNote.ts";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
   for (const property of properties) {
@@ -256,6 +259,16 @@ export function InspectorShell(): ReactElement {
     setSettingsOpen(true);
   }
 
+  function clearInspectorSession(): void {
+    clearSession();
+    clearRestoreCount();
+    if (!hasWriteLease()) return;
+    cancelSketchInteraction();
+    closeSketchNote();
+    clearSketchClipboardHandoff();
+    void clearSketchesForProject(runtimeConfig.projectId).catch(() => undefined);
+  }
+
   return (
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
@@ -297,7 +310,6 @@ export function InspectorShell(): ReactElement {
               >
                 <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               </IconButton>
-              {sketchEnabled ? <SketchEntryButton hostElement={sketchHost} /> : null}
             </div>
           </div>
           <div className="panel__copy-row">
@@ -487,10 +499,7 @@ export function InspectorShell(): ReactElement {
             <EmptyState />
           )}
           <ChangesLog
-            onClearSession={() => {
-              clearSession();
-              clearRestoreCount();
-            }}
+            onClearSession={clearInspectorSession}
           />
         </div>
       </div>

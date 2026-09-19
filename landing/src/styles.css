@@ -12,6 +12,7 @@
   --text-secondary: #6d6e69;
   --text-tertiary: #969791;
   --text-inverse: #ffffff;
+  --border-tertiary: #ebece8;
   --border-subtle: #dfdfda;
   --border-strong: #c4c5bf;
   --neutral-subtle: #e8e8e5;
@@ -847,6 +848,7 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
 
 .landing-version {
   min-height: 100vh;
+  background-image: none;
 }
 
 .landing-version > main {
@@ -861,7 +863,8 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
 .landing-version-hero--v1 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: clamp(var(--space-48), 8vw, var(--space-140));
+  column-gap: clamp(var(--space-48), 8vw, var(--space-140));
+  row-gap: var(--space-16);
   align-items: start;
   min-height: 100vh;
   padding-block: var(--space-88) var(--space-64);
@@ -874,6 +877,15 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
   font-weight: 600;
   letter-spacing: -0.025em;
   line-height: 1.15;
+}
+
+.landing-version-mockup {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: clamp(360px, 48vw, 630px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  background: var(--surface-canvas);
 }
 
 .landing-version-hero-side {
@@ -927,6 +939,56 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
   justify-content: center;
   gap: var(--space-8);
   padding-block: var(--space-48) var(--space-64);
+}
+
+.landing-version-ruler {
+  position: relative;
+  z-index: 2;
+  width: 100vw;
+  height: 40px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.landing-version-ruler--left {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40px;
+  height: auto;
+}
+
+.landing-version-ruler svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.landing-version-v2 {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  isolation: isolate;
+  --landing-version-ruler-line: color-mix(in srgb, var(--border-strong) 80%, var(--surface-inverse) 20%);
+}
+
+.landing-version-grid {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+}
+
+.landing-version-grid svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.landing-version-hero--v2 {
+  position: relative;
+  z-index: 1;
 }
 
 .landing-version-hero-copy {

@@ -45,7 +45,14 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(versionOne.locator(".landing-hero-demo-grid")).toHaveCount(0);
   await expect(versionTwo.locator(".landing-hero-demo-grid")).toHaveCount(0);
   await expect(versionOne.getByRole("heading", { name: "Nudge is for designing in code." })).toHaveCount(1);
-  await expect(versionTwo.getByRole("heading", { name: "Nudge is a tool for designing in code." })).toHaveCount(1);
+  await expect(versionTwo.getByRole("heading", { name: "Nudge is for designing in prod" })).toHaveCount(1);
+  await expect(versionOne.locator(".landing-version")).toHaveCSS("background-image", "none");
+  await expect(versionTwo.locator(".landing-version")).toHaveCSS("background-image", "none");
+  await expect(versionOne.locator(".landing-version-mockup")).toBeVisible();
+  await expect(versionOne.locator(".landing-version-mockup")).toHaveCSS("box-shadow", "none");
+  await expect(versionTwo.locator('[data-test="landing-version-ruler"]')).toBeVisible();
+  await expect(versionTwo.locator('[data-test="landing-version-ruler-left"]')).toBeVisible();
+  await expect(versionTwo.locator('[data-test="landing-version-grid"]')).toBeVisible();
   await expect(versionOne.getByText("@nudge-ui/plugin in this project", { exact: false })).toBeVisible();
   await expect(versionTwo.getByText("@nudge-ui/vite-react in this project", { exact: false })).toBeVisible();
   const fidelityDemos = app.locator(".landing-hero-demo-board-layer--full");
@@ -88,7 +95,11 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
   await expect(versionOneFrame).toBeVisible();
   await expect(versionTwoFrame).toBeVisible();
   const cardLabels = await inspectorHost.locator('[data-test^="canvas-card-dimensions-"]').allTextContents();
-  expect(cardLabels.sort()).toEqual(["Version 1", "Version 2", "Version 3"]);
+  expect(cardLabels.sort()).toEqual(["Final", "V1", "V2"]);
+  const cardWidths = await inspectorHost.locator("[data-card-id]").evaluateAll((elements) => (
+    elements.map((element) => getComputedStyle(element).width)
+  ));
+  expect(new Set(cardWidths).size).toBe(1);
   await expect(inspectorHost.locator(".canvas-workspace__board-content")).toHaveCSS(
     "transform",
     /matrix\(1, 0, 0, 1,/,
@@ -106,6 +117,34 @@ test("opens the restricted demo in the shared iframe editor", async ({ page }) =
 
   const demoStorageKeys = await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("nudge-ui:")));
   expect(demoStorageKeys).toEqual([]);
+});
+
+test("keeps the final landing card after refreshing a focused historical version", async ({ page }) => {
+  await page.goto("/");
+  const inspectorHost = page.locator("#nudge-ui-root");
+  await expect.poll(() => inspectorHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
+  const workspace = inspectorHost.locator('[data-test="canvas-workspace"]');
+  await inspectorHost.locator('[data-test="show-inspector"]').click();
+  await inspectorHost.locator('[data-test="presentation-canvas"]').click();
+
+  const versionOneCard = inspectorHost
+    .locator('[data-test^="canvas-card-dimensions-"]')
+    .filter({ hasText: "V1" })
+    .locator("xpath=ancestor::*[@data-card-id][1]");
+  await versionOneCard.locator('[data-test^="canvas-card-focus-"]').click();
+  await expect(workspace).toHaveAttribute("data-presentation", "focus");
+  await expect.poll(() => new URL(page.url()).searchParams.get("landing-version")).toBe("1");
+
+  await page.reload();
+  const restoredHost = page.locator("#nudge-ui-root");
+  await expect.poll(() => restoredHost.evaluate((host) => host.shadowRoot !== null)).toBe(true);
+  await restoredHost.locator('[data-test="show-inspector"]').click();
+  await expect(restoredHost.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "focus");
+  await restoredHost.locator('[data-test="canvas-show-canvas"]').click();
+  await expect(restoredHost.locator('[data-test="canvas-workspace"]')).toHaveAttribute("data-presentation", "canvas");
+
+  const restoredLabels = await restoredHost.locator('[data-test^="canvas-card-dimensions-"]').allTextContents();
+  expect(restoredLabels.sort()).toEqual(["Final", "V1", "V2"]);
 });
 
 test("opens the editor from an explicit direct application view", async ({ page }) => {

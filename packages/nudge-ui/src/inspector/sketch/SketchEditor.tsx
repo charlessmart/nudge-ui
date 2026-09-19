@@ -17,7 +17,8 @@ import {
 import { Button } from "../ui/Button.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
-import { drawSketchAnnotations, drawSketchStrokes, renderAnnotatedPng } from "./raster.ts";
+import { renderAnnotatedPng } from "./raster.ts";
+import { SketchSvgLayer } from "./freehand.tsx";
 import {
   findSketchElementAt,
   translateSketchAnnotation,
@@ -78,12 +79,12 @@ function clamp(value: number, maximum: number): number {
 }
 
 function pointFromEvent(
-  event: ReactPointerEvent<HTMLCanvasElement>,
-  canvas: HTMLCanvasElement,
+  event: ReactPointerEvent<SVGSVGElement>,
+  svg: SVGSVGElement,
   width: number,
   height: number,
 ): { x: number; y: number } {
-  const bounds = canvas.getBoundingClientRect();
+  const bounds = svg.getBoundingClientRect();
   return {
     x: clamp(((event.clientX - bounds.left) / Math.max(1, bounds.width)) * width, width),
     y: clamp(((event.clientY - bounds.top) / Math.max(1, bounds.height)) * height, height),
@@ -125,7 +126,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const imageUrl = useMemo(() => objectUrl(image), [image]);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const annotationInputRef = useRef<HTMLInputElement>(null);
   const pointerId = useRef<number | null>(null);
   const moveState = useRef<SketchMoveState | null>(null);
@@ -157,32 +158,14 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
   }, [activeAnnotationId]);
 
   useEffect(() => {
+    if (open) svgRef.current?.focus();
+  }, [open]);
+
+  useEffect(() => {
     return () => {
       if (imageUrl && typeof URL !== "undefined") URL.revokeObjectURL(imageUrl);
     };
   }, [imageUrl]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !imageWidth || !imageHeight) return;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    context.clearRect(0, 0, imageWidth, imageHeight);
-    drawSketchStrokes(context, strokes, 1, 1);
-    drawSketchAnnotations(context, annotations, 1, 1);
-    if (draftPoints.length > 0) {
-      const points = tool === "rectangle" && draftPoints.length > 1
-        ? rectanglePoints(draftPoints[0]!, draftPoints.at(-1)!)
-        : draftPoints;
-      drawSketchStrokes(context, [{
-        id: "draft",
-        width: SKETCH_STROKE_WIDTH,
-        color: SKETCH_STROKE_COLOR,
-        outlineColor: SKETCH_STROKE_OUTLINE,
-        points,
-      }], 1, 1);
-    }
-  }, [annotations, draftPoints, imageHeight, imageWidth, strokes, tool]);
 
   function openAnnotation(annotation: SketchAnnotation): void {
     setActiveAnnotationId(annotation.id);
@@ -232,7 +215,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
   }
 
   function annotationEditorStyle(annotation: SketchAnnotation): CSSProperties {
-    const bounds = canvasRef.current?.getBoundingClientRect();
+    const bounds = svgRef.current?.getBoundingClientRect();
     const scaleX = (bounds?.width ?? imageWidth) / Math.max(1, imageWidth);
     const scaleY = (bounds?.height ?? imageHeight) / Math.max(1, imageHeight);
     const width = 280;
@@ -251,7 +234,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
     };
   }
 
-  function onPointerDown(event: ReactPointerEvent<HTMLCanvasElement>): void {
+  function onPointerDown(event: ReactPointerEvent<SVGSVGElement>): void {
     if (saving || !imageWidth || !imageHeight || pointerId.current !== null || moveState.current !== null) return;
     const point = pointFromEvent(event, event.currentTarget, imageWidth, imageHeight);
 
@@ -303,7 +286,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
     setDraftPoints([point]);
   }
 
-  function onPointerMove(event: ReactPointerEvent<HTMLCanvasElement>): void {
+  function onPointerMove(event: ReactPointerEvent<SVGSVGElement>): void {
     const activeMove = moveState.current;
     if (activeMove?.pointerId === event.pointerId) {
       event.preventDefault();
@@ -342,7 +325,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
     });
   }
 
-  function finishPointer(event: ReactPointerEvent<HTMLCanvasElement>): void {
+  function finishPointer(event: ReactPointerEvent<SVGSVGElement>): void {
     const activeMove = moveState.current;
     if (activeMove?.pointerId === event.pointerId) {
       moveState.current = null;
@@ -468,6 +451,19 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
     }
   }
 
+  const draftStroke: SketchStroke | null = draftPoints.length > 0
+    ? {
+      id: "draft",
+      kind: tool === "rectangle" ? "rectangle" : "freehand",
+      width: SKETCH_STROKE_WIDTH,
+      color: SKETCH_STROKE_COLOR,
+      outlineColor: SKETCH_STROKE_OUTLINE,
+      points: tool === "rectangle" && draftPoints.length > 1
+        ? rectanglePoints(draftPoints[0]!, draftPoints.at(-1)!)
+        : draftPoints.map((point) => ({ ...point })),
+    }
+    : null;
+
   if (!open || !image || !capture) return null;
 
   return (
@@ -479,7 +475,7 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
     >
       <Dialog.Portal container={portalContainer()}>
         <Dialog.Backdrop className="sketch__backdrop sketch__editor-backdrop" data-test="sketch-editor-backdrop" />
-        <Dialog.Popup className="sketch__popup" data-test="sketch-editor" initialFocus={canvasRef} onKeyDown={onEditorKeyDown}>
+        <Dialog.Popup className="sketch__popup" data-test="sketch-editor" initialFocus={false} onKeyDown={onEditorKeyDown}>
           <Dialog.Title className="sketch__title sketch__sr-only">Annotate viewport</Dialog.Title>
           <Dialog.Description className="sketch__description sketch__sr-only">
             Draw directly over the captured UI. Select Annotate to label an area with a numbered note.
@@ -487,18 +483,26 @@ export function SketchEditor({ open, document: sketchDocument, captured, onCance
           <div className="sketch__canvas-frame">
             <div className="sketch__image-wrap">
               {imageUrl ? <img className="sketch__image" src={imageUrl} alt="Captured viewport" draggable={false} /> : null}
-              <canvas
-                ref={canvasRef}
+              <svg
+                ref={svgRef}
                 className={`sketch__canvas sketch__canvas--${tool}`}
                 width={imageWidth}
                 height={imageHeight}
+                viewBox={`0 0 ${imageWidth} ${imageHeight}`}
+                preserveAspectRatio="none"
+                pointerEvents="all"
                 tabIndex={0}
                 aria-label="Sketch over the captured viewport"
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={finishPointer}
                 onPointerCancel={finishPointer}
-              />
+              >
+                <SketchSvgLayer
+                  strokes={draftStroke ? [...strokes, draftStroke] : strokes}
+                  annotations={annotations}
+                />
+              </svg>
               {activeAnnotation ? (
                 <div
                   className="sketch__annotation-editor"

@@ -64,9 +64,12 @@ describe("combined sketch clipboard", () => {
 });
 
 describe("sketch stroke rendering", () => {
-  it("draws one blue accent stroke without an outline pass", () => {
+  it("fills one blue accent freehand outline", () => {
     const context = {
       beginPath: vi.fn(),
+      closePath: vi.fn(),
+      fill: vi.fn(),
+      fillStyle: "",
       lineCap: "",
       lineJoin: "",
       lineTo: vi.fn(),
@@ -74,15 +77,13 @@ describe("sketch stroke rendering", () => {
       moveTo: vi.fn(),
       restore: vi.fn(),
       save: vi.fn(),
-      stroke: vi.fn(),
-      strokeStyle: "",
     } as unknown as CanvasRenderingContext2D;
 
     drawSketchStroke(context, { width: 6, points: [{ x: 10, y: 12 }, { x: 20, y: 22 }] });
 
-    expect(context.stroke).toHaveBeenCalledTimes(1);
-    expect(context.strokeStyle).toBe(SKETCH_STROKE_COLOR);
-    expect(context.lineWidth).toBe(6);
+    expect(context.fill).toHaveBeenCalledTimes(1);
+    expect(context.fillStyle).toBe(SKETCH_STROKE_COLOR);
+    expect(context.closePath).toHaveBeenCalledTimes(1);
   });
 
   it("draws numbered annotations with the blue accent", () => {

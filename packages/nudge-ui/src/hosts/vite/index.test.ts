@@ -231,7 +231,7 @@ describe("nudgeUi plugin virtual inspector module", () => {
     const plugin = nudgeUi({
       demo: true,
       demoPages: ["/?landing-version=1"],
-      demoCardLabels: ["Version 1", "Version 2"],
+      demoCardLabels: ["V1", "Final"],
     }) as unknown as {
       configResolved?: (config: { root: string; command: "serve" | "build"; mode?: string }) => void;
       load?: (id: string) => string | null | Promise<string | null>;
@@ -243,7 +243,7 @@ describe("nudgeUi plugin virtual inspector module", () => {
     expect(code).toContain('document.documentElement.setAttribute("data-nudge-ui-editor", "")');
     expect(code).toContain("demo: true");
     expect(code).toContain('demoPages: ["/?landing-version=1"]');
-    expect(code).toContain('demoCardLabels: ["Version 1","Version 2"]');
+    expect(code).toContain('demoCardLabels: ["V1","Final"]');
     expect(code).toContain("capabilities: { canvas: true, componentSemantics: true }");
     expect(code).toContain('window.addEventListener("nudge-ui:open"');
     expect(code).toContain("window.location.assign(createNudgeUiEditorUrl(window.location.href))");

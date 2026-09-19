@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { domToBlob } from "modern-screenshot";
-import { captureViewport } from "./capture.ts";
+import { captureViewport, getSketchScrollPosition } from "./capture.ts";
 import { getPngDimensions } from "./raster.ts";
 
 vi.mock("modern-screenshot", () => ({
@@ -22,6 +22,23 @@ describe("DOM sketch capture", () => {
   beforeEach(() => {
     vi.mocked(domToBlob).mockResolvedValue(new Blob([pngHeader], { type: "image/png" }));
     vi.mocked(getPngDimensions).mockResolvedValue({ width: 1, height: 1 });
+  });
+
+  it("falls back to document scrolling for horizontal page offsets", () => {
+    const targetDocument = {
+      scrollingElement: { scrollLeft: 240, scrollTop: 90 },
+      documentElement: { scrollLeft: 240, scrollTop: 90 },
+      body: { scrollLeft: 0, scrollTop: 0 },
+    } as unknown as Document;
+    const targetWindow = {
+      document: targetDocument,
+      scrollX: 0,
+      pageXOffset: 0,
+      scrollY: 0,
+      pageYOffset: 0,
+    } as unknown as Window;
+
+    expect(getSketchScrollPosition(targetWindow)).toEqual({ x: 240, y: 90 });
   });
 
   it("renders the page root without calling screen capture APIs", async () => {

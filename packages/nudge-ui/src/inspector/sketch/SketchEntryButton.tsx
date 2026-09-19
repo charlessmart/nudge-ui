@@ -15,8 +15,8 @@ export function SketchEntryButton({ hostElement }: { readonly hostElement: HTMLE
       className="panel__sketch-button"
       type="button"
       data-test="sketch-entry"
-      aria-label="Annotate viewport"
-      title="Annotate viewport"
+      aria-label="Sketch viewport"
+      title="Sketch viewport"
       disabled={disabled || !hostElement}
       onClick={() => startSketchCapture(hostElement)}
     >
