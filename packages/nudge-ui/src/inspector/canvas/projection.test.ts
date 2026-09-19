@@ -182,6 +182,7 @@ describe("projection", () => {
       id: "delete-2",
       kind: "delete",
       route: new URL("/", window.location.href).href,
+      state: JSON.stringify({ hash: "", history: null, rendered: [] }),
       target: {
         sourceSite: { cid: "RepeatedItem", src: "src/App.tsx:12:5" },
         locator: {

@@ -85,6 +85,7 @@ it("reads agent bridge configuration from a registered shadow-mounted preview", 
   frameDocument.head.append(meta);
   host.attachShadow({ mode: "open" }).append(iframe);
   registerCardFrame("bridge-card", iframe);
+  selectCard("bridge-card");
 
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
     protocolVersion: AGENT_PROTOCOL_VERSION,
