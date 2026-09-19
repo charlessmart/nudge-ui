@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -9,13 +9,19 @@ import { join } from "node:path";
  * with prompt handoff, and repeated component outputs sharing one source site.
  */
 
-async function waitForInspector(page: Page): Promise<void> {
-  await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
-    .toBe(true);
+async function waitForInspector(page: Page): Promise<Frame> {
+  await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
   await expect
     .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
     .toBe(true);
+  await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
+    && frame.url().startsWith("http")
+    && !frame.url().includes("/__nudge_ui__/editor"))?.url() ?? "").not.toBe("");
+  const frame = page.frames().find((candidate) => candidate !== page.mainFrame()
+    && candidate.url().startsWith("http")
+    && !candidate.url().includes("/__nudge_ui__/editor"));
+  if (!frame) throw new Error("Astro preview frame did not become ready");
+  return frame;
 }
 
 async function copyPrompt(page: Page): Promise<string> {
@@ -29,9 +35,9 @@ async function copyPrompt(page: Page): Promise<string> {
 
 test("dev: static rendered text follows Astro source-annotation capability", async ({ page }) => {
   await page.goto("/");
-  await waitForInspector(page);
+  const frame = await waitForInspector(page);
 
-  const lede = page.locator("p.lede");
+  const lede = frame.locator("p.lede");
   await expect(lede).toHaveAttribute("data-cid", "astro:P");
   const sourceIdentity = await lede.getAttribute("data-src");
 
@@ -39,7 +45,7 @@ test("dev: static rendered text follows Astro source-annotation capability", asy
     // When Astro provides source coordinates, the adapter can offer a safe
     // authored-text projection and include those coordinates in the prompt.
     await lede.dblclick();
-    const editor = page.locator('[data-inline-editor="true"]');
+    const editor = frame.locator('[data-inline-editor="true"]');
     await expect(editor).toBeVisible();
     await editor.fill("Edited live through the inspector");
     await editor.press("Enter");
@@ -54,7 +60,7 @@ test("dev: static rendered text follows Astro source-annotation capability", asy
     // adapter keeps the honest generated identity and does not offer an inline
     // source edit that it cannot project back to an authored file.
     await lede.dblclick();
-    await expect(page.locator('[data-inline-editor="true"]')).toHaveCount(0);
+    await expect(frame.locator('[data-inline-editor="true"]')).toHaveCount(0);
     await expect(lede).toHaveText("A portfolio-shaped fixture for the Nudge UI Astro host Adapter.");
   }
 
@@ -72,9 +78,9 @@ test("dev: repeated component outputs remain independently selectable", async ({
   });
 
   await page.goto("/");
-  await waitForInspector(page);
+  const frame = await waitForInspector(page);
 
-  const cards = page.locator("article.card");
+  const cards = frame.locator("article.card");
   await expect(cards).toHaveCount(2);
 
   // When source annotations are unavailable, both outputs use the same

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AstroIntegration } from "astro";
 import { nudgeUiAstro, withNudgeUi } from "./integration.ts";
+import { createAstroRuntimeConfig } from "./astroRuntimeConfig.ts";
 
 type ConfigSetupParameters = Parameters<
   NonNullable<AstroIntegration["hooks"]["astro:config:setup"]>
@@ -30,6 +31,19 @@ function runConfigSetup(
 }
 
 describe("nudgeUiAstro", () => {
+  it("advertises iframe renderer support", () => {
+    const runtime = createAstroRuntimeConfig({
+      projectId: "site",
+      tokenCatalog: [],
+      tokens: [],
+      tokenDiagnostics: [],
+      tokenGeneration: "astro-test",
+      componentContracts: [],
+    });
+
+    expect(runtime.capabilities.canvas).toBe(true);
+  });
+
   it("registers the shared vite plugin, context plugin, bootstrap, and middleware in dev", () => {
     const integration = nudgeUiAstro({ projectId: "site" });
     const { addMiddleware, injectScript, updateConfig } =
@@ -60,6 +74,42 @@ describe("nudgeUiAstro", () => {
     expect(registration.order).toBe("pre");
     expect(registration.entrypoint).toBeInstanceOf(URL);
     expect(registration.entrypoint?.pathname).toContain("middleware.ts");
+  });
+
+  it("serves the pure editor document from Astro's client transport", () => {
+    const integration = nudgeUiAstro({ projectId: "site" });
+    const { updateConfig } = runConfigSetup(integration, "dev");
+    const plugins = (
+      updateConfig.mock.calls[0]?.[0] as { vite: { plugins: Array<{ configureServer?(server: unknown): void }> } }
+    ).vite.plugins;
+    let middleware: ((request: { url: string; method: string; headers?: Record<string, string> }, response: {
+      statusCode: number;
+      setHeader(name: string, value: string): void;
+      end(body?: string): void;
+    }, next: () => void) => void) | undefined;
+    plugins[0]?.configureServer?.({
+      middlewares: { use: (handler: typeof middleware) => { middleware = handler; } },
+    });
+    let body = "";
+    const response = {
+      statusCode: 0,
+      setHeader: vi.fn(),
+      end: (value = "") => { body = value; },
+    };
+
+    middleware?.({ url: "/__nudge_ui__/editor?url=%2Fabout", method: "GET" }, response, vi.fn());
+
+    expect(response.statusCode).toBe(200);
+    expect(body).toContain("data-nudge-ui-editor");
+    expect(body).not.toContain("about");
+
+    body = "";
+    middleware?.({
+      url: "/about?lang=en&nudge-ui=editor",
+      method: "GET",
+      headers: { accept: "text/html" },
+    }, response, vi.fn());
+    expect(body).toContain("data-nudge-ui-editor");
   });
 
   it("wraps arbitrary integration lists without mutating the input", () => {

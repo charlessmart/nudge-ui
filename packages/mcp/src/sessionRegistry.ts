@@ -1,5 +1,6 @@
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
+import { AGENT_PROTOCOL_VERSION } from "@nudge-ui/agent-protocol";
 import { readSessionHealth, type SessionHealth } from "./projectSessionClient.ts";
 import type { StoredProjectSession } from "./project.ts";
 
@@ -78,7 +79,7 @@ function isStoredSession(value: unknown): value is StoredProjectSession {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const session = value as Record<string, unknown>;
   return session.schemaVersion === 1
-    && session.protocolVersion === 1
+    && session.protocolVersion === AGENT_PROTOCOL_VERSION
     && typeof session.sessionId === "string" && session.sessionId.length > 0
     && typeof session.projectId === "string" && session.projectId.length > 0
     && typeof session.workspaceRoot === "string" && session.workspaceRoot.length > 0
@@ -91,4 +92,3 @@ function isStoredSession(value: unknown): value is StoredProjectSession {
     && typeof session.pid === "number" && Number.isSafeInteger(session.pid)
     && typeof session.controlToken === "string" && session.controlToken.length >= 32 && session.controlToken.length <= 256;
 }
-

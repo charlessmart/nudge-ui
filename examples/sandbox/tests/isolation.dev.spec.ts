@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 test("dev: raw sandbox owns a raw CSS graph and catalog", async ({ page }) => {
-  await page.goto("/examples/raw-css");
+  const app = await openEditor(page, "/examples/raw-css");
 
-  const facts = await page.evaluate(() => {
+  const facts = await app.locator("html").evaluate(() => {
     const inspection = (window as unknown as {
       __nudgeUi?: { inspect(selector: string): { catalog: Array<{ adapter?: string }> } | null };
     }).__nudgeUi?.inspect('[data-cid="Examples:Spacing:raw:01"]');

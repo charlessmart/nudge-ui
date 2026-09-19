@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { appLocator, openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function panelOpen(page: import("@playwright/test").Page): Promise<string | null> {
   return page.evaluate(() => document
@@ -19,7 +20,7 @@ async function openTokensSettings(page: import("@playwright/test").Page): Promis
 }
 
 test("dev: focused inspector text inputs keep arrow cursor navigation", async ({ page }) => {
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
   await openTokensSettings(page);
 
   const search = page.locator('[data-test="token-search"]');
@@ -36,8 +37,8 @@ test("dev: focused inspector text inputs keep arrow cursor navigation", async ({
 });
 
 test("dev: focused inspector inputs do not delete the selected element", async ({ page }) => {
-  await page.goto("/playground");
-  const heading = page.locator("#hero-title");
+  await openEditor(page, "/playground");
+  const heading = appLocator(page, "#hero-title");
   await heading.click();
   await openTokensSettings(page);
 
@@ -50,8 +51,8 @@ test("dev: focused inspector inputs do not delete the selected element", async (
 });
 
 test("dev: numeric fields nudge previews immediately and visibility shortcuts preserve state", async ({ page }) => {
-  await page.goto("/playground");
-  await page.locator(".hero-intro").click();
+  await openEditor(page, "/playground");
+  await appLocator(page, ".hero-intro").click();
 
   const lineHeight = page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]');
   await expect(lineHeight).toBeVisible();

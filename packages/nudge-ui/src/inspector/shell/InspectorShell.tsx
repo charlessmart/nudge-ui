@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { IconArrowUpRight, IconColorSwatch, IconLayoutSidebarRight, IconSettings } from "@tabler/icons-react";
+import { IconColorSwatch, IconLayoutSidebarRight, IconSettings } from "@tabler/icons-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -9,7 +9,6 @@ import {
   setSelectedElement,
   removeSelectedElement,
 } from "../selection/selectionStore.ts";
-import { InspectorOverlay } from "../overlay/InspectorOverlay.tsx";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { findTokenRow } from "../styleEditors/rowLookup.ts";
 import type { TokenEntry } from "../../css/model/index.ts";
@@ -42,22 +41,35 @@ import { UI_STYLES } from "../ui/styles.ts";
 import { getActiveStyleState, setActiveStyleState } from "./styleState.ts";
 import type { InteractionState } from "./styleState.ts";
 import { isEditableEvent } from "./shortcuts.ts";
-import { clearInspectorLayout, setInspectorLayoutOpen } from "./panelLayout.ts";
 import { formatInspectorLabel } from "../ui/labels.ts";
 import { FieldRow } from "../ui/FieldRow.tsx";
 import { Select } from "../ui/Select.tsx";
-import { enterCanvas, useCanvasMode } from "../canvas/canvasStore.ts";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
+import { hasWriteLease } from "../canvas/workspaceLease.ts";
+import {
+  setCanvasPresentation,
+  useCanvasPresentation,
+  useFocusedCardId,
+  useSelectedCardId,
+} from "../canvas/canvasStore.ts";
+import { getActiveCanvasFrame } from "../canvas/activeCanvasDocument.ts";
 import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "../componentSemantics/ComponentPropsSection.tsx";
-import { cancelInlineTextEdit, disposeInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
+import { cancelInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { createStyleSelection } from "../selection/styleSelection.ts";
 import { intersectTokenEntries } from "../inspection/selectionProperty.ts";
+import { isNudgeUiDev } from "../runtime/devFlag.ts";
+import { isDemoRuntime } from "../runtime/runtimeConfig.ts";
+import { SketchWorkspace } from "../sketch/SketchWorkspace.tsx";
+import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/interaction.ts";
+import { clearSketchClipboardHandoff } from "../sketch/handoff.ts";
+import { clearSketchesForProject } from "../sketch/store.ts";
+import { closeSketchNote } from "../sketch/sketchNote.ts";
 
 function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): ResolvedProperty | null {
   for (const property of properties) {
@@ -73,16 +85,6 @@ function findFirstTokenRow(rows: ResolvedProperty[], properties: string[]): Reso
 
 export { toggleInspector, setInspectorOpen };
 export type { SelectedElement } from "../selection/selectionStore.ts";
-
-let inspectorHost: HTMLElement | null = null;
-
-export function setInspectorHost(host: HTMLElement | null): void {
-  inspectorHost = host;
-}
-
-function resolveHost(): HTMLElement {
-  return inspectorHost ?? document.getElementById("nudge-ui-root") ?? document.body;
-}
 
 function nodeMatchesSelector(node: Node, selector: string | null): boolean {
   if (!selector || node.nodeType !== node.ELEMENT_NODE) return false;
@@ -114,8 +116,11 @@ export function InspectorShell(): ReactElement {
   const runtimeConfig = useNudgeUiRuntimeConfig();
   const canvasEnabled = runtimeConfig.capabilities.canvas;
   const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
-  const activeCanvasMode = useCanvasMode();
-  const canvasMode = canvasEnabled ? activeCanvasMode : "inspect";
+  const sketchEnabled = isNudgeUiDev() && !isDemoRuntime();
+  const sketchActive = useSketchInteractionActive();
+  const selectedCardId = useSelectedCardId();
+  const focusedCardId = useFocusedCardId();
+  const sketchHost = selectedCardId || focusedCardId ? getActiveCanvasFrame() : null;
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
   const hierarchy = useHierarchy();
@@ -126,12 +131,7 @@ export function InspectorShell(): ReactElement {
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const cssInspection = useBrowserCssInspection(selectedElements, styleState);
   const isMultiSelection = selectedElements.length > 1;
-
-  useEffect(() => {
-    setInspectorLayoutOpen(isOpen);
-    return clearInspectorLayout;
-  }, [isOpen]);
-
+  const canvasPresentation = useCanvasPresentation();
   useEffect(() => {
     // A new selection should never inherit an incidental state from the
     // previous element. Base is the inspector's deliberate default.
@@ -174,7 +174,7 @@ export function InspectorShell(): ReactElement {
   }, [selectedElements, scopeRevision]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || sketchActive) return;
     function onKeydown(event: KeyboardEvent): void {
       if (isInlineTextEditingActive()) return;
       const mod = event.metaKey || event.ctrlKey;
@@ -221,7 +221,7 @@ export function InspectorShell(): ReactElement {
     }
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, [isOpen, isMultiSelection, selected]);
+  }, [isOpen, isMultiSelection, selected, sketchActive]);
 
   const inspectionSnapshot = cssInspection.element;
   const styleSelection = useMemo(
@@ -261,23 +261,24 @@ export function InspectorShell(): ReactElement {
     refreshScope((revision) => revision + 1);
   }
 
-  function handleCanvasModeButton(): void {
-    // Inline text editing is controller-owned. Canvas renderer documents
-    // receive projections only, so dispose the active controller session
-    // before mounting cards rather than probing a stale iframe document.
-    disposeInlineTextEdit("frame-disposed");
-    enterCanvas();
-  }
-
   function openSettings(section: SettingsSection): void {
     setSettingsSection(section);
     setSettingsOpen(true);
   }
 
+  function clearInspectorSession(): void {
+    clearSession();
+    clearRestoreCount();
+    if (!hasWriteLease()) return;
+    cancelSketchInteraction();
+    closeSketchNote();
+    clearSketchClipboardHandoff();
+    void clearSketchesForProject(runtimeConfig.projectId).catch(() => undefined);
+  }
+
   return (
     <>
       <style data-test="inspector-styles">{UI_STYLES}</style>
-      {canvasMode === "inspect" && <InspectorOverlay host={resolveHost()} />}
       <div className="panel" data-open={isOpen ? "true" : "false"}>
         <div className="panel__tabs" aria-label="Inspector controls">
           <div
@@ -288,6 +289,7 @@ export function InspectorShell(): ReactElement {
               variant="quiet"
               label="Collapse inspector"
               data-test="collapse-inspector"
+              disabled={sketchActive}
               style={{ marginLeft: "-8px" }}
               onClick={() => {
                 cancelInlineTextEdit();
@@ -297,6 +299,16 @@ export function InspectorShell(): ReactElement {
               <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             </IconButton>
             <div className="panel__header-actions">
+              {canvasEnabled ? (
+                <Button
+                  variant="quiet"
+                  size="compact"
+                  data-test={`presentation-${canvasPresentation === "focus" ? "canvas" : "focus"}`}
+                  onClick={() => setCanvasPresentation(canvasPresentation === "focus" ? "canvas" : "focus")}
+                >
+                  {canvasPresentation === "focus" ? "Canvas" : "Focus"}
+                </Button>
+              ) : null}
               <IconButton
                 variant="quiet"
                 data-test="tokens-button"
@@ -315,21 +327,6 @@ export function InspectorShell(): ReactElement {
               >
                 <IconSettings size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
               </IconButton>
-              {canvasEnabled && canvasMode !== "canvas" ? (
-                <>
-                  <span className="panel__header-divider" aria-hidden="true" />
-                  <Button
-                    variant="quiet"
-                    className="panel__canvas-button"
-                    data-test="mode-canvas"
-                    type="button"
-                    onClick={handleCanvasModeButton}
-                  >
-                    Canvas
-                    <IconArrowUpRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-                  </Button>
-                </>
-              ) : null}
             </div>
           </div>
           <div className="panel__copy-row">
@@ -519,13 +516,13 @@ export function InspectorShell(): ReactElement {
             <EmptyState />
           )}
           <ChangesLog
-            onClearSession={() => {
-              clearSession();
-              clearRestoreCount();
-            }}
+            onClearSession={clearInspectorSession}
           />
         </div>
       </div>
+      {sketchEnabled ? (
+        <SketchWorkspace hostElement={sketchHost} projectId={runtimeConfig.projectId} />
+      ) : null}
       {!isOpen ? (
         <div className="panel__restore">
           <IconButton

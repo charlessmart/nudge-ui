@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  resolveNudgeUiClientEntry,
   subscribeToManifestReloads,
 } from "./client.ts";
 import type { NudgeUiClientManifest } from "./clientManifest.ts";
@@ -122,6 +123,54 @@ describe("subscribeToManifestReloads", () => {
     button.remove();
   });
 });
+
+describe("resolveNudgeUiClientEntry", () => {
+  it("sends a top-level app into the editor while bootstrapping shell and renderer documents", () => {
+    expect(resolveNudgeUiClientEntry(
+      "https://example.test/catalog?category=chairs#oak",
+      false,
+      false,
+    )).toEqual({
+      kind: "redirect",
+      href: createExpectedEditorUrl("/catalog?category=chairs#oak"),
+    });
+    expect(resolveNudgeUiClientEntry(
+      "https://example.test/__nudge_ui__/editor?url=%2Fcatalog",
+      true,
+      false,
+    )).toEqual({ kind: "bootstrap" });
+    expect(resolveNudgeUiClientEntry(
+      "https://example.test/catalog",
+      false,
+      true,
+    )).toEqual({ kind: "bootstrap" });
+    expect(resolveNudgeUiClientEntry(
+      "https://example.test/catalog?__nudge_ui_direct=1",
+      false,
+      true,
+    )).toEqual({ kind: "bootstrap" });
+  });
+
+  it("leaves an explicitly direct application view unmounted", () => {
+    expect(resolveNudgeUiClientEntry(
+      "https://example.test/catalog?__nudge_ui_direct=1",
+      false,
+      false,
+    )).toEqual({ kind: "direct" });
+    expect(resolveNudgeUiClientEntry(
+      "https://example.test/another-route",
+      false,
+      false,
+      true,
+    )).toEqual({ kind: "direct" });
+  });
+});
+
+function createExpectedEditorUrl(target: string): string {
+  const url = new URL(target, "https://example.test");
+  url.searchParams.append("nudge-ui", "editor");
+  return url.href;
+}
 
 function manifestResponse(revision: number): Response {
   return new Response(JSON.stringify({

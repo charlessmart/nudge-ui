@@ -63,6 +63,7 @@
   /* Control semantic sizes */
   --control-height-small: 24px;
   --control-height-large: 32px;
+  --control-height-xlarge: 40px;
   --label-column: 104px;
 
   --icon-size-small: 16px;

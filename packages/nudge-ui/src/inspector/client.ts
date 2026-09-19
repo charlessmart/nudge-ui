@@ -7,7 +7,15 @@ import {
 import { installStaticHtmlRuntimeIdentity } from "./runtime/staticHtmlRuntimeIdentity.ts";
 import { reconcileRuntimeWithDocumentStylesheets } from "./runtime/documentStylesheetOrder.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
+import {
+  hasNudgeUiDirectTabIntent,
+  isNudgeUiDirectUrl,
+  rememberNudgeUiDirectTabIntent,
+  resolveNudgeUiClientEntry,
+} from "../transport/editor.ts";
 import { resetAgentClients } from "./agent/client.ts";
+import { getActiveCanvasDocument } from "./canvas/activeCanvasDocument.ts";
+export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
 
 const DEFAULT_MANIFEST_PATH = "/__nudge_ui__/manifest";
 const MOUNT_ID = "nudge-ui-root";
@@ -22,14 +30,28 @@ export async function bootstrapNudgeUiClient(): Promise<void> {
   const script = document.querySelector<HTMLScriptElement>(
     "script[data-nudge-ui-client]",
   );
+  const editorDocument = document.documentElement.hasAttribute("data-nudge-ui-editor");
+  const explicitDirect = isNudgeUiDirectUrl(window.location.href);
+  if (explicitDirect) rememberNudgeUiDirectTabIntent();
+  const entry = resolveNudgeUiClientEntry(
+    window.location.href,
+    editorDocument,
+    isCanvasRenderer(),
+    hasNudgeUiDirectTabIntent(),
+  );
+  if (entry.kind === "direct") return;
+  if (entry.kind === "redirect") {
+    window.location.replace(entry.href);
+    return;
+  }
   const manifestUrl = script?.dataset.nudgeUiManifest ?? DEFAULT_MANIFEST_PATH;
   const payload = await fetchManifest(manifestUrl);
 
   applyAgentBridge(payload, false);
-
-  configureNudgeUiRuntime(prepareRuntime(payload));
+  const runtimeDocument = editorDocument ? findEditorPreviewDocument : () => document;
+  configureNudgeUiRuntime(prepareRuntime(payload, runtimeDocument()));
   bootstrapNudgeUi(createMountElement());
-  subscribeToManifestReloads(payload, manifestUrl);
+  subscribeToManifestReloads(payload, manifestUrl, runtimeDocument);
 }
 
 async function fetchManifest(manifestUrl: string) {
@@ -51,8 +73,9 @@ async function fetchManifest(manifestUrl: string) {
 export function subscribeToManifestReloads(
   manifest: NudgeUiClientManifest,
   manifestUrl: string,
+  runtimeDocument: () => Document | null = () => document,
 ): void {
-  if (!manifest.reload || typeof EventSource === "undefined" || isCanvasRenderer()) return;
+  if (!manifest.reload || typeof EventSource === "undefined") return;
   const source = new EventSource(manifest.reload.endpoint);
   let seenRevision = manifest.revision;
   let latestObserved = seenRevision;
@@ -66,7 +89,7 @@ export function subscribeToManifestReloads(
     try {
       const refreshed = await fetchManifest(manifestUrl);
       applyAgentBridge(refreshed, true);
-      configureNudgeUiRuntime(prepareRuntime(refreshed));
+      configureNudgeUiRuntime(prepareRuntime(refreshed, runtimeDocument()));
       seenRevision = Math.max(seenRevision, refreshed.revision);
       if (refreshed.revision < requestedRevision) {
         failedRevision = Math.max(failedRevision, requestedRevision);
@@ -109,15 +132,22 @@ function applyAgentBridge(manifest: NudgeUiClientManifest, reloadOnChange: boole
   }
 }
 
-function prepareRuntime(manifest: NudgeUiClientManifest): NudgeUiRuntimeConfig {
-  if (manifest.document?.runtimeIdentity === "static-html"
-    && !identityPreparedDocuments.has(document)) {
-    installStaticHtmlRuntimeIdentity(document);
-    identityPreparedDocuments.add(document);
+function prepareRuntime(
+  manifest: NudgeUiClientManifest,
+  runtimeDocument: Document | null,
+): NudgeUiRuntimeConfig {
+  if (runtimeDocument && manifest.document?.runtimeIdentity === "static-html"
+    && !identityPreparedDocuments.has(runtimeDocument)) {
+    installStaticHtmlRuntimeIdentity(runtimeDocument);
+    identityPreparedDocuments.add(runtimeDocument);
   }
-  return manifest.document?.stylesheetOrder === "browser"
-    ? reconcileRuntimeWithDocumentStylesheets(manifest.runtime, document)
+  return runtimeDocument && manifest.document?.stylesheetOrder === "browser"
+    ? reconcileRuntimeWithDocumentStylesheets(manifest.runtime, runtimeDocument)
     : manifest.runtime;
+}
+
+function findEditorPreviewDocument(): Document | null {
+  return getActiveCanvasDocument();
 }
 
 function parseReloadRevision(event: Event): number | null {

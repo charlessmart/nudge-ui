@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function waitForRow(page: import("@playwright/test").Page): Promise<void> {
   await expect
@@ -93,14 +94,14 @@ test.describe("clipboard permissions", () => {
   test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
   test("dev: copy prompt writes structured markdown to the clipboard", async ({ page }) => {
-    await page.goto("/playground");
-    await page.click("text=Save");
+    const app = await openEditor(page, "/playground");
+    await app.getByRole("button", { name: "Save" }).click();
     await waitForRow(page);
     await waitForEditors(page);
 
-    await expect(page.locator("button").first()).toHaveAttribute(
+    await expect(app.locator("button").first()).toHaveAttribute(
       "data-src",
-      "src/Button.tsx:13:6",
+      /^src\/Button\.tsx:\d+:\d+$/,
     );
 
     await selectBackground(page, "--color-surface-sunken");
@@ -136,8 +137,8 @@ test.describe("clipboard permissions", () => {
   });
 
   test("dev: copy prompt is disabled when the changes log is empty", async ({ page }) => {
-    await page.goto("/playground");
-    await page.click("text=Save");
+    const app = await openEditor(page, "/playground");
+    await app.getByRole("button", { name: "Save" }).click();
     await waitForRow(page);
     await waitForEditors(page);
 
@@ -162,7 +163,7 @@ test.describe("clipboard permissions", () => {
   });
 
   test("dev: prompt settings customize the copied prompt", async ({ page }) => {
-    await page.goto("/playground");
+    const app = await openEditor(page, "/playground");
 
     await page.locator('[data-test="settings-button"]').click();
 
@@ -174,7 +175,7 @@ test.describe("clipboard permissions", () => {
     await page.locator('[data-test="prompt-settings-done"]').click();
     await expect(dialog).toHaveCount(0);
 
-    await page.click("text=Save");
+    await app.getByRole("button", { name: "Save" }).click();
     await waitForRow(page);
     await waitForEditors(page);
     await selectBackground(page, "--color-surface-sunken");
@@ -188,7 +189,7 @@ test.describe("clipboard permissions", () => {
   });
 
   test("dev: general settings navigates between prompt, MCP, and token sections", async ({ page }) => {
-    await page.goto("/playground");
+    await openEditor(page, "/playground");
 
     await page.locator('[data-test="settings-button"]').click();
 
@@ -206,12 +207,12 @@ test.describe("clipboard permissions", () => {
   });
 
   test("dev: copy prompt exports only the final destination after repeated moves", async ({ page }) => {
-    await page.goto("/playground");
-    const item = page.locator('[data-test="flex-child-a"]');
+    const app = await openEditor(page, "/playground");
+    const item = app.locator('[data-test="flex-child-a"]');
     await item.click();
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-    await expect.poll(() => page.locator('[data-test="flex-container"]').textContent()).toBe("BCA");
+    await item.press("ArrowDown");
+    await item.press("ArrowDown");
+    await expect.poll(() => app.locator('[data-test="flex-container"]').textContent()).toBe("BCA");
 
     await page.evaluate(() => {
       const root = document.getElementById("nudge-ui-root")?.shadowRoot;

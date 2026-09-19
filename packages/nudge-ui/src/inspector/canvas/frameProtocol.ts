@@ -3,8 +3,12 @@ import { isTextProjectionReport } from "../projection/textProjection.ts";
 import { isStructuralProjectionReport } from "../projection/structuralProjectionBoundary.ts";
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "../changes/editModel.ts";
+import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 
-// v15 adds renderer-to-controller element deselection for Canvas frames. v14
+// v18 adds parent-to-renderer Alt modifier forwarding for Canvas measurements.
+// v17 adds an idempotent renderer request to open the parent inspector. v16
+// adds controller-owned inline-text intents for Canvas frames. v15 adds
+// renderer-to-controller element deselection for Canvas frames. v14
 // adds border widths to hover geometry so containment measurements can exclude
 // the container border. v13 adds source-parent-aware structural moves and
 // bounded structural failure reasons to the full projection snapshot. v12
@@ -12,7 +16,7 @@ import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 // rereading a Canvas iframe until the renderer has applied its revision. v11
 // added the renderer-hello handshake solicitation for runtimes whose boot
 // completes after the controller's load-time parent-ready.
-export const PROTOCOL_VERSION = 15;
+export const PROTOCOL_VERSION = 18;
 
 export interface FrameMessage {
   type: string;
@@ -48,6 +52,12 @@ export interface FrameReadyMessage extends RendererMessage {
   type: "frame-ready";
   url: string;
   title: string;
+  runtime: NudgeUiRuntimeConfig;
+}
+
+export interface FrameRuntimeMessage extends RendererMessage {
+  type: "frame-runtime";
+  runtime: NudgeUiRuntimeConfig;
 }
 
 export interface FrameMetadataMessage extends RendererMessage {
@@ -145,6 +155,18 @@ export interface ElementClickMessage extends RendererMessage {
   additive?: boolean;
 }
 
+/** Requests controller-owned inline text editing for an element in this frame. */
+export interface InlineTextIntentMessage extends RendererMessage {
+  type: "inline-text-intent";
+  intent: "pointer-down" | "double-click";
+  cid: string;
+  src: string;
+  elementId: string;
+  point: { x: number; y: number };
+  clickCount?: number;
+  emptyProjectionId?: string;
+}
+
 /** Renderer request to clear the controller-owned element selection. */
 export interface ElementDeselectMessage extends RendererMessage {
   type: "element-deselect";
@@ -189,9 +211,14 @@ export interface HistoryRequestMessage extends RendererMessage {
   action: "undo" | "redo";
 }
 
-export interface ExternalNavigationMessage extends RendererMessage {
-  type: "external-navigation";
-  url: string;
+/** Requests the parent-owned inspector visibility toggle from frame focus. */
+export interface InspectorToggleRequestMessage extends RendererMessage {
+  type: "inspector-toggle-request";
+}
+
+/** Requests that the parent-owned inspector be open without toggling it closed. */
+export interface InspectorOpenRequestMessage extends RendererMessage {
+  type: "inspector-open-request";
 }
 
 export interface PanStartMessage extends RendererMessage {
@@ -214,6 +241,18 @@ export interface PanModifierMessage extends RendererMessage {
   spaceHeld: boolean;
 }
 
+/** Keeps iframe measurement state synchronized when focus is in the parent. */
+export interface MeasureModifierMessage extends RendererMessage {
+  type: "measure-modifier";
+  altKey: boolean;
+}
+
+/** Enables board-only pan and zoom interception inside a mounted preview. */
+export interface BoardGestureStateMessage extends RendererMessage {
+  type: "board-gesture-state";
+  enabled: boolean;
+}
+
 /** Proxies modified wheel gestures that originate inside an iframe card. */
 export interface ZoomMessage extends RendererMessage {
   type: "zoom";
@@ -225,6 +264,7 @@ export type FrameProtocolMessage =
   | ParentReadyMessage
   | RendererHelloMessage
   | FrameReadyMessage
+  | FrameRuntimeMessage
   | FrameMetadataMessage
   | FrameLoadError
   | ReplaceStylesMessage
@@ -236,6 +276,7 @@ export type FrameProtocolMessage =
   | ElementHoverMessage
   | ElementMeasureStateMessage
   | ElementClickMessage
+  | InlineTextIntentMessage
   | ElementDeselectMessage
   | ElementDragStartMessage
   | ElementDragMoveMessage
@@ -243,11 +284,14 @@ export type FrameProtocolMessage =
   | ElementDeleteMessage
   | ElementNudgeMessage
   | HistoryRequestMessage
-  | ExternalNavigationMessage
+  | InspectorToggleRequestMessage
+  | InspectorOpenRequestMessage
   | PanStartMessage
   | PanMoveMessage
   | PanEndMessage
   | PanModifierMessage
+  | MeasureModifierMessage
+  | BoardGestureStateMessage
   | ZoomMessage;
 
 let rendererIdentity: FrameIdentity | null = null;
@@ -297,6 +341,33 @@ export function isElementClickMessage(
     && typeof line === "number" && Number.isSafeInteger(line) && line >= 0
     && typeof ownValue(value, "component") === "string"
     && (additive === undefined || typeof additive === "boolean");
+}
+
+/** Strict JSON-only schema for starting controller-owned inline text editing. */
+export function isInlineTextIntentMessage(
+  value: unknown,
+  identity: FrameIdentity,
+): value is InlineTextIntentMessage {
+  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
+  if (!hasOnlyKeys(value, [
+    "type", "protocolVersion", "projectId", "workspaceId", "cardId",
+    "intent", "cid", "src", "elementId", "point", "clickCount", "emptyProjectionId",
+  ])) return false;
+  const intent = ownValue(value, "intent");
+  const point = ownValue(value, "point");
+  const clickCount = ownValue(value, "clickCount");
+  const emptyProjectionId = ownValue(value, "emptyProjectionId");
+  return ownValue(value, "type") === "inline-text-intent"
+    && (intent === "pointer-down" || intent === "double-click")
+    && typeof ownValue(value, "cid") === "string"
+    && typeof ownValue(value, "src") === "string"
+    && typeof ownValue(value, "elementId") === "string"
+    && isProtocolObject(point)
+    && hasOnlyKeys(point, ["x", "y"])
+    && typeof ownValue(point, "x") === "number" && Number.isFinite(ownValue(point, "x"))
+    && typeof ownValue(point, "y") === "number" && Number.isFinite(ownValue(point, "y"))
+    && (clickCount === undefined || (typeof clickCount === "number" && Number.isSafeInteger(clickCount) && clickCount >= 0))
+    && (emptyProjectionId === undefined || typeof emptyProjectionId === "string");
 }
 
 /** Strict JSON-only schema for renderer diagnostics before the parent records them. */
@@ -396,6 +467,12 @@ interface ProtocolObject {
   readonly elementId?: unknown;
   readonly file?: unknown;
   readonly line?: unknown;
+  readonly intent?: unknown;
+  readonly point?: unknown;
+  readonly clickCount?: unknown;
+  readonly emptyProjectionId?: unknown;
+  readonly x?: unknown;
+  readonly y?: unknown;
   readonly prop?: unknown;
   readonly projectId?: unknown;
   readonly protocolVersion?: unknown;
@@ -418,6 +495,7 @@ function isProtocolObject(value: unknown): value is ProtocolObject {
 function ownValue(value: ProtocolObject, key: ProtocolObjectKey): unknown {
   switch (key) {
     case "additive": return value.additive;
+    case "emptyProjectionId": return value.emptyProjectionId;
     case "cardId": return value.cardId;
     case "cid": return value.cid;
     case "callsiteId": return value.callsiteId;
@@ -425,6 +503,11 @@ function ownValue(value: ProtocolObject, key: ProtocolObjectKey): unknown {
     case "elementId": return value.elementId;
     case "file": return value.file;
     case "line": return value.line;
+    case "intent": return value.intent;
+    case "point": return value.point;
+    case "clickCount": return value.clickCount;
+    case "x": return value.x;
+    case "y": return value.y;
     case "prop": return value.prop;
     case "projectId": return value.projectId;
     case "protocolVersion": return value.protocolVersion;

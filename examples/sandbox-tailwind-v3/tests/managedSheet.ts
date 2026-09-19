@@ -1,8 +1,8 @@
-import type { Page } from "@playwright/test";
+import type { FrameLocator } from "@playwright/test";
 
 /** Read the live CSSOM; the managed style element intentionally has no text mirror. */
-export async function managedSheetText(page: Page): Promise<string> {
-  return page.evaluate(() => {
+export async function managedSheetText(frame: FrameLocator): Promise<string> {
+  return frame.locator("html").evaluate(() => {
     const debugWindow = window as Window & {
       __nudgeUiGetManagedSheetText?: () => string;
     };
@@ -13,4 +13,3 @@ export async function managedSheetText(page: Page): Promise<string> {
     return sheet ? Array.from(sheet.cssRules, (rule) => rule.cssText).join("\n") : "";
   });
 }
-

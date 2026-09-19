@@ -21,7 +21,7 @@ import { getWorkspaceChanges } from "../changes/workspaceChanges.ts";
 import type { PreviewResult } from "../projection/managedStylesheet.ts";
 import { getCanvasPreviewDocument, getRegisteredFrames } from "./projection.ts";
 import { findCanvasFrameBySource, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
-import { getCanvasCards } from "./canvasStore.ts";
+import { getCanvasCards, getCanvasMode } from "./canvasStore.ts";
 import { isRendererMessageFor } from "./frameProtocol.ts";
 import type { TokenDefinition } from "../../css/model/index.ts";
 import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
@@ -115,7 +115,7 @@ function checkTokenDrift(change: TokenChangeRecord): PreviewResult | null {
 }
 
 function getPreviewDocuments(): PreviewDocument[] {
-  const documents = [getHostPreviewDocument()];
+  const documents = getCanvasMode() === "canvas" ? [] : [getHostPreviewDocument()];
   const frames = getRegisteredFrames();
   for (const card of getCanvasCards()) {
     if (frames.has(card.id)) documents.push(getCanvasPreviewDocument(card.id));
@@ -137,16 +137,17 @@ function gatherMatchEvidence(
   changes: PreviewableChangeRecord[],
 ): Map<number, PreviewDocument[]> {
   const evidence = new Map<number, PreviewDocument[]>();
-  const hostDocument = getHostPreviewDocument();
+  if (getCanvasMode() !== "canvas") {
+    const hostDocument = getHostPreviewDocument();
+    for (let i = 0; i < changes.length; i++) {
+      const change = changes[i]!;
+      if (isTokenChange(change)) continue;
 
-  for (let i = 0; i < changes.length; i++) {
-    const change = changes[i]!;
-    if (isTokenChange(change)) continue;
-
-    if (checkSelectorInDocument(document, change.selector)) {
-      const routes = evidence.get(i) ?? [];
-      routes.push(hostDocument);
-      evidence.set(i, routes);
+      if (checkSelectorInDocument(document, change.selector)) {
+        const routes = evidence.get(i) ?? [];
+        routes.push(hostDocument);
+        evidence.set(i, routes);
+      }
     }
   }
 
@@ -175,14 +176,14 @@ function applyStaleResults(
   attempts: ReadonlyMap<string, PreviewAttempt>,
 ): void {
   const evidence = gatherMatchEvidence(changes);
-  const hostAttempt = attempts.get(getHostPreviewDocument().logicalDocument);
+  const tokenAttempt = attempts.values().next().value as PreviewAttempt | undefined;
 
   for (let i = 0; i < changes.length; i++) {
     const change = changes[i]!;
 
     if (isTokenChange(change)) {
       const drift = checkTokenDrift(change);
-      if (drift && hostAttempt) publishPreviewDiagnostic(hostAttempt, changeKey(change), drift);
+      if (drift && tokenAttempt) publishPreviewDiagnostic(tokenAttempt, changeKey(change), drift);
       continue;
     }
     const routes = evidence.get(i);

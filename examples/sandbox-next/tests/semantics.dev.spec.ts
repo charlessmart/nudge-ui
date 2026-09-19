@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Frame, type Page } from "@playwright/test";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
@@ -11,37 +11,44 @@ test.use({ permissions: ["clipboard-read", "clipboard-write"] });
  * declaration is produced, and the durable session records callsite identity.
  */
 
-async function selectBadge(page: import("@playwright/test").Page): Promise<void> {
+async function openPreview(page: Page): Promise<Frame> {
   await page.goto("/");
-  await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
-    .toBe(true);
-  // Bootstrap must have installed the runtime configuration before a
-  // selection can resolve semantic targets.
-  await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
-    .toBe(true);
+  await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
+  await expect(page.locator('[data-test^="canvas-card-iframe-"]')).toHaveCount(1);
+  await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
+    && frame.url().startsWith("http")
+    && !frame.url().includes("/__nudge_ui__/editor"))?.url() ?? "").toMatch(/\/$/);
+  const frame = page.frames().find((candidate) => candidate !== page.mainFrame()
+    && candidate.url().startsWith("http")
+    && !candidate.url().includes("/__nudge_ui__/editor"));
+  if (!frame) throw new Error("Next preview frame did not become ready");
+  return frame;
+}
+
+async function selectBadge(page: Page): Promise<Frame> {
+  const frame = await openPreview(page);
   // Wait until hydration has attached React fibers to the badge so the
   // selection resolves its semantic target in the same pass.
   await expect
-    .poll(() => page.evaluate(() => {
+    .poll(() => frame.evaluate(() => {
       const badge = document.querySelector('[data-testid="client-badge"]');
       return Boolean(badge && Object.keys(badge).some((k) => k.startsWith("__reactFiber$")));
     }))
     .toBe(true);
-  await page.locator('[data-testid="client-badge"]').click();
+  await frame.locator('[data-testid="client-badge"]').click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
+  return frame;
 }
 
 test("dev: flipping a typed enum prop re-renders the real client component", async ({
   page,
 }) => {
-  await selectBadge(page);
+  const frame = await selectBadge(page);
 
   const section = page.locator('[data-test="component-props-section"]');
   await expect(section).toHaveAttribute("data-component", "ClientBadge");
 
-  const before = await page
+  const before = await frame
     .locator('[data-testid="client-badge"]')
     .evaluate((el) => el.className);
   expect(before).toContain("badge-accent");
@@ -56,10 +63,10 @@ test("dev: flipping a typed enum prop re-renders the real client component", asy
 
   // A TRUE rerender: the real component's output changes.
   await expect
-    .poll(() => page.locator('[data-testid="client-badge"]').evaluate((el) => el.className))
+    .poll(() => frame.locator('[data-testid="client-badge"]').evaluate((el) => el.className))
     .toContain("badge-quiet");
   // No managed stylesheet declaration may back a semantic override.
-  const sheet = await page.evaluate(() => {
+  const sheet = await frame.evaluate(() => {
     const sheetEl = document.getElementById("nudge-ui-styles") as HTMLStyleElement | null;
     return sheetEl?.sheet ? Array.from(sheetEl.sheet.cssRules, (r) => r.cssText).join("\n") : "";
   });
@@ -67,26 +74,23 @@ test("dev: flipping a typed enum prop re-renders the real client component", asy
 });
 
 test("dev: boolean prop flips through its segmented control handler", async ({ page }) => {
-  await selectBadge(page);
+  const frame = await selectBadge(page);
 
   const control = page.locator('[data-test="component-prop-boolean"][data-property="disabled"]');
   await control.waitFor({ state: "visible", timeout: 15_000 });
   await control.getByText("On", { exact: true }).click();
 
   await expect
-    .poll(() => page.locator('[data-testid="client-badge"]').evaluate((el) => el.className))
+    .poll(() => frame.locator('[data-testid="client-badge"]').evaluate((el) => el.className))
     .toContain("badge-disabled");
 });
 
 test("dev: server-component invocations never produce prop controls", async ({ page }) => {
-  await page.goto("/");
-  await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
-    .toBe(true);
+  const frame = await openPreview(page);
 
   // HeroCard is a server component; its rendered elements carry identity but
   // must not expose semantic prop controls.
-  await page.locator(".hero-card h2").click();
+  await frame.locator(".hero-card h2").click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   await expect(page.locator('[data-test="component-props-section"]')).toHaveCount(0);
 });

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { appLocator, openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect.poll(async () => page.evaluate(() => Boolean(
@@ -23,12 +24,12 @@ async function setInput(page: import("@playwright/test").Page, property: string,
 }
 
 test("dev: typography conformance gallery exposes CSSOM-declared values", async ({ page }) => {
-  await page.goto("/typography-conformance");
+  await openEditor(page, "/typography-conformance");
 
-  await expect(page.locator(".typography-case")).toHaveCount(7);
-  await expect(page.locator(".typography-conformance-hero__support")).toContainText("7 shared cases");
+  await expect(appLocator(page, ".typography-case")).toHaveCount(7);
+  await expect(appLocator(page, ".typography-conformance-hero__support")).toContainText("7 shared cases");
 
-  await page.locator('[data-test="typography-case-type-direct-literals"]').click();
+  await appLocator(page, '[data-test="typography-case-type-direct-literals"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]')).toHaveValue("0.875rem");
   await expect(page.locator('[data-test="font-style-field"]')).toContainText("650");
@@ -38,9 +39,9 @@ test("dev: typography conformance gallery exposes CSSOM-declared values", async 
 });
 
 test("dev: font shorthand omissions reset earlier longhands", async ({ page }) => {
-  await page.goto("/typography-conformance");
+  await openEditor(page, "/typography-conformance");
 
-  const shorthand = page.locator('[data-test="typography-case-type-font-shorthand-resets"]');
+  const shorthand = appLocator(page, '[data-test="typography-case-type-font-shorthand-resets"]');
   await shorthand.click();
   await waitForEditors(page);
 
@@ -55,8 +56,8 @@ test("dev: font shorthand omissions reset earlier longhands", async ({ page }) =
 });
 
 test("dev: typography fixture tokens render as chips with type suggestions", async ({ page }) => {
-  await page.goto("/typography-conformance");
-  await page.locator('[data-test="typography-case-type-tokenized-longhands"]').click();
+  await openEditor(page, "/typography-conformance");
+  await appLocator(page, '[data-test="typography-case-type-tokenized-longhands"]').click();
   await waitForEditors(page);
 
   const size = page.locator('[data-test="token-field"][data-property="font-size"]');
@@ -64,16 +65,16 @@ test("dev: typography fixture tokens render as chips with type suggestions", asy
   await size.locator('[data-test="token-chip"]').click();
   await expect(page.getByRole("option", { name: /--type-size-body/ })).toBeVisible();
 
-  await page.locator('[data-test="typography-case-type-var-fallback-family"]').click();
+  await appLocator(page, '[data-test="typography-case-type-var-fallback-family"]').click();
   const family = page.locator('[data-test="token-field"][data-property="font-family"]');
   await expect(family.locator('[data-test="token-chip"]')).toContainText("--type-family-body");
   await expect(family.locator('[data-test="raw-input"]')).toHaveCount(0);
 });
 
 test("dev: typography raw expressions remain editable after CSSOM normalization", async ({ page }) => {
-  await page.goto("/typography-conformance");
+  await openEditor(page, "/typography-conformance");
 
-  const functional = page.locator('[data-test="typography-case-type-functional-raw"]');
+  const functional = appLocator(page, '[data-test="typography-case-type-functional-raw"]');
   await functional.click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]'))
@@ -81,7 +82,7 @@ test("dev: typography raw expressions remain editable after CSSOM normalization"
   await expect(page.locator('[data-test="token-field"][data-property="line-height"] [data-test="raw-input"]'))
     .toHaveValue("calc(1em + 0.5rem)");
 
-  const shorthand = page.locator('[data-test="typography-case-type-font-shorthand"]');
+  const shorthand = appLocator(page, '[data-test="typography-case-type-font-shorthand"]');
   await shorthand.click();
   await expect(page.locator('[data-test="token-field"][data-property="font-size"] [data-test="raw-input"]')).toHaveValue("1.25rem");
   await setInput(page, "font-size", "24px");

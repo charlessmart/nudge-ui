@@ -4,8 +4,6 @@ import {
   getCanvasMode,
   getCanvasCards,
   setCanvasMode,
-  enterCanvas,
-  exitCanvas,
   addCanvasCard,
   removeCanvasCard,
   updateCardTitle,
@@ -23,15 +21,21 @@ import {
   setBoardCamera,
   fitAllCards,
   hasFitAllRan,
+  resetFitAllFlag,
   MIN_CAMERA_ZOOM,
   MAX_CAMERA_ZOOM,
   subscribe,
+  activateIframeWorkspace,
+  PRIMARY_CARD_INSET,
+  setCanvasPresentation,
+  setCardPosition,
   type CanvasMode,
 } from "./canvasStore.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
 
 function resetAllCards(): void {
-  if (getCanvasMode() === "canvas") exitCanvas();
+  setCanvasMode("inspect");
+  resetFitAllFlag();
   for (const card of getCanvasCards()) {
     removeCanvasCard(card.id);
   }
@@ -48,57 +52,6 @@ describe("canvasStore mode transitions", () => {
     expect(getCanvasMode()).toBe("inspect");
   });
 
-  it("enterCanvas transitions to canvas mode and creates an initial card with position", () => {
-    enterCanvas();
-    expect(getCanvasMode()).toBe("canvas");
-    const cards = getCanvasCards();
-    expect(cards.length).toBe(1);
-    expect(cards[0]!.url).toBe(window.location.href);
-    expect(cards[0]!.x).toBe(0);
-    expect(cards[0]!.y).toBe(0);
-    expect(cards[0]!.width).toBeGreaterThan(0);
-    expect(cards[0]!.height).toBeGreaterThan(0);
-  });
-
-  it("exitCanvas returns to inspect mode without clearing cards", () => {
-    enterCanvas();
-    const cards = getCanvasCards();
-    exitCanvas();
-    expect(getCanvasMode()).toBe("inspect");
-    expect(getCanvasCards()).toEqual(cards);
-  });
-
-  it("enterCanvas is idempotent for mode", () => {
-    enterCanvas();
-    const cards = getCanvasCards();
-    enterCanvas();
-    expect(getCanvasMode()).toBe("canvas");
-    expect(getCanvasCards().length).toBe(cards.length);
-  });
-
-  it("adds and focuses the current Inspect route when reopening an existing board", () => {
-    const originalUrl = window.location.href;
-    const otherRoute = new URL("/already-open", originalUrl).href;
-    const activeRoute = new URL("/current-inspect-route", originalUrl).href;
-    addCanvasCard(otherRoute, "Already open");
-    window.history.replaceState({}, "", activeRoute);
-
-    enterCanvas();
-
-    const activeCard = findCardByNormalizedUrl(new URL(activeRoute));
-    expect(activeCard?.url).toBe(activeRoute);
-    expect(getFocusedCardId()).toBe(activeCard?.id);
-    expect(getCanvasCards()).toHaveLength(2);
-    window.history.replaceState({}, "", originalUrl);
-  });
-
-  it("exitCanvas is idempotent for mode", () => {
-    enterCanvas();
-    exitCanvas();
-    exitCanvas();
-    expect(getCanvasMode()).toBe("inspect");
-  });
-
   it("setCanvasMode transitions to the requested mode", () => {
     setCanvasMode("canvas");
     expect(getCanvasMode()).toBe("canvas");
@@ -109,8 +62,8 @@ describe("canvasStore mode transitions", () => {
   it("subscribe fires on mode change", () => {
     const received: CanvasMode[] = [];
     const unsub = subscribe(() => received.push(getCanvasMode()));
-    enterCanvas();
-    exitCanvas();
+    setCanvasMode("canvas");
+    setCanvasMode("inspect");
     expect(received).toEqual(["canvas", "inspect"]);
     unsub();
   });
@@ -181,14 +134,15 @@ describe("canvasStore card operations", () => {
     expect(getCanvasCards()).toEqual([]);
   });
 
-  it("removeCanvasCard exits canvas when last card is removed", () => {
-    enterCanvas();
+  it("removeCanvasCard keeps the iframe workspace active when the last card is removed", () => {
+    setCanvasMode("canvas");
+    addCanvasCard("http://localhost:5173/about", "About");
     const cards = getCanvasCards();
     expect(getCanvasMode()).toBe("canvas");
     for (const card of cards) {
       removeCanvasCard(card.id);
     }
-    expect(getCanvasMode()).toBe("inspect");
+    expect(getCanvasMode()).toBe("canvas");
     expect(getCanvasCards()).toEqual([]);
   });
 
@@ -222,6 +176,103 @@ describe("canvasStore card operations", () => {
 
     expect(counts).toEqual([0, 1, 2]);
     unsub();
+  });
+});
+
+describe("iframe workspace startup", () => {
+  beforeEach(() => {
+    resetAllCards();
+    resetCameraToDefault();
+  });
+
+  it("fits the first application card inside the measured board at 100 percent", () => {
+    const card = activateIframeWorkspace(
+      new URL("/playground", window.location.href).href,
+      { width: 1200, height: 800 },
+    );
+
+    expect(card).toMatchObject({
+      title: null,
+      width: 1200 - PRIMARY_CARD_INSET * 2,
+      height: 800 - PRIMARY_CARD_INSET * 2,
+    });
+    expect(getBoardCamera()).toEqual({
+      x: PRIMARY_CARD_INSET,
+      y: PRIMARY_CARD_INSET,
+      zoom: 1,
+    });
+    expect(getFocusedCardId()).toBe(card?.id);
+  });
+
+  it("focuses a restored target without changing its size or camera", () => {
+    const target = new URL("/playground", window.location.href).href;
+    hydrateCanvasStore("inspect", [{
+      id: "card-42",
+      url: target,
+      title: "Application title",
+      x: 120,
+      y: 80,
+      width: 713,
+      height: 509,
+    }], { x: -91, y: 37, zoom: 0.75 });
+
+    activateIframeWorkspace(target, { width: 1200, height: 800 });
+
+    expect(getCanvasMode()).toBe("canvas");
+    expect(getCanvasCards()[0]).toMatchObject({ width: 713, height: 509 });
+    expect(getBoardCamera()).toEqual({ x: -91, y: 37, zoom: 0.75 });
+    expect(getFocusedCardId()).toBe("card-42");
+  });
+
+  it("applies an explicit entry fragment to a restored route without duplicating it", () => {
+    const target = new URL("/playground#before", window.location.href).href;
+    hydrateCanvasStore("canvas", [{
+      id: "card-42", url: target, title: null,
+      x: 0, y: 0, width: 713, height: 509,
+    }], { x: 0, y: 0, zoom: 1 });
+
+    const requested = new URL("/playground#requested", window.location.href).href;
+    activateIframeWorkspace(requested, { width: 1200, height: 800 });
+
+    expect(getCanvasCards()).toHaveLength(1);
+    expect(getCanvasCards()[0]).toMatchObject({
+      url: requested,
+      navigationUrl: requested,
+    });
+    expect(getFocusedCardId()).toBe("card-42");
+  });
+
+  it("keeps the restored focused duplicate when routes normalize to the same URL", () => {
+    const first = new URL("/playground#first", window.location.href).href;
+    const focused = new URL("/playground#focused", window.location.href).href;
+    hydrateCanvasStore("canvas", [
+      { id: "card-41", url: first, title: null, x: 0, y: 0, width: 600, height: 400 },
+      { id: "card-42", url: focused, title: null, x: 640, y: 0, width: 600, height: 400 },
+    ], { x: 0, y: 0, zoom: 1 }, [], "card-42");
+
+    const requested = new URL("/playground#requested", window.location.href).href;
+    activateIframeWorkspace(requested, { width: 1200, height: 800 });
+
+    expect(getFocusedCardId()).toBe("card-42");
+    expect(getCanvasCards().find((card) => card.id === "card-41")?.url).toBe(first);
+    expect(getCanvasCards().find((card) => card.id === "card-42")).toMatchObject({
+      url: requested,
+      navigationUrl: requested,
+    });
+  });
+
+  it("adds and focuses a new editor target without removing restored cards", () => {
+    const restored = addCanvasCard(new URL("/first", window.location.href).href, "First");
+    resizeCard(restored.id, 640, 480);
+    const next = activateIframeWorkspace(
+      new URL("/second", window.location.href).href,
+      { width: 1200, height: 800 },
+    );
+
+    expect(getCanvasCards()).toHaveLength(2);
+    expect(getCanvasCards()[0]).toMatchObject({ id: restored.id, width: 640, height: 480 });
+    expect(next).toMatchObject({ width: 640, height: 480 });
+    expect(getFocusedCardId()).toBe(next?.id);
   });
 });
 
@@ -418,17 +469,45 @@ describe("canvasStore camera", () => {
     expect(fired).toBe(true);
     unsub();
   });
+
+  it("resets to the active card inset when entering Canvas", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    resizeCard(card.id, 800, 600);
+    setCardPosition(card.id, 320, 180);
+    focusCard(card.id);
+    setBoardCamera({ x: -240, y: 560, zoom: 0.5 });
+
+    setCanvasPresentation("canvas");
+
+    expect(getBoardCamera()).toEqual({
+      x: PRIMARY_CARD_INSET - 320,
+      y: PRIMARY_CARD_INSET - 180,
+      zoom: 0.9,
+    });
+    expect(getCanvasCards()[0]).toMatchObject({
+      x: 320,
+      y: 180,
+      width: 800,
+      height: 600,
+    });
+
+    setCanvasPresentation("focus");
+    setBoardCamera({ x: 900, y: -300, zoom: 2 });
+    setCanvasPresentation("canvas");
+
+    expect(getBoardCamera()).toEqual({
+      x: PRIMARY_CARD_INSET - 320,
+      y: PRIMARY_CARD_INSET - 180,
+      zoom: 0.9,
+    });
+    setCanvasPresentation("focus");
+  });
 });
 
 describe("canvasStore fitAllCards", () => {
   beforeEach(() => {
     resetAllCards();
     resetCameraToDefault();
-    enterCanvas();
-    if (getCanvasCards().length > 0) {
-      for (const c of getCanvasCards()) removeCanvasCard(c.id);
-    }
-    exitCanvas();
   });
 
 
@@ -595,6 +674,17 @@ describe("canvasStore card selection", () => {
     selectCard(card.id);
     removeCanvasCard(card.id);
     expect(getSelectedCardId()).toBeNull();
+  });
+
+  it("selects a remaining card when the active card is removed", () => {
+    const remaining = addCanvasCard("http://localhost:5173/about", "About");
+    const removed = addCanvasCard("http://localhost:5173/contact", "Contact");
+    selectCard(removed.id);
+
+    removeCanvasCard(removed.id);
+
+    expect(getSelectedCardId()).toBe(remaining.id);
+    expect(getFocusedCardId()).toBe(remaining.id);
   });
 
   it("maintains selection when non-selected card is removed", () => {

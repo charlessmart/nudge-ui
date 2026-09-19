@@ -9,7 +9,10 @@ import { createAstroClientAssetHandler } from "./clientAsset.ts";
 
 import {
   NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_EDITOR_PATH,
   NUDGE_UI_MANIFEST_PATH,
+  createNudgeUiEditorDocument,
+  isNudgeUiEditorDocumentRequest,
 } from "../../transport/index.ts";
 import { startOptionalProjectBridge } from "../projectBridge.ts";
 
@@ -40,6 +43,19 @@ export function createAstroClientTransportPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
+        if (isNudgeUiEditorDocumentRequest(request.url ?? "/", request.method, request.headers)) {
+          if (request.method !== "GET" && request.method !== "HEAD") {
+            response.statusCode = 405;
+            response.setHeader("Allow", "GET, HEAD");
+            response.end();
+            return;
+          }
+          response.statusCode = 200;
+          response.setHeader("Content-Type", "text/html; charset=utf-8");
+          response.setHeader("Cache-Control", "no-store");
+          response.end(request.method === "HEAD" ? undefined : createNudgeUiEditorDocument());
+          return;
+        }
         if (pathname === NUDGE_UI_CLIENT_PATH) {
           void serveClient(request, response).catch(next);
           return;

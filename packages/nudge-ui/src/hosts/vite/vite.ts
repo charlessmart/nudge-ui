@@ -22,7 +22,13 @@ import {
   type ArtifactStage,
   type InventoryDiagnostic,
 } from "../../css/token-inventory/index.ts";
-import { NUDGE_UI_CLIENT_PATH, NUDGE_UI_MANIFEST_PATH } from "../../transport/index.ts";
+import {
+  NUDGE_UI_CLIENT_PATH,
+  NUDGE_UI_EDITOR_PATH,
+  NUDGE_UI_MANIFEST_PATH,
+  createNudgeUiEditorDocument,
+  isNudgeUiEditorDocumentRequest,
+} from "../../transport/index.ts";
 import { discoverCssImportGraph, stripCssQuery } from "./tokens/activeStylesheets.ts";
 import {
   catalogSourcePath,
@@ -73,8 +79,12 @@ export interface NudgeUiOptions extends ReactOptions {
   enabled?: boolean;
   /** Enables experimental DOM parent/child navigation in the Inspector. */
   debug?: boolean;
-  /** The landing app's demo runtime: mounted at root in dev and `nudge-demo` builds, or via `?nudgeDemo=1`. */
+  /** Enables the landing app's restricted, iframe-backed demo runtime. */
   demo?: boolean;
+  /** Additional same-origin routes shown when the public demo opens. */
+  demoPages?: readonly string[];
+  /** Labels for the seeded demo cards in display order, including the primary card. */
+  demoCardLabels?: readonly string[];
   /** Explicit project ID for browser-storage keys (defaults to root directory basename). */
   projectId?: string;
   /** Optional static v3 config for fixture/app integrations; dynamic configs are not executed. */
@@ -602,7 +612,9 @@ export function createVitePlugins(
   }
 
   function startProjectBridge(server: ViteDevServer): void {
-    if (!root || projectBridgeStart) return;
+    // The public demo uses the shared editor runtime without project-owned
+    // sessions, an agent bridge, or filesystem persistence.
+    if (options.demo === true || !root || projectBridgeStart) return;
     const address = server.httpServer?.address();
     if (!address || typeof address === "string") return;
     const origin = server.resolvedUrls?.local[0]
@@ -639,6 +651,9 @@ export function createVitePlugins(
       host: framework?.hostLabel ?? "static-html",
       framework: framework?.framework ?? "HTML",
       stylingSystem: detectStylingSystem(snapshot.tokens),
+      ...(options.demo === true ? { demo: true } : {}),
+      ...(options.demoPages === undefined ? {} : { demoPages: options.demoPages }),
+      ...(options.demoCardLabels === undefined ? {} : { demoCardLabels: options.demoCardLabels }),
       capabilities: { canvas: true, componentSemantics: framework !== null },
       tokenCatalog: snapshot.definitions.map((definition) => ({
         ...definition,
@@ -690,9 +705,21 @@ export function createVitePlugins(
       if (runtimeWarning) server.config.logger.warn(runtimeWarning);
       server.middlewares?.use(async (request, response, next) => {
         const pathname = new URL(request.url ?? "/", "http://nudge-ui.local").pathname;
-        if ((pathname === CLIENT_PATH || pathname === MANIFEST_PATH) && request.method !== "GET") {
+        const invalidReservedMethod = (pathname === CLIENT_PATH || pathname === MANIFEST_PATH)
+          ? request.method !== "GET"
+          : pathname === NUDGE_UI_EDITOR_PATH
+            && request.method !== "GET"
+            && request.method !== "HEAD";
+        if (invalidReservedMethod) {
           response.statusCode = 405;
           response.end();
+          return;
+        }
+        if (isNudgeUiEditorDocumentRequest(request.url ?? "/", request.method, request.headers)) {
+          response.statusCode = 200;
+          response.setHeader("Content-Type", "text/html; charset=utf-8");
+          response.setHeader("Cache-Control", "no-store");
+          response.end(request.method === "HEAD" ? undefined : createNudgeUiEditorDocument());
           return;
         }
         if (pathname === CLIENT_PATH) {
@@ -769,29 +796,39 @@ export function createVitePlugins(
           return `export {};\n`;
         }
         if (options.demo === true) {
-          const landingDemoExpression = demoBuild
+          const demoControllerExpression = demoBuild
             ? "true"
             : '(import.meta.env.DEV && window.location.pathname === "/")';
           // Taken from the composed framework, so the demo bootstrap cannot drift
           // from the manifest the transport serves.
           const identity = buildRuntimeSnapshot();
           return [
-            'import { bootstrapNudgeUi, configureNudgeUiRuntime, detectFramework, setInspectorOpen } from "nudge-ui/internal/inspector";',
+            'import { bootstrapNudgeUi, configureNudgeUiRuntime, createNudgeUiEditorUrl, detectFramework, hasNudgeUiDirectTabIntent, isCanvasRenderer, isNudgeUiDirectUrl, readNudgeUiEditorTarget, rememberNudgeUiDirectTabIntent } from "nudge-ui/internal/inspector";',
             'import { tokenCatalog, tokens, tokenDiagnostics, tokenGeneration, nudgeUiProjectId } from "virtual:design-tokens";',
             ...(framework
               ? [`import { componentContracts } from ${JSON.stringify(framework.virtualModuleId)};`]
               : []),
-            'const __nudge_ui_demo_frame = new URLSearchParams(window.location.search).get("nudgeDemo") === "1";',
-            `const __nudge_ui_landing_demo = ${landingDemoExpression};`,
-            'const __nudge_ui_demo_runtime = __nudge_ui_demo_frame || __nudge_ui_landing_demo;',
-            'if (__nudge_ui_demo_runtime || (import.meta.env.DEV && window.location.pathname !== "/demo")) {',
+            'const __nudge_ui_renderer = isCanvasRenderer();',
+            'const __nudge_ui_explicit_direct = isNudgeUiDirectUrl(window.location.href);',
+            'if (__nudge_ui_explicit_direct) rememberNudgeUiDirectTabIntent();',
+            'const __nudge_ui_direct_tab = hasNudgeUiDirectTabIntent();',
+            `const __nudge_ui_demo_controller = !__nudge_ui_renderer && !__nudge_ui_explicit_direct && !__nudge_ui_direct_tab && ${demoControllerExpression};`,
+            'const __nudge_ui_editor_target = readNudgeUiEditorTarget(window.location.href) ?? (__nudge_ui_demo_controller ? window.location.href : null);',
+            'if (__nudge_ui_demo_controller && readNudgeUiEditorTarget(window.location.href) === null) {',
+            '  window.history.replaceState(window.history.state, "", createNudgeUiEditorUrl(window.location.href));',
+            '}',
+            'if (__nudge_ui_editor_target) document.documentElement.setAttribute("data-nudge-ui-editor", "");',
+            'if (__nudge_ui_renderer) document.documentElement.setAttribute("data-nudge-ui-renderer", "");',
+            'if (__nudge_ui_editor_target || __nudge_ui_renderer) {',
             '  configureNudgeUiRuntime({',
             '    projectId: nudgeUiProjectId,',
             `    host: ${JSON.stringify(identity.host)},`,
             `    framework: ${JSON.stringify(identity.framework)},`,
             '    stylingSystem: detectFramework(tokens).stylingSystem,',
-            '    ...(__nudge_ui_demo_runtime ? { demo: true } : {}),',
-            `    capabilities: { canvas: __nudge_ui_demo_runtime ? false : true, componentSemantics: ${String(framework !== null)} },`,
+            '    demo: true,',
+            `    demoPages: ${JSON.stringify(options.demoPages ?? [])},`,
+            `    demoCardLabels: ${JSON.stringify(options.demoCardLabels ?? [])},`,
+            `    capabilities: { canvas: true, componentSemantics: ${String(framework !== null)} },`,
             '    tokenCatalog,',
             '    tokens,',
             '    tokenDiagnostics,',
@@ -801,12 +838,11 @@ export function createVitePlugins(
             '  const __dt_root = document.getElementById("nudge-ui-root");',
             '  if (__dt_root) {',
             '    bootstrapNudgeUi(__dt_root);',
-            '    if (__nudge_ui_demo_runtime) {',
-            '      setInspectorOpen(false);',
-            '      window.addEventListener("nudge-ui:open", () => setInspectorOpen(true));',
-            '    }',
             '  }',
             '}',
+            'window.addEventListener("nudge-ui:open", () => {',
+            '  if (!__nudge_ui_renderer && (__nudge_ui_explicit_direct || __nudge_ui_direct_tab)) window.location.assign(createNudgeUiEditorUrl(window.location.href));',
+            '});',
           ].join("\n");
         }
         return null;

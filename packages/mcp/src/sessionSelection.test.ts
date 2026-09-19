@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { AGENT_PROTOCOL_VERSION } from "@nudge-ui/agent-protocol";
 import type { StoredProjectSession } from "./project.ts";
 import { selectProjectSession } from "./sessionSelection.ts";
 
 const workspace = { workspaceRoot: "/repo", applicationRoot: "/repo" };
 const web: StoredProjectSession = {
   schemaVersion: 1,
-  protocolVersion: 1,
+  protocolVersion: AGENT_PROTOCOL_VERSION,
   sessionId: "web-original",
   projectId: "web",
   workspaceRoot: "/repo",

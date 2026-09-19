@@ -2,7 +2,6 @@ import { test, expect } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/playground");
-  await page.locator('[data-test="mode-canvas"]').click();
   await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   await expect(page.locator(".canvas-card__iframe").first()).toBeAttached();
   await expect(page.frameLocator(".canvas-card__iframe").first().locator("body")).toBeVisible({ timeout: 20_000 });
@@ -81,13 +80,15 @@ test("dev: Canvas measurements stay within the active iframe and omit self-ruler
     };
   })).toEqual({ guides: 4, rulers: 0 });
 
+  await page.locator('[data-test="canvas-show-canvas"]').click();
+  await expect(page.locator('[data-test="canvas-workspace"][data-presentation="canvas"]')).toBeVisible();
   await page.locator('[data-test="canvas-workspace"]').hover({ position: { x: 4, y: 60 } });
   await expect(page.locator('[data-test="canvas-measurement-overlay"]')).not.toBeAttached();
   await page.keyboard.up("Alt");
 
   await frame.locator('a[href="/conformance"]').click();
-  await expect(page.locator(".canvas-card__iframe")).toHaveCount(2);
-  const secondFrame = page.frameLocator(".canvas-card__iframe").nth(1);
+  await expect(page.locator(".canvas-card__iframe")).toHaveCount(1);
+  const secondFrame = page.frameLocator(".canvas-card__iframe").first();
   await expect(secondFrame.locator("body")).toBeVisible({ timeout: 20_000 });
   const secondTarget = secondFrame.locator("[data-cid]").first();
   await secondTarget.hover();

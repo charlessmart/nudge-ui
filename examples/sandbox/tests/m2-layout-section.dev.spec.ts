@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function waitForEditors(page: import("@playwright/test").Page): Promise<void> {
   await expect
@@ -46,7 +47,7 @@ async function setLayoutInput(page: import("@playwright/test").Page, testId: str
 }
 
 async function computedPropOn(page: import("@playwright/test").Page, testId: string, prop: string): Promise<string> {
-  return await page.evaluate(({ t, p }) => {
+  return await (await getAppFrame(page)).evaluate(({ t, p }) => {
     const el = document.querySelector(`[data-test="${t}"]`) as HTMLElement | null;
     return el ? getComputedStyle(el).getPropertyValue(p) : "";
   }, { t: testId, p: prop });
@@ -82,9 +83,10 @@ async function revertChange(page: import("@playwright/test").Page, property: str
  * until it registers rather than firing once and racing bootstrap.
  */
 async function selectFixture(page: import("@playwright/test").Page, testId: string): Promise<void> {
+  const app = await getAppFrame(page);
   await expect
     .poll(async () => {
-      await page.evaluate((id) => {
+      await app.evaluate((id) => {
         (document.querySelector(`[data-test="${id}"]`) as HTMLElement | null)?.click();
       }, testId);
       return shadowQueryExists(page, "layout-section");
@@ -93,7 +95,7 @@ async function selectFixture(page: import("@playwright/test").Page, testId: stri
 }
 
 test("dev: layout section shows flex container controls and edits write to managed stylesheet", async ({ page }) => {
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
 
   await selectFixture(page, "flex-container");
   await waitForEditors(page);
@@ -296,9 +298,9 @@ test("dev: layout section shows flex container controls and edits write to manag
 });
 
 test("dev: layout section shows flex child controls when selecting a child of a flex container", async ({ page }) => {
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
 
-  await page.click('[data-test="flex-child-a"]');
+  await (await getAppFrame(page)).locator('[data-test="flex-child-a"]').click();
   await waitForEditors(page);
   await expect.poll(async () => shadowQueryExists(page, "layout-flex-child"), { timeout: 5000 }).toBe(true);
 
@@ -356,9 +358,9 @@ test("dev: layout section shows flex child controls when selecting a child of a 
 });
 
 test("dev: layout section shows inset controls for a positioned element", async ({ page }) => {
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
 
-  await page.click('[data-test="positioned-box"]');
+  await (await getAppFrame(page)).locator('[data-test="positioned-box"]').click();
   await waitForEditors(page);
 
   // Layout section should be visible
@@ -427,8 +429,8 @@ test("dev: layout section shows inset controls for a positioned element", async 
 });
 
 test("dev: positioned layout edits move the element and revert cleanly", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click('[data-test="positioned-box"]');
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).locator('[data-test="positioned-box"]').click();
   await waitForEditors(page);
 
   await page.locator('[data-test="add-inset"]').click();
@@ -450,8 +452,8 @@ test("dev: positioned layout edits move the element and revert cleanly", async (
 });
 
 test("dev: layout size controls edit dimensions and aspect ratio", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click('[data-test="sizing-box"]');
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).locator('[data-test="sizing-box"]').click();
   await waitForEditors(page);
 
   await expect(page.locator('[data-test="layout-size"]')).toBeVisible();
@@ -473,8 +475,8 @@ test("dev: layout size controls edit dimensions and aspect ratio", async ({ page
 });
 
 test("dev: absolute position exposes grouped and individual inset values", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click('[data-test="right-anchored-box"]');
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).locator('[data-test="right-anchored-box"]').click();
   await waitForEditors(page);
 
   await expect(page.locator('[data-test="layout-position"]')).toBeVisible();
@@ -497,8 +499,9 @@ test("dev: absolute position exposes grouped and individual inset values", async
 });
 
 test("dev: Grid controls preserve authored track expressions and edit managed rules", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click('[data-test="grid-authored-container"]');
+  await openEditor(page, "/playground");
+  const appFrame = await getAppFrame(page);
+  await appFrame.locator('[data-test="grid-authored-container"]').click();
   await waitForEditors(page);
 
   await expect(page.locator('[data-test="layout-grid-container"]')).toBeVisible({ timeout: 10000 });
@@ -541,7 +544,7 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
     .toMatch(/grid-template-columns: repeat\(4, minmax\(0(?:px)?, 1fr\)\)/);
   await page.keyboard.press("Escape");
 
-  await page.click('[data-test="grid-child-span"]');
+  await appFrame.locator('[data-test="grid-child-span"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="layout-grid-child"]')).toBeVisible();
 
@@ -564,8 +567,8 @@ test("dev: Grid controls preserve authored track expressions and edit managed ru
 });
 
 test("dev: Grid is selectable from the Layout display dropdown", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click('[data-test="grid-switch-target"]');
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).locator('[data-test="grid-switch-target"]').click();
   await waitForEditors(page);
   await expect(page.locator('[data-test="layout-grid-container"]')).toHaveCount(0);
 

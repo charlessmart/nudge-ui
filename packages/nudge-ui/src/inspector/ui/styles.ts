@@ -14,6 +14,7 @@ import popoverListboxStyles from "./PopoverListbox.css?inline";
 import inspectorPopoverStyles from "./InspectorPopover.css?inline";
 import sideValuesFieldStyles from "./SideValuesField.css?inline";
 import inspectorShellStyles from "../shell/InspectorShell.css?inline";
+import inspectorOverlayStyles from "../overlay/InspectorOverlay.css?inline";
 import emptyStateStyles from "../shell/EmptyState.css?inline";
 import styleEditorStyles from "../styleEditors/StyleEditor.css?inline";
 import borderEditorStyles from "../styleEditors/BorderEditor.css?inline";
@@ -26,11 +27,11 @@ import tokenFieldStyles from "../tokens/TokenField.css?inline";
 import tokenDropdownStyles from "../tokens/TokenDropdown.css?inline";
 import tokensPanelStyles from "../tokens/TokensPanel.css?inline";
 import changesLogStyles from "../shell/ChangesLog.css?inline";
-import inspectorOverlayStyles from "../overlay/InspectorOverlay.css?inline";
 import domNavigationStyles from "../shell/DomNavigation.css?inline";
 import promptSettingsStyles from "../prompt/PromptSettingsDialog.css?inline";
 import mcpConnectionStyles from "../agent/McpConnectionDialog.css?inline";
 import settingsStyles from "../settings/SettingsDialog.css?inline";
+import sketchStyles from "../sketch/Sketch.css?inline";
 
 export const UI_STYLES = [
   foundationStyles,
@@ -49,6 +50,7 @@ export const UI_STYLES = [
   inspectorPopoverStyles,
   sideValuesFieldStyles,
   inspectorShellStyles,
+  inspectorOverlayStyles,
   emptyStateStyles,
   styleEditorStyles,
   borderEditorStyles,
@@ -61,9 +63,9 @@ export const UI_STYLES = [
   tokenDropdownStyles,
   tokensPanelStyles,
   changesLogStyles,
-  inspectorOverlayStyles,
   domNavigationStyles,
   promptSettingsStyles,
   mcpConnectionStyles,
   settingsStyles,
+  sketchStyles,
 ].join("\n");

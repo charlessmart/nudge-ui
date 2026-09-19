@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
+import { getAppFrame, openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function sheetText(page: import("@playwright/test").Page): Promise<string> {
   return managedSheetText(page);
@@ -46,21 +47,21 @@ async function setInput(page: import("@playwright/test").Page, property: string,
 }
 
 async function computedProp(page: import("@playwright/test").Page, prop: string): Promise<string> {
-  return await page.evaluate((p) => {
+  return await (await getAppFrame(page)).evaluate((p) => {
     const btn = document.querySelector(".btn") as HTMLElement | null;
     return btn ? getComputedStyle(btn).getPropertyValue(p) : "";
   }, prop);
 }
 
 async function computedFixtureProp(page: import("@playwright/test").Page, fixture: string, prop: string): Promise<string> {
-  return await page.locator(`[data-test="${fixture}"]`).evaluate((element, property) => {
+  return await (await getAppFrame(page)).locator(`[data-test="${fixture}"]`).evaluate((element, property) => {
     return getComputedStyle(element).getPropertyValue(property);
   }, prop);
 }
 
 test("dev: style editors write through the managed stylesheet and update the .btn live", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForEditors(page);
   await expandSpacing(page);
 
@@ -79,7 +80,7 @@ test("dev: style editors write through the managed stylesheet and update the .bt
     .poll(async () => computedProp(page, "border-radius"), { timeout: 5000 })
     .toBe("12px");
 
-  const expectedColor = await page.evaluate(() =>
+  const expectedColor = await (await getAppFrame(page)).evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--color-text-secondary").trim(),
   );
   const expectedRgb = hexToRgbString(expectedColor);
@@ -134,8 +135,8 @@ test("dev: style editors write through the managed stylesheet and update the .bt
 });
 
 test("dev: control surfaces own field chrome while token fields provide embedded content", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForEditors(page);
 
   const emptyPadding = page.locator('[data-test="spacing-padding"]');
@@ -160,11 +161,11 @@ test("dev: control surfaces own field chrome while token fields provide embedded
 });
 
 test("dev: color suggestions exclude unrelated tokens from the editor picker", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForEditors(page);
 
-  await expect.poll(async () => page.evaluate(() => {
+  await expect.poll(async () => (await getAppFrame(page)).evaluate(() => {
     const catalog = (window as unknown as {
       __designTokenCatalog?: Array<{ cssName: string }>;
     }).__designTokenCatalog;
@@ -194,8 +195,8 @@ test("dev: color suggestions exclude unrelated tokens from the editor picker", a
 });
 
 test("dev: linked border values expand into icon-labelled individual side fields", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForEditors(page);
 
   const borderSection = page.locator('.border');
@@ -218,9 +219,9 @@ test("dev: linked border values expand into icon-labelled individual side fields
 });
 
 test("dev: authored CSS border fixtures parse width, style, and color per side", async ({ page }) => {
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
   await waitForInspector(page);
-  const fixture = page.locator('[data-test="css-border-mixed"]');
+  const fixture = (await getAppFrame(page)).locator('[data-test="css-border-mixed"]');
   await fixture.click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
 
@@ -239,10 +240,11 @@ test("dev: authored CSS border fixtures parse width, style, and color per side",
 });
 
 test("dev: main demo color fixtures expose partial opacity after CSSOM normalization", async ({ page }) => {
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
   await waitForInspector(page);
 
-  const rgbaFixture = page.locator('[data-test="css-opacity-rgba"]');
+  const appFrame = await getAppFrame(page);
+  const rgbaFixture = appFrame.locator('[data-test="css-opacity-rgba"]');
   await rgbaFixture.click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
@@ -250,7 +252,7 @@ test("dev: main demo color fixtures expose partial opacity after CSSOM normaliza
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="color-opacity-input"]'))
     .toHaveValue("18%");
 
-  const hexFixture = page.locator('[data-test="css-opacity-hex"]');
+  const hexFixture = appFrame.locator('[data-test="css-opacity-hex"]');
   await hexFixture.click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
   await expect(page.locator('[data-test="token-field"][data-property="background-color"] [data-test="raw-input"]'))
@@ -261,9 +263,9 @@ test("dev: main demo color fixtures expose partial opacity after CSSOM normaliza
 });
 
 test("dev: individual side focus ring belongs to the whole side field", async ({ page }) => {
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
   await waitForInspector(page);
-  await page.locator('[data-test="css-border-mixed"]').click({ position: { x: 20, y: 20 } });
+  await (await getAppFrame(page)).locator('[data-test="css-border-mixed"]').click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
 
   const input = page.locator('[data-test="token-field"][data-property="border-top-width"] [data-test="raw-input"]');
@@ -284,8 +286,8 @@ test("dev: individual side focus ring belongs to the whole side field", async ({
 });
 
 test("dev: spacing starts grouped and toggles between pair and four-side views", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForEditors(page);
 
   const spacing = page.locator('[data-test="spacing-padding"]');
@@ -397,9 +399,9 @@ test("dev: spacing starts grouped and toggles between pair and four-side views",
 });
 
 test("dev: linking divergent border widths applies one value and survives reselection", async ({ page }) => {
-  await page.goto("/playground");
+  await openEditor(page, "/playground");
   await waitForInspector(page);
-  const fixture = page.locator('[data-test="css-border-mixed"]');
+  const fixture = (await getAppFrame(page)).locator('[data-test="css-border-mixed"]');
   await fixture.click({ position: { x: 20, y: 20 } });
   await waitForEditors(page);
 
@@ -418,8 +420,8 @@ test("dev: linking divergent border widths applies one value and survives resele
 });
 
 test("dev: style editors keep layout and spacing ahead of typography and color", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Save");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).getByRole("button", { name: "Save" }).click();
   await waitForEditors(page);
 
   const editorOrder = await page.evaluate(() => {
@@ -564,7 +566,7 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   await expect(colorEditors.nth(0)).not.toContainText("Value");
   await expect(colorEditors.nth(0).locator('[data-test="token-field"]')).toHaveClass(/token-field--color/);
 
-  await page.locator(".hero h1").click();
+  await (await getAppFrame(page)).locator(".hero h1").click();
   await waitForEditors(page);
   const emptyBackground = page.locator('[data-test="color-picker"][data-property="background-color"]');
   await expect(emptyBackground.locator('[data-test="token-field"]')).toHaveCount(0);
@@ -579,8 +581,8 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
 });
 
 test("dev: removing a background color hides the transparent empty state", async ({ page }) => {
-  await page.goto("/playground");
-  await page.locator(".hero-actions .btn").click();
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).locator(".hero-actions .btn").click();
   await waitForEditors(page);
 
   const background = page.locator('[data-test="color-picker"][data-property="background-color"]');
@@ -593,8 +595,8 @@ test("dev: removing a background color hides the transparent empty state", async
 });
 
 test("dev: spacing fields split a three-value margin shorthand by side", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click(".hero h1");
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).locator(".hero h1").click();
   await waitForEditors(page);
   const margin = page.locator('[data-test="spacing-margin"]');
   await expect(margin).toHaveAttribute("data-expanded", "false");
@@ -610,15 +612,15 @@ test("dev: spacing fields split a three-value margin shorthand by side", async (
 });
 
 test("dev: spacing expansion resets when selecting a symmetric element", async ({ page }) => {
-  await page.goto("/playground");
-  await page.locator(".hero h1").click();
+  await openEditor(page, "/playground");
+  await (await getAppFrame(page)).locator(".hero h1").click();
   await waitForEditors(page);
   const margin = page.locator('[data-test="spacing-margin"]');
   await expect(margin).toHaveAttribute("data-expanded", "false");
   await margin.locator('[data-test="individual-sides"]').click();
   await expect(margin).toHaveAttribute("data-expanded", "true");
 
-  await page.locator('[data-test="flex-child-a"]').click();
+  await (await getAppFrame(page)).locator('[data-test="flex-child-a"]').click();
   await expect(page.locator('[data-test="spacing-padding"]')).toHaveAttribute("data-empty", "true");
   await expect(page.locator('[data-test="spacing-margin"]')).toHaveAttribute("data-empty", "true");
   await expect(page.locator('[data-test="spacing-margin"] [data-test="pair-value-horizontal"]')).toHaveCount(0);

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { openEditor } from "@nudge-ui/compatibility/playwright";
 
 async function shadowClick(page: import("@playwright/test").Page, testId: string): Promise<void> {
   await page.locator(`[data-test="${testId}"]`).click();
@@ -17,8 +18,8 @@ async function setRaw(page: import("@playwright/test").Page, property: string, v
 }
 
 test("dev: non-forwarding repeated component defaults to source scope and can edit one rendered instance", async ({ page }) => {
-  await page.goto("/playground");
-  await page.click("text=Repeated 3");
+  const app = await openEditor(page, "/playground");
+  await app.getByText("Repeated 3", { exact: true }).click();
 
   await expect(page.locator('[data-test="edit-scope"]')).toHaveClass(/status-callout--accent/);
   await expect(page.locator('[data-test="edit-scope"]')).toContainText("Affects 6 elements");
@@ -28,17 +29,17 @@ test("dev: non-forwarding repeated component defaults to source scope and can ed
   await expect(page.locator('[data-test="unlink-element"]')).toHaveText("Unlink");
   await page.locator('[data-test="unlink-element"]').hover();
   await setRaw(page, "font-size", "18px");
-  await expect.poll(() => page.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(Array(6).fill("18px"));
+  await expect.poll(() => app.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(Array(6).fill("18px"));
   await shadowClick(page, "unlink-element");
 
   await expect(page.locator('[data-test="edit-scope"]')).toContainText("Element unlinked");
   await expect(page.locator('[data-test="relink-element"]')).toHaveText("Relink");
   await expect(page.locator('[data-test="edit-scope"] .scope__unlinked')).toHaveCSS("display", "flex");
-  expect(await page.locator(".repeated-item[data-instance]").count()).toBe(0);
+  expect(await app.locator(".repeated-item[data-instance]").count()).toBe(0);
   await setRaw(page, "font-size", "24px");
-  await expect.poll(() => page.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
-  expect(await page.locator(".repeated-item[data-projection-instance]").count()).toBe(1);
+  await expect.poll(() => app.locator(".repeated-item").evaluateAll((els) => els.map((el) => getComputedStyle(el).fontSize))).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
+  expect(await app.locator(".repeated-item[data-projection-instance]").count()).toBe(1);
 
   await shadowClick(page, "relink-element");
-  expect(await page.locator(".repeated-item[data-projection-instance]").count()).toBe(0);
+  expect(await app.locator(".repeated-item[data-projection-instance]").count()).toBe(0);
 });

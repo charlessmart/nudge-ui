@@ -192,7 +192,9 @@ describe("shared inspector UI", () => {
     act(() => {
       root.render(createElement("div", null,
         createElement(Button, { variant: "primary", size: "compact", "data-test": "text-primary" }, "Save"),
+        createElement(Button, { size: "large", "data-test": "text-large" }, "Large"),
         createElement(IconButton, { variant: "secondary", label: "Add", "data-test": "icon-secondary" }, "+"),
+        createElement(IconButton, { size: "large", label: "Large icon", "data-test": "icon-large" }, "+"),
         createElement(IconButton, { variant: "primary", size: "compact", label: "Save", "data-test": "icon-primary" }, "✓"),
         createElement(IconButton, { variant: "quiet", label: "More", "data-test": "icon-quiet" }, "⋯"),
         createElement(IconButton, { variant: "disabled", disabled: true, label: "Unavailable", "data-test": "icon-disabled" }, "–"),
@@ -200,8 +202,10 @@ describe("shared inspector UI", () => {
     });
 
     expect(host.querySelector('[data-test="text-primary"]')?.className).toContain("button--primary");
+    expect(host.querySelector('[data-test="text-large"]')?.className).toContain("button--large");
     expect(host.querySelector('[data-test="icon-primary"]')?.className).toContain("icon-button--primary");
     expect(host.querySelector('[data-test="icon-primary"]')?.className).toContain("icon-button--compact");
+    expect(host.querySelector('[data-test="icon-large"]')?.className).toContain("icon-button--large");
     expect(host.querySelector('[data-test="icon-secondary"]')?.className).toContain("icon-button--secondary");
     expect(host.querySelector('[data-test="icon-quiet"]')?.className).toContain("icon-button--quiet");
     expect(host.querySelector('[data-test="icon-disabled"]')?.className).toContain("icon-button--disabled");

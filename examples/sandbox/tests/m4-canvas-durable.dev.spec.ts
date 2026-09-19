@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { appLocator, getAppFrame } from "@nudge-ui/compatibility/playwright";
 import { managedSheetText } from "./managedSheet.ts";
 
 async function managedSheetContent(page: import("@playwright/test").Page): Promise<string> {
@@ -34,6 +35,10 @@ async function setInput(
   property: string,
   value: string,
 ): Promise<void> {
+  const rawInput = page.locator(
+    `[data-test="token-field"][data-property="${property}"] [data-test="raw-input"]`,
+  );
+  await expect(rawInput).toBeVisible();
   await page.evaluate(
     ({ p, v }) => {
       const sr = document.getElementById("nudge-ui-root")?.shadowRoot;
@@ -57,7 +62,7 @@ async function setInput(
 test.describe("Canvas durable session", () => {
   test("dev: edits survive page refresh without restore-count copy", async ({ page }) => {
     await page.goto("/playground");
-    await page.click("text=Save");
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
     await waitForInspector(page);
 
     // Make an element edit in Inspect mode
@@ -83,7 +88,7 @@ test.describe("Canvas durable session", () => {
 
   test("dev: the first CSS edit can be cleared before refresh", async ({ page }) => {
     await page.goto("/playground");
-    await page.click("text=Save");
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
     await waitForInspector(page);
 
     await expandSpacing(page);
@@ -102,8 +107,7 @@ test.describe("Canvas durable session", () => {
     await waitForInspector(page);
 
     // Enter Canvas mode
-    await page.locator('[data-test="mode-canvas"]').click();
-    await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+      await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
     // Card should exist
     const board = page.locator('[data-test="canvas-board"]');
@@ -118,26 +122,22 @@ test.describe("Canvas durable session", () => {
     await expect(board.locator(".canvas-card")).toHaveCount(1);
   });
 
-  test("dev: inspect mode survives refresh", async ({ page }) => {
+  test("dev: iframe workspace survives refresh", async ({ page }) => {
     await page.goto("/playground");
     await waitForInspector(page);
 
-    // Make sure we're in inspect mode
-    await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
-    await expect(page.locator('[data-test="mode-canvas"]')).toBeVisible();
+    await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
 
     // Reload
     await page.reload();
     await waitForInspector(page);
 
-    // Should still be in inspect mode
-    await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
-    await expect(page.locator('[data-test="mode-canvas"]')).toBeVisible();
+    await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
   });
 
   test("dev: clear session removes all edits and workspace state", async ({ page }) => {
     await page.goto("/playground");
-    await page.click("text=Save");
+    await page.frameLocator(".canvas-card__iframe").first().getByRole("button", { name: "Save" }).click();
     await waitForInspector(page);
 
     // Make edits
@@ -145,10 +145,7 @@ test.describe("Canvas durable session", () => {
     await setInput(page, "padding-top", "48px");
     await expect.poll(() => managedSheetContent(page)).toContain("padding-top: 48px;");
 
-    // Enter Canvas, then exit
-    await page.locator('[data-test="mode-canvas"]').click();
     await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
-    await page.locator('[data-test^="canvas-card-preview-"]').first().click();
 
     // Click "Clear Session" from the session actions
     await page.reload();
@@ -166,8 +163,9 @@ test.describe("Canvas durable session", () => {
     // After clearing, edits should be gone
     await expect.poll(() => managedSheetContent(page)).not.toContain("padding-top: 48px;");
 
-    // Should be in inspect mode
-    await expect(page.locator('[data-test="canvas-workspace"]')).not.toBeVisible();
+    // Clearing recovers a clean primary editing surface.
+    await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible();
+    await expect(page.locator(".canvas-card")).toHaveCount(1);
   });
 
   test("dev: global token edits survive refresh", async ({ page }) => {
@@ -203,12 +201,12 @@ test.describe("Canvas durable session", () => {
   test("dev: one repeated rendered-item override survives refresh, Canvas switching, and frame reload", async ({ page }) => {
     await page.goto("/playground");
     await waitForInspector(page);
-    await page.click("text=Repeated 3");
+    await appLocator(page, ".repeated-item").filter({ hasText: "Repeated 3" }).click();
     await setInput(page, "font-size", "18px");
     await expect.poll(() => managedSheetContent(page)).toContain("font-size: 18px;");
     await page.locator('[data-test="unlink-element"]').click();
     await setInput(page, "font-size", "24px");
-    const fontSize = () => page.locator(".repeated-item").evaluateAll((els) =>
+    const fontSize = () => appLocator(page, ".repeated-item").evaluateAll((els) =>
       els.map((el) => getComputedStyle(el).fontSize));
     await expect.poll(fontSize).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
 
@@ -218,8 +216,7 @@ test.describe("Canvas durable session", () => {
     await waitForInspector(page);
     await expect.poll(fontSize).toEqual(["18px", "18px", "24px", "18px", "18px", "18px"]);
 
-    await page.locator('[data-test="mode-canvas"]').click();
-    await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+      await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
     const frame = page.frameLocator(".canvas-card__iframe").first();
     const frameFontSize = () => frame.locator(".repeated-item").evaluateAll((els) =>
       els.map((el) => getComputedStyle(el).fontSize));
@@ -233,29 +230,28 @@ test.describe("Canvas durable session", () => {
   test("dev: a rendered-item CSS override captured after a list move restores against the moved order", async ({ page }) => {
     await page.goto("/playground");
     await waitForInspector(page);
-    const moved = page.getByText("Repeated 3", { exact: true });
+    const moved = appLocator(page, ".repeated-item").filter({ hasText: "Repeated 3" });
     await moved.click();
     await page.keyboard.press("ArrowUp");
-    await expect(page.locator(".repeated-item")).toHaveText([
+    await expect(appLocator(page, ".repeated-item")).toHaveText([
       "Repeated 1", "Repeated 3", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
     ]);
 
     await setInput(page, "font-size", "18px");
     await page.locator('[data-test="unlink-element"]').click();
     await setInput(page, "font-size", "24px");
-    const fontSize = () => page.locator(".repeated-item").evaluateAll((els) =>
+    const fontSize = () => appLocator(page, ".repeated-item").evaluateAll((els) =>
       els.map((el) => getComputedStyle(el).fontSize));
     await expect.poll(fontSize).toEqual(["18px", "24px", "18px", "18px", "18px", "18px"]);
 
     await page.reload();
     await waitForInspector(page);
-    await expect(page.locator(".repeated-item")).toHaveText([
+    await expect(appLocator(page, ".repeated-item")).toHaveText([
       "Repeated 1", "Repeated 3", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
     ]);
     await expect.poll(fontSize).toEqual(["18px", "24px", "18px", "18px", "18px", "18px"]);
 
-    await page.locator('[data-test="mode-canvas"]').click();
-    await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+      await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
     const frame = page.frameLocator(".canvas-card__iframe").first();
     await expect(frame.locator(".repeated-item")).toHaveText([
       "Repeated 1", "Repeated 3", "Repeated 2", "Repeated 4", "Repeated 5", "Repeated 6",
@@ -267,51 +263,50 @@ test.describe("Canvas durable session", () => {
   test("dev: a reconciled rendered-item marker is reported as overridden without reapplying", async ({ page }) => {
     await page.goto("/playground");
     await waitForInspector(page);
-    await page.getByText("Repeated 3", { exact: true }).click();
+    await appLocator(page, ".repeated-item").filter({ hasText: "Repeated 3" }).click();
     await setInput(page, "font-size", "18px");
     await page.locator('[data-test="unlink-element"]').click();
     await setInput(page, "font-size", "24px");
-    await expect(page.locator('.repeated-item[data-projection-instance]')).toHaveCount(1);
+    await expect(appLocator(page, '.repeated-item[data-projection-instance]')).toHaveCount(1);
 
-    await page.evaluate(() => {
+    await (await getAppFrame(page)).evaluate(() => {
       document.querySelector('.repeated-item[data-projection-instance]')
         ?.removeAttribute("data-projection-instance");
     });
     await page.locator('[data-test="changes-toggle"]').click();
-    await expect(page.locator('[data-test="instance-diagnostic"][data-document="Inspect"][data-status="overridden"]'))
+    await expect(page.locator('[data-test="instance-diagnostic"][data-document^="Canvas"][data-status="overridden"]'))
       .toBeVisible();
-    await expect(page.locator('.repeated-item[data-projection-instance]')).toHaveCount(0);
+    await expect(appLocator(page, '.repeated-item[data-projection-instance]')).toHaveCount(0);
   });
 
   test("dev: restored individual CSS, delete, and move project through Canvas reload and clear together", async ({ page }) => {
     await page.goto("/playground");
     await waitForInspector(page);
 
-    await page.getByText("Repeated 4", { exact: true }).click();
+    await appLocator(page, ".repeated-item").filter({ hasText: "Repeated 4" }).click();
     await setInput(page, "font-size", "18px");
     await page.locator('[data-test="unlink-element"]').click();
     await setInput(page, "font-size", "24px");
-    const fontSize = () => page.locator(".repeated-item").evaluateAll((els) =>
+    const fontSize = () => appLocator(page, ".repeated-item").evaluateAll((els) =>
       els.map((el) => getComputedStyle(el).fontSize));
     await expect.poll(fontSize).toEqual(["18px", "18px", "18px", "24px", "18px", "18px"]);
 
-    const repeated = page.getByText("Repeated 3", { exact: true });
+    const repeated = appLocator(page, ".repeated-item").filter({ hasText: "Repeated 3" });
     await repeated.click();
     await page.keyboard.press("Backspace");
     await expect(repeated).not.toBeAttached();
-    const first = page.locator('[data-test="flex-child-a"]');
+    const first = appLocator(page, '[data-test="flex-child-a"]');
     await first.click();
     await page.keyboard.press("ArrowRight");
-    await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("BAC");
+    await expect.poll(() => appLocator(page, '[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("BAC");
 
     await page.reload();
     await waitForInspector(page);
     await expect.poll(fontSize).toEqual(["18px", "18px", "24px", "18px", "18px"]);
-    await expect(page.getByText("Repeated 3", { exact: true })).not.toBeAttached();
-    await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("BAC");
+    await expect(appLocator(page, ".repeated-item").filter({ hasText: "Repeated 3" })).not.toBeAttached();
+    await expect.poll(() => appLocator(page, '[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("BAC");
 
-    await page.locator('[data-test="mode-canvas"]').click();
-    await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
+      await expect(page.locator('[data-test^="canvas-card-loading-"]')).not.toBeVisible({ timeout: 20000 });
     const frame = page.frameLocator(".canvas-card__iframe").first();
     await expect(frame.getByText("Repeated 3", { exact: true })).not.toBeAttached();
     await expect.poll(() => frame.locator('[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("BAC");
@@ -326,8 +321,8 @@ test.describe("Canvas durable session", () => {
     await expect.poll(frameFontSize).toEqual(["18px", "18px", "24px", "18px", "18px"]);
 
     await page.locator('[data-test="clear-session"]').click();
-    await expect(page.getByText("Repeated 3", { exact: true })).toBeVisible();
-    await expect.poll(() => page.locator('[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("ABC");
+    await expect(appLocator(page, ".repeated-item").filter({ hasText: "Repeated 3" })).toBeVisible();
+    await expect.poll(() => appLocator(page, '[data-test="flex-container"]').evaluate((el) => el.textContent)).toBe("ABC");
     await expect.poll(fontSize).not.toEqual(["18px", "18px", "18px", "24px", "18px", "18px"]);
   });
 });

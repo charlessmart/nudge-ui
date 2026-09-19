@@ -4,6 +4,71 @@ import { describe, expect, it } from "vitest";
 import { createAgentCompanion } from "./server.ts";
 
 describe("standard MCP companion", () => {
+  it("delivers sketch PNGs as native image content after the metadata text", async () => {
+    const companion = createAgentCompanion({
+      projectId: "mcp-sketch-project",
+      origin: "http://localhost:5173",
+      port: 0,
+      tokenFactory: () => "mcp-sketch-session",
+      idFactory: () => "mcp-sketch-request",
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "nudge-test-client", version: "1.0.0" });
+    const starting = companion.start(serverTransport);
+    await client.connect(clientTransport);
+    const started = await starting;
+    try {
+      companion.bridge.pairBrowser("mcp-sketch-project", "http://localhost:5173");
+      const listening = client.callTool({ name: "nudge_listen", arguments: {} });
+      const data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+      const dispatched = await fetch(`${started.address.url}/prompt`, {
+        method: "POST",
+        headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: "mcp-sketch-project",
+          sessionToken: "mcp-sketch-session",
+          prompt: "Review this viewport sketch",
+          clientDispatchId: "batch-1",
+          attachments: [{
+            id: "sketch-1",
+            revision: 1,
+            filename: "sketch-sketch-1-r1.png",
+            mimeType: "image/png",
+            width: 1,
+            height: 1,
+            byteSize: 68,
+            capture: {
+              url: "http://localhost:5173/",
+              title: "Fixture",
+              timestamp: 1,
+              viewportWidth: 800,
+              viewportHeight: 600,
+              scrollX: 0,
+              scrollY: 0,
+              devicePixelRatio: 1,
+              host: "vite-react",
+              framework: "React",
+            },
+            data,
+          }],
+        }),
+      });
+      expect(dispatched.status).toBe(202);
+      const result = await listening;
+      expect(result.content).toMatchObject([
+        { type: "text", text: expect.stringContaining('"clientDispatchId":"batch-1"') },
+        { type: "text", text: "Sketch image: sketch-sketch-1-r1.png" },
+        { type: "image", data, mimeType: "image/png" },
+      ]);
+      const content = result.content as Array<{ readonly type: string; readonly text?: string }>;
+      expect(content[0]).toMatchObject({ type: "text" });
+      expect(content[0]?.text).not.toContain(data);
+    } finally {
+      await client.close();
+      await companion.close();
+    }
+  });
+
   it("delivers a browser prompt through the long-lived MCP listen tool", async () => {
     const companion = createAgentCompanion({
       projectId: "mcp-project",

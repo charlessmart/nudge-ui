@@ -1,0 +1,586 @@
+.sketch-layers {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  margin-top: var(--space-8);
+}
+
+.sketch-layers__item {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.sketch-layers__copy {
+  flex: 1 1 auto;
+  position: relative;
+  justify-content: center;
+  min-width: 0;
+  padding-inline: var(--space-12);
+  text-align: center;
+}
+
+.sketch-layers__copy-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  gap: var(--space-4);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-base);
+}
+
+.sketch-layers__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sketch-layers__thumbnail {
+  position: absolute;
+  top: 50%;
+  left: var(--space-8);
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  border-radius: var(--radius-control);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-control);
+  object-fit: cover;
+  transform: translateY(-50%) rotate(-7deg);
+}
+
+.sketch-layers__thumbnail--empty {
+  border: 1px solid var(--border-subtle);
+}
+
+.sketch-layers__hint {
+  margin: var(--space-8) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  line-height: 1.4;
+}
+
+.sketch-layers__delete {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.sketch-layers__item:hover .sketch-layers__delete,
+.sketch-layers__item:focus-within .sketch-layers__delete {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.sketch-layers__error {
+  flex: 0 0 100%;
+  color: var(--warning-text);
+  font-size: var(--font-size-small);
+  line-height: 1.35;
+}
+
+.sketch__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgb(8 12 20 / 52%);
+}
+
+.sketch__editor-backdrop {
+  background: transparent;
+  inset: 0 var(--panel-width) 0 0;
+}
+
+.sketch__live-backdrop {
+  background: transparent;
+  inset: 0 var(--panel-width) 0 0;
+  pointer-events: none;
+}
+
+.sketch__popup {
+  position: fixed;
+  inset: 0 var(--panel-width) 0 0;
+  z-index: 21;
+  width: auto;
+  height: 100dvh;
+  max-height: none;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #111827;
+  color: var(--text-primary);
+  box-shadow: none;
+  pointer-events: auto;
+}
+
+.sketch__title {
+  margin: 0 36px 4px 0;
+  color: var(--text-primary);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.sketch__description {
+  max-width: 620px;
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.sketch__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sketch__live-popup {
+  overflow: visible;
+  background: transparent;
+  pointer-events: none;
+  /* Let the live controls and CanvasToolbar participate in one layer stack. */
+  z-index: auto;
+}
+
+.sketch__prompt-panel {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: min(400px, calc(100vw - var(--panel-width) - 32px));
+  padding: var(--space-8);
+  border: 0;
+  border-radius: var(--radius-12);
+  background: var(--surface-raised-2x);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-popup);
+  pointer-events: auto;
+}
+
+.sketch__live-note-panel {
+  /* Keep the note editor in the workspace viewport, outside the active frame's
+     scaled and clipped coordinate system. */
+  position: fixed;
+  left: calc((100vw - var(--panel-width)) / 2);
+  bottom: calc(var(--control-height-xlarge) + var(--space-20) + var(--space-8) + var(--space-8));
+  width: min(400px, calc(100vw - var(--panel-width) - var(--space-32)));
+  z-index: calc(var(--z-index) - 1);
+  transform: translateX(-50%);
+}
+
+.sketch__saved-note-panel {
+  position: fixed;
+  right: calc(var(--panel-width) + 24px);
+  bottom: 24px;
+  z-index: calc(var(--z-index) - 1);
+}
+
+.sketch__prompt-label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: var(--font-weight-label);
+}
+
+.sketch__prompt-input {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: calc(2 * 1.4em + var(--space-16));
+  resize: none;
+  padding: var(--space-8) calc(var(--control-height-small) + var(--space-48)) var(--space-8) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-base);
+  line-height: 1.4;
+  outline: 0;
+}
+
+.sketch__prompt-input:focus {
+  box-shadow: none;
+}
+
+.sketch__prompt-input::placeholder {
+  color: var(--text-muted);
+}
+
+.sketch__prompt-footer {
+  position: absolute;
+  inset: auto var(--space-8) var(--space-8);
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.sketch__prompt-footer .button {
+  pointer-events: auto;
+}
+
+.sketch__prompt-error {
+  min-width: 0;
+  margin-right: auto;
+  max-width: calc(100% - 88px);
+  color: var(--warning-text);
+  font-size: var(--font-size-small);
+  line-height: 1.35;
+  pointer-events: auto;
+}
+
+.sketch__canvas-frame {
+  position: absolute;
+  inset: 0;
+  display: block;
+  max-height: none;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #111827;
+}
+
+.sketch__image-wrap {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  line-height: 0;
+}
+
+.sketch__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
+.sketch__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+  outline: none;
+  z-index: 1;
+}
+
+.sketch__live-frame {
+  background: transparent;
+  pointer-events: none;
+}
+
+.sketch__canvas:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.sketch__live-canvas {
+  pointer-events: auto;
+  touch-action: pan-y;
+}
+
+.sketch__canvas--move {
+  cursor: grab;
+  touch-action: none;
+}
+
+.sketch__canvas--move:active {
+  cursor: grabbing;
+}
+
+.sketch__canvas--annotate {
+  cursor: crosshair;
+}
+
+.sketch__annotation-editor {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 280px;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised-2x);
+  box-shadow: var(--shadow-popup);
+  pointer-events: auto;
+}
+
+.sketch__annotation-editor input {
+  min-width: 0;
+  flex: 1;
+  height: var(--control-height-small);
+  padding: 0 var(--space-8);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--font-size-base);
+  outline: 0;
+}
+
+.sketch__annotation-editor input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.sketch__annotation-editor input::placeholder {
+  color: var(--text-muted);
+}
+
+.sketch__toolbar,
+.sketch__actions,
+.sketch-change__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.sketch__toolbar {
+  padding: 10px 0;
+}
+
+.sketch__floating-panel {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  z-index: 2;
+  display: grid;
+  gap: 8px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  max-height: calc(100dvh - 40px);
+  padding: var(--space-4);
+  overflow: auto;
+  border-radius: var(--radius-12);
+  background: var(--surface-raised-2x);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-popup);
+  transform: translateX(-50%);
+  animation: sketch-toolbar-enter 300ms ease-out both;
+  pointer-events: auto;
+}
+
+@keyframes sketch-toolbar-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sketch__floating-panel {
+    animation: none;
+  }
+}
+
+.sketch__floating-panel .sketch__toolbar {
+  padding: 0;
+}
+
+.sketch__floating-panel .button--quiet {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.sketch__floating-panel .button--quiet:hover:not(:disabled) {
+  background: var(--surface-well);
+  color: var(--text-primary);
+}
+
+.sketch__floating-panel .button--secondary {
+  background: var(--surface-control);
+  color: var(--text-primary);
+}
+
+.sketch__floating-panel .button--secondary:hover:not(:disabled) {
+  background: var(--surface-control-hover);
+  color: var(--text-primary);
+}
+
+.sketch__toolbar-divider {
+  width: 1px;
+  height: var(--control-height-small);
+  margin-inline: var(--space-4);
+  background: var(--border-subtle);
+}
+
+.sketch__field {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+}
+
+.sketch__field textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.sketch__field textarea:focus {
+  border-color: var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.sketch__optional {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.sketch__actions {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.sketch-change {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.sketch-change__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sketch-change__title span,
+.sketch-change__status {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sketch-change__row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.sketch-change__thumbnail {
+  width: 76px;
+  height: 58px;
+  object-fit: cover;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-control);
+}
+
+.sketch-change__thumbnail--empty { display: block; }
+
+.sketch-change__body {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.sketch-change__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sketch-change__name,
+.sketch-change__route,
+.sketch-change__description {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sketch-change__name {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.sketch-change__route,
+.sketch-change__description,
+.sketch-change__error {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.sketch-change__description {
+  margin: 2px 0;
+  white-space: normal;
+}
+
+.sketch-change__annotations {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0;
+  padding-inline-start: 18px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.sketch-change__annotations li::marker {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.sketch-change__actions {
+  gap: 2px 4px;
+}
+
+.sketch-change__actions .button {
+  padding-inline: 5px;
+  font-size: 11px;
+}
+
+.sketch-change__status[data-status="needs-review"] { color: var(--warning-text); }
+.sketch-change__status[data-status="dispatching"],
+.sketch-change__status[data-status="handing-off"] { color: var(--accent); }
+.sketch-change__error { color: var(--warning-text); }

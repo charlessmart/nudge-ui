@@ -29,7 +29,7 @@ export function createAstroRuntimeConfig(
     framework: "Astro",
     stylingSystem: detectStylingSystem(knowledge.tokens),
     capabilities: {
-      canvas: false,
+      canvas: true,
       componentSemantics: true,
       sourceCoordinates: ASTRO_SOURCE_COORDINATES,
       scopingSelectorPattern: ASTRO_SCOPING_SELECTOR_PATTERN,

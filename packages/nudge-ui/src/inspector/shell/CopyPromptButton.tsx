@@ -35,6 +35,13 @@ import {
   recordClipboardHandoff,
   subscribeClipboardHandoff,
 } from "../prompt/clipboardHandoff.ts";
+import { useSketches, markSketchesDispatching, markSketchesHandingOff, settleSketchDispatch } from "../sketch/store.ts";
+import {
+  createSketchAttachments,
+  createSketchHandoffSnapshot,
+  sketchMetadataForHandoff,
+} from "../sketch/handoff.ts";
+import { SketchLayersPanel } from "../sketch/SketchLayersPanel.tsx";
 
 export interface CopyPromptButtonProps {
   readonly settingsOpen?: boolean;
@@ -50,6 +57,8 @@ export function CopyPromptButton({
   onSettingsOpenChange,
 }: CopyPromptButtonProps = {}): ReactElement {
   const changes = useChanges();
+  const sketches = useSketches();
+  const pendingSketches = sketches.filter((item) => item.status === "pending");
   const structuralChanges = useSyncExternalStore(
     subscribeStructuralChanges,
     getStructuralChanges,
@@ -64,6 +73,10 @@ export function CopyPromptButton({
   const [copied, setCopied] = useState(false);
   const [agentCompletionStatus, setAgentCompletionStatus] = useState<AgentCompletionStatus | null>(null);
   const [agentCompletionSent, setAgentCompletionSent] = useState(0);
+  const [sketchFallback, setSketchFallback] = useState<{
+    readonly prompt: string;
+    readonly error: string;
+  } | null>(null);
   const [localSettingsOpen, setLocalSettingsOpen] = useState(false);
   const [localSettingsSection, setLocalSettingsSection] = useState<SettingsSection>("instructions");
   const settingsOpen = controlledSettingsOpen ?? localSettingsOpen;
@@ -79,7 +92,7 @@ export function CopyPromptButton({
   const agent = useAgentClient(runtimeConfig.projectId, agentClient);
   const agentRef = useRef(agent);
   agentRef.current = agent;
-  const hasChanges = changes.length + structuralChanges.length > 0;
+  const hasChanges = changes.length + structuralChanges.length + pendingSketches.length > 0;
 
   useEffect(() => {
     setCustomInstructions(loadCustomInstructions(runtimeConfig.projectId));
@@ -121,6 +134,17 @@ export function CopyPromptButton({
       active = false;
     };
   }, [agent.request?.changeRevision, agent.state]);
+
+  useEffect(() => {
+    const request = agent.request;
+    if (!request?.sketches || request.sketches.length === 0) return;
+    void settleSketchDispatch(
+      request.changeRevision,
+      request.status,
+      request.requestId,
+      request.clientDispatchId,
+    ).catch(() => undefined);
+  }, [agent.request?.changeRevision, agent.request?.requestId, agent.request?.clientDispatchId, agent.request?.sketches, agent.request?.status]);
 
   const connecting = agent.state === "pairing";
   const working = agent.state === "working" || agent.request?.status === "working";
@@ -164,21 +188,70 @@ export function CopyPromptButton({
       framework: runtimeConfig.framework,
       stylingSystem: runtimeConfig.stylingSystem,
     };
-    const text = generatePrompt(changes, hints, structuralChanges, customInstructions);
+    const sketchHandoff = createSketchHandoffSnapshot(pendingSketches);
+    const sketchMetadata = sketchHandoff ? sketchMetadataForHandoff(sketchHandoff) : [];
+    const text = generatePrompt(changes, hints, structuralChanges, customInstructions, sketchMetadata);
     setAgentCompletionStatus(null);
     setAgentCompletionSent(0);
+    setSketchFallback(null);
     if (canSend) {
-      const revision = createPromptRevision(changes, structuralChanges);
+      const revision = createPromptRevision(changes, structuralChanges, sketchMetadata);
       recordAgentDispatch(revision, changes, structuralChanges);
-      const response = await agentClient.dispatchPrompt(
-        text,
-        revision,
-      );
-      if (response) return;
+      const clientDispatchId = sketchHandoff?.localBatchId ?? `dispatch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      let attachments = undefined;
+      try {
+        if (sketchHandoff) {
+          await markSketchesDispatching(
+            sketchHandoff.entries.map((entry) => ({ id: entry.id, revision: entry.revision })),
+            revision,
+            sketchHandoff.localBatchId,
+          );
+          attachments = await createSketchAttachments(sketchHandoff);
+        }
+        const response = await agentClient.dispatchPrompt(text, revision, {
+          clientDispatchId,
+          ...(attachments === undefined ? {} : { attachments }),
+        });
+        if (response) {
+          if (sketchHandoff) {
+            await markSketchesHandingOff(
+              sketchHandoff.entries.map((entry) => ({ id: entry.id, revision: entry.revision })),
+              revision,
+              sketchHandoff.localBatchId,
+              response.request.requestId,
+            );
+          }
+          return;
+        }
+        if (sketchHandoff) {
+          await settleSketchDispatch(revision, "failed", undefined, sketchHandoff.localBatchId);
+          discardAgentDispatch(revision);
+          const latestAgent = agentClient.getSnapshot();
+          setSketchFallback({
+            prompt: text,
+            error: latestAgent.request?.error
+              ?? latestAgent.error
+              ?? "The agent did not accept the sketch attachments.",
+          });
+          return;
+        }
+      } catch (error) {
+        discardAgentDispatch(revision);
+        if (sketchHandoff) {
+          await settleSketchDispatch(revision, "failed", undefined, sketchHandoff.localBatchId).catch(() => undefined);
+          setSketchFallback({
+            prompt: text,
+            error: error instanceof Error ? error.message : "The sketch could not be sent to the agent.",
+          });
+          return;
+        }
+      }
       discardAgentDispatch(revision);
     }
     await copyToClipboard(text);
-    recordClipboardHandoff(changes, structuralChanges);
+    if (changes.length > 0 || structuralChanges.length > 0) {
+      recordClipboardHandoff(changes, structuralChanges);
+    }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   }
@@ -223,6 +296,7 @@ export function CopyPromptButton({
         {icon}
         {label}
       </Button>
+      <SketchLayersPanel />
       {statusAction ? (
         <StatusCallout
           className="copy-prompt__agent-status"
@@ -268,6 +342,27 @@ export function CopyPromptButton({
             ? "Agent completed. Remaining edits were preserved because they were not verified."
             : "Agent completed."}
         </p>
+      ) : null}
+      {sketchFallback ? (
+        <StatusCallout className="copy-prompt__sketch-fallback" tone="warning" data-test="sketch-dispatch-error">
+          <span>{sketchFallback.error}</span>
+          <Button
+            size="compact"
+            variant="secondary"
+            type="button"
+            data-test="sketch-copy-fallback"
+            onClick={() => {
+              void copyToClipboard(sketchFallback.prompt).then(() => {
+                if (changes.length > 0 || structuralChanges.length > 0) {
+                  recordClipboardHandoff(changes, structuralChanges);
+                }
+                setSketchFallback(null);
+              }).catch(() => undefined);
+            }}
+          >
+            Copy prompt
+          </Button>
+        </StatusCallout>
       ) : null}
       <SettingsDialog
         open={settingsOpen}

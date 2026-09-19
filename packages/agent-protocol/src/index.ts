@@ -7,7 +7,7 @@
  * pulling the companion into a browser bundle.
  */
 
-export const AGENT_PROTOCOL_VERSION = 1 as const;
+export const AGENT_PROTOCOL_VERSION = 2 as const;
 
 export const AGENT_PROTOCOL_LIMITS = {
   projectId: 256,
@@ -16,7 +16,21 @@ export const AGENT_PROTOCOL_LIMITS = {
   sessionToken: 256,
   requestId: 256,
   commandId: 256,
+  clientDispatchId: 256,
   prompt: 32_000,
+  sketchId: 256,
+  sketchRevision: 2_147_483_647,
+  sketchFilename: 256,
+  sketchDescription: 2_000,
+  sketchCount: 4,
+  sketchImageBytes: 2 * 1024 * 1024,
+  sketchTotalBytes: 8 * 1024 * 1024,
+  sketchEncodedBytes: 12 * 1024 * 1024,
+  sketchAnnotationCount: 50,
+  sketchUrl: 2_048,
+  sketchTitle: 512,
+  sketchFramework: 128,
+  sketchHost: 128,
   groupId: 256,
   label: 160,
   routeUrl: 2048,
@@ -149,6 +163,52 @@ export interface AgentPromptRequest {
   readonly prompt: string;
   /** The browser's canonical change revision captured at dispatch time. */
   readonly changeRevision?: number;
+  /** Correlates the durable browser handoff batch across a lost response. */
+  readonly clientDispatchId?: string;
+  /** Metadata for the exact sketch revisions included in this request. */
+  readonly sketches?: readonly AgentSketchMetadata[];
+}
+
+export interface AgentSketchCaptureMetadata {
+  readonly url: string;
+  readonly title: string;
+  readonly timestamp: number;
+  readonly viewportWidth: number;
+  readonly viewportHeight: number;
+  readonly scrollX: number;
+  readonly scrollY: number;
+  readonly devicePixelRatio: number;
+  readonly host: string;
+  readonly framework: string;
+}
+
+export interface AgentSketchAnnotation {
+  readonly number: number;
+  readonly description: string;
+}
+
+/** Metadata retained in statuses and acknowledgements without image bytes. */
+export interface AgentSketchMetadata {
+  readonly id: string;
+  readonly revision: number;
+  readonly filename: string;
+  readonly mimeType: "image/png";
+  readonly width: number;
+  readonly height: number;
+  readonly byteSize: number;
+  readonly capture: AgentSketchCaptureMetadata;
+  readonly description?: string;
+  readonly annotations?: readonly AgentSketchAnnotation[];
+}
+
+/** The only protocol shape that carries screenshot bytes. */
+export interface AgentSketchAttachment extends AgentSketchMetadata {
+  readonly data: string;
+}
+
+/** Internal companion delivery shape; attachment bytes are never status data. */
+export interface AgentDeliveredPrompt extends AgentPromptRequest {
+  readonly attachments?: readonly AgentSketchAttachment[];
 }
 
 export type AgentRequestStatus = "working" | "completed" | "failed" | "interrupted";
@@ -244,6 +304,8 @@ export interface PromptDispatchRequest {
   readonly sessionToken: string;
   readonly prompt: string;
   readonly changeRevision?: number;
+  readonly clientDispatchId?: string;
+  readonly attachments?: readonly AgentSketchAttachment[];
 }
 
 export interface PromptDispatchResponse {
@@ -289,6 +351,30 @@ function optionalString(value: unknown, maximum: number): value is string | unde
 
 function optionalRevision(value: unknown): value is number | undefined {
   return value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
+}
+
+function boundedNumber(value: unknown, maximum: number): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= maximum;
+}
+
+function boundedFiniteNumber(value: unknown, maximum: number): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= maximum;
+}
+
+function boundedString(value: unknown, maximum: number): value is string {
+  return typeof value === "string" && value.length <= maximum;
+}
+
+function validBase64(value: unknown, maximum: number): value is string {
+  return typeof value === "string"
+    && value.length > 0
+    && value.length <= maximum
+    && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value);
+}
+
+function encodedByteLength(value: string): number {
+  const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor(value.length * 3 / 4) - padding);
 }
 
 /**
@@ -377,12 +463,157 @@ export function isProjectIdentity(value: unknown): value is AgentProjectIdentity
     && optionalString(value.workspaceRoot, AGENT_PROTOCOL_LIMITS.workspaceRoot);
 }
 
+export function isAgentSketchCaptureMetadata(value: unknown): value is AgentSketchCaptureMetadata {
+  if (!isRecord(value) || !hasOnlyKeys(value, [
+    "url",
+    "title",
+    "timestamp",
+    "viewportWidth",
+    "viewportHeight",
+    "scrollX",
+    "scrollY",
+    "devicePixelRatio",
+    "host",
+    "framework",
+  ])) return false;
+  if (!nonEmptyString(value.url, AGENT_PROTOCOL_LIMITS.sketchUrl)
+    || !boundedString(value.title, AGENT_PROTOCOL_LIMITS.sketchTitle)
+    || !boundedNumber(value.timestamp, Number.MAX_SAFE_INTEGER)
+    || !boundedNumber(value.viewportWidth, 100_000)
+    || !boundedNumber(value.viewportHeight, 100_000)
+    || !boundedFiniteNumber(value.scrollX, Number.MAX_SAFE_INTEGER)
+    || !boundedFiniteNumber(value.scrollY, Number.MAX_SAFE_INTEGER)
+    || !boundedFiniteNumber(value.devicePixelRatio, 100)
+    || value.devicePixelRatio <= 0
+    || !nonEmptyString(value.host, AGENT_PROTOCOL_LIMITS.sketchHost)
+    || !nonEmptyString(value.framework, AGENT_PROTOCOL_LIMITS.sketchFramework)) {
+    return false;
+  }
+  try {
+    const url = new URL(value.url);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+export function isAgentSketchAnnotation(value: unknown): value is AgentSketchAnnotation {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["number", "description"])) return false;
+  return boundedNumber(value.number, AGENT_PROTOCOL_LIMITS.sketchAnnotationCount)
+    && value.number >= 1
+    && nonEmptyString(value.description, AGENT_PROTOCOL_LIMITS.sketchDescription);
+}
+
+function validSketchAnnotationList(value: unknown): value is readonly AgentSketchAnnotation[] {
+  if (!Array.isArray(value)
+    || value.length > AGENT_PROTOCOL_LIMITS.sketchAnnotationCount
+    || !value.every(isAgentSketchAnnotation)) return false;
+  return new Set(value.map((annotation) => annotation.number)).size === value.length;
+}
+
+export function isAgentSketchMetadata(value: unknown): value is AgentSketchMetadata {
+  if (!isRecord(value) || !hasOnlyKeys(value, [
+    "id",
+    "revision",
+    "filename",
+    "mimeType",
+    "width",
+    "height",
+    "byteSize",
+    "capture",
+    "description",
+    "annotations",
+  ])) return false;
+  return nonEmptyString(value.id, AGENT_PROTOCOL_LIMITS.sketchId)
+    && boundedNumber(value.revision, AGENT_PROTOCOL_LIMITS.sketchRevision)
+    && value.revision > 0
+    && nonEmptyString(value.filename, AGENT_PROTOCOL_LIMITS.sketchFilename)
+    && value.mimeType === "image/png"
+    && boundedNumber(value.width, 2_048)
+    && value.width > 0
+    && boundedNumber(value.height, 2_048)
+    && value.height > 0
+    && boundedNumber(value.byteSize, AGENT_PROTOCOL_LIMITS.sketchImageBytes)
+    && value.byteSize > 0
+    && isAgentSketchCaptureMetadata(value.capture)
+    && (value.description === undefined
+      || boundedString(value.description, AGENT_PROTOCOL_LIMITS.sketchDescription))
+    && (value.annotations === undefined || validSketchAnnotationList(value.annotations));
+}
+
+export function isAgentSketchAttachment(value: unknown): value is AgentSketchAttachment {
+  if (!isRecord(value) || !hasOnlyKeys(value, [
+    "id",
+    "revision",
+    "filename",
+    "mimeType",
+    "width",
+    "height",
+    "byteSize",
+    "capture",
+    "description",
+    "annotations",
+    "data",
+  ]) || !isAgentSketchMetadata({
+    id: value.id,
+    revision: value.revision,
+    filename: value.filename,
+    mimeType: value.mimeType,
+    width: value.width,
+    height: value.height,
+    byteSize: value.byteSize,
+    capture: value.capture,
+    ...(value.description === undefined ? {} : { description: value.description }),
+    ...(value.annotations === undefined ? {} : { annotations: value.annotations }),
+  })) return false;
+  return validBase64(value.data, AGENT_PROTOCOL_LIMITS.sketchEncodedBytes)
+    && encodedByteLength(value.data) === value.byteSize;
+}
+
+export function validateSketchAttachments(value: unknown): AgentSketchAttachment[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > AGENT_PROTOCOL_LIMITS.sketchCount) {
+    throw new TypeError(`attachments must contain at most ${AGENT_PROTOCOL_LIMITS.sketchCount} items`);
+  }
+  const attachments = value.map((candidate, index) => {
+    if (!isAgentSketchAttachment(candidate)) {
+      throw new TypeError(`attachments[${index}] is not a valid PNG attachment`);
+    }
+    return { ...candidate, capture: { ...candidate.capture } };
+  });
+  if (new Set(attachments.map((attachment) => `${attachment.id}\u0000${attachment.revision}`)).size
+    !== attachments.length) {
+    throw new TypeError("attachments must not contain duplicate sketch revisions");
+  }
+  const totalBytes = attachments.reduce((total, attachment) => total + attachment.byteSize, 0);
+  if (totalBytes > AGENT_PROTOCOL_LIMITS.sketchTotalBytes) {
+    throw new TypeError(`attachments must contain at most ${AGENT_PROTOCOL_LIMITS.sketchTotalBytes} decoded bytes`);
+  }
+  return attachments;
+}
+
+function validSketchMetadataList(value: unknown): value is readonly AgentSketchMetadata[] {
+  if (!Array.isArray(value) || value.length > AGENT_PROTOCOL_LIMITS.sketchCount
+    || !value.every(isAgentSketchMetadata)) return false;
+  return new Set(value.map((sketch) => `${sketch.id}\u0000${sketch.revision}`)).size === value.length;
+}
+
 export function isAgentPromptRequest(value: unknown): value is AgentPromptRequest {
-  if (!isRecord(value) || !hasOnlyKeys(value, ["requestId", "projectId", "prompt", "changeRevision"])) return false;
+  if (!isRecord(value) || !hasOnlyKeys(value, [
+    "requestId",
+    "projectId",
+    "prompt",
+    "changeRevision",
+    "clientDispatchId",
+    "sketches",
+  ])) return false;
   return nonEmptyString(value.requestId, AGENT_PROTOCOL_LIMITS.requestId)
     && nonEmptyString(value.projectId, AGENT_PROTOCOL_LIMITS.projectId)
     && nonEmptyString(value.prompt, AGENT_PROTOCOL_LIMITS.prompt)
-    && optionalRevision(value.changeRevision);
+    && optionalRevision(value.changeRevision)
+    && (value.clientDispatchId === undefined || nonEmptyString(value.clientDispatchId, AGENT_PROTOCOL_LIMITS.clientDispatchId))
+    && (value.sketches === undefined || validSketchMetadataList(value.sketches));
 }
 
 export function isAgentStatusUpdate(value: unknown): value is AgentStatusUpdate {

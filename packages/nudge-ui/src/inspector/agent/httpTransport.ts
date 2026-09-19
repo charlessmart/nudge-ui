@@ -13,13 +13,14 @@ import {
   type AgentDisconnectRequest,
   type AgentCanvasAcknowledgementRequest,
   type AgentSessionRequest,
-  type AgentPromptRequest,
   type AgentStatusSnapshot,
   type PairingResponse,
   type PromptDispatchResponse,
   type BridgeEnvelope,
   type CanvasCommand,
+  isAgentPromptRequest,
 } from "./protocol.ts";
+import { getActiveCanvasDocument } from "../canvas/activeCanvasDocument.ts";
 
 interface AgentWindow extends Window {
   __NUDGE_UI_AGENT_BRIDGE__?: AgentBridgeEndpointConfig;
@@ -50,15 +51,23 @@ function endpointValue(value: unknown): AgentBridgeEndpointConfig | undefined {
   return Object.values(config).some((entry) => entry !== undefined) ? config : undefined;
 }
 
-function configuredEndpoint(): AgentBridgeEndpointConfig | undefined {
-  if (typeof window === "undefined") return undefined;
-  const target = window as AgentWindow;
+function configuredEndpointInDocument(doc: Document): AgentBridgeEndpointConfig | undefined {
+  const target = doc.defaultView as AgentWindow | null;
+  if (!target) return undefined;
   const globalConfig = endpointValue(target.__NUDGE_UI_AGENT_BRIDGE__)
     ?? endpointValue(target.__NUDGE_UI_AGENT__);
   if (globalConfig) return globalConfig;
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="nudge-ui-agent-bridge"]');
+  const meta = doc.querySelector<HTMLMetaElement>('meta[name="nudge-ui-agent-bridge"]');
   const content = meta?.content.trim();
   return content ? { baseUrl: content } : undefined;
+}
+
+function configuredEndpoint(): AgentBridgeEndpointConfig | undefined {
+  if (typeof document === "undefined") return undefined;
+  const controllerConfig = configuredEndpointInDocument(document);
+  if (controllerConfig) return controllerConfig;
+  const previewDocument = getActiveCanvasDocument();
+  return previewDocument ? configuredEndpointInDocument(previewDocument) : undefined;
 }
 
 /** Returns whether the dev host supplied a trusted project bridge endpoint. */
@@ -151,19 +160,22 @@ function statusPayload(value: unknown): AgentStatusSnapshot | null {
   let request: AgentStatusSnapshot["request"] = null;
   if (rawRequest !== null && rawRequest !== undefined) {
     if (!isRecord(rawRequest)
-      || typeof rawRequest.requestId !== "string"
-      || typeof rawRequest.projectId !== "string"
-      || typeof rawRequest.prompt !== "string"
       || (rawRequest.status !== "working"
         && rawRequest.status !== "completed"
         && rawRequest.status !== "failed"
         && rawRequest.status !== "interrupted")) return null;
-    request = {
+    const requestCandidate: Record<string, unknown> = {
       requestId: rawRequest.requestId,
       projectId: rawRequest.projectId,
       prompt: rawRequest.prompt,
-      status: rawRequest.status,
       ...(typeof rawRequest.changeRevision === "number" ? { changeRevision: rawRequest.changeRevision } : {}),
+      ...(rawRequest.clientDispatchId === undefined ? {} : { clientDispatchId: rawRequest.clientDispatchId }),
+      ...(rawRequest.sketches === undefined ? {} : { sketches: rawRequest.sketches }),
+    };
+    if (!isAgentPromptRequest(requestCandidate)) return null;
+    request = {
+      ...requestCandidate,
+      status: rawRequest.status,
       ...(typeof rawRequest.summary === "string" ? { summary: rawRequest.summary } : {}),
       ...(typeof rawRequest.error === "string" ? { error: rawRequest.error } : {}),
     };
@@ -330,20 +342,21 @@ export class HttpAgentBridgeTransport implements AgentBridgeTransport {
       signal,
     });
     const payload = await readJson(response);
-    if (!isRecord(payload.request)
-      || typeof payload.request.requestId !== "string"
-      || typeof payload.request.projectId !== "string"
-      || typeof payload.request.prompt !== "string"
-      || payload.status !== "working") {
+    if (!isRecord(payload.request) || payload.status !== "working") {
       throw new Error("Agent bridge returned an invalid prompt response.");
     }
-    const requestBody: AgentPromptRequest = {
+    const requestCandidate: Record<string, unknown> = {
       requestId: payload.request.requestId,
       projectId: payload.request.projectId,
       prompt: payload.request.prompt,
       ...(typeof payload.request.changeRevision === "number" ? { changeRevision: payload.request.changeRevision } : {}),
+      ...(payload.request.clientDispatchId === undefined ? {} : { clientDispatchId: payload.request.clientDispatchId }),
+      ...(payload.request.sketches === undefined ? {} : { sketches: payload.request.sketches }),
     };
-    return { request: requestBody, status: "working" };
+    if (!isAgentPromptRequest(requestCandidate) || requestCandidate.projectId !== request.projectId) {
+      throw new Error("Agent bridge returned an invalid prompt response.");
+    }
+    return { request: requestCandidate, status: "working" };
   }
 
   async disconnect(request: AgentDisconnectRequest, signal?: AbortSignal): Promise<void> {

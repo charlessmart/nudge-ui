@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { setRendererIdentity, type ElementHoverMessage } from "./frameProtocol.ts";
+import { PROTOCOL_VERSION, setRendererIdentity, type ElementHoverMessage } from "./frameProtocol.ts";
 import { buildSelector, installRendererElementSelector } from "./rendererElementSelector.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
 
@@ -166,6 +166,105 @@ describe("renderer hover scheduling", () => {
       .find((message) => typeof message === "object" && message !== null && "type" in message && message.type === "element-click");
     expect(click).toMatchObject({ type: "element-click", additive: true });
   });
+
+  it("forwards double-click text intent to the controller", () => {
+    const heading = trackedElement("editable-heading");
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    heading.dispatchEvent(new MouseEvent("dblclick", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 12,
+      clientY: 24,
+    }));
+
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "inline-text-intent",
+      intent: "double-click",
+      cid: "editable-heading",
+      point: { x: 12, y: 24 },
+    }), window.location.origin);
+  });
+
+  it("forwards the visibility shortcut and restores native app clicks while hidden", () => {
+    const button = trackedElement("app-action");
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    const shortcut = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "Backslash",
+      key: "\\",
+      ctrlKey: true,
+    });
+
+    document.dispatchEvent(shortcut);
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: {
+        type: "inspector-interaction-state",
+        protocolVersion: PROTOCOL_VERSION,
+        open: false,
+        ...identity,
+      },
+    }));
+    expect(document.documentElement.hasAttribute("data-nudge-ui-panel")).toBe(false);
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    button.dispatchEvent(click);
+
+    expect(shortcut.defaultPrevented).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "inspector-toggle-request",
+    }), window.location.origin);
+    expect(click.defaultPrevented).toBe(false);
+
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: {
+        type: "inspector-interaction-state",
+        protocolVersion: PROTOCOL_VERSION,
+        open: true,
+        ...identity,
+      },
+    }));
+    expect(document.documentElement.getAttribute("data-nudge-ui-panel")).toBe("open");
+
+    postMessage.mockClear();
+    window.dispatchEvent(new Event("nudge-ui:open"));
+    window.dispatchEvent(new Event("nudge-ui:open"));
+    expect(postMessage).toHaveBeenCalledTimes(2);
+    expect(postMessage).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      type: "inspector-open-request",
+    }), window.location.origin);
+    expect(postMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      type: "inspector-open-request",
+    }), window.location.origin);
+  });
+
+  it("accepts Alt state from the parent when the iframe is not focused", () => {
+    const button = trackedElement("measure-target");
+    dispatchMouseOver(button);
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+    postMessage.mockClear();
+
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: {
+        type: "measure-modifier",
+        protocolVersion: PROTOCOL_VERSION,
+        altKey: true,
+        ...identity,
+      },
+    }));
+
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "element-measure-state",
+      altKey: true,
+      pointerOverPage: true,
+    }), window.location.origin);
+  });
 });
 
 describe("renderer selector lifecycle", () => {
@@ -177,9 +276,11 @@ describe("renderer selector lifecycle", () => {
     expect(scheduled).toHaveLength(1);
     expect(document.head.querySelector("style#nudge-ui-interaction-styles")).not.toBeNull();
     postMessage.mockClear();
+    document.documentElement.setAttribute("data-nudge-ui-panel", "open");
 
     disposeRendererElementSelector();
     disposeRendererElementSelector();
+    expect(document.documentElement.hasAttribute("data-nudge-ui-panel")).toBe(false);
     runScheduledFrame();
 
     button.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));

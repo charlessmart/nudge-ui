@@ -4,6 +4,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { createRequire } from "node:module";
 import { z } from "zod";
 import type {
+  AgentDeliveredPrompt,
   AgentPromptRequest,
   AgentProjectIdentity,
   AgentRequestOutcome,
@@ -80,13 +81,33 @@ function errorResult(error: unknown): { isError: true; content: [{ type: "text";
   };
 }
 
-function promptResult(request: AgentPromptRequest): { content: [{ type: "text"; text: string }] } {
-  return textResult({
-    requestId: request.requestId,
-    projectId: request.projectId,
-    prompt: request.prompt,
-    ...(request.changeRevision === undefined ? {} : { changeRevision: request.changeRevision }),
-  });
+function promptResult(request: AgentDeliveredPrompt): {
+  content: Array<
+    | { type: "text"; text: string }
+    | { type: "image"; data: string; mimeType: "image/png" }
+  >;
+} {
+  const content: Array<
+    | { type: "text"; text: string }
+    | { type: "image"; data: string; mimeType: "image/png" }
+  > = [{
+    type: "text",
+    text: JSON.stringify({
+      requestId: request.requestId,
+      projectId: request.projectId,
+      prompt: request.prompt,
+      ...(request.changeRevision === undefined ? {} : { changeRevision: request.changeRevision }),
+      ...(request.clientDispatchId === undefined ? {} : { clientDispatchId: request.clientDispatchId }),
+      ...(request.sketches === undefined ? {} : { sketches: request.sketches }),
+    }),
+  }];
+  for (const attachment of request.attachments ?? []) {
+    content.push(
+      { type: "text", text: `Sketch image: ${attachment.filename}` },
+      { type: "image", data: attachment.data, mimeType: attachment.mimeType },
+    );
+  }
+  return { content };
 }
 
 function commandResult(result: CanvasCommandResult): { content: [{ type: "text"; text: string }]; isError?: boolean } {

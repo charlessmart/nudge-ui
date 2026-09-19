@@ -51,7 +51,7 @@ current type-shape constraints, not additional operation kinds.
 
 | Variant | Operation | Target and scope | Evidence and preview meaning |
 | --- | --- | --- | --- |
-| `StructuralDelete` | Remove one rendered element from the document. | `target` is a `RenderedInstanceRef` containing a source site and bounded rendered evidence. The operation is inherently one rendered instance; there is no separate scope field. | The rendered-instance reference is the evidence. The `id` is the structural history identity. DOM nodes and deletion placeholders belong to `projection/structuralProjection.ts`, not the record. |
+| `StructuralDelete` | Remove one rendered element from the document. | `target` is a `RenderedInstanceRef` containing a source site and bounded rendered evidence. The operation is inherently one rendered instance; there is no separate scope field. | The rendered-instance reference is the evidence. `route` and `state` retain the captured route and rendered-view identity for conservative agent verification. The `id` is the structural history identity. DOM nodes and deletion placeholders belong to `projection/structuralProjection.ts`, not the record. |
 | `StructuralMove` | Move one rendered element to a destination relationship. | `target` identifies the element; `source.parent`, `destination.parent`, and optional `destination.before` identify the source parent, destination parent, and anchor. The relationship is inherently rendered-instance scoped. | All four rendered-instance references are durable evidence for resolving the relationship. The `presentation` fields are classified individually below. |
 
 `StructuralMove.presentation` is currently durable record data, but it is not

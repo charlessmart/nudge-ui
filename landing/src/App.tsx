@@ -584,7 +584,6 @@ export function App(): ReactNode {
           </div>
         </footer>
       </div>
-
     </>
   );
 }

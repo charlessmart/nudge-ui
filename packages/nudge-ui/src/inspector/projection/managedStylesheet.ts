@@ -203,11 +203,13 @@ function commaListIncludes(value: string, property: string): boolean {
 }
 
 function hasImportantAuthorRule(el: HTMLElement, property: string): boolean {
+  const StyleRule = el.ownerDocument.defaultView?.CSSStyleRule;
+  if (!StyleRule) return false;
   for (const sheet of Array.from(el.ownerDocument.styleSheets)) {
     let rules: CSSRuleList;
     try { rules = sheet.cssRules; } catch { continue; }
     for (const rule of Array.from(rules)) {
-      if (!(rule instanceof CSSStyleRule)) continue;
+      if (!(rule instanceof StyleRule)) continue;
       try {
         if (el.matches(rule.selectorText) && rule.style.getPropertyPriority(property) === "important") return true;
       } catch { /* Ignore browser-specific selectors. */ }

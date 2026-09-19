@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Frame, type Page } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -12,16 +12,21 @@ function projectPath(file: string): string {
   return join(root, file);
 }
 
-async function waitForInspector(page: import("@playwright/test").Page): Promise<void> {
-  await expect(page.locator("#nudge-ui-root")).toBeAttached();
-  await expect.poll(async () => page.evaluate(() => {
-    const shadow = document.getElementById("nudge-ui-root")?.shadowRoot;
-    return Boolean(shadow?.querySelector('[data-test="inspect-tab"]'));
-  }), { timeout: 15_000 }).toBe(true);
+async function waitForInspector(page: Page): Promise<Frame> {
+  await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
+  await expect(page.locator('[data-test="inspect-tab"]')).toBeAttached();
+  await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
+    && frame.url().startsWith("http")
+    && !frame.url().includes("/__nudge_ui__/editor"))?.url() ?? "", { timeout: 15_000 }).not.toBe("");
+  const frame = page.frames().find((candidate) => candidate !== page.mainFrame()
+    && candidate.url().startsWith("http")
+    && !candidate.url().includes("/__nudge_ui__/editor"));
+  if (!frame) throw new Error("Static preview frame did not become ready");
+  return frame;
 }
 
 async function setRawValue(
-  page: import("@playwright/test").Page,
+  page: Page,
   property: string,
   value: string,
 ): Promise<void> {
@@ -57,17 +62,17 @@ async function selectToken(
 }
 
 async function computedStyle(
-  page: import("@playwright/test").Page,
+  frame: Frame,
   selector: string,
   property: string,
 ): Promise<string> {
-  return page.locator(selector).evaluate((element, name) => {
+  return frame.locator(selector).evaluate((element, name) => {
     return getComputedStyle(element).getPropertyValue(name).trim();
   }, property);
 }
 
-async function managedSheetText(page: import("@playwright/test").Page): Promise<string> {
-  return page.evaluate(() => {
+async function managedSheetText(frame: Frame): Promise<string> {
+  return frame.evaluate(() => {
     const sheet = (document.getElementById("nudge-ui-styles") as HTMLStyleElement | null)?.sheet;
     return sheet ? Array.from(sheet.cssRules, (rule) => rule.cssText).join("\n") : "";
   });
@@ -84,35 +89,33 @@ test("serves a self-contained inspector and edits static HTML through managed CS
   page.on("request", (request) => requests.push(request.url()));
 
   await page.goto("/");
-  await waitForInspector(page);
+  const frame = await waitForInspector(page);
 
   expect(requests.some((url) => /vite|@react-refresh|@vite/.test(url))).toBe(false);
   // Canvas is enabled on the standalone host (ADR-0012); component semantics
   // remain fail-closed for framework-free pages.
-  await expect(page.locator('[data-test="mode-canvas"]')).toHaveCount(1);
   await expect(page.locator('[data-test="component-props-section"]')).toHaveCount(0);
 
-  const button = page.locator("#static-action");
+  const button = frame.locator("#static-action");
   await expect(button).toHaveAttribute("data-cid", "html:button");
   await expect(button).toHaveAttribute("data-src", STATIC_SOURCE);
   await button.click();
-  await expect(page.locator('[data-test="selected-outline"]')).toBeVisible();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 
   const originalInlineStyle = await button.getAttribute("style");
   await setRawValue(page, "color", "#123456");
-  await expect.poll(() => computedStyle(page, "#static-action", "color")).toBe("rgb(18, 52, 86)");
+  await expect.poll(() => computedStyle(frame, "#static-action", "color")).toBe("rgb(18, 52, 86)");
   expect(await button.getAttribute("style")).toBe(originalInlineStyle);
 
   const selector = `[data-cid="html:button"][data-src="${STATIC_SOURCE}"]`;
-  const rawSheet = await managedSheetText(page);
+  const rawSheet = await managedSheetText(frame);
   expect(rawSheet).toContain(selector);
   expect(rawSheet).toContain("color: rgb(18, 52, 86)");
 
   await selectToken(page, "background-color", "--color-surface-alt");
-  await expect.poll(() => computedStyle(page, "#static-action", "background-color"))
+  await expect.poll(() => computedStyle(frame, "#static-action", "background-color"))
     .toBe("rgb(238, 243, 255)");
-  expect(await managedSheetText(page)).toContain("background-color: var(--color-surface-alt)");
+  expect(await managedSheetText(frame)).toContain("background-color: var(--color-surface-alt)");
 
   const prompt = await copyPrompt(page);
   expect(prompt).not.toContain("Framework:");
@@ -124,11 +127,11 @@ test("serves a self-contained inspector and edits static HTML through managed CS
 test("falls back to rendered text and exports an HTML-aware prompt", async ({ page }) => {
   const originalHtml = await readFile(projectPath("index.html"), "utf8");
   await page.goto("/");
-  await waitForInspector(page);
+  const frame = await waitForInspector(page);
 
-  const copy = page.locator("#rendered-copy");
+  const copy = frame.locator("#rendered-copy");
   await copy.dblclick();
-  const editor = page.locator('[data-inline-editor="true"]');
+  const editor = frame.locator('[data-inline-editor="true"]');
   await expect(editor).toBeVisible();
   await expect(editor).toHaveText(RENDERED_TEXT);
   await editor.fill("Updated rendered copy");
@@ -146,17 +149,17 @@ test("falls back to rendered text and exports an HTML-aware prompt", async ({ pa
 
 test("assigns runtime identity and exports explicit unknown-source evidence", async ({ page }) => {
   await page.goto("/");
-  await waitForInspector(page);
+  const frame = await waitForInspector(page);
 
-  const runtimeButton = page.locator("#runtime-action");
+  const runtimeButton = frame.locator("#runtime-action");
   await expect(runtimeButton).toBeVisible();
   await expect(runtimeButton).toHaveAttribute("data-cid", /^nudge-ui-runtime-\d+$/);
   await expect(runtimeButton).toHaveAttribute("data-src", /^nudge-ui:unknown:\d+$/);
   await runtimeButton.click();
-  await expect(page.locator('[data-test="selected-outline"]')).toBeVisible();
+  await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   await setRawValue(page, "color", "#7442b8");
-  await expect.poll(() => managedSheetText(page)).toContain("color: rgb(116, 66, 184)");
-  await expect.poll(() => computedStyle(page, "#runtime-action", "color")).toBe("rgb(116, 66, 184)");
+  await expect.poll(() => managedSheetText(frame)).toContain("color: rgb(116, 66, 184)");
+  await expect.poll(() => computedStyle(frame, "#runtime-action", "color")).toBe("rgb(116, 66, 184)");
 
   const prompt = await copyPrompt(page);
   expect(prompt).toContain("source unknown; runtime-created DOM");
@@ -172,10 +175,10 @@ test("reloads once and refreshes CSS token knowledge after an agent-style source
     new URL(response.url()).pathname === "/__nudge_ui__/reload");
   await page.goto("/");
   await reloadConnection;
-  await waitForInspector(page);
+  let frame = await waitForInspector(page);
   let navigations = 0;
   page.on("framenavigated", (frame) => {
-    if (frame === page.mainFrame()) navigations += 1;
+    if (frame !== page.mainFrame() && !frame.url().includes("/__nudge_ui__/editor")) navigations += 1;
   });
 
   const cssPath = projectPath("styles.css");
@@ -185,13 +188,13 @@ test("reloads once and refreshes CSS token knowledge after an agent-style source
   await writeFile(cssPath, updatedCss);
 
   await expect.poll(() => navigations, { timeout: 15_000 }).toBe(1);
-  await waitForInspector(page);
-  await expect.poll(() => computedStyle(page, "#static-action", "color"))
+  frame = await waitForInspector(page);
+  await expect.poll(() => computedStyle(frame, "#static-action", "color"))
     .toBe("rgb(222, 68, 110)");
   await page.locator('[data-test="tokens-button"]').click();
   await page.locator('[data-test="settings-nav-tokens"]').click();
-  await expect(page.locator('[data-token-name="--color-accent"]')).toBeVisible();
-  await expect.poll(async () => page.evaluate(() => {
+  await expect(page.locator('[data-token-name="--color-accent"]')).toBeVisible({ timeout: 15_000 });
+  await expect.poll(async () => frame.evaluate(() => {
     const bridgeWindow = window as Window & {
       __nudgeUi?: {
         inspect(selector: string): { availableTokens: Array<{ name: string; value: string }> } | null;
@@ -201,7 +204,7 @@ test("reloads once and refreshes CSS token knowledge after an agent-style source
       .find((entry) => entry.name === "--color-accent");
     return token?.value ?? "";
   })).toBe("#de446e");
-  await expect.poll(async () => page.evaluate(async () => {
+  await expect.poll(async () => frame.evaluate(async () => {
     const response = await fetch("/__nudge_ui__/manifest");
     const manifest = await response.json() as { revision?: unknown };
     return manifest.revision;

@@ -12,6 +12,9 @@ export {
   canonicalOrigin,
   defaultBridgePort,
   isAgentPromptRequest,
+  isAgentSketchAttachment,
+  isAgentSketchCaptureMetadata,
+  isAgentSketchMetadata,
   isAgentStatusUpdate,
   isAllowedOrigin,
   isCanvasCommand,
@@ -21,6 +24,7 @@ export {
   isProjectIdentity,
   isSameOriginRoute,
   protocolError,
+  validateSketchAttachments,
   validateRoutes,
 } from "@nudge-ui/agent-protocol";
 
@@ -28,6 +32,10 @@ export type {
   AgentConnectionState,
   AgentProjectIdentity,
   AgentPromptRequest,
+  AgentDeliveredPrompt,
+  AgentSketchAttachment,
+  AgentSketchCaptureMetadata,
+  AgentSketchMetadata,
   AgentRequestOutcome,
   AgentRequestStatus,
   AgentRoute,

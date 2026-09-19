@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { Frame, Page } from "@playwright/test";
 import { managedSheetText } from "./managedSheet.ts";
 
 test.use({ permissions: ["clipboard-read", "clipboard-write"] });
@@ -23,25 +23,24 @@ function sourceBytes(): Record<string, string> {
   );
 }
 
-async function inspectorReady(page: Page): Promise<void> {
-  await page.goto("/");
-  await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
-    .toBe(true);
-  await expect(page.locator('[data-test="inspect-tab"]')).toBeVisible();
-  // The bootstrap must have installed the runtime (bridge) before any
-  // interaction, and the app's hydration must have attached fibers — both
-  // race the mount on a cold dev server.
-  await expect
-    .poll(() => page.evaluate(() => Boolean((window as unknown as { __nudgeUi?: unknown }).__nudgeUi)))
-    .toBe(true);
-  await page.waitForTimeout(1500);
+async function inspectorReady(page: Page, path = "/"): Promise<Frame> {
+  await page.goto(path);
+  await expect(page).toHaveURL(/[?&]nudge-ui=editor(?:&|#|$)/);
+  await expect(page.locator('[data-test="canvas-workspace"]')).toBeVisible({ timeout: 45_000 });
+  await expect.poll(() => page.frames().find((frame) => frame !== page.mainFrame()
+    && frame.url().startsWith("http")
+    && !frame.url().includes("/__nudge_ui__/editor"))?.url() ?? "", { timeout: 45_000 }).toContain(path);
+  const frame = page.frames().find((candidate) => candidate !== page.mainFrame()
+    && candidate.url().startsWith("http")
+    && !candidate.url().includes("/__nudge_ui__/editor"));
+  if (!frame) throw new Error("Next preview frame did not become ready");
+  return frame;
 }
 
 test("dev: loader injects identity into server and client components", async ({ page }) => {
-  await inspectorReady(page);
+  const frame = await inspectorReady(page);
 
-  const identity = await page.evaluate(() => {
+  const identity = await frame.evaluate(() => {
     const read = (selector: string) => {
       const element = document.querySelector(selector);
       if (!element) return null;
@@ -81,9 +80,9 @@ test("dev: hydration preserves the injected attributes", async ({ page }) => {
   // present in server HTML; this asserts rather than assumes). No
   // networkidle wait: the reload SSE stream keeps a connection open by
   // design.
-  await inspectorReady(page);
+  const frame = await inspectorReady(page);
 
-  const afterHydration = await page.evaluate(() => ({
+  const afterHydration = await frame.evaluate(() => ({
     cid: document.querySelector(".hero-card")?.getAttribute("data-cid"),
     src: document.querySelector(".hero-card")?.getAttribute("data-src"),
   }));
@@ -91,17 +90,17 @@ test("dev: hydration preserves the injected attributes", async ({ page }) => {
   expect(afterHydration.src ?? "").toMatch(/^app\/HeroCard\.tsx:\d+:\d+$/);
 
   // No hydration error overlay in dev.
-  const overlayText = await page.evaluate(() => document.querySelector("nextjs-portal")?.shadowRoot?.textContent ?? "");
+  const overlayText = await frame.evaluate(() => document.querySelector("nextjs-portal")?.shadowRoot?.textContent ?? "");
   expect(overlayText).not.toContain("Hydration");
 });
 
 test("dev: raw CSS preview applies through the managed sheet and survives navigation", async ({
   page,
 }) => {
-  await inspectorReady(page);
+  const frame = await inspectorReady(page);
 
   // Select the hero card heading.
-  const target = page.locator(".hero-card h2");
+  const target = frame.locator(".hero-card h2");
   await target.click();
   await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
   // Let the editor surface finish binding its control handlers.
@@ -116,7 +115,7 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
     '[data-test="token-field"][data-property="width"] [data-test="raw-input"]',
   );
   await widthInput.waitFor({ state: "visible", timeout: 15_000 }).catch(async () => {
-    await page.locator(".hero-card h2").click();
+    await frame.locator(".hero-card h2").click();
     await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
     await widthInput.waitFor({ state: "visible", timeout: 15_000 });
   });
@@ -128,7 +127,7 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
     el.blur();
   }, "240px");
 
-  await expect.poll(() => managedSheetText(page)).toContain("240px");
+  await expect.poll(() => managedSheetText(frame)).toContain("240px");
   await expect(target).toHaveCSS("width", "240px");
 
   // The durable session must survive leaving the route and reapply to the
@@ -136,37 +135,26 @@ test("dev: raw CSS preview applies through the managed sheet and survives naviga
   // through browser history: whichever way App Router restores the route
   // (bfcache or fresh bootstrap), the persisted session must reproject into
   // the managed stylesheet.
-  await page.goto("/second");
-  await expect(page.locator("#page-title")).toContainText("Second route");
-  // The edited element lives only on "/", so nothing projects here.
-  await expect.poll(() => managedSheetText(page)).not.toContain("240px");
+  await frame.locator('a[href="/second"]').click();
+  await expect.poll(() => frame.url()).toMatch(/\/second$/);
+  await expect(frame.locator("#page-title")).toContainText("Second route");
+  // The canonical rule remains available while its target is absent so a
+  // return navigation can reapply it without rebuilding session state.
+  await expect.poll(() => managedSheetText(frame)).toContain("240px");
 
-  await page.goBack({ waitUntil: "domcontentloaded" });
-
-  // Depending on whether the outgoing document entered the back/forward
-  // cache, the returning document either acquires the workspace lease
-  // cleanly or finds it recorded and shows the ownership notice whose
-  // explicit takeover resumes control. Both paths must end with the session
-  // reprojected onto the remounted element.
-  const takeoverButton = page.locator('[data-test="locked-workspace-notice"] [data-test="takeover-here"]');
-  try {
-    await takeoverButton.waitFor({ state: "visible", timeout: 4_000 });
-    await takeoverButton.click();
-  } catch {
-    // Clean re-acquire: no notice appeared.
-  }
-
-  await expect(page.locator(".hero-card")).toBeVisible();
+  await frame.locator('a[href="/"]').click();
+  await expect.poll(() => frame.url()).toMatch(/\/$/);
+  await expect(frame.locator(".hero-card")).toBeVisible();
   await expect
-    .poll(() => managedSheetText(page), { timeout: 15_000 })
+    .poll(() => managedSheetText(frame), { timeout: 15_000 })
     .toContain("240px");
-  await expect(page.locator(".hero-card h2")).toHaveCSS("width", "240px");
+  await expect(frame.locator(".hero-card h2")).toHaveCSS("width", "240px");
 });
 
 test("dev: prompt copy names the source location without runtime selectors", async ({ page }) => {
-  await inspectorReady(page);
+  const frame = await inspectorReady(page);
 
-  const target = page.locator(".hero-card h2");
+  const target = frame.locator(".hero-card h2");
   await target.click();
 
   // The copy control enables once the session holds a change; make one.
@@ -175,7 +163,7 @@ test("dev: prompt copy names the source location without runtime selectors", asy
     '[data-test="token-field"][data-property="width"] [data-test="raw-input"]',
   );
   await input.waitFor({ state: "visible", timeout: 15_000 }).catch(async () => {
-    await page.locator(".hero-card h2").click();
+    await frame.locator(".hero-card h2").click();
     await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
     await input.waitFor({ state: "visible", timeout: 15_000 });
   });
@@ -186,7 +174,7 @@ test("dev: prompt copy names the source location without runtime selectors", asy
     el.dispatchEvent(new Event("change", { bubbles: true }));
     el.blur();
   });
-  await expect.poll(() => managedSheetText(page)).toContain("241px");
+  await expect.poll(() => managedSheetText(frame)).toContain("241px");
 
   const copyButton = page.locator('[data-test="copy-prompt"]');
   await expect(copyButton).toBeEnabled();
@@ -202,25 +190,22 @@ test("dev: prompt copy names the source location without runtime selectors", asy
 test("dev: source files stay byte-for-byte unchanged across a session", async ({ page }) => {
   const before = sourceBytes();
 
-  await inspectorReady(page);
+  const frame = await inspectorReady(page);
   // Interact: select, edit, navigate — the full instrumented lifecycle.
-  const target = page.locator(".hero-card h2");
+  const target = frame.locator(".hero-card h2");
   await target.click();
-  await page.waitForURL("**/");
+  await expect(page.locator('[data-test="style-editors"]')).toBeVisible();
 
   const after = sourceBytes();
   expect(after).toEqual(before);
 });
 
 test("dev: route-group segments are instrumented through the shared root", async ({ page }) => {
-  await page.goto("/pricing");
-  await expect
-    .poll(() => page.evaluate(() => Boolean(document.getElementById("nudge-ui-root"))))
-    .toBe(true);
+  const frame = await inspectorReady(page, "/pricing");
   // Route-group pages carry identity like any other app segment. Route groups
   // are elided from URLs: the file lives at app/(shop)/pricing/page.tsx but
   // serves /pricing.
-  const identity = await page.evaluate(() => ({
+  const identity = await frame.evaluate(() => ({
     cid: document.querySelector("#page-title")?.getAttribute("data-cid"),
     src: document.querySelector("#page-title")?.getAttribute("data-src"),
   }));
