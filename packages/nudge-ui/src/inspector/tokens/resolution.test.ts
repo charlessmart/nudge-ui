@@ -327,9 +327,149 @@ describe("state resolution cache", () => {
 
     expect(getResolvedPropertiesForState(element, table, "base")).not.toBe(initial);
   });
+
+  it("does not treat escaped utility colons as element-sensitive selectors", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".sm\\:text-red-500 { color: var(--color-a); }";
+    document.head.appendChild(style);
+    const element = document.createElement("div");
+    element.className = "sm:text-red-500";
+    element.setAttribute("data-cid", "ResponsiveText");
+    element.setAttribute("data-src", "ResponsiveText.tsx:1:1");
+    document.body.appendChild(element);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const table = makeTable([{ name: "--color-a", value: "#112233", source: "styles.css:1" }]);
+    const initial = getResolvedPropertiesStable(element, table);
+    expect(initial.find((row) => row.property === "color")?.tokenName).toBe("--color-a");
+    const matches = vi.spyOn(window.Element.prototype, "matches");
+    try {
+      expect(getResolvedPropertiesStable(element, table)).toBe(initial);
+      expect(matches).not.toHaveBeenCalled();
+    } finally {
+      matches.mockRestore();
+    }
+  });
+
+  it("does not treat escaped or quoted colons as interaction states", async () => {
+    const style = document.createElement("style");
+    style.textContent = `
+      .foo\\:hover { color: var(--color-a); }
+      [data-label=":hover"] { background: var(--color-b); }
+    `;
+    document.head.appendChild(style);
+    const escaped = document.createElement("div");
+    escaped.className = "foo:hover";
+    const quoted = document.createElement("div");
+    quoted.setAttribute("data-label", ":hover");
+    document.body.append(escaped, quoted);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const table = makeTable([
+      { name: "--color-a", value: "#112233", source: "styles.css:1" },
+      { name: "--color-b", value: "#445566", source: "styles.css:2" },
+    ]);
+    expect(getResolvedPropertiesStable(escaped, table)
+      .find((row) => row.property === "color")?.tokenName).toBe("--color-a");
+    expect(getResolvedPropertiesForState(escaped, table, "base")
+      .find((row) => row.property === "color")?.tokenName).toBe("--color-a");
+    expect(getResolvedPropertiesStable(quoted, table)
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+    expect(getResolvedPropertiesForState(quoted, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+  });
+
+  it("does not treat static selector functions as element-sensitive selectors", async () => {
+    const style = document.createElement("style");
+    style.textContent = `
+      :where([data-slot="label"]) {
+        color: var(--color-a);
+      }
+    `;
+    document.head.appendChild(style);
+    const element = document.createElement("div");
+    element.setAttribute("data-slot", "label");
+    element.setAttribute("data-cid", "ResponsiveText");
+    element.setAttribute("data-src", "ResponsiveText.tsx:1:1");
+    document.body.appendChild(element);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const table = makeTable([{ name: "--color-a", value: "#112233", source: "styles.css:1" }]);
+    const initial = getResolvedPropertiesStable(element, table);
+    expect(initial.find((row) => row.property === "color")?.tokenName).toBe("--color-a");
+    const matches = vi.spyOn(window.Element.prototype, "matches");
+    try {
+      expect(getResolvedPropertiesStable(element, table)).toBe(initial);
+      expect(matches).not.toHaveBeenCalled();
+    } finally {
+      matches.mockRestore();
+    }
+  });
+
+  it("keeps dynamic pseudo-classes nested in selector functions fresh", async () => {
+    const style = document.createElement("style");
+    style.textContent = `
+      input.row { background: var(--color-a); }
+      input.row:where(:checked) { background: var(--color-b); }
+    `;
+    document.head.appendChild(style);
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.className = "row";
+    input.setAttribute("data-cid", "Row");
+    input.setAttribute("data-src", "Row.tsx:4:2");
+    document.body.appendChild(input);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const table = makeTable([
+      { name: "--color-a", value: "#112233", source: "styles.css:1" },
+      { name: "--color-b", value: "#445566", source: "styles.css:2" },
+    ]);
+    expect(getResolvedPropertiesForState(input, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+
+    input.checked = true;
+
+    expect(getResolvedPropertiesForState(input, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+  });
+
+  it("keeps descendant state nested in :has fresh", async () => {
+    const style = document.createElement("style");
+    style.textContent = `
+      .row { background: var(--color-a); }
+      .row:has(:checked) { background: var(--color-b); }
+    `;
+    document.head.appendChild(style);
+    const parent = document.createElement("div");
+    parent.className = "row";
+    parent.setAttribute("data-cid", "Row");
+    parent.setAttribute("data-src", "Row.tsx:4:2");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    parent.appendChild(input);
+    document.body.appendChild(parent);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const table = makeTable([
+      { name: "--color-a", value: "#112233", source: "styles.css:1" },
+      { name: "--color-b", value: "#445566", source: "styles.css:2" },
+    ]);
+    expect(getResolvedPropertiesForState(parent, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-a");
+
+    input.checked = true;
+
+    expect(getResolvedPropertiesForState(parent, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+  });
 });
 
 describe("source-site matched-rule cache", () => {
+  beforeEach(() => {
+    resetSourceSiteMatchCache();
+  });
+
   function flush(): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, 0));
   }
@@ -516,6 +656,25 @@ describe("source-site matched-rule cache", () => {
     await flush();
     expect(getResolvedPropertiesForState(second, table, "base")
       .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+  });
+
+  it("does not share descendant-sensitive matches across same-source-site elements", async () => {
+    const style = document.createElement("style");
+    style.textContent = ".row:has(.child) { background: var(--color-b); }";
+    document.head.appendChild(style);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const matching = mountRow(container);
+    const child = document.createElement("span");
+    child.className = "child";
+    matching.appendChild(child);
+    const nonMatching = mountRow(container);
+    await flush();
+
+    expect(getResolvedPropertiesForState(matching, table, "base")
+      .find((row) => row.property === "background")?.tokenName).toBe("--color-b");
+    expect(getResolvedPropertiesForState(nonMatching, table, "base")
+      .find((row) => row.property === "background")).toBeUndefined();
   });
 
   it("keeps dynamic pseudo-class matches per concrete element", async () => {
@@ -1561,6 +1720,20 @@ describe("resolveRuleFixture", () => {
         declarations: [{ property: "background", value: "var(--color-surface-raised)" }],
       },
     ];
+    expect(resolveRuleFixture(btn, rules, table)).toEqual([]);
+  });
+
+  it("does not throw when a class escape exceeds the Unicode range", () => {
+    const table = makeTable([
+      { name: "--color-surface-raised", value: "#ffffff", source: "s:2" },
+    ]);
+    const rules: MatchedRule[] = [{
+      selectorText: String.raw`.\FFFFFF`,
+      specificity: 10000,
+      declarations: [{ property: "background", value: "var(--color-surface-raised)" }],
+    }];
+
+    expect(() => resolveRuleFixture(btn, rules, table)).not.toThrow();
     expect(resolveRuleFixture(btn, rules, table)).toEqual([]);
   });
 

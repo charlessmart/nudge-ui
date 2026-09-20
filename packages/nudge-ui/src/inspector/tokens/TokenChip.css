@@ -8,6 +8,7 @@
   align-self: stretch;
   padding-left: var(--space-8);
   border-radius: calc(var(--radius-control) - 2px);
+  overflow: hidden;
 }
 
 .token-chip:has(.token-color-control) {
