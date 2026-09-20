@@ -213,6 +213,13 @@ function resolveInlineTextEditIntent(
   return null;
 }
 
+function isApplicationOwnedEditingSurface(target: Element): boolean {
+  const host = target.closest<HTMLElement>("[contenteditable]");
+  return Boolean(host
+    && host.getAttribute("data-inline-editor") !== "true"
+    && host.getAttribute("contenteditable") !== "false");
+}
+
 function beginInlineTextEditIntent(
   intent: InlineTextTargetIntent,
 ): InlineTextSession | TextEditRejection | null {
@@ -255,6 +262,11 @@ function requestInlineTextEdit(
       return "stop-propagation";
     }
   }
+  // Application-owned contenteditable surfaces must retain native editing
+  // semantics. They are intentionally rejected by text binding, but that
+  // rejection must not become an inspector-level suppression when another
+  // inline edit is already active.
+  if (isApplicationOwnedEditingSurface(target)) return "pass-through";
   const intent: InlineTextTargetIntent = {
     ownerDocument: target.ownerDocument,
     target,

@@ -205,6 +205,23 @@ describe("inlineTextEditor", () => {
     expect(getInlineTextFeedback(getInlineTextDiagnostic())).toBeNull();
   });
 
+  it("passes through application-owned contenteditable surfaces while another edit is active", () => {
+    const editable = fixture();
+    const session = beginInlineTextEdit(editable);
+    if ("kind" in session) throw new Error(session.message);
+
+    const nativeEditor = document.createElement("div");
+    nativeEditor.dataset.cid = "NativeEditor";
+    nativeEditor.setAttribute("contenteditable", "true");
+    nativeEditor.textContent = "Write here";
+    document.body.append(nativeEditor);
+
+    expect(requestInlineEdit(nativeEditor)).toBe("pass-through");
+    expect(getInlineTextDiagnostic()).not.toMatchObject({ status: "rejected" });
+
+    session.cancel();
+  });
+
   it("clears diagnostics when the workspace is cleared", () => {
     const unsupported = document.createElement("div");
     unsupported.dataset.cid = "EmptyCopy";
