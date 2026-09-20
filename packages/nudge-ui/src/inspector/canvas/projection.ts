@@ -21,6 +21,7 @@ import {
   type CompiledManagedStyles,
   type WorkspaceProjectionPlan,
 } from "../projection/workspaceProjection.ts";
+import { isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { disposeBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 
 export const PROJECT_ID = window.location.origin;
@@ -29,6 +30,7 @@ export const WORKSPACE_ID = crypto.randomUUID?.() ?? `ws-${Date.now()}`;
 
 let revision = 0;
 let lastRulesKey: string | null = null;
+let lastPeekActive = false;
 
 interface FrameProjectionState {
   iframe: HTMLIFrameElement;
@@ -85,6 +87,30 @@ function projectionKey(plan: WorkspaceProjectionPlan<CompiledManagedStyles>): st
 
 export function computeProjection() {
   const plan = compileWorkspaceProjection(getWorkspaceChanges());
+  if (isOriginalPreviewActive()) {
+    // Hold-to-view-original: frames show the page without inspector changes
+    // while canonical intent (and its projection key) stays untouched.
+    if (!lastPeekActive) {
+      lastPeekActive = true;
+      revision += 1;
+    }
+    return {
+      ...plan,
+      managedStyles: { rules: [], css: "" },
+      css: "",
+      instanceOverrides: [],
+      structuralChanges: [],
+      textContentChanges: [],
+      componentOverrides: [],
+      revision,
+    };
+  }
+  if (lastPeekActive) {
+    // Force the canonical projection to resend after a peek even though its
+    // key is unchanged since the peek began.
+    lastPeekActive = false;
+    lastRulesKey = null;
+  }
   setCanonicalRenderedInstanceOverrides(plan.instanceOverrides);
   setCanonicalTextContentChanges(plan.textContentChanges);
   const key = projectionKey(plan);
@@ -98,6 +124,7 @@ export function computeProjection() {
 export function resetProjectionRevision(): void {
   revision = 0;
   lastRulesKey = null;
+  lastPeekActive = false;
   for (const state of frameProjectionStates.values()) {
     state.sentRevision = -1;
     state.appliedRevision = -1;

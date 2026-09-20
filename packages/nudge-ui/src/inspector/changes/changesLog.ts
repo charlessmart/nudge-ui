@@ -29,6 +29,10 @@ import {
   compileWorkspaceProjection,
 } from "../projection/workspaceProjection.ts";
 import { isEditorShellDocument } from "../runtime/editorShell.ts";
+import {
+  isOriginalPreviewActive,
+  subscribeOriginalPreview,
+} from "../shell/originalPreview.ts";
 
 export {
   isComponentChange,
@@ -76,11 +80,18 @@ export function getPendingRules(): StyleRule[] {
 }
 
 function reapply(workspace: WorkspaceChangesSnapshot): void {
+  // While hold-to-view-original is active the host document intentionally
+  // shows the page without inspector changes. Commits still land in the
+  // canonical store; the release path re-projects the latest snapshot.
+  if (isOriginalPreviewActive()) return;
   if (!isEditorShellDocument()) applyHostWorkspaceProjection(compileWorkspaceProjection(workspace));
 }
 
 function flushVerification(): void {
   verificationHandle = null;
+  // Probing the original preview would report the held-back changes as
+  // conflicts. Keep the pending targets; releasing re-verifies them.
+  if (isOriginalPreviewActive()) return;
   const targets = pendingVerificationTargets;
   pendingVerificationTargets = new Map<string, HTMLElement | null>();
   if (targets.size === 0) return;
@@ -147,6 +158,19 @@ function markForVerification(
   }
   if (added) scheduleVerification();
 }
+
+/**
+ * Releasing hold-to-view-original restores the edited preview; re-verify the
+ * surviving set against the restored DOM instead of leaving peek-era state.
+ * The retry is forced: a flush that ran during the hold retains its targets
+ * without scheduling, so markForVerification alone would see every key
+ * already present and schedule nothing.
+ */
+subscribeOriginalPreview(() => {
+  if (isOriginalPreviewActive()) return;
+  markForVerification(getChangesSnapshot().map(changeKey));
+  if (pendingVerificationTargets.size > 0) scheduleVerification();
+});
 
 /** Append records and report whether canonical workspace state changed. */
 export function appendChanges(incoming: ChangeRecord[], options: AppendChangesOptions = {}): CommitResult {

@@ -4,7 +4,7 @@ import type { Root } from "react-dom/client";
 import { InspectorShell, toggleInspector, setInspectorOpen } from "./shell/InspectorShell.tsx";
 import { setSelectedElement } from "./selection/selectionStore.ts";
 import { removeManagedSheet } from "./projection/managedStylesheet.ts";
-import { isInspectorToggleShortcut } from "./shell/shortcuts.ts";
+import { isInspectorToggleShortcut, isOriginalPreviewShortcut } from "./shell/shortcuts.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
 import { bootstrapRenderer, type RendererBootstrapHandle } from "./canvas/rendererBootstrap.ts";
 import {
@@ -43,6 +43,7 @@ import {
 } from "./session/index.ts";
 import { clearSketchClipboardHandoff } from "./sketch/handoff.ts";
 import { cancelSketchInteraction, isSketchInteractionActive } from "./sketch/interaction.ts";
+import { setOriginalPreviewActive } from "./shell/originalPreview.ts";
 import { initializeSketchStore } from "./sketch/store.ts";
 
 export { resolveNudgeUiClientEntry } from "../transport/editor.ts";
@@ -58,11 +59,30 @@ let persistenceSubscribed = false;
 let unsubscribeOwnership: (() => void) | null = null;
 let removeInspectionBridge: (() => void) | null = null;
 
+let keyboardPeekHeld = false;
+
 function onKeydown(e: KeyboardEvent): void {
   if (isSketchInteractionActive()) return;
   if (isInspectorToggleShortcut(e)) {
     toggleInspector();
     e.preventDefault();
+    return;
+  }
+  if (isOriginalPreviewShortcut(e)) {
+    keyboardPeekHeld = true;
+    setOriginalPreviewActive(true);
+    e.preventDefault();
+  }
+}
+
+function onKeyup(e: KeyboardEvent): void {
+  // Release only a keyboard-started peek so a button-held preview survives
+  // unrelated Backslash keyups (e.g. the panel-toggle shortcuts pressed
+  // mid-hold). A guarded keydown never sets the flag, so this stays a no-op
+  // for keyups without a matching hold.
+  if (e.code === "Backslash" && keyboardPeekHeld) {
+    keyboardPeekHeld = false;
+    setOriginalPreviewActive(false);
   }
 }
 
@@ -225,12 +245,14 @@ export function mountInspector(host: HTMLElement): void {
     reactRoot = createRoot(shadow);
     inspectorSession = workspace.createInspectorSession(host);
     inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
+    inspectorSession.registerCleanup(() => window.removeEventListener("keyup", onKeyup));
     reactRoot.render(createElement(
       InspectorSessionProvider,
       { inspector: inspectorSession, documentSession: null },
       createElement(AppShell),
     ));
     window.addEventListener("keydown", onKeydown);
+    window.addEventListener("keyup", onKeyup);
   }
   setInspectorOpen(true);
 }

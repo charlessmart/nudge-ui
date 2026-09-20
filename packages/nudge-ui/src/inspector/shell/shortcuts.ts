@@ -22,3 +22,10 @@ export function isInspectorToggleShortcut(event: KeyboardEvent): boolean {
   if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && event.code === "Backslash") return true;
   return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === "KeyI";
 }
+
+export function isOriginalPreviewShortcut(event: KeyboardEvent): boolean {
+  if (event.repeat) return false;
+  if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false;
+  if (event.code !== "Backslash") return false;
+  return !isEditableEvent(event);
+}

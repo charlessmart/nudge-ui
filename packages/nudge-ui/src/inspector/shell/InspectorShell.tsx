@@ -34,6 +34,7 @@ import { countSourceSiteMatches, getEditScope, relinkElement, sourceSiteSelector
 import { canEditStyles } from "../tokens/editActions.ts";
 import { Button } from "../ui/Button.tsx";
 import { CopyPromptButton } from "./CopyPromptButton.tsx";
+import { PeekOriginalButton } from "./PeekOriginalButton.tsx";
 import type { SettingsSection } from "../settings/SettingsDialog.tsx";
 import { StatusCallout } from "../ui/StatusCallout.tsx";
 import { IconButton } from "../ui/IconButton.tsx";
@@ -47,8 +48,6 @@ import { Select } from "../ui/Select.tsx";
 import { clearRestoreCount, clearSession } from "../canvas/sessionStore.ts";
 import { hasWriteLease } from "../canvas/workspaceLease.ts";
 import {
-  setCanvasPresentation,
-  useCanvasPresentation,
   useFocusedCardId,
   useSelectedCardId,
 } from "../canvas/canvasStore.ts";
@@ -114,7 +113,6 @@ function scopeMutationAffectsSelection(records: MutationRecord[], selected: HTML
 export function InspectorShell(): ReactElement {
   const isOpen = useInspectorOpen();
   const runtimeConfig = useNudgeUiRuntimeConfig();
-  const canvasEnabled = runtimeConfig.capabilities.canvas;
   const domNavigationEnabled = runtimeConfig.capabilities.domNavigation === true;
   const sketchEnabled = isNudgeUiDev() && !isDemoRuntime();
   const sketchActive = useSketchInteractionActive();
@@ -130,9 +128,7 @@ export function InspectorShell(): ReactElement {
   const [scopeRevision, refreshScope] = useState(0);
   const [styleState, setStyleState] = useState<InteractionState>(getActiveStyleState());
   const cssInspection = useBrowserCssInspection(selectedElements, styleState);
-  const isMultiSelection = selectedElements.length > 1;
-  const canvasPresentation = useCanvasPresentation();
-  useEffect(() => {
+  const isMultiSelection = selectedElements.length > 1;  useEffect(() => {
     // A new selection should never inherit an incidental state from the
     // previous element. Base is the inspector's deliberate default.
     setActiveStyleState("base");
@@ -299,16 +295,7 @@ export function InspectorShell(): ReactElement {
               <IconLayoutSidebarRight size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
             </IconButton>
             <div className="panel__header-actions">
-              {canvasEnabled ? (
-                <Button
-                  variant="quiet"
-                  size="compact"
-                  data-test={`presentation-${canvasPresentation === "focus" ? "canvas" : "focus"}`}
-                  onClick={() => setCanvasPresentation(canvasPresentation === "focus" ? "canvas" : "focus")}
-                >
-                  {canvasPresentation === "focus" ? "Canvas" : "Focus"}
-                </Button>
-              ) : null}
+              <PeekOriginalButton />
               <IconButton
                 variant="quiet"
                 data-test="tokens-button"

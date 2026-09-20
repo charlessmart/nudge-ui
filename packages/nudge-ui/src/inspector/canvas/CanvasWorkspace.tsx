@@ -29,6 +29,7 @@ import { CanvasCard } from "./CanvasCard.tsx";
 import { Button } from "../ui/Button.tsx";
 import { useCanvasMode } from "./canvasStore.ts";
 import { subscribeChanges } from "../changes/changesLog.ts";
+import { subscribeOriginalPreview, isOriginalPreviewActive } from "../shell/originalPreview.ts";
 import { recordCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
 import { recordCanvasRenderedInstanceProjectionReports } from "../projection/renderedInstance.ts";
 import { recordCanvasTextProjectionReports } from "../projection/textProjection.ts";
@@ -340,9 +341,16 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   }, [broadcastPanModifier, endPanning, presentation]);
 
   useEffect(() => {
-    return subscribeChanges(() => {
+    const stopChanges = subscribeChanges(() => {
       projectToAllReadyCards();
     });
+    const stopPreview = subscribeOriginalPreview(() => {
+      projectToAllReadyCards();
+    });
+    return () => {
+      stopChanges();
+      stopPreview();
+    };
   }, []);
 
   useEffect(() => {
@@ -357,6 +365,9 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       };
       if (isProjectionAppliedMessage(msg, identity)) {
         recordCanvasProjectionApplied(frame.cardId, msg.revision);
+        // While hold-to-view-original is active the frame intentionally shows
+        // the page without inspector changes; skip conflict verification.
+        if (isOriginalPreviewActive()) return;
         const frameDocument = frame.iframe.contentDocument;
         if (frameDocument && isCanvasCanonicalProjectionRevisionCurrent(frameDocument, msg.revision)) {
           const attempt = beginPreviewAttempt(
