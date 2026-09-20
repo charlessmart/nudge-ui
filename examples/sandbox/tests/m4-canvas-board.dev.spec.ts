@@ -45,7 +45,7 @@ test.describe("Canvas spatial board", () => {
 
   test("dev: card resize handle is present and appears on hover", async ({ page }) => {
     const card = page.locator(".canvas-card").first();
-    const resizeHandle = card.locator('[data-test^="canvas-card-resize-"]');
+    const resizeHandle = card.locator('[data-resize-direction="bottom-right"]');
     await expect(resizeHandle).toBeAttached();
 
     const opacityDefault = await resizeHandle.evaluate((el: HTMLElement) =>
@@ -84,7 +84,7 @@ test.describe("Canvas spatial board — two responsive sizes", () => {
     const sizeBefore = await iframe.boundingBox();
     expect(sizeBefore).not.toBeNull();
 
-    const resizeHandle = card.locator('[data-test^="canvas-card-resize-"]');
+    const resizeHandle = card.locator('[data-resize-direction="bottom-right"]');
     const handleBox = await resizeHandle.boundingBox();
     expect(handleBox).not.toBeNull();
 

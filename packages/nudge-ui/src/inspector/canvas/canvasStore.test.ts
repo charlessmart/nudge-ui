@@ -399,6 +399,17 @@ describe("canvasStore resizeCard", () => {
     expect(updated.height).toBe(600);
   });
 
+  it("updates a card's position when resizing from an anchored edge", () => {
+    const card = addCanvasCard("http://localhost:5173/about", "About");
+    resizeCard(card.id, 840, 600, { x: 60, y: card.y });
+    expect(getCanvasCards()[0]).toMatchObject({
+      x: 60,
+      y: card.y,
+      width: 840,
+      height: 600,
+    });
+  });
+
   it("does not modify other card properties", () => {
     const card = addCanvasCard("http://localhost:5173/about", "About");
     resizeCard(card.id, 800, 600);

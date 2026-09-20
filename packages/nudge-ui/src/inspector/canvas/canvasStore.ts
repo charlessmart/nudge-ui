@@ -409,8 +409,15 @@ export function duplicateCard(sourceId: string): CanvasCard | null {
   return card;
 }
 
-export function resizeCard(id: string, width: number, height: number): void {
-  cards = cards.map((c) => (c.id === id ? { ...c, width, height } : c));
+export function resizeCard(
+  id: string,
+  width: number,
+  height: number,
+  position?: { readonly x: number; readonly y: number },
+): void {
+  cards = cards.map((c) => (c.id === id
+    ? { ...c, width, height, ...(position ? { x: position.x, y: position.y } : {}) }
+    : c));
   lastUsedCardSize = { width, height };
   notify();
 }

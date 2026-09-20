@@ -23,6 +23,11 @@ import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig, type NudgeUiRuntimeCo
 import { reconcileRuntimeWithDocumentStylesheets } from "../runtime/documentStylesheetOrder.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 import { SketchFrameOverlay } from "../sketch/SketchFrameOverlay.tsx";
+import {
+  getCanvasResizeEdges,
+  resizeCanvasRect,
+  type CanvasResizeDirection,
+} from "./canvasResize.ts";
 
 interface CanvasCardProps {
   card: CanvasCard;
@@ -35,8 +40,23 @@ interface CanvasCardProps {
 
 type CardLoadState = "loading" | "ready" | "error";
 
-const MIN_CARD_WIDTH = 200;
-const MIN_CARD_HEIGHT = 150;
+interface CanvasResizeHandleDefinition {
+  readonly direction: CanvasResizeDirection;
+  readonly cursor: string;
+  readonly transformOrigin: string;
+  readonly label: string;
+}
+
+const RESIZE_HANDLES: readonly CanvasResizeHandleDefinition[] = [
+  { direction: "top-left", cursor: "nwse-resize", transformOrigin: "left top", label: "Resize card from the top-left corner" },
+  { direction: "top", cursor: "ns-resize", transformOrigin: "center top", label: "Resize card from the top edge" },
+  { direction: "top-right", cursor: "nesw-resize", transformOrigin: "right top", label: "Resize card from the top-right corner" },
+  { direction: "right", cursor: "ew-resize", transformOrigin: "right center", label: "Resize card from the right edge" },
+  { direction: "bottom-right", cursor: "nwse-resize", transformOrigin: "right bottom", label: "Resize card from the bottom-right corner" },
+  { direction: "bottom", cursor: "ns-resize", transformOrigin: "center bottom", label: "Resize card from the bottom edge" },
+  { direction: "bottom-left", cursor: "nesw-resize", transformOrigin: "left bottom", label: "Resize card from the bottom-left corner" },
+  { direction: "left", cursor: "ew-resize", transformOrigin: "left center", label: "Resize card from the left edge" },
+];
 
 export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onOpenApp, onShowFocus, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -231,6 +251,11 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
 
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef({ startX: 0, startY: 0, cardX: 0, cardY: 0 });
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => resizeCleanupRef.current?.();
+  }, []);
 
   const handleToolbarPointerDown = useCallback((e: React.PointerEvent) => {
     // SAFETY: pointer events on the card target are HTMLElements in this DOM context.
@@ -275,45 +300,85 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     selectCard(card.id);
   }, [card.id]);
 
-  const handleResizeStart = useCallback((e: React.PointerEvent) => {
+  const handleResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>, direction: CanvasResizeDirection) => {
     e.stopPropagation();
     e.preventDefault();
 
+    resizeCleanupRef.current?.();
+
+    const target = e.currentTarget;
+    const pointerId = e.pointerId;
     const startX = e.clientX;
     const startY = e.clientY;
-    const startWidth = card.width;
-    const startHeight = card.height;
-
-    // SAFETY: pointerdown targets are HTMLElements in the card DOM.
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    const start = {
+      x: card.x,
+      y: card.y,
+      width: card.width,
+      height: card.height,
+    };
 
     function onMove(ev: PointerEvent): void {
-      const dx = (ev.clientX - startX) / camera.zoom;
-      const dy = (ev.clientY - startY) / camera.zoom;
-
-      const newWidth = Math.max(MIN_CARD_WIDTH, startWidth + dx);
-      const newHeight = Math.max(MIN_CARD_HEIGHT, startHeight + dy);
-
-      resizeCard(card.id, newWidth, newHeight);
+      if (ev.pointerId !== pointerId) return;
+      const delta = {
+        x: (ev.clientX - startX) / camera.zoom,
+        y: (ev.clientY - startY) / camera.zoom,
+      };
+      const next = resizeCanvasRect(start, direction, delta);
+      resizeCard(card.id, next.width, next.height, { x: next.x, y: next.y });
     }
 
-    function onUp(): void {
+    function cleanup(): void {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      target.removeEventListener("lostpointercapture", onLostPointerCapture);
+      if (target.hasPointerCapture?.(pointerId)) target.releasePointerCapture(pointerId);
+      if (resizeCleanupRef.current === cleanup) resizeCleanupRef.current = null;
     }
 
+    function onUp(ev: PointerEvent): void {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+    }
+
+    function onCancel(ev: PointerEvent): void {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+    }
+
+    function onLostPointerCapture(ev: PointerEvent): void {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+    }
+
+    resizeCleanupRef.current = cleanup;
+    // SAFETY: the resize handle is an HTMLDivElement in this DOM context.
+    target.setPointerCapture?.(pointerId);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-  }, [card.id, card.width, card.height, camera.zoom]);
+    window.addEventListener("pointercancel", onCancel);
+    target.addEventListener("lostpointercapture", onLostPointerCapture);
+  }, [card, camera.zoom]);
 
-  function handleResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
-    const step = event.shiftKey ? 40 : 20;
-    if (event.key === "ArrowRight") resizeCard(card.id, card.width + step, card.height);
-    else if (event.key === "ArrowLeft") resizeCard(card.id, Math.max(MIN_CARD_WIDTH, card.width - step), card.height);
-    else if (event.key === "ArrowDown") resizeCard(card.id, card.width, card.height + step);
-    else if (event.key === "ArrowUp") resizeCard(card.id, card.width, Math.max(MIN_CARD_HEIGHT, card.height - step));
-    else return;
+  function handleResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>, direction: CanvasResizeDirection): void {
+    const isArrowKey = event.key === "ArrowRight"
+      || event.key === "ArrowLeft"
+      || event.key === "ArrowDown"
+      || event.key === "ArrowUp";
+    if (!isArrowKey) return;
+
     event.preventDefault();
+    event.stopPropagation();
+
+    const step = event.shiftKey ? 40 : 20;
+    const delta = {
+      x: event.key === "ArrowRight" ? step : event.key === "ArrowLeft" ? -step : 0,
+      y: event.key === "ArrowDown" ? step : event.key === "ArrowUp" ? -step : 0,
+    };
+    const edges = getCanvasResizeEdges(direction);
+    if ((delta.x !== 0 && edges.horizontal === null) || (delta.y !== 0 && edges.vertical === null)) return;
+    const next = resizeCanvasRect(card, direction, delta);
+    resizeCard(card.id, next.width, next.height, { x: next.x, y: next.y });
   }
 
   return (
@@ -429,21 +494,26 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
         />
         <SketchFrameOverlay iframe={iframeRef.current} cardUrl={card.url} ready={loadState === "ready"} />
       </div>
-      {presentation === "canvas" ? <div
-        className="canvas-card__resize-handle"
-        data-test={`canvas-card-resize-${card.id}`}
-        style={{
-          transform: `scale(${resizeHandleScale})`,
-          transformOrigin: "right bottom",
-        }}
-        onPointerDown={handleResizeStart}
-        onKeyDown={handleResizeKeyDown}
-        role="button"
-        aria-label="Resize card"
-        tabIndex={0}
-      >
-        <IconArrowsDiagonal size={12} aria-hidden="true" />
-      </div> : null}
+      {presentation === "canvas" ? RESIZE_HANDLES.map((handle) => (
+        <div
+          key={handle.direction}
+          className={`canvas-card__resize-handle canvas-card__resize-handle--${handle.direction}`}
+          data-test={`canvas-card-resize-${card.id}${handle.direction === "bottom-right" ? "" : `-${handle.direction}`}`}
+          data-resize-direction={handle.direction}
+          style={{
+            transform: `scale(${resizeHandleScale})`,
+            transformOrigin: handle.transformOrigin,
+            cursor: handle.cursor,
+          }}
+          onPointerDown={(event) => handleResizeStart(event, handle.direction)}
+          onKeyDown={(event) => handleResizeKeyDown(event, handle.direction)}
+          role="button"
+          aria-label={handle.direction === "bottom-right" ? "Resize card" : handle.label}
+          tabIndex={0}
+        >
+          {handle.direction === "bottom-right" ? <IconArrowsDiagonal size={12} aria-hidden="true" /> : null}
+        </div>
+      )) : null}
     </div>
   );
 }
