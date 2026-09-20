@@ -74,6 +74,14 @@ export function registerResolutionElement(el: Element): void {
   registeredElements.add(el);
 }
 
+export function registerResolutionLineage(element: HTMLElement): void {
+  let current: HTMLElement | null = element;
+  while (current) {
+    registerResolutionElement(current);
+    current = current.parentElement;
+  }
+}
+
 /** Releases the observer, listener, and cached state owned by one document. */
 export function disposeDocumentResolution(doc: Document): void {
   const session = documentResolutionSessions.get(doc);
@@ -90,9 +98,8 @@ export function disposeDocumentResolution(doc: Document): void {
   documentResolutionReferences.delete(doc);
 
   // Keep revision counters monotonic per Document. Resetting them to (0,0)
-  // resurrects stale revision-keyed caches in tokens/resolution.ts
-  // (stableTokenCache, stateResolutionSnapshots, tokenEntriesCache,
-  // concreteElementMatchCaches, sourceSiteMatchCaches): an entry written at
+  // resurrects stale revision-keyed caches in property resolution, token
+  // availability, and rule matching: an entry written at
   // (0,0) before disposal matches immediately after disposal at (0,0), even
   // though the CSSOM changed while no observer was attached. Bump instead so
   // every pre-disposal cache entry misses, then let the next
@@ -110,7 +117,6 @@ export function disposeDocumentResolution(doc: Document): void {
   documentRevisionListeners.delete(doc);
 }
 
-/** Keeps one document's CSSOM observer alive for a browser inspection owner. */
 export function retainDocumentResolution(doc: Document): () => void {
   documentRevisions(doc);
   const session = documentResolutionSessions.get(doc);
@@ -148,7 +154,6 @@ function changesStylesheet(record: MutationRecord): boolean {
     || Array.from(record.removedNodes).some(isStylesheetNode);
 }
 
-/** A node that is, or lives inside, one of the tool's own probe elements. */
 function isProbeNode(node: Node): boolean {
   let current: Node | null = node;
   while (current && current.nodeType !== current.DOCUMENT_NODE) {

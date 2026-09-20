@@ -1,16 +1,13 @@
-import type { TokenDefinition, TokenEntry } from "../../css/model/index.ts";
 import { readTailwindV4AlphaUtility, tailwindV4AlphaExpression } from "../../css/dialects/index.ts";
-import { INTERACTION_STATES } from "../shell/styleState.ts";
 import type { InteractionState } from "../shell/styleState.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import {
   collectRules as collectCssomRules,
   documentRevisions as getDocumentRevisions,
-  registerResolutionElement,
+  registerResolutionLineage,
 } from "./resolution/cssomCollector.ts";
-import { computeSpecificity } from "./resolution/selectorSemantics.ts";
+import { createRuleMatcher, matchRuleForElement, type ElementMatch, type RuleMatcher } from "./resolution/ruleMatching.ts";
 import { compareAuthorCascade } from "./resolution/cascade.ts";
-export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
 import type {
   AtRuleCandidate,
   AtRuleContext,
@@ -33,7 +30,10 @@ import {
   type InterpretedValueField,
 } from "../../css/value-semantics/index.ts";
 import { createInspectorValueContext, inspectorTokenOrigin } from "./valueSemanticsAdapter.ts";
-import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+
+export { getAvailableInteractionStates, resetSourceSiteMatchCache, sourceSiteMatchCacheSize } from "./resolution/ruleMatching.ts";
+export { buildTokenTable, getTokenTable, getAvailableTokenEntriesForElement, getAvailableTokenCatalog } from "./tokenAvailability.ts";
+export { invalidateStyleResolutionCache } from "./resolution/cssomCollector.ts";
 
 /**
  * Builds (or reuses) the document's CSSOM rule snapshot ahead of a resolution
@@ -47,20 +47,6 @@ export function prewarmCssomRuleSnapshot(doc: Document): void {
 
 const MAX_PROPERTIES = 100;
 const EMPTY_LOCAL_ALIASES: ReadonlyMap<string, string> = new Map();
-
-const tokenTableMemo = new WeakMap<readonly TokenEntry[], TokenTable>();
-
-export function buildTokenTable(entries: readonly TokenEntry[]): TokenTable {
-  const cached = tokenTableMemo.get(entries);
-  if (cached) return cached;
-  const table: TokenTable = {};
-  for (const entry of entries) {
-    table[entry.name] = entry;
-    if (entry.cssName) table[entry.cssName] = entry;
-  }
-  tokenTableMemo.set(entries, table);
-  return table;
-}
 
 /**
  * Returns true when a `calc()` expression is safe to treat as a simple
@@ -76,245 +62,6 @@ function canBecomeNumeric(value: string): boolean {
   const inner = v.slice(m[0].length, -1).trim();
   const withoutVars = inner.replace(/var\([^)]+\)/g, "");
   return !/\b\d+(?:\.\d+)?(?:%|vw|vh|vmin|vmax|dvw|dvh|sv[lw]h|lv[lw]h|[ce]m|ex|ch)\b/i.test(withoutVars);
-}
-
-let tableCache: TokenTable | null = null;
-let tableSource: readonly TokenEntry[] | null = null;
-
-export function getTokenTable(): TokenTable {
-  const { tokens } = getNudgeUiRuntimeConfig();
-  if (tableCache !== null && tableSource === tokens) return tableCache;
-  tableCache = buildTokenTable(tokens);
-  tableSource = tokens;
-  return tableCache;
-}
-
-function isCustomPropertyToken(definition: TokenDefinition): boolean {
-  return definition.cssName.startsWith("--");
-}
-
-function entryFromDefinition(definition: TokenDefinition, value: string): TokenEntry {
-  return {
-    name: definition.name,
-    cssName: definition.cssName,
-    value,
-    source: definition.declarations[0]?.source ?? "",
-    cssValue: definition.cssValue,
-    adapter: definition.adapter,
-    origin: definition.origin,
-    editable: definition.editable,
-  };
-}
-
-interface TokenEntriesCacheEntry {
-  elementRevision: number;
-  stylesheetRevision: number;
-  definitions: readonly TokenDefinition[];
-  entries: TokenEntry[];
-}
-
-const tokenEntriesCache = new WeakMap<HTMLElement, TokenEntriesCacheEntry>();
-
-function registerWithAncestors(el: HTMLElement): void {
-  let current: HTMLElement | null = el;
-  while (current) {
-    registerResolutionElement(current);
-    current = current.parentElement;
-  }
-}
-
-/**
- * The build-time catalog is intentionally an inventory of every project token.
- * Element edits must instead use only custom properties resolved in that
- * element's cascade; a token defined by a lazy stylesheet is not usable until
- * that stylesheet is attached to the document. Entries are cached per element
- * until the element or stylesheet revision changes; the derived table reuses
- * `buildTokenTable`'s input-identity memo.
- */
-export function getAvailableTokenEntriesForElement(
-  el: HTMLElement,
-  definitions: readonly TokenDefinition[] = getNudgeUiRuntimeConfig().tokenCatalog,
-): TokenEntry[] {
-  const revisions = getDocumentRevisions(el.ownerDocument ?? document);
-  const cached = tokenEntriesCache.get(el);
-  if (cached && cached.elementRevision === revisions.element
-    && cached.stylesheetRevision === revisions.stylesheet
-    && cached.definitions === definitions) {
-    return cached.entries;
-  }
-  registerWithAncestors(el);
-  const computed = getElementComputedStyle(el);
-  const available = definitions.flatMap((definition) => {
-    if (!isCustomPropertyToken(definition)) {
-      // Literal adapters (for example Tailwind v3) do not have a browser
-      // custom property to probe. Their adapter owns their availability.
-      return [entryFromDefinition(definition, definition.declarations[0]?.value ?? "")];
-    }
-    const value = computed.getPropertyValue(definition.cssName).trim();
-    return value ? [entryFromDefinition(definition, value)] : [];
-  });
-  const intermediateTable = buildTokenTable(available);
-  const entries = available.map((entry) => ({
-    ...entry,
-    value: resolveTokenValue(entry.value, intermediateTable).resolvedValue,
-  }));
-  tokenEntriesCache.set(el, {
-    elementRevision: revisions.element,
-    stylesheetRevision: revisions.stylesheet,
-    definitions,
-    entries,
-  });
-  return entries;
-}
-
-
-
-/**
- * Replaces build-time token declaration hints with declarations serialized by
- * the browser from the stylesheets currently attached to this document.
- */
-function hydrateTokenCatalogFromCssom(
-  definitions: readonly TokenDefinition[],
-  doc: Document = document,
-): TokenDefinition[] {
-  const needsHydration = (definition: TokenDefinition): boolean =>
-    definition.declarations.length === 0
-    || (definition.adapter === "vanilla-extract" && definition.declarations.every((declaration) =>
-      declaration.value.trim() === `var(${definition.cssName})`
-      && !declaration.context.selector
-      && !declaration.context.wrappers?.length));
-  const known = new Set(definitions.filter(needsHydration).map((definition) => definition.cssName));
-  const declarations = new Map<string, TokenDefinition["declarations"]>();
-  for (const rule of collectCssomRules(doc).rules) {
-    if (rule.source === "#nudge-ui-styles") continue;
-    for (const declaration of rule.declarations) {
-      if (!known.has(declaration.property)) continue;
-      const wrappers = [
-        ...(rule.layer ? [{ kind: "layer" as const, params: rule.layer }] : []),
-        ...(rule.atRules ?? []).flatMap((atRule) =>
-          atRule.kind === "media" || atRule.kind === "supports"
-            ? [{ kind: atRule.kind, params: atRule.params }]
-            : []),
-      ];
-      const list = declarations.get(declaration.property) ?? [];
-      list.push({
-        id: `${declaration.property}\u0000${rule.source ?? "cssom"}\u0000${rule.sourceOrder ?? list.length}`,
-        order: rule.sourceOrder,
-        value: declaration.value,
-        source: rule.source ?? "cssom",
-        important: Boolean(declaration.important),
-        context: {
-          selector: rule.selectorText,
-          ...(wrappers.length > 0 ? { wrappers } : {}),
-        },
-      });
-      declarations.set(declaration.property, list);
-    }
-  }
-  return definitions.map((definition) => {
-    if (!needsHydration(definition)) return definition;
-    const accepted = declarations.get(definition.cssName);
-    return accepted?.length ? { ...definition, declarations: accepted } : definition;
-  });
-}
-
-function sourceFile(source: string): string {
-  return source.replace(/:\d+$/, "").split(/[?#]/, 1)[0] ?? source;
-}
-
-function normalizedPath(value: string): string {
-  return decodeURIComponent(value).replace(/\\/g, "/").replace(/^file:\/\//, "").replace(/\/+$/, "");
-}
-
-interface LoadedStylesheetSource {
-  readonly path: string;
-  readonly providesAuthoredIdentity: boolean;
-}
-
-function loadedStylesheetSources(doc: Document): LoadedStylesheetSource[] {
-  const sourceIdentityByPath = new Map<string, boolean>();
-  for (const node of doc.querySelectorAll<HTMLStyleElement | HTMLLinkElement>(
-    'style[data-vite-dev-id], link[rel~="stylesheet"][href]',
-  )) {
-    const providesAuthoredIdentity = node.tagName === "STYLE";
-    const source = providesAuthoredIdentity
-      ? (node as HTMLStyleElement).dataset.viteDevId
-      : node.getAttribute("href");
-    if (!source) continue;
-    const path = normalizedPath(source.split(/[?#]/, 1)[0] ?? source);
-    sourceIdentityByPath.set(
-      path,
-      providesAuthoredIdentity || sourceIdentityByPath.get(path) === true,
-    );
-  }
-  return Array.from(sourceIdentityByPath, ([path, providesAuthoredIdentity]) => ({
-    path,
-    providesAuthoredIdentity,
-  }));
-}
-
-function isLoadedCssSource(source: string, loadedSources: string[]): boolean {
-  const file = sourceFile(source);
-  if (!/\.css$/i.test(file) || loadedSources.length === 0) return true;
-  const normalizedFile = normalizedPath(file);
-  return loadedSources.some((loaded) => loaded === normalizedFile
-    || loaded.endsWith(`/${normalizedFile}`)
-    || normalizedFile.endsWith(`/${loaded}`));
-}
-
-/**
- * Returns stylesheet identities only when the browser gave us a complete,
- * authored-source mapping. A compiled host can expose a mixture of source-like
- * and opaque CSS URLs; treating the mapped subset as complete would make
- * declarations behind the opaque URLs look lazy even while their variables are
- * live in the document.
- */
-function confidentlyLoadedStylesheetSources(
-  definitions: readonly TokenDefinition[],
-  loadedSources: readonly LoadedStylesheetSource[],
-): string[] {
-  const cssSources = definitions.flatMap((definition) =>
-    definition.declarations
-      .map((declaration) => declaration.source)
-      .filter((source) => /\.css$/i.test(sourceFile(source))));
-  const known = new Set<string>();
-  for (const loaded of loadedSources) {
-    if (loaded.providesAuthoredIdentity
-      || cssSources.some((source) => isLoadedCssSource(source, [loaded.path]))) {
-      known.add(loaded.path);
-      continue;
-    }
-    // One opaque compiled URL can contain any authored declaration, so the
-    // document does not provide enough evidence to remove unloaded sources.
-    return [];
-  }
-  return [...known];
-}
-
-/**
- * Produces the page catalog used by the global Tokens settings section. It retains the
- * build-time inventory separately, while removing declarations from CSS files
- * that have not loaded when the document exposes mappable source identities
- * (such as Vite's lazy route stylesheets). Opaque compiled URLs do not narrow
- * the adapter-supplied catalog.
- */
-export function getAvailableTokenCatalog(
-  root: HTMLElement = document.documentElement,
-  definitions: readonly TokenDefinition[] = getNudgeUiRuntimeConfig().tokenCatalog,
-): TokenDefinition[] {
-  const computed = getElementComputedStyle(root);
-  const hydrated = hydrateTokenCatalogFromCssom(definitions, root.ownerDocument ?? document);
-  const loadedSources = confidentlyLoadedStylesheetSources(
-    hydrated,
-    loadedStylesheetSources(root.ownerDocument ?? document),
-  );
-  return hydrated.flatMap((definition) => {
-    if (!isCustomPropertyToken(definition)) return [definition];
-    if (!computed.getPropertyValue(definition.cssName).trim()) return [];
-    const declarations = definition.declarations.filter((declaration) =>
-      isLoadedCssSource(declaration.source, loadedSources));
-    return declarations.length > 0 ? [{ ...definition, declarations }] : [];
-  });
 }
 
 function normalizeInElementContext(el: HTMLElement, property: string, value: string): string {
@@ -338,8 +85,8 @@ function candidateMatchesPainted(el: HTMLElement, row: ResolvedProperty, painted
 
 /**
  * Resolves one authored value through the value-semantics Module using the
- * inspector's integration context. Used by the token-availability path; the
- * value Module is the sole interpretation authority.
+ * inspector's integration context. Value semantics remains the sole
+ * interpretation authority.
  */
 function resolveTokenValue(
   value: string,
@@ -492,13 +239,6 @@ function atRulesApplyToElement(el: HTMLElement, atRules: readonly AtRuleContext[
   });
 }
 
-function specificityForBranch(rule: Pick<MatchedRule, "selectorText" | "specificity">, branch: string): number {
-  // Single-branch selectors reuse the specificity collected from CSSOM; the
-  // matched branch is the whole selector. Multi-branch selectors need the
-  // matched branch's own weight, so recompute per branch.
-  return rule.selectorText.includes(",") ? computeSpecificity(branch) : rule.specificity;
-}
-
 function collectLocalAliases(
   el: HTMLElement,
   rules: MatchedRule[],
@@ -522,10 +262,10 @@ function collectLocalAliases(
     rules.forEach((rule, index) => {
       if (rule.active === false) return;
       if (!ruleApplies(rule)) return;
-      const branch = matchingSelectorBranch(element, rule.selectorText);
-      if (!branch) return;
+      const match = matchRuleForElement(element, { rule, selectorText: rule.selectorText });
+      if (!match) return;
       const sourceOrder = rule.sourceOrder ?? index;
-      const specificity = specificityForBranch(rule, branch);
+      const { specificity } = match;
       for (const declaration of rule.declarations) {
         if (!declaration.property.startsWith("--")) continue;
         const candidate: LocalAliasCandidate = {
@@ -567,14 +307,6 @@ function collectLocalAliases(
   return aliases;
 }
 
-interface ElementMatch {
-  rule: MatchedRule;
-  /** The selector actually used for matching (state-stripped for interaction states). */
-  selectorText: string;
-  branch: string;
-  specificity: number;
-}
-
 interface ElementResolution {
   element: HTMLElement;
   matched: ElementMatch[];
@@ -586,14 +318,6 @@ interface LineageResolution {
   lineage: HTMLElement[];
   byElement: Map<HTMLElement, ElementResolution>;
 }
-
-/**
- * The selector set used by a resolution. Interaction states strip or drop
- * pseudo-class rules, `live` keeps the raw CSSOM rules (used by
- * `getResolvedProperties`), and `stable` drops transient rules (used by
- * `getResolvedPropertiesStable`).
- */
-type CascadeTransform = InteractionState | "live" | "stable";
 
 function makeRuleApplies(el: HTMLElement): (rule: MatchedRule) => boolean {
   const matchingContexts = new Map<string, boolean>();
@@ -609,525 +333,6 @@ function makeRuleApplies(el: HTMLElement): (rule: MatchedRule) => boolean {
   };
 }
 
-interface SelectorPseudoClass {
-  name: string;
-  start: number;
-  end: number;
-}
-
-const SELECTOR_PSEUDO_CLASS_CACHE_MAX = 16_384;
-const selectorPseudoClassMemo = new Map<string, readonly SelectorPseudoClass[]>();
-
-/** Finds pseudo-classes without treating escaped or attribute-value colons as syntax. */
-function selectorPseudoClasses(selector: string): readonly SelectorPseudoClass[] {
-  const cached = selectorPseudoClassMemo.get(selector);
-  if (cached) return cached;
-
-  const matches: SelectorPseudoClass[] = [];
-  let attributeDepth = 0;
-  let quote: string | null = null;
-  let escaped = false;
-  for (let index = 0; index < selector.length; index++) {
-    const character = selector[index]!;
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (character === "\\") escaped = true;
-      else if (character === quote) quote = null;
-      continue;
-    }
-    if (attributeDepth > 0) {
-      if (character === '"' || character === "'") quote = character;
-      else if (character === "[") attributeDepth++;
-      else if (character === "]") attributeDepth--;
-      continue;
-    }
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (character === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (character === "[") {
-      attributeDepth = 1;
-      continue;
-    }
-    if (character !== ":" || selector[index - 1] === ":" || selector[index + 1] === ":") continue;
-    const name = /^[A-Za-z-]+/.exec(selector.slice(index + 1))?.[0];
-    if (!name) continue;
-    matches.push({ name: name.toLowerCase(), start: index, end: index + name.length + 1 });
-    index += name.length;
-  }
-
-  if (selectorPseudoClassMemo.size >= SELECTOR_PSEUDO_CLASS_CACHE_MAX) selectorPseudoClassMemo.clear();
-  selectorPseudoClassMemo.set(selector, matches);
-  return matches;
-}
-
-const TRANSIENT_PSEUDO_CLASSES = new Set([
-  "hover",
-  "active",
-  "focus",
-  "focus-visible",
-  "focus-within",
-  "visited",
-  "target",
-]);
-const INTERACTION_PSEUDO_CLASSES = new Set<string>(INTERACTION_STATES);
-
-function hasSelectorPseudoClass(selector: string, names: ReadonlySet<string>): boolean {
-  return selectorPseudoClasses(selector).some(({ name }) => names.has(name));
-}
-
-const transformedRulesMemo = new WeakMap<MatchedRule[], Map<CascadeTransform, Array<{ rule: MatchedRule; selectorText: string }>>>();
-
-function rulesForTransform(rules: MatchedRule[], transform: CascadeTransform): Array<{ rule: MatchedRule; selectorText: string }> {
-  let byTransform = transformedRulesMemo.get(rules);
-  if (!byTransform) {
-    byTransform = new Map();
-    transformedRulesMemo.set(rules, byTransform);
-  }
-  const cached = byTransform.get(transform);
-  if (cached) return cached;
-  let transformed: Array<{ rule: MatchedRule; selectorText: string }>;
-  if (transform === "live") {
-    transformed = rules.map((rule) => ({ rule, selectorText: rule.selectorText }));
-  } else if (transform === "stable") {
-    transformed = rules
-      .filter((rule) => !hasSelectorPseudoClass(rule.selectorText, TRANSIENT_PSEUDO_CLASSES))
-      .map((rule) => ({ rule, selectorText: rule.selectorText }));
-  } else {
-    transformed = rules.flatMap((rule) => {
-      const selectorText = selectorForState(rule.selectorText, transform);
-      return selectorText ? [{ rule, selectorText }] : [];
-    });
-  }
-  byTransform.set(transform, transformed);
-  return transformed;
-}
-
-const STATIC_SELECTOR_FUNCTIONS = new Set(["is", "where", "not"]);
-const STATIC_PSEUDO_CLASSES = new Set(["host", "root"]);
-const SELECTOR_SENSITIVITY_CACHE_MAX = 16_384;
-const selectorSensitivityMemo = new Map<string, boolean>();
-
-/** Returns the closing parenthesis for a CSS selector function. */
-function selectorFunctionEnd(selector: string, openingIndex: number): number {
-  let parentheses = 0;
-  let brackets = 0;
-  let quote: string | null = null;
-  let escaped = false;
-  for (let index = openingIndex; index < selector.length; index++) {
-    const character = selector[index]!;
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (character === "\\") escaped = true;
-      else if (character === quote) quote = null;
-      continue;
-    }
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (character === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (character === '"' || character === "'") {
-      quote = character;
-      continue;
-    }
-    if (character === "[") {
-      brackets++;
-      continue;
-    }
-    if (character === "]") {
-      brackets = Math.max(0, brackets - 1);
-      continue;
-    }
-    if (brackets > 0) continue;
-    if (character === "(") {
-      parentheses++;
-    } else if (character === ")") {
-      parentheses--;
-      if (parentheses === 0) return index;
-    }
-  }
-  return -1;
-}
-
-function isElementSensitiveSelector(selector: string): boolean {
-  const cached = selectorSensitivityMemo.get(selector);
-  if (cached !== undefined) return cached;
-  const result = computeElementSensitiveSelector(selector);
-  if (selectorSensitivityMemo.size >= SELECTOR_SENSITIVITY_CACHE_MAX) selectorSensitivityMemo.clear();
-  selectorSensitivityMemo.set(selector, result);
-  return result;
-}
-
-function computeElementSensitiveSelector(selector: string): boolean {
-  let attributeDepth = 0;
-  let quote: string | null = null;
-  let escaped = false;
-  for (let index = 0; index < selector.length; index++) {
-    const character = selector[index]!;
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (character === "\\") escaped = true;
-      else if (character === quote) quote = null;
-      continue;
-    }
-    if (attributeDepth > 0) {
-      if (character === '"' || character === "'") quote = character;
-      else if (character === "[") attributeDepth++;
-      else if (character === "]") attributeDepth--;
-      continue;
-    }
-    // Tailwind escapes utility variants such as `.sm\\:text-red-500`. The
-    // escaped colon is part of the class name, not a pseudo-class boundary.
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (character === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (character === "[") {
-      attributeDepth = 1;
-      continue;
-    }
-    if (character === "+" || character === "~") return true;
-    if (character !== ":") continue;
-    const pseudoElement = selector[index + 1] === ":";
-    const pseudo = /^[A-Za-z-]+/.exec(selector.slice(index + (pseudoElement ? 2 : 1)))?.[0];
-    if (pseudoElement) {
-      // Pseudo-elements do not change whether the originating element matches
-      // a selector. Continue scanning after the name so a real pseudo-class
-      // elsewhere in the selector remains element-sensitive.
-      if (!pseudo) return true;
-      index += pseudo.length + 1;
-      let next = index + 1;
-      while (next < selector.length && /\s/.test(selector[next]!)) next++;
-      if (selector[next] === "(") return true;
-      continue;
-    }
-    if (!pseudo) continue;
-    const pseudoName = pseudo.toLowerCase();
-    index += pseudo.length;
-    let next = index + 1;
-    while (next < selector.length && /\s/.test(selector[next]!)) next++;
-    if (STATIC_SELECTOR_FUNCTIONS.has(pseudoName) && selector[next] === "(") {
-      const end = selectorFunctionEnd(selector, next);
-      if (end < 0 || isElementSensitiveSelector(selector.slice(next + 1, end))) return true;
-      index = end;
-      continue;
-    }
-    // :root and :host are represented by the complete ancestor/document
-    // context. Other pseudo-classes can vary per concrete element without an
-    // attribute or sibling mutation (for example :checked, :visited, and
-    // :target), so keep them in the element-sensitive bucket.
-    if (STATIC_PSEUDO_CLASSES.has(pseudoName)) continue;
-    return true;
-  }
-  return false;
-}
-
-interface SourceSiteMatchBuckets {
-  cacheable: Array<{ rule: MatchedRule; selectorText: string }>;
-  elementSensitive: Array<{ rule: MatchedRule; selectorText: string }>;
-}
-
-const sourceSiteMatchBucketsMemo = new WeakMap<MatchedRule[], Map<CascadeTransform, SourceSiteMatchBuckets>>();
-
-function sourceSiteMatchBuckets(rules: MatchedRule[], transform: CascadeTransform): SourceSiteMatchBuckets {
-  let byTransform = sourceSiteMatchBucketsMemo.get(rules);
-  if (!byTransform) {
-    byTransform = new Map();
-    sourceSiteMatchBucketsMemo.set(rules, byTransform);
-  }
-  const cached = byTransform.get(transform);
-  if (cached) return cached;
-  const cacheable: Array<{ rule: MatchedRule; selectorText: string }> = [];
-  const elementSensitive: Array<{ rule: MatchedRule; selectorText: string }> = [];
-  for (const entry of rulesForTransform(rules, transform)) {
-    (isElementSensitiveSelector(entry.selectorText) ? elementSensitive : cacheable).push(entry);
-  }
-  const buckets = { cacheable, elementSensitive };
-  byTransform.set(transform, buckets);
-  return buckets;
-}
-
-const SOURCE_SITE_CACHE_MAX = 4096;
-interface SourceSiteMatchCacheEntry {
-  elementRevision: number;
-  stylesheetRevision: number;
-  matched: ElementMatch[];
-}
-
-let sourceSiteMatchCaches = new WeakMap<Document, Map<string, SourceSiteMatchCacheEntry>>();
-let sourceSiteMatchCacheEntries = 0;
-const concreteElementMatchCaches = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
-// The "all matched" set (inactive rules included) is matched fresh against
-// every lineage element on every resolution otherwise, duplicating the
-// cached sweep's cost. State-independent selectors use the same revision-keyed
-// memo shape as the active sweep. Element-sensitive selectors stay fresh: a
-// checked state, sibling relationship, or similar browser state can change
-// without a DOM mutation that this registry observes.
-const allMatchesMemo = new WeakMap<HTMLElement, Map<CascadeTransform, SourceSiteMatchCacheEntry>>();
-
-/** Test hook: clears the per-source-site matched-rule cache. */
-export function resetSourceSiteMatchCache(): void {
-  sourceSiteMatchCaches = new WeakMap();
-  sourceSiteMatchCacheEntries = 0;
-}
-
-/** Test hook: number of distinct cached source-site match sets. */
-export function sourceSiteMatchCacheSize(): number {
-  return sourceSiteMatchCacheEntries;
-}
-
-/**
- * Captures selector-relevant state without serializing the whole document.
- * Element and ancestor attributes cover the common source-site selectors while
- * child/sibling-sensitive selectors are handled conservatively below.
- */
-function sourceSiteContextKey(el: HTMLElement): string {
-  const lineage: string[] = [];
-  let current: HTMLElement | null = el;
-  while (current) {
-    const attributes = Array.from(current.attributes)
-      .filter((attribute) => attribute.name !== "data-renderer-id")
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((attribute) => `${attribute.name}=${attribute.value}`)
-      .join("\u0002");
-    lineage.push(`${current.tagName}\u0003${attributes}`);
-    current = current.parentElement;
-  }
-  return lineage.join("\u0001");
-}
-
-/**
- * Source-site identity key for the matched-rule cache. The element's class is
- * part of the key because sibling instances of a source site can carry
- * different classes (for example rows in a large list), which changes which
- * rules match even though their `data-cid`/`data-src` are identical.
- */
-function sourceSiteKey(el: HTMLElement, transform: CascadeTransform): string {
-  const cid = el.getAttribute("data-cid") ?? "";
-  const src = el.getAttribute("data-src") ?? "";
-  const instance = el.getAttribute("data-projection-instance") ?? "";
-  const className = typeof el.className === "string" ? el.className : "";
-  return `${cid}\u0000${src}\u0000${instance}\u0000${className}\u0000${transform}`;
-}
-
-function matchRuleForElement(el: HTMLElement, entry: { rule: MatchedRule; selectorText: string }): ElementMatch | null {
-  const branch = matchingSelectorBranch(el, entry.selectorText);
-  if (!branch) return null;
-  return {
-    rule: entry.rule,
-    selectorText: entry.selectorText,
-    branch,
-    specificity: specificityForBranch({ ...entry.rule, selectorText: entry.selectorText }, branch),
-  };
-}
-
-/**
- * Captures the current match outcome for selectors whose truth can change
- * without a document revision. This keeps the expensive resolved-row cache
- * usable while invalidating it when states such as `checked` actually change.
- */
-function elementSensitiveMatchKey(
-  el: HTMLElement,
-  rules: MatchedRule[],
-  transform: CascadeTransform,
-  sensitiveMatchesByElement?: Map<HTMLElement, ElementMatch[]>,
-): string {
-  const entries = sourceSiteMatchBuckets(rules, transform).elementSensitive;
-  if (entries.length === 0) return "";
-  const matches: string[] = [];
-  let current: HTMLElement | null = el;
-  let depth = 0;
-  while (current) {
-    const elementMatches: ElementMatch[] = [];
-    for (const entry of entries) {
-      const match = matchRuleForElement(current, entry);
-      if (!match) continue;
-      elementMatches.push(match);
-      matches.push(`${depth}:${entry.rule.sourceOrder ?? 0}:${match.branch}`);
-    }
-    sensitiveMatchesByElement?.set(current, elementMatches);
-    current = current.parentElement;
-    depth++;
-  }
-  return matches.join("\u0001");
-}
-
-function sensitiveMatchesForElement(
-  el: HTMLElement,
-  buckets: SourceSiteMatchBuckets,
-  matchesByElement: Map<HTMLElement, ElementMatch[]>,
-): ElementMatch[] {
-  const cached = matchesByElement.get(el);
-  if (cached) return cached;
-  const matched = buckets.elementSensitive.flatMap((entry) => {
-    const match = matchRuleForElement(el, entry);
-    return match ? [match] : [];
-  });
-  matchesByElement.set(el, matched);
-  return matched;
-}
-
-/**
- * Matches every transformed rule against one element. For elements carrying a
- * source-site identity (`data-cid`) the selector-match result is cached per
- * `(document, data-cid, data-src, data-projection-instance, transform, element and
- * stylesheet revision, context)` so repeated selections and equivalent sibling instances of the
- * same source site reuse the matched rule set. Elements without a stable
- * identity, or selectors that depend on unsupported relationships, are matched
- * fresh on every call.
- */
-function getCachedElementMatches(
-  el: HTMLElement,
-  rules: MatchedRule[],
-  transform: CascadeTransform,
-  sensitiveMatchesByElement: Map<HTMLElement, ElementMatch[]> = new Map(),
-): ElementMatch[] {
-  const buckets = sourceSiteMatchBuckets(rules, transform);
-  const { cacheable, elementSensitive } = buckets;
-  const collect = (entries: Array<{ rule: MatchedRule; selectorText: string }>): ElementMatch[] => {
-    const matched: ElementMatch[] = [];
-    for (const entry of entries) {
-      if (entry.rule.active === false) continue;
-      const match = matchRuleForElement(el, entry);
-      if (match) matched.push(match);
-    }
-    return matched;
-  };
-  const cid = el.getAttribute("data-cid");
-  const doc = el.ownerDocument ?? document;
-  const revisions = getDocumentRevisions(doc);
-  if (!cid || cacheable.length === 0) {
-    let cachedMatches: ElementMatch[] = [];
-    if (cacheable.length > 0) {
-      let cache = concreteElementMatchCaches.get(el);
-      if (!cache) {
-        cache = new Map();
-        concreteElementMatchCaches.set(el, cache);
-      }
-      const cached = cache.get(transform);
-      if (cached
-        && cached.elementRevision === revisions.element
-        && cached.stylesheetRevision === revisions.stylesheet) {
-        cachedMatches = cached.matched;
-      } else {
-        cachedMatches = collect(cacheable);
-        cache.set(transform, {
-          elementRevision: revisions.element,
-          stylesheetRevision: revisions.stylesheet,
-          matched: cachedMatches,
-        });
-      }
-    }
-    const sensitiveMatches = elementSensitive.length > 0
-      ? sensitiveMatchesForElement(el, buckets, sensitiveMatchesByElement).filter((match) => match.rule.active !== false)
-      : [];
-    return sensitiveMatches.length === 0 ? cachedMatches : [...cachedMatches, ...sensitiveMatches];
-  }
-  const key = `${sourceSiteKey(el, transform)}\u0000${sourceSiteContextKey(el)}`;
-  let cache = sourceSiteMatchCaches.get(doc);
-  if (!cache) {
-    cache = new Map();
-    sourceSiteMatchCaches.set(doc, cache);
-  }
-  const cached = cache.get(key);
-  let cachedMatches: ElementMatch[];
-  if (cached
-    && cached.elementRevision === revisions.element
-    && cached.stylesheetRevision === revisions.stylesheet) {
-    cachedMatches = cached.matched;
-  } else {
-    cachedMatches = collect(cacheable);
-    if (sourceSiteMatchCacheEntries >= SOURCE_SITE_CACHE_MAX) {
-      sourceSiteMatchCaches = new WeakMap();
-      sourceSiteMatchCacheEntries = 0;
-      cache = new Map();
-      sourceSiteMatchCaches.set(doc, cache);
-    }
-    if (!cache.has(key)) sourceSiteMatchCacheEntries++;
-    cache.set(key, {
-      elementRevision: revisions.element,
-      stylesheetRevision: revisions.stylesheet,
-      matched: cachedMatches,
-    });
-  }
-  // Match element-sensitive selectors on every resolution. Browser state such
-  // as `checked`, `target`, or a sibling relationship can change without a DOM
-  // or stylesheet revision, so a revision-keyed entry can return stale rows.
-  const elementMatches = elementSensitive.length > 0
-    ? sensitiveMatchesForElement(el, buckets, sensitiveMatchesByElement).filter((match) => match.rule.active !== false)
-    : [];
-  return elementMatches.length === 0 ? cachedMatches : [...cachedMatches, ...elementMatches];
-}
-
-/**
- * Matches selectors without applying conditional wrappers. Resolution still
- * uses the active-only set for cascade decisions; this set preserves inactive
- * media-query alternatives for property attribution in the inspector.
- * Memoized per (element, transform, revisions) like the cached sweep for
- * state-independent selectors. Element-sensitive selectors stay fresh because
- * their state can change without a revision bump (for example, `:checked`),
- * and the "live" transform always keeps its raw selector set fresh.
- */
-function getAllElementMatches(
-  el: HTMLElement,
-  rules: MatchedRule[],
-  transform: CascadeTransform,
-  sensitiveMatchesByElement: Map<HTMLElement, ElementMatch[]> = new Map(),
-): ElementMatch[] {
-  const buckets = sourceSiteMatchBuckets(rules, transform);
-  if (transform === "live") {
-    const cacheableMatches = buckets.cacheable.flatMap((entry) => {
-      const match = matchRuleForElement(el, entry);
-      return match ? [match] : [];
-    });
-    return [...cacheableMatches, ...sensitiveMatchesForElement(el, buckets, sensitiveMatchesByElement)];
-  }
-  const { cacheable, elementSensitive } = buckets;
-  const collect = (entries: Array<{ rule: MatchedRule; selectorText: string }>): ElementMatch[] => entries.flatMap((entry) => {
-    const match = matchRuleForElement(el, entry);
-    return match ? [match] : [];
-  });
-  const doc = el.ownerDocument ?? document;
-  const revisions = getDocumentRevisions(doc);
-  let cachedMatches: ElementMatch[] = [];
-  if (cacheable.length > 0) {
-    let byTransform = allMatchesMemo.get(el);
-    if (!byTransform) {
-      byTransform = new Map();
-      allMatchesMemo.set(el, byTransform);
-    }
-    const cached = byTransform.get(transform);
-    if (cached
-      && cached.elementRevision === revisions.element
-      && cached.stylesheetRevision === revisions.stylesheet) {
-      cachedMatches = cached.matched;
-    } else {
-      cachedMatches = collect(cacheable);
-      byTransform.set(transform, {
-        elementRevision: revisions.element,
-        stylesheetRevision: revisions.stylesheet,
-        matched: cachedMatches,
-      });
-    }
-  }
-  const sensitiveMatches = elementSensitive.length > 0
-    ? sensitiveMatchesForElement(el, buckets, sensitiveMatchesByElement)
-    : [];
-  return sensitiveMatches.length === 0 ? cachedMatches : [...cachedMatches, ...sensitiveMatches];
-}
-
 /**
  * One matching pass over the rules for the element and its ancestors, with the
  * selector-match results shared between the element's own resolution and the
@@ -1136,9 +341,7 @@ function getAllElementMatches(
  */
 function resolveLineage(
   el: HTMLElement,
-  rules: MatchedRule[],
-  transform: CascadeTransform,
-  sensitiveMatchesByElement: Map<HTMLElement, ElementMatch[]> = new Map(),
+  matcher: RuleMatcher,
 ): LineageResolution {
   const lineage: HTMLElement[] = [];
   let current: HTMLElement | null = el;
@@ -1151,8 +354,9 @@ function resolveLineage(
   const selectorMatches = new Map<HTMLElement, ElementMatch[]>();
   const allSelectorMatches = new Map<HTMLElement, ElementMatch[]>();
   for (const element of lineage) {
-    selectorMatches.set(element, getCachedElementMatches(element, rules, transform, sensitiveMatchesByElement));
-    allSelectorMatches.set(element, getAllElementMatches(element, rules, transform, sensitiveMatchesByElement));
+    const { matched, allMatched } = matcher.matchesForElement(element);
+    selectorMatches.set(element, matched);
+    allSelectorMatches.set(element, allMatched);
   }
 
   const byElement = new Map<HTMLElement, ElementResolution>();
@@ -1347,243 +551,6 @@ export function resolveRuleFixture(
   return rowsFromMatches(el, matched, localAliases, tokenTable, allMatched);
 }
 
-// Selector branch splits are pure functions of the selector text and repeat
-// for every element and resolution sweep. Memoize them so repeated matching
-// passes skip re-scanning the same selector strings. Bounded like the other
-// match caches; the snapshot's selector set is finite per stylesheet revision.
-const SELECTOR_SPLIT_CACHE_MAX = 8192;
-const selectorSplitMemo = new Map<string, string[]>();
-
-// The matched branch for one (element, selector) pair is a pure function of
-// the element's selector-relevant state and the CSSOM snapshot — except for
-// selectors whose match depends on transient state the revisions cannot see
-// (`:hover`, `:checked`, sibling combinators, …). Those keep the freshness
-// contract of the element-sensitive bucket and are matched uncached.
-// Resolution sweeps re-match the same state-independent selector strings
-// against the same lineage elements across cascades (authored base, stable,
-// interaction states) and across the active/all rule sets, so memoizing the
-// branch turns repeat sweeps into cache hits. Invalidation follows the
-// document revisions, the same strategy as the per-element match caches.
-const ELEMENT_BRANCH_CACHE_MAX = 16384;
-const elementBranchMemo = new WeakMap<Element, Map<string, {
-  elementRevision: number;
-  stylesheetRevision: number;
-  branch: string | null;
-  }>>();
-
-function selectorSubject(selector: string): string {
-  let start = 0;
-  let parentheses = 0;
-  let brackets = 0;
-  let quote: string | null = null;
-  let escaped = false;
-  for (let index = 0; index < selector.length; index++) {
-    const character = selector[index]!;
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (character === "\\") escaped = true;
-      else if (character === quote) quote = null;
-      continue;
-    }
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (character === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (character === '"' || character === "'") {
-      quote = character;
-      continue;
-    }
-    if (character === "[") {
-      brackets++;
-      continue;
-    }
-    if (character === "]") {
-      brackets = Math.max(0, brackets - 1);
-      continue;
-    }
-    if (brackets > 0) continue;
-    if (character === "(") {
-      parentheses++;
-      continue;
-    }
-    if (character === ")") {
-      parentheses = Math.max(0, parentheses - 1);
-      continue;
-    }
-    if (parentheses > 0) continue;
-    if (character === ">" || character === "+" || character === "~" || /\s/.test(character)) {
-      start = index + 1;
-    }
-  }
-  return selector.slice(start).trim();
-}
-
-function cssIdentifierEnd(source: string, start: number): number {
-  let index = start;
-  while (index < source.length) {
-    const character = source[index]!;
-    if (character === "\\") {
-      index++;
-      if (index >= source.length) break;
-      if (/[0-9a-fA-F]/.test(source[index]!)) {
-        let digits = 0;
-        while (index < source.length && digits < 6 && /[0-9a-fA-F]/.test(source[index]!)) {
-          index++;
-          digits++;
-        }
-        if (/\s/.test(source[index] ?? "")) index++;
-      } else {
-        index++;
-      }
-      continue;
-    }
-    if (!/[A-Za-z0-9_-]/.test(character) && character.charCodeAt(0) < 0x80) break;
-    index++;
-  }
-  return index;
-}
-
-function unescapeCssIdentifier(value: string): string {
-  return value
-    .replace(/\\([0-9a-fA-F]{1,6})(?:\s)?/g, (_match, hex: string) => {
-      const codePoint = Number.parseInt(hex, 16);
-      return codePoint === 0
-        || codePoint > 0x10FFFF
-        || (codePoint >= 0xD800 && codePoint <= 0xDFFF)
-        ? "\uFFFD"
-        : String.fromCodePoint(codePoint);
-    })
-    .replace(/\\(.)/g, "$1");
-}
-
-const SELECTOR_CLASS_REQUIREMENTS_CACHE_MAX = 16_384;
-const selectorClassRequirementsMemo = new Map<string, readonly string[]>();
-
-/** Returns the positive class requirements in a selector's subject compound. */
-function selectorClassRequirements(selector: string): readonly string[] {
-  const cached = selectorClassRequirementsMemo.get(selector);
-  if (cached) return cached;
-
-  const subject = selectorSubject(selector);
-  const requirements: string[] = [];
-  let parentheses = 0;
-  let brackets = 0;
-  let quote: string | null = null;
-  let escaped = false;
-  for (let index = 0; index < subject.length; index++) {
-    const character = subject[index]!;
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (character === "\\") escaped = true;
-      else if (character === quote) quote = null;
-      continue;
-    }
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (character === "\\") {
-      escaped = true;
-      continue;
-    }
-    if (character === '"' || character === "'") {
-      quote = character;
-      continue;
-    }
-    if (character === "[") {
-      brackets++;
-      continue;
-    }
-    if (character === "]") {
-      brackets = Math.max(0, brackets - 1);
-      continue;
-    }
-    if (brackets > 0) continue;
-    if (character === "(") {
-      parentheses++;
-      continue;
-    }
-    if (character === ")") {
-      parentheses = Math.max(0, parentheses - 1);
-      continue;
-    }
-    if (parentheses > 0 || character !== ".") continue;
-    const end = cssIdentifierEnd(subject, index + 1);
-    const className = unescapeCssIdentifier(subject.slice(index + 1, end));
-    if (className) requirements.push(className);
-    index = end - 1;
-  }
-  if (selectorClassRequirementsMemo.size >= SELECTOR_CLASS_REQUIREMENTS_CACHE_MAX) {
-    selectorClassRequirementsMemo.clear();
-  }
-  selectorClassRequirementsMemo.set(selector, requirements);
-  return requirements;
-}
-
-/**
- * Rejects selectors whose rightmost compound requires a class the element
- * does not have. This is a conservative prefilter: it only returns false for
- * an impossible positive class requirement and leaves all other selectors to
- * the browser's selector engine.
- */
-function canMatchSelectorSubject(el: Element, selector: string): boolean {
-  return selectorClassRequirements(selector).every((className) => el.classList.contains(className));
-}
-
-function isBranchMemoizable(selectorText: string): boolean {
-  return !hasSelectorPseudoClass(selectorText, TRANSIENT_PSEUDO_CLASSES)
-    && !isElementSensitiveSelector(selectorText);
-}
-
-function matchingSelectorBranch(el: Element, selectorText: string): string | null {
-  const doc = el.ownerDocument ?? document;
-  const revisions = getDocumentRevisions(doc);
-  let bySelector = elementBranchMemo.get(el);
-  const memoizable = isBranchMemoizable(selectorText);
-  if (memoizable) {
-    if (!bySelector) {
-      bySelector = new Map();
-      elementBranchMemo.set(el, bySelector);
-    }
-    const cached = bySelector.get(selectorText);
-    if (cached
-      && cached.elementRevision === revisions.element
-      && cached.stylesheetRevision === revisions.stylesheet) {
-      return cached.branch;
-    }
-  }
-  let branches = selectorSplitMemo.get(selectorText);
-  if (!branches) {
-    branches = splitTopLevel(selectorText, ",");
-    if (selectorSplitMemo.size >= SELECTOR_SPLIT_CACHE_MAX) selectorSplitMemo.clear();
-    selectorSplitMemo.set(selectorText, branches);
-  }
-  let branch: string | null = null;
-  for (const candidate of branches) {
-    const trimmedCandidate = candidate.trim();
-    if (!canMatchSelectorSubject(el, trimmedCandidate)) continue;
-    try {
-      if (el.matches(trimmedCandidate)) {
-        branch = trimmedCandidate;
-        break;
-      }
-    } catch { /* invalid/unsupported selector */ }
-  }
-  if (memoizable) {
-    if (bySelector!.size >= ELEMENT_BRANCH_CACHE_MAX) bySelector!.clear();
-    bySelector!.set(selectorText, {
-      elementRevision: revisions.element,
-      stylesheetRevision: revisions.stylesheet,
-      branch,
-    });
-  }
-  return branch;
-}
-
 function compareCandidate(a: ResolvedProperty, b: ResolvedProperty): number {
   return compareAuthorCascade(
     {
@@ -1634,31 +601,6 @@ function inferTailwindV4ColorOpacity(
     row.confidence = "probable";
     return;
   }
-}
-
-// Splits CSS values at top-level combinators or an optional delimiter.
-function splitTopLevel(s: string, sep?: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let i = 0; i < s.length; i++) {
-    if (s[i] === "(") depth++;
-    else if (s[i] === ")") depth--;
-    else if (depth === 0 && sep && s[i] === sep) {
-      parts.push(s.slice(start, i));
-      start = i + 1;
-    } else if (depth === 0 && !sep && (s[i] === " " || s[i] === ">" || s[i] === "+" || s[i] === "~")) {
-      // Only split on combinators that have non-space around them
-      // If previous char was also a combinator, skip
-      if (i > start) {
-        parts.push(s.slice(start, i).trim());
-      }
-      start = i + 1;
-    }
-  }
-  const last = s.slice(start).trim();
-  if (last) parts.push(last);
-  return parts;
 }
 
 interface ResolvedPropertiesSnapshot {
@@ -1714,22 +656,39 @@ function resolveInheritedProperties(
   return result;
 }
 
-export function getResolvedProperties(
+function resolveMatchedProperties(
   el: HTMLElement,
   tokenTable: TokenTable,
+  lineage: LineageResolution,
+  inaccessible: boolean,
+  mode: "live" | "stable" | InteractionState,
 ): ResolvedProperty[] {
-  const doc = el.ownerDocument ?? document;
-  const { rules, inaccessible } = collectCssomRules(doc);
-  const lineage = resolveLineage(el, rules, "live");
   const entry = lineage.byElement.get(el)!;
   const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable, entry.allMatched);
   const computed = getElementComputedStyle(el);
+  if (mode !== "stable") annotatePaintedValues(el, result, computed, inaccessible, mode);
+
+  applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
+  hydratePropertyOpacityRows(result, computed);
+  promoteNumericCalcRows(result, tokenTable);
+  return resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
+}
+
+function annotatePaintedValues(
+  el: HTMLElement,
+  result: ResolvedProperty[],
+  computed: CSSStyleDeclaration,
+  inaccessible: boolean,
+  mode: "live" | InteractionState,
+): void {
   for (const prop of result) {
     const cv = computed.getPropertyValue(prop.property);
     if (cv && !/\b(?:var|calc)\s*\(/.test(cv)) {
-      prop.resolvedValue = cv;
+      // A hypothetical state retains its authored value while `computed`
+      // records what the browser is painting. Live and base use painted values.
+      if (mode === "live" || mode === "base" || !prop.resolvedValue) prop.resolvedValue = cv;
       prop.computed = cv;
-      hydratePropertyOpacity(prop, cv);
+      if (mode === "live") hydratePropertyOpacity(prop, cv);
       const validated = candidateMatchesPainted(el, prop, cv);
       prop.confidence = validated && !inaccessible && !prop.evidence.layer ? "exact" : prop.tokenName ? "probable" : "unknown";
       prop.evidence.inaccessibleStylesheet = inaccessible || undefined;
@@ -1738,11 +697,16 @@ export function getResolvedProperties(
         : "painted value has no attributable catalog token";
     }
   }
+}
 
-  applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
-  hydratePropertyOpacityRows(result, computed);
-  promoteNumericCalcRows(result, tokenTable);
-  return resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
+export function getResolvedProperties(
+  el: HTMLElement,
+  tokenTable: TokenTable,
+): ResolvedProperty[] {
+  const doc = el.ownerDocument ?? document;
+  const { rules, inaccessible } = collectCssomRules(doc);
+  const lineage = resolveLineage(el, createRuleMatcher(rules, "live"));
+  return resolveMatchedProperties(el, tokenTable, lineage, inaccessible, "live");
 }
 
 function applyInlineDeclarations(
@@ -1813,24 +777,6 @@ function promoteNumericCalcRows(result: ResolvedProperty[], tokenTable: TokenTab
   }
 }
 
-function selectorForState(selector: string, state: InteractionState): string | null {
-  const pseudoClasses = selectorPseudoClasses(selector)
-    .filter(({ name }) => INTERACTION_PSEUDO_CLASSES.has(name));
-  const states = new Set(pseudoClasses.map(({ name }) => name));
-  if (state === "base") return states.size === 0 ? selector : null;
-  if (!states.has(state)) return states.size === 0 ? selector : null;
-  // CSSOM cannot ask the browser whether a hypothetical pseudo-class matches.
-  // Removing interaction pseudo-classes gives the authored rule a stable
-  // element match for inspection. The real rule remains untouched.
-  let transformed = selector;
-  for (let index = pseudoClasses.length - 1; index >= 0; index--) {
-    const pseudoClass = pseudoClasses[index]!;
-    if (!INTERACTION_PSEUDO_CLASSES.has(pseudoClass.name)) continue;
-    transformed = transformed.slice(0, pseudoClass.start) + transformed.slice(pseudoClass.end);
-  }
-  return transformed;
-}
-
 /**
  * Resolve the authored cascade for a chosen interaction state without relying
  * on the pointer's current location. This is intentionally attribution-first:
@@ -1845,8 +791,8 @@ export function getResolvedPropertiesForState(
   const doc = el.ownerDocument ?? document;
   const revisions = getDocumentRevisions(doc);
   const { rules, inaccessible } = collectCssomRules(doc);
-  const sensitiveMatchesByElement = new Map<HTMLElement, ElementMatch[]>();
-  const dynamicMatchKey = elementSensitiveMatchKey(el, rules, state, sensitiveMatchesByElement);
+  const matcher = createRuleMatcher(rules, state);
+  const dynamicMatchKey = matcher.dynamicMatchKey(el);
   let snapshots = stateResolutionSnapshots.get(el);
   if (!snapshots) {
     snapshots = new Map();
@@ -1861,32 +807,9 @@ export function getResolvedPropertiesForState(
     return cached.rows;
   }
 
-  const lineage = resolveLineage(el, rules, state, sensitiveMatchesByElement);
-  const entry = lineage.byElement.get(el)!;
-  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable, entry.allMatched);
-  const computed = getElementComputedStyle(el);
-  for (const prop of result) {
-    const cv = computed.getPropertyValue(prop.property);
-    if (cv && !/\b(?:var|calc)\s*\(/.test(cv)) {
-      // A selected interaction state is hypothetical: the element may still
-      // be painting its Base styles. `rowsFromMatches` has already resolved
-      // the authored declaration for the requested state, so preserve that
-      // value for editor controls and keep the live CSSOM value in `computed`.
-      if (state === "base" || !prop.resolvedValue) prop.resolvedValue = cv;
-      prop.computed = cv;
-      const validated = candidateMatchesPainted(el, prop, cv);
-      prop.confidence = validated && !inaccessible && !prop.evidence.layer ? "exact" : prop.tokenName ? "probable" : "unknown";
-      prop.evidence.inaccessibleStylesheet = inaccessible || undefined;
-      prop.evidence.reason = prop.tokenName
-        ? (validated ? "authored token declaration validated against computed style" : "authored token candidate could not be proven uniquely")
-        : "painted value has no attributable catalog token";
-    }
-  }
-  applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
-  hydratePropertyOpacityRows(result, computed);
-  promoteNumericCalcRows(result, tokenTable);
-  const rows = resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
-  registerWithAncestors(el);
+  const lineage = resolveLineage(el, matcher);
+  const rows = resolveMatchedProperties(el, tokenTable, lineage, inaccessible, state);
+  registerResolutionLineage(el);
   snapshots.set(state, {
     elementRevision: revisions.element,
     stylesheetRevision: revisions.stylesheet,
@@ -1897,54 +820,7 @@ export function getResolvedPropertiesForState(
   return rows;
 }
 
-/**
- * Interaction states whose pseudo-class substring appears in at least one
- * snapshot selector, memoized per CSSOM snapshot. The availability check for a
- * state is `matched.some((m) => m.rule.selectorText.includes(":state"))`, so a
- * state whose substring appears nowhere can never become available for any
- * element; skipping its per-state match sweep is exactly equivalent and
- * removes the dominant cost of re-scanning interaction states after every
- * stylesheet revision.
- */
-const statesWithPseudoInSnapshot = new WeakMap<MatchedRule[], Set<InteractionState>>();
-
-function statesWithPseudoInSelectors(rules: MatchedRule[]): Set<InteractionState> {
-  let present = statesWithPseudoInSnapshot.get(rules);
-  if (!present) {
-    present = new Set();
-    for (const rule of rules) {
-      for (const state of INTERACTION_STATES) {
-        if (!present.has(state) && rule.selectorText.includes(`:${state}`)) {
-          present.add(state);
-        }
-      }
-    }
-    statesWithPseudoInSnapshot.set(rules, present);
-  }
-  return present;
-}
-
-export function getAvailableInteractionStates(el: HTMLElement): InteractionState[] {
-  const doc = el.ownerDocument ?? document;
-  const { rules } = collectCssomRules(doc);
-  const present = statesWithPseudoInSelectors(rules);
-  const available: InteractionState[] = ["base"];
-  for (const state of INTERACTION_STATES) {
-    if (!present.has(state)) continue;
-    const matched = getCachedElementMatches(el, rules, state);
-    const relevant = matched.some((m) => m.rule.selectorText.includes(`:${state}`));
-    if (relevant) available.push(state);
-  }
-  return available;
-}
-
-const stableTokenCache = new WeakMap<HTMLElement, {
-  elementRevision: number;
-  stylesheetRevision: number;
-  tokenTable: TokenTable;
-  dynamicMatchKey: string;
-  rows: ResolvedProperty[];
-}>();
+const stableTokenCache = new WeakMap<HTMLElement, ResolvedPropertiesSnapshot>();
 
 /**
  * Resolves the cascade with transient interaction selectors removed. Used when
@@ -1958,8 +834,8 @@ export function getResolvedPropertiesStable(
   const doc = el.ownerDocument ?? document;
   const revisions = getDocumentRevisions(doc);
   const { rules, inaccessible } = collectCssomRules(doc);
-  const sensitiveMatchesByElement = new Map<HTMLElement, ElementMatch[]>();
-  const dynamicMatchKey = elementSensitiveMatchKey(el, rules, "stable", sensitiveMatchesByElement);
+  const matcher = createRuleMatcher(rules, "stable");
+  const dynamicMatchKey = matcher.dynamicMatchKey(el);
   const cached = stableTokenCache.get(el);
   if (cached
     && cached.elementRevision === revisions.element
@@ -1968,14 +844,8 @@ export function getResolvedPropertiesStable(
     && cached.dynamicMatchKey === dynamicMatchKey) {
     return cached.rows;
   }
-  const lineage = resolveLineage(el, rules, "stable", sensitiveMatchesByElement);
-  const entry = lineage.byElement.get(el)!;
-  const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable, entry.allMatched);
-  const computed = getElementComputedStyle(el);
-  applyInlineDeclarations(el, result, tokenTable, computed, inaccessible);
-  hydratePropertyOpacityRows(result, computed);
-  promoteNumericCalcRows(result, tokenTable);
-  const rows = resolveInheritedProperties(el, tokenTable, lineage, result, inaccessible);
+  const lineage = resolveLineage(el, matcher);
+  const rows = resolveMatchedProperties(el, tokenTable, lineage, inaccessible, "stable");
   stableTokenCache.set(el, {
     elementRevision: revisions.element,
     stylesheetRevision: revisions.stylesheet,

@@ -3,8 +3,12 @@ import { appendChange } from "../changes/changesLog.ts";
 import { registerInlineTextClearHandler } from "./inlineTextLifecycle.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 import {
-  createComponentPropChange,
-} from "../componentSemantics/changeModel.ts";
+  initialTextEditDecision,
+  chooseTextEditBinding,
+  getTextEditScopeChoices,
+  getTextEditBinding,
+  prepareTextEditChange,
+} from "./textEditChange.ts";
 import {
   resolveTextBinding,
   type TextBindingChoice,
@@ -12,8 +16,7 @@ import {
   type TextEditBinding,
   type TextEditRejection,
 } from "../componentSemantics/textBinding.ts";
-import type { ChangeRecord, TextContentChangeRecord } from "../changes/types.ts";
-import type { ComponentInvocationEvidence } from "../componentSemantics/types.ts";
+import type { ChangeRecord } from "../changes/types.ts";
 import type { TextProjectionScope } from "./textChangeBoundary.ts";
 import {
   captureTextProjectionTarget,
@@ -22,7 +25,6 @@ import {
   getTextContentChangeById,
   resolveTextProjectionTarget,
   resolveTextProjectionTextNode,
-  textProjectionSelector,
 } from "../projection/textProjection.ts";
 
 export type { TextEditBinding, TextEditRejection } from "../componentSemantics/textBinding.ts";
@@ -464,68 +466,6 @@ function flattenHostText(host: HTMLElement): string {
   return text;
 }
 
-function sourceForChoice(
-  candidate: TextBindingCandidate,
-  choice: TextBindingChoice | null,
-): NonNullable<TextBindingCandidate["renderedSource"]> {
-  if (choice?.renderedSource) return choice.renderedSource;
-  if (candidate.renderedSource
-    && (!choice || candidate.renderedSource.evidence?.callsiteId === choice.binding.target.callsiteId
-      && candidate.renderedSource.evidence.property === choice.binding.property)) {
-    return candidate.renderedSource;
-  }
-  const parsed = /^(.*):(\d+):(\d+)$/.exec(candidate.element.getAttribute("data-src") ?? "");
-  const target = choice?.binding.target;
-  const authoredAs = choice?.authoredAs === "literal"
-    ? "literal"
-    : choice?.authoredAs === "expression" || choice?.authoredAs === "spread"
-      ? "expression"
-      : "unknown";
-  return {
-    file: target?.file ?? parsed?.[1] ?? candidate.element.getAttribute("data-src") ?? "",
-    line: target?.line ?? Number(parsed?.[2] ?? 0),
-    column: target?.column ?? Number(parsed?.[3] ?? 0),
-    component: target?.componentName ?? candidate.element.getAttribute("data-cid") ?? "Rendered text",
-    selector: candidate.binding.kind === "rendered-text"
-      ? textProjectionSelector(candidate.binding.target) ?? ""
-      : "",
-    authoredAs,
-    evidence: choice ? {
-      callsiteId: choice.binding.target.callsiteId,
-      componentName: choice.binding.target.componentName,
-      property: choice.binding.property,
-      mountedCount: choice.mountedCount,
-    } : undefined,
-  };
-}
-
-function componentEvidence(
-  candidate: TextBindingCandidate,
-  choice: TextBindingChoice,
-): ComponentInvocationEvidence {
-  const target = choice.renderedTarget
-    ?? candidate.renderedTarget
-    ?? captureTextProjectionTarget(candidate.element, candidate.before, candidate.textNode);
-  return {
-    occurrence: target?.occurrence ?? 0,
-    props: target?.props ?? candidate.element.getAttribute("data-cprops"),
-    ariaLabel: target?.ariaLabel ?? candidate.element.getAttribute("aria-label"),
-    beforeText: candidate.before,
-    mountedCount: choice.mountedCount,
-  };
-}
-
-function textTargetFor(
-  candidate: TextBindingCandidate,
-  binding: TextEditBinding,
-  choice: TextBindingChoice | null,
-): ReturnType<typeof captureTextProjectionTarget> {
-  if (choice?.renderedTarget) return choice.renderedTarget;
-  if (candidate.renderedTarget) return candidate.renderedTarget;
-  if (binding.kind === "rendered-text") return binding.target;
-  return captureTextProjectionTarget(candidate.element, candidate.before, candidate.textNode);
-}
-
 function resolveEmptyProjectionCandidate(
   marker: HTMLElement,
 ): TextBindingCandidate | TextEditRejection {
@@ -642,105 +582,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   const originalReplaceState = history?.replaceState;
   let patchedPushState: History["pushState"] | null = null;
   let patchedReplaceState: History["replaceState"] | null = null;
-  let selectedChoice: TextBindingChoice | null = candidate.bindingChoices?.length === 1
-    ? candidate.bindingChoices[0]!
-    : null;
-  let selectedScope: TextProjectionScope = candidate.scope
-    ?? (candidate.binding.kind === "rendered-text" ? "rendered-instance" : "source-site");
-
-  function currentBinding(): TextEditBinding {
-    if (!selectedChoice) return candidate.binding;
-    if (selectedChoice.mountedCount > 1 && selectedChoice.authoredAs !== "literal") {
-      const target = selectedChoice.renderedTarget
-        ?? candidate.renderedTarget
-        ?? capturedTarget;
-      return target ? { kind: "rendered-text", target } : selectedChoice.binding;
-    }
-    return selectedChoice.binding;
-  }
-
-  function currentScopeChoices(): readonly TextProjectionScope[] {
-    if (selectedChoice) {
-      if (selectedChoice.mountedCount > 1 && selectedChoice.authoredAs === "literal") {
-        return ["rendered-instance", "source-site"];
-      }
-      return [];
-    }
-    return candidate.scopeChoices ?? [];
-  }
-
-  function choiceForCommit(): TextBindingChoice | null {
-    const choice = selectedChoice ?? candidate.bindingChoices?.[0];
-    const target = candidate.editableTarget;
-    if (choice || !target || candidate.mountedCount === undefined) return choice ?? null;
-    const property = candidate.binding.kind === "component-prop"
-      ? candidate.binding.property
-      : "children";
-    return {
-      binding: candidate.binding.kind === "component-prop"
-        ? candidate.binding
-        : {
-          kind: "component-prop",
-          property,
-          target: {
-            framework: target.framework,
-            componentId: target.contract.componentId,
-            callsiteId: target.meta.callsiteId,
-            componentName: target.meta.componentName,
-            file: target.meta.file,
-            line: target.meta.line,
-            column: target.meta.column,
-          },
-        },
-      editableTarget: target,
-      mountedCount: candidate.mountedCount,
-      authoredAs: target.meta.authoredProps[property] ?? "default",
-      renderedTarget: candidate.renderedTarget ?? null,
-      renderedSource: candidate.renderedSource,
-    };
-  }
-
-  function prepareChange(
-    after: string,
-    binding: TextEditBinding,
-    choice: TextBindingChoice | null,
-  ): ChangeRecord | null {
-    if (binding.kind === "component-prop" && selectedScope === "source-site") {
-      const editableTarget = choice?.editableTarget ?? candidate.editableTarget;
-      const prop = editableTarget?.contract.props.find((item) =>
-        item.name === binding.property && item.control === "text");
-      if (!editableTarget || !prop) return null;
-      return createComponentPropChange(editableTarget, prop, after, {
-        scope: "source-site",
-        evidence: choice && choice.mountedCount > 1
-          ? componentEvidence(candidate, choice)
-          : undefined,
-      });
-    }
-    const textTarget = textTargetFor(candidate, binding, choice);
-    const source = sourceForChoice(candidate, choice);
-    const renderedSource = source.selector || !textTarget
-      ? source
-      : { ...source, selector: textProjectionSelector(textTarget) ?? "" };
-    if (!textTarget || !renderedSource.selector) return null;
-    return {
-      kind: "text-content",
-      id: `text-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`,
-      target: textTarget,
-      source: {
-        file: renderedSource.file,
-        line: renderedSource.line,
-        column: renderedSource.column,
-        component: renderedSource.component,
-      },
-      selector: renderedSource.selector,
-      before: candidate.before,
-      after,
-      authoredAs: renderedSource.authoredAs,
-      scope: selectedScope,
-      evidence: renderedSource.evidence,
-    } satisfies TextContentChangeRecord;
-  }
+  let editDecision = initialTextEditDecision(candidate);
 
   function restoreHostText(text: string): void {
     host.replaceChildren(doc.createTextNode(text));
@@ -1146,36 +988,32 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
 
   session = {
     get binding(): TextEditBinding {
-      return currentBinding();
+      return getTextEditBinding(candidate, editDecision, capturedTarget);
     },
     get bindingChoices(): readonly TextBindingChoice[] {
       return candidate.bindingChoices ?? [];
     },
     get selectedBindingIndex(): number | null {
-      if (!selectedChoice) return null;
-      return candidate.bindingChoices?.indexOf(selectedChoice) ?? null;
+      return editDecision.bindingIndex;
     },
     get scope(): TextProjectionScope {
-      return selectedScope;
+      return editDecision.scope;
     },
     get scopeChoices(): readonly TextProjectionScope[] {
-      return currentScopeChoices();
+      return getTextEditScopeChoices(candidate, editDecision);
     },
     host,
     before: candidate.before,
     chooseBinding(index: number): void {
       if (finished) return;
-      const choice = candidate.bindingChoices?.[index];
-      if (!choice) return;
-      selectedChoice = choice;
-      selectedScope = choice.mountedCount > 1 && choice.authoredAs === "literal"
-        ? "rendered-instance"
-        : choice.mountedCount > 1 ? "rendered-instance" : "source-site";
+      const decision = chooseTextEditBinding(candidate, index);
+      if (!decision) return;
+      editDecision = decision;
       notify();
     },
     chooseScope(scope: TextProjectionScope): void {
-      if (finished || !currentScopeChoices().includes(scope)) return;
-      selectedScope = scope;
+      if (finished || !getTextEditScopeChoices(candidate, editDecision).includes(scope)) return;
+      editDecision = { ...editDecision, scope };
       notify();
     },
     commit(reason: InlineTextSessionEndReason = "commit"): ChangeRecord | null {
@@ -1184,7 +1022,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
         blurPending = true;
         return null;
       }
-      if ((candidate.bindingChoices?.length ?? 0) > 1 && !selectedChoice) return null;
+      if ((candidate.bindingChoices?.length ?? 0) > 1 && editDecision.bindingIndex === null) return null;
       if (!hostIsOwned(candidate, host, ownership)) {
         endLifecycle(!candidate.element.isConnected ? "app-reconciled" : "host-removed");
         return null;
@@ -1195,10 +1033,8 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
         restoreHostText(lastSafeText);
         return null;
       }
-      const binding = currentBinding();
-      const choice = choiceForCommit();
       const unchanged = after === candidate.before;
-      const change = unchanged ? null : prepareChange(after, binding, choice);
+      const change = unchanged ? null : prepareTextEditChange(candidate, editDecision, capturedTarget, after);
       if (!unchanged && !change) {
         endLifecycle("app-reconciled", after);
         return null;
@@ -1210,7 +1046,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
         cancelForReconciliation();
         return null;
       }
-      if (change?.kind === "text-content" && selectedScope === "rendered-instance") {
+      if (change?.kind === "text-content" && editDecision.scope === "rendered-instance") {
         // The second text value is alternate evidence for re-entry after a
         // previous projection. Validation happens after unwrapping because a
         // mounted draft can make another identical root look unique.
