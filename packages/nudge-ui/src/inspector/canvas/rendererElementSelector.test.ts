@@ -390,6 +390,43 @@ describe("renderer hover scheduling", () => {
 });
 
 describe("renderer selector lifecycle", () => {
+  it("cancels an active drag before renderer teardown", () => {
+    const element = trackedElement("teardown-spacing");
+    element.style.paddingTop = "20px";
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      left: 10,
+      top: 10,
+      width: 200,
+      height: 120,
+      right: 210,
+      bottom: 130,
+    } as DOMRect);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => element,
+    });
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    element.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      clientX: 100,
+      clientY: 20,
+    }));
+    document.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 100,
+      clientY: 32,
+    }));
+
+    disposeRendererElementSelector();
+
+    expect(postMessage.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "element-drag-end", cancelled: true }),
+    ]));
+  });
+
   it("removes listeners and suppresses queued callbacks after disposal", () => {
     const button = trackedElement("disposed");
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);

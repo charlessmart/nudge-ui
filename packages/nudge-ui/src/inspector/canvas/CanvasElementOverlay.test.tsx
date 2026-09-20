@@ -228,4 +228,61 @@ describe("CanvasElementOverlay", () => {
     expect(getChangesList()).toHaveLength(1);
     expect(getInlineTextDiagnostic()).toMatchObject({ status: "committed", reason: "commit" });
   });
+
+  it("records the authored spacing value before committing the drag", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.paddingTop = "20px";
+    frameDocument.body.append(card);
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 10, top: 10, width: 200, height: 120, right: 210, bottom: 130 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    const dispatch = (data: Record<string, unknown>): void => {
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", {
+          origin: window.location.origin,
+          source: iframe.contentWindow as MessageEventSource,
+          data: {
+            protocolVersion: PROTOCOL_VERSION,
+            projectId: PROJECT_ID,
+            workspaceId: WORKSPACE_ID,
+            cardId,
+            ...data,
+          },
+        }));
+      });
+    };
+
+    dispatch({
+      type: "element-drag-start",
+      cid: "Card",
+      src: "/src/Card.tsx:12:3",
+      elementId: "r1",
+      point: { x: 100, y: 20 },
+      startPoint: { x: 100, y: 20 },
+      spacing: { kind: "padding", property: "padding-top", side: "top" },
+    });
+    dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
+    expect(card.style.paddingTop).toBe("32px");
+
+    dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
+
+    expect(getChangesList()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        property: "padding-top",
+        oldRawValue: "20px",
+        rawValue: "32px",
+      }),
+    ]));
+    clearWorkspace();
+  });
 });

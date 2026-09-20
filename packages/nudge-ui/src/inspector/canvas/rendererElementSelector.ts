@@ -579,15 +579,13 @@ export function installRendererElementSelector(): () => void {
 
   return () => {
     if (disposed) return;
+    cancelActiveDrag();
     disposed = true;
     installed = false;
     hoverUpdate.cancel();
-    dragMoveUpdate.cancel();
     for (const cleanup of listenerCleanup) cleanup();
     listenerCleanup.length = 0;
     removeInteractionStyles();
-    pendingDrag = null;
-    dragging = false;
     lastSelected = null;
     measurePointerOverPage = false;
     measureAltKey = false;

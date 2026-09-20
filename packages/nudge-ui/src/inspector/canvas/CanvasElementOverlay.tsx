@@ -177,19 +177,19 @@ function restoreSpacingPreview(drag: CanvasSpacingDragState): void {
 }
 
 function commitSpacingDrag(drag: CanvasSpacingDragState): void {
-  try {
-    if (drag.currentValue !== drag.startValue) {
-      setStyle(
-        drag.element,
-        drag.affordance.property,
-        spacingValueCss(drag.currentValue),
-      );
-    }
-  } finally {
-    // The inline declaration is only a frame-local preview. Durable edits go
-    // through the managed stylesheet and the normal change-history path.
+  if (drag.currentValue === drag.startValue) {
     restoreSpacingPreview(drag);
+    return;
   }
+  // Restore the authored declaration before setStyle reads oldRawValue. If
+  // the preview remains inline, the requested value becomes its own baseline
+  // and the change log correctly treats the drag as a no-op.
+  restoreSpacingPreview(drag);
+  setStyle(
+    drag.element,
+    drag.affordance.property,
+    spacingValueCss(drag.currentValue),
+  );
 }
 
 function sendMeasureModifier(iframe: HTMLIFrameElement, cardId: string, altKey: boolean): void {
