@@ -569,6 +569,27 @@ describe("CanvasCard renderer handshake", () => {
     expect(resizeHandle.style.transformOrigin).toBe("right bottom");
   });
 
+  it("inverse-scales only the thickness of zoomed edge handles", () => {
+    const card = {
+      id: "card-edge-resize-scale",
+      url: "http://localhost:3000/edge-scale",
+      title: "Edge scale",
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
+    renderCard(card);
+
+    const top = host.querySelector<HTMLElement>(`[data-test="canvas-card-resize-${card.id}-top"]`);
+    const left = host.querySelector<HTMLElement>(`[data-test="canvas-card-resize-${card.id}-left"]`);
+    if (!top || !left) throw new Error("edge resize handles did not mount");
+
+    expect(top.style.transform).toBe("scale(1, 2)");
+    expect(left.style.transform).toBe("scale(2, 1)");
+  });
+
   it("anchors scaled toolbar content to the canvas top edge", () => {
     const card: CanvasCardData = {
       id: "card-toolbar-anchor",

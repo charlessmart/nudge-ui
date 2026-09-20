@@ -58,6 +58,12 @@ const RESIZE_HANDLES: readonly CanvasResizeHandleDefinition[] = [
   { direction: "left", cursor: "ew-resize", transformOrigin: "left center", label: "Resize card from the left edge" },
 ];
 
+function resizeHandleTransform(direction: CanvasResizeDirection, scale: number): string {
+  if (direction === "top" || direction === "bottom") return `scale(1, ${scale})`;
+  if (direction === "left" || direction === "right") return `scale(${scale}, 1)`;
+  return `scale(${scale})`;
+}
+
 export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onOpenApp, onShowFocus, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initialUrlRef = useRef(card.navigationUrl ?? card.url);
@@ -501,7 +507,9 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
           data-test={`canvas-card-resize-${card.id}${handle.direction === "bottom-right" ? "" : `-${handle.direction}`}`}
           data-resize-direction={handle.direction}
           style={{
-            transform: `scale(${resizeHandleScale})`,
+            // Keep the edge's long axis aligned with the zoomed card. Only
+            // the thickness needs inverse scaling to remain screen-sized.
+            transform: resizeHandleTransform(handle.direction, resizeHandleScale),
             transformOrigin: handle.transformOrigin,
             cursor: handle.cursor,
           }}
