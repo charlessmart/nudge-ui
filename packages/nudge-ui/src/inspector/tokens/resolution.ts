@@ -609,36 +609,21 @@ function makeRuleApplies(el: HTMLElement): (rule: MatchedRule) => boolean {
   };
 }
 
-const TRANSIENT_SELECTOR = /:(?:hover|active|focus|focus-visible|focus-within|visited|target)(?:\b|\()/;
-
-const transformedRulesMemo = new WeakMap<MatchedRule[], Map<CascadeTransform, Array<{ rule: MatchedRule; selectorText: string }>>>();
-
-function rulesForTransform(rules: MatchedRule[], transform: CascadeTransform): Array<{ rule: MatchedRule; selectorText: string }> {
-  let byTransform = transformedRulesMemo.get(rules);
-  if (!byTransform) {
-    byTransform = new Map();
-    transformedRulesMemo.set(rules, byTransform);
-  }
-  const cached = byTransform.get(transform);
-  if (cached) return cached;
-  let transformed: Array<{ rule: MatchedRule; selectorText: string }>;
-  if (transform === "live") {
-    transformed = rules.map((rule) => ({ rule, selectorText: rule.selectorText }));
-  } else if (transform === "stable") {
-    transformed = rules
-      .filter((rule) => !TRANSIENT_SELECTOR.test(rule.selectorText))
-      .map((rule) => ({ rule, selectorText: rule.selectorText }));
-  } else {
-    transformed = rules.flatMap((rule) => {
-      const selectorText = selectorForState(rule.selectorText, transform);
-      return selectorText ? [{ rule, selectorText }] : [];
-    });
-  }
-  byTransform.set(transform, transformed);
-  return transformed;
+interface SelectorPseudoClass {
+  name: string;
+  start: number;
+  end: number;
 }
 
-function isElementSensitiveSelector(selector: string): boolean {
+const SELECTOR_PSEUDO_CLASS_CACHE_MAX = 16_384;
+const selectorPseudoClassMemo = new Map<string, readonly SelectorPseudoClass[]>();
+
+/** Finds pseudo-classes without treating escaped or attribute-value colons as syntax. */
+function selectorPseudoClasses(selector: string): readonly SelectorPseudoClass[] {
+  const cached = selectorPseudoClassMemo.get(selector);
+  if (cached) return cached;
+
+  const matches: SelectorPseudoClass[] = [];
   let attributeDepth = 0;
   let quote: string | null = null;
   let escaped = false;
@@ -656,18 +641,195 @@ function isElementSensitiveSelector(selector: string): boolean {
       else if (character === "]") attributeDepth--;
       continue;
     }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (character === "[") {
+      attributeDepth = 1;
+      continue;
+    }
+    if (character !== ":" || selector[index - 1] === ":" || selector[index + 1] === ":") continue;
+    const name = /^[A-Za-z-]+/.exec(selector.slice(index + 1))?.[0];
+    if (!name) continue;
+    matches.push({ name: name.toLowerCase(), start: index, end: index + name.length + 1 });
+    index += name.length;
+  }
+
+  if (selectorPseudoClassMemo.size >= SELECTOR_PSEUDO_CLASS_CACHE_MAX) selectorPseudoClassMemo.clear();
+  selectorPseudoClassMemo.set(selector, matches);
+  return matches;
+}
+
+const TRANSIENT_PSEUDO_CLASSES = new Set([
+  "hover",
+  "active",
+  "focus",
+  "focus-visible",
+  "focus-within",
+  "visited",
+  "target",
+]);
+const INTERACTION_PSEUDO_CLASSES = new Set<string>(INTERACTION_STATES);
+
+function hasSelectorPseudoClass(selector: string, names: ReadonlySet<string>): boolean {
+  return selectorPseudoClasses(selector).some(({ name }) => names.has(name));
+}
+
+const transformedRulesMemo = new WeakMap<MatchedRule[], Map<CascadeTransform, Array<{ rule: MatchedRule; selectorText: string }>>>();
+
+function rulesForTransform(rules: MatchedRule[], transform: CascadeTransform): Array<{ rule: MatchedRule; selectorText: string }> {
+  let byTransform = transformedRulesMemo.get(rules);
+  if (!byTransform) {
+    byTransform = new Map();
+    transformedRulesMemo.set(rules, byTransform);
+  }
+  const cached = byTransform.get(transform);
+  if (cached) return cached;
+  let transformed: Array<{ rule: MatchedRule; selectorText: string }>;
+  if (transform === "live") {
+    transformed = rules.map((rule) => ({ rule, selectorText: rule.selectorText }));
+  } else if (transform === "stable") {
+    transformed = rules
+      .filter((rule) => !hasSelectorPseudoClass(rule.selectorText, TRANSIENT_PSEUDO_CLASSES))
+      .map((rule) => ({ rule, selectorText: rule.selectorText }));
+  } else {
+    transformed = rules.flatMap((rule) => {
+      const selectorText = selectorForState(rule.selectorText, transform);
+      return selectorText ? [{ rule, selectorText }] : [];
+    });
+  }
+  byTransform.set(transform, transformed);
+  return transformed;
+}
+
+const STATIC_SELECTOR_FUNCTIONS = new Set(["is", "where", "not"]);
+const STATIC_PSEUDO_CLASSES = new Set(["host", "root"]);
+const SELECTOR_SENSITIVITY_CACHE_MAX = 16_384;
+const selectorSensitivityMemo = new Map<string, boolean>();
+
+/** Returns the closing parenthesis for a CSS selector function. */
+function selectorFunctionEnd(selector: string, openingIndex: number): number {
+  let parentheses = 0;
+  let brackets = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  for (let index = openingIndex; index < selector.length; index++) {
+    const character = selector[index]!;
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === "[") {
+      brackets++;
+      continue;
+    }
+    if (character === "]") {
+      brackets = Math.max(0, brackets - 1);
+      continue;
+    }
+    if (brackets > 0) continue;
+    if (character === "(") {
+      parentheses++;
+    } else if (character === ")") {
+      parentheses--;
+      if (parentheses === 0) return index;
+    }
+  }
+  return -1;
+}
+
+function isElementSensitiveSelector(selector: string): boolean {
+  const cached = selectorSensitivityMemo.get(selector);
+  if (cached !== undefined) return cached;
+  const result = computeElementSensitiveSelector(selector);
+  if (selectorSensitivityMemo.size >= SELECTOR_SENSITIVITY_CACHE_MAX) selectorSensitivityMemo.clear();
+  selectorSensitivityMemo.set(selector, result);
+  return result;
+}
+
+function computeElementSensitiveSelector(selector: string): boolean {
+  let attributeDepth = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  for (let index = 0; index < selector.length; index++) {
+    const character = selector[index]!;
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (attributeDepth > 0) {
+      if (character === '"' || character === "'") quote = character;
+      else if (character === "[") attributeDepth++;
+      else if (character === "]") attributeDepth--;
+      continue;
+    }
+    // Tailwind escapes utility variants such as `.sm\\:text-red-500`. The
+    // escaped colon is part of the class name, not a pseudo-class boundary.
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = true;
+      continue;
+    }
     if (character === "[") {
       attributeDepth = 1;
       continue;
     }
     if (character === "+" || character === "~") return true;
     if (character !== ":") continue;
-    if (selector[index + 1] === ":") return true;
-    const pseudo = /^[A-Za-z-]+/.exec(selector.slice(index + 1))?.[0];
-    // :root is represented by the complete ancestor lineage. Other
-    // pseudo-classes can vary per concrete element without an attribute or
-    // sibling mutation (for example :checked, :visited, and :target).
-    if (pseudo && pseudo.toLowerCase() !== "root") return true;
+    const pseudoElement = selector[index + 1] === ":";
+    const pseudo = /^[A-Za-z-]+/.exec(selector.slice(index + (pseudoElement ? 2 : 1)))?.[0];
+    if (pseudoElement) {
+      // Pseudo-elements do not change whether the originating element matches
+      // a selector. Continue scanning after the name so a real pseudo-class
+      // elsewhere in the selector remains element-sensitive.
+      if (!pseudo) return true;
+      index += pseudo.length + 1;
+      let next = index + 1;
+      while (next < selector.length && /\s/.test(selector[next]!)) next++;
+      if (selector[next] === "(") return true;
+      continue;
+    }
+    if (!pseudo) continue;
+    const pseudoName = pseudo.toLowerCase();
+    index += pseudo.length;
+    let next = index + 1;
+    while (next < selector.length && /\s/.test(selector[next]!)) next++;
+    if (STATIC_SELECTOR_FUNCTIONS.has(pseudoName) && selector[next] === "(") {
+      const end = selectorFunctionEnd(selector, next);
+      if (end < 0 || isElementSensitiveSelector(selector.slice(next + 1, end))) return true;
+      index = end;
+      continue;
+    }
+    // :root and :host are represented by the complete ancestor/document
+    // context. Other pseudo-classes can vary per concrete element without an
+    // attribute or sibling mutation (for example :checked, :visited, and
+    // :target), so keep them in the element-sensitive bucket.
+    if (STATIC_PSEUDO_CLASSES.has(pseudoName)) continue;
+    return true;
   }
   return false;
 }
@@ -780,6 +942,7 @@ function elementSensitiveMatchKey(
   el: HTMLElement,
   rules: MatchedRule[],
   transform: CascadeTransform,
+  sensitiveMatchesByElement?: Map<HTMLElement, ElementMatch[]>,
 ): string {
   const entries = sourceSiteMatchBuckets(rules, transform).elementSensitive;
   if (entries.length === 0) return "";
@@ -787,14 +950,33 @@ function elementSensitiveMatchKey(
   let current: HTMLElement | null = el;
   let depth = 0;
   while (current) {
+    const elementMatches: ElementMatch[] = [];
     for (const entry of entries) {
-      const branch = matchingSelectorBranch(current, entry.selectorText);
-      if (branch) matches.push(`${depth}:${entry.rule.sourceOrder ?? 0}:${branch}`);
+      const match = matchRuleForElement(current, entry);
+      if (!match) continue;
+      elementMatches.push(match);
+      matches.push(`${depth}:${entry.rule.sourceOrder ?? 0}:${match.branch}`);
     }
+    sensitiveMatchesByElement?.set(current, elementMatches);
     current = current.parentElement;
     depth++;
   }
   return matches.join("\u0001");
+}
+
+function sensitiveMatchesForElement(
+  el: HTMLElement,
+  buckets: SourceSiteMatchBuckets,
+  matchesByElement: Map<HTMLElement, ElementMatch[]>,
+): ElementMatch[] {
+  const cached = matchesByElement.get(el);
+  if (cached) return cached;
+  const matched = buckets.elementSensitive.flatMap((entry) => {
+    const match = matchRuleForElement(el, entry);
+    return match ? [match] : [];
+  });
+  matchesByElement.set(el, matched);
+  return matched;
 }
 
 /**
@@ -806,8 +988,14 @@ function elementSensitiveMatchKey(
  * identity, or selectors that depend on unsupported relationships, are matched
  * fresh on every call.
  */
-function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transform: CascadeTransform): ElementMatch[] {
-  const { cacheable, elementSensitive } = sourceSiteMatchBuckets(rules, transform);
+function getCachedElementMatches(
+  el: HTMLElement,
+  rules: MatchedRule[],
+  transform: CascadeTransform,
+  sensitiveMatchesByElement: Map<HTMLElement, ElementMatch[]> = new Map(),
+): ElementMatch[] {
+  const buckets = sourceSiteMatchBuckets(rules, transform);
+  const { cacheable, elementSensitive } = buckets;
   const collect = (entries: Array<{ rule: MatchedRule; selectorText: string }>): ElementMatch[] => {
     const matched: ElementMatch[] = [];
     for (const entry of entries) {
@@ -842,7 +1030,9 @@ function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transfor
         });
       }
     }
-    const sensitiveMatches = elementSensitive.length > 0 ? collect(elementSensitive) : [];
+    const sensitiveMatches = elementSensitive.length > 0
+      ? sensitiveMatchesForElement(el, buckets, sensitiveMatchesByElement).filter((match) => match.rule.active !== false)
+      : [];
     return sensitiveMatches.length === 0 ? cachedMatches : [...cachedMatches, ...sensitiveMatches];
   }
   const key = `${sourceSiteKey(el, transform)}\u0000${sourceSiteContextKey(el)}`;
@@ -875,7 +1065,9 @@ function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transfor
   // Match element-sensitive selectors on every resolution. Browser state such
   // as `checked`, `target`, or a sibling relationship can change without a DOM
   // or stylesheet revision, so a revision-keyed entry can return stale rows.
-  const elementMatches = elementSensitive.length > 0 ? collect(elementSensitive) : [];
+  const elementMatches = elementSensitive.length > 0
+    ? sensitiveMatchesForElement(el, buckets, sensitiveMatchesByElement).filter((match) => match.rule.active !== false)
+    : [];
   return elementMatches.length === 0 ? cachedMatches : [...cachedMatches, ...elementMatches];
 }
 
@@ -888,14 +1080,21 @@ function getCachedElementMatches(el: HTMLElement, rules: MatchedRule[], transfor
  * their state can change without a revision bump (for example, `:checked`),
  * and the "live" transform always keeps its raw selector set fresh.
  */
-function getAllElementMatches(el: HTMLElement, rules: MatchedRule[], transform: CascadeTransform): ElementMatch[] {
+function getAllElementMatches(
+  el: HTMLElement,
+  rules: MatchedRule[],
+  transform: CascadeTransform,
+  sensitiveMatchesByElement: Map<HTMLElement, ElementMatch[]> = new Map(),
+): ElementMatch[] {
+  const buckets = sourceSiteMatchBuckets(rules, transform);
   if (transform === "live") {
-    return rulesForTransform(rules, transform).flatMap((entry) => {
+    const cacheableMatches = buckets.cacheable.flatMap((entry) => {
       const match = matchRuleForElement(el, entry);
       return match ? [match] : [];
     });
+    return [...cacheableMatches, ...sensitiveMatchesForElement(el, buckets, sensitiveMatchesByElement)];
   }
-  const { cacheable, elementSensitive } = sourceSiteMatchBuckets(rules, transform);
+  const { cacheable, elementSensitive } = buckets;
   const collect = (entries: Array<{ rule: MatchedRule; selectorText: string }>): ElementMatch[] => entries.flatMap((entry) => {
     const match = matchRuleForElement(el, entry);
     return match ? [match] : [];
@@ -923,7 +1122,9 @@ function getAllElementMatches(el: HTMLElement, rules: MatchedRule[], transform: 
       });
     }
   }
-  const sensitiveMatches = elementSensitive.length > 0 ? collect(elementSensitive) : [];
+  const sensitiveMatches = elementSensitive.length > 0
+    ? sensitiveMatchesForElement(el, buckets, sensitiveMatchesByElement)
+    : [];
   return sensitiveMatches.length === 0 ? cachedMatches : [...cachedMatches, ...sensitiveMatches];
 }
 
@@ -933,7 +1134,12 @@ function getAllElementMatches(el: HTMLElement, rules: MatchedRule[], transform: 
  * inherited phase. Local aliases are collected per element so no ancestor
  * re-walks the lineage × rules.
  */
-function resolveLineage(el: HTMLElement, rules: MatchedRule[], transform: CascadeTransform): LineageResolution {
+function resolveLineage(
+  el: HTMLElement,
+  rules: MatchedRule[],
+  transform: CascadeTransform,
+  sensitiveMatchesByElement: Map<HTMLElement, ElementMatch[]> = new Map(),
+): LineageResolution {
   const lineage: HTMLElement[] = [];
   let current: HTMLElement | null = el;
   while (current) {
@@ -945,8 +1151,8 @@ function resolveLineage(el: HTMLElement, rules: MatchedRule[], transform: Cascad
   const selectorMatches = new Map<HTMLElement, ElementMatch[]>();
   const allSelectorMatches = new Map<HTMLElement, ElementMatch[]>();
   for (const element of lineage) {
-    selectorMatches.set(element, getCachedElementMatches(element, rules, transform));
-    allSelectorMatches.set(element, getAllElementMatches(element, rules, transform));
+    selectorMatches.set(element, getCachedElementMatches(element, rules, transform, sensitiveMatchesByElement));
+    allSelectorMatches.set(element, getAllElementMatches(element, rules, transform, sensitiveMatchesByElement));
   }
 
   const byElement = new Map<HTMLElement, ElementResolution>();
@@ -1163,10 +1369,174 @@ const elementBranchMemo = new WeakMap<Element, Map<string, {
   elementRevision: number;
   stylesheetRevision: number;
   branch: string | null;
-}>>();
+  }>>();
+
+function selectorSubject(selector: string): string {
+  let start = 0;
+  let parentheses = 0;
+  let brackets = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  for (let index = 0; index < selector.length; index++) {
+    const character = selector[index]!;
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === "[") {
+      brackets++;
+      continue;
+    }
+    if (character === "]") {
+      brackets = Math.max(0, brackets - 1);
+      continue;
+    }
+    if (brackets > 0) continue;
+    if (character === "(") {
+      parentheses++;
+      continue;
+    }
+    if (character === ")") {
+      parentheses = Math.max(0, parentheses - 1);
+      continue;
+    }
+    if (parentheses > 0) continue;
+    if (character === ">" || character === "+" || character === "~" || /\s/.test(character)) {
+      start = index + 1;
+    }
+  }
+  return selector.slice(start).trim();
+}
+
+function cssIdentifierEnd(source: string, start: number): number {
+  let index = start;
+  while (index < source.length) {
+    const character = source[index]!;
+    if (character === "\\") {
+      index++;
+      if (index >= source.length) break;
+      if (/[0-9a-fA-F]/.test(source[index]!)) {
+        let digits = 0;
+        while (index < source.length && digits < 6 && /[0-9a-fA-F]/.test(source[index]!)) {
+          index++;
+          digits++;
+        }
+        if (/\s/.test(source[index] ?? "")) index++;
+      } else {
+        index++;
+      }
+      continue;
+    }
+    if (!/[A-Za-z0-9_-]/.test(character) && character.charCodeAt(0) < 0x80) break;
+    index++;
+  }
+  return index;
+}
+
+function unescapeCssIdentifier(value: string): string {
+  return value
+    .replace(/\\([0-9a-fA-F]{1,6})(?:\s)?/g, (_match, hex: string) => {
+      const codePoint = Number.parseInt(hex, 16);
+      return codePoint === 0
+        || codePoint > 0x10FFFF
+        || (codePoint >= 0xD800 && codePoint <= 0xDFFF)
+        ? "\uFFFD"
+        : String.fromCodePoint(codePoint);
+    })
+    .replace(/\\(.)/g, "$1");
+}
+
+const SELECTOR_CLASS_REQUIREMENTS_CACHE_MAX = 16_384;
+const selectorClassRequirementsMemo = new Map<string, readonly string[]>();
+
+/** Returns the positive class requirements in a selector's subject compound. */
+function selectorClassRequirements(selector: string): readonly string[] {
+  const cached = selectorClassRequirementsMemo.get(selector);
+  if (cached) return cached;
+
+  const subject = selectorSubject(selector);
+  const requirements: string[] = [];
+  let parentheses = 0;
+  let brackets = 0;
+  let quote: string | null = null;
+  let escaped = false;
+  for (let index = 0; index < subject.length; index++) {
+    const character = subject[index]!;
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === "[") {
+      brackets++;
+      continue;
+    }
+    if (character === "]") {
+      brackets = Math.max(0, brackets - 1);
+      continue;
+    }
+    if (brackets > 0) continue;
+    if (character === "(") {
+      parentheses++;
+      continue;
+    }
+    if (character === ")") {
+      parentheses = Math.max(0, parentheses - 1);
+      continue;
+    }
+    if (parentheses > 0 || character !== ".") continue;
+    const end = cssIdentifierEnd(subject, index + 1);
+    const className = unescapeCssIdentifier(subject.slice(index + 1, end));
+    if (className) requirements.push(className);
+    index = end - 1;
+  }
+  if (selectorClassRequirementsMemo.size >= SELECTOR_CLASS_REQUIREMENTS_CACHE_MAX) {
+    selectorClassRequirementsMemo.clear();
+  }
+  selectorClassRequirementsMemo.set(selector, requirements);
+  return requirements;
+}
+
+/**
+ * Rejects selectors whose rightmost compound requires a class the element
+ * does not have. This is a conservative prefilter: it only returns false for
+ * an impossible positive class requirement and leaves all other selectors to
+ * the browser's selector engine.
+ */
+function canMatchSelectorSubject(el: Element, selector: string): boolean {
+  return selectorClassRequirements(selector).every((className) => el.classList.contains(className));
+}
 
 function isBranchMemoizable(selectorText: string): boolean {
-  return !TRANSIENT_SELECTOR.test(selectorText) && !isElementSensitiveSelector(selectorText);
+  return !hasSelectorPseudoClass(selectorText, TRANSIENT_PSEUDO_CLASSES)
+    && !isElementSensitiveSelector(selectorText);
 }
 
 function matchingSelectorBranch(el: Element, selectorText: string): string | null {
@@ -1194,9 +1564,11 @@ function matchingSelectorBranch(el: Element, selectorText: string): string | nul
   }
   let branch: string | null = null;
   for (const candidate of branches) {
+    const trimmedCandidate = candidate.trim();
+    if (!canMatchSelectorSubject(el, trimmedCandidate)) continue;
     try {
-      if (el.matches(candidate.trim())) {
-        branch = candidate.trim();
+      if (el.matches(trimmedCandidate)) {
+        branch = trimmedCandidate;
         break;
       }
     } catch { /* invalid/unsupported selector */ }
@@ -1441,19 +1813,22 @@ function promoteNumericCalcRows(result: ResolvedProperty[], tokenTable: TokenTab
   }
 }
 
-const INTERACTION_SELECTOR = /:(hover|active|focus-visible|focus|disabled)(?:\b|\()/g;
-
 function selectorForState(selector: string, state: InteractionState): string | null {
-  const states = new Set<string>();
-  INTERACTION_SELECTOR.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = INTERACTION_SELECTOR.exec(selector)) !== null) states.add(match[1]!);
+  const pseudoClasses = selectorPseudoClasses(selector)
+    .filter(({ name }) => INTERACTION_PSEUDO_CLASSES.has(name));
+  const states = new Set(pseudoClasses.map(({ name }) => name));
   if (state === "base") return states.size === 0 ? selector : null;
   if (!states.has(state)) return states.size === 0 ? selector : null;
   // CSSOM cannot ask the browser whether a hypothetical pseudo-class matches.
   // Removing interaction pseudo-classes gives the authored rule a stable
   // element match for inspection. The real rule remains untouched.
-  return selector.replace(INTERACTION_SELECTOR, "");
+  let transformed = selector;
+  for (let index = pseudoClasses.length - 1; index >= 0; index--) {
+    const pseudoClass = pseudoClasses[index]!;
+    if (!INTERACTION_PSEUDO_CLASSES.has(pseudoClass.name)) continue;
+    transformed = transformed.slice(0, pseudoClass.start) + transformed.slice(pseudoClass.end);
+  }
+  return transformed;
 }
 
 /**
@@ -1470,7 +1845,8 @@ export function getResolvedPropertiesForState(
   const doc = el.ownerDocument ?? document;
   const revisions = getDocumentRevisions(doc);
   const { rules, inaccessible } = collectCssomRules(doc);
-  const dynamicMatchKey = elementSensitiveMatchKey(el, rules, state);
+  const sensitiveMatchesByElement = new Map<HTMLElement, ElementMatch[]>();
+  const dynamicMatchKey = elementSensitiveMatchKey(el, rules, state, sensitiveMatchesByElement);
   let snapshots = stateResolutionSnapshots.get(el);
   if (!snapshots) {
     snapshots = new Map();
@@ -1485,7 +1861,7 @@ export function getResolvedPropertiesForState(
     return cached.rows;
   }
 
-  const lineage = resolveLineage(el, rules, state);
+  const lineage = resolveLineage(el, rules, state, sensitiveMatchesByElement);
   const entry = lineage.byElement.get(el)!;
   const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable, entry.allMatched);
   const computed = getElementComputedStyle(el);
@@ -1582,7 +1958,8 @@ export function getResolvedPropertiesStable(
   const doc = el.ownerDocument ?? document;
   const revisions = getDocumentRevisions(doc);
   const { rules, inaccessible } = collectCssomRules(doc);
-  const dynamicMatchKey = elementSensitiveMatchKey(el, rules, "stable");
+  const sensitiveMatchesByElement = new Map<HTMLElement, ElementMatch[]>();
+  const dynamicMatchKey = elementSensitiveMatchKey(el, rules, "stable", sensitiveMatchesByElement);
   const cached = stableTokenCache.get(el);
   if (cached
     && cached.elementRevision === revisions.element
@@ -1591,7 +1968,7 @@ export function getResolvedPropertiesStable(
     && cached.dynamicMatchKey === dynamicMatchKey) {
     return cached.rows;
   }
-  const lineage = resolveLineage(el, rules, "stable");
+  const lineage = resolveLineage(el, rules, "stable", sensitiveMatchesByElement);
   const entry = lineage.byElement.get(el)!;
   const result = rowsFromMatches(el, entry.matched, entry.aliases, tokenTable, entry.allMatched);
   const computed = getElementComputedStyle(el);
