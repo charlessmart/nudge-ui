@@ -141,13 +141,16 @@ export function setCanvasMode(newMode: CanvasMode): void {
 /**
  * Changes how the mounted iframe workspace is presented.
  *
- * Canvas always starts from the active card with the standard inset. Card
+ * Canvas starts from the active card centered in the supplied viewport. Card
  * geometry remains durable, but the camera does not carry over from a prior
  * Canvas session.
  */
-export function setCanvasPresentation(next: CanvasPresentation): void {
+export function setCanvasPresentation(
+  next: CanvasPresentation,
+  viewport?: { width: number; height: number },
+): void {
   if (presentation === next) return;
-  if (next === "canvas") resetCameraToActiveCard();
+  if (next === "canvas") resetCameraToActiveCard(viewport);
   presentation = next;
   presentationTransitioning = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   if (presentationTransitionTimer !== null) window.clearTimeout(presentationTransitionTimer);
@@ -161,16 +164,20 @@ export function setCanvasPresentation(next: CanvasPresentation): void {
   notify();
 }
 
-function resetCameraToActiveCard(): void {
+function resetCameraToActiveCard(viewport?: { width: number; height: number }): void {
   const activeCardId = selectedCardId ?? focusedCardId;
   const activeCard = cards.find((card) => card.id === activeCardId) ?? cards[0];
-  cachedBoardCamera = activeCard
-    ? {
-      x: PRIMARY_CARD_INSET - activeCard.x,
-      y: PRIMARY_CARD_INSET - activeCard.y,
-      zoom: 0.9,
-    }
-    : { ...DEFAULT_CAMERA };
+  if (!activeCard) {
+    cachedBoardCamera = { ...DEFAULT_CAMERA };
+    return;
+  }
+  const zoom = 0.9;
+  const view = viewport ?? defaultViewportSize();
+  cachedBoardCamera = {
+    x: view.width / 2 - (activeCard.x + activeCard.width / 2) * zoom,
+    y: view.height / 2 - (activeCard.y + activeCard.height / 2) * zoom,
+    zoom,
+  };
 }
 
 /** Adds one card while retaining the existing placement policy. */

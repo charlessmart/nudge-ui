@@ -30,7 +30,7 @@ import { getRegisteredFrames, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
 import { RENDERER_ELEMENT_ID_ATTR } from "./rendererCidIndex.ts";
 import { observeSelectedGeometry } from "../overlay/selectedGeometry.ts";
 import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
-import { setInspectorOpen, toggleInspector, useInspectorOpen } from "../shell/openStore.ts";
+import { setInspectorOpen, toggleInspector } from "../shell/openStore.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
 import { setStyles } from "../tokens/editActions.ts";
@@ -226,7 +226,6 @@ function sendMeasureModifier(iframe: HTMLIFrameElement, cardId: string, altKey: 
 }
 
 export function CanvasElementOverlay(): ReactElement | null {
-  const isInspectorOpen = useInspectorOpen();
   const [hover, setHover] = useState<FrameOverlayState | null>(null);
   const [measureState, setMeasureState] = useState<FrameMeasureState | null>(null);
   const [, refreshSelectedGeometry] = useReducer((revision: number) => revision + 1, 0);
@@ -522,7 +521,6 @@ export function CanvasElementOverlay(): ReactElement | null {
     };
   }, []);
 
-  if (!isInspectorOpen) return null;
   if (inlineTextSession && inlineTextSession.host.ownerDocument === selected?.domElement.ownerDocument) return null;
   if (!hover && projectedSelectedGeometry.length === 0 && !projectedDropGuide) return null;
 

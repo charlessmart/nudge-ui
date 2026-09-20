@@ -73,4 +73,33 @@ describe("observeSelectedGeometry", () => {
 
     stop();
   });
+
+  it("notifies when a scrollable ancestor moves the selected element", async () => {
+    const scroller = document.createElement("div");
+    const selected = document.createElement("div");
+    scroller.append(selected);
+    document.body.append(scroller);
+
+    const scheduled: FrameRequestCallback[] = [];
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      scheduled.push(callback);
+      return scheduled.length;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = (() => undefined) as typeof window.cancelAnimationFrame;
+
+    let notifications = 0;
+    const stop = observeSelectedGeometry(selected, () => {
+      notifications += 1;
+    });
+
+    scroller.dispatchEvent(new Event("scroll"));
+    await Promise.resolve();
+    expect(scheduled).toHaveLength(1);
+    scheduled.shift()?.(0);
+    expect(notifications).toBe(1);
+
+    stop();
+    scroller.dispatchEvent(new Event("scroll"));
+    expect(scheduled).toHaveLength(0);
+  });
 });

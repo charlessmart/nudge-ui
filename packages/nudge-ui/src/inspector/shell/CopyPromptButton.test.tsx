@@ -173,16 +173,17 @@ describe("CopyPromptButton agent handoff", () => {
       .toBe("setup");
   });
 
-  it("shows a centered listening status with a check icon", async () => {
+  it("shows a listening indicator on the primary button", async () => {
     const transport = new ButtonTransport();
     configureAgentBridgeTransport(transport);
     act(() => root.render(<CopyPromptButton />));
     await flush();
 
-    const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
-    expect(status?.textContent).toContain("Agent listening");
-    expect(status?.className).not.toContain("status-callout");
-    expect(status?.querySelector("svg")).not.toBeNull();
+    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]');
+    expect(button?.dataset.agentListening).toBe("true");
+    expect(button?.querySelector('[data-test="agent-listening-indicator"]')?.getAttribute("aria-label"))
+      .toBe("Agent listening");
+    expect(container.querySelector('[data-test="agent-connection-status"]')).toBeNull();
   });
 
   it("changes Connect into Send and disables the control while one prompt is working", async () => {
@@ -205,6 +206,56 @@ describe("CopyPromptButton agent handoff", () => {
     expect(transport.dispatches[0]?.prompt).toContain("src/Heading.tsx");
     expect(button.textContent).toContain("Agent working");
     expect(button.disabled).toBe(true);
+  });
+
+  it("sends the available prompt from Shift+S", async () => {
+    const transport = new ButtonTransport();
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+
+    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
+    await act(async () => { button.click(); });
+    act(() => restoreChangeRecords([change()]));
+
+    const event = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "KeyS",
+      key: "s",
+      shiftKey: true,
+    });
+    await act(async () => {
+      window.dispatchEvent(event);
+      await Promise.resolve();
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(transport.dispatches).toHaveLength(1);
+    expect(transport.dispatches[0]?.prompt).toContain("src/Heading.tsx");
+  });
+
+  it("leaves Shift+S available to focused text inputs", async () => {
+    const transport = new ButtonTransport();
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+
+    const input = document.createElement("input");
+    document.body.append(input);
+    input.focus();
+    const event = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "KeyS",
+      key: "s",
+      shiftKey: true,
+    });
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(transport.dispatches).toHaveLength(0);
+    input.remove();
   });
 
   it("distinguishes verified agent completion from the still-pending preview", async () => {
@@ -302,8 +353,7 @@ describe("CopyPromptButton agent handoff", () => {
     await flush();
 
     expect(container.querySelector('[data-test="agent-verified-hint"]')).toBeNull();
-    expect(container.querySelector('[data-test="agent-completed-hint"]')?.textContent)
-      .toBe("Agent completed. Remaining edits were preserved because they were not verified.");
+    expect(container.querySelector('[data-test="agent-completed-hint"]')).toBeNull();
   });
 
   it("shows plain completion when nothing was in flight", async () => {
@@ -344,8 +394,7 @@ describe("CopyPromptButton agent handoff", () => {
     await flush();
 
     expect(container.querySelector('[data-test="agent-verified-hint"]')).toBeNull();
-    expect(container.querySelector('[data-test="agent-completed-hint"]')?.textContent)
-      .toBe("Agent completed.");
+    expect(container.querySelector('[data-test="agent-completed-hint"]')).toBeNull();
   });
 
   it("falls back to the clipboard when the paired listener rejects dispatch", async () => {

@@ -108,6 +108,18 @@
 
 .copy-prompt__main.button {
   width: 100%;
+  position: relative;
+}
+
+.copy-prompt__agent-listening {
+  position: absolute;
+  top: 50%;
+  right: var(--space-12);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(34 197 94);
+  transform: translateY(-50%);
 }
 
 .copy-prompt__hint {
@@ -139,18 +151,6 @@
 .copy-prompt__agent-status-content .button--quiet {
   flex: 0 0 auto;
   color: inherit;
-}
-
-.copy-prompt__agent-status--listening {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  margin-top: var(--space-8);
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.4;
-  text-align: center;
 }
 
 .copy-prompt__sketch-fallback {

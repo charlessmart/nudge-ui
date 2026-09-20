@@ -32,6 +32,7 @@ import {
 import type { SketchEntryTool } from "./interaction.ts";
 import { SketchPromptPanel } from "./SketchPromptPanel.tsx";
 import { SketchSvgLayer } from "./freehand.tsx";
+import { useInspectorOpen } from "../shell/openStore.ts";
 
 type SketchTool = "move" | "pen" | "rectangle" | "annotate";
 
@@ -136,6 +137,7 @@ function annotationEditorStyle(
 }
 
 export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel, onDone }: SketchOverlayProps): ReactElement | null {
+  const inspectorOpen = useInspectorOpen();
   const [viewport, setViewport] = useState<SketchViewport>(() => getSketchViewport(hostElement));
   const [tool, setTool] = useState<SketchTool>("pen");
   const [description, setDescription] = useState("");
@@ -484,8 +486,17 @@ export function SketchOverlay({ open, hostElement, initialTool = "pen", onCancel
       onOpenChange={(nextOpen) => { if (!nextOpen && !submitting) onCancel(); }}
     >
       <Dialog.Portal container={portalContainer()}>
-        <Dialog.Backdrop className="sketch__backdrop sketch__live-backdrop" data-test="sketch-live-backdrop" />
-        <Dialog.Popup className="sketch__popup sketch__live-popup" data-test="sketch-live-editor" onKeyDown={onEditorKeyDown}>
+        <Dialog.Backdrop
+          className="sketch__backdrop sketch__live-backdrop"
+          data-inspector-open={inspectorOpen ? "true" : "false"}
+          data-test="sketch-live-backdrop"
+        />
+        <Dialog.Popup
+          className="sketch__popup sketch__live-popup"
+          data-inspector-open={inspectorOpen ? "true" : "false"}
+          data-test="sketch-live-editor"
+          onKeyDown={onEditorKeyDown}
+        >
           <Dialog.Title className="sketch__title sketch__sr-only">Sketch viewport</Dialog.Title>
           <Dialog.Description className="sketch__description sketch__sr-only">
             Draw directly over the live interface, then add a short note for the sketch.

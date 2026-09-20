@@ -16,6 +16,13 @@ export function isEditableEvent(event: KeyboardEvent): boolean {
   return event.composedPath().some(isEditableTarget) || isEditableTarget(deeplyFocusedElement());
 }
 
+export const SEND_PROMPT_HOTKEY_EVENT = "nudge-ui-send-prompt-hotkey";
+
+export function isSendPromptShortcut(event: KeyboardEvent): boolean {
+  if (event.repeat || event.altKey || isEditableEvent(event)) return false;
+  return event.shiftKey && !event.metaKey && !event.ctrlKey && event.code === "KeyS";
+}
+
 export function isInspectorToggleShortcut(event: KeyboardEvent): boolean {
   if (isEditableEvent(event)) return false;
   if (event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && event.code === "Backslash") return true;

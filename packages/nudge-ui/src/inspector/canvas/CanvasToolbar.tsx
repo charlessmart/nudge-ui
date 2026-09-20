@@ -5,8 +5,9 @@ import {
   IconSketching,
 } from "@tabler/icons-react";
 import { IconButton } from "../ui/IconButton.tsx";
+import type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 
-export type CanvasInteractionTool = "move" | "pan" | "sketch";
+export type { CanvasInteractionTool } from "./keyboardShortcuts.ts";
 
 export const CANVAS_ZOOM_LEVELS = [0.25, 0.5, 0.9, 1] as const;
 

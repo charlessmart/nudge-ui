@@ -24,7 +24,6 @@ import {
 import { createAgentPresentationAdapter } from "../canvas/agentPresentation.ts";
 import {
   discardAgentDispatch,
-  getAgentDispatchSize,
   recordAgentDispatch,
   verifyAndReconcileAgentDispatch,
   type AgentCompletionStatus,
@@ -42,6 +41,7 @@ import {
   sketchMetadataForHandoff,
 } from "../sketch/handoff.ts";
 import { SketchLayersPanel } from "../sketch/SketchLayersPanel.tsx";
+import { isSendPromptShortcut, SEND_PROMPT_HOTKEY_EVENT } from "./shortcuts.ts";
 
 export interface CopyPromptButtonProps {
   readonly settingsOpen?: boolean;
@@ -72,7 +72,6 @@ export function CopyPromptButton({
   const reconciledCount = getLastClipboardReconciledCount();
   const [copied, setCopied] = useState(false);
   const [agentCompletionStatus, setAgentCompletionStatus] = useState<AgentCompletionStatus | null>(null);
-  const [agentCompletionSent, setAgentCompletionSent] = useState(0);
   const [sketchFallback, setSketchFallback] = useState<{
     readonly prompt: string;
     readonly error: string;
@@ -113,22 +112,19 @@ export function CopyPromptButton({
   useEffect(() => {
     const revision = agent.request?.changeRevision;
     if (agent.state !== "completed" || revision === undefined) return;
-    const sent = getAgentDispatchSize(revision);
     let active = true;
     void verifyAndReconcileAgentDispatch(revision)
       .then((removed) => {
         if (!active) return;
         const latest = agentRef.current;
         if (latest.request?.changeRevision !== revision || latest.state !== "completed") return;
-        setAgentCompletionSent(sent);
-        setAgentCompletionStatus(removed > 0 ? "verified" : "completed");
+        setAgentCompletionStatus(removed > 0 ? "verified" : null);
       })
       .catch(() => {
         if (!active) return;
         const latest = agentRef.current;
         if (latest.request?.changeRevision !== revision || latest.state !== "completed") return;
-        setAgentCompletionSent(sent);
-        setAgentCompletionStatus("completed");
+        setAgentCompletionStatus(null);
       });
     return () => {
       active = false;
@@ -176,7 +172,7 @@ export function CopyPromptButton({
       ? <IconPlugConnected size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
       : canSend || working
         ? <IconSend size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-        : <IconCopy size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />;
+        : <IconCopy size="var(--icon-size-small)" stroke="var(--icon-stroke-width)" aria-hidden="true" />;
 
   async function onClick(): Promise<void> {
     if (disabled) return;
@@ -192,7 +188,6 @@ export function CopyPromptButton({
     const sketchMetadata = sketchHandoff ? sketchMetadataForHandoff(sketchHandoff) : [];
     const text = generatePrompt(changes, hints, structuralChanges, customInstructions, sketchMetadata);
     setAgentCompletionStatus(null);
-    setAgentCompletionSent(0);
     setSketchFallback(null);
     if (canSend) {
       const revision = createPromptRevision(changes, structuralChanges, sketchMetadata);
@@ -256,6 +251,26 @@ export function CopyPromptButton({
     window.setTimeout(() => setCopied(false), 1500);
   }
 
+  useEffect(() => {
+    function onKeydown(event: KeyboardEvent): void {
+      if (!isSendPromptShortcut(event) || !canSend || !hasChanges || disabled) return;
+      event.preventDefault();
+      void onClick();
+    }
+
+    function onRendererHotkey(): void {
+      if (!canSend || !hasChanges || disabled) return;
+      void onClick();
+    }
+
+    window.addEventListener("keydown", onKeydown, true);
+    window.addEventListener(SEND_PROMPT_HOTKEY_EVENT, onRendererHotkey);
+    return () => {
+      window.removeEventListener("keydown", onKeydown, true);
+      window.removeEventListener(SEND_PROMPT_HOTKEY_EVENT, onRendererHotkey);
+    };
+  }, [canSend, disabled, hasChanges, onClick]);
+
   function handleCustomInstructionsChange(value: string): void {
     setCustomInstructions(value);
     saveCustomInstructions(runtimeConfig.projectId, value);
@@ -289,12 +304,21 @@ export function CopyPromptButton({
         disabled={disabled}
         data-copied={copied ? "true" : "false"}
         data-agent-state={agent.state}
+        data-agent-listening={agentStatus.kind === "listening" ? "true" : undefined}
         aria-busy={working || connecting ? "true" : undefined}
         title={agent.error}
         onClick={onClick}
       >
         {icon}
         {label}
+        {agentStatus.kind === "listening" ? (
+          <span
+            className="copy-prompt__agent-listening"
+            data-test="agent-listening-indicator"
+            role="status"
+            aria-label="Agent listening"
+          />
+        ) : null}
       </Button>
       <SketchLayersPanel />
       {statusAction ? (
@@ -317,15 +341,6 @@ export function CopyPromptButton({
             </Button>
           </div>
         </StatusCallout>
-      ) : agentStatus.kind === "listening" ? (
-        <div
-          className="copy-prompt__agent-status copy-prompt__agent-status--listening"
-          data-test="agent-connection-status"
-          role="status"
-        >
-          <IconCheck size="var(--icon-size-small)" stroke={2} aria-hidden="true" />
-          <span>{agentStatus.label}</span>
-        </div>
       ) : null}
       {reconciledCount > 0 ? (
         <p className="copy-prompt__hint" data-test="clipboard-reconciled-hint" role="status">
@@ -335,12 +350,6 @@ export function CopyPromptButton({
       {agentCompletionStatus === "verified" ? (
         <p className="copy-prompt__hint" data-test="agent-verified-hint" role="status">
           Agent changes verified.
-        </p>
-      ) : agentCompletionStatus === "completed" ? (
-        <p className="copy-prompt__hint" data-test="agent-completed-hint" role="status">
-          {agentCompletionSent > 0
-            ? "Agent completed. Remaining edits were preserved because they were not verified."
-            : "Agent completed."}
         </p>
       ) : null}
       {sketchFallback ? (

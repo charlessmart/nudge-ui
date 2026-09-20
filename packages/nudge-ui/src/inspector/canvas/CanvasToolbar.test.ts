@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { adjacentCanvasZoomLevel, closestCanvasZoomLevel } from "./CanvasToolbar.tsx";
+import { canvasToolForCode, canvasToolForEvent } from "./keyboardShortcuts.ts";
 
 describe("canvas toolbar zoom presets", () => {
   it("snaps arbitrary canvas zoom to the nearest preset", () => {
@@ -12,5 +13,30 @@ describe("canvas toolbar zoom presets", () => {
     expect(adjacentCanvasZoomLevel(0.9, 1)).toBe(1);
     expect(adjacentCanvasZoomLevel(0.25, -1)).toBeNull();
     expect(adjacentCanvasZoomLevel(1, 1)).toBeNull();
+  });
+});
+
+describe("canvas toolbar keyboard shortcuts", () => {
+  it.each([
+    ["KeyV", "move"],
+    ["KeyH", "pan"],
+    ["KeyP", "sketch"],
+  ])("maps %s to the corresponding tool", (code, tool) => {
+    expect(canvasToolForCode(code)).toBe(tool);
+  });
+
+  it("ignores modifiers and repeated keydown events", () => {
+    const event = (overrides: Partial<KeyboardEvent>): KeyboardEvent => ({
+      code: "",
+      repeat: false,
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      ...overrides,
+    } as KeyboardEvent);
+    expect(canvasToolForEvent(event({ code: "KeyV", shiftKey: true }))).toBeNull();
+    expect(canvasToolForEvent(event({ code: "KeyH", repeat: true }))).toBeNull();
+    expect(canvasToolForEvent(event({ code: "KeyP" }))).toBe("sketch");
   });
 });
