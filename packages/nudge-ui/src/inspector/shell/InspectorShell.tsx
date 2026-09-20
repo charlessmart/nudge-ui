@@ -56,7 +56,13 @@ import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "../componentSemantics/ComponentPropsSection.tsx";
-import { cancelInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
+import {
+  cancelInlineTextEdit,
+  isInlineTextEditingActive,
+  useInlineTextDiagnostic,
+  useInlineTextSession,
+} from "../inline-text/inlineTextEditor.ts";
+import { getInlineTextFeedback } from "../inline-text/inlineTextFeedback.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
@@ -123,6 +129,7 @@ export function InspectorShell(): ReactElement {
   const selectedElements = useSelectedElements();
   const hierarchy = useHierarchy();
   const inlineTextSession = useInlineTextSession();
+  const inlineTextFeedback = getInlineTextFeedback(useInlineTextDiagnostic());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
   const [scopeRevision, refreshScope] = useState(0);
@@ -326,6 +333,19 @@ export function InspectorShell(): ReactElement {
           </div>
         </div>
         <div className="panel__body">
+          {inlineTextFeedback ? (
+            <StatusCallout
+              tone="warning"
+              className="inline-text-diagnostic"
+              data-test="inline-text-diagnostic"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <strong className="inline-text-diagnostic__title">{inlineTextFeedback.title}</strong>
+              <span>{inlineTextFeedback.recovery}</span>
+            </StatusCallout>
+          ) : null}
           {inlineTextSession && (
             inlineTextSession.bindingChoices.length > 1 ||
             inlineTextSession.scopeChoices.length > 0

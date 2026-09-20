@@ -11,6 +11,7 @@ import { setCanvasMode } from "../canvas/canvasStore.ts";
 import { clearRestoreCount } from "../canvas/sessionStore.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { setInputValue } from "../styleEditors/_testUtils.ts";
+import { beginInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 
 // Signal to React that the surrounding test environment supports act().
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -332,6 +333,43 @@ describe("InspectorShell", () => {
       `Undo${modifierKey}+Z`,
       "DeselectEsc",
     ]);
+  });
+
+  it("announces an unsupported inline-text attempt and clears it after success", () => {
+    const unsupported = document.createElement("div");
+    unsupported.dataset.cid = "EmptyCopy";
+    unsupported.dataset.src = "fixtures/empty-copy.tsx:8:3";
+    document.body.append(unsupported);
+
+    expect(beginInlineTextEdit(unsupported)).toMatchObject({
+      kind: "rejected",
+      reason: "no-text",
+    });
+
+    act(() => {
+      mountInspector(host);
+    });
+
+    const shadow = host.shadowRoot!;
+    const diagnostic = shadow.querySelector<HTMLElement>('[data-test="inline-text-diagnostic"]');
+    expect(diagnostic?.getAttribute("role")).toBe("status");
+    expect(diagnostic?.getAttribute("aria-live")).toBe("polite");
+    expect(diagnostic?.getAttribute("aria-atomic")).toBe("true");
+    expect(diagnostic?.textContent).toContain("Text editing is unavailable for this target.");
+    expect(diagnostic?.textContent).toContain("Double-click visible text inside a text-bearing element.");
+
+    const editable = document.createElement("p");
+    editable.dataset.cid = "EditableCopy";
+    editable.dataset.src = "fixtures/editable-copy.tsx:12:3";
+    editable.textContent = "Editable copy";
+    document.body.append(editable);
+    const session = beginInlineTextEdit(editable);
+    if ("kind" in session) throw new Error(session.message);
+    act(() => {
+      session.commit();
+    });
+
+    expect(shadow.querySelector('[data-test="inline-text-diagnostic"]')).toBeNull();
   });
 
   it("keeps the iframe workspace active without a page-mode switch", () => {

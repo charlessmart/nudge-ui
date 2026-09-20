@@ -17,6 +17,7 @@ import {
   type InlineTextInteractionDisposition,
   type InlineTextSession,
 } from "./inlineTextEditor.ts";
+import { getInlineTextFeedback } from "./inlineTextFeedback.ts";
 import { getTextProjectionReports, TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import { reactComponentRuntimeAdapter } from "../componentSemantics/reactRuntime.tsx";
 
@@ -162,6 +163,62 @@ describe("inlineTextEditor", () => {
     expect(getChangesList()).toEqual([]);
     expect(redo()).toBe(true);
     expect(getChangesList()).toHaveLength(1);
+  });
+
+  it("replaces unsupported-edit feedback when a later edit succeeds", () => {
+    const unsupported = document.createElement("div");
+    unsupported.dataset.cid = "EmptyCopy";
+    unsupported.dataset.src = "src/EmptyCopy.tsx:8:3";
+    document.body.append(unsupported);
+
+    expect(beginInlineTextEdit(unsupported)).toMatchObject({
+      kind: "rejected",
+      reason: "no-text",
+    });
+    expect(getInlineTextFeedback(getInlineTextDiagnostic())).toMatchObject({
+      title: "Text editing is unavailable for this target.",
+    });
+
+    const editable = fixture();
+    const result = beginInlineTextEdit(editable);
+    if ("kind" in result) throw new Error(result.message);
+    expect(getInlineTextFeedback(getInlineTextDiagnostic())).toBeNull();
+
+    result.host.textContent = "Publish now";
+    result.commit();
+
+    expect(getInlineTextFeedback(getInlineTextDiagnostic())).toBeNull();
+    expect(getInlineTextDiagnostic()).toMatchObject({ status: "committed", reason: "commit" });
+  });
+
+  it("keeps a single pointer-down pass-through and diagnostic-free", () => {
+    const target = document.createElement("div");
+    target.dataset.cid = "EmptyCopy";
+    document.body.append(target);
+
+    expect(handleInlineTextEditIntent({
+      kind: "pointer-down",
+      target,
+      point: { x: 12, y: 18 },
+      clickCount: 1,
+    })).toBe("pass-through");
+    expect(getInlineTextFeedback(getInlineTextDiagnostic())).toBeNull();
+  });
+
+  it("clears diagnostics when the workspace is cleared", () => {
+    const unsupported = document.createElement("div");
+    unsupported.dataset.cid = "EmptyCopy";
+    document.body.append(unsupported);
+
+    expect(beginInlineTextEdit(unsupported)).toMatchObject({
+      kind: "rejected",
+      reason: "no-text",
+    });
+    expect(getInlineTextDiagnostic()).not.toBeNull();
+
+    clearWorkspace();
+
+    expect(getInlineTextDiagnostic()).toBeNull();
   });
 
   it("keeps ordinary key input native while containing inspector key handling", () => {

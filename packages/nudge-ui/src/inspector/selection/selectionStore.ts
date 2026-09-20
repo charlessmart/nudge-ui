@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { computeHierarchy } from "./hierarchy.ts";
 import { resolveSelectionFromElement } from "./resolveSelection.ts";
 import type { RuntimeComponentTarget } from "../componentSemantics/types.ts";
+import { clearInlineTextDiagnosticsForSelection } from "../inline-text/inlineTextDiagnostics.ts";
 
 export interface SelectedElement {
   cid: string;
@@ -55,6 +56,7 @@ function getHierarchyIndex(): number {
 }
 
 function notify(): void {
+  clearInlineTextDiagnosticsForSelection(getSelectedElements().map((element) => element.domElement));
   listeners.forEach((l) => l());
 }
 

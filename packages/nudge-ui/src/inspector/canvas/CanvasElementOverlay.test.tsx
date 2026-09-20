@@ -5,6 +5,12 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { getSelectedElement, setSelectedElement } from "../selection/selectionStore.ts";
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
+import { clearWorkspace, getChangesList } from "../changes/changesLog.ts";
+import {
+  cancelInlineTextEdit,
+  getInlineTextDiagnostic,
+  getInlineTextSession,
+} from "../inline-text/inlineTextEditor.ts";
 import { CanvasElementOverlay } from "./CanvasElementOverlay.tsx";
 import {
   PROTOCOL_VERSION,
@@ -43,6 +49,8 @@ describe("CanvasElementOverlay", () => {
       root?.unmount();
     });
     root = null;
+    cancelInlineTextEdit();
+    clearWorkspace();
     setSelectedElement(null);
     unregisterCardFrame(cardId);
     host.remove();
@@ -97,5 +105,76 @@ describe("CanvasElementOverlay", () => {
       altKey: true,
     }), window.location.origin);
     postMessage.mockRestore();
+  });
+
+  it("records the same actionable rejection for an unsupported Canvas edit", () => {
+    const frameDocument = iframe.contentDocument!;
+    const target = frameDocument.createElement("div");
+    target.setAttribute("data-cid", "EmptyCopy");
+    target.setAttribute("data-src", "/src/Page.tsx:18:5");
+    target.setAttribute("data-renderer-id", "r2");
+    frameDocument.body.append(target);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: window.location.origin,
+        source: iframe.contentWindow as MessageEventSource,
+        data: {
+          type: "inline-text-intent",
+          protocolVersion: PROTOCOL_VERSION,
+          intent: "double-click",
+          cid: "EmptyCopy",
+          src: "/src/Page.tsx:18:5",
+          elementId: "r2",
+          point: { x: 12, y: 18 },
+          projectId: PROJECT_ID,
+          workspaceId: WORKSPACE_ID,
+          cardId,
+        },
+      }));
+    });
+
+    expect(getInlineTextSession()).toBeNull();
+    expect(getInlineTextDiagnostic()).toMatchObject({ status: "rejected", reason: "no-text" });
+  });
+
+  it("opens and commits an editable Canvas text target through the shared editor", () => {
+    const frameDocument = iframe.contentDocument!;
+    const target = frameDocument.createElement("p");
+    target.setAttribute("data-cid", "CanvasCopy");
+    target.setAttribute("data-src", "/src/Page.tsx:22:5");
+    target.setAttribute("data-renderer-id", "r3");
+    target.textContent = "Canvas copy";
+    frameDocument.body.append(target);
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: window.location.origin,
+        source: iframe.contentWindow as MessageEventSource,
+        data: {
+          type: "inline-text-intent",
+          protocolVersion: PROTOCOL_VERSION,
+          intent: "double-click",
+          cid: "CanvasCopy",
+          src: "/src/Page.tsx:22:5",
+          elementId: "r3",
+          point: { x: 12, y: 18 },
+          projectId: PROJECT_ID,
+          workspaceId: WORKSPACE_ID,
+          cardId,
+        },
+      }));
+    });
+
+    const session = getInlineTextSession();
+    expect(session).not.toBeNull();
+    session!.host.textContent = "Updated Canvas copy";
+    act(() => {
+      session!.commit();
+    });
+
+    expect(getInlineTextSession()).toBeNull();
+    expect(getChangesList()).toHaveLength(1);
+    expect(getInlineTextDiagnostic()).toMatchObject({ status: "committed", reason: "commit" });
   });
 });
