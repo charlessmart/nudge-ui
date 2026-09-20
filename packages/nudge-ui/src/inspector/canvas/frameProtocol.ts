@@ -4,6 +4,7 @@ import { isStructuralProjectionReport } from "../projection/structuralProjection
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 
 // v18 adds parent-to-renderer Alt modifier forwarding for Canvas measurements.
 // v17 adds an idempotent renderer request to open the parent inspector. v16
@@ -132,6 +133,10 @@ export interface ElementHoverMessage extends RendererMessage {
   rect: { left: number; top: number; width: number; height: number } | null;
   margins: { top: number; right: number; bottom: number; left: number } | null;
   borders: { top: number; right: number; bottom: number; left: number } | null;
+  /** Last pointer position in the renderer viewport, used for spacing guides. */
+  point?: { x: number; y: number } | null;
+  /** The padding or layout gap under the pointer, when one is draggable. */
+  spacing?: SpacingDescriptor | null;
 }
 
 /** Modifier state stays inside one renderer frame; the parent never infers it
@@ -178,6 +183,10 @@ export interface ElementDragStartMessage extends RendererMessage {
   src: string;
   elementId: string;
   point: { x: number; y: number };
+  /** Original pointer position; the current point may already be outside the affordance. */
+  startPoint?: { x: number; y: number };
+  /** Spacing affordance captured at pointer-down, if this is a spacing drag. */
+  spacing?: SpacingDescriptor | null;
 }
 
 export interface ElementDragMoveMessage extends RendererMessage {
@@ -188,6 +197,8 @@ export interface ElementDragMoveMessage extends RendererMessage {
 export interface ElementDragEndMessage extends RendererMessage {
   type: "element-drag-end";
   point: { x: number; y: number };
+  /** True when the renderer lost the gesture before the pointer was released. */
+  cancelled?: boolean;
 }
 
 export interface ElementDeleteMessage extends RendererMessage {

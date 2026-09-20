@@ -107,6 +107,57 @@ describe("CanvasElementOverlay", () => {
     postMessage.mockRestore();
   });
 
+  it("projects the hovered padding guide into the board viewport", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.paddingTop = "20px";
+    frameDocument.body.append(card);
+    Object.defineProperty(iframe, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 100, top: 40, width: 300, height: 200, right: 400, bottom: 240 } as DOMRect),
+    });
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 10, top: 10, width: 200, height: 120, right: 210, bottom: 130 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: window.location.origin,
+        source: iframe.contentWindow as MessageEventSource,
+        data: {
+          type: "element-hover",
+          protocolVersion: PROTOCOL_VERSION,
+          projectId: PROJECT_ID,
+          workspaceId: WORKSPACE_ID,
+          cardId,
+          cid: "Card",
+          selector: '[data-cid="Card"]',
+          src: "/src/Card.tsx:12:3",
+          elementId: "r1",
+          rect: { left: 10, top: 10, width: 200, height: 120 },
+          margins: { top: 0, right: 0, bottom: 0, left: 0 },
+          borders: { top: 0, right: 0, bottom: 0, left: 0 },
+          point: { x: 100, y: 20 },
+          spacing: { kind: "padding", property: "padding-top", side: "top" },
+        },
+      }));
+    });
+
+    const guide = host.querySelector<HTMLElement>('[data-test="canvas-spacing-guide"]');
+    expect(guide).not.toBeNull();
+    expect(guide?.dataset.property).toBe("padding-top");
+    expect(guide?.style.left).toBe("110px");
+    expect(guide?.style.top).toBe("59px");
+  });
+
   it("records the same actionable rejection for an unsupported Canvas edit", () => {
     const frameDocument = iframe.contentDocument!;
     const target = frameDocument.createElement("div");

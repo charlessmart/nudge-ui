@@ -33,6 +33,15 @@ import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text
 import { setInspectorOpen, toggleInspector, useInspectorOpen } from "../shell/openStore.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
+import { setStyle } from "../tokens/editActions.ts";
+import {
+  getSpacingAffordanceAtPoint,
+  getSpacingAffordanceForDescriptor,
+  spacingValueCss,
+  spacingValueForDrag,
+  type SpacingAffordance,
+  type SpacingDescriptor,
+} from "../overlay/spacingGestures.ts";
 
 interface ElementIdentity {
   elementId: string;
@@ -45,6 +54,8 @@ interface FrameOverlayState {
   margins: Margins;
   borders: BorderWidths;
   cardId: string;
+  point: { x: number; y: number } | null;
+  spacing: SpacingDescriptor | null;
 }
 
 interface FrameMeasureState {
@@ -56,6 +67,17 @@ interface FrameMeasureState {
 interface CanvasDragState {
   iframe: HTMLIFrameElement;
   element: HTMLElement;
+}
+
+interface CanvasSpacingDragState {
+  iframe: HTMLIFrameElement;
+  element: HTMLElement;
+  affordance: SpacingAffordance;
+  start: { x: number; y: number };
+  startValue: number;
+  currentValue: number;
+  originalInlineValue: string;
+  originalInlinePriority: string;
 }
 
 function projectRect(iframe: HTMLIFrameElement, rect: Rect, zoom: number): Rect {
@@ -122,6 +144,54 @@ function projectGuideToCanvas(guide: DropGuide | null, zoom: number): ViewportDr
   };
 }
 
+function spacingDescriptorMatches(
+  affordance: SpacingAffordance | null,
+  descriptor: SpacingDescriptor | null | undefined,
+): affordance is SpacingAffordance {
+  return Boolean(affordance
+    && descriptor
+    && affordance.kind === descriptor.kind
+    && affordance.property === descriptor.property
+    && affordance.side === descriptor.side);
+}
+
+function applySpacingPreview(
+  drag: CanvasSpacingDragState,
+  point: { x: number; y: number },
+): void {
+  const value = spacingValueForDrag(drag.affordance, drag.start, point);
+  drag.currentValue = value;
+  drag.element.style.setProperty(drag.affordance.property, spacingValueCss(value));
+}
+
+function restoreSpacingPreview(drag: CanvasSpacingDragState): void {
+  if (drag.originalInlineValue) {
+    drag.element.style.setProperty(
+      drag.affordance.property,
+      drag.originalInlineValue,
+      drag.originalInlinePriority,
+    );
+  } else {
+    drag.element.style.removeProperty(drag.affordance.property);
+  }
+}
+
+function commitSpacingDrag(drag: CanvasSpacingDragState): void {
+  try {
+    if (drag.currentValue !== drag.startValue) {
+      setStyle(
+        drag.element,
+        drag.affordance.property,
+        spacingValueCss(drag.currentValue),
+      );
+    }
+  } finally {
+    // The inline declaration is only a frame-local preview. Durable edits go
+    // through the managed stylesheet and the normal change-history path.
+    restoreSpacingPreview(drag);
+  }
+}
+
 function sendMeasureModifier(iframe: HTMLIFrameElement, cardId: string, altKey: boolean): void {
   iframe.contentWindow?.postMessage({
     type: "measure-modifier",
@@ -150,6 +220,7 @@ export function CanvasElementOverlay(): ReactElement | null {
   const projectionGeometryKey = `${presentation}:${camera.x}:${camera.y}:${projectionZoom}:${cardGeometryKey}`;
   const previousProjectionGeometryKey = useRef(projectionGeometryKey);
   const dragRef = useRef<CanvasDragState | null>(null);
+  const spacingDragRef = useRef<CanvasSpacingDragState | null>(null);
   const measureAltKeyRef = useRef(false);
   const dropGuide = useDropGuide("canvas");
   const projectedDropGuide = projectGuideToCanvas(dropGuide, projectionZoom);
@@ -259,6 +330,8 @@ export function CanvasElementOverlay(): ReactElement | null {
           margins: msg.margins ?? { top: 0, right: 0, bottom: 0, left: 0 },
           borders: msg.borders ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: sourceCardId,
+          point: msg.point ?? null,
+          spacing: msg.spacing ?? null,
         });
       } else if (data.type === "element-measure-state") {
         const msg = data;
@@ -290,22 +363,75 @@ export function CanvasElementOverlay(): ReactElement | null {
             clickCount: data.clickCount ?? 0,
           });
       } else if (data.type === "element-deselect") {
+        if (spacingDragRef.current) restoreSpacingPreview(spacingDragRef.current);
+        spacingDragRef.current = null;
+        dragRef.current = null;
+        clearDropGuide("canvas");
         setSelectedElement(null);
       } else if (data.type === "element-drag-start") {
         if (getSelectedElements().length > 1) return;
         const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         if (!element) return;
+        if (spacingDragRef.current) restoreSpacingPreview(spacingDragRef.current);
+        spacingDragRef.current = null;
+        dragRef.current = null;
+        const startPoint = msg.startPoint ?? msg.point;
+        const spacing = msg.spacing
+          ? getSpacingAffordanceForDescriptor(element, msg.spacing)
+          : sourceIframe.contentDocument
+            ? getSpacingAffordanceAtPoint(sourceIframe.contentDocument, startPoint.x, startPoint.y)
+            : null;
+        if (spacingDescriptorMatches(spacing, msg.spacing ?? (spacing ? {
+          kind: spacing.kind,
+          property: spacing.property,
+          side: spacing.side,
+        } : null)) && spacing.element === element) {
+          spacingDragRef.current = {
+            iframe: sourceIframe,
+            element,
+            affordance: spacing,
+            start: startPoint,
+            startValue: spacing.value,
+            currentValue: spacing.value,
+            originalInlineValue: element.style.getPropertyValue(spacing.property),
+            originalInlinePriority: element.style.getPropertyPriority(spacing.property),
+          };
+          const selectedElement = resolveSelectionFromElement(element);
+          if (selectedElement) setSelectedElement(selectedElement);
+          applySpacingPreview(spacingDragRef.current, msg.point);
+          return;
+        }
         dragRef.current = { iframe: sourceIframe, element };
         const selectedElement = resolveSelectionFromElement(element);
         if (selectedElement) setSelectedElement(selectedElement);
         updateDropGuide(msg.point, sourceIframe);
       } else if (data.type === "element-drag-move") {
+        const spacing = spacingDragRef.current;
+        if (spacing && spacing.iframe === sourceIframe) {
+          applySpacingPreview(spacing, data.point);
+          return;
+        }
         updateDropGuide(data.point, sourceIframe);
       } else if (data.type === "element-drag-end") {
         const msg = data;
+        const spacing = spacingDragRef.current;
+        if (spacing && spacing.iframe === sourceIframe) {
+          if (msg.cancelled) {
+            restoreSpacingPreview(spacing);
+            spacingDragRef.current = null;
+            clearDropGuide("canvas");
+            return;
+          }
+          applySpacingPreview(spacing, msg.point);
+          commitSpacingDrag(spacing);
+          spacingDragRef.current = null;
+          const selectedElement = resolveSelectionFromElement(spacing.element);
+          if (selectedElement) setSelectedElement(selectedElement);
+          return;
+        }
         const current = dragRef.current;
-        if (current && current.iframe === sourceIframe && sourceIframe.contentDocument) {
+        if (!msg.cancelled && current && current.iframe === sourceIframe && sourceIframe.contentDocument) {
           const drop = getDropLocationAtPoint(sourceIframe.contentDocument, current.element, msg.point.x, msg.point.y);
           if (drop) moveElement(current.element, drop);
           const selectedElement = resolveSelectionFromElement(current.element);
@@ -354,6 +480,9 @@ export function CanvasElementOverlay(): ReactElement | null {
     });
     return () => {
       unsubscribe();
+      if (spacingDragRef.current) restoreSpacingPreview(spacingDragRef.current);
+      spacingDragRef.current = null;
+      dragRef.current = null;
       clearDropGuide("canvas");
     };
   }, []);
@@ -363,6 +492,12 @@ export function CanvasElementOverlay(): ReactElement | null {
   if (!hover && projectedSelectedGeometry.length === 0 && !projectedDropGuide) return null;
 
   const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, projectionZoom) : null;
+  const spacingAffordance = hover?.point && hover.spacing && hover.iframe.contentDocument
+    ? getSpacingAffordanceAtPoint(hover.iframe.contentDocument, hover.point.x, hover.point.y)
+    : null;
+  const projectedSpacingGuide = hover && spacingDescriptorMatches(spacingAffordance, hover.spacing)
+    ? projectRect(hover.iframe, spacingAffordance.guide, projectionZoom)
+    : null;
   const hoverMargins = hover ? scaleMargins(hover.margins, projectionZoom) : null;
   const hoverMarginGuides = projectedHoverRect && hoverMargins
     ? getMarginGuides(projectedHoverRect, hoverMargins)
@@ -420,6 +555,17 @@ export function CanvasElementOverlay(): ReactElement | null {
             <div key={fill.side} className="canvas-hover-margin-fill" data-side={fill.side} style={overlayStyle(fill)} aria-hidden="true" />
           ))}
           <div className="canvas-element-overlay" data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
+          {projectedSpacingGuide && spacingAffordance ? (
+            <div
+              className="canvas-spacing-guide"
+              data-test="canvas-spacing-guide"
+              data-kind={spacingAffordance.kind}
+              data-property={spacingAffordance.property}
+              data-side={spacingAffordance.side ?? undefined}
+              style={overlayStyle(projectedSpacingGuide)}
+              aria-hidden="true"
+            />
+          ) : null}
           {hoverMarginGuides.map((guide) => (
             <div key={guide.side} className="canvas-hover-margin" data-axis={guide.axis} data-distance={guide.distance} data-side={guide.side} style={overlayStyle(guide)} aria-hidden="true" />
           ))}

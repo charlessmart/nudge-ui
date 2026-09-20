@@ -32,6 +32,11 @@ import { resolveSelectionTarget, selectionTargetMode } from "../selection/select
 import { escapeCssString } from "../projection/cssEscapes.ts";
 import { blockApplicationClick, isApplicationActivationClick } from "../overlay/clickPolicy.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
+import {
+  getSpacingAffordanceAtPoint,
+  toSpacingDescriptor,
+  type SpacingDescriptor,
+} from "../overlay/spacingGestures.ts";
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
@@ -126,7 +131,11 @@ export function installRendererElementSelector(): () => void {
   }
 
   const cidIndex = createCidIndex(document);
-  const hoverUpdate = createFrameThrottle((pending: { element: HTMLElement; clear: boolean }) => {
+  const hoverUpdate = createFrameThrottle((pending: {
+    element: HTMLElement;
+    clear: boolean;
+    point: { x: number; y: number } | null;
+  }) => {
     if (disposed) return;
     const { element, clear } = pending;
     const identity = getRendererIdentity();
@@ -136,6 +145,9 @@ export function installRendererElementSelector(): () => void {
     const selector = buildSelector(element);
     const src = element.getAttribute("data-src") ?? "";
     const rect = clear ? null : element.getBoundingClientRect();
+    const spacing = !clear && pending.point
+      ? getSpacingAffordanceAtPoint(document, pending.point.x, pending.point.y)
+      : null;
 
     const msg: ElementHoverMessage = {
       type: "element-hover",
@@ -154,6 +166,8 @@ export function installRendererElementSelector(): () => void {
         : null,
       margins: rect ? readMargins(element) : null,
       borders: rect ? readBorderWidths(element) : null,
+      point: pending.point,
+      spacing: spacing && spacing.element === element ? toSpacingDescriptor(spacing) : null,
       ...identity,
     };
 
@@ -191,15 +205,28 @@ export function installRendererElementSelector(): () => void {
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
       if (!el) return;
 
-      hoverUpdate.schedule({ element: el, clear: false });
+      const point = { x: event.clientX, y: event.clientY };
+      updateSpacingCursor(point);
+      hoverUpdate.schedule({ element: el, clear: false, point });
     },
     true,
   );
 
-  let pendingDrag: { element: HTMLElement; point: { x: number; y: number } } | null = null;
+  let pendingDrag: {
+    element: HTMLElement;
+    point: { x: number; y: number };
+    spacing: SpacingDescriptor | null;
+  } | null = null;
   let dragging = false;
+  let lastDragPoint = { x: 0, y: 0 };
   let lastSelected: HTMLElement | null = null;
   let interactionsSuspended = false;
+
+  function updateSpacingCursor(point: { x: number; y: number }): void {
+    if (interactionsSuspended) return;
+    const affordance = getSpacingAffordanceAtPoint(document, point.x, point.y);
+    document.documentElement.style.cursor = affordance?.cursor ?? "";
+  }
 
   trackListener<Event>(window, "nudge-ui:open", () => {
     const identity = getRendererIdentity();
@@ -233,10 +260,9 @@ export function installRendererElementSelector(): () => void {
       document.documentElement.removeAttribute("data-nudge-ui-panel");
     }
     if (interactionsSuspended) {
-      pendingDrag = null;
-      dragging = false;
-      dragMoveUpdate.cancel();
+      cancelActiveDrag();
       hoverUpdate.cancel();
+      document.documentElement.style.cursor = "";
       updateMeasureState(false, false);
     }
   });
@@ -249,13 +275,41 @@ export function installRendererElementSelector(): () => void {
     sendToParent(msg);
   });
 
+  function sendDragEnd(point: { x: number; y: number }, cancelled: boolean): void {
+    if (!dragging) return;
+    const identity = getRendererIdentity();
+    if (!identity) return;
+    const msg: ElementDragEndMessage = {
+      type: "element-drag-end",
+      protocolVersion: PROTOCOL_VERSION,
+      point,
+      ...(cancelled ? { cancelled: true } : {}),
+      ...identity,
+    };
+    sendToParent(msg);
+  }
+
+  function cancelActiveDrag(): void {
+    dragMoveUpdate.cancel();
+    sendDragEnd(lastDragPoint, true);
+    pendingDrag = null;
+    dragging = false;
+  }
+
   trackListener<MouseEvent>(document, "mousedown", (event: MouseEvent) => {
     if (interactionsSuspended) return;
     if (event.button !== 0) return;
     const element = resolveSelectionTarget(event.target, selectionTargetMode(event));
     if (!element) return;
+    const spacingAffordance = getSpacingAffordanceAtPoint(document, event.clientX, event.clientY);
+    const spacing = spacingAffordance?.element === element
+      ? toSpacingDescriptor(spacingAffordance)
+      : null;
     const identity = getRendererIdentity();
-    if (identity) {
+    // A spacing drag owns the pointer gesture. Do not start an inline-text
+    // attempt for the same down event; padding and gaps are intentionally not
+    // editable text targets.
+    if (identity && !spacing) {
       const emptyProjectionId = event.target instanceof Element
         ? event.target.closest(`[${EMPTY_TEXT_PROJECTION_ATTR}]`)?.getAttribute(EMPTY_TEXT_PROJECTION_ATTR) ?? undefined
         : undefined;
@@ -274,22 +328,43 @@ export function installRendererElementSelector(): () => void {
       sendToParent(message);
     }
     lastSelected = element;
-    pendingDrag = { element, point: { x: event.clientX, y: event.clientY } };
+    pendingDrag = {
+      element,
+      point: { x: event.clientX, y: event.clientY },
+      spacing,
+    };
+    lastDragPoint = { x: event.clientX, y: event.clientY };
   }, true);
 
   trackListener<MouseEvent>(document, "mousemove", (event: MouseEvent) => {
-    if (!pendingDrag) return;
+    if (!pendingDrag) {
+      if (interactionsSuspended) return;
+      const target = event.target;
+      if (target instanceof Element) {
+        const element = resolveSelectionTarget(target, selectionTargetMode(event));
+        if (element) {
+          const point = { x: event.clientX, y: event.clientY };
+          updateSpacingCursor(point);
+          hoverUpdate.schedule({ element, clear: false, point });
+        }
+      }
+      return;
+    }
     if (!dragging && Math.hypot(event.clientX - pendingDrag.point.x, event.clientY - pendingDrag.point.y) < 6) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     event.preventDefault();
     const point = { x: event.clientX, y: event.clientY };
+    lastDragPoint = point;
     if (!dragging) {
       dragging = true;
       const msg: ElementDragStartMessage = {
         type: "element-drag-start", protocolVersion: PROTOCOL_VERSION,
         cid: pendingDrag.element.getAttribute("data-cid")!, src: pendingDrag.element.getAttribute("data-src") ?? "",
-        elementId: cidIndex.elementId(pendingDrag.element), point, ...identity,
+        elementId: cidIndex.elementId(pendingDrag.element), point,
+        startPoint: pendingDrag.point,
+        spacing: pendingDrag.spacing,
+        ...identity,
       };
       sendToParent(msg);
     } else {
@@ -300,15 +375,10 @@ export function installRendererElementSelector(): () => void {
   function finishDrag(event: MouseEvent): void {
     dragMoveUpdate.cancel();
     if (dragging) {
-      const identity = getRendererIdentity();
-      if (identity) {
-        event.preventDefault();
-        const msg: ElementDragEndMessage = {
-          type: "element-drag-end", protocolVersion: PROTOCOL_VERSION,
-          point: { x: event.clientX, y: event.clientY }, ...identity,
-        };
-        sendToParent(msg);
-      }
+      event.preventDefault();
+      const point = { x: event.clientX, y: event.clientY };
+      lastDragPoint = point;
+      sendDragEnd(point, false);
     }
     pendingDrag = null;
     dragging = false;
@@ -391,6 +461,7 @@ export function installRendererElementSelector(): () => void {
   }, true);
 
   trackListener<Event>(window, "blur", () => {
+    cancelActiveDrag();
     updateMeasureState(false, false);
   });
 
@@ -413,7 +484,8 @@ export function installRendererElementSelector(): () => void {
 
       if (resolveSelectionTarget(related, selectionTargetMode(event))) return;
 
-      hoverUpdate.schedule({ element: el, clear: true });
+      document.documentElement.style.cursor = "";
+      hoverUpdate.schedule({ element: el, clear: true, point: null });
     },
     true,
   );
@@ -520,5 +592,6 @@ export function installRendererElementSelector(): () => void {
     measurePointerOverPage = false;
     measureAltKey = false;
     document.documentElement.removeAttribute("data-nudge-ui-panel");
+    document.documentElement.style.cursor = "";
   };
 }

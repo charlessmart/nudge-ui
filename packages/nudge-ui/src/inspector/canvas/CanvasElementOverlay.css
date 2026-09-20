@@ -7,6 +7,15 @@
   outline-offset: -1px;
 }
 
+.canvas-spacing-guide {
+  position: fixed;
+  z-index: 4;
+  border-radius: 999px;
+  background: #3b82f6;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 82%), 0 0 8px rgb(59 130 246 / 45%);
+  pointer-events: none;
+}
+
 .canvas-selected-outline {
   position: fixed;
   pointer-events: none;
