@@ -355,8 +355,9 @@ describe("InspectorShell", () => {
     expect(diagnostic?.getAttribute("role")).toBe("status");
     expect(diagnostic?.getAttribute("aria-live")).toBe("polite");
     expect(diagnostic?.getAttribute("aria-atomic")).toBe("true");
-    expect(diagnostic?.textContent).toContain("Text editing is unavailable for this target.");
-    expect(diagnostic?.textContent).toContain("Double-click visible text inside a text-bearing element.");
+    expect(diagnostic?.className).toContain("status-callout--danger");
+    expect(diagnostic?.querySelector("strong")).toBeNull();
+    expect(diagnostic?.textContent).toBe("Cannot edit text - No visible text");
 
     const editable = document.createElement("p");
     editable.dataset.cid = "EditableCopy";

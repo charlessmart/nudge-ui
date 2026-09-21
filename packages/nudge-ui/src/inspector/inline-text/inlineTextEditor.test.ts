@@ -176,7 +176,7 @@ describe("inlineTextEditor", () => {
       reason: "no-text",
     });
     expect(getInlineTextFeedback(getInlineTextDiagnostic())).toMatchObject({
-      title: "Text editing is unavailable for this target.",
+      message: "Cannot edit text - No visible text",
     });
 
     const editable = fixture();

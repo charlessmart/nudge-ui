@@ -25,7 +25,7 @@
   --warning-surface: #fff6e5;
   --danger: #df4b4b;
   --danger-text: #bd3636;
-  --danger-surface: #fff0f0;
+  --danger-surface: rgba(223, 75, 75, 0.2);
 
   --space-0: 0;
   --space-4: 4px;

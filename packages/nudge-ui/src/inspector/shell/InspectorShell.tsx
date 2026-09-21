@@ -335,15 +335,14 @@ export function InspectorShell(): ReactElement {
         <div className="panel__body">
           {inlineTextFeedback ? (
             <StatusCallout
-              tone="warning"
+              tone="danger"
               className="inline-text-diagnostic"
               data-test="inline-text-diagnostic"
               role="status"
               aria-live="polite"
               aria-atomic="true"
             >
-              <strong className="inline-text-diagnostic__title">{inlineTextFeedback.title}</strong>
-              <span>{inlineTextFeedback.recovery}</span>
+              <span>{inlineTextFeedback.message}</span>
             </StatusCallout>
           ) : null}
           {inlineTextSession && (

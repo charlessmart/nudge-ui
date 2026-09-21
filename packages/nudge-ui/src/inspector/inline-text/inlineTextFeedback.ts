@@ -2,30 +2,24 @@ import type { TextEditRejectionReason } from "../componentSemantics/textBinding.
 import type { InlineTextDiagnostic } from "./inlineTextEditor.ts";
 
 export interface InlineTextFeedback {
-  readonly title: string;
-  readonly recovery: string;
+  readonly message: string;
 }
 
 const FEEDBACK_BY_REASON: Record<TextEditRejectionReason, InlineTextFeedback> = {
   "no-text": {
-    title: "Text editing is unavailable for this target.",
-    recovery: "Double-click visible text inside a text-bearing element.",
+    message: "Cannot edit text - No visible text",
   },
   "no-binding": {
-    title: "This text is owned by the application or has no safe binding.",
-    recovery: "Use the app's editor, or choose a plain text target that Nudge UI can identify.",
+    message: "Cannot edit text - No safe source binding",
   },
   "ambiguous-binding": {
-    title: "This text has more than one possible source binding.",
-    recovery: "Choose a less ambiguous text target, or edit the source in code.",
+    message: "Cannot edit text - Ambiguous source binding",
   },
   "editing-active": {
-    title: "Another inline text edit is still active.",
-    recovery: "Finish or cancel the current edit, then try again.",
+    message: "Cannot edit text - Another edit is active",
   },
   "unsafe-target": {
-    title: "This target contains unsupported text markup.",
-    recovery: "Double-click plain text outside nested markup or form controls.",
+    message: "Cannot edit text - Unsupported text markup",
   },
 };
 

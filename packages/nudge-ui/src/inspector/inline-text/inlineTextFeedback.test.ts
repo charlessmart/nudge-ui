@@ -3,12 +3,12 @@ import { getInlineTextFeedback } from "./inlineTextFeedback.ts";
 
 describe("getInlineTextFeedback", () => {
   it.each([
-    ["no-text", "Text editing is unavailable for this target."],
-    ["no-binding", "This text is owned by the application or has no safe binding."],
-    ["ambiguous-binding", "This text has more than one possible source binding."],
-    ["editing-active", "Another inline text edit is still active."],
-    ["unsafe-target", "This target contains unsupported text markup."],
-  ] as const)("explains %s with a recovery action", (reason, title) => {
+    ["no-text", "Cannot edit text - No visible text"],
+    ["no-binding", "Cannot edit text - No safe source binding"],
+    ["ambiguous-binding", "Cannot edit text - Ambiguous source binding"],
+    ["editing-active", "Cannot edit text - Another edit is active"],
+    ["unsafe-target", "Cannot edit text - Unsupported text markup"],
+  ] as const)("explains %s with concise copy", (reason, message) => {
     const feedback = getInlineTextFeedback({
       kind: "inline-text",
       status: "rejected",
@@ -16,8 +16,8 @@ describe("getInlineTextFeedback", () => {
       before: "Visible copy",
     });
 
-    expect(feedback).toMatchObject({ title });
-    expect(feedback?.recovery).toBeTruthy();
+    expect(feedback).toEqual({ message });
+    expect(message.replace(/\s-\s/g, " ").trim().split(/\s+/).length).toBeLessThanOrEqual(7);
   });
 
   it.each([
