@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { IconColorSwatch, IconLayoutSidebarRight, IconSettings } from "@tabler/icons-react";
+import { IconLayoutSidebarRight, IconSettings } from "@tabler/icons-react";
 import { useInspectorOpen, toggleInspector, setInspectorOpen } from "./openStore.ts";
 import {
   useSelectedElement,
@@ -301,15 +301,6 @@ export function InspectorShell(): ReactElement {
             </IconButton>
             <div className="panel__header-actions">
               <PeekOriginalButton />
-              <IconButton
-                variant="quiet"
-                data-test="tokens-button"
-                label="Tokens"
-                title="Tokens"
-                onClick={() => openSettings("tokens")}
-              >
-                <IconColorSwatch size="var(--icon-size-small)" stroke={1.8} aria-hidden="true" />
-              </IconButton>
               <IconButton
                 variant="quiet"
                 label="Settings"

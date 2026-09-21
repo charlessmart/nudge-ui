@@ -453,7 +453,7 @@ describe("InspectorShell", () => {
     });
     const shadow = host.shadowRoot!;
     act(() => {
-      (shadow.querySelector('[data-test="tokens-button"]') as HTMLButtonElement).click();
+      (shadow.querySelector('[data-test="settings-button"]') as HTMLButtonElement).click();
     });
     act(() => {
       (shadow.querySelector('[data-test="settings-nav-tokens"]') as HTMLButtonElement).click();
@@ -484,7 +484,7 @@ describe("InspectorShell", () => {
     document.body.append(selected);
     act(() => {
       setSelectedElement(resolveSelectionFromElement(selected));
-      (host.shadowRoot!.querySelector('[data-test="tokens-button"]') as HTMLButtonElement).click();
+      (host.shadowRoot!.querySelector('[data-test="settings-button"]') as HTMLButtonElement).click();
     });
     act(() => {
       host.shadowRoot!.querySelector<HTMLButtonElement>('[data-test="settings-nav-tokens"]')!.click();
@@ -598,7 +598,7 @@ describe("InspectorShell", () => {
     expect(panel.getAttribute("data-open")).not.toBe(before);
 
     act(() => {
-      (shadow.querySelector('[data-test="tokens-button"]') as HTMLButtonElement).click();
+      (shadow.querySelector('[data-test="settings-button"]') as HTMLButtonElement).click();
     });
     act(() => {
       shadow.querySelector<HTMLButtonElement>('[data-test="settings-nav-tokens"]')!.click();
