@@ -68,6 +68,40 @@ describe("CanvasCard renderer handshake", () => {
     return card ? createElement(CanvasCard, { card }) : null;
   }
 
+  function pointerEvent(type: string, clientX: number, clientY: number, pointerId = 1): Event {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperties(event, {
+      clientX: { value: clientX },
+      clientY: { value: clientY },
+      pointerId: { value: pointerId },
+    });
+    return event;
+  }
+
+  function keyEvent(key: string, shiftKey = false): KeyboardEvent {
+    return new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key,
+      shiftKey,
+    });
+  }
+
+  function mockPointerCapture(element: HTMLElement): {
+    setPointerCapture: ReturnType<typeof vi.fn>;
+    releasePointerCapture: ReturnType<typeof vi.fn>;
+  } {
+    const captured = new Set<number>();
+    const setPointerCapture = vi.fn((pointerId: number) => captured.add(pointerId));
+    const releasePointerCapture = vi.fn((pointerId: number) => captured.delete(pointerId));
+    Object.defineProperties(element, {
+      setPointerCapture: { value: setPointerCapture },
+      hasPointerCapture: { value: (pointerId: number) => captured.has(pointerId) },
+      releasePointerCapture: { value: releasePointerCapture },
+    });
+    return { setPointerCapture, releasePointerCapture };
+  }
+
   function mountCard(): HTMLElement {
     const iframe = document.createElement("iframe");
     Object.defineProperty(iframe, "contentWindow", { value: contentWindow });
@@ -290,16 +324,6 @@ describe("CanvasCard renderer handshake", () => {
     if (!(dragSurface instanceof HTMLElement)) throw new Error("drag surface did not mount");
     Object.defineProperty(dragSurface, "setPointerCapture", { value: () => {} });
 
-    const pointerEvent = (type: string, clientX: number, clientY: number): Event => {
-      const event = new Event(type, { bubbles: true, cancelable: true });
-      Object.defineProperties(event, {
-        clientX: { value: clientX },
-        clientY: { value: clientY },
-        pointerId: { value: 1 },
-      });
-      return event;
-    };
-
     act(() => {
       dragSurface.dispatchEvent(pointerEvent("pointerdown", 100, 200));
       window.dispatchEvent(pointerEvent("pointermove", 160, 260));
@@ -310,6 +334,217 @@ describe("CanvasCard renderer handshake", () => {
     act(() => {
       window.dispatchEvent(pointerEvent("pointerup", 160, 260));
     });
+  });
+
+  it("renders every edge and corner handle with its directional cursor", () => {
+    const card: CanvasCardData = {
+      id: "card-all-resize-handles",
+      url: window.location.href,
+      title: null,
+      x: 100,
+      y: 80,
+      width: 800,
+      height: 600,
+    };
+    renderCard(card);
+
+    const handles = [
+      { direction: "top-left", cursor: "nwse-resize", label: "Resize card from the top-left corner" },
+      { direction: "top", cursor: "ns-resize", label: "Resize card from the top edge" },
+      { direction: "top-right", cursor: "nesw-resize", label: "Resize card from the top-right corner" },
+      { direction: "right", cursor: "ew-resize", label: "Resize card from the right edge" },
+      { direction: "bottom-right", cursor: "nwse-resize", label: "Resize card" },
+      { direction: "bottom", cursor: "ns-resize", label: "Resize card from the bottom edge" },
+      { direction: "bottom-left", cursor: "nesw-resize", label: "Resize card from the bottom-left corner" },
+      { direction: "left", cursor: "ew-resize", label: "Resize card from the left edge" },
+    ];
+
+    expect(host.querySelectorAll('[data-resize-direction]')).toHaveLength(handles.length);
+    for (const handleDefinition of handles) {
+      const handle = host.querySelector(
+        `[data-resize-direction="${handleDefinition.direction}"]`,
+      );
+      if (!(handle instanceof HTMLElement)) {
+        throw new Error(`${handleDefinition.direction} resize handle did not mount`);
+      }
+      expect(handle.style.cursor).toBe(handleDefinition.cursor);
+      expect(handle.getAttribute("aria-label")).toBe(handleDefinition.label);
+    }
+  });
+
+  it("resizes from every handle with direction-aware keyboard steps", () => {
+    const card: CanvasCardData = {
+      id: "card-keyboard-resize",
+      url: window.location.href,
+      title: null,
+      x: 100,
+      y: 80,
+      width: 800,
+      height: 600,
+    };
+    const cases = [
+      { direction: "top-left", key: "ArrowLeft", expected: { x: 80, width: 820, y: 80, height: 600 } },
+      { direction: "top", key: "ArrowUp", expected: { x: 100, width: 800, y: 60, height: 620 } },
+      { direction: "top-right", key: "ArrowRight", expected: { x: 100, width: 820, y: 80, height: 600 } },
+      { direction: "right", key: "ArrowRight", expected: { x: 100, width: 820, y: 80, height: 600 } },
+      { direction: "bottom-right", key: "ArrowDown", shiftKey: true, expected: { x: 100, width: 800, y: 80, height: 640 } },
+      { direction: "bottom", key: "ArrowDown", expected: { x: 100, width: 800, y: 80, height: 620 } },
+      { direction: "bottom-left", key: "ArrowLeft", expected: { x: 80, width: 820, y: 80, height: 600 } },
+      { direction: "left", key: "ArrowLeft", expected: { x: 80, width: 820, y: 80, height: 600 } },
+    ];
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    root = createRoot(host);
+    act(() => {
+      root!.render(createElement(StoreBackedCard));
+    });
+
+    const globalKeydown = vi.fn();
+    window.addEventListener("keydown", globalKeydown);
+    try {
+      for (const resizeCase of cases) {
+        act(() => {
+          hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+        });
+        const resizeHandle = host.querySelector(
+          `[data-resize-direction="${resizeCase.direction}"]`,
+        );
+        if (!(resizeHandle instanceof HTMLElement)) {
+          throw new Error(`${resizeCase.direction} resize handle did not mount`);
+        }
+
+        act(() => {
+          resizeHandle.dispatchEvent(keyEvent(resizeCase.key, resizeCase.shiftKey));
+        });
+
+        expect(getCanvasCards()[0]).toMatchObject(resizeCase.expected);
+      }
+    } finally {
+      window.removeEventListener("keydown", globalKeydown);
+    }
+    expect(globalKeydown).not.toHaveBeenCalled();
+  });
+
+  it("resizes horizontally from the left edge and releases pointer capture", () => {
+    const card: CanvasCardData = {
+      id: "card-left-resize",
+      url: window.location.href,
+      title: null,
+      x: 100,
+      y: 80,
+      width: 800,
+      height: 600,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    renderCard(card);
+
+    const resizeHandle = host.querySelector(
+      `[data-test="canvas-card-resize-${card.id}-left"]`,
+    );
+    if (!(resizeHandle instanceof HTMLElement)) throw new Error("left resize handle did not mount");
+    const capture = mockPointerCapture(resizeHandle);
+
+    expect(resizeHandle.style.cursor).toBe("ew-resize");
+    act(() => {
+      resizeHandle.dispatchEvent(pointerEvent("pointerdown", 100, 200));
+      window.dispatchEvent(pointerEvent("pointermove", 60, 200));
+    });
+
+    expect(getCanvasCards()[0]).toMatchObject({ x: 60, y: 80, width: 840, height: 600 });
+    expect(capture.setPointerCapture).toHaveBeenCalledWith(1);
+
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointerup", 60, 200));
+    });
+
+    expect(capture.releasePointerCapture).toHaveBeenCalledWith(1);
+  });
+
+  it("resizes vertically from the top edge while preserving the bottom edge", () => {
+    const card: CanvasCardData = {
+      id: "card-top-resize",
+      url: window.location.href,
+      title: null,
+      x: 100,
+      y: 80,
+      width: 800,
+      height: 600,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    renderCard(card);
+
+    const resizeHandle = host.querySelector(
+      `[data-test="canvas-card-resize-${card.id}-top"]`,
+    );
+    if (!(resizeHandle instanceof HTMLElement)) throw new Error("top resize handle did not mount");
+    mockPointerCapture(resizeHandle);
+
+    expect(resizeHandle.style.cursor).toBe("ns-resize");
+    act(() => {
+      resizeHandle.dispatchEvent(pointerEvent("pointerdown", 400, 80));
+      window.dispatchEvent(pointerEvent("pointermove", 400, 50));
+      window.dispatchEvent(pointerEvent("pointerup", 400, 50));
+    });
+
+    expect(getCanvasCards()[0]).toMatchObject({ x: 100, y: 50, width: 800, height: 630 });
+  });
+
+  it("resizes both dimensions from a corner handle", () => {
+    const card: CanvasCardData = {
+      id: "card-corner-resize",
+      url: window.location.href,
+      title: null,
+      x: 100,
+      y: 80,
+      width: 800,
+      height: 600,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    renderCard(card);
+
+    const resizeHandle = host.querySelector(
+      `[data-test="canvas-card-resize-${card.id}-top-left"]`,
+    );
+    if (!(resizeHandle instanceof HTMLElement)) throw new Error("top-left resize handle did not mount");
+    mockPointerCapture(resizeHandle);
+
+    expect(resizeHandle.style.cursor).toBe("nwse-resize");
+    act(() => {
+      resizeHandle.dispatchEvent(pointerEvent("pointerdown", 100, 80));
+      window.dispatchEvent(pointerEvent("pointermove", 60, 50));
+      window.dispatchEvent(pointerEvent("pointerup", 60, 50));
+    });
+
+    expect(getCanvasCards()[0]).toMatchObject({ x: 60, y: 50, width: 840, height: 630 });
+  });
+
+  it("stops a resize on pointer cancel and keeps the minimum dimensions", () => {
+    const card: CanvasCardData = {
+      id: "card-cancel-resize",
+      url: window.location.href,
+      title: null,
+      x: 100,
+      y: 80,
+      width: 800,
+      height: 600,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 1 });
+    renderCard(card);
+
+    const resizeHandle = host.querySelector(
+      `[data-test="canvas-card-resize-${card.id}-left"]`,
+    );
+    if (!(resizeHandle instanceof HTMLElement)) throw new Error("left resize handle did not mount");
+    const capture = mockPointerCapture(resizeHandle);
+
+    act(() => {
+      resizeHandle.dispatchEvent(pointerEvent("pointerdown", 100, 200));
+      window.dispatchEvent(pointerEvent("pointermove", 1_000, 200));
+      window.dispatchEvent(pointerEvent("pointercancel", 1_000, 200));
+      window.dispatchEvent(pointerEvent("pointermove", 900, 200));
+    });
+
+    expect(getCanvasCards()[0]).toMatchObject({ x: 700, width: 200 });
+    expect(capture.releasePointerCapture).toHaveBeenCalledWith(1);
   });
 
   it("keeps the resize handle screen-sized while the board is zoomed", () => {
@@ -332,6 +567,27 @@ describe("CanvasCard renderer handshake", () => {
 
     expect(resizeHandle.style.transform).toBe("scale(2)");
     expect(resizeHandle.style.transformOrigin).toBe("right bottom");
+  });
+
+  it("inverse-scales only the thickness of zoomed edge handles", () => {
+    const card = {
+      id: "card-edge-resize-scale",
+      url: "http://localhost:3000/edge-scale",
+      title: "Edge scale",
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    };
+    hydrateCanvasStore("canvas", [card], { x: 0, y: 0, zoom: 0.5 });
+    renderCard(card);
+
+    const top = host.querySelector<HTMLElement>(`[data-test="canvas-card-resize-${card.id}-top"]`);
+    const left = host.querySelector<HTMLElement>(`[data-test="canvas-card-resize-${card.id}-left"]`);
+    if (!top || !left) throw new Error("edge resize handles did not mount");
+
+    expect(top.style.transform).toBe("scale(1, 2)");
+    expect(left.style.transform).toBe("scale(2, 1)");
   });
 
   it("anchors scaled toolbar content to the canvas top edge", () => {

@@ -149,19 +149,80 @@
 
 .canvas-card__resize-handle {
   position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 24px;
-  height: 24px;
+  z-index: 3;
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
   padding: 4px;
-  cursor: nwse-resize;
   color: var(--text-muted, #777777);
   opacity: 0;
   transition: opacity 150ms ease;
   touch-action: none;
+  user-select: none;
+}
+
+.canvas-card__resize-handle--top,
+.canvas-card__resize-handle--bottom {
+  right: 16px;
+  left: 16px;
+  height: 16px;
+  cursor: ns-resize;
+}
+
+.canvas-card__resize-handle--top {
+  top: 0;
+}
+
+.canvas-card__resize-handle--bottom {
+  bottom: 0;
+}
+
+.canvas-card__resize-handle--left,
+.canvas-card__resize-handle--right {
+  top: 16px;
+  bottom: 16px;
+  width: 16px;
+  cursor: ew-resize;
+}
+
+.canvas-card__resize-handle--left {
+  left: 0;
+}
+
+.canvas-card__resize-handle--right {
+  right: 0;
+}
+
+.canvas-card__resize-handle--top-left,
+.canvas-card__resize-handle--top-right,
+.canvas-card__resize-handle--bottom-right,
+.canvas-card__resize-handle--bottom-left {
+  z-index: 4;
+  width: 24px;
+  height: 24px;
+  cursor: nwse-resize;
+}
+
+.canvas-card__resize-handle--top-left {
+  top: 0;
+  left: 0;
+}
+
+.canvas-card__resize-handle--top-right {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.canvas-card__resize-handle--bottom-right {
+  right: 0;
+  bottom: 0;
+}
+
+.canvas-card__resize-handle--bottom-left {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
 }
 
 .canvas-card:hover .canvas-card__resize-handle,

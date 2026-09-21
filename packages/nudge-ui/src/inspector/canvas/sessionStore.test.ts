@@ -348,7 +348,7 @@ describe("sessionStore persistence", () => {
   it("serializes card and camera state", () => {
     setCanvasMode("canvas");
     const card = addCanvasCard(localUrl("/about"), "About");
-    resizeCard(card.id, 731, 509);
+    resizeCard(card.id, 731, 509, { x: 24, y: 36 });
     focusCard(card.id);
     setBoardCamera({ x: 100, y: 200, zoom: 2 });
     persistSession();
@@ -359,7 +359,7 @@ describe("sessionStore persistence", () => {
     expect(parsed.cards).toHaveLength(1);
     expect(parsed.cards[0].url).toBe(localUrl("/about"));
     expect(parsed.cards[0].title).toBe("About");
-    expect(parsed.cards[0]).toMatchObject({ width: 731, height: 509 });
+    expect(parsed.cards[0]).toMatchObject({ x: 24, y: 36, width: 731, height: 509 });
     expect(parsed.camera.x).toBe(100);
     expect(parsed.camera.y).toBe(200);
     expect(parsed.camera.zoom).toBe(2);
@@ -450,7 +450,7 @@ describe("sessionStore hydration", () => {
   it("hydrates canvas mode, cards, and camera", () => {
     setCanvasMode("canvas");
     const card = addCanvasCard(localUrl("/about"), "About");
-    resizeCard(card.id, 731, 509);
+    resizeCard(card.id, 731, 509, { x: 24, y: 36 });
     focusCard(card.id);
     setBoardCamera({ x: 50, y: 100, zoom: 1.5 });
     persistSession();
@@ -465,7 +465,7 @@ describe("sessionStore hydration", () => {
     expect(getCanvasMode()).toBe("canvas");
     expect(getCanvasCards()).toHaveLength(1);
     expect(getCanvasCards()[0]!.url).toBe(localUrl("/about"));
-    expect(getCanvasCards()[0]).toMatchObject({ width: 731, height: 509 });
+    expect(getCanvasCards()[0]).toMatchObject({ x: 24, y: 36, width: 731, height: 509 });
     expect(getFocusedCardId()).toBe(card.id);
 
     const camera = getBoardCamera();
