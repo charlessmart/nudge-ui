@@ -30,6 +30,31 @@ const COLOR_PRIMARY: TokenEntry = {
   source: "styles.css:2",
 };
 
+function pointerEvent(
+  type: string,
+  { clientX, pointerId = 1, shiftKey = false }: { clientX: number; pointerId?: number; shiftKey?: boolean },
+): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    clientX: { configurable: true, value: clientX },
+    pointerId: { configurable: true, value: pointerId },
+    shiftKey: { configurable: true, value: shiftKey },
+  });
+  return event;
+}
+
+function mockPointerCapture(handle: HTMLElement) {
+  const setPointerCapture = vi.fn();
+  const hasPointerCapture = vi.fn(() => true);
+  const releasePointerCapture = vi.fn();
+  Object.defineProperties(handle, {
+    setPointerCapture: { configurable: true, value: setPointerCapture },
+    hasPointerCapture: { configurable: true, value: hasPointerCapture },
+    releasePointerCapture: { configurable: true, value: releasePointerCapture },
+  });
+  return { setPointerCapture, hasPointerCapture, releasePointerCapture };
+}
+
 function tokenRow(): ResolvedProperty {
   return {
     property: "font-size",
@@ -269,6 +294,115 @@ describe("TokenField", () => {
     expect(input.value).toBe("9px");
     expect(sheetText()).toContain("padding-top: 9px;");
     expect(getChangeRecords()).toHaveLength(1);
+  });
+
+  it("nudges a raw numeric field by dragging its leading handle", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "padding-top": "16px" });
+    handle = mount(createElement(TokenField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      entries: [],
+      leading: createElement("span", { "data-test": "field-icon" }, "↔"),
+    }));
+    const dragHandle = handle.host.querySelector('[data-test="nudge-handle"]') as HTMLElement;
+    const capture = mockPointerCapture(dragHandle);
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 7 })));
+    expect(dragHandle.getAttribute("data-dragging")).toBe("true");
+    expect(capture.setPointerCapture).toHaveBeenCalledWith(7);
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 7 })));
+
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("20px");
+    expect(sheetText()).toContain("padding-top: 20px;");
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 104, pointerId: 7 })));
+    expect(dragHandle.getAttribute("data-dragging")).toBeNull();
+    expect(capture.releasePointerCapture).toHaveBeenCalledWith(7);
+  });
+
+  it("uses the large nudge step while Shift-dragging", () => {
+    const onCommitRaw = vi.fn();
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenValueField, {
+      property: "border-radius",
+      domElement: selected.domElement,
+      committedValue: "16px",
+      entries: [],
+      leading: createElement("span", { "data-test": "field-icon" }, "↔"),
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    const dragHandle = handle.host.querySelector('[data-test="nudge-handle"]') as HTMLElement;
+    mockPointerCapture(dragHandle);
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 9 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 102, pointerId: 9, shiftKey: true })));
+
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("32px");
+    expect(onCommitRaw).toHaveBeenLastCalledWith("32px");
+  });
+
+  it("cleans up captured drags on pointerup, pointercancel, and blur", () => {
+    const onCommitRaw = vi.fn();
+    const { selected } = makeSelected();
+    handle = mount(createElement(TokenValueField, {
+      property: "margin-top",
+      domElement: selected.domElement,
+      committedValue: "16px",
+      entries: [],
+      leading: createElement("span", { "data-test": "field-icon" }, "↔"),
+      onCommitRaw,
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    const dragHandle = handle.host.querySelector('[data-test="nudge-handle"]') as HTMLElement;
+    const capture = mockPointerCapture(dragHandle);
+
+    for (const endType of ["pointerup", "pointercancel", "blur"]) {
+      act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 11 })));
+      expect(dragHandle.getAttribute("data-dragging")).toBe("true");
+      act(() => dragHandle.dispatchEvent(pointerEvent(endType, { clientX: 100, pointerId: 11 })));
+      expect(dragHandle.getAttribute("data-dragging")).toBeNull();
+
+      const committedCount = onCommitRaw.mock.calls.length;
+      act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 110, pointerId: 11 })));
+      expect(onCommitRaw).toHaveBeenCalledTimes(committedCount);
+    }
+
+    expect(capture.releasePointerCapture).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not expose the drag affordance for non-literal or disabled values", () => {
+    const { selected } = makeSelected();
+    const leading = createElement("span", { "data-test": "field-icon" }, "↔");
+    handle = mount(createElement(TokenValueField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      committedValue: "auto",
+      entries: [],
+      leading,
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    expect(handle.host.querySelector('[data-test="nudge-handle"]')).toBeNull();
+
+    handle.unmount();
+    handle = mount(createElement(TokenValueField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      committedValue: "16px",
+      entries: [],
+      leading,
+      disabled: true,
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    expect(handle.host.querySelector('[data-test="nudge-handle"]')).toBeNull();
   });
 
   it("keeps horizontal arrows available for text navigation", () => {
