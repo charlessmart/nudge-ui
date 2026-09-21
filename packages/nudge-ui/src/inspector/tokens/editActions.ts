@@ -149,6 +149,8 @@ export function swapTokens(
 export interface StyleDeclaration {
   property: string;
   value: string;
+  /** Optional baseline captured before a transient preview changed the DOM. */
+  oldRawValue?: string;
   metadata?: StyleEditMetadata;
 }
 
@@ -202,7 +204,7 @@ export function setElementStyles(edits: readonly ElementStyleEdit[]): ElementCha
 function buildStyleRecord(
   el: HTMLElement,
   scopePlan: ReadonlyMap<HTMLElement, BatchScopeFields>,
-  { property, value, metadata }: StyleDeclaration,
+  { property, value, oldRawValue, metadata }: StyleDeclaration,
 ): ElementChangeRecord | null {
   const cid = el.getAttribute("data-cid") ?? "";
   const { selector, state } = stateFields(el);
@@ -219,7 +221,7 @@ function buildStyleRecord(
     oldToken: null,
     newToken: null,
     rawValue: value,
-    oldRawValue: getStateStyleValue(el, property) || undefined,
+    oldRawValue: (oldRawValue ?? getStateStyleValue(el, property)) || undefined,
     source: { file: source.file, line: source.line, component: cid },
     runtimeEvidence: source.runtimeEvidence,
     state,

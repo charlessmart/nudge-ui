@@ -3,6 +3,7 @@ import { getStateStyleValue } from "../shell/stateValue.ts";
 import { getElementComputedStyle } from "../runtime/domRealm.ts";
 import { getBrowserCssInspection } from "../inspection/browserCssInspectionRegistry.ts";
 import type { StringListRecord, StringRecord } from "./stringRecord.ts";
+import { isLayoutPreview } from "./layoutPreviewState.ts";
 
 const DEFAULT_LAYOUT_VALUES: StringRecord = {
   width: "auto",
@@ -79,6 +80,7 @@ const INLINE_SHORTHAND_SOURCES: StringListRecord = {
  * revert (see `verifyPreview`'s "inline-style" conflict).
  */
 export function inlineAuthoredValue(el: HTMLElement, property: string): string | null {
+  if (isLayoutPreview(el, property)) return null;
   const direct = el.style.getPropertyValue(property).trim();
   if (direct) return `${property}: ${direct}`;
   for (const shorthand of INLINE_SHORTHAND_SOURCES[property] ?? []) {

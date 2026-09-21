@@ -154,8 +154,90 @@ describe("CanvasElementOverlay", () => {
     const guide = host.querySelector<HTMLElement>('[data-test="canvas-spacing-guide"]');
     expect(guide).not.toBeNull();
     expect(guide?.dataset.property).toBe("padding-top");
-    expect(guide?.style.left).toBe("110px");
+    expect(guide?.style.left).toBe("190px");
     expect(guide?.style.top).toBe("59px");
+    expect(guide?.style.width).toBe("40px");
+    expect(guide?.style.height).toBe("2px");
+
+    const fill = host.querySelector<HTMLElement>('[data-test="canvas-spacing-fill"]');
+    expect(fill?.dataset.kind).toBe("padding");
+    expect(fill?.style.left).toBe("110px");
+    expect(fill?.style.top).toBe("50px");
+    expect(fill?.style.width).toBe("200px");
+    expect(fill?.style.height).toBe("20px");
+  });
+
+  it("projects every matching grid gap guide", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "GridCard");
+    card.setAttribute("data-src", "/src/GridCard.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.display = "grid";
+    card.style.rowGap = "12px";
+    const first = frameDocument.createElement("div");
+    const second = frameDocument.createElement("div");
+    const third = frameDocument.createElement("div");
+    card.append(first, second, third);
+    frameDocument.body.append(card);
+    Object.defineProperty(iframe, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 100, top: 40, width: 300, height: 240, right: 400, bottom: 280 } as DOMRect),
+    });
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 0, width: 160, height: 200, right: 160, bottom: 200 } as DOMRect),
+    });
+    Object.defineProperty(first, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 0, width: 160, height: 40, right: 160, bottom: 40 } as DOMRect),
+    });
+    Object.defineProperty(second, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 52, width: 160, height: 40, right: 160, bottom: 92 } as DOMRect),
+    });
+    Object.defineProperty(third, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 104, width: 160, height: 40, right: 160, bottom: 144 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: window.location.origin,
+        source: iframe.contentWindow as MessageEventSource,
+        data: {
+          type: "element-hover",
+          protocolVersion: PROTOCOL_VERSION,
+          projectId: PROJECT_ID,
+          workspaceId: WORKSPACE_ID,
+          cardId,
+          cid: "GridCard",
+          selector: '[data-cid="GridCard"]',
+          src: "/src/GridCard.tsx:12:3",
+          elementId: "r1",
+          rect: { left: 0, top: 0, width: 160, height: 200 },
+          margins: { top: 0, right: 0, bottom: 0, left: 0 },
+          borders: { top: 0, right: 0, bottom: 0, left: 0 },
+          point: { x: 80, y: 46 },
+          spacing: { kind: "gap", property: "row-gap", side: null },
+        },
+      }));
+    });
+
+    const guides = Array.from(host.querySelectorAll<HTMLElement>('[data-test="canvas-spacing-guide"]'));
+    expect(guides).toHaveLength(2);
+    expect(guides.map((guide) => guide.dataset.guideIndex)).toEqual(["0", "1"]);
+    expect(guides.map((guide) => guide.style.left)).toEqual(["160px", "160px"]);
+    expect(guides.map((guide) => guide.style.top)).toEqual(["85px", "137px"]);
+    expect(guides.every((guide) => guide.style.width === "40px")).toBe(true);
+
+    const fills = Array.from(host.querySelectorAll<HTMLElement>('[data-test="canvas-spacing-fill"]'));
+    expect(fills).toHaveLength(2);
+    expect(fills.every((fill) => fill.dataset.kind === "gap")).toBe(true);
   });
 
   it("records the same actionable rejection for an unsupported Canvas edit", () => {

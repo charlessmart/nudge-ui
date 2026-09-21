@@ -11,9 +11,25 @@
   position: fixed;
   z-index: 4;
   border-radius: 999px;
-  background: #3b82f6;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 82%), 0 0 8px rgb(59 130 246 / 45%);
+  background: var(--accent);
+  outline: none;
+  box-shadow: none;
   pointer-events: none;
+}
+
+.canvas-spacing-fill {
+  position: fixed;
+  z-index: 2;
+  pointer-events: none;
+  background: rgb(59 130 246 / 14%);
+}
+
+.canvas-spacing-fill[data-kind="gap"] {
+  background: rgb(236 72 153 / 14%);
+}
+
+.canvas-spacing-guide[data-kind="gap"] {
+  background: #ec4899;
 }
 
 .canvas-selected-outline {

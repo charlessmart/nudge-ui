@@ -32,11 +32,10 @@ const COLOR_PRIMARY: TokenEntry = {
 
 function pointerEvent(
   type: string,
-  { clientX, pointerId = 1, shiftKey = false, movementX }: {
+  { clientX, pointerId = 1, shiftKey = false }: {
     clientX: number;
     pointerId?: number;
     shiftKey?: boolean;
-    movementX?: number;
   },
 ): Event {
   const event = new Event(type, { bubbles: true, cancelable: true });
@@ -44,7 +43,6 @@ function pointerEvent(
     clientX: { configurable: true, value: clientX },
     pointerId: { configurable: true, value: pointerId },
     shiftKey: { configurable: true, value: shiftKey },
-    movementX: { configurable: true, value: movementX },
   });
   return event;
 }
@@ -59,36 +57,6 @@ function mockPointerCapture(handle: HTMLElement) {
     releasePointerCapture: { configurable: true, value: releasePointerCapture },
   });
   return { setPointerCapture, hasPointerCapture, releasePointerCapture };
-}
-
-function mockPointerLock(handle: HTMLElement) {
-  const requestPointerLock = vi.fn(() => {
-    Object.defineProperty(document, "pointerLockElement", { configurable: true, value: handle });
-    document.dispatchEvent(new Event("pointerlockchange"));
-    return Promise.resolve();
-  });
-  const exitPointerLock = vi.fn(() => {
-    Object.defineProperty(document, "pointerLockElement", { configurable: true, value: null });
-    document.dispatchEvent(new Event("pointerlockchange"));
-  });
-  const pointerLockElement = Object.getOwnPropertyDescriptor(document, "pointerLockElement");
-  const originalRequestPointerLock = Object.getOwnPropertyDescriptor(handle, "requestPointerLock");
-  const originalExitPointerLock = Object.getOwnPropertyDescriptor(document, "exitPointerLock");
-  Object.defineProperty(handle, "requestPointerLock", { configurable: true, value: requestPointerLock });
-  Object.defineProperty(document, "exitPointerLock", { configurable: true, value: exitPointerLock });
-
-  return {
-    requestPointerLock,
-    exitPointerLock,
-    restore: () => {
-      if (originalRequestPointerLock) Object.defineProperty(handle, "requestPointerLock", originalRequestPointerLock);
-      else Reflect.deleteProperty(handle, "requestPointerLock");
-      if (originalExitPointerLock) Object.defineProperty(document, "exitPointerLock", originalExitPointerLock);
-      else Reflect.deleteProperty(document, "exitPointerLock");
-      if (pointerLockElement) Object.defineProperty(document, "pointerLockElement", pointerLockElement);
-      else Reflect.deleteProperty(document, "pointerLockElement");
-    },
-  };
 }
 
 function tokenRow(): ResolvedProperty {
@@ -350,15 +318,36 @@ describe("TokenField", () => {
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 7 })));
 
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("20px");
-    expect(sheetText()).toContain("padding-top: 20px;");
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("18px");
+    expect(sheetText()).toContain("padding-top: 18px;");
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 104, pointerId: 7 })));
     expect(dragHandle.getAttribute("data-dragging")).toBeNull();
     expect(capture.releasePointerCapture).toHaveBeenCalledWith(7);
   });
 
-  it("locks the pointer and uses movement deltas while dragging", () => {
+  it("overrides a token with a raw value when dragging its leading handle", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "padding-top": "16px" });
+    handle = mount(createElement(TokenField, {
+      property: "padding-top",
+      tokenRow: { ...tokenRow(), property: "padding-top" },
+      domElement: selected.domElement,
+      entries: [FONT_SIZE],
+      leading: createElement("span", { "data-test": "field-icon" }, "↔"),
+    }));
+    const dragHandle = handle.host.querySelector('[data-test="nudge-handle"]') as HTMLElement;
+    mockPointerCapture(dragHandle);
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 14 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 14 })));
+
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("18px");
+    expect(handle.host.querySelector('[data-test="token-chip"]')).toBeNull();
+    expect(sheetText()).toContain("padding-top: 18px;");
+  });
+
+  it("keeps the native cursor while dragging", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "padding-top": "16px" });
     handle = mount(createElement(TokenField, {
@@ -369,23 +358,43 @@ describe("TokenField", () => {
     }));
     const dragHandle = handle.host.querySelector('[data-test="nudge-handle"]') as HTMLElement;
     const capture = mockPointerCapture(dragHandle);
-    const lock = mockPointerLock(dragHandle);
 
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 12 })));
-    expect(lock.requestPointerLock).toHaveBeenCalledTimes(1);
 
-    // The cursor stays at x=100 while Pointer Lock reports the relative move.
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", {
-      clientX: 100,
-      movementX: 4,
-      pointerId: 12,
-    })));
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("20px");
+    // Pointer capture keeps the drag attached to the handle while the native
+    // cursor remains visible and reports its normal client position.
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 104, pointerId: 12 })));
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("18px");
 
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 100, pointerId: 12 })));
-    expect(lock.exitPointerLock).toHaveBeenCalledTimes(1);
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 104, pointerId: 12 })));
     expect(capture.releasePointerCapture).toHaveBeenCalledWith(12);
-    lock.restore();
+  });
+
+  it("snaps to the next 8px boundary when Shift starts mid-drag", () => {
+    const { selected } = makeSelected();
+    mockComputedStyle({ "padding-top": "16px" });
+    handle = mount(createElement(TokenValueField, {
+      property: "padding-top",
+      domElement: selected.domElement,
+      committedValue: "16px",
+      entries: [],
+      leading: createElement("span", { "data-test": "field-icon" }, "↔"),
+      onCommitRaw: vi.fn(),
+      onSelectToken: vi.fn(),
+      onUnlink: vi.fn(),
+    }));
+    const dragHandle = handle.host.querySelector('[data-test="nudge-handle"]') as HTMLElement;
+    mockPointerCapture(dragHandle);
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 13 })));
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 110, pointerId: 13 })));
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("21px");
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 111, pointerId: 13, shiftKey: true })));
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("24px");
+
+    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", { clientX: 112, pointerId: 13, shiftKey: true })));
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("32px");
   });
 
   it("uses the large nudge step while Shift-dragging", () => {

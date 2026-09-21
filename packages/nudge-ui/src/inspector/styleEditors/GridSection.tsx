@@ -145,13 +145,6 @@ export function GridSection({
             <div className="editor__title">Gap</div>
             <div className="layout__grid-gap-fields">
               <ControlSurface className="layout__spacing-field" data-test="layout-grid-row-gap">
-                <IconSpacingVertical
-                  className="layout__spacing-icon"
-                  size="var(--icon-size-small)"
-                  stroke={1.8}
-                  aria-hidden="true"
-                  data-test="layout-spacing-icon-row-gap"
-                />
                 <GapField
                   property="row-gap"
                   domElement={el}
@@ -159,17 +152,19 @@ export function GridSection({
                   selection={selection}
                   entries={entries}
                   tokenRows={tokenRows}
+                  leading={(
+                    <IconSpacingVertical
+                      className="layout__spacing-icon"
+                      size="var(--icon-size-small)"
+                      stroke={1.8}
+                      aria-hidden="true"
+                      data-test="layout-spacing-icon-row-gap"
+                    />
+                  )}
                   onAfterEdit={onAfterEdit}
                 />
               </ControlSurface>
               <ControlSurface className="layout__spacing-field" data-test="layout-grid-column-gap">
-                <IconSpacingHorizontal
-                  className="layout__spacing-icon"
-                  size="var(--icon-size-small)"
-                  stroke={1.8}
-                  aria-hidden="true"
-                  data-test="layout-spacing-icon-column-gap"
-                />
                 <GapField
                   property="column-gap"
                   domElement={el}
@@ -177,6 +172,15 @@ export function GridSection({
                   selection={selection}
                   entries={entries}
                   tokenRows={tokenRows}
+                  leading={(
+                    <IconSpacingHorizontal
+                      className="layout__spacing-icon"
+                      size="var(--icon-size-small)"
+                      stroke={1.8}
+                      aria-hidden="true"
+                      data-test="layout-spacing-icon-column-gap"
+                    />
+                  )}
                   onAfterEdit={onAfterEdit}
                 />
               </ControlSurface>

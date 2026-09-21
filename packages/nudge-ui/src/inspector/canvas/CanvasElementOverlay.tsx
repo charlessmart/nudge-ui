@@ -33,7 +33,7 @@ import { handleInlineTextEditIntent, useInlineTextSession } from "../inline-text
 import { setInspectorOpen, toggleInspector, useInspectorOpen } from "../shell/openStore.ts";
 import { EMPTY_TEXT_PROJECTION_ATTR } from "../projection/textProjection.ts";
 import { subscribeCanvasRendererMessages } from "./rendererMessageRouter.ts";
-import { setStyle } from "../tokens/editActions.ts";
+import { setStyles } from "../tokens/editActions.ts";
 import {
   getSpacingAffordanceAtPoint,
   getSpacingAffordanceForDescriptor,
@@ -42,6 +42,7 @@ import {
   type SpacingAffordance,
   type SpacingDescriptor,
 } from "../overlay/spacingGestures.ts";
+import { beginLayoutPreview, endLayoutPreview } from "../styleEditors/layoutPreviewState.ts";
 
 interface ElementIdentity {
   elementId: string;
@@ -55,7 +56,8 @@ interface FrameOverlayState {
   borders: BorderWidths;
   cardId: string;
   spacing: SpacingDescriptor | null;
-  spacingGuide: Rect | null;
+  spacingGuides: Rect[];
+  spacingAreas: Rect[];
 }
 
 interface FrameMeasureState {
@@ -63,6 +65,8 @@ interface FrameMeasureState {
   altKey: boolean;
   pointerOverPage: boolean;
 }
+
+const MAX_SPACING_GUIDE_LENGTH = 40;
 
 interface CanvasDragState {
   iframe: HTMLIFrameElement;
@@ -108,6 +112,19 @@ function overlayStyle(rect: Rect): CSSProperties {
     height: rect.height,
     pointerEvents: "none",
   };
+}
+
+function spacingGuideStyle(rect: Rect): CSSProperties {
+  const isHorizontal = rect.width >= rect.height;
+  const width = isHorizontal ? Math.min(rect.width, MAX_SPACING_GUIDE_LENGTH) : rect.width;
+  const height = isHorizontal ? rect.height : Math.min(rect.height, MAX_SPACING_GUIDE_LENGTH);
+
+  return overlayStyle({
+    left: rect.left + (rect.width - width) / 2,
+    top: rect.top + (rect.height - height) / 2,
+    width,
+    height,
+  });
 }
 
 function findFrameElement(iframe: HTMLIFrameElement, elementId: string, cid: string, src: string): HTMLElement | null {
@@ -167,6 +184,7 @@ function applySpacingPreview(
 ): void {
   const value = spacingValueForDrag(drag.affordance, drag.start, point);
   drag.currentValue = value;
+  beginLayoutPreview(drag.element, drag.affordance.property);
   drag.element.style.setProperty(drag.affordance.property, spacingValueCss(value));
 }
 
@@ -180,22 +198,20 @@ function restoreSpacingPreview(drag: CanvasSpacingDragState): void {
   } else {
     drag.element.style.removeProperty(drag.affordance.property);
   }
+  endLayoutPreview(drag.element, drag.affordance.property);
 }
 
 function commitSpacingDrag(drag: CanvasSpacingDragState): void {
-  if (drag.currentValue === drag.startValue) {
-    restoreSpacingPreview(drag);
-    return;
-  }
-  // Restore the authored declaration before setStyle reads oldRawValue. If
-  // the preview remains inline, the requested value becomes its own baseline
-  // and the change log correctly treats the drag as a no-op.
+  // Restore the authored declaration before committing the managed rule. The
+  // captured start value is the baseline because the pointer remains hovered
+  // and CSS inspection can still report the transient preview value.
   restoreSpacingPreview(drag);
-  setStyle(
-    drag.element,
-    drag.affordance.property,
-    spacingValueCss(drag.currentValue),
-  );
+  if (drag.currentValue === drag.startValue) return;
+  setStyles(drag.element, [{
+    property: drag.affordance.property,
+    value: spacingValueCss(drag.currentValue),
+    oldRawValue: spacingValueCss(drag.startValue),
+  }]);
 }
 
 function sendMeasureModifier(iframe: HTMLIFrameElement, cardId: string, altKey: boolean): void {
@@ -331,12 +347,19 @@ export function CanvasElementOverlay(): ReactElement | null {
         }
         const spacingDescriptor = msg.spacing ?? null;
         const hoverPoint = msg.point ?? null;
-        const hoverAffordance = spacingDescriptor && hoverPoint && sourceIframe.contentDocument
-          ? getSpacingAffordanceAtPoint(sourceIframe.contentDocument, hoverPoint.x, hoverPoint.y)
+        const hoverElement = spacingDescriptor
+          ? findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src)
           : null;
-        const spacingGuide = hoverAffordance && spacingDescriptorMatches(hoverAffordance, spacingDescriptor)
-          ? hoverAffordance.guide
+        const hoverAffordance = spacingDescriptor && hoverElement
+          ? getSpacingAffordanceForDescriptor(hoverElement, spacingDescriptor)
+          : spacingDescriptor && hoverPoint && sourceIframe.contentDocument
+            ? getSpacingAffordanceAtPoint(sourceIframe.contentDocument, hoverPoint.x, hoverPoint.y)
+            : null;
+        const matchingAffordance = spacingDescriptorMatches(hoverAffordance, spacingDescriptor)
+          ? hoverAffordance
           : null;
+        const spacingGuides = matchingAffordance?.affectedGuides ?? [];
+        const spacingAreas = matchingAffordance?.affectedAreas ?? [];
         setHover({
           iframe: sourceIframe,
           identity: { elementId: msg.elementId },
@@ -344,8 +367,9 @@ export function CanvasElementOverlay(): ReactElement | null {
           margins: msg.margins ?? { top: 0, right: 0, bottom: 0, left: 0 },
           borders: msg.borders ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: sourceCardId,
-          spacing: spacingGuide ? spacingDescriptor : null,
-          spacingGuide,
+          spacing: spacingGuides.length > 0 ? spacingDescriptor : null,
+          spacingGuides,
+          spacingAreas,
         });
       } else if (data.type === "element-measure-state") {
         const msg = data;
@@ -503,9 +527,9 @@ export function CanvasElementOverlay(): ReactElement | null {
   if (!hover && projectedSelectedGeometry.length === 0 && !projectedDropGuide) return null;
 
   const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, projectionZoom) : null;
-  const projectedSpacingGuide = hover?.spacingGuide
-    ? projectRect(hover.iframe, hover.spacingGuide, projectionZoom)
-    : null;
+  const projectedSpacingGuides = hover?.spacingGuides.map((guide) => projectRect(hover.iframe, guide, projectionZoom)) ?? [];
+  const projectedSpacingAreas = hover?.spacingAreas.map((area) => projectRect(hover.iframe, area, projectionZoom)) ?? [];
+  const hoverSpacing = hover?.spacing ?? null;
   const hoverMargins = hover ? scaleMargins(hover.margins, projectionZoom) : null;
   const hoverMarginGuides = projectedHoverRect && hoverMargins
     ? getMarginGuides(projectedHoverRect, hoverMargins)
@@ -562,18 +586,33 @@ export function CanvasElementOverlay(): ReactElement | null {
           {hoverMarginFills.map((fill) => (
             <div key={fill.side} className="canvas-hover-margin-fill" data-side={fill.side} style={overlayStyle(fill)} aria-hidden="true" />
           ))}
-          <div className="canvas-element-overlay" data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
-          {projectedSpacingGuide && hover?.spacing ? (
+          {hoverSpacing ? projectedSpacingAreas.map((area, index) => (
             <div
-              className="canvas-spacing-guide"
-              data-test="canvas-spacing-guide"
-              data-kind={hover.spacing.kind}
-              data-property={hover.spacing.property}
-              data-side={hover.spacing.side ?? undefined}
-              style={overlayStyle(projectedSpacingGuide)}
+              key={`${hoverSpacing.property}-area-${index}`}
+              className="canvas-spacing-fill"
+              data-test="canvas-spacing-fill"
+              data-kind={hoverSpacing.kind}
+              data-property={hoverSpacing.property}
+              data-side={hoverSpacing.side ?? undefined}
+              data-area-index={index}
+              style={overlayStyle(area)}
               aria-hidden="true"
             />
-          ) : null}
+          )) : null}
+          <div className="canvas-element-overlay" data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
+          {hoverSpacing ? projectedSpacingGuides.map((guide, index) => (
+            <div
+              key={`${hoverSpacing.property}-${index}`}
+              className="canvas-spacing-guide"
+              data-test="canvas-spacing-guide"
+              data-kind={hoverSpacing.kind}
+              data-property={hoverSpacing.property}
+              data-side={hoverSpacing.side ?? undefined}
+              data-guide-index={index}
+              style={spacingGuideStyle(guide)}
+              aria-hidden="true"
+            />
+          )) : null}
           {hoverMarginGuides.map((guide) => (
             <div key={guide.side} className="canvas-hover-margin" data-axis={guide.axis} data-distance={guide.distance} data-side={guide.side} style={overlayStyle(guide)} aria-hidden="true" />
           ))}

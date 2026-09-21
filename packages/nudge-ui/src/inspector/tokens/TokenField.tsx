@@ -146,7 +146,8 @@ interface DragNudgeState {
   deltaX: number;
   startValue: string;
   lastValue: string;
-  pointerLockActive: boolean;
+  shiftActive: boolean;
+  shiftSnapPending: boolean;
 }
 
 function releasePointerCapture(state: DragNudgeState): void {
@@ -157,14 +158,6 @@ function releasePointerCapture(state: DragNudgeState): void {
   } catch {
     // The browser may release capture before pointerup/pointercancel arrives.
   }
-}
-
-function pointerLockElementFor(handle: HTMLElement): Element | null {
-  const root = handle.getRootNode();
-  if ("pointerLockElement" in root) {
-    return (root as Document & { pointerLockElement: Element | null }).pointerLockElement;
-  }
-  return typeof document !== "undefined" ? document.pointerLockElement : null;
 }
 
 /** Returns the first family in a CSS family list without splitting var() fallbacks. */
@@ -462,37 +455,22 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const stopDragNudge = useCallback(() => {
     const drag = dragNudgeRef.current;
     if (!drag) return;
-    const ownsPointerLock = pointerLockElementFor(drag.handle) === drag.handle;
     releasePointerCapture(drag);
     dragNudgeRef.current = null;
     setIsDraggingNudge(false);
-    if (ownsPointerLock) document.exitPointerLock();
   }, []);
 
   useEffect(() => {
     const stopOnWindowBlur = (): void => stopDragNudge();
-    const handlePointerLockChange = (): void => {
-      const drag = dragNudgeRef.current;
-      if (!drag) return;
-      if (pointerLockElementFor(drag.handle) === drag.handle) {
-        drag.pointerLockActive = true;
-      } else if (drag.pointerLockActive) {
-        // Escape or another document action can release Pointer Lock without
-        // delivering pointerup. End the edit instead of resuming a free cursor.
-        stopDragNudge();
-      }
-    };
     window.addEventListener("blur", stopOnWindowBlur);
-    document.addEventListener("pointerlockchange", handlePointerLockChange);
     return () => {
       window.removeEventListener("blur", stopOnWindowBlur);
-      document.removeEventListener("pointerlockchange", handlePointerLockChange);
       stopDragNudge();
     };
   }, [stopDragNudge]);
 
   function handleDragNudgePointerDown(event: React.PointerEvent<HTMLSpanElement>): void {
-    if (disabled || activeToken || !supportsDragNudge(property)) return;
+    if (disabled || !supportsDragNudge(property)) return;
     if (!canNudgeCssValueByDrag(property, rawValue)) return;
 
     stopDragNudge();
@@ -504,47 +482,43 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       deltaX: 0,
       startValue: rawValue,
       lastValue: rawValue,
-      pointerLockActive: false,
+      shiftActive: event.shiftKey,
+      shiftSnapPending: event.shiftKey,
     };
     dragNudgeRef.current = drag;
     if (typeof handle.setPointerCapture === "function") handle.setPointerCapture(event.pointerId);
     setIsDraggingNudge(true);
     event.preventDefault();
     event.stopPropagation();
-
-    if (typeof handle.requestPointerLock === "function") {
-      try {
-        const lockRequest = handle.requestPointerLock();
-        if (lockRequest && typeof lockRequest.then === "function") {
-          void lockRequest.then(() => {
-            if (dragNudgeRef.current !== drag) {
-              if (pointerLockElementFor(handle) === handle) document.exitPointerLock();
-              return;
-            }
-            drag.pointerLockActive = pointerLockElementFor(handle) === handle;
-          }, () => undefined);
-        }
-      } catch {
-        // Browsers can reject Pointer Lock for an iframe or permission policy;
-        // retain the pointer-capture fallback in that case.
-      }
-    }
   }
 
   function handleDragNudgePointerMove(event: React.PointerEvent<HTMLSpanElement>): void {
     const drag = dragNudgeRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
 
-    const pointerLocked = drag.pointerLockActive
-      || pointerLockElementFor(drag.handle) === drag.handle;
-    const movementX = pointerLocked && typeof event.movementX === "number"
-      ? event.movementX
-      : event.clientX - drag.lastClientX;
+    const movementX = event.clientX - drag.lastClientX;
     drag.lastClientX = event.clientX;
+    if (event.shiftKey !== drag.shiftActive) {
+      drag.shiftActive = event.shiftKey;
+      drag.startValue = drag.lastValue;
+      drag.deltaX = 0;
+      drag.shiftSnapPending = event.shiftKey;
+    }
     drag.deltaX += movementX;
-    const next = nudgeCssValueByDrag(property, drag.startValue, drag.deltaX, event.shiftKey);
+    const next = nudgeCssValueByDrag(
+      property,
+      drag.startValue,
+      drag.deltaX,
+      drag.shiftActive,
+      drag.shiftActive && drag.shiftSnapPending,
+    );
     if (next === null || next === drag.lastValue) return;
     drag.lastValue = next;
+    if (drag.shiftActive && drag.shiftSnapPending) {
+      drag.startValue = next;
+      drag.deltaX = 0;
+      drag.shiftSnapPending = false;
+    }
     event.preventDefault();
     event.stopPropagation();
     setRawValue(next);
@@ -560,7 +534,6 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   function renderLeading(): ReactElement | null {
     if (!leading) return null;
     const canDrag = !disabled
-      && !activeToken
       && supportsDragNudge(property)
       && canNudgeCssValueByDrag(property, rawValue);
     if (!canDrag) return <span className="token-field__leading">{leading}</span>;

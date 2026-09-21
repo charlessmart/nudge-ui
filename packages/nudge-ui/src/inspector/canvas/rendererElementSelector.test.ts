@@ -178,6 +178,7 @@ describe("renderer hover scheduling", () => {
 
   it("reports spacing affordances and routes their drag through the element protocol", () => {
     const element = trackedElement("spacing-target");
+    element.style.cursor = "crosshair";
     element.style.paddingTop = "20px";
     vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
       left: 10,
@@ -205,6 +206,8 @@ describe("renderer hover scheduling", () => {
       point: { x: 100, y: 20 },
     });
     expect(document.documentElement.style.cursor).toBe("ns-resize");
+    expect(element.style.getPropertyValue("cursor")).toBe("ns-resize");
+    expect(element.style.getPropertyPriority("cursor")).toBe("important");
 
     element.dispatchEvent(new MouseEvent("mousedown", {
       bubbles: true,
@@ -238,6 +241,10 @@ describe("renderer hover scheduling", () => {
         && message !== null
         && "type" in message
         && message.type === "inline-text-intent")).toBe(false);
+
+    element.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
+    runScheduledFrame();
+    expect(element.style.cursor).toBe("crosshair");
   });
 
   it("cancels an active spacing drag when renderer interactions are suspended", () => {

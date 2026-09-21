@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import type { TokenEntry } from "../../css/model/index.ts";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { TokenField } from "../tokens/TokenField.tsx";
@@ -17,6 +17,7 @@ export interface GapFieldProps {
   selection?: StyleSelection | null;
   entries: TokenEntry[];
   tokenRows: ResolvedProperty[];
+  leading?: ReactNode;
   onAfterEdit?: () => void;
 }
 
@@ -28,6 +29,7 @@ export function GapField({
   selection,
   entries,
   tokenRows,
+  leading,
   onAfterEdit,
 }: GapFieldProps): ReactElement {
   const tokenRow = tokenRows.find((row) => row.property === property) ?? null;
@@ -48,6 +50,7 @@ export function GapField({
         editTarget={editTarget}
         entries={entries}
         suggestions={GAP_PRESETS}
+        leading={leading}
         inputDataTest={`layout-combo-input-${property}`}
         label={formatInspectorLabel(property)}
         chipVariant="small"

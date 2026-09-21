@@ -131,13 +131,54 @@ export function installRendererElementSelector(): () => void {
   }
 
   const cidIndex = createCidIndex(document);
-  const initialCursor = document.documentElement.style.cursor;
-  let spacingCursorSet = false;
+  const initialCursor = document.documentElement.style.getPropertyValue("cursor");
+  const initialCursorPriority = document.documentElement.style.getPropertyPriority("cursor");
+  let appliedRootCursor: string | null = null;
+  let spacingCursor: {
+    element: HTMLElement;
+    previousValue: string;
+    previousPriority: string;
+    appliedValue: string;
+  } | null = null;
 
   function clearSpacingCursor(): void {
-    if (!spacingCursorSet) return;
-    spacingCursorSet = false;
-    document.documentElement.style.cursor = initialCursor;
+    const active = spacingCursor;
+    spacingCursor = null;
+    if (active
+      && active.element.style.getPropertyValue("cursor") === active.appliedValue
+      && active.element.style.getPropertyPriority("cursor") === "important") {
+      if (active.previousValue) {
+        active.element.style.setProperty("cursor", active.previousValue, active.previousPriority);
+      } else {
+        active.element.style.removeProperty("cursor");
+      }
+    }
+    if (appliedRootCursor !== null
+      && document.documentElement.style.getPropertyValue("cursor") === appliedRootCursor) {
+      if (initialCursor) {
+        document.documentElement.style.setProperty("cursor", initialCursor, initialCursorPriority);
+      } else {
+        document.documentElement.style.removeProperty("cursor");
+      }
+    }
+    appliedRootCursor = null;
+  }
+
+  function setSpacingCursor(element: HTMLElement, cursor: "ew-resize" | "ns-resize"): void {
+    if (spacingCursor?.element !== element) {
+      clearSpacingCursor();
+      spacingCursor = {
+        element,
+        previousValue: element.style.getPropertyValue("cursor"),
+        previousPriority: element.style.getPropertyPriority("cursor"),
+        appliedValue: cursor,
+      };
+    } else {
+      spacingCursor.appliedValue = cursor;
+    }
+    element.style.setProperty("cursor", cursor, "important");
+    document.documentElement.style.setProperty("cursor", cursor);
+    appliedRootCursor = cursor;
   }
 
   const hoverUpdate = createFrameThrottle((pending: {
@@ -158,11 +199,8 @@ export function installRendererElementSelector(): () => void {
       ? getSpacingAffordanceAtPoint(document, pending.point.x, pending.point.y)
       : null;
     const spacing = rawSpacing && rawSpacing.element === element ? rawSpacing : null;
-    if (clear) {
-      clearSpacingCursor();
-    } else if (spacing) {
-      spacingCursorSet = true;
-      document.documentElement.style.cursor = spacing.cursor;
+    if (spacing) {
+      setSpacingCursor(spacing.element, spacing.cursor);
     } else {
       clearSpacingCursor();
     }

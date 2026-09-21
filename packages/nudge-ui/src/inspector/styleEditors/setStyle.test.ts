@@ -62,6 +62,19 @@ describe("setStyle", () => {
     expect(rec?.sourceAuthoredValue).toBe("var(--space-4)");
   });
 
+  it("uses an explicit baseline when a transient preview changed the DOM", () => {
+    const btn = makeButton();
+
+    const [record] = setStyles(btn, [{
+      property: "row-gap",
+      value: "20px",
+      oldRawValue: "12px",
+    }]);
+
+    expect(record?.oldRawValue).toBe("12px");
+    expect(record?.rawValue).toBe("20px");
+  });
+
   it("preserves an explicit instance scope for a single-target edit", () => {
     const button = makeButton();
     unlinkElement(button);

@@ -6,7 +6,7 @@ const CSS_NUMERIC_LITERAL = new RegExp(`^(${CSS_NUMBER_SOURCE})(px|rem|em|%)?$`,
 
 export type NudgeDirection = -1 | 1;
 
-const DRAG_NUDGE_PROPERTY = /^(?:(?:padding|margin)-(?:top|right|bottom|left|horizontal|vertical)|(?:top|right|bottom|left|inset|inset-(?:horizontal|vertical))|border-radius|border-(?:top-left|top-right|bottom-right|bottom-left)-radius)$/;
+const DRAG_NUDGE_PROPERTY = /^(?:(?:padding|margin)-(?:top|right|bottom|left|horizontal|vertical)|(?:top|right|bottom|left|inset|inset-(?:horizontal|vertical))|(?:row|column)-gap|border-radius|border-(?:top-left|top-right|bottom-right|bottom-left)-radius)$/;
 
 interface ParsedNumericLiteral {
   number: number;
@@ -30,10 +30,7 @@ export function nudgeCssValue(
   const step = nudgeStep(property, parsed.unit, large);
   if (step === null) return null;
 
-  let next = parsed.number + direction * step;
-  if (isFontWeight(property)) next = Math.min(1000, Math.max(1, next));
-  if (isLineHeight(property)) next = Math.max(0, next);
-  if (isNonNegativeDimension(property)) next = Math.max(0, next);
+  const next = clampNudgeNumber(property, parsed.number + direction * step);
 
   return `${formatNumber(next)}${parsed.unit}`;
 }
@@ -44,22 +41,31 @@ export function supportsDragNudge(property: string): boolean {
 }
 
 /**
- * Applies one nudge per horizontal pointer pixel. Shift is passed through as
- * the existing large-nudge modifier, so the value/unit rules stay shared with
- * keyboard editing.
+ * Applies one nudge per two horizontal pointer pixels. Large nudges still use
+ * one 8px step per pointer pixel. When a large drag starts from an off-grid
+ * value, the first step snaps to the next large-step boundary in the drag
+ * direction.
  */
 export function nudgeCssValueByDrag(
   property: string,
   rawValue: string,
   deltaX: number,
   large = false,
+  snapToLargeStep = false,
 ): string | null {
-  const steps = Math.trunc(Math.abs(deltaX));
+  const steps = Math.trunc(Math.abs(deltaX) / (large ? 1 : 2));
   if (steps === 0) return null;
 
   const direction: NudgeDirection = deltaX < 0 ? -1 : 1;
   let next = rawValue;
-  for (let index = 0; index < steps; index += 1) {
+  let firstRegularStep = 0;
+  if (large && snapToLargeStep) {
+    const snapped = snapCssValueToLargeStep(property, next, direction);
+    if (snapped === null) return null;
+    next = snapped;
+    firstRegularStep = 1;
+  }
+  for (let index = firstRegularStep; index < steps; index += 1) {
     const nudged = nudgeDragStep(property, next, direction, large);
     if (nudged === null) return null;
     next = nudged;
@@ -69,8 +75,8 @@ export function nudgeCssValueByDrag(
 
 /** Returns whether a field has a numeric value that can respond to dragging. */
 export function canNudgeCssValueByDrag(property: string, rawValue: string): boolean {
-  return nudgeCssValueByDrag(property, rawValue, 1) !== null
-    || nudgeCssValueByDrag(property, rawValue, -1) !== null;
+  return nudgeCssValueByDrag(property, rawValue, 2) !== null
+    || nudgeCssValueByDrag(property, rawValue, -2) !== null;
 }
 
 /** Returns a clamped opacity percentage nudged by 1%, or 10% with Shift. */
@@ -127,6 +133,41 @@ function nudgeDragStep(
   return nudgedParts.join(", ");
 }
 
+function snapCssValueToLargeStep(
+  property: string,
+  rawValue: string,
+  direction: NudgeDirection,
+): string | null {
+  if (!isAxisPairProperty(property)) return snapNumericValueToLargeStep(property, rawValue, direction);
+  const parts = rawValue.split(",").map((part) => part.trim());
+  if (parts.length !== 2) return snapNumericValueToLargeStep(property, rawValue, direction);
+  const snappedParts = parts.map((part) => snapNumericValueToLargeStep(property, part, direction));
+  if (snappedParts.some((part) => part === null)) return null;
+  return snappedParts.join(", ");
+}
+
+function snapNumericValueToLargeStep(
+  property: string,
+  rawValue: string,
+  direction: NudgeDirection,
+): string | null {
+  const normalised = normaliseForNudge(property, rawValue);
+  const parsed = parseNumericLiteral(normalised);
+  if (!parsed) return null;
+
+  const step = nudgeStep(property, parsed.unit, true);
+  if (step === null) return null;
+
+  let next = direction > 0
+    ? Math.ceil(parsed.number / step) * step
+    : Math.floor(parsed.number / step) * step;
+  if ((direction > 0 && next <= parsed.number) || (direction < 0 && next >= parsed.number)) {
+    next += direction * step;
+  }
+  next = clampNudgeNumber(property, next);
+  return `${formatNumber(next)}${parsed.unit}`;
+}
+
 function isLineHeight(property: string): boolean {
   return property === "line-height" || property.includes("line-height");
 }
@@ -136,11 +177,17 @@ function isFontWeight(property: string): boolean {
 }
 
 function isNonNegativeDimension(property: string): boolean {
-  return /^(?:padding|border-(?:top-left|top-right|bottom-right|bottom-left)-radius|border-radius)/.test(property);
+  return /^(?:padding|(?:row|column)-gap|border-(?:top-left|top-right|bottom-right|bottom-left)-radius|border-radius)/.test(property);
 }
 
 function isAxisPairProperty(property: string): boolean {
   return /^(?:padding|margin|inset)-(?:horizontal|vertical)$/.test(property);
+}
+
+function clampNudgeNumber(property: string, value: number): number {
+  if (isFontWeight(property)) return Math.min(1000, Math.max(1, value));
+  if (isLineHeight(property) || isNonNegativeDimension(property)) return Math.max(0, value);
+  return value;
 }
 
 function formatNumber(value: number): string {

@@ -17,6 +17,8 @@ export interface SpacingGuideData {
   direction: 1 | -1;
   cursor: "ew-resize" | "ns-resize";
   guide: Rect;
+  affectedGuides: Rect[];
+  affectedAreas: Rect[];
   hit: Rect;
 }
 
@@ -126,8 +128,8 @@ function containsCross(value: number, start: number, end: number): boolean {
 
 const PADDING_CONFIG = {
   top: { axis: "horizontal", dragAxis: "y", direction: 1 },
-  right: { axis: "vertical", dragAxis: "x", direction: -1 },
-  bottom: { axis: "horizontal", dragAxis: "y", direction: -1 },
+  right: { axis: "vertical", dragAxis: "x", direction: 1 },
+  bottom: { axis: "horizontal", dragAxis: "y", direction: 1 },
   left: { axis: "vertical", dragAxis: "x", direction: 1 },
 } as const satisfies Record<PaddingSide, { axis: SpacingAxis; dragAxis: SpacingDragAxis; direction: 1 | -1 }>;
 
@@ -177,6 +179,8 @@ function paddingAffordanceForSide(
     value,
     cursor: config.axis === "horizontal" ? "ns-resize" : "ew-resize",
     guide,
+    affectedGuides: [guide],
+    affectedAreas: [hit],
     hit,
     direction: config.direction,
     element,
@@ -227,10 +231,8 @@ function gapSegments(element: HTMLElement): GapSegment[] {
   const byTop = [...children].sort((top, bottom) => top.rect.top - bottom.rect.top);
 
   for (const left of byLeft) {
-    const next = byLeft
-      .filter((right) => right.rect.left >= left.rect.right - EPSILON
-        && overlap(left.rect.top, left.rect.bottom, right.rect.top, right.rect.bottom))
-      .sort((a, b) => a.rect.left - b.rect.left)[0];
+    const next = byLeft.find((right) => right.rect.left >= left.rect.right - EPSILON
+      && overlap(left.rect.top, left.rect.bottom, right.rect.top, right.rect.bottom));
     if (!next) continue;
     segments.push({
       property: "column-gap",
@@ -243,10 +245,8 @@ function gapSegments(element: HTMLElement): GapSegment[] {
   }
 
   for (const top of byTop) {
-    const next = byTop
-      .filter((bottom) => bottom.rect.top >= top.rect.bottom - EPSILON
-        && overlap(top.rect.left, top.rect.right, bottom.rect.left, bottom.rect.right))
-      .sort((a, b) => a.rect.top - b.rect.top)[0];
+    const next = byTop.find((bottom) => bottom.rect.top >= top.rect.bottom - EPSILON
+      && overlap(top.rect.left, top.rect.right, bottom.rect.left, bottom.rect.right));
     if (!next) continue;
     segments.push({
       property: "row-gap",
@@ -281,24 +281,9 @@ function gapAffordanceAtPoint(
   if (!candidate) return null;
 
   const value = gapValue(style, candidate.property);
-  const midpoint = (candidate.start + candidate.end) / 2;
-  const crossSize = Math.max(0, candidate.crossEnd - candidate.crossStart);
-  const guide = candidate.axis === "horizontal"
-    ? { left: midpoint - 1, top: candidate.crossStart, width: 2, height: crossSize }
-    : { left: candidate.crossStart, top: midpoint - 1, width: crossSize, height: 2 };
-  const hit = candidate.axis === "horizontal"
-    ? {
-      left: candidate.start,
-      top: candidate.crossStart,
-      width: Math.max(0, candidate.end - candidate.start),
-      height: crossSize,
-    }
-    : {
-      left: candidate.crossStart,
-      top: candidate.start,
-      width: crossSize,
-      height: Math.max(0, candidate.end - candidate.start),
-    };
+  const guide = gapGuide(candidate);
+  const matchingSegments = segments.filter((segment) => segment.property === candidate.property);
+  const hit = gapHit(candidate);
   return {
     kind: "gap",
     property: candidate.property,
@@ -308,11 +293,38 @@ function gapAffordanceAtPoint(
     value,
     cursor: candidate.axis === "horizontal" ? "ew-resize" : "ns-resize",
     guide,
+    affectedGuides: matchingSegments.map(gapGuide),
+    affectedAreas: matchingSegments.map(gapHit),
     hit,
     // Gap size is absolute screen space; dragging along +axis always grows it.
     direction: 1,
     element,
   };
+}
+
+function gapGuide(segment: GapSegment): Rect {
+  const midpoint = (segment.start + segment.end) / 2;
+  const crossSize = Math.max(0, segment.crossEnd - segment.crossStart);
+  return segment.axis === "horizontal"
+    ? { left: midpoint - 1, top: segment.crossStart, width: 2, height: crossSize }
+    : { left: segment.crossStart, top: midpoint - 1, width: crossSize, height: 2 };
+}
+
+function gapHit(segment: GapSegment): Rect {
+  const crossSize = Math.max(0, segment.crossEnd - segment.crossStart);
+  return segment.axis === "horizontal"
+    ? {
+      left: segment.start,
+      top: segment.crossStart,
+      width: Math.max(0, segment.end - segment.start),
+      height: crossSize,
+    }
+    : {
+      left: segment.crossStart,
+      top: segment.start,
+      width: crossSize,
+      height: Math.max(0, segment.end - segment.start),
+    };
 }
 
 function gapValue(style: CSSStyleDeclaration, property: "row-gap" | "column-gap"): number {
