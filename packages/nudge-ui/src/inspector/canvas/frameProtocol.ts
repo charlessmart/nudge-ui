@@ -4,7 +4,10 @@ import { isStructuralProjectionReport } from "../projection/structuralProjection
 import type { ComponentOverride } from "../componentSemantics/types.ts";
 import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
+import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 
+// v19 adds spacing drag gestures (hover point, spacing descriptor, start
+// point, and cancelled drag-end) for Canvas frames.
 // v18 adds parent-to-renderer Alt modifier forwarding for Canvas measurements.
 // v17 adds an idempotent renderer request to open the parent inspector. v16
 // adds controller-owned inline-text intents for Canvas frames. v15 adds
@@ -16,7 +19,7 @@ import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 // rereading a Canvas iframe until the renderer has applied its revision. v11
 // added the renderer-hello handshake solicitation for runtimes whose boot
 // completes after the controller's load-time parent-ready.
-export const PROTOCOL_VERSION = 18;
+export const PROTOCOL_VERSION = 19;
 
 export interface FrameMessage {
   type: string;
@@ -132,6 +135,10 @@ export interface ElementHoverMessage extends RendererMessage {
   rect: { left: number; top: number; width: number; height: number } | null;
   margins: { top: number; right: number; bottom: number; left: number } | null;
   borders: { top: number; right: number; bottom: number; left: number } | null;
+  /** Last pointer position in the renderer viewport, used for spacing guides. */
+  point?: { x: number; y: number } | null;
+  /** The padding or layout gap under the pointer, when one is draggable. */
+  spacing?: SpacingDescriptor | null;
 }
 
 /** Modifier state stays inside one renderer frame; the parent never infers it
@@ -178,6 +185,10 @@ export interface ElementDragStartMessage extends RendererMessage {
   src: string;
   elementId: string;
   point: { x: number; y: number };
+  /** Original pointer position; the current point may already be outside the affordance. */
+  startPoint?: { x: number; y: number };
+  /** Spacing affordance captured at pointer-down, if this is a spacing drag. */
+  spacing?: SpacingDescriptor | null;
 }
 
 export interface ElementDragMoveMessage extends RendererMessage {
@@ -188,6 +199,8 @@ export interface ElementDragMoveMessage extends RendererMessage {
 export interface ElementDragEndMessage extends RendererMessage {
   type: "element-drag-end";
   point: { x: number; y: number };
+  /** True when the renderer lost the gesture before the pointer was released. */
+  cancelled?: boolean;
 }
 
 export interface ElementDeleteMessage extends RendererMessage {

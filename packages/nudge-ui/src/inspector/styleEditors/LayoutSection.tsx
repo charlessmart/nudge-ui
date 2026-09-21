@@ -483,38 +483,27 @@ interface FlexGapFieldProps extends FlexControlProps {
 }
 
 function FlexGapField({ property, domElement, editTarget, selection, entries, tokenRows, onAfterEdit }: FlexGapFieldProps): ReactElement {
-  const field = (
-    <GapField
-      property={property}
-      domElement={domElement}
-      editTarget={editTarget}
-      selection={selection}
-      entries={entries}
-      tokenRows={tokenRows}
-      onAfterEdit={onAfterEdit}
-    />
-  );
-
+  const GapIcon = property === "column-gap" ? IconSpacingHorizontal : IconSpacingVertical;
   return (
     <ControlSurface className="layout__spacing-field">
-      {property === "column-gap" ? (
-        <IconSpacingHorizontal
-          className="layout__spacing-icon"
-          size="var(--icon-size-small)"
-          stroke={1.8}
-          aria-hidden="true"
-          data-test={`layout-spacing-icon-${property}`}
-        />
-      ) : (
-        <IconSpacingVertical
-          className="layout__spacing-icon"
-          size="var(--icon-size-small)"
-          stroke={1.8}
-          aria-hidden="true"
-          data-test={`layout-spacing-icon-${property}`}
-        />
-      )}
-      {field}
+      <GapField
+        property={property}
+        domElement={domElement}
+        editTarget={editTarget}
+        selection={selection}
+        entries={entries}
+        tokenRows={tokenRows}
+        leading={(
+          <GapIcon
+            className="layout__spacing-icon"
+            size="var(--icon-size-small)"
+            stroke={1.8}
+            aria-hidden="true"
+            data-test={`layout-spacing-icon-${property}`}
+          />
+        )}
+        onAfterEdit={onAfterEdit}
+      />
     </ControlSurface>
   );
 }

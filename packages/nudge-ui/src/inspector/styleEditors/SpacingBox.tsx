@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { IconPlus } from "@tabler/icons-react";
 import type { ResolvedProperty } from "../../css/model/index.ts";
 import { findTokenRow, metadataFor } from "./rowLookup.ts";
@@ -123,24 +123,29 @@ export function SpacingField({
     { axis: "horizontal", sideProperties: [sideProperty(property, "right"), sideProperty(property, "left")] as const },
     { axis: "vertical", sideProperties: [sideProperty(property, "top"), sideProperty(property, "bottom")] as const },
   ] as const;
-  const sideSlots: SideValueSlot[] = SIDE_NAMES.map((side) => ({
-    side,
-    icon: property === "padding" ? <PaddingSideIndicator side={side} /> : <MarginSideIndicator side={side} />,
-    control: (
-      <TokenField
-        property={sideProperty(property, side)}
-        selection={selection}
-        tokenRow={findTokenRow(tokenRows, sideProperty(property, side))}
-        domElement={el}
-        editTarget={editTarget}
-        entries={entries}
-        suggestions={suggestions}
-        editMetadata={metadataFor(findTokenRow(tokenRows, sideProperty(property, side)))}
-        onAfterEdit={onAfterEdit}
-        chipVariant="small"
-      />
-    ),
-  }));
+  const sideSlots: SideValueSlot[] = SIDE_NAMES.map((side) => {
+    const icon = property === "padding" ? <PaddingSideIndicator side={side} /> : <MarginSideIndicator side={side} />;
+    const sideName = sideProperty(property, side);
+    return {
+      side,
+      icon: null,
+      control: (
+        <TokenField
+          property={sideName}
+          selection={selection}
+          tokenRow={findTokenRow(tokenRows, sideName)}
+          domElement={el}
+          editTarget={editTarget}
+          entries={entries}
+          suggestions={suggestions}
+          editMetadata={metadataFor(findTokenRow(tokenRows, sideName))}
+          onAfterEdit={onAfterEdit}
+          chipVariant="small"
+          leading={icon}
+        />
+      ),
+    };
+  });
   const spacingIsEmpty = SIDE_NAMES.every((side) => property === "inset"
     ? isEmptyInsetValue(spacingProjection.fields[side].value)
     : isZeroSpacingValue(spacingProjection.fields[side].value));
@@ -154,7 +159,7 @@ export function SpacingField({
   }, [spacingIsEmpty]);
   const pairSlots: SideValuePairSlot[] = pairDefinitions.map(({ axis, sideProperties }) => ({
     axis,
-    icon: <SpacingAxisIndicator property={property} axis={axis} />,
+    icon: null,
     control: (
       <PairedTokenField
         displayProperty={`${property}-${axis}`}
@@ -166,6 +171,7 @@ export function SpacingField({
         suggestions={suggestions}
         onAfterEdit={onAfterEdit}
         chipVariant="small"
+        leading={<SpacingAxisIndicator property={property} axis={axis} />}
       />
     ),
   }));
@@ -303,6 +309,7 @@ interface PairedTokenFieldProps {
   suggestions?: ReadonlyArray<string>;
   onAfterEdit?: () => void;
   chipVariant?: "default" | "small";
+  leading?: ReactNode;
 }
 
 function PairedTokenField({
@@ -315,6 +322,7 @@ function PairedTokenField({
   suggestions,
   onAfterEdit,
   chipVariant,
+  leading,
 }: PairedTokenFieldProps): ReactElement {
   const row = pairTokenRow(displayProperty, axisProjection);
   const groupMixed = axisProjection.fields.some((field) => field.value === "Mixed");
@@ -377,6 +385,7 @@ function PairedTokenField({
         if (records.some(Boolean)) onAfterEdit?.();
       }}
       onUnlink={commitAxisValue}
+      leading={leading}
     />
   );
 }

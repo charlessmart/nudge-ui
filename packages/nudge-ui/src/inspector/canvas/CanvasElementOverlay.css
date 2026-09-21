@@ -7,6 +7,31 @@
   outline-offset: -1px;
 }
 
+.canvas-spacing-guide {
+  position: fixed;
+  z-index: 4;
+  border-radius: 999px;
+  background: var(--accent);
+  outline: none;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.canvas-spacing-fill {
+  position: fixed;
+  z-index: 2;
+  pointer-events: none;
+  background: rgb(59 130 246 / 14%);
+}
+
+.canvas-spacing-fill[data-kind="gap"] {
+  background: rgb(236 72 153 / 14%);
+}
+
+.canvas-spacing-guide[data-kind="gap"] {
+  background: #ec4899;
+}
+
 .canvas-selected-outline {
   position: fixed;
   pointer-events: none;

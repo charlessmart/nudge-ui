@@ -68,12 +68,14 @@ describe("GapField", () => {
         declaredValue: `var(${SPACE_4.name})`,
         resolvedValue: SPACE_4.value,
       })],
+      leading: createElement("span", { "data-test": "gap-icon" }, "↔"),
     }));
 
     const field = handle.host.querySelector('[data-test="layout-combo"][data-property="column-gap"]');
     expect(field).toBeTruthy();
     expect(field?.querySelector('[data-test="token-field"]')).toBeTruthy();
     expect(field?.querySelector('[data-test="token-chip"]')).toBeTruthy();
+    expect(field?.querySelector('[data-test="nudge-handle"]')).toBeTruthy();
     expect(field?.querySelector('[data-test="layout-combo-input-column-gap"]')).toBeNull();
   });
 
@@ -94,6 +96,20 @@ describe("GapField", () => {
     const input = handle.host.querySelector('[data-test="layout-combo-input-column-gap"]') as HTMLInputElement;
     expect(input).toBeTruthy();
     expect(input.value).toBe("clamp(8px, 2vw, 24px)");
+  });
+
+  it("makes the gap icon a drag handle", () => {
+    const { el } = makeSelected();
+    mockComputedStyle({ "column-gap": "16px" });
+    handle = mount(createElement(GapField, {
+      property: "column-gap",
+      domElement: el,
+      entries: [],
+      tokenRows: [row()],
+      leading: createElement("span", { "data-test": "gap-icon" }, "↔"),
+    }));
+
+    expect(handle.host.querySelector('[data-test="nudge-handle"]')).toBeTruthy();
   });
 
   it("swaps a gap token on the projected longhand", () => {

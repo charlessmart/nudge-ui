@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { inlineAuthoredValue, readAuthoredStyleValue } from "./layoutValue.ts";
+import { beginLayoutPreview, endLayoutPreview } from "./layoutPreviewState.ts";
 
 describe("layout authored values", () => {
   beforeEach(() => {
@@ -161,5 +162,17 @@ describe("inline authored values", () => {
     document.body.appendChild(subject);
 
     expect(inlineAuthoredValue(subject, "column-gap")).toBeNull();
+  });
+
+  it("ignores a temporary canvas preview while it is active", () => {
+    const subject = document.createElement("div");
+    subject.style.setProperty("gap", "12px");
+    document.body.appendChild(subject);
+
+    beginLayoutPreview(subject, "row-gap");
+    expect(inlineAuthoredValue(subject, "row-gap")).toBeNull();
+
+    endLayoutPreview(subject, "row-gap");
+    expect(inlineAuthoredValue(subject, "row-gap")).toBe("gap: 12px");
   });
 });

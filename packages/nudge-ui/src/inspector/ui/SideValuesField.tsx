@@ -129,7 +129,7 @@ export function SideValuesField({
                     title={`${labelText} ${axis === "horizontal" ? "Left And Right" : "Top And Bottom"}`}
                     key={axis}
                   >
-                    {icon ?? <AxisIndicator axis={axis} />}
+                    {icon !== undefined ? icon : <AxisIndicator axis={axis} />}
                     <div className="side-values__control">{control}</div>
                   </ControlSurface>
                 ))}
@@ -188,7 +188,7 @@ export function SideControls({
           aria-label={`${labelText} ${sideLabel ?? formatInspectorLabel(side)}`}
           key={side}
         >
-          {icon ?? <SideIndicator side={side} />}
+          {icon !== undefined ? icon : <SideIndicator side={side} />}
           <div className="side-values__control">{control}</div>
         </ControlSurface>
       ))}

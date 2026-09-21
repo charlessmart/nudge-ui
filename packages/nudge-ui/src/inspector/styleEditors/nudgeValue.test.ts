@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nudgeCssValue, nudgeOpacityValue } from "./nudgeValue.ts";
+import { nudgeCssValue, nudgeCssValueByDrag, nudgeOpacityValue, supportsDragNudge } from "./nudgeValue.ts";
 
 describe("nudgeCssValue", () => {
   it.each([
@@ -20,6 +20,9 @@ describe("nudgeCssValue", () => {
     ["line-height", "0", 1, false, "10%"],
     ["line-height", "24px", 1, true, "32px"],
     ["padding-top", "0.2px", 1, false, "1.2px"],
+    ["padding-top", "0px", -1, false, "0px"],
+    ["column-gap", "0px", -1, false, "0px"],
+    ["border-radius", "4px", -1, true, "0px"],
   ] as const)("nudges %s value %s", (property, value, direction, large, expected) => {
     expect(nudgeCssValue(property, value, direction, large)).toBe(expected);
   });
@@ -33,6 +36,37 @@ describe("nudgeCssValue", () => {
     ["font-family", "Inter, sans-serif"],
   ])("leaves non-literal CSS alone: %s = %s", (property, value) => {
     expect(nudgeCssValue(property, value, 1)).toBeNull();
+  });
+
+  it("maps horizontal drag distance at half speed", () => {
+    expect(nudgeCssValueByDrag("padding-top", "16px", 1)).toBeNull();
+    expect(nudgeCssValueByDrag("padding-top", "16px", 4)).toBe("18px");
+    expect(nudgeCssValueByDrag("border-radius", "16px", -2, true)).toBe("0px");
+    expect(nudgeCssValueByDrag("margin-top", "1rem", 2, true)).toBe("3rem");
+    expect(nudgeCssValueByDrag("padding-horizontal", "8px, 16px", 2)).toBe("9px, 17px");
+  });
+
+  it("snaps to the next large-step boundary when Shift starts mid-drag", () => {
+    expect(nudgeCssValueByDrag("padding-top", "21px", 1, true, true)).toBe("24px");
+    expect(nudgeCssValueByDrag("padding-top", "24px", 1, true)).toBe("32px");
+    expect(nudgeCssValueByDrag("padding-top", "21px", -1, true, true)).toBe("16px");
+  });
+
+  it.each([
+    "padding-top",
+    "margin-left",
+    "top",
+    "inset-horizontal",
+    "row-gap",
+    "column-gap",
+    "border-radius",
+    "border-bottom-left-radius",
+  ])("supports drag nudging for %s", (property) => {
+    expect(supportsDragNudge(property)).toBe(true);
+  });
+
+  it.each(["width", "font-size", "box-shadow", "color"])("does not expose drag nudging for %s", (property) => {
+    expect(supportsDragNudge(property)).toBe(false);
   });
 });
 

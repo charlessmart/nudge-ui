@@ -13,6 +13,7 @@ const identity = {
 const scheduled: FrameRequestCallback[] = [];
 const originalRequestAnimationFrame = window.requestAnimationFrame;
 const originalCancelAnimationFrame = window.cancelAnimationFrame;
+const originalElementFromPoint = document.elementFromPoint;
 let disposeRendererElementSelector: () => void = () => undefined;
 
 function runScheduledFrame(): void {
@@ -68,6 +69,14 @@ afterEach(() => {
   disposeRendererElementSelector();
   while (scheduled.length > 0) runScheduledFrame();
   vi.restoreAllMocks();
+  if (originalElementFromPoint) {
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: originalElementFromPoint,
+    });
+  } else {
+    delete (document as unknown as { elementFromPoint?: unknown }).elementFromPoint;
+  }
   document.body.innerHTML = "";
 });
 
@@ -165,6 +174,126 @@ describe("renderer hover scheduling", () => {
       .map(([message]) => message)
       .find((message) => typeof message === "object" && message !== null && "type" in message && message.type === "element-click");
     expect(click).toMatchObject({ type: "element-click", additive: true });
+  });
+
+  it("reports spacing affordances and routes their drag through the element protocol", () => {
+    const element = trackedElement("spacing-target");
+    element.style.cursor = "crosshair";
+    element.style.paddingTop = "20px";
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      left: 10,
+      top: 10,
+      width: 200,
+      height: 120,
+      right: 210,
+      bottom: 130,
+    } as DOMRect);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => element,
+    });
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    element.dispatchEvent(new MouseEvent("mouseover", {
+      bubbles: true,
+      clientX: 100,
+      clientY: 20,
+    }));
+    runScheduledFrame();
+
+    expect(hoverMessages(postMessage)[0]).toMatchObject({
+      spacing: { kind: "padding", property: "padding-top", side: "top" },
+      point: { x: 100, y: 20 },
+    });
+    expect(document.documentElement.style.cursor).toBe("ns-resize");
+    expect(element.style.getPropertyValue("cursor")).toBe("ns-resize");
+    expect(element.style.getPropertyPriority("cursor")).toBe("important");
+
+    element.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      clientX: 100,
+      clientY: 20,
+    }));
+    document.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 100,
+      clientY: 32,
+    }));
+    document.dispatchEvent(new MouseEvent("mouseup", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 100,
+      clientY: 32,
+    }));
+
+    expect(postMessage.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "element-drag-start",
+        startPoint: { x: 100, y: 20 },
+        spacing: { kind: "padding", property: "padding-top", side: "top" },
+      }),
+      expect.objectContaining({ type: "element-drag-end", point: { x: 100, y: 32 } }),
+    ]));
+    expect(postMessage.mock.calls.map(([message]) => message)
+      .some((message) => typeof message === "object"
+        && message !== null
+        && "type" in message
+        && message.type === "inline-text-intent")).toBe(false);
+
+    element.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
+    runScheduledFrame();
+    expect(element.style.cursor).toBe("crosshair");
+  });
+
+  it("cancels an active spacing drag when renderer interactions are suspended", () => {
+    const element = trackedElement("cancelled-spacing-target");
+    element.style.paddingTop = "20px";
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      left: 10,
+      top: 10,
+      width: 200,
+      height: 120,
+      right: 210,
+      bottom: 130,
+    } as DOMRect);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => element,
+    });
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    element.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      clientX: 100,
+      clientY: 20,
+    }));
+    document.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 100,
+      clientY: 32,
+    }));
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: {
+        type: "inspector-interaction-state",
+        protocolVersion: PROTOCOL_VERSION,
+        open: false,
+        ...identity,
+      },
+    }));
+
+    expect(postMessage.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: "element-drag-end",
+        cancelled: true,
+        point: { x: 100, y: 32 },
+      }),
+    ]));
   });
 
   it("forwards double-click text intent to the controller", () => {
@@ -268,6 +397,43 @@ describe("renderer hover scheduling", () => {
 });
 
 describe("renderer selector lifecycle", () => {
+  it("cancels an active drag before renderer teardown", () => {
+    const element = trackedElement("teardown-spacing");
+    element.style.paddingTop = "20px";
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      left: 10,
+      top: 10,
+      width: 200,
+      height: 120,
+      right: 210,
+      bottom: 130,
+    } as DOMRect);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => element,
+    });
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    element.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      clientX: 100,
+      clientY: 20,
+    }));
+    document.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 100,
+      clientY: 32,
+    }));
+
+    disposeRendererElementSelector();
+
+    expect(postMessage.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "element-drag-end", cancelled: true }),
+    ]));
+  });
+
   it("removes listeners and suppresses queued callbacks after disposal", () => {
     const button = trackedElement("disposed");
     const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);

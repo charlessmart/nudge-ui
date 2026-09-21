@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { IconLinkOff } from "@tabler/icons-react";
 import type { TokenEntry } from "../../css/model/index.ts";
@@ -12,7 +12,13 @@ import type { TokenSemanticSlot } from "../../css/value-semantics/index.ts";
 import { promoteToToken, swapToken } from "./editActions.ts";
 import { setStyle } from "./editActions.ts";
 import { completeCssValue } from "../styleEditors/completeCssValue.ts";
-import { nudgeCssValue, nudgeOpacityValue } from "../styleEditors/nudgeValue.ts";
+import {
+  canNudgeCssValueByDrag,
+  nudgeCssValue,
+  nudgeCssValueByDrag,
+  nudgeOpacityValue,
+  supportsDragNudge,
+} from "../styleEditors/nudgeValue.ts";
 import { valuePolicyFor } from "../styleEditors/valuePolicy.ts";
 import { IconButton } from "../ui/IconButton.tsx";
 import { PopoverListbox } from "../ui/PopoverListbox.tsx";
@@ -131,6 +137,27 @@ function formatNumber(value: number): string {
 
 function stripCssUnit(value: string): string {
   return value.replace(/^(-?\d+(?:\.\d+)?)(px|rem|em|vh|vw|vmin|vmax|%|ch|ex|cm|mm|in|pt|pc)$/i, "$1");
+}
+
+interface DragNudgeState {
+  handle: HTMLSpanElement;
+  pointerId: number;
+  lastClientX: number;
+  deltaX: number;
+  startValue: string;
+  lastValue: string;
+  shiftActive: boolean;
+  shiftSnapPending: boolean;
+}
+
+function releasePointerCapture(state: DragNudgeState): void {
+  try {
+    if (state.handle.hasPointerCapture?.(state.pointerId)) {
+      state.handle.releasePointerCapture(state.pointerId);
+    }
+  } catch {
+    // The browser may release capture before pointerup/pointercancel arrives.
+  }
 }
 
 /** Returns the first family in a CSS family list without splitting var() fallbacks. */
@@ -283,6 +310,8 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
   const selectedFromPopover = useRef(false);
   const cancelOnBlur = useRef(false);
   const isNavigatingSuggestions = useRef(false);
+  const dragNudgeRef = useRef<DragNudgeState | null>(null);
+  const [isDraggingNudge, setIsDraggingNudge] = useState(false);
 
   useEffect(() => {
     setRawValue(committedValue);
@@ -423,6 +452,108 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
     }
   }
 
+  const stopDragNudge = useCallback(() => {
+    const drag = dragNudgeRef.current;
+    if (!drag) return;
+    releasePointerCapture(drag);
+    dragNudgeRef.current = null;
+    setIsDraggingNudge(false);
+  }, []);
+
+  useEffect(() => {
+    const stopOnWindowBlur = (): void => stopDragNudge();
+    window.addEventListener("blur", stopOnWindowBlur);
+    return () => {
+      window.removeEventListener("blur", stopOnWindowBlur);
+      stopDragNudge();
+    };
+  }, [stopDragNudge]);
+
+  function handleDragNudgePointerDown(event: React.PointerEvent<HTMLSpanElement>): void {
+    if (disabled || !supportsDragNudge(property)) return;
+    if (!canNudgeCssValueByDrag(property, rawValue)) return;
+
+    stopDragNudge();
+    const handle = event.currentTarget;
+    const drag: DragNudgeState = {
+      handle,
+      pointerId: event.pointerId,
+      lastClientX: event.clientX,
+      deltaX: 0,
+      startValue: rawValue,
+      lastValue: rawValue,
+      shiftActive: event.shiftKey,
+      shiftSnapPending: event.shiftKey,
+    };
+    dragNudgeRef.current = drag;
+    if (typeof handle.setPointerCapture === "function") handle.setPointerCapture(event.pointerId);
+    setIsDraggingNudge(true);
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function handleDragNudgePointerMove(event: React.PointerEvent<HTMLSpanElement>): void {
+    const drag = dragNudgeRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    const movementX = event.clientX - drag.lastClientX;
+    drag.lastClientX = event.clientX;
+    if (event.shiftKey !== drag.shiftActive) {
+      drag.shiftActive = event.shiftKey;
+      drag.startValue = drag.lastValue;
+      drag.deltaX = 0;
+      drag.shiftSnapPending = event.shiftKey;
+    }
+    drag.deltaX += movementX;
+    const next = nudgeCssValueByDrag(
+      property,
+      drag.startValue,
+      drag.deltaX,
+      drag.shiftActive,
+      drag.shiftActive && drag.shiftSnapPending,
+    );
+    if (next === null || next === drag.lastValue) return;
+    drag.lastValue = next;
+    if (drag.shiftActive && drag.shiftSnapPending) {
+      drag.startValue = next;
+      drag.deltaX = 0;
+      drag.shiftSnapPending = false;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    setRawValue(next);
+    setActiveTokenName(null);
+    onCommitRaw(next);
+  }
+
+  function handleDragNudgePointerEnd(event: React.PointerEvent<HTMLSpanElement>): void {
+    if (dragNudgeRef.current?.pointerId !== event.pointerId) return;
+    stopDragNudge();
+  }
+
+  function renderLeading(): ReactElement | null {
+    if (!leading) return null;
+    const canDrag = !disabled
+      && supportsDragNudge(property)
+      && canNudgeCssValueByDrag(property, rawValue);
+    if (!canDrag) return <span className="token-field__leading">{leading}</span>;
+    return (
+      <span
+        className="token-field__leading token-field__leading--nudge"
+        data-test="nudge-handle"
+        data-dragging={isDraggingNudge ? "true" : undefined}
+        title={`Drag to adjust ${label ?? property}`}
+        onPointerDown={handleDragNudgePointerDown}
+        onPointerMove={handleDragNudgePointerMove}
+        onPointerUp={handleDragNudgePointerEnd}
+        onPointerCancel={handleDragNudgePointerEnd}
+        onBlur={stopDragNudge}
+      >
+        {leading}
+      </span>
+    );
+  }
+
   function commitOpacityValue(value = opacityValue): void {
     if (!showOpacity || !onCommitOpacity) return;
     const normalized = normalizeOpacityPercent(value);
@@ -494,7 +625,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
         aria-label={label}
         title={label}
       >
-        {leading ? <span className="token-field__leading">{leading}</span> : null}
+        {renderLeading()}
         {embedColorSwatch ? null : colorControlEl}
         <TokenChip size={chipVariant} data-group={groupByTokenName.get(activeToken.name) ?? tokenGroup(activeToken)}>
           <PopoverListbox
@@ -551,7 +682,7 @@ export function TokenValueField(props: TokenValueFieldProps): ReactElement {
       aria-label={label}
       title={label}
     >
-      {leading ? <span className="token-field__leading">{leading}</span> : null}
+      {renderLeading()}
       {colorControlEl}
       <PopoverListbox
         query={rawValue}

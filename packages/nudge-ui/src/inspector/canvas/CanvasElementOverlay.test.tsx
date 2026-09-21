@@ -107,6 +107,139 @@ describe("CanvasElementOverlay", () => {
     postMessage.mockRestore();
   });
 
+  it("projects the hovered padding guide into the board viewport", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.paddingTop = "20px";
+    frameDocument.body.append(card);
+    Object.defineProperty(iframe, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 100, top: 40, width: 300, height: 200, right: 400, bottom: 240 } as DOMRect),
+    });
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 10, top: 10, width: 200, height: 120, right: 210, bottom: 130 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: window.location.origin,
+        source: iframe.contentWindow as MessageEventSource,
+        data: {
+          type: "element-hover",
+          protocolVersion: PROTOCOL_VERSION,
+          projectId: PROJECT_ID,
+          workspaceId: WORKSPACE_ID,
+          cardId,
+          cid: "Card",
+          selector: '[data-cid="Card"]',
+          src: "/src/Card.tsx:12:3",
+          elementId: "r1",
+          rect: { left: 10, top: 10, width: 200, height: 120 },
+          margins: { top: 0, right: 0, bottom: 0, left: 0 },
+          borders: { top: 0, right: 0, bottom: 0, left: 0 },
+          point: { x: 100, y: 20 },
+          spacing: { kind: "padding", property: "padding-top", side: "top" },
+        },
+      }));
+    });
+
+    const guide = host.querySelector<HTMLElement>('[data-test="canvas-spacing-guide"]');
+    expect(guide).not.toBeNull();
+    expect(guide?.dataset.property).toBe("padding-top");
+    expect(guide?.style.left).toBe("190px");
+    expect(guide?.style.top).toBe("59px");
+    expect(guide?.style.width).toBe("40px");
+    expect(guide?.style.height).toBe("2px");
+
+    const fill = host.querySelector<HTMLElement>('[data-test="canvas-spacing-fill"]');
+    expect(fill?.dataset.kind).toBe("padding");
+    expect(fill?.style.left).toBe("110px");
+    expect(fill?.style.top).toBe("50px");
+    expect(fill?.style.width).toBe("200px");
+    expect(fill?.style.height).toBe("20px");
+  });
+
+  it("projects every matching grid gap guide", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "GridCard");
+    card.setAttribute("data-src", "/src/GridCard.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.display = "grid";
+    card.style.rowGap = "12px";
+    const first = frameDocument.createElement("div");
+    const second = frameDocument.createElement("div");
+    const third = frameDocument.createElement("div");
+    card.append(first, second, third);
+    frameDocument.body.append(card);
+    Object.defineProperty(iframe, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 100, top: 40, width: 300, height: 240, right: 400, bottom: 280 } as DOMRect),
+    });
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 0, width: 160, height: 200, right: 160, bottom: 200 } as DOMRect),
+    });
+    Object.defineProperty(first, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 0, width: 160, height: 40, right: 160, bottom: 40 } as DOMRect),
+    });
+    Object.defineProperty(second, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 52, width: 160, height: 40, right: 160, bottom: 92 } as DOMRect),
+    });
+    Object.defineProperty(third, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 104, width: 160, height: 40, right: 160, bottom: 144 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: window.location.origin,
+        source: iframe.contentWindow as MessageEventSource,
+        data: {
+          type: "element-hover",
+          protocolVersion: PROTOCOL_VERSION,
+          projectId: PROJECT_ID,
+          workspaceId: WORKSPACE_ID,
+          cardId,
+          cid: "GridCard",
+          selector: '[data-cid="GridCard"]',
+          src: "/src/GridCard.tsx:12:3",
+          elementId: "r1",
+          rect: { left: 0, top: 0, width: 160, height: 200 },
+          margins: { top: 0, right: 0, bottom: 0, left: 0 },
+          borders: { top: 0, right: 0, bottom: 0, left: 0 },
+          point: { x: 80, y: 46 },
+          spacing: { kind: "gap", property: "row-gap", side: null },
+        },
+      }));
+    });
+
+    const guides = Array.from(host.querySelectorAll<HTMLElement>('[data-test="canvas-spacing-guide"]'));
+    expect(guides).toHaveLength(2);
+    expect(guides.map((guide) => guide.dataset.guideIndex)).toEqual(["0", "1"]);
+    expect(guides.map((guide) => guide.style.left)).toEqual(["160px", "160px"]);
+    expect(guides.map((guide) => guide.style.top)).toEqual(["85px", "137px"]);
+    expect(guides.every((guide) => guide.style.width === "40px")).toBe(true);
+
+    const fills = Array.from(host.querySelectorAll<HTMLElement>('[data-test="canvas-spacing-fill"]'));
+    expect(fills).toHaveLength(2);
+    expect(fills.every((fill) => fill.dataset.kind === "gap")).toBe(true);
+  });
+
   it("records the same actionable rejection for an unsupported Canvas edit", () => {
     const frameDocument = iframe.contentDocument!;
     const target = frameDocument.createElement("div");
@@ -176,5 +309,62 @@ describe("CanvasElementOverlay", () => {
     expect(getInlineTextSession()).toBeNull();
     expect(getChangesList()).toHaveLength(1);
     expect(getInlineTextDiagnostic()).toMatchObject({ status: "committed", reason: "commit" });
+  });
+
+  it("records the authored spacing value before committing the drag", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    card.style.paddingTop = "20px";
+    frameDocument.body.append(card);
+    Object.defineProperty(card, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 10, top: 10, width: 200, height: 120, right: 210, bottom: 130 } as DOMRect),
+    });
+    Object.defineProperty(frameDocument, "elementFromPoint", {
+      configurable: true,
+      value: () => card,
+    });
+
+    const dispatch = (data: Record<string, unknown>): void => {
+      act(() => {
+        window.dispatchEvent(new MessageEvent("message", {
+          origin: window.location.origin,
+          source: iframe.contentWindow as MessageEventSource,
+          data: {
+            protocolVersion: PROTOCOL_VERSION,
+            projectId: PROJECT_ID,
+            workspaceId: WORKSPACE_ID,
+            cardId,
+            ...data,
+          },
+        }));
+      });
+    };
+
+    dispatch({
+      type: "element-drag-start",
+      cid: "Card",
+      src: "/src/Card.tsx:12:3",
+      elementId: "r1",
+      point: { x: 100, y: 20 },
+      startPoint: { x: 100, y: 20 },
+      spacing: { kind: "padding", property: "padding-top", side: "top" },
+    });
+    dispatch({ type: "element-drag-move", point: { x: 100, y: 32 } });
+    expect(card.style.paddingTop).toBe("32px");
+
+    dispatch({ type: "element-drag-end", point: { x: 100, y: 32 } });
+
+    expect(getChangesList()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        property: "padding-top",
+        oldRawValue: "20px",
+        rawValue: "32px",
+      }),
+    ]));
+    clearWorkspace();
   });
 });
