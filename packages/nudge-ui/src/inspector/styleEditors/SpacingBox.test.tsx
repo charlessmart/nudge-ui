@@ -66,6 +66,7 @@ describe("SpacingBox", () => {
     const padding = handle.host.querySelector('[data-test="spacing-padding"]') as HTMLElement;
     expect(padding.getAttribute("data-expanded")).toBe("false");
     expect(padding.querySelectorAll('[data-test^="pair-value-"]')).toHaveLength(2);
+    expect(padding.querySelectorAll('[data-test="nudge-handle"]')).toHaveLength(2);
     expect(padding.querySelectorAll('[data-test^="side-value-"]')).toHaveLength(0);
     expect(padding.querySelector('[data-test="pair-value-horizontal"]')?.className).toContain("control-surface");
     expect(padding.querySelector('[data-test="token-field"][data-property="padding-horizontal"]')?.className).not.toContain("control-surface");
@@ -100,6 +101,7 @@ describe("SpacingBox", () => {
     showIndividualSides("padding");
     const paddingSides = padding.querySelectorAll('[data-test^="side-value-"]');
     expect(paddingSides).toHaveLength(4);
+    expect(padding.querySelectorAll('[data-test="nudge-handle"]')).toHaveLength(4);
     const individualIcons = new Map(
       [...paddingSides].map((side) => [
         side.getAttribute("data-side"),
@@ -115,6 +117,7 @@ describe("SpacingBox", () => {
     showIndividualSides("margin");
     const marginSides = margin.querySelectorAll('[data-test^="side-value-"]');
     expect(marginSides).toHaveLength(4);
+    expect(margin.querySelectorAll('[data-test="nudge-handle"]')).toHaveLength(4);
     const marginIndividualIcons = new Map(
       [...marginSides].map((side) => [
         side.getAttribute("data-side"),

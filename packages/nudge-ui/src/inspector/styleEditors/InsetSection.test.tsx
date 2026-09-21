@@ -84,6 +84,7 @@ describe("InsetSection", () => {
     expect(toggle.disabled).toBe(false);
     act(() => toggle.click());
     expect(handle.host.querySelector('[data-test="token-field"][data-property="top"]')).toBeTruthy();
+    expect(handle.host.querySelectorAll('[data-test="nudge-handle"]')).toHaveLength(4);
     expect(sheetText()).not.toContain("top: auto;");
   });
 });
