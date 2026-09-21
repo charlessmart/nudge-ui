@@ -8,37 +8,8 @@ creates a structured prompt for a coding agent. It does not edit application
 source files. Production builds receive no inspector bootstrap, identity
 attributes, or token data.
 
-## Editor workspace
+<img width="2888" height="1614" alt="image" src="https://github.com/user-attachments/assets/2f8abf6d-71cc-4823-8042-25a6e6407d74" />
 
-Open your application with its usual development command. Nudge opens an editor
-workspace with the application in a same-origin iframe. The frame provides the
-application's viewport boundary, so viewport units and fixed elements remain
-independent of the inspector panel.
-
-The editor starts in **Focus**, with one square-edged preview at 100% zoom and no
-inset. The preview resizes with the browser and the available space beside
-the inspector. Select **Canvas** in the inspector header to zoom out into the
-comparison workspace, where previews have resize handles. Select **Focus** to
-return to the active preview. Switching presentation preserves the running
-application. Use **Open app** on a canvas preview to open the application in a
-separate tab without the editor.
-
-Editor URLs retain the application path, query parameters, and hash, with
-`nudge-ui=editor` added to the query string. For example,
-`/products?category=tools&nudge-ui=editor#details` edits
-`/products?category=tools#details`. The application iframe receives the URL
-without the editor marker. Existing `/__nudge_ui__/editor?url=...` links remain
-supported.
-
-Editing and comparison use the same workspace. You can keep one preview or
-compare multiple routes and agent-generated variations. Links navigate within
-their preview. Each live preview runs the application independently, so opening
-more previews also runs more application instances. The public landing demo
-loads in the same iframe editor, in Focus with the inspector collapsed. Its
-regular restore button and the page's **Open Nudge** button open the panel.
-Canvas zooms out slightly so visitors can pan to a small easter-egg page.
-Refresh resets the demo to collapsed Focus without restoring zoom. Demo edits
-remain browser-local, with workspace persistence and the agent bridge disabled.
 
 ## Install
 
@@ -184,27 +155,18 @@ planned changes. Package installation itself does not prompt or modify agent
 configuration. Registration uses the locally installed executable, so package
 upgrades and the lockfile determine the MCP version.
 
-### Project and worktree sessions
+### Using MCP
 
 When `@nudge-ui/mcp` is installed, the development integration starts a local
 browser bridge. The agent's MCP process discovers that bridge using a private
-local session registry. Browser origins and bridge ports are runtime details;
-you do not need to copy them into agent configuration.
+local session registry. 
 
-The agent can call `nudge_list_sessions` to inspect available applications and
-`nudge_listen` to wait for a prompt. Selection matches the canonical workspace
-and application path. Different Git worktrees remain separate even when they
-share a repository or branch name. Multiple matching application sessions
-require an explicit selection; Nudge never silently selects another worktree.
-Run agent setup once in each checkout or worktree. Generated agent entries bind
-to that application's absolute path; rerun setup after moving a checkout or
-copying an agent configuration from another worktree.
 
-A connected browser is not necessarily ready to send. The agent must keep a
-listening call active. After applying a prompt, it reports status and listens
-again. Only one request can be active for a project, and competing agents cannot
-silently take over its request workflow. Prompts are not queued for an idle
-agent or replayed after a restart. **Copy prompt** remains available.
+Ask agent to call nudge_listen to wait for prompts from UI.
+
+Agents can also push to the canvas e.g. to create variations of different pages, or show a page in different states. Ask the agent to create variations and push them to canvas as different frames
+
+For worktrees run agent setup once in each checkout or worktree. 
 
 ### Diagnose a connection
 
@@ -214,35 +176,11 @@ Run diagnostics from the application directory:
 npx nudge-ui agent doctor
 ```
 
-Diagnostics report running project sessions and their connection state; they do
-not verify the agent host's loaded tool catalog. If no project session is
-available, start the development server. If the agent's tool catalog does not
-include Nudge, reload the agent
-following registration. If the browser is connected but idle, ask the agent to
-listen to Nudge.
-
 The inspector's connection panel provides status and recovery instructions.
 Disconnecting explicitly revokes the browser connection. Legacy configurations
 with `--project-id`, `--origin`, and `--workspace-root` remain supported; see the
 [MCP package documentation](packages/mcp/README.md).
 
-The agent can also present real, same-origin application routes as a labeled
-Canvas comparison group, focus the group, fit the board, read Canvas state, or
-remove only a group it created. Nudge preserves user-created cards and owns
-route readiness, placement, and persistence.
-
-The bridge binds only to loopback and keeps pairings and prompts in memory. Its
-private registry stores discovery credentials, not prompts. Nudge does not edit
-source itself: file changes and approvals continue through the coding agent's
-normal workflow.
-
-Contributors can run `pnpm test:agent-integration` to verify a built development
-host, a separate stdio MCP process, session discovery, prompt delivery, status
-reporting, and shutdown without configuring a personal agent.
-
-Nudge UI stores development-only inspector state in origin-scoped browser
-storage. See [Browser storage](docs/browser-storage.md) for the stored data,
-retention, transport caveats, and clearing instructions.
 
 ## Implementation
 
@@ -252,17 +190,6 @@ token and component data through virtual modules, and injects the inspector
 bootstrap into dev HTML. The Next.js and Astro integrations adapt the same
 contracts to their host pipelines. The standalone host uses an HTML response
 instrumenter and a manifest instead of build-tool virtual modules.
-
-The editor mounts its controls in a Shadow DOM in a dedicated development
-document. Application iframes run renderer clients, which report selection and
-apply the editor's shared changes. The runtime reads each application's CSSOM
-and computed styles to determine what is actually applied. CSS and token
-previews use a managed stylesheet in each application document; semantic
-component changes use a framework adapter.
-The change log is the handoff boundary: the inspector records the change and
-the user either copies a prompt or dispatches that exact revision to a paired
-agent. After completion, Nudge removes only changes whose refreshed browser
-result can be positively verified.
 
 ## Architecture
 
@@ -340,17 +267,6 @@ git tag -a v0.2.0 -m "Release v0.2.0"
 git push origin v0.2.0
 ```
 
-The tag starts the npm release workflow. It validates that every public package
-matches the tag, runs the required unit suite, builds and verifies the package
-archives once, and submits those exact archives with `npm stage publish`.
-Review the three entries on npm's **Staged Packages** page and approve them with
-2FA in dependency order: `nudge-ui`, `@nudge-ui/mcp`, then
-`create-nudge-ui`.
-
-Each package must trust the `charlessmart/nudge-ui` GitHub repository and the
-`publish.yml` workflow on npm. Configure the trusted publisher for staged
-publishing only; no GitHub environment name is used. npm CLI 11.15 or newer is
-required for local staged-package commands.
 
 ## License
 
