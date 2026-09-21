@@ -72,44 +72,48 @@ function boxEdges(element: HTMLElement): BoxEdges {
   };
 }
 
+// Computed style resolves to px in browsers, so drag math normalizes to px.
+// An authored rem/% is intentionally rewritten as px on commit.
 function numberValue(value: string): number {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
 }
 
-function paddingValues(element: HTMLElement): Record<PaddingSide, number> {
+interface BoxModel {
+  outer: BoxEdges;
+  inner: BoxEdges;
+  content: BoxEdges;
+  padding: Record<PaddingSide, number>;
+}
+
+function boxModel(element: HTMLElement): BoxModel {
   const style = getElementComputedStyle(element);
-  return {
+  const padding: Record<PaddingSide, number> = {
     top: numberValue(style.paddingTop),
     right: numberValue(style.paddingRight),
     bottom: numberValue(style.paddingBottom),
     left: numberValue(style.paddingLeft),
   };
-}
-
-function gapValue(style: CSSStyleDeclaration, property: "row-gap" | "column-gap"): number {
-  const direct = style.getPropertyValue(property)
-    || (property === "row-gap" ? style.rowGap : style.columnGap);
-  if (direct.trim()) return numberValue(direct);
-
-  // jsdom and a few older browser CSSOM implementations expose `gap` but not
-  // the longhands through getPropertyValue(). Keep the gesture model aligned
-  // with the browser's shorthand fallback in those realms.
-  const shorthand = style.getPropertyValue("gap") || style.gap;
-  const values = shorthand.trim().split(/\s+/).filter(Boolean);
-  if (values.length === 0) return 0;
-  if (values.length === 1) return numberValue(values[0]!);
-  return numberValue(property === "row-gap" ? values[0]! : values[1]!);
-}
-
-function borderValues(element: HTMLElement): Record<PaddingSide, number> {
-  const style = getElementComputedStyle(element);
-  return {
+  const border = {
     top: numberValue(style.borderTopWidth),
     right: numberValue(style.borderRightWidth),
     bottom: numberValue(style.borderBottomWidth),
     left: numberValue(style.borderLeftWidth),
   };
+  const outer = boxEdges(element);
+  const inner = {
+    left: outer.left + border.left,
+    top: outer.top + border.top,
+    right: outer.right - border.right,
+    bottom: outer.bottom - border.bottom,
+  };
+  const content = {
+    left: inner.left + padding.left,
+    top: inner.top + padding.top,
+    right: inner.right - padding.right,
+    bottom: inner.bottom - padding.bottom,
+  };
+  return { outer, inner, content, padding };
 }
 
 function containsPoint(rect: BoxEdges, x: number, y: number): boolean {
@@ -120,116 +124,61 @@ function containsCross(value: number, start: number, end: number): boolean {
   return value >= start - HIT_SLOP && value <= end + HIT_SLOP;
 }
 
+const PADDING_CONFIG = {
+  top: { axis: "horizontal", dragAxis: "y", direction: 1 },
+  right: { axis: "vertical", dragAxis: "x", direction: -1 },
+  bottom: { axis: "horizontal", dragAxis: "y", direction: -1 },
+  left: { axis: "vertical", dragAxis: "x", direction: 1 },
+} as const satisfies Record<PaddingSide, { axis: SpacingAxis; dragAxis: SpacingDragAxis; direction: 1 | -1 }>;
+
 function paddingAffordanceForSide(
   element: HTMLElement,
   side: PaddingSide,
   allowZero: boolean,
 ): SpacingAffordance | null {
-  const outer = boxEdges(element);
-  const padding = paddingValues(element);
-  const borders = borderValues(element);
-  const inner = {
-    left: outer.left + borders.left,
-    top: outer.top + borders.top,
-    right: outer.right - borders.right,
-    bottom: outer.bottom - borders.bottom,
-  };
-  const content = {
-    left: inner.left + padding.left,
-    top: inner.top + padding.top,
-    right: inner.right - padding.right,
-    bottom: inner.bottom - padding.bottom,
-  };
-
+  const { inner, content, padding } = boxModel(element);
   const value = padding[side];
   if (!allowZero && value <= EPSILON) return null;
-  const candidate = (() => {
-    switch (side) {
-      case "top":
-        return {
-          axis: "horizontal" as const,
-          dragAxis: "y" as const,
-          guide: {
-            left: inner.left,
-            top: inner.top + value / 2 - 1,
-            width: Math.max(0, inner.right - inner.left),
-            height: 2,
-          },
-          hit: {
-            left: inner.left,
-            top: inner.top,
-            width: Math.max(0, inner.right - inner.left),
-            height: Math.max(0, content.top - inner.top),
-          },
-          direction: 1 as const,
-        };
-      case "right":
-        return {
-          axis: "vertical" as const,
-          dragAxis: "x" as const,
-          guide: {
-            left: inner.right - value / 2 - 1,
-            top: inner.top,
-            width: 2,
-            height: Math.max(0, inner.bottom - inner.top),
-          },
-          hit: {
-            left: content.right,
-            top: inner.top,
-            width: Math.max(0, inner.right - content.right),
-            height: Math.max(0, inner.bottom - inner.top),
-          },
-          direction: -1 as const,
-        };
-      case "bottom":
-        return {
-          axis: "horizontal" as const,
-          dragAxis: "y" as const,
-          guide: {
-            left: inner.left,
-            top: inner.bottom - value / 2 - 1,
-            width: Math.max(0, inner.right - inner.left),
-            height: 2,
-          },
-          hit: {
-            left: inner.left,
-            top: content.bottom,
-            width: Math.max(0, inner.right - inner.left),
-            height: Math.max(0, inner.bottom - content.bottom),
-          },
-          direction: -1 as const,
-        };
-      case "left":
-        return {
-          axis: "vertical" as const,
-          dragAxis: "x" as const,
-          guide: {
-            left: inner.left + value / 2 - 1,
-            top: inner.top,
-            width: 2,
-            height: Math.max(0, inner.bottom - inner.top),
-          },
-          hit: {
-            left: inner.left,
-            top: inner.top,
-            width: Math.max(0, content.left - inner.left),
-            height: Math.max(0, inner.bottom - inner.top),
-          },
-          direction: 1 as const,
-        };
+  const config = PADDING_CONFIG[side];
+  const width = Math.max(0, inner.right - inner.left);
+  const height = Math.max(0, inner.bottom - inner.top);
+  const guide: Rect = config.axis === "horizontal"
+    ? {
+      left: inner.left,
+      top: (side === "top" ? inner.top + value / 2 : inner.bottom - value / 2) - 1,
+      width,
+      height: 2,
     }
-  })();
+    : {
+      left: (side === "left" ? inner.left + value / 2 : inner.right - value / 2) - 1,
+      top: inner.top,
+      width: 2,
+      height,
+    };
+  const hit: Rect = config.axis === "horizontal"
+    ? {
+      left: inner.left,
+      top: side === "top" ? inner.top : content.bottom,
+      width,
+      height: Math.max(0, (side === "top" ? content.top : inner.bottom) - (side === "top" ? inner.top : content.bottom)),
+    }
+    : {
+      left: side === "left" ? inner.left : content.right,
+      top: inner.top,
+      width: Math.max(0, (side === "left" ? content.left : inner.right) - (side === "left" ? inner.left : content.right)),
+      height,
+    };
   return {
     kind: "padding",
     property: `padding-${side}`,
     side,
-    axis: candidate.axis,
-    dragAxis: candidate.dragAxis,
+    axis: config.axis,
+    dragAxis: config.dragAxis,
     value,
-    cursor: candidate.axis === "horizontal" ? "ns-resize" : "ew-resize",
-    guide: candidate.guide,
-    hit: candidate.hit,
-    direction: candidate.direction,
+    cursor: config.axis === "horizontal" ? "ns-resize" : "ew-resize",
+    guide,
+    hit,
+    direction: config.direction,
     element,
   };
 }
@@ -240,52 +189,17 @@ function paddingAffordanceAtPoint(
   y: number,
   allowZero: boolean,
 ): SpacingAffordance | null {
-  const outer = boxEdges(element);
+  const { outer, inner, content, padding } = boxModel(element);
   if (!containsPoint(outer, x, y)) return null;
-
-  const padding = paddingValues(element);
-  const borders = borderValues(element);
-  const inner = {
-    left: outer.left + borders.left,
-    top: outer.top + borders.top,
-    right: outer.right - borders.right,
-    bottom: outer.bottom - borders.bottom,
+  const sides: PaddingSide[] = ["top", "right", "bottom", "left"];
+  const inRegion: Record<PaddingSide, boolean> = {
+    top: containsCross(x, inner.left, inner.right) && y >= inner.top - HIT_SLOP && y <= content.top + HIT_SLOP,
+    right: containsCross(y, inner.top, inner.bottom) && x >= content.right - HIT_SLOP && x <= inner.right + HIT_SLOP,
+    bottom: containsCross(x, inner.left, inner.right) && y >= content.bottom - HIT_SLOP && y <= inner.bottom + HIT_SLOP,
+    left: containsCross(y, inner.top, inner.bottom) && x >= inner.left - HIT_SLOP && x <= content.left + HIT_SLOP,
   };
-  const content = {
-    left: inner.left + padding.left,
-    top: inner.top + padding.top,
-    right: inner.right - padding.right,
-    bottom: inner.bottom - padding.bottom,
-  };
-  const sideRegions: Array<{ side: PaddingSide; inRegion: boolean }> = [
-    {
-      side: "top",
-      inRegion: containsCross(x, inner.left, inner.right)
-        && y >= inner.top - HIT_SLOP
-        && y <= content.top + HIT_SLOP,
-    },
-    {
-      side: "right",
-      inRegion: containsCross(y, inner.top, inner.bottom)
-        && x >= content.right - HIT_SLOP
-        && x <= inner.right + HIT_SLOP,
-    },
-    {
-      side: "bottom",
-      inRegion: containsCross(x, inner.left, inner.right)
-        && y >= content.bottom - HIT_SLOP
-        && y <= inner.bottom + HIT_SLOP,
-    },
-    {
-      side: "left",
-      inRegion: containsCross(y, inner.top, inner.bottom)
-        && x >= inner.left - HIT_SLOP
-        && x <= content.left + HIT_SLOP,
-    },
-  ];
-  const region = sideRegions.find(({ inRegion, side }) => inRegion
-    && (allowZero || padding[side] > EPSILON));
-  return region ? paddingAffordanceForSide(element, region.side, allowZero) : null;
+  const side = sides.find((candidate) => inRegion[candidate] && (allowZero || padding[candidate] > EPSILON));
+  return side ? paddingAffordanceForSide(element, side, allowZero) : null;
 }
 
 function overlap(startA: number, endA: number, startB: number, endB: number): boolean {
@@ -347,22 +261,6 @@ function gapSegments(element: HTMLElement): GapSegment[] {
   return segments;
 }
 
-function gapDirection(element: HTMLElement, axis: SpacingAxis): 1 | -1 {
-  const style = getElementComputedStyle(element);
-  const direction = style.direction || "ltr";
-  if (axis === "vertical") {
-    return style.display === "flex" || style.display === "inline-flex"
-      ? style.flexDirection === "column-reverse" ? -1 : 1
-      : 1;
-  }
-  if (style.display === "flex" || style.display === "inline-flex") {
-    const flexDirection = style.flexDirection || "row";
-    const reverse = flexDirection === "row-reverse";
-    return (reverse !== (direction === "rtl")) ? -1 : 1;
-  }
-  return direction === "rtl" ? -1 : 1;
-}
-
 function gapAffordanceAtPoint(
   element: HTMLElement,
   x: number,
@@ -390,17 +288,17 @@ function gapAffordanceAtPoint(
     : { left: candidate.crossStart, top: midpoint - 1, width: crossSize, height: 2 };
   const hit = candidate.axis === "horizontal"
     ? {
-        left: candidate.start,
-        top: candidate.crossStart,
-        width: Math.max(0, candidate.end - candidate.start),
-        height: crossSize,
-      }
+      left: candidate.start,
+      top: candidate.crossStart,
+      width: Math.max(0, candidate.end - candidate.start),
+      height: crossSize,
+    }
     : {
-        left: candidate.crossStart,
-        top: candidate.start,
-        width: crossSize,
-        height: Math.max(0, candidate.end - candidate.start),
-      };
+      left: candidate.crossStart,
+      top: candidate.start,
+      width: crossSize,
+      height: Math.max(0, candidate.end - candidate.start),
+    };
   return {
     kind: "gap",
     property: candidate.property,
@@ -411,9 +309,25 @@ function gapAffordanceAtPoint(
     cursor: candidate.axis === "horizontal" ? "ew-resize" : "ns-resize",
     guide,
     hit,
-    direction: gapDirection(element, candidate.axis),
+    // Gap size is absolute screen space; dragging along +axis always grows it.
+    direction: 1,
     element,
   };
+}
+
+function gapValue(style: CSSStyleDeclaration, property: "row-gap" | "column-gap"): number {
+  const direct = style.getPropertyValue(property)
+    || (property === "row-gap" ? style.rowGap : style.columnGap);
+  if (direct.trim()) return numberValue(direct);
+
+  // jsdom and a few older browser CSSOM implementations expose `gap` but not
+  // the longhands through getPropertyValue(). Keep the gesture model aligned
+  // with the browser's shorthand fallback in those realms.
+  const shorthand = style.getPropertyValue("gap") || style.gap;
+  const values = shorthand.trim().split(/\s+/).filter(Boolean);
+  if (values.length === 0) return 0;
+  if (values.length === 1) return numberValue(values[0]!);
+  return numberValue(property === "row-gap" ? values[0]! : values[1]!);
 }
 
 function trackedElementsAtPoint(doc: Document, x: number, y: number): HTMLElement[] {
@@ -457,20 +371,13 @@ export function getSpacingAffordanceAtPoint(doc: Document, x: number, y: number)
 export function getSpacingAffordanceForDescriptor(
   element: HTMLElement,
   descriptor: SpacingDescriptor,
-  x?: number,
-  y?: number,
 ): SpacingAffordance | null {
   if (descriptor.kind === "padding") {
     const side = descriptor.side;
     if (!side || descriptor.property !== `padding-${side}`) return null;
-    if (x !== undefined && y !== undefined) {
-      const affordance = paddingAffordanceAtPoint(element, x, y, true);
-      if (affordance?.side !== side) return null;
-    }
     return paddingAffordanceForSide(element, side, true);
   }
   if (descriptor.property !== "row-gap" && descriptor.property !== "column-gap") return null;
-  if (x !== undefined && y !== undefined) return gapAffordanceAtPoint(element, x, y, descriptor.property);
   const segment = gapSegments(element).find((candidate) => candidate.property === descriptor.property);
   if (!segment) return null;
   return gapAffordanceAtPoint(
@@ -501,20 +408,5 @@ export function toSpacingDescriptor(affordance: SpacingAffordance): SpacingDescr
     kind: affordance.kind,
     property: affordance.property,
     side: affordance.side,
-  };
-}
-
-export function toSpacingGuideData(affordance: SpacingAffordance): SpacingGuideData {
-  return {
-    kind: affordance.kind,
-    property: affordance.property,
-    side: affordance.side,
-    axis: affordance.axis,
-    dragAxis: affordance.dragAxis,
-    value: affordance.value,
-    direction: affordance.direction,
-    cursor: affordance.cursor,
-    guide: { ...affordance.guide },
-    hit: { ...affordance.hit },
   };
 }

@@ -54,8 +54,8 @@ interface FrameOverlayState {
   margins: Margins;
   borders: BorderWidths;
   cardId: string;
-  point: { x: number; y: number } | null;
   spacing: SpacingDescriptor | null;
+  spacingGuide: Rect | null;
 }
 
 interface FrameMeasureState {
@@ -147,12 +147,18 @@ function projectGuideToCanvas(guide: DropGuide | null, zoom: number): ViewportDr
 function spacingDescriptorMatches(
   affordance: SpacingAffordance | null,
   descriptor: SpacingDescriptor | null | undefined,
-): affordance is SpacingAffordance {
+): boolean {
   return Boolean(affordance
     && descriptor
     && affordance.kind === descriptor.kind
     && affordance.property === descriptor.property
     && affordance.side === descriptor.side);
+}
+
+function clearSpacingDrag(ref: { current: CanvasSpacingDragState | null }): void {
+  const drag = ref.current;
+  ref.current = null;
+  if (drag) restoreSpacingPreview(drag);
 }
 
 function applySpacingPreview(
@@ -323,6 +329,14 @@ export function CanvasElementOverlay(): ReactElement | null {
           setHover((current) => current?.cardId === sourceCardId ? null : current);
           return;
         }
+        const spacingDescriptor = msg.spacing ?? null;
+        const hoverPoint = msg.point ?? null;
+        const hoverAffordance = spacingDescriptor && hoverPoint && sourceIframe.contentDocument
+          ? getSpacingAffordanceAtPoint(sourceIframe.contentDocument, hoverPoint.x, hoverPoint.y)
+          : null;
+        const spacingGuide = hoverAffordance && spacingDescriptorMatches(hoverAffordance, spacingDescriptor)
+          ? hoverAffordance.guide
+          : null;
         setHover({
           iframe: sourceIframe,
           identity: { elementId: msg.elementId },
@@ -330,8 +344,8 @@ export function CanvasElementOverlay(): ReactElement | null {
           margins: msg.margins ?? { top: 0, right: 0, bottom: 0, left: 0 },
           borders: msg.borders ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: sourceCardId,
-          point: msg.point ?? null,
-          spacing: msg.spacing ?? null,
+          spacing: spacingGuide ? spacingDescriptor : null,
+          spacingGuide,
         });
       } else if (data.type === "element-measure-state") {
         const msg = data;
@@ -363,8 +377,7 @@ export function CanvasElementOverlay(): ReactElement | null {
             clickCount: data.clickCount ?? 0,
           });
       } else if (data.type === "element-deselect") {
-        if (spacingDragRef.current) restoreSpacingPreview(spacingDragRef.current);
-        spacingDragRef.current = null;
+        clearSpacingDrag(spacingDragRef);
         dragRef.current = null;
         clearDropGuide("canvas");
         setSelectedElement(null);
@@ -373,8 +386,7 @@ export function CanvasElementOverlay(): ReactElement | null {
         const msg = data;
         const element = findFrameElement(sourceIframe, msg.elementId, msg.cid, msg.src);
         if (!element) return;
-        if (spacingDragRef.current) restoreSpacingPreview(spacingDragRef.current);
-        spacingDragRef.current = null;
+        clearSpacingDrag(spacingDragRef);
         dragRef.current = null;
         const startPoint = msg.startPoint ?? msg.point;
         const spacing = msg.spacing
@@ -382,11 +394,10 @@ export function CanvasElementOverlay(): ReactElement | null {
           : sourceIframe.contentDocument
             ? getSpacingAffordanceAtPoint(sourceIframe.contentDocument, startPoint.x, startPoint.y)
             : null;
-        if (spacingDescriptorMatches(spacing, msg.spacing ?? (spacing ? {
-          kind: spacing.kind,
-          property: spacing.property,
-          side: spacing.side,
-        } : null)) && spacing.element === element) {
+        const isSpacingDrag = spacing
+          && spacing.element === element
+          && (!msg.spacing || spacingDescriptorMatches(spacing, msg.spacing));
+        if (isSpacingDrag) {
           spacingDragRef.current = {
             iframe: sourceIframe,
             element,
@@ -417,17 +428,18 @@ export function CanvasElementOverlay(): ReactElement | null {
         const msg = data;
         const spacing = spacingDragRef.current;
         if (spacing && spacing.iframe === sourceIframe) {
+          spacingDragRef.current = null;
           if (msg.cancelled) {
             restoreSpacingPreview(spacing);
-            spacingDragRef.current = null;
-            clearDropGuide("canvas");
-            return;
+          } else {
+            applySpacingPreview(spacing, msg.point);
+            commitSpacingDrag(spacing);
           }
-          applySpacingPreview(spacing, msg.point);
-          commitSpacingDrag(spacing);
-          spacingDragRef.current = null;
-          const selectedElement = resolveSelectionFromElement(spacing.element);
-          if (selectedElement) setSelectedElement(selectedElement);
+          clearDropGuide("canvas");
+          if (!msg.cancelled) {
+            const selectedElement = resolveSelectionFromElement(spacing.element);
+            if (selectedElement) setSelectedElement(selectedElement);
+          }
           return;
         }
         const current = dragRef.current;
@@ -480,8 +492,7 @@ export function CanvasElementOverlay(): ReactElement | null {
     });
     return () => {
       unsubscribe();
-      if (spacingDragRef.current) restoreSpacingPreview(spacingDragRef.current);
-      spacingDragRef.current = null;
+      clearSpacingDrag(spacingDragRef);
       dragRef.current = null;
       clearDropGuide("canvas");
     };
@@ -492,11 +503,8 @@ export function CanvasElementOverlay(): ReactElement | null {
   if (!hover && projectedSelectedGeometry.length === 0 && !projectedDropGuide) return null;
 
   const projectedHoverRect = hover ? projectRect(hover.iframe, hover.rect, projectionZoom) : null;
-  const spacingAffordance = hover?.point && hover.spacing && hover.iframe.contentDocument
-    ? getSpacingAffordanceAtPoint(hover.iframe.contentDocument, hover.point.x, hover.point.y)
-    : null;
-  const projectedSpacingGuide = hover && spacingDescriptorMatches(spacingAffordance, hover.spacing)
-    ? projectRect(hover.iframe, spacingAffordance.guide, projectionZoom)
+  const projectedSpacingGuide = hover?.spacingGuide
+    ? projectRect(hover.iframe, hover.spacingGuide, projectionZoom)
     : null;
   const hoverMargins = hover ? scaleMargins(hover.margins, projectionZoom) : null;
   const hoverMarginGuides = projectedHoverRect && hoverMargins
@@ -555,13 +563,13 @@ export function CanvasElementOverlay(): ReactElement | null {
             <div key={fill.side} className="canvas-hover-margin-fill" data-side={fill.side} style={overlayStyle(fill)} aria-hidden="true" />
           ))}
           <div className="canvas-element-overlay" data-test="canvas-hover-outline" style={overlayStyle(projectedHoverRect)} aria-hidden="true" />
-          {projectedSpacingGuide && spacingAffordance ? (
+          {projectedSpacingGuide && hover?.spacing ? (
             <div
               className="canvas-spacing-guide"
               data-test="canvas-spacing-guide"
-              data-kind={spacingAffordance.kind}
-              data-property={spacingAffordance.property}
-              data-side={spacingAffordance.side ?? undefined}
+              data-kind={hover.spacing.kind}
+              data-property={hover.spacing.property}
+              data-side={hover.spacing.side ?? undefined}
               style={overlayStyle(projectedSpacingGuide)}
               aria-hidden="true"
             />

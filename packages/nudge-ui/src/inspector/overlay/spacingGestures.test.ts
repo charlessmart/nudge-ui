@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   getSpacingAffordanceAtPoint,
   spacingValueForDrag,
-  toSpacingGuideData,
+  toSpacingDescriptor,
 } from "./spacingGestures.ts";
 
 const originalElementFromPoint = document.elementFromPoint;
@@ -52,7 +52,11 @@ describe("spacing gestures", () => {
     });
     expect(spacingValueForDrag(affordance!, { x: 100, y: 20 }, { x: 100, y: 28 })).toBe(28);
     expect(spacingValueForDrag(affordance!, { x: 100, y: 20 }, { x: 100, y: 0 })).toBe(0);
-    expect(toSpacingGuideData(affordance!)).not.toHaveProperty("element");
+    expect(toSpacingDescriptor(affordance!)).toEqual({
+      kind: "padding",
+      property: "padding-top",
+      side: "top",
+    });
   });
 
   it("finds a column gap in a flex row and uses the gap property instead of padding", () => {

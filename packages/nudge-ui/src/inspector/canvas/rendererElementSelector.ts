@@ -131,6 +131,15 @@ export function installRendererElementSelector(): () => void {
   }
 
   const cidIndex = createCidIndex(document);
+  const initialCursor = document.documentElement.style.cursor;
+  let spacingCursorSet = false;
+
+  function clearSpacingCursor(): void {
+    if (!spacingCursorSet) return;
+    spacingCursorSet = false;
+    document.documentElement.style.cursor = initialCursor;
+  }
+
   const hoverUpdate = createFrameThrottle((pending: {
     element: HTMLElement;
     clear: boolean;
@@ -145,9 +154,18 @@ export function installRendererElementSelector(): () => void {
     const selector = buildSelector(element);
     const src = element.getAttribute("data-src") ?? "";
     const rect = clear ? null : element.getBoundingClientRect();
-    const spacing = !clear && pending.point
+    const rawSpacing = !clear && pending.point
       ? getSpacingAffordanceAtPoint(document, pending.point.x, pending.point.y)
       : null;
+    const spacing = rawSpacing && rawSpacing.element === element ? rawSpacing : null;
+    if (clear) {
+      clearSpacingCursor();
+    } else if (spacing) {
+      spacingCursorSet = true;
+      document.documentElement.style.cursor = spacing.cursor;
+    } else {
+      clearSpacingCursor();
+    }
 
     const msg: ElementHoverMessage = {
       type: "element-hover",
@@ -167,7 +185,7 @@ export function installRendererElementSelector(): () => void {
       margins: rect ? readMargins(element) : null,
       borders: rect ? readBorderWidths(element) : null,
       point: pending.point,
-      spacing: spacing && spacing.element === element ? toSpacingDescriptor(spacing) : null,
+      spacing: spacing ? toSpacingDescriptor(spacing) : null,
       ...identity,
     };
 
@@ -205,9 +223,7 @@ export function installRendererElementSelector(): () => void {
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
       if (!el) return;
 
-      const point = { x: event.clientX, y: event.clientY };
-      updateSpacingCursor(point);
-      hoverUpdate.schedule({ element: el, clear: false, point });
+      hoverUpdate.schedule({ element: el, clear: false, point: { x: event.clientX, y: event.clientY } });
     },
     true,
   );
@@ -218,15 +234,9 @@ export function installRendererElementSelector(): () => void {
     spacing: SpacingDescriptor | null;
   } | null = null;
   let dragging = false;
-  let lastDragPoint = { x: 0, y: 0 };
+  let lastDragPoint: { x: number; y: number } | null = null;
   let lastSelected: HTMLElement | null = null;
   let interactionsSuspended = false;
-
-  function updateSpacingCursor(point: { x: number; y: number }): void {
-    if (interactionsSuspended) return;
-    const affordance = getSpacingAffordanceAtPoint(document, point.x, point.y);
-    document.documentElement.style.cursor = affordance?.cursor ?? "";
-  }
 
   trackListener<Event>(window, "nudge-ui:open", () => {
     const identity = getRendererIdentity();
@@ -262,7 +272,7 @@ export function installRendererElementSelector(): () => void {
     if (interactionsSuspended) {
       cancelActiveDrag();
       hoverUpdate.cancel();
-      document.documentElement.style.cursor = "";
+      clearSpacingCursor();
       updateMeasureState(false, false);
     }
   });
@@ -275,8 +285,8 @@ export function installRendererElementSelector(): () => void {
     sendToParent(msg);
   });
 
-  function sendDragEnd(point: { x: number; y: number }, cancelled: boolean): void {
-    if (!dragging) return;
+  function sendDragEnd(point: { x: number; y: number } | null, cancelled: boolean): void {
+    if (!dragging || !point) return;
     const identity = getRendererIdentity();
     if (!identity) return;
     const msg: ElementDragEndMessage = {
@@ -343,9 +353,7 @@ export function installRendererElementSelector(): () => void {
       if (target instanceof Element) {
         const element = resolveSelectionTarget(target, selectionTargetMode(event));
         if (element) {
-          const point = { x: event.clientX, y: event.clientY };
-          updateSpacingCursor(point);
-          hoverUpdate.schedule({ element, clear: false, point });
+          hoverUpdate.schedule({ element, clear: false, point: { x: event.clientX, y: event.clientY } });
         }
       }
       return;
@@ -422,6 +430,8 @@ export function installRendererElementSelector(): () => void {
     }
     if (event.key === "Escape" || event.key === "Esc") {
       event.preventDefault();
+      cancelActiveDrag();
+      clearSpacingCursor();
       lastSelected = null;
       const identity = getRendererIdentity();
       if (!identity) return;
@@ -484,7 +494,7 @@ export function installRendererElementSelector(): () => void {
 
       if (resolveSelectionTarget(related, selectionTargetMode(event))) return;
 
-      document.documentElement.style.cursor = "";
+      clearSpacingCursor();
       hoverUpdate.schedule({ element: el, clear: true, point: null });
     },
     true,
@@ -590,6 +600,6 @@ export function installRendererElementSelector(): () => void {
     measurePointerOverPage = false;
     measureAltKey = false;
     document.documentElement.removeAttribute("data-nudge-ui-panel");
-    document.documentElement.style.cursor = "";
+    clearSpacingCursor();
   };
 }

@@ -6,6 +6,8 @@ import type { RenderedInstanceOverride } from "../changes/editModel.ts";
 import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 
+// v19 adds spacing drag gestures (hover point, spacing descriptor, start
+// point, and cancelled drag-end) for Canvas frames.
 // v18 adds parent-to-renderer Alt modifier forwarding for Canvas measurements.
 // v17 adds an idempotent renderer request to open the parent inspector. v16
 // adds controller-owned inline-text intents for Canvas frames. v15 adds
@@ -17,7 +19,7 @@ import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 // rereading a Canvas iframe until the renderer has applied its revision. v11
 // added the renderer-hello handshake solicitation for runtimes whose boot
 // completes after the controller's load-time parent-ready.
-export const PROTOCOL_VERSION = 18;
+export const PROTOCOL_VERSION = 19;
 
 export interface FrameMessage {
   type: string;
