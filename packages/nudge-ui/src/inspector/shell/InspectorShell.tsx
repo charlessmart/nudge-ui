@@ -56,7 +56,12 @@ import { getElementWindow } from "../runtime/domRealm.ts";
 import { deleteElement, nudgeElement } from "../overlay/structuralGestures.ts";
 import { AtRuleContextProvider } from "../ui/AtRuleContext.tsx";
 import { ComponentPropsSection } from "../componentSemantics/ComponentPropsSection.tsx";
-import { cancelInlineTextEdit, isInlineTextEditingActive, useInlineTextSession } from "../inline-text/inlineTextEditor.ts";
+import {
+  cancelInlineTextEdit,
+  isInlineTextEditingActive,
+  useInlineTextDiagnostic,
+} from "../inline-text/inlineTextEditor.ts";
+import { getInlineTextFeedback } from "../inline-text/inlineTextFeedback.ts";
 import { useNudgeUiRuntimeConfig } from "../runtime/useRuntimeConfig.ts";
 import { DomNavigation } from "./DomNavigation.tsx";
 import { EmptyState } from "./EmptyState.tsx";
@@ -122,7 +127,7 @@ export function InspectorShell(): ReactElement {
   const selected = useSelectedElement();
   const selectedElements = useSelectedElements();
   const hierarchy = useHierarchy();
-  const inlineTextSession = useInlineTextSession();
+  const inlineTextFeedback = getInlineTextFeedback(useInlineTextDiagnostic());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("instructions");
   const [scopeRevision, refreshScope] = useState(0);
@@ -326,76 +331,17 @@ export function InspectorShell(): ReactElement {
           </div>
         </div>
         <div className="panel__body">
-          {inlineTextSession && (
-            inlineTextSession.bindingChoices.length > 1 ||
-            inlineTextSession.scopeChoices.length > 0
-          ) ? (
-            <section className="inline-text-editor" data-test="inline-text-editor">
-              <div className="inline-text-editor__binding" data-test="inline-text-binding">
-                {inlineTextSession.binding.kind === "component-prop"
-                  ? `${inlineTextSession.binding.target.componentName}.${inlineTextSession.binding.property}`
-                  : "Rendered text"}
-              </div>
-              {inlineTextSession.bindingChoices.length > 1 ? (
-                <div className="inline-text-editor__chooser" data-test="inline-binding-chooser">
-                  <div className="inline-text-editor__chooser-label">Choose binding</div>
-                  <div className="inline-text-editor__chooser-options" role="group" aria-label="Text binding">
-                    {inlineTextSession.bindingChoices.map((choice, index) => (
-                      <Button
-                        key={`${choice.binding.target.callsiteId}:${choice.binding.property}`}
-                        size="compact"
-                        variant={inlineTextSession.selectedBindingIndex === index ? "primary" : "quiet"}
-                        data-test="inline-binding-choice"
-                        data-index={index}
-                        aria-pressed={inlineTextSession.selectedBindingIndex === index}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => inlineTextSession.chooseBinding(index)}
-                      >
-                        {choice.binding.target.componentName}.{choice.binding.property}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {inlineTextSession.scopeChoices.length > 0 ? (
-                <div className="inline-text-editor__chooser" data-test="inline-scope-chooser">
-                  <div className="inline-text-editor__chooser-label">Apply to</div>
-                  <div className="inline-text-editor__chooser-options" role="group" aria-label="Text edit scope">
-                    {inlineTextSession.scopeChoices.map((scope) => (
-                      <Button
-                        key={scope}
-                        size="compact"
-                        variant={inlineTextSession.scope === scope ? "primary" : "quiet"}
-                        data-test={`inline-scope-${scope}`}
-                        aria-pressed={inlineTextSession.scope === scope}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => inlineTextSession.chooseScope(scope)}
-                      >
-                        {scope === "source-site" ? "All outputs" : "This rendered item"}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              <div className="inline-text-editor__actions">
-                <Button
-                  size="compact"
-                  variant="secondary"
-                  data-test="inline-text-cancel"
-                  onClick={() => inlineTextSession.cancel()}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="compact"
-                  data-test="inline-text-commit"
-                  disabled={inlineTextSession.bindingChoices.length > 1 && inlineTextSession.selectedBindingIndex === null}
-                  onClick={() => inlineTextSession.commit()}
-                >
-                  Done
-                </Button>
-              </div>
-            </section>
+          {inlineTextFeedback ? (
+            <StatusCallout
+              tone="danger"
+              className="inline-text-diagnostic"
+              data-test="inline-text-diagnostic"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span>{inlineTextFeedback.message}</span>
+            </StatusCallout>
           ) : null}
           {selected ? (
             <>

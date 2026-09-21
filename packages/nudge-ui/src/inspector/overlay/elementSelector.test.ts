@@ -13,6 +13,7 @@ import {
 } from "../selection/resolveSelection.ts";
 import {
   cancelInlineTextEdit,
+  getInlineTextDiagnostic,
   getInlineTextSession,
 } from "../inline-text/inlineTextEditor.ts";
 import { clearWorkspace } from "../changes/changesLog.ts";
@@ -294,6 +295,41 @@ describe("installElementSelector", () => {
 
     expect(onApplicationDoubleClick).not.toHaveBeenCalled();
     expect(getInlineTextSession()).toBeNull();
+  });
+
+  it("does not report an unsupported edit after an ordinary click", () => {
+    const target = makeHostElement({
+      "data-cid": "EmptyCopy",
+      "data-src": "/path/Page.tsx:18:5",
+    });
+    document.body.append(target);
+
+    target.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      button: 0,
+      detail: 1,
+    }));
+    dispatchClick(target);
+
+    expect(getInlineTextDiagnostic()).toBeNull();
+  });
+
+  it("suppresses an unsupported double-click and records actionable feedback", () => {
+    const target = makeHostElement({
+      "data-cid": "EmptyCopy",
+      "data-src": "/path/Page.tsx:18:5",
+    });
+    const onApplicationDoubleClick = vi.fn();
+    target.addEventListener("dblclick", onApplicationDoubleClick);
+    document.body.append(target);
+
+    const event = dispatchDoubleClick(target);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(onApplicationDoubleClick).not.toHaveBeenCalled();
+    expect(getInlineTextDiagnostic()).toMatchObject({ status: "rejected", reason: "no-text" });
   });
 
   it("does not select or interfere with clicks inside the inspector host", () => {

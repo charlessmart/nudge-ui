@@ -15,6 +15,7 @@ import {
   type TextBindingCandidate,
   type TextEditBinding,
   type TextEditRejection,
+  type TextEditRejectionReason,
 } from "../componentSemantics/textBinding.ts";
 import type { ChangeRecord } from "../changes/types.ts";
 import type { TextProjectionScope } from "./textChangeBoundary.ts";
@@ -26,6 +27,10 @@ import {
   resolveTextProjectionTarget,
   resolveTextProjectionTextNode,
 } from "../projection/textProjection.ts";
+import {
+  clearInlineTextDiagnostics,
+  recordInlineTextDiagnostic,
+} from "./inlineTextDiagnostics.ts";
 
 export type { TextEditBinding, TextEditRejection } from "../componentSemantics/textBinding.ts";
 export type { TextBindingCandidate } from "../componentSemantics/textBinding.ts";
@@ -79,10 +84,18 @@ export type InlineTextInputRejectionReason =
 export interface InlineTextDiagnostic {
   kind: "inline-text";
   status: "started" | "committed" | "cancelled" | "rejected";
-  reason: InlineTextSessionEndReason | InlineTextInputRejectionReason;
+  reason: InlineTextSessionEndReason | InlineTextInputRejectionReason | TextEditRejectionReason;
   before: string;
   after?: string;
 }
+
+export {
+  clearInlineTextDiagnostics,
+  getInlineTextDiagnostic,
+  getInlineTextDiagnostics,
+  subscribeInlineTextDiagnostics,
+  useInlineTextDiagnostic,
+} from "./inlineTextDiagnostics.ts";
 
 const listeners = new Set<() => void>();
 let activeSession: InlineTextSession | null = null;
@@ -93,8 +106,6 @@ let pendingEditIntent: InlineTextTargetIntent | null = null;
 let handoffPointerArmed = false;
 let pendingReplayScheduled = false;
 let sessionRevision = 0;
-let inlineTextDiagnostics: InlineTextDiagnostic[] = [];
-const diagnosticListeners = new Set<() => void>();
 
 function discardPendingInlineTextEdit(ownerDocument?: Document): void {
   if (!ownerDocument || pendingEditIntent?.ownerDocument === ownerDocument) {
@@ -113,26 +124,8 @@ function notify(): void {
   listeners.forEach((listener) => listener());
 }
 
-function notifyDiagnostics(): void {
-  for (const listener of diagnosticListeners) listener();
-}
-
-function recordDiagnostic(diagnostic: InlineTextDiagnostic): void {
-  inlineTextDiagnostics = [...inlineTextDiagnostics.slice(-31), diagnostic];
-  notifyDiagnostics();
-}
-
-export function getInlineTextDiagnostics(): readonly InlineTextDiagnostic[] {
-  return inlineTextDiagnostics;
-}
-
-export function getInlineTextDiagnostic(): InlineTextDiagnostic | null {
-  return inlineTextDiagnostics[inlineTextDiagnostics.length - 1] ?? null;
-}
-
-export function subscribeInlineTextDiagnostics(listener: () => void): () => void {
-  diagnosticListeners.add(listener);
-  return () => diagnosticListeners.delete(listener);
+function recordDiagnostic(diagnostic: InlineTextDiagnostic, target?: Element): void {
+  recordInlineTextDiagnostic(diagnostic, target?.ownerDocument, target);
 }
 
 export function getInlineTextSession(): InlineTextSession | null {
@@ -150,7 +143,8 @@ export function isInlineTextEditingActive(): boolean {
 
 export function cancelInlineTextEdit(): void {
   discardPendingInlineTextEdit();
-  activeSession?.cancel("cancel");
+  if (activeSession) activeSession.cancel("cancel");
+  else clearInlineTextDiagnostics();
 }
 
 /** End a session owned by a document/frame that is about to be disposed. */
@@ -160,11 +154,16 @@ export function disposeInlineTextEdit(
 ): void {
   if (!ownerDocument) {
     discardPendingInlineTextEdit();
-    activeSession?.cancel(reason);
+    if (activeSession) activeSession.cancel(reason);
+    else clearInlineTextDiagnostics();
     return;
   }
   discardPendingInlineTextEdit(ownerDocument);
-  if (activeSessionDocument === ownerDocument) activeSession?.cancel(reason);
+  if (activeSessionDocument === ownerDocument) {
+    activeSession?.cancel(reason);
+    return;
+  }
+  clearInlineTextDiagnostics(ownerDocument);
 }
 
 interface InlineTextTargetIntent {
@@ -214,6 +213,13 @@ function resolveInlineTextEditIntent(
   return null;
 }
 
+function isApplicationOwnedEditingSurface(target: Element): boolean {
+  const host = target.closest<HTMLElement>("[contenteditable]");
+  return Boolean(host
+    && host.getAttribute("data-inline-editor") !== "true"
+    && host.getAttribute("contenteditable") !== "false");
+}
+
 function beginInlineTextEditIntent(
   intent: InlineTextTargetIntent,
 ): InlineTextSession | TextEditRejection | null {
@@ -256,6 +262,11 @@ function requestInlineTextEdit(
       return "stop-propagation";
     }
   }
+  // Application-owned contenteditable surfaces must retain native editing
+  // semantics. They are intentionally rejected by text binding, but that
+  // rejection must not become an inspector-level suppression when another
+  // inline edit is already active.
+  if (isApplicationOwnedEditingSurface(target)) return "pass-through";
   const intent: InlineTextTargetIntent = {
     ownerDocument: target.ownerDocument,
     target,
@@ -264,7 +275,7 @@ function requestInlineTextEdit(
   if (!resolveInlineTextEditIntent(intent)) return activeSession ? "suppress" : "pass-through";
   if (!activeSession) {
     const result = beginInlineTextEditIntent(intent);
-    return result && !("kind" in result) ? "suppress" : "pass-through";
+    return result ? "suppress" : "pass-through";
   }
 
   pendingEditIntent = intent;
@@ -310,6 +321,19 @@ function isTextEditRejection(
   value: TextBindingCandidate | TextEditRejection,
 ): value is TextEditRejection {
   return "kind" in value && value.kind === "rejected";
+}
+
+function recordTextEditRejection(
+  target: Element,
+  rejection: TextEditRejection,
+): TextEditRejection {
+  recordDiagnostic({
+    kind: "inline-text",
+    status: "rejected",
+    reason: rejection.reason,
+    before: target.textContent ?? "",
+  }, target);
+  return rejection;
 }
 
 interface SelectionSnapshot {
@@ -611,7 +635,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
       reason,
       before: candidate.before,
       after: host.textContent ?? "",
-    });
+    }, candidate.element);
   }
 
   function editorOwnsFocus(): boolean {
@@ -699,7 +723,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
     if (candidate.emptyProjectionMarker?.isConnected) {
       candidate.emptyProjectionMarker.hidden = false;
     }
-    recordDiagnostic({ kind: "inline-text", status, reason, before: candidate.before, after });
+    recordDiagnostic({ kind: "inline-text", status, reason, before: candidate.before, after }, candidate.element);
     schedulePendingInlineTextEdit();
   }
 
@@ -1118,7 +1142,7 @@ function makeSession(candidate: TextBindingCandidate): InlineTextSession {
   activeSessionDocument = doc;
   unregisterClearHandler = registerInlineTextClearHandler(cancelInlineTextEdit);
   notify();
-  recordDiagnostic({ kind: "inline-text", status: "started", reason: "start", before: candidate.before });
+  recordDiagnostic({ kind: "inline-text", status: "started", reason: "start", before: candidate.before }, candidate.element);
 
   host.focus();
   selectAll(host);
@@ -1135,14 +1159,14 @@ export const inlineTextEditor: InlineTextEditor = {
       };
     }
     if (activeSession) {
-      return {
+      return recordTextEditRejection(element, {
         kind: "rejected",
         reason: "editing-active",
         message: "Finish the current inline text edit first.",
-      };
+      });
     }
     const candidate = resolveTextBinding(element, point);
-    if (isTextEditRejection(candidate)) return candidate;
+    if (isTextEditRejection(candidate)) return recordTextEditRejection(element, candidate);
     return makeSession(candidate);
   },
 };
@@ -1160,14 +1184,14 @@ export function beginInlineTextEditFromEmptyProjection(
     };
   }
   if (activeSession) {
-    return {
+    return recordTextEditRejection(marker, {
       kind: "rejected",
       reason: "editing-active",
       message: "Finish the current inline text edit first.",
-    };
+    });
   }
   const candidate = resolveEmptyProjectionCandidate(marker);
-  if (isTextEditRejection(candidate)) return candidate;
+  if (isTextEditRejection(candidate)) return recordTextEditRejection(marker, candidate);
   // Hide the affordance while its retained empty Text node is wrapped by the
   // native editor. The marker is restored on cancel and removed by projection
   // reconciliation on a successful non-empty commit.
@@ -1176,11 +1200,11 @@ export function beginInlineTextEditFromEmptyProjection(
     return makeSession(candidate);
   } catch {
     marker.hidden = false;
-    return {
+    return recordTextEditRejection(marker, {
       kind: "rejected",
       reason: "no-binding",
       message: "The empty rendered text could not be reopened safely.",
-    };
+    });
   }
 }
 

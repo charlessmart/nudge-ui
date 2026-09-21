@@ -4,6 +4,8 @@
  * changesLog can then cancel it without importing the editor back through a
  * circular module edge.
  */
+import { clearInlineTextDiagnostics } from "./inlineTextDiagnostics.ts";
+
 let clearHandler: (() => void) | null = null;
 
 export function registerInlineTextClearHandler(handler: () => void): () => void {
@@ -15,4 +17,5 @@ export function registerInlineTextClearHandler(handler: () => void): () => void 
 
 export function cancelInlineTextForClear(): void {
   clearHandler?.();
+  clearInlineTextDiagnostics();
 }
