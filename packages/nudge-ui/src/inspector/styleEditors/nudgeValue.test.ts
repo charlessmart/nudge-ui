@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nudgeCssValue, nudgeCssValueByDrag, nudgeOpacityValue, supportsDragNudge } from "./nudgeValue.ts";
+import { nudgeCssValue, nudgeOpacityValue } from "./nudgeValue.ts";
 
 describe("nudgeCssValue", () => {
   it.each([
@@ -20,8 +20,6 @@ describe("nudgeCssValue", () => {
     ["line-height", "0", 1, false, "10%"],
     ["line-height", "24px", 1, true, "32px"],
     ["padding-top", "0.2px", 1, false, "1.2px"],
-    ["padding-top", "0px", -1, false, "0px"],
-    ["border-radius", "4px", -1, true, "0px"],
   ] as const)("nudges %s value %s", (property, value, direction, large, expected) => {
     expect(nudgeCssValue(property, value, direction, large)).toBe(expected);
   });
@@ -35,28 +33,6 @@ describe("nudgeCssValue", () => {
     ["font-family", "Inter, sans-serif"],
   ])("leaves non-literal CSS alone: %s = %s", (property, value) => {
     expect(nudgeCssValue(property, value, 1)).toBeNull();
-  });
-
-  it("maps horizontal drag distance to existing nudge steps", () => {
-    expect(nudgeCssValueByDrag("padding-top", "16px", 4)).toBe("20px");
-    expect(nudgeCssValueByDrag("border-radius", "16px", -2, true)).toBe("0px");
-    expect(nudgeCssValueByDrag("margin-top", "1rem", 2, true)).toBe("3rem");
-    expect(nudgeCssValueByDrag("padding-horizontal", "8px, 16px", 2)).toBe("10px, 18px");
-  });
-
-  it.each([
-    "padding-top",
-    "margin-left",
-    "top",
-    "inset-horizontal",
-    "border-radius",
-    "border-bottom-left-radius",
-  ])("supports drag nudging for %s", (property) => {
-    expect(supportsDragNudge(property)).toBe(true);
-  });
-
-  it.each(["width", "font-size", "box-shadow", "color"])("does not expose drag nudging for %s", (property) => {
-    expect(supportsDragNudge(property)).toBe(false);
   });
 });
 

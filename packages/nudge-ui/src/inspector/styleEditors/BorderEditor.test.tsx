@@ -539,7 +539,6 @@ describe("BorderEditor", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderRadiusEditor, { element: selected, entries: ENTRIES }));
-    expect(handle.host.querySelectorAll('[data-test="nudge-handle"]')).toHaveLength(1);
     const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="border-radius"]');
     const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
     setInputValue(raw, "12px");
@@ -593,13 +592,7 @@ describe("BorderEditor", () => {
 
   it("starts linked and reveals per-corner fields on expand", () => {
     const { selected } = makeSelected();
-    mockComputedStyle({
-      ...defaultComputed(),
-      "border-top-left-radius": "4px",
-      "border-top-right-radius": "4px",
-      "border-bottom-right-radius": "4px",
-      "border-bottom-left-radius": "4px",
-    });
+    mockComputedStyle(defaultComputed());
     handle = mount(createElement(BorderRadiusEditor, { element: selected, entries: ENTRIES }));
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-radius"]')).not.toBeNull();
     expect(handle.host.querySelector('[data-test="token-field"][data-property="border-top-left-radius"]')).toBeNull();
@@ -621,7 +614,6 @@ describe("BorderEditor", () => {
     expect(handle.host.querySelector('[data-side="right"] svg')?.classList.contains("tabler-icon-radius-top-right")).toBe(true);
     expect(handle.host.querySelector('[data-side="bottom"] svg')?.classList.contains("tabler-icon-radius-bottom-right")).toBe(true);
     expect(handle.host.querySelector('[data-side="left"] svg')?.classList.contains("tabler-icon-radius-bottom-left")).toBe(true);
-    expect(handle.host.querySelectorAll('[data-test="nudge-handle"]')).toHaveLength(5);
   });
 
   it("shows Mix in the grouped field when corner values differ", () => {

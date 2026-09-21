@@ -113,7 +113,10 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
   const cornerSides = BORDER_RADIUS_CORNERS.map((corner, index) => ({
     side: SIDE_NAMES[index]!,
     sideLabel: BORDER_RADIUS_LABELS[index]!,
-    icon: null,
+    icon: (() => {
+      const Icon = BORDER_RADIUS_ICONS[index]!;
+      return <Icon className="side-values__icon side-values__side-icon" size={16} aria-hidden="true" />;
+    })(),
     control: (
       <TokenField
         property={corner}
@@ -125,10 +128,6 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
         editMetadata={metadataFor(findTokenRow(tokenRows, corner))}
         onAfterEdit={onAfterEdit}
         chipVariant="small"
-        leading={(() => {
-          const Icon = BORDER_RADIUS_ICONS[index]!;
-          return <Icon className="side-values__icon side-values__side-icon" size={16} aria-hidden="true" />;
-        })()}
       />
     ),
   }));
@@ -160,7 +159,6 @@ export function BorderRadiusEditor(props: BorderRadiusEditorProps): ReactElement
           : completeCssValue(value.trim(), valuePolicyFor("border-radius"))}
         onAfterEdit={onAfterEdit}
         chipVariant="small"
-        leading={<IconBorderCorners className="side-values__icon side-values__side-icon" size={16} aria-hidden="true" />}
       />
     </ControlSurface>
   );
