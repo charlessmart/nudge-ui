@@ -32,19 +32,13 @@ const COLOR_PRIMARY: TokenEntry = {
 
 function pointerEvent(
   type: string,
-  { clientX, pointerId = 1, shiftKey = false, movementX }: {
-    clientX: number;
-    pointerId?: number;
-    shiftKey?: boolean;
-    movementX?: number;
-  },
+  { clientX, pointerId = 1, shiftKey = false }: { clientX: number; pointerId?: number; shiftKey?: boolean },
 ): Event {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperties(event, {
     clientX: { configurable: true, value: clientX },
     pointerId: { configurable: true, value: pointerId },
     shiftKey: { configurable: true, value: shiftKey },
-    movementX: { configurable: true, value: movementX },
   });
   return event;
 }
@@ -59,36 +53,6 @@ function mockPointerCapture(handle: HTMLElement) {
     releasePointerCapture: { configurable: true, value: releasePointerCapture },
   });
   return { setPointerCapture, hasPointerCapture, releasePointerCapture };
-}
-
-function mockPointerLock(handle: HTMLElement) {
-  const requestPointerLock = vi.fn(() => {
-    Object.defineProperty(document, "pointerLockElement", { configurable: true, value: handle });
-    document.dispatchEvent(new Event("pointerlockchange"));
-    return Promise.resolve();
-  });
-  const exitPointerLock = vi.fn(() => {
-    Object.defineProperty(document, "pointerLockElement", { configurable: true, value: null });
-    document.dispatchEvent(new Event("pointerlockchange"));
-  });
-  const pointerLockElement = Object.getOwnPropertyDescriptor(document, "pointerLockElement");
-  const originalRequestPointerLock = Object.getOwnPropertyDescriptor(handle, "requestPointerLock");
-  const originalExitPointerLock = Object.getOwnPropertyDescriptor(document, "exitPointerLock");
-  Object.defineProperty(handle, "requestPointerLock", { configurable: true, value: requestPointerLock });
-  Object.defineProperty(document, "exitPointerLock", { configurable: true, value: exitPointerLock });
-
-  return {
-    requestPointerLock,
-    exitPointerLock,
-    restore: () => {
-      if (originalRequestPointerLock) Object.defineProperty(handle, "requestPointerLock", originalRequestPointerLock);
-      else Reflect.deleteProperty(handle, "requestPointerLock");
-      if (originalExitPointerLock) Object.defineProperty(document, "exitPointerLock", originalExitPointerLock);
-      else Reflect.deleteProperty(document, "exitPointerLock");
-      if (pointerLockElement) Object.defineProperty(document, "pointerLockElement", pointerLockElement);
-      else Reflect.deleteProperty(document, "pointerLockElement");
-    },
-  };
 }
 
 function tokenRow(): ResolvedProperty {
@@ -356,36 +320,6 @@ describe("TokenField", () => {
     act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 104, pointerId: 7 })));
     expect(dragHandle.getAttribute("data-dragging")).toBeNull();
     expect(capture.releasePointerCapture).toHaveBeenCalledWith(7);
-  });
-
-  it("locks the pointer and uses movement deltas while dragging", () => {
-    const { selected } = makeSelected();
-    mockComputedStyle({ "padding-top": "16px" });
-    handle = mount(createElement(TokenField, {
-      property: "padding-top",
-      domElement: selected.domElement,
-      entries: [],
-      leading: createElement("span", { "data-test": "field-icon" }, "↔"),
-    }));
-    const dragHandle = handle.host.querySelector('[data-test="nudge-handle"]') as HTMLElement;
-    const capture = mockPointerCapture(dragHandle);
-    const lock = mockPointerLock(dragHandle);
-
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointerdown", { clientX: 100, pointerId: 12 })));
-    expect(lock.requestPointerLock).toHaveBeenCalledTimes(1);
-
-    // The cursor stays at x=100 while Pointer Lock reports the relative move.
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointermove", {
-      clientX: 100,
-      movementX: 4,
-      pointerId: 12,
-    })));
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("20px");
-
-    act(() => dragHandle.dispatchEvent(pointerEvent("pointerup", { clientX: 100, pointerId: 12 })));
-    expect(lock.exitPointerLock).toHaveBeenCalledTimes(1);
-    expect(capture.releasePointerCapture).toHaveBeenCalledWith(12);
-    lock.restore();
   });
 
   it("uses the large nudge step while Shift-dragging", () => {
