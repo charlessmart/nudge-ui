@@ -143,7 +143,6 @@ const showcaseControls: ShowcaseControls = {
 function useShowcaseWidth(animate: boolean, controls: ShowcaseControls): { ref: RefObject<HTMLDivElement | null>; width: string; opacity: number; isFullWidth: boolean } {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(`${controls.initialWidth}px`);
-  const [opacity, setOpacity] = useState(1);
   const [isFullWidth, setIsFullWidth] = useState(!animate);
 
   useEffect(() => {
@@ -165,7 +164,6 @@ function useShowcaseWidth(animate: boolean, controls: ShowcaseControls): { ref: 
 
       if (reducedMotion.matches) {
         setWidth(`${parentWidth}px`);
-        setOpacity(1);
         setIsFullWidth(true);
         return;
       }
@@ -175,11 +173,8 @@ function useShowcaseWidth(animate: boolean, controls: ShowcaseControls): { ref: 
       const scrollSpeed = Math.max(controls.scrollSpeed, 0);
       const entryTop = window.innerHeight * controls.startViewport;
       const expansionProgress = clamp((entryTop - rect.top) * scrollSpeed, 0, widthRange);
-      const collapseProgress = clamp(-rect.top * scrollSpeed, 0, widthRange);
-      const nextWidth = minimumWidth + expansionProgress - collapseProgress;
-      const nextOpacity = widthRange === 0 ? 1 : 1 - (collapseProgress / widthRange) * 0.5;
+      const nextWidth = minimumWidth + expansionProgress;
       setWidth((current) => current === `${nextWidth}px` ? current : `${nextWidth}px`);
-      setOpacity((current) => current === nextOpacity ? current : nextOpacity);
       setIsFullWidth(nextWidth >= parentWidth);
     };
 
@@ -200,7 +195,7 @@ function useShowcaseWidth(animate: boolean, controls: ShowcaseControls): { ref: 
     };
   }, [animate, controls.initialWidth, controls.scrollSpeed, controls.startViewport]);
 
-  return { ref, width: animate ? width : "100%", opacity: animate ? opacity : 1, isFullWidth: animate ? isFullWidth : true };
+  return { ref, width: animate ? width : "100%", opacity: 1, isFullWidth: animate ? isFullWidth : true };
 }
 
 function useShowcaseInView(
@@ -335,11 +330,11 @@ function DemoShowcase({ controls }: { controls: ShowcaseControls }): ReactNode {
   return (
     <section className="landing-showcase landing-inner" aria-label="Nudge UI demos">
       <div className="landing-showcase-list">
-        {showcaseVideos.map((video) => {
+        {showcaseVideos.map((video, index) => {
           return (
             <article className="landing-showcase-item" key={video.id}>
               <ShowcaseVideo
-                animate
+                animate={index === 0}
                 controls={controls}
                 video={video}
               />

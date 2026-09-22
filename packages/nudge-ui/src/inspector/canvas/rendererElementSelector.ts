@@ -42,6 +42,7 @@ import {
 
 const REACT_FIBER_KEY = /^__reactFiber\$/;
 const REACT_INTERNAL_KEY = /^__reactInternalInstance\$/;
+const HOVER_SCROLL_SETTLE_DELAY = 150;
 
 function findFiber(el: HTMLElement): unknown {
   const keys = Object.keys(el);
@@ -120,6 +121,15 @@ export function installRendererElementSelector(): () => void {
   const removeInteractionStyles = installInteractionStyles();
   const listenerCleanup: Array<() => void> = [];
   let disposed = false;
+  let interactionsSuspended = false;
+  let scrolling = false;
+  let scrollSettleTimer: number | null = null;
+  let activeHoverElement: HTMLElement | null = null;
+  let lastHoverPoint: {
+    x: number;
+    y: number;
+    mode: ReturnType<typeof selectionTargetMode>;
+  } | null = null;
 
   function trackListener<E extends Event>(
     target: Document | Window,
@@ -183,12 +193,11 @@ export function installRendererElementSelector(): () => void {
     appliedRootCursor = cursor;
   }
 
-  const hoverUpdate = createFrameThrottle((pending: {
+  function reportHover(pending: {
     element: HTMLElement;
     clear: boolean;
     point: { x: number; y: number } | null;
-  }) => {
-    if (disposed) return;
+  }): void {
     const { element, clear } = pending;
     const identity = getRendererIdentity();
     if (!identity) return;
@@ -206,6 +215,7 @@ export function installRendererElementSelector(): () => void {
     } else {
       clearSpacingCursor();
     }
+    activeHoverElement = clear ? null : element;
 
     const msg: ElementHoverMessage = {
       type: "element-hover",
@@ -230,7 +240,46 @@ export function installRendererElementSelector(): () => void {
     };
 
     sendToParent(msg);
+  }
+
+  const hoverUpdate = createFrameThrottle((pending: {
+    element: HTMLElement;
+    clear: boolean;
+    point: { x: number; y: number } | null;
+  }) => {
+    if (disposed || scrolling) return;
+    reportHover(pending);
   });
+
+  function clearActiveHover(): void {
+    hoverUpdate.cancel();
+    clearSpacingCursor();
+    const element = activeHoverElement;
+    activeHoverElement = null;
+    if (element) reportHover({ element, clear: true, point: null });
+  }
+
+  function resumeHoverAfterScroll(): void {
+    scrollSettleTimer = null;
+    scrolling = false;
+    if (disposed || interactionsSuspended || !lastHoverPoint) return;
+    const target = document.elementFromPoint?.(lastHoverPoint.x, lastHoverPoint.y);
+    const element = resolveSelectionTarget(target, lastHoverPoint.mode);
+    if (!element) return;
+    hoverUpdate.schedule({
+      element,
+      clear: false,
+      point: { x: lastHoverPoint.x, y: lastHoverPoint.y },
+    });
+  }
+
+  function suppressHoverDuringScroll(): void {
+    if (disposed || interactionsSuspended) return;
+    scrolling = true;
+    clearActiveHover();
+    if (scrollSettleTimer !== null) window.clearTimeout(scrollSettleTimer);
+    scrollSettleTimer = window.setTimeout(resumeHoverAfterScroll, HOVER_SCROLL_SETTLE_DELAY);
+  }
 
   let measurePointerOverPage = false;
   let measureAltKey = false;
@@ -262,11 +311,15 @@ export function installRendererElementSelector(): () => void {
       if (!(target instanceof Element)) return;
       const el = resolveSelectionTarget(target, selectionTargetMode(event));
       if (!el) return;
+      lastHoverPoint = { x: event.clientX, y: event.clientY, mode: selectionTargetMode(event) };
+      if (scrolling) return;
 
       hoverUpdate.schedule({ element: el, clear: false, point: { x: event.clientX, y: event.clientY } });
     },
     true,
   );
+
+  trackListener<Event>(window, "scroll", suppressHoverDuringScroll, true);
 
   let pendingDrag: {
     element: HTMLElement;
@@ -276,7 +329,6 @@ export function installRendererElementSelector(): () => void {
   let dragging = false;
   let lastDragPoint: { x: number; y: number } | null = null;
   let lastSelected: HTMLElement | null = null;
-  let interactionsSuspended = false;
 
   trackListener<Event>(window, "nudge-ui:open", () => {
     const identity = getRendererIdentity();
@@ -316,6 +368,10 @@ export function installRendererElementSelector(): () => void {
       cancelActiveDrag();
       hoverUpdate.cancel();
       clearSpacingCursor();
+      if (scrollSettleTimer !== null) window.clearTimeout(scrollSettleTimer);
+      scrollSettleTimer = null;
+      scrolling = false;
+      activeHoverElement = null;
       updateMeasureState(false, false);
     }
   });
@@ -394,8 +450,11 @@ export function installRendererElementSelector(): () => void {
       if (interactionsSuspended) return;
       const target = event.target;
       if (target instanceof Element) {
-        const element = resolveSelectionTarget(target, selectionTargetMode(event));
+        const mode = selectionTargetMode(event);
+        const element = resolveSelectionTarget(target, mode);
         if (element) {
+          lastHoverPoint = { x: event.clientX, y: event.clientY, mode };
+          if (scrolling) return;
           hoverUpdate.schedule({ element, clear: false, point: { x: event.clientX, y: event.clientY } });
         }
       }
@@ -556,7 +615,9 @@ export function installRendererElementSelector(): () => void {
       const related = event.relatedTarget;
       if (!(related instanceof Node) || !document.contains(related)) {
         updateMeasureState(event.altKey, false);
+        lastHoverPoint = null;
       }
+      if (scrolling) return;
       if (related instanceof Node && (target.contains(related) || target === related)) return;
 
       if (!(target instanceof Element)) return;
@@ -664,10 +725,15 @@ export function installRendererElementSelector(): () => void {
     disposed = true;
     installed = false;
     hoverUpdate.cancel();
+    if (scrollSettleTimer !== null) window.clearTimeout(scrollSettleTimer);
+    scrollSettleTimer = null;
     for (const cleanup of listenerCleanup) cleanup();
     listenerCleanup.length = 0;
     removeInteractionStyles();
     lastSelected = null;
+    activeHoverElement = null;
+    lastHoverPoint = null;
+    scrolling = false;
     measurePointerOverPage = false;
     measureAltKey = false;
     document.documentElement.removeAttribute("data-nudge-ui-panel");

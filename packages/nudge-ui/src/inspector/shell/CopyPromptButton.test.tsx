@@ -152,6 +152,25 @@ describe("CopyPromptButton agent handoff", () => {
     expect(container.querySelector('[data-test="agent-connection-status"]')).toBeNull();
   });
 
+  it("shows the current change count on the prompt button", async () => {
+    const transport = new ButtonTransport();
+    transport.discoveredStatus = null;
+    configureAgentBridgeTransport(transport);
+    act(() => {
+      restoreChangeRecords([change(), { ...change(), property: "background-color" }]);
+      root.render(<CopyPromptButton />);
+    });
+    await flush();
+
+    expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("2");
+
+    act(() => restoreChangeRecords([change()]));
+    expect(container.querySelector('[data-test="copy-prompt-change-count"]')?.textContent).toBe("1");
+
+    act(() => restoreChangeRecords([]));
+    expect(container.querySelector('[data-test="copy-prompt-change-count"]')).toBeNull();
+  });
+
   it("shows setup for a paired page whose agent is not listening", async () => {
     const transport = new ButtonTransport();
     transport.discoveredStatus = listeningStatus({ connection: "offline", listenerActive: false });

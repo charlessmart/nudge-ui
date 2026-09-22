@@ -15,6 +15,7 @@ export interface SelectionProperty {
   value: SelectionValue;
   token: SelectionToken;
   primaryRow: ResolvedProperty | null;
+  rows: readonly (ResolvedProperty | null)[];
 }
 
 function tokenFor(rows: readonly (ResolvedProperty | null)[]): SelectionToken {
@@ -45,6 +46,7 @@ export function projectSelectionProperty(
     value: common ? { kind: "common", value: first } : { kind: "mixed" },
     token: tokenFor(rows),
     primaryRow: rows[primaryIndex] ?? null,
+    rows,
   };
 }
 

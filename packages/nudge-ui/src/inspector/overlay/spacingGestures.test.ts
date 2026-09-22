@@ -60,6 +60,23 @@ describe("spacing gestures", () => {
     });
   });
 
+  it("only exposes padding drag affordances within the centred guide handle", () => {
+    const element = trackedElement();
+    element.style.paddingTop = "48px";
+    Object.defineProperty(element, "getBoundingClientRect", { value: () => rect(10, 10, 200, 120) });
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => element });
+
+    // The pointer is still inside the top padding, but outside the centred
+    // visible handle, so it is not a direct-manipulation target.
+    expect(getSpacingAffordanceAtPoint(document, 100, 12)).toBeNull();
+    expect(getSpacingAffordanceAtPoint(document, 20, 34)).toBeNull();
+    expect(getSpacingAffordanceAtPoint(document, 100, 22)).toMatchObject({
+      kind: "padding",
+      property: "padding-top",
+      hit: { left: 90, top: 22, width: 40, height: 24 },
+    });
+  });
+
   it("finds a column gap in a flex row and uses the gap property instead of padding", () => {
     const element = trackedElement();
     element.style.display = "flex";
@@ -95,6 +112,28 @@ describe("spacing gestures", () => {
     ]);
     expect(spacingValueForDrag(affordance!, { x: 48, y: 50 }, { x: 60, y: 50 })).toBe(28);
     expect(spacingValueForDrag(affordance!, { x: 48, y: 50 }, { x: 0, y: 50 })).toBe(0);
+  });
+
+  it("only exposes gap drag affordances within the centred guide handle", () => {
+    const element = trackedElement();
+    element.style.display = "flex";
+    element.style.columnGap = "48px";
+    const first = document.createElement("div");
+    const second = document.createElement("div");
+    element.append(first, second);
+    Object.defineProperty(element, "getBoundingClientRect", { value: () => rect(0, 0, 200, 100) });
+    Object.defineProperty(first, "getBoundingClientRect", { value: () => rect(0, 0, 40, 100) });
+    Object.defineProperty(second, "getBoundingClientRect", { value: () => rect(88, 0, 40, 100) });
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => element });
+
+    // The 48px gap runs from x=40 through x=88. Its guide is centred at x=64.
+    expect(getSpacingAffordanceAtPoint(document, 42, 50)).toBeNull();
+    expect(getSpacingAffordanceAtPoint(document, 64, 8)).toBeNull();
+    expect(getSpacingAffordanceAtPoint(document, 52, 50)).toMatchObject({
+      kind: "gap",
+      property: "column-gap",
+      hit: { left: 52, top: 30, width: 24, height: 40 },
+    });
   });
 
   it("keeps vertical gap drags on the row-gap axis", () => {

@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { IconPlus } from "@tabler/icons-react";
 import type { ResolvedProperty } from "../../css/model/index.ts";
@@ -28,6 +27,8 @@ import {
 import { getStateStyleValue } from "../shell/stateValue.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
+import { isZeroCssValue } from "./stylePresence.ts";
+import { useFieldVisibility } from "./useFieldVisibility.ts";
 
 export interface SpacingBoxProps {
   element: SelectedElement;
@@ -118,7 +119,6 @@ export function SpacingField({
   showEmptyState = true,
   suggestions,
 }: SpacingFieldProps): ReactElement {
-  const [fieldsAdded, setFieldsAdded] = useState(false);
   const pairDefinitions = [
     { axis: "horizontal", sideProperties: [sideProperty(property, "right"), sideProperty(property, "left")] as const },
     { axis: "vertical", sideProperties: [sideProperty(property, "top"), sideProperty(property, "bottom")] as const },
@@ -146,17 +146,13 @@ export function SpacingField({
       ),
     };
   });
-  const spacingIsEmpty = SIDE_NAMES.every((side) => property === "inset"
-    ? isEmptyInsetValue(spacingProjection.fields[side].value)
-    : isZeroSpacingValue(spacingProjection.fields[side].value));
-
-  useEffect(() => {
-    setFieldsAdded(false);
-  }, [el]);
-
-  useEffect(() => {
-    if (!spacingIsEmpty) setFieldsAdded(false);
-  }, [spacingIsEmpty]);
+  const hasSpacing = SIDE_NAMES.some((side) => {
+    // Zero spacing is visually empty regardless of whether it came from a
+    // reset, a component rule, or a token. Open editors stay open below.
+    const value = spacingProjection.fields[side].value.trim();
+    return value !== "" && !isZeroCssValue(value) && (property !== "inset" || value !== "auto");
+  });
+  const visibility = useFieldVisibility(selection?.domElements ?? [el], property, hasSpacing);
   const pairSlots: SideValuePairSlot[] = pairDefinitions.map(({ axis, sideProperties }) => ({
     axis,
     icon: null,
@@ -184,8 +180,8 @@ export function SpacingField({
       resetKey={el}
       pairedControls={pairSlots}
       showLabel={showLabel}
-      empty={showEmptyState && spacingIsEmpty && !fieldsAdded}
-      onAdd={() => setFieldsAdded(true)}
+      empty={showEmptyState && !visibility.visible}
+      onAdd={visibility.show}
       emptyAction={property === "inset" ? (
         <IconButton
           variant="quiet"
@@ -193,7 +189,7 @@ export function SpacingField({
           data-test="add-inset"
           label="Add Inset Values"
           title="Add Inset Values"
-          onClick={() => setFieldsAdded(true)}
+          onClick={visibility.show}
         >
           <IconPlus size={16} aria-hidden="true" />
         </IconButton>
@@ -205,16 +201,6 @@ export function SpacingField({
 
 function sideProperty(property: SpacingFieldProps["property"], side: (typeof SIDE_NAMES)[number]): string {
   return property === "inset" ? side : `${property}-${side}`;
-}
-
-function isZeroSpacingValue(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return !normalized || /^-?0(?:\.0+)?(?:[a-z%]+)?$/.test(normalized);
-}
-
-function isEmptyInsetValue(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
-  return !normalized || normalized === "auto" || /^-?0(?:\.0+)?(?:[a-z%]+)?$/.test(normalized);
 }
 
 function PaddingSideIndicator({ side }: { side: (typeof SIDE_NAMES)[number] }): ReactElement {

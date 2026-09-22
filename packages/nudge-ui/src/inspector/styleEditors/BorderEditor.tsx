@@ -28,10 +28,11 @@ import { ControlSurface } from "../ui/ControlSurface.tsx";
 import { getNudgeUiTokenEntries } from "../runtime/runtimeConfig.ts";
 import type { EditTarget } from "../selection/editTarget.ts";
 import type { StyleSelection } from "../selection/styleSelection.ts";
+import { hasAuthoredProperty, hasAuthoredStyle, isZeroCssValue } from "./stylePresence.ts";
+import { useFieldVisibility } from "./useFieldVisibility.ts";
 
 const BORDER_STYLES = ["none", "hidden", "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset"];
 const INVISIBLE_BORDER_STYLES = new Set(["none", "hidden"]);
-const ZERO_WIDTH = /^(?:0|0px|0rem|0em|0%)$/i;
 const BORDER_SIDES = SIDE_NAMES.map((side) => `border-${side}`);
 
 function borderStyleValue(el: HTMLElement, rows: ResolvedProperty[], property: string): string {
@@ -145,10 +146,10 @@ function isBorderFaceProperty(property: string): boolean {
 
 function isZeroWidthValue(value: string): boolean {
   const trimmed = value.trim().toLowerCase();
-  if (ZERO_WIDTH.test(trimmed)) return true;
+  if (isZeroCssValue(trimmed)) return true;
   // Structured/preflight authored forms like `0 solid` / `0px solid currentcolor`.
   const first = trimmed.split(/\s+/)[0] ?? "";
-  return ZERO_WIDTH.test(first);
+  return isZeroCssValue(first);
 }
 
 /** True when a face paints: drawn style and non-zero width. */
@@ -166,14 +167,14 @@ function sidePaints(el: HTMLElement, rows: ResolvedProperty[], side: string): bo
  *
  * Counts as presence:
  * - any painted face (drawn style + non-zero width)
- * - explicit `none` / `hidden`
- * - authored non-zero width
+ * - a direct width or disabling style, including zero
  */
 function hasBorderPresence(el: HTMLElement, rows: ResolvedProperty[]): boolean {
   if (SIDE_NAMES.some((side) => sidePaints(el, rows, side))) return true;
 
   for (const row of rows) {
     if (!isBorderFaceProperty(row.property) && !row.structure) continue;
+    if (!hasAuthoredStyle(row)) continue;
     const property = row.property.toLowerCase();
     const authored = (row.authored ?? row.declaredValue ?? "").trim().toLowerCase();
     const structuredStyle = row.structure?.style?.trim().toLowerCase() ?? "";
@@ -182,8 +183,8 @@ function hasBorderPresence(el: HTMLElement, rows: ResolvedProperty[]): boolean {
     if (INVISIBLE_BORDER_STYLES.has(structuredStyle) || INVISIBLE_BORDER_STYLES.has(authored)) {
       return true;
     }
-    if (structuredWidth && !isZeroWidthValue(structuredWidth)) return true;
-    if ((property === "border-width" || property.endsWith("-width")) && authored && !isZeroWidthValue(authored)) {
+    if (structuredWidth) return true;
+    if ((property === "border-width" || property.endsWith("-width")) && authored) {
       return true;
     }
   }
@@ -260,26 +261,21 @@ export function BorderEditor(props: BorderEditorProps): ReactElement {
   const showWidthAndColor = !(borderLinked && INVISIBLE_BORDER_STYLES.has(linkedBorderStyle));
 
   const hasBorder = isGroup
-    ? selection?.domElements.some((candidate) => hasBorderPresence(candidate, [])) ?? false
+    ? (selection?.domElements.some((candidate) => hasBorderPresence(candidate, [])) ?? false)
+      || borderWidthProperties.some((property) => hasAuthoredProperty(selection, property))
     : hasBorderPresence(el, tokenRows);
-  const [borderSessionOpen, setBorderSessionOpen] = useState(false);
-  useEffect(() => {
-    setBorderSessionOpen(false);
-  }, [el]);
-  useEffect(() => {
-    if (hasBorder || rawBorderFallback) setBorderSessionOpen(true);
-  }, [hasBorder, rawBorderFallback]);
-  const showBorderControls = hasBorder || borderSessionOpen || rawBorderFallback;
+  const visibility = useFieldVisibility(selection?.domElements ?? [el], "border", hasBorder || rawBorderFallback);
+  const showBorderControls = visibility.visible;
 
   function handleAddBorder(): void {
     setStyle(editTarget, "border", "1px solid");
-    setBorderSessionOpen(true);
+    visibility.show();
     onAfterEdit?.();
   }
 
   function handleRemoveBorder(): void {
     setStyle(editTarget, "border", "0 solid");
-    setBorderSessionOpen(false);
+    visibility.hide();
     onAfterEdit?.();
   }
 

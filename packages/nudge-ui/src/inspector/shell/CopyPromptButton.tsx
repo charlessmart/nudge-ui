@@ -92,6 +92,7 @@ export function CopyPromptButton({
   const agentRef = useRef(agent);
   agentRef.current = agent;
   const hasChanges = changes.length + structuralChanges.length + pendingSketches.length > 0;
+  const changeCount = changes.length + structuralChanges.length + sketches.length;
 
   useEffect(() => {
     setCustomInstructions(loadCustomInstructions(runtimeConfig.projectId));
@@ -311,6 +312,11 @@ export function CopyPromptButton({
       >
         {icon}
         {label}
+        {changeCount > 0 ? (
+          <span className="copy-prompt__change-count" data-test="copy-prompt-change-count">
+            {changeCount}
+          </span>
+        ) : null}
         {agentStatus.kind === "listening" ? (
           <span
             className="copy-prompt__agent-listening"
@@ -343,8 +349,8 @@ export function CopyPromptButton({
         </StatusCallout>
       ) : null}
       {reconciledCount > 0 ? (
-        <p className="copy-prompt__hint" data-test="clipboard-reconciled-hint" role="status">
-          Removed {reconciledCount} implemented {reconciledCount === 1 ? "change" : "changes"} from the next prompt.
+        <p className="copy-prompt__hint copy-prompt__hint--centered" data-test="clipboard-reconciled-hint" role="status">
+          {reconciledCount} Implemented changes
         </p>
       ) : null}
       {agentCompletionStatus === "verified" ? (

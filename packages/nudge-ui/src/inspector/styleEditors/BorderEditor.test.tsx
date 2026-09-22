@@ -279,7 +279,7 @@ describe("BorderEditor", () => {
       resolvedValue,
       capability: "raw",
       confidence: "unknown",
-      evidence: { reason: "matched default style" },
+      evidence: { reason: "matched default style", selector: "*" },
     });
     handle = mount(createElement(BorderEditor, {
       element: selected,
@@ -689,6 +689,7 @@ describe("BorderEditor", () => {
     const { selected } = makeSelected();
     mockComputedStyle(defaultComputed());
     handle = mount(createElement(BoxShadowEditor, { element: selected, entries: ENTRIES }));
+    act(() => handle.host.querySelector<HTMLButtonElement>('[data-test="add-shadow"]')!.click());
     const tokenField = handle.host.querySelector('[data-test="token-field"][data-property="box-shadow"]');
     const raw = tokenField!.querySelector('[data-test="raw-input"]') as HTMLInputElement;
     setInputValue(raw, "0 2px 4px rgba(0,0,0,0.2)");

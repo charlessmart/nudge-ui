@@ -1,7 +1,7 @@
 .canvas-element-overlay {
   position: fixed;
   pointer-events: none;
-  z-index: 3;
+  z-index: 1;
   background: transparent;
   outline: 1px solid var(--accent);
   outline-offset: -1px;
@@ -9,7 +9,7 @@
 
 .canvas-spacing-guide {
   position: fixed;
-  z-index: 4;
+  z-index: 1;
   border-radius: 999px;
   background: var(--accent);
   outline: none;
@@ -19,7 +19,7 @@
 
 .canvas-spacing-fill {
   position: fixed;
-  z-index: 2;
+  z-index: 1;
   pointer-events: none;
   background: rgb(59 130 246 / 14%);
 }
@@ -35,34 +35,9 @@
 .canvas-selected-outline {
   position: fixed;
   pointer-events: none;
-  z-index: 3;
+  z-index: 1;
   outline: 1px solid var(--accent);
   outline-offset: -1px;
-}
-
-.canvas-hover-margin-fill {
-  position: fixed;
-  pointer-events: none;
-  z-index: 2;
-  background: rgb(59 130 246 / 14%);
-}
-
-.canvas-hover-margin {
-  position: fixed;
-  pointer-events: none;
-  z-index: 2;
-  border-color: rgb(59 130 246 / 52%);
-  border-style: dotted;
-  border-width: 0;
-  opacity: 0.72;
-}
-
-.canvas-hover-margin[data-axis="horizontal"] {
-  border-top-width: 1px;
-}
-
-.canvas-hover-margin[data-axis="vertical"] {
-  border-left-width: 1px;
 }
 
 .canvas-dom-drop-line {

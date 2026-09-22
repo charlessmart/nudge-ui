@@ -98,7 +98,7 @@ describe("ColorPicker", () => {
     expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("transparent");
   });
 
-  it("hides an explicitly declared transparent background", () => {
+  it("keeps an explicitly declared transparent background editable", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "background-color": "rgba(0, 0, 0, 0)" });
     handle = mount(createElement(ColorPicker, {
@@ -115,11 +115,10 @@ describe("ColorPicker", () => {
       },
     }));
 
-    expect(handle.host.querySelector('[data-test="token-field"]')).toBeNull();
-    expect(handle.host.querySelector('[data-test="add-color"]')).toBeTruthy();
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("transparent");
   });
 
-  it("hides a transparent background when a shorthand token row is retained", () => {
+  it("keeps an authored background token available when it currently paints transparent", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ "background-color": "rgba(0, 0, 0, 0)" });
     handle = mount(createElement(ColorPicker, {
@@ -135,8 +134,8 @@ describe("ColorPicker", () => {
       },
     }));
 
-    expect(handle.host.querySelector('[data-test="token-field"]')).toBeNull();
-    expect(handle.host.querySelector('[data-test="add-color"]')).toBeTruthy();
+    expect(handle.host.querySelector('[data-test="token-field"]')).not.toBeNull();
+    expect(handle.host.querySelector('[data-test="token-chip"]')?.textContent).toContain("--color-text-primary");
   });
 
   it("hides the background field immediately after removing a shorthand-backed color", () => {
@@ -177,7 +176,7 @@ describe("ColorPicker", () => {
     expect(handle.host.querySelector('[data-test="color-computed"]')).toBeNull();
   });
 
-  it.each(["none", "transparent", "rgba(0, 0, 0, 0)", "rgb(0 0 0 / 0)", "#00000000"])(
+  it.each(["none", "transparent", "rgba(0, 0, 0, 0)", "rgb(0 0 0 / 0)", "#00000000", "rgba(40, 80, 120, 0)", "#ff000000"])(
     "treats %s as an empty color value",
     (value) => {
       expect(isEmptyColorValue(value)).toBe(true);
@@ -197,7 +196,7 @@ describe("ColorPicker", () => {
     expect(handle.host.querySelector('[data-test="add-color"]')?.classList.contains("icon-button--quiet")).toBe(true);
   });
 
-  it("reveals an empty token field after adding an empty color", () => {
+  it("reveals the transparent value after adding an empty color", () => {
     const { selected } = makeSelected();
     mockComputedStyle({ color: "transparent" });
     handle = mount(createElement(ColorPicker, { element: selected, entries: ENTRIES }));
@@ -207,7 +206,7 @@ describe("ColorPicker", () => {
     });
 
     expect(handle.host.querySelector('[data-test="token-field"]')).toBeTruthy();
-    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("");
+    expect((handle.host.querySelector('[data-test="raw-input"]') as HTMLInputElement).value).toBe("transparent");
     expect(handle.host.querySelector('[data-test="remove-color"]')?.classList.contains("icon-button--quiet")).toBe(true);
   });
 

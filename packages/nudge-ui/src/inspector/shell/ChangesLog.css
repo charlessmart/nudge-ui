@@ -25,7 +25,8 @@
   flex: 1;
 }
 
-.changes__count {
+.changes__count,
+.copy-prompt__change-count {
   min-width: 20px;
   padding: 2px 6px;
   border-radius: var(--radius-pill);

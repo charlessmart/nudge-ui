@@ -241,11 +241,21 @@ test("renders demo videos as vertical sections", async ({ page }) => {
       await expect.poll(() => videoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeLessThanOrEqual(1000);
       await expect.poll(() => videoContainer.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
       await expect(item.locator(".landing-showcase-video-element")).toHaveCSS("transition-duration", "0.5s");
+    } else {
+      await expect.poll(() => videoContainer.evaluate((element) => element.getBoundingClientRect().width - element.parentElement!.getBoundingClientRect().width)).toBe(0);
     }
   }
 
   const firstVideoContainer = items.nth(0).locator(".landing-showcase-video");
   await firstVideoContainer.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await expect.poll(() => firstVideoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBe(650);
-  await expect.poll(() => firstVideoContainer.evaluate((element) => getComputedStyle(element).opacity)).toBe("0.5");
+  await expect.poll(() => firstVideoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBe(1000);
+  await expect.poll(() => firstVideoContainer.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
+
+  await firstVideoContainer.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const targetTop = window.innerHeight * 0.88 - 120;
+    window.scrollTo(0, window.scrollY + rect.top - targetTop);
+  });
+  await expect.poll(() => firstVideoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeLessThan(1000);
+  await expect.poll(() => firstVideoContainer.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(650);
 });

@@ -24,7 +24,7 @@ describe("projectSelectionProperty", () => {
       1,
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       property: "font-size",
       value: { kind: "common", value: "24px" },
       token: { kind: "common", name: "--type-heading" },

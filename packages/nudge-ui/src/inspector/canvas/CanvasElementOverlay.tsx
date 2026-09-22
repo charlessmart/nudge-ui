@@ -8,12 +8,9 @@ import { useBoardCamera, useCanvasCards, useCanvasPresentation, useCanvasPresent
 import { handleElementClick } from "./rendererSelectionProxy.ts";
 import { getSelectedElements, useSelectedElement, useSelectedElements } from "../selection/selectionStore.ts";
 import {
-  getMarginFills,
-  getMarginGuides,
   readBorderWidths,
   toRect,
   type BorderWidths,
-  type Margins,
   type Rect,
 } from "../overlay/overlayGeometry.ts";
 import overlayStyles from "./CanvasElementOverlay.css?inline";
@@ -37,6 +34,7 @@ import { setStyles } from "../tokens/editActions.ts";
 import {
   getSpacingAffordanceAtPoint,
   getSpacingAffordanceForDescriptor,
+  SPACING_GUIDE_HANDLE_LENGTH,
   spacingValueCss,
   spacingValueForDrag,
   type SpacingAffordance,
@@ -52,7 +50,6 @@ interface FrameOverlayState {
   iframe: HTMLIFrameElement;
   identity: ElementIdentity;
   rect: Rect;
-  margins: Margins;
   borders: BorderWidths;
   cardId: string;
   spacing: SpacingDescriptor | null;
@@ -65,8 +62,6 @@ interface FrameMeasureState {
   altKey: boolean;
   pointerOverPage: boolean;
 }
-
-const MAX_SPACING_GUIDE_LENGTH = 40;
 
 interface CanvasDragState {
   iframe: HTMLIFrameElement;
@@ -94,15 +89,6 @@ function projectRect(iframe: HTMLIFrameElement, rect: Rect, zoom: number): Rect 
   };
 }
 
-function scaleMargins(margins: Margins, zoom: number): Margins {
-  return {
-    top: margins.top * zoom,
-    right: margins.right * zoom,
-    bottom: margins.bottom * zoom,
-    left: margins.left * zoom,
-  };
-}
-
 function overlayStyle(rect: Rect): CSSProperties {
   return {
     position: "fixed",
@@ -116,8 +102,8 @@ function overlayStyle(rect: Rect): CSSProperties {
 
 function spacingGuideStyle(rect: Rect): CSSProperties {
   const isHorizontal = rect.width >= rect.height;
-  const width = isHorizontal ? Math.min(rect.width, MAX_SPACING_GUIDE_LENGTH) : rect.width;
-  const height = isHorizontal ? rect.height : Math.min(rect.height, MAX_SPACING_GUIDE_LENGTH);
+  const width = isHorizontal ? Math.min(rect.width, SPACING_GUIDE_HANDLE_LENGTH) : rect.width;
+  const height = isHorizontal ? rect.height : Math.min(rect.height, SPACING_GUIDE_HANDLE_LENGTH);
 
   return overlayStyle({
     left: rect.left + (rect.width - width) / 2,
@@ -363,7 +349,6 @@ export function CanvasElementOverlay(): ReactElement | null {
           iframe: sourceIframe,
           identity: { elementId: msg.elementId },
           rect: msg.rect,
-          margins: msg.margins ?? { top: 0, right: 0, bottom: 0, left: 0 },
           borders: msg.borders ?? { top: 0, right: 0, bottom: 0, left: 0 },
           cardId: sourceCardId,
           spacing: spacingGuides.length > 0 ? spacingDescriptor : null,
@@ -528,13 +513,6 @@ export function CanvasElementOverlay(): ReactElement | null {
   const projectedSpacingGuides = hover?.spacingGuides.map((guide) => projectRect(hover.iframe, guide, projectionZoom)) ?? [];
   const projectedSpacingAreas = hover?.spacingAreas.map((area) => projectRect(hover.iframe, area, projectionZoom)) ?? [];
   const hoverSpacing = hover?.spacing ?? null;
-  const hoverMargins = hover ? scaleMargins(hover.margins, projectionZoom) : null;
-  const hoverMarginGuides = projectedHoverRect && hoverMargins
-    ? getMarginGuides(projectedHoverRect, hoverMargins)
-    : [];
-  const hoverMarginFills = projectedHoverRect && hoverMargins
-    ? getMarginFills(projectedHoverRect, hoverMargins)
-    : [];
   const measureStateForSelectedFrame = measureState?.iframe === selectedFrame ? measureState : null;
   const hoverInSelectedFrame = hover?.iframe === selectedFrame ? hover : null;
   const showGuideOverlay = Boolean(
@@ -581,9 +559,6 @@ export function CanvasElementOverlay(): ReactElement | null {
       ) : null}
       {projectedHoverRect ? (
         <>
-          {hoverMarginFills.map((fill) => (
-            <div key={fill.side} className="canvas-hover-margin-fill" data-side={fill.side} style={overlayStyle(fill)} aria-hidden="true" />
-          ))}
           {hoverSpacing ? projectedSpacingAreas.map((area, index) => (
             <div
               key={`${hoverSpacing.property}-area-${index}`}
@@ -611,9 +586,6 @@ export function CanvasElementOverlay(): ReactElement | null {
               aria-hidden="true"
             />
           )) : null}
-          {hoverMarginGuides.map((guide) => (
-            <div key={guide.side} className="canvas-hover-margin" data-axis={guide.axis} data-distance={guide.distance} data-side={guide.side} style={overlayStyle(guide)} aria-hidden="true" />
-          ))}
         </>
       ) : null}
       {projectedSelectedGeometry.map(({ element, rect }, index) => (

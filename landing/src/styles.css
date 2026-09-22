@@ -1,5 +1,5 @@
 :root {
-  --surface-canvas: #f6f6f3;
+  --surface-canvas: #F5F5F4;
   --surface-raised: #ffffff;
   --surface-raised-2x: #ffffff;
   --surface-sunken: #f4f3f0;
@@ -399,9 +399,9 @@ a {
   align-items: center;
   gap: var(--space-16);
   padding: var(--space-8) var(--space-8) var(--space-8) var(--space-16);
-  border: 0.5px solid var(--border-strong);
+  border: 0 solid;
   border-radius: 16px;
-  background: var(--surface-canvas);
+  background: var(--surface-well);
 }
 
 .landing-install-command {
@@ -713,7 +713,7 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
   padding: var(--space-16);
   border: 0 solid;
   border-radius: 12px;
-  background: var(--surface-sunken);
+  background: var(--surface-well);
   color: var(--text-primary);
   font-family: var(--landing-mono);
   font-size: 13px;
@@ -743,7 +743,7 @@ html[data-nudge-ui-panel="open"] .landing-demo-arrow {
 .landing-setup-lead code {
   padding: var(--space-4);
   border-radius: 4px;
-  background: var(--neutral-subtle);
+  background: var(--surface-well);
   color: var(--text-primary);
   font-family: var(--landing-mono);
   font-size: 0.9em;

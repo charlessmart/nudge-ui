@@ -573,7 +573,7 @@ test("dev: style editors keep layout and spacing ahead of typography and color",
   await expect(emptyBackground.locator('.editor__title-row [data-test="add-color"]')).toHaveClass(/icon-button--quiet/);
   await emptyBackground.locator('[data-test="add-color"]').click();
   await expect(emptyBackground.locator('[data-test="token-field"]')).toBeVisible();
-  await expect(emptyBackground.locator('[data-test="raw-input"]')).toHaveValue("");
+  await expect(emptyBackground.locator('[data-test="raw-input"]')).toHaveValue("rgba(0, 0, 0, 0)");
 
   const emptyBorder = page.locator('[data-test="border-editor"]');
   await expect(emptyBorder.locator('.editor__title-row [data-test="add-border"]')).toHaveClass(/icon-button--quiet/);

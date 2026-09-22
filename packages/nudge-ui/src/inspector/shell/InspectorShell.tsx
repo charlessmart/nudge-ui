@@ -23,6 +23,7 @@ import { useBrowserCssInspection } from "../inspection/useBrowserCssInspection.t
 import { resolveSelectionFromElement } from "../selection/resolveSelection.ts";
 import { SpacingBox } from "../styleEditors/SpacingBox.tsx";
 import { Typography } from "../styleEditors/Typography.tsx";
+import { isTextRelevant } from "../styleEditors/textRelevance.ts";
 import { ColorPicker } from "../styleEditors/ColorPicker.tsx";
 import { BorderEditor } from "../styleEditors/BorderEditor.tsx";
 import { AppearanceSection } from "../styleEditors/AppearanceSection.tsx";
@@ -242,6 +243,8 @@ export function InspectorShell(): ReactElement {
     [styleSelection],
   );
   const availableInteractionStates = inspectionSnapshot?.availableStates ?? [];
+  const showText = selectedElements.length > 0 && selectedElements.every((element, index) =>
+    isTextRelevant(element.domElement, cssInspection.elements[index]?.properties ?? []));
   const showInteractionState = !isMultiSelection && availableInteractionStates.length > 2;
   const paintedBackgroundRow = findFirstTokenRow(tokenRows, ["background-color", "background"]);
   const backgroundTokenRow = useMemo(() => {
@@ -423,8 +426,10 @@ export function InspectorShell(): ReactElement {
                   <LayoutSection key={`layout-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
                   <SpacingBox key={`spacing-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
                   <AppearanceSection key={`appearance-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
-                  <Typography key={`type-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
-                  <ColorPicker key={`color-${styleState}`} element={selected} selection={styleSelection} property="color" entries={tokenEntries} tokenRow={findTokenRow(tokenRows, "color")} />
+                  {showText ? <>
+                    <Typography key={`type-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
+                    <ColorPicker key={`color-${styleState}`} element={selected} selection={styleSelection} property="color" entries={tokenEntries} tokenRow={findTokenRow(tokenRows, "color")} />
+                  </> : null}
                   <ColorPicker key={`background-${styleState}`} element={selected} selection={styleSelection} property="background-color" entries={tokenEntries} tokenRow={backgroundTokenRow} />
                   <BorderEditor key={`border-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />
                   <BoxShadowEditor key={`box-shadow-${styleState}`} element={selected} selection={styleSelection} entries={tokenEntries} tokenRows={tokenRows} />

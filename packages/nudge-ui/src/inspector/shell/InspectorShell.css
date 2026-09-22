@@ -129,6 +129,10 @@
   line-height: 1.4;
 }
 
+.copy-prompt__hint--centered {
+  text-align: center;
+}
+
 .copy-prompt__hint code {
   font-family: var(--font-mono);
 }

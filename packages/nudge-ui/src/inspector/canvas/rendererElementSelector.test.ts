@@ -68,6 +68,7 @@ beforeEach(() => {
 afterEach(() => {
   disposeRendererElementSelector();
   while (scheduled.length > 0) runScheduledFrame();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   if (originalElementFromPoint) {
     Object.defineProperty(document, "elementFromPoint", {
@@ -176,10 +177,10 @@ describe("renderer hover scheduling", () => {
     expect(click).toMatchObject({ type: "element-click", additive: true });
   });
 
-  it("reports spacing affordances and routes their drag through the element protocol", () => {
+  it("only enables padding dragging around the guide line and routes that drag through the element protocol", () => {
     const element = trackedElement("spacing-target");
     element.style.cursor = "crosshair";
-    element.style.paddingTop = "20px";
+    element.style.paddingTop = "48px";
     vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
       left: 10,
       top: 10,
@@ -197,13 +198,41 @@ describe("renderer hover scheduling", () => {
     element.dispatchEvent(new MouseEvent("mouseover", {
       bubbles: true,
       clientX: 100,
-      clientY: 20,
+      clientY: 12,
     }));
     runScheduledFrame();
 
     expect(hoverMessages(postMessage)[0]).toMatchObject({
+      spacing: null,
+      point: { x: 100, y: 12 },
+    });
+    expect(document.documentElement.style.cursor).toBe("");
+    expect(element.style.cursor).toBe("crosshair");
+
+    element.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      clientX: 20,
+      clientY: 34,
+    }));
+    runScheduledFrame();
+
+    expect(hoverMessages(postMessage)[1]).toMatchObject({
+      spacing: null,
+      point: { x: 20, y: 34 },
+    });
+    expect(document.documentElement.style.cursor).toBe("");
+    expect(element.style.cursor).toBe("crosshair");
+
+    element.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      clientX: 100,
+      clientY: 34,
+    }));
+    runScheduledFrame();
+
+    expect(hoverMessages(postMessage)[2]).toMatchObject({
       spacing: { kind: "padding", property: "padding-top", side: "top" },
-      point: { x: 100, y: 20 },
+      point: { x: 100, y: 34 },
     });
     expect(document.documentElement.style.cursor).toBe("ns-resize");
     expect(element.style.getPropertyValue("cursor")).toBe("ns-resize");
@@ -213,28 +242,28 @@ describe("renderer hover scheduling", () => {
       bubbles: true,
       button: 0,
       clientX: 100,
-      clientY: 20,
+      clientY: 34,
     }));
     document.dispatchEvent(new MouseEvent("mousemove", {
       bubbles: true,
       cancelable: true,
       clientX: 100,
-      clientY: 32,
+      clientY: 46,
     }));
     document.dispatchEvent(new MouseEvent("mouseup", {
       bubbles: true,
       cancelable: true,
       clientX: 100,
-      clientY: 32,
+      clientY: 46,
     }));
 
     expect(postMessage.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
       expect.objectContaining({
         type: "element-drag-start",
-        startPoint: { x: 100, y: 20 },
+        startPoint: { x: 100, y: 34 },
         spacing: { kind: "padding", property: "padding-top", side: "top" },
       }),
-      expect.objectContaining({ type: "element-drag-end", point: { x: 100, y: 32 } }),
+      expect.objectContaining({ type: "element-drag-end", point: { x: 100, y: 46 } }),
     ]));
     expect(postMessage.mock.calls.map(([message]) => message)
       .some((message) => typeof message === "object"
@@ -245,6 +274,49 @@ describe("renderer hover scheduling", () => {
     element.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body }));
     runScheduledFrame();
     expect(element.style.cursor).toBe("crosshair");
+  });
+
+  it("clears the hover outline during scrolling and restores it after scrolling settles", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const element = trackedElement("scrolling-target");
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+      left: 10,
+      top: 20,
+      width: 200,
+      height: 120,
+      right: 210,
+      bottom: 140,
+    } as DOMRect);
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => element,
+    });
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    element.dispatchEvent(new MouseEvent("mouseover", {
+      bubbles: true,
+      clientX: 100,
+      clientY: 60,
+    }));
+    runScheduledFrame();
+    expect(hoverMessages(postMessage)).toHaveLength(1);
+
+    element.dispatchEvent(new Event("scroll"));
+    expect(hoverMessages(postMessage)[1]).toMatchObject({ rect: null });
+
+    element.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true,
+      clientX: 100,
+      clientY: 60,
+    }));
+    expect(scheduled).toHaveLength(0);
+
+    vi.advanceTimersByTime(200);
+    runScheduledFrame();
+    expect(hoverMessages(postMessage)[2]).toMatchObject({
+      rect: { left: 10, top: 20, width: 200, height: 120 },
+      point: { x: 100, y: 60 },
+    });
   });
 
   it("cancels an active spacing drag when renderer interactions are suspended", () => {

@@ -37,6 +37,7 @@ export function makeMixedStyleSelection(
     value: { kind: "mixed" as const },
     token: { kind: "none" as const },
     primaryRow: null,
+    rows: [],
   };
   return {
     primary: selected,

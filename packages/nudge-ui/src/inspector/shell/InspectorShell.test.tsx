@@ -49,6 +49,34 @@ describe("InspectorShell", () => {
     expect(host.shadowRoot).not.toBeNull();
   });
 
+  it.each([
+    { tag: "video", text: "Video fallback", visible: false },
+    { tag: "p", text: "Inherited typography is still useful here", visible: true },
+  ])("shows Text and Color only when relevant to a selected $tag", ({ tag, text, visible }) => {
+    const parent = document.createElement("div");
+    parent.style.fontFamily = "serif";
+    parent.style.color = "rgb(30, 60, 90)";
+    const selected = document.createElement(tag);
+    selected.dataset.cid = "Content";
+    selected.dataset.src = "fixtures/content.tsx:1:1";
+    selected.style.color = "red";
+    selected.textContent = text;
+    parent.append(selected);
+    document.body.append(parent);
+    try {
+      act(() => {
+        setSelectedElement(resolveSelectionFromElement(selected));
+        mountInspector(host);
+      });
+      expect(Boolean(host.shadowRoot?.querySelector('[data-test="typography"]'))).toBe(visible);
+      expect(Boolean(host.shadowRoot?.querySelector('[data-test="color-picker"][data-property="color"]'))).toBe(visible);
+      expect(host.shadowRoot?.querySelector('[data-test="color-picker"][data-property="background-color"]')).not.toBeNull();
+    } finally {
+      act(() => setSelectedElement(null));
+      parent.remove();
+    }
+  });
+
 
 
   it("shows two tracked parents and two tracked descendants for the selected element", () => {
@@ -140,6 +168,7 @@ describe("InspectorShell", () => {
 
   it("does not re-resolve component metadata after a CSS edit", () => {
     const selected = document.createElement("button");
+    selected.textContent = "Save";
     selected.dataset.cid = "Selected";
     selected.dataset.src = "fixtures/selected.tsx:1:1";
     document.body.appendChild(selected);
@@ -196,9 +225,11 @@ describe("InspectorShell", () => {
 
   it("shows a group summary and exposes shared style controls for multi-selection", () => {
     const first = document.createElement("button");
+    first.textContent = "First";
     first.dataset.cid = "Heading";
     first.dataset.src = "fixtures/heading.tsx:1:1";
     const second = document.createElement("button");
+    second.textContent = "Second";
     second.dataset.cid = "Heading";
     second.dataset.src = "fixtures/heading.tsx:1:1";
     document.body.append(first, second);

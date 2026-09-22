@@ -167,6 +167,46 @@ describe("CanvasElementOverlay", () => {
     expect(fill?.style.height).toBe("20px");
   });
 
+  it("does not render margin guides because margins are not directly draggable", () => {
+    const frameDocument = iframe.contentDocument!;
+    const card = frameDocument.createElement("section");
+    card.setAttribute("data-cid", "Card");
+    card.setAttribute("data-src", "/src/Card.tsx:12:3");
+    card.setAttribute("data-renderer-id", "r1");
+    frameDocument.body.append(card);
+    Object.defineProperty(iframe, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 100, top: 40, width: 300, height: 200, right: 400, bottom: 240 } as DOMRect),
+    });
+
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", {
+        origin: window.location.origin,
+        source: iframe.contentWindow as MessageEventSource,
+        data: {
+          type: "element-hover",
+          protocolVersion: PROTOCOL_VERSION,
+          projectId: PROJECT_ID,
+          workspaceId: WORKSPACE_ID,
+          cardId,
+          cid: "Card",
+          selector: '[data-cid="Card"]',
+          src: "/src/Card.tsx:12:3",
+          elementId: "r1",
+          rect: { left: 10, top: 10, width: 200, height: 120 },
+          margins: { top: 16, right: 24, bottom: 32, left: 8 },
+          borders: { top: 0, right: 0, bottom: 0, left: 0 },
+          point: { x: 100, y: 20 },
+          spacing: null,
+        },
+      }));
+    });
+
+    expect(host.querySelector(".canvas-hover-margin-fill")).toBeNull();
+    expect(host.querySelector(".canvas-hover-margin")).toBeNull();
+    expect(host.querySelector('[data-test="canvas-spacing-guide"]')).toBeNull();
+  });
+
   it("projects every matching grid gap guide", () => {
     const frameDocument = iframe.contentDocument!;
     const card = frameDocument.createElement("section");
