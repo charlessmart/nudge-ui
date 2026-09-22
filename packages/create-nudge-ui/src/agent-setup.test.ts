@@ -23,10 +23,10 @@ describe("project-local agent setup", () => {
 
     const plan = planAgentSetup(root, "npm");
 
-    expect(plan.packageSpecifier).toBe("@nudge-ui/mcp@0.2.0");
+    expect(plan.packageSpecifier).toBe("@nudge-ui/mcp@0.2.1");
     expect(plan.installCommand).toEqual({
       executable: "npm",
-      args: ["install", "--save-dev", "@nudge-ui/mcp@0.2.0"],
+      args: ["install", "--save-dev", "@nudge-ui/mcp@0.2.1"],
     });
     expect(plan.serverConfig).toEqual({
       command: "node",

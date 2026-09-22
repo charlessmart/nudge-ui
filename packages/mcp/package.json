@@ -1,6 +1,6 @@
 {
   "name": "@nudge-ui/mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Optional local MCP companion for pairing Nudge UI with coding agents.",
   "license": "MIT",
   "repository": {
