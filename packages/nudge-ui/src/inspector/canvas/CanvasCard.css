@@ -76,6 +76,7 @@
 }
 
 .canvas-card__drag-surface {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-8);
@@ -93,6 +94,9 @@
 }
 
 .canvas-card__dimensions {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-base);
   font-variant-numeric: tabular-nums;

@@ -481,18 +481,18 @@ describe("canvasStore camera", () => {
     unsub();
   });
 
-  it("resets to the active card inset when entering Canvas", () => {
+  it("centers the active card when entering Canvas", () => {
     const card = addCanvasCard("http://localhost:5173/about", "About");
     resizeCard(card.id, 800, 600);
     setCardPosition(card.id, 320, 180);
     focusCard(card.id);
     setBoardCamera({ x: -240, y: 560, zoom: 0.5 });
 
-    setCanvasPresentation("canvas");
+    setCanvasPresentation("canvas", { width: 1200, height: 800 });
 
     expect(getBoardCamera()).toEqual({
-      x: PRIMARY_CARD_INSET - 320,
-      y: PRIMARY_CARD_INSET - 180,
+      x: -48,
+      y: -32,
       zoom: 0.9,
     });
     expect(getCanvasCards()[0]).toMatchObject({
@@ -504,11 +504,11 @@ describe("canvasStore camera", () => {
 
     setCanvasPresentation("focus");
     setBoardCamera({ x: 900, y: -300, zoom: 2 });
-    setCanvasPresentation("canvas");
+    setCanvasPresentation("canvas", { width: 1200, height: 800 });
 
     expect(getBoardCamera()).toEqual({
-      x: PRIMARY_CARD_INSET - 320,
-      y: PRIMARY_CARD_INSET - 180,
+      x: -48,
+      y: -32,
       zoom: 0.9,
     });
     setCanvasPresentation("focus");

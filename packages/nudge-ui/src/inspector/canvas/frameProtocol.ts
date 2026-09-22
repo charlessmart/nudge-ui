@@ -7,7 +7,8 @@ import type { NudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import type { SpacingDescriptor } from "../overlay/spacingGestures.ts";
 
 // v19 adds spacing drag gestures (hover point, spacing descriptor, start
-// point, and cancelled drag-end) for Canvas frames.
+// point, and cancelled drag-end) plus renderer-to-controller keyboard shortcut
+// forwarding for Canvas frames.
 // v18 adds parent-to-renderer Alt modifier forwarding for Canvas measurements.
 // v17 adds an idempotent renderer request to open the parent inspector. v16
 // adds controller-owned inline-text intents for Canvas frames. v15 adds
@@ -234,6 +235,16 @@ export interface InspectorOpenRequestMessage extends RendererMessage {
   type: "inspector-open-request";
 }
 
+export type KeyboardShortcutCode = "Backslash" | "KeyV" | "KeyH" | "KeyP" | "KeyS";
+export type KeyboardShortcutPhase = "keydown" | "keyup";
+
+/** Forwards controller-owned keyboard shortcuts from an iframe document. */
+export interface KeyboardShortcutMessage extends RendererMessage {
+  type: "keyboard-shortcut";
+  phase: KeyboardShortcutPhase;
+  code: KeyboardShortcutCode;
+}
+
 export interface PanStartMessage extends RendererMessage {
   type: "pan-start";
   point: { x: number; y: number };
@@ -299,6 +310,7 @@ export type FrameProtocolMessage =
   | HistoryRequestMessage
   | InspectorToggleRequestMessage
   | InspectorOpenRequestMessage
+  | KeyboardShortcutMessage
   | PanStartMessage
   | PanMoveMessage
   | PanEndMessage
@@ -331,6 +343,24 @@ export function isRendererMessageFor(
     && message.projectId === identity.projectId
     && message.workspaceId === identity.workspaceId
     && message.cardId === identity.cardId;
+}
+
+export function isKeyboardShortcutCode(value: unknown): value is KeyboardShortcutCode {
+  return value === "Backslash" || value === "KeyV" || value === "KeyH" || value === "KeyP" || value === "KeyS";
+}
+
+/** Strict JSON-only schema for renderer-originated global keyboard shortcuts. */
+export function isKeyboardShortcutMessage(
+  value: unknown,
+  identity: FrameIdentity,
+): value is KeyboardShortcutMessage {
+  if (!isRendererMessageFor(value, identity) || !isProtocolObject(value)) return false;
+  if (!hasOnlyKeys(value, [
+    "type", "protocolVersion", "projectId", "workspaceId", "cardId", "phase", "code",
+  ])) return false;
+  return ownValue(value, "type") === "keyboard-shortcut"
+    && (ownValue(value, "phase") === "keydown" || ownValue(value, "phase") === "keyup")
+    && isKeyboardShortcutCode(ownValue(value, "code"));
 }
 
 /** Strict JSON-only schema for selecting an element from a renderer frame. */
@@ -495,6 +525,8 @@ interface ProtocolObject {
   readonly selector?: unknown;
   readonly src?: unknown;
   readonly component?: unknown;
+  readonly code?: unknown;
+  readonly phase?: unknown;
   readonly value?: unknown;
   readonly workspaceId?: unknown;
 }
@@ -530,6 +562,8 @@ function ownValue(value: ProtocolObject, key: ProtocolObjectKey): unknown {
     case "selector": return value.selector;
     case "src": return value.src;
     case "component": return value.component;
+    case "code": return value.code;
+    case "phase": return value.phase;
     case "value": return value.value;
     case "workspaceId": return value.workspaceId;
   }

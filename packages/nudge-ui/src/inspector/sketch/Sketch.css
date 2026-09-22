@@ -106,6 +106,10 @@
   pointer-events: none;
 }
 
+.sketch__live-backdrop[data-inspector-open="false"] {
+  right: 0;
+}
+
 .sketch__popup {
   position: fixed;
   inset: 0 var(--panel-width) 0 0;
@@ -158,6 +162,10 @@
   z-index: auto;
 }
 
+.sketch__live-popup[data-inspector-open="false"] {
+  right: 0;
+}
+
 .sketch__prompt-panel {
   position: relative;
   display: block;
@@ -181,6 +189,11 @@
   width: min(400px, calc(100vw - var(--panel-width) - var(--space-32)));
   z-index: calc(var(--z-index) - 1);
   transform: translateX(-50%);
+}
+
+.sketch__live-popup[data-inspector-open="false"] .sketch__live-note-panel {
+  left: 50%;
+  width: min(400px, calc(100vw - var(--space-32)));
 }
 
 .sketch__saved-note-panel {

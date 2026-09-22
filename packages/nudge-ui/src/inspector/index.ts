@@ -4,8 +4,14 @@ import type { Root } from "react-dom/client";
 import { InspectorShell, toggleInspector, setInspectorOpen } from "./shell/InspectorShell.tsx";
 import { setSelectedElement } from "./selection/selectionStore.ts";
 import { removeManagedSheet } from "./projection/managedStylesheet.ts";
-import { isInspectorToggleShortcut, isOriginalPreviewShortcut } from "./shell/shortcuts.ts";
+import {
+  isInspectorToggleShortcut,
+  isOriginalPreviewShortcut,
+  SEND_PROMPT_HOTKEY_EVENT,
+} from "./shell/shortcuts.ts";
 import { isCanvasRenderer } from "./canvas/roleDetection.ts";
+import { isKeyboardShortcutMessage, type FrameIdentity } from "./canvas/frameProtocol.ts";
+import { subscribeCanvasRendererMessages } from "./canvas/rendererMessageRouter.ts";
 import { bootstrapRenderer, type RendererBootstrapHandle } from "./canvas/rendererBootstrap.ts";
 import {
   hydrateSession,
@@ -81,6 +87,22 @@ function onKeyup(e: KeyboardEvent): void {
   // mid-hold). A guarded keydown never sets the flag, so this stays a no-op
   // for keyups without a matching hold.
   if (e.code === "Backslash" && keyboardPeekHeld) {
+    keyboardPeekHeld = false;
+    setOriginalPreviewActive(false);
+  }
+}
+
+function onRendererKeyboardShortcut(message: unknown, identity: FrameIdentity): void {
+  if (!isKeyboardShortcutMessage(message, identity)) return;
+  if (message.code === "KeyS" && message.phase === "keydown") {
+    window.dispatchEvent(new Event(SEND_PROMPT_HOTKEY_EVENT));
+    return;
+  }
+  if (message.code !== "Backslash") return;
+  if (message.phase === "keydown") {
+    keyboardPeekHeld = true;
+    setOriginalPreviewActive(true);
+  } else if (keyboardPeekHeld) {
     keyboardPeekHeld = false;
     setOriginalPreviewActive(false);
   }
@@ -246,6 +268,9 @@ export function mountInspector(host: HTMLElement): void {
     inspectorSession = workspace.createInspectorSession(host);
     inspectorSession.registerCleanup(() => window.removeEventListener("keydown", onKeydown));
     inspectorSession.registerCleanup(() => window.removeEventListener("keyup", onKeyup));
+    inspectorSession.registerCleanup(subscribeCanvasRendererMessages(({ identity, message }) => {
+      onRendererKeyboardShortcut(message, identity);
+    }));
     reactRoot.render(createElement(
       InspectorSessionProvider,
       { inspector: inspectorSession, documentSession: null },

@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { CANVAS_RENDERER_ATTR } from "./roleDetection.ts";
-import { removeCanvasCard, duplicateCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
-import { IconRefresh, IconExternalLink, IconCopy, IconArrowsDiagonal, IconCornerLeftDown } from "@tabler/icons-react";
+import { removeCanvasCard, updateCardTitle, updateCardUrl, resizeCard, setCardPosition, selectCard, getSelectedCardId, useSelectedCardId, useFocusedCardId, useBoardCamera, type CanvasCard, type CanvasPresentation } from "./canvasStore.ts";
+import { IconRefresh, IconArrowsDiagonal, IconCornerLeftDown } from "@tabler/icons-react";
 import {
   PROTOCOL_VERSION,
 } from "./frameProtocol.ts";
 import { registerCardFrame, registerCardFrameSource, unregisterCardFrame, sendProjectionToCard, invalidateCanvasPreviewDocument, PROJECT_ID, WORKSPACE_ID } from "./projection.ts";
-import { IconButton } from "../ui/IconButton.tsx";
 import { Button } from "../ui/Button.tsx";
 import { setSelectedElement } from "../selection/selectionStore.ts";
 import { clearCanvasStructuralProjectionReports } from "../projection/structuralProjection.ts";
@@ -33,7 +32,6 @@ interface CanvasCardProps {
   card: CanvasCard;
   presentation?: CanvasPresentation;
   presentationCard?: boolean;
-  onOpenApp?: (card: CanvasCard) => void;
   onShowFocus?: (cardId: string) => void;
   documentOwner?: InspectorSession;
 }
@@ -64,7 +62,7 @@ function resizeHandleTransform(direction: CanvasResizeDirection, scale: number):
   return `scale(${scale})`;
 }
 
-export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onOpenApp, onShowFocus, documentOwner }: CanvasCardProps): ReactElement {
+export function CanvasCard({ card, presentation = "canvas", presentationCard = true, onShowFocus, documentOwner }: CanvasCardProps): ReactElement {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const initialUrlRef = useRef(card.navigationUrl ?? card.url);
   const navigationUrlRef = useRef(card.navigationUrl);
@@ -135,14 +133,6 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
     const runtime = getNudgeUiRuntimeConfig();
     if (runtime.demo === true && (runtime.demoCardLabels?.length ?? 0) > 0) return;
     updateCardTitle(card.id, title);
-  }
-
-  function handleOpenApp(): void {
-    onOpenApp?.(card);
-  }
-
-  function handleDuplicate(): void {
-    duplicateCard(card.id);
   }
 
   /** The controller half of the handshake: announce workspace identity. */
@@ -430,50 +420,13 @@ export function CanvasCard({ card, presentation = "canvas", presentationCard = t
             className="canvas-card__dimensions"
             data-test={`canvas-card-dimensions-${card.id}`}
             style={{
-              transform: `scale(${toolbarScale})`,
-              transformOrigin: "left bottom",
+              transform: `translateX(-50%) scale(${toolbarScale})`,
+              transformOrigin: "center bottom",
             }}
           >
             {card.title || `${Math.round(card.width)} × ${Math.round(card.height)} px`}
           </span>
         </div>
-        {onOpenApp ? (
-          <div
-            className="canvas-card__actions"
-            style={{
-              transform: `scale(${toolbarScale})`,
-              transformOrigin: "right bottom",
-            }}
-          >
-            <Button
-              variant="secondary"
-              size="default"
-              data-test={`canvas-card-open-app-${card.id}`}
-              onClick={handleOpenApp}
-            >
-              <IconExternalLink size={14} stroke={1.8} aria-hidden="true" />
-              Open app
-            </Button>
-            <IconButton
-              label="Duplicate card"
-              variant="secondary"
-              size="default"
-              data-test={`canvas-card-duplicate-${card.id}`}
-              onClick={handleDuplicate}
-            >
-              <IconCopy size={14} stroke={1.8} aria-hidden="true" />
-            </IconButton>
-            <IconButton
-              label="Reload card"
-              variant="secondary"
-              size="default"
-              data-test={`canvas-card-reload-${card.id}`}
-              onClick={handleReload}
-            >
-              <IconRefresh size={14} stroke={1.8} aria-hidden="true" />
-            </IconButton>
-          </div>
-        ) : null}
       </div> : null}
       <div className="canvas-card__frame">
         {loadState === "loading" ? (

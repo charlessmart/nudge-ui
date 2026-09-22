@@ -347,6 +347,26 @@ describe("renderer hover scheduling", () => {
     }), window.location.origin);
     expect(click.defaultPrevented).toBe(false);
 
+    postMessage.mockClear();
+    const hiddenPanelSelection = new MouseEvent("click", { bubbles: true, cancelable: true });
+    window.dispatchEvent(new MessageEvent("message", {
+      origin: window.location.origin,
+      source: window.parent,
+      data: {
+        type: "inspector-interaction-state",
+        protocolVersion: PROTOCOL_VERSION,
+        open: false,
+        interactionsEnabled: true,
+        ...identity,
+      },
+    }));
+    button.dispatchEvent(hiddenPanelSelection);
+    expect(hiddenPanelSelection.defaultPrevented).toBe(true);
+    expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: "element-click",
+      cid: "app-action",
+    }), window.location.origin);
+
     window.dispatchEvent(new MessageEvent("message", {
       origin: window.location.origin,
       source: window.parent,
@@ -369,6 +389,80 @@ describe("renderer hover scheduling", () => {
     expect(postMessage).toHaveBeenNthCalledWith(2, expect.objectContaining({
       type: "inspector-open-request",
     }), window.location.origin);
+  });
+
+  it("forwards canvas tool shortcuts from the iframe and ignores editable targets", () => {
+    const postMessage = vi.spyOn(window.parent, "postMessage").mockImplementation(() => undefined);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "KeyV",
+      key: "v",
+    }));
+    document.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "KeyH",
+      key: "h",
+    }));
+    document.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "KeyP",
+      key: "p",
+    }));
+    document.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "KeyS",
+      key: "s",
+      shiftKey: true,
+    }));
+    document.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "Backslash",
+      key: "\\",
+    }));
+    document.dispatchEvent(new KeyboardEvent("keyup", {
+      bubbles: true,
+      cancelable: true,
+      code: "Backslash",
+      key: "\\",
+    }));
+
+    const shortcuts = postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message): message is { type: string; phase: string; code: string } => (
+        typeof message === "object"
+        && message !== null
+        && "type" in message
+        && message.type === "keyboard-shortcut"
+      ));
+    expect(shortcuts).toEqual([
+      expect.objectContaining({ phase: "keydown", code: "KeyV" }),
+      expect.objectContaining({ phase: "keydown", code: "KeyH" }),
+      expect.objectContaining({ phase: "keydown", code: "KeyP" }),
+      expect.objectContaining({ phase: "keydown", code: "KeyS" }),
+      expect.objectContaining({ phase: "keydown", code: "Backslash" }),
+      expect.objectContaining({ phase: "keyup", code: "Backslash" }),
+    ]);
+
+    const input = document.createElement("input");
+    document.body.append(input);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      code: "KeyV",
+      key: "v",
+    }));
+    expect(postMessage.mock.calls
+      .map(([message]) => message)
+      .filter((message) => typeof message === "object" && message !== null && "type" in message && message.type === "keyboard-shortcut"))
+      .toHaveLength(6);
+    input.remove();
   });
 
   it("accepts Alt state from the parent when the iframe is not focused", () => {

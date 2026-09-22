@@ -22,6 +22,26 @@ export function observeSelectedGeometry(element: HTMLElement, onChange: () => vo
     });
   }
 
+  type ScrollTarget = Window | Document | HTMLElement;
+  let scrollTargets: ScrollTarget[] = [];
+
+  function unbindScrollTargets(): void {
+    for (const target of scrollTargets) target.removeEventListener("scroll", schedule, true);
+    scrollTargets = [];
+  }
+
+  function bindScrollTargets(): void {
+    unbindScrollTargets();
+    const targets: ScrollTarget[] = [view, view.document];
+    let ancestor = element.parentElement;
+    while (ancestor) {
+      targets.push(ancestor);
+      ancestor = ancestor.parentElement;
+    }
+    scrollTargets = [...new Set(targets)];
+    for (const target of scrollTargets) target.addEventListener("scroll", schedule, true);
+  }
+
   const resizeObserver = ResizeObserverCtor
     ? new ResizeObserverCtor(schedule)
     : null;
@@ -34,6 +54,7 @@ export function observeSelectedGeometry(element: HTMLElement, onChange: () => vo
       observedParent = currentParent;
       mutationObserver?.disconnect();
       if (observedParent) mutationObserver?.observe(observedParent, { childList: true });
+      bindScrollTargets();
     }
     schedule();
   }) : null;
@@ -41,13 +62,13 @@ export function observeSelectedGeometry(element: HTMLElement, onChange: () => vo
   if (observedParent) mutationObserver?.observe(observedParent, { childList: true });
 
   view.addEventListener("resize", schedule);
-  view.addEventListener("scroll", schedule, true);
+  bindScrollTargets();
 
   return () => {
     if (frame !== null) view.cancelAnimationFrame(frame);
     resizeObserver?.disconnect();
     mutationObserver?.disconnect();
     view.removeEventListener("resize", schedule);
-    view.removeEventListener("scroll", schedule, true);
+    unbindScrollTargets();
   };
 }

@@ -175,7 +175,7 @@ export function InspectorShell(): ReactElement {
   }, [selectedElements, scopeRevision]);
 
   useEffect(() => {
-    if (!isOpen || sketchActive) return;
+    if (sketchActive) return;
     function onKeydown(event: KeyboardEvent): void {
       if (isInlineTextEditingActive()) return;
       const mod = event.metaKey || event.ctrlKey;
@@ -222,7 +222,7 @@ export function InspectorShell(): ReactElement {
     }
     window.addEventListener("keydown", onKeydown);
     return () => window.removeEventListener("keydown", onKeydown);
-  }, [isOpen, isMultiSelection, selected, sketchActive]);
+  }, [isMultiSelection, selected, sketchActive]);
 
   const inspectionSnapshot = cssInspection.element;
   const styleSelection = useMemo(

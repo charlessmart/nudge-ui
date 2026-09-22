@@ -11,6 +11,8 @@ import {
   type HistoryRequestMessage,
   type InspectorToggleRequestMessage,
   type InspectorOpenRequestMessage,
+  type KeyboardShortcutMessage,
+  isKeyboardShortcutCode,
   type ElementDragEndMessage,
   type ElementDragMoveMessage,
   type ElementDragStartMessage,
@@ -27,7 +29,7 @@ import { installInteractionStyles } from "../overlay/interactionStyles.ts";
 import { createFrameThrottle } from "../overlay/frameThrottle.ts";
 import { createCidIndex } from "./rendererCidIndex.ts";
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
-import { isEditableEvent, isInspectorToggleShortcut } from "../shell/shortcuts.ts";
+import { isEditableEvent, isInspectorToggleShortcut, isSendPromptShortcut } from "../shell/shortcuts.ts";
 import { resolveSelectionTarget, selectionTargetMode } from "../selection/selectionTarget.ts";
 import { escapeCssString } from "../projection/cssEscapes.ts";
 import { blockApplicationClick, isApplicationActivationClick } from "../overlay/clickPolicy.ts";
@@ -301,7 +303,10 @@ export function installRendererElementSelector(): () => void {
       return;
     }
     if (message.type !== "inspector-interaction-state" || typeof message.open !== "boolean") return;
-    interactionsSuspended = !message.open;
+    const interactionsEnabled = message.interactionsEnabled === undefined
+      ? message.open
+      : message.interactionsEnabled === true;
+    interactionsSuspended = !interactionsEnabled;
     if (message.open) {
       document.documentElement.setAttribute("data-nudge-ui-panel", "open");
     } else {
@@ -431,8 +436,35 @@ export function installRendererElementSelector(): () => void {
   }
   trackListener<MouseEvent>(document, "mouseup", finishDrag, true);
 
+  function forwardKeyboardShortcut(event: KeyboardEvent, phase: "keydown" | "keyup"): boolean {
+    const code = isKeyboardShortcutCode(event.code) ? event.code : null;
+    if (!code) return false;
+    if (code === "KeyS") {
+      if (phase !== "keydown" || !isSendPromptShortcut(event)) return false;
+    } else if (code !== "Backslash" && interactionsSuspended) {
+      return false;
+    }
+    if (phase === "keydown") {
+      if (code !== "KeyS" && (event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || isEditableEvent(event))) return false;
+    } else if (code !== "Backslash") {
+      return false;
+    }
+    const identity = getRendererIdentity();
+    if (!identity) return false;
+    const message: KeyboardShortcutMessage = {
+      type: "keyboard-shortcut",
+      protocolVersion: PROTOCOL_VERSION,
+      phase,
+      code,
+      ...identity,
+    };
+    sendToParent(message);
+    return phase === "keydown";
+  }
+
   trackListener<KeyboardEvent>(document, "keydown", (event: KeyboardEvent) => {
     if (isEditableEvent(event)) return;
+    if (forwardKeyboardShortcut(event, "keydown")) event.preventDefault();
     if (isInspectorToggleShortcut(event)) {
       const identity = getRendererIdentity();
       if (!identity) return;
@@ -505,6 +537,7 @@ export function installRendererElementSelector(): () => void {
   }, true);
 
   trackListener<KeyboardEvent>(document, "keyup", (event: KeyboardEvent) => {
+    forwardKeyboardShortcut(event, "keyup");
     if (event.key === "Alt") updateMeasureState(false, measurePointerOverPage);
   }, true);
 

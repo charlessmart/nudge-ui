@@ -3,6 +3,7 @@ import {
   PROTOCOL_VERSION,
   isElementClickMessage,
   isInlineTextIntentMessage,
+  isKeyboardShortcutMessage,
   isProjectionAppliedMessage,
   isRenderedInstanceProjectionReportMessage,
   isRendererMessageFor,
@@ -45,6 +46,30 @@ describe("isRendererMessageFor", () => {
       protocolVersion: 2,
       ...identity,
     }, identity)).toBe(false);
+  });
+});
+
+describe("keyboard shortcut schema", () => {
+  const message = {
+    type: "keyboard-shortcut",
+    protocolVersion: PROTOCOL_VERSION,
+    phase: "keydown",
+    code: "KeyV",
+    ...identity,
+  };
+
+  it("accepts a supported shortcut for the matching card", () => {
+    expect(isKeyboardShortcutMessage(message, identity)).toBe(true);
+    expect(isKeyboardShortcutMessage({ ...message, code: "KeyS" }, identity)).toBe(true);
+  });
+
+  it.each([
+    { phase: "keypress" },
+    { code: "KeyX" },
+    { localId: "forbidden" },
+    { cardId: "card-b" },
+  ])("rejects malformed or wrong-card shortcuts: %o", (override) => {
+    expect(isKeyboardShortcutMessage({ ...message, ...override }, identity)).toBe(false);
   });
 });
 

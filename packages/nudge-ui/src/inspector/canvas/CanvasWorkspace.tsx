@@ -48,11 +48,12 @@ import {
   WORKSPACE_ID,
 } from "./projection.ts";
 import { normalizeUrl } from "./normalizeUrl.ts";
-import { createNudgeUiDirectUrl, createNudgeUiEditorUrl } from "../../transport/editor.ts";
+import { createNudgeUiEditorUrl } from "../../transport/editor.ts";
 import { disposeInlineTextEdit } from "../inline-text/inlineTextEditor.ts";
 import {
   PROTOCOL_VERSION,
   isProjectionAppliedMessage,
+  isKeyboardShortcutMessage,
   isRenderedInstanceProjectionReportMessage,
   isTextProjectionReportMessage,
   isStructuralProjectionReportMessage,
@@ -72,6 +73,7 @@ import {
   CanvasToolbar,
   type CanvasInteractionTool,
 } from "./CanvasToolbar.tsx";
+import { canvasToolForEvent, canvasToolForCode } from "./keyboardShortcuts.ts";
 import canvasToolbarStyles from "./CanvasToolbar.css?inline";
 import { getActiveCanvasFrame } from "./activeCanvasDocument.ts";
 import { startSketchCapture } from "../sketch/SketchWorkspace.tsx";
@@ -79,6 +81,23 @@ import { cancelSketchInteraction, useSketchInteractionActive } from "../sketch/i
 import { isNudgeUiDev } from "../runtime/devFlag.ts";
 
 const WORKSPACE_STYLES = [foundationStyles, canvasWorkspaceStyles, canvasCardStyles, canvasToolbarStyles].join("\n");
+const PRESENTATION_TRANSITION_MS = 200;
+
+interface RectSnapshot {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+function snapshotRect(rect: DOMRect): RectSnapshot {
+  return {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+  };
+}
 
 export interface CanvasWorkspaceProps {
   readonly primaryUrl: string | null;
@@ -108,10 +127,83 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const fitAllScheduledRef = useRef(false);
   const activatedTargetRef = useRef<string | null>(null);
   const demoSeededRef = useRef(false);
+  const previousPresentationRef = useRef(presentation);
+  const focusCardRectRef = useRef<RectSnapshot | null>(null);
+  const canvasEntryAnimationRef = useRef<Animation | null>(null);
 
   const [boardCursorClass, setBoardCursorClass] = useState("");
   const [interactionTool, setInteractionTool] = useState<CanvasInteractionTool>("move");
   const presentationCardId = selectedCardId ?? focusedCardId ?? cards[0]?.id ?? null;
+
+  useLayoutEffect(() => {
+    const board = boardRef.current;
+    const cardElement = presentationCardId
+      ? board?.querySelector<HTMLElement>(`[data-card-id="${presentationCardId}"]`)
+      : null;
+    const boardContent = board?.querySelector<HTMLElement>('[data-test="canvas-board-content"]');
+
+    if (presentation === "focus") {
+      canvasEntryAnimationRef.current?.cancel();
+      canvasEntryAnimationRef.current = null;
+      if (boardContent) boardContent.style.transition = "";
+      if (cardElement) cardElement.style.transition = "";
+      focusCardRectRef.current = cardElement ? snapshotRect(cardElement.getBoundingClientRect()) : null;
+    } else if (
+      presentation === "canvas"
+      && previousPresentationRef.current === "focus"
+      && presentationTransitioning
+      && cardElement
+      && boardContent
+      && focusCardRectRef.current
+      && typeof cardElement.animate === "function"
+    ) {
+      // Commit the final layout before measuring it. The old implementation
+      // transitioned both the camera and the card's position, which made the
+      // nested scale and translation produce a sideways drift.
+      boardContent.style.transition = "none";
+      cardElement.style.transition = "none";
+      const oldRect = focusCardRectRef.current;
+      const newRect = snapshotRect(cardElement.getBoundingClientRect());
+      if (newRect.width > 0 && newRect.height > 0 && camera.zoom > 0) {
+        const oldCenterX = oldRect.left + oldRect.width / 2;
+        const oldCenterY = oldRect.top + oldRect.height / 2;
+        const newCenterX = newRect.left + newRect.width / 2;
+        const newCenterY = newRect.top + newRect.height / 2;
+        const localTranslateX = (oldCenterX - newCenterX) / camera.zoom;
+        const localTranslateY = (oldCenterY - newCenterY) / camera.zoom;
+        const scaleX = oldRect.width / newRect.width;
+        const scaleY = oldRect.height / newRect.height;
+        const animation = cardElement.animate(
+          [
+            {
+              transformOrigin: "center center",
+              transform: `translate(${localTranslateX}px, ${localTranslateY}px) scale(${scaleX}, ${scaleY})`,
+            },
+            { transformOrigin: "center center", transform: "none" },
+          ],
+          { duration: PRESENTATION_TRANSITION_MS, easing: "ease", fill: "both" },
+        );
+        canvasEntryAnimationRef.current = animation;
+        void animation.finished.then(() => {
+          if (canvasEntryAnimationRef.current !== animation) return;
+          canvasEntryAnimationRef.current = null;
+          animation.cancel();
+          boardContent.style.transition = "";
+          cardElement.style.transition = "";
+        }).catch(() => {
+          if (canvasEntryAnimationRef.current !== animation) return;
+          canvasEntryAnimationRef.current = null;
+          boardContent.style.transition = "";
+          cardElement.style.transition = "";
+        });
+      } else {
+        boardContent.style.transition = "";
+        cardElement.style.transition = "";
+      }
+    }
+
+    previousPresentationRef.current = presentation;
+  }, [camera.zoom, presentation, presentationCardId, presentationTransitioning]);
 
   useLayoutEffect(() => {
     const board = boardRef.current;
@@ -198,6 +290,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       workspaceId: WORKSPACE_ID,
       cardId,
       open,
+      interactionsEnabled: true,
     }, window.location.origin);
   }, []);
 
@@ -288,7 +381,10 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     if (sketchActive) cancelSketchInteraction();
 
     if (nextTool === "pan") {
-      if (presentation === "focus") setCanvasPresentation("canvas");
+      if (presentation === "focus") {
+        const board = boardRef.current;
+        setCanvasPresentation("canvas", board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
+      }
       setInteractionTool(nextTool);
       spaceHeldRef.current = true;
       broadcastPanModifier(true);
@@ -300,11 +396,25 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
     stopPanMode();
   }, [broadcastPanModifier, presentation, sketchActive, sketchEnabled, stopPanMode]);
 
+  useEffect(() => {
+    if (mode !== "canvas") return;
+    function onKeyDown(event: KeyboardEvent): void {
+      if (isEditableEvent(event)) return;
+      const nextTool = canvasToolForEvent(event);
+      if (!nextTool || (nextTool === "sketch" && !sketchAvailable)) return;
+      event.preventDefault();
+      handleToolChange(nextTool);
+    }
+
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [handleToolChange, mode, sketchAvailable]);
+
   const handleZoomStep = useCallback((direction: -1 | 1) => {
     if (presentation === "focus") {
       if (direction < 0) {
-        setCanvasPresentation("canvas");
-        setBoardCamera({ ...getBoardCamera(), zoom: 0.9 });
+        const board = boardRef.current;
+        setCanvasPresentation("canvas", board ? { width: board.clientWidth, height: board.clientHeight } : undefined);
       }
       return;
     }
@@ -320,10 +430,6 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   const showFocus = useCallback((cardId: string) => {
     focusCard(cardId);
     setCanvasPresentation("focus");
-  }, []);
-
-  const openApp = useCallback((card: CanvasCardData) => {
-    window.open(createNudgeUiDirectUrl(card.url), "_blank", "noopener,noreferrer");
   }, []);
 
   useEffect(() => {
@@ -356,6 +462,13 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
   useEffect(() => {
     return subscribeCanvasRendererMessages(({ cardId, iframe, identity, message: msg }) => {
       if (msg.type === "renderer-hello") return;
+      if (isKeyboardShortcutMessage(msg, identity)) {
+        if (msg.phase === "keydown") {
+          const nextTool = canvasToolForCode(msg.code);
+          if (nextTool && (nextTool !== "sketch" || sketchAvailable)) handleToolChange(nextTool);
+        }
+        return;
+      }
       const frame = { cardId, iframe };
       const syncActiveFrameUrl = (url: string): void => {
         updateCardUrl(frame.cardId, url);
@@ -472,7 +585,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
       const frameDocument = frame.iframe.contentDocument;
       if (frameDocument) disposeInlineTextEdit("route-disposed", frameDocument);
     });
-  }, [broadcastPanModifier, endPanning, inspectorOpen, movePanning, presentation, sendBoardGestureState, sendInspectorInteractionState, sendPanModifier, startPanning, zoomAtPointer]);
+  }, [broadcastPanModifier, endPanning, handleToolChange, inspectorOpen, movePanning, presentation, sendBoardGestureState, sendInspectorInteractionState, sendPanModifier, sketchAvailable, startPanning, zoomAtPointer]);
 
   useEffect(() => {
     if (mode === "canvas" && !hasFitAllRan()) {
@@ -497,9 +610,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
         return;
       }
       if (e.code === "Space" && !e.repeat) {
-        // SAFETY: keyboard event targets are HTMLElements in the workspace DOM.
-        const target = e.target as HTMLElement;
-        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+        if (isEditableEvent(e)) return;
         e.preventDefault();
         spaceHeldRef.current = true;
         broadcastPanModifier(true);
@@ -619,13 +730,12 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
                 card={card}
                 presentation={presentation}
                 presentationCard={card.id === presentationCardId}
-                onOpenApp={openApp}
                 onShowFocus={showFocus}
                 documentOwner={inspectorSession}
               />
             ))}
           </div>
-          {inspectorOpen && !sketchActive ? (
+          {!sketchActive ? (
             <CanvasToolbar
               tool={interactionTool}
               sketchEnabled={sketchAvailable}
@@ -634,7 +744,7 @@ export function CanvasWorkspace({ primaryUrl }: CanvasWorkspaceProps): ReactElem
           ) : null}
         </div>
       </div>
-      {inspectorOpen && sketchActive ? (
+      {sketchActive ? (
         <div
           className="canvas-toolbar__portal"
           data-test="canvas-toolbar-portal"
