@@ -239,13 +239,13 @@ function NativeColorSwatch({
 }): ReactElement {
   const resolvedHex = colorValueToHex(value);
   const hex = resolvedHex ?? "#000000";
-  const hasRenderableColor = resolvedHex !== null || browserRecognizesColor(value);
+  const cssColor = browserRecognizesColor(value) ? value.trim() : resolvedHex;
+  const hasRenderableColor = cssColor !== null;
   return (
     <label className="token-color-control" data-resolved={hasRenderableColor ? "true" : "false"}>
-      {/* Use the concrete color for aliases; an authored var() may not inherit
-          the selected element's local custom properties inside the inspector's
-          shadow root. Preserve other valid CSS color syntaxes as-authored. */}
-      <ColorSwatch color={resolvedHex ?? (value.trim() || "transparent")} data-test="token-color-swatch" />
+      {/* Preserve alpha in the preview. The native picker's six-digit hex
+          value contains only the RGB channels. */}
+      <ColorSwatch color={cssColor ?? "transparent"} data-test="token-color-swatch" />
       <input
         className="token-color-control__input"
         data-test="token-color-input"
@@ -796,6 +796,14 @@ export function TokenField(props: TokenFieldProps): ReactElement {
   const currentToken = activeTokenName
     ? entries.find((entry) => entry.name === activeTokenName) ?? null
     : null;
+  let resolvedValue = tokenRow?.propertyOpacity?.value ?? tokenRow?.resolvedValue ?? committedValue;
+  if (property === "background-color") {
+    // Background rows can contain the complete computed shorthand. Extract
+    // its color before passing it to the color control, preserving alpha.
+    const style = el.ownerDocument.createElement("span").style;
+    style.background = resolvedValue;
+    resolvedValue = style.backgroundColor || resolvedValue;
+  }
 
   return (
     <TokenValueField
@@ -803,7 +811,7 @@ export function TokenField(props: TokenFieldProps): ReactElement {
       domElement={el}
       semanticSlot={semanticSlot}
       committedValue={committedValue}
-      resolvedValue={tokenRow?.propertyOpacity?.value ?? tokenRow?.resolvedValue ?? committedValue}
+      resolvedValue={resolvedValue}
       activeTokenName={activeTokenName}
       attributionTokens={attributionTokens
         ?? (selectedProperty?.token.kind === "mixed" ? ["Mixed tokens"] : undefined)

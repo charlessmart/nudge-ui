@@ -783,7 +783,7 @@ describe("TokenField", () => {
     selected.domElement.remove();
   });
 
-  it("uses the resolved hex for a token swatch instead of its authored alias", () => {
+  it("uses the resolved color for a token swatch instead of its authored alias", () => {
     const onCommitRaw = vi.fn();
     const { selected } = makeSelected();
     handle = mount(createElement(TokenValueField, {
@@ -799,7 +799,7 @@ describe("TokenField", () => {
     }));
 
     expect(handle.host.querySelector('[data-test="token-color-swatch"]')?.getAttribute("style"))
-      .toContain("--swatch-color: #dc2626");
+      .toContain("--swatch-color: rgb(220, 38, 38)");
     expect((handle.host.querySelector('[data-test="color-opacity-input"]') as HTMLInputElement).value).toBe("100%");
     selected.domElement.remove();
   });

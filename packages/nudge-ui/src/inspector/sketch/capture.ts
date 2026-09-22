@@ -3,7 +3,10 @@ import { getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import { SKETCH_LIMITS } from "./model.ts";
 import { getPngDimensions } from "./raster.ts";
 
-const DEFAULT_PROCESSING_TIMEOUT_MS = 10_000;
+const MEDIA_LOAD_TIMEOUT_MS = 500;
+const FONT_READY_TIMEOUT_MS = 2_000;
+const DEFAULT_PROCESSING_TIMEOUT_MS = 20_000;
+const EMPTY_MEDIA_SRC = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
 export type SketchCaptureErrorCode =
   | "unsupported"
@@ -78,8 +81,31 @@ function waitForAnimationFrame(signal?: AbortSignal): Promise<void> {
 
 async function waitForLayout(signal?: AbortSignal, targetDocument?: Document): Promise<void> {
   try {
-    if (targetDocument?.fonts) await targetDocument.fonts.ready;
-    else if (typeof document.fonts !== "undefined") await document.fonts.ready;
+    const fonts = targetDocument?.fonts
+      ?? (typeof document.fonts !== "undefined" ? document.fonts : undefined);
+    if (fonts) {
+      await new Promise<void>((resolve, reject) => {
+        let timer: ReturnType<typeof setTimeout> | null = setTimeout(resolve, FONT_READY_TIMEOUT_MS);
+        const onAbort = (): void => {
+          if (timer) clearTimeout(timer);
+          timer = null;
+          signal?.removeEventListener("abort", onAbort);
+          reject(abortError());
+        };
+        const finish = (): void => {
+          if (timer) clearTimeout(timer);
+          timer = null;
+          signal?.removeEventListener("abort", onAbort);
+          resolve();
+        };
+        if (signal?.aborted) {
+          onAbort();
+          return;
+        }
+        signal?.addEventListener("abort", onAbort, { once: true });
+        void fonts.ready.then(finish, finish);
+      });
+    }
   } catch {
     // Font readiness is best effort; the animation-frame settle still runs.
   }
@@ -201,10 +227,69 @@ function domBackgroundColor(targetDocument: Document): string | null {
   return color && color !== "transparent" && color !== "rgba(0, 0, 0, 0)" ? color : null;
 }
 
+function isGoogleFontStylesheet(node: Node): boolean {
+  if (node.nodeType !== 1) return false;
+  const element = node as Element;
+  if (element.localName !== "link") return false;
+  if ((element.getAttribute("rel") ?? "").toLowerCase() !== "stylesheet") return false;
+  const href = element.getAttribute("href");
+  if (!href) return false;
+  try {
+    const url = new URL(href, element.ownerDocument?.baseURI);
+    return url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com";
+  } catch {
+    return false;
+  }
+}
+
+function hasGoogleFontStylesheet(targetDocument: Document): boolean {
+  return Array.from(targetDocument.querySelectorAll("link")).some(isGoogleFontStylesheet);
+}
+
 function prepareDomClone(node: Node): void {
-  if (!(node instanceof HTMLElement)) return;
-  if (node.localName === "html") node.removeAttribute("data-nudge-ui-panel");
-  if (node.localName === "body") node.style.setProperty("margin-right", "0", "important");
+  // Use nodeType/localName instead of instanceof so this works for iframe realms.
+  if (node.nodeType !== 1) return;
+  const element = node as HTMLElement;
+  if (element.localName === "html") element.removeAttribute("data-nudge-ui-panel");
+  if (element.localName === "body") element.style.setProperty("margin-right", "0", "important");
+  if (isGoogleFontStylesheet(node)) element.remove();
+}
+
+interface SuspendedMedia {
+  readonly element: HTMLImageElement;
+  readonly src: string;
+  readonly srcset: string;
+}
+
+function suspendOffscreenLazyImages(
+  targetDocument: Document,
+  viewport: Pick<SketchViewport, "width" | "height">,
+): () => void {
+  const suspended: SuspendedMedia[] = [];
+  for (const element of Array.from(targetDocument.images)) {
+    if (element.loading !== "lazy") continue;
+    const rect = element.getBoundingClientRect();
+    const visible = rect.bottom > 0
+      && rect.right > 0
+      && rect.top < viewport.height
+      && rect.left < viewport.width;
+    if (visible) continue;
+    suspended.push({
+      element,
+      src: element.getAttribute("src") ?? "",
+      srcset: element.getAttribute("srcset") ?? "",
+    });
+    element.removeAttribute("srcset");
+    element.src = EMPTY_MEDIA_SRC;
+  }
+  return () => {
+    for (const { element, src, srcset } of suspended) {
+      if (srcset) element.setAttribute("srcset", srcset);
+      else element.removeAttribute("srcset");
+      if (src) element.src = src;
+      else element.removeAttribute("src");
+    }
+  };
 }
 
 async function runWithProcessingTimeout<T>(
@@ -256,22 +341,32 @@ async function captureDomFrame(
 
   for (let attempt = 0; attempt < 7; attempt += 1) {
     assertNotAborted(signal);
-    const blob = await domToBlob(surface.document.documentElement, {
-      type: "image/png",
-      width: viewport.width,
-      height: viewport.height,
-      scale,
-      backgroundColor: domBackgroundColor(surface.document),
-      style: {
-        width: `${viewport.width}px`,
-        height: `${viewport.height}px`,
-        overflow: "hidden",
-      },
-      filter: (node) => node !== options.hostElement,
-      features: { restoreScrollPosition: true },
-      timeout: DEFAULT_PROCESSING_TIMEOUT_MS,
-      onCloneEachNode: prepareDomClone,
-    });
+    const restoreMedia = suspendOffscreenLazyImages(surface.document, viewport);
+    let blob: Blob;
+    try {
+      blob = await domToBlob(surface.document.documentElement, {
+        type: "image/png",
+        width: viewport.width,
+        height: viewport.height,
+        scale,
+        backgroundColor: domBackgroundColor(surface.document),
+        style: {
+          width: `${viewport.width}px`,
+          height: `${viewport.height}px`,
+          overflow: "hidden",
+        },
+        filter: (node) => node !== options.hostElement && !isGoogleFontStylesheet(node),
+        features: { restoreScrollPosition: true },
+        timeout: MEDIA_LOAD_TIMEOUT_MS,
+        // Cross-origin Google CSS cannot be read by modern-screenshot. Skipping
+        // its font embedding avoids waiting on a stylesheet that the renderer
+        // cannot serialize anyway; computed font styles still remain inline.
+        font: hasGoogleFontStylesheet(surface.document) ? false : undefined,
+        onCloneEachNode: prepareDomClone,
+      });
+    } finally {
+      restoreMedia();
+    }
     assertNotAborted(signal);
 
     const dimensions = await getPngDimensions(blob);

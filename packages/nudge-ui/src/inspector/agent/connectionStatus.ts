@@ -37,7 +37,7 @@ export function getAgentConnectionStatus(snapshot: AgentClientSnapshot): AgentCo
   if (snapshot.paired && !snapshot.listenerActive) {
     return {
       kind: "connected-not-listening",
-      label: "Project connected · Ask your agent to listen",
+      label: "Project connected · Ask agent to listen",
       tone: "accent",
       action: { kind: "setup", label: "Set up" },
     };

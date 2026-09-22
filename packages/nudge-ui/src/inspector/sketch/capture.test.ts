@@ -92,4 +92,45 @@ describe("DOM sketch capture", () => {
     const calls = vi.mocked(domToBlob).mock.calls as unknown as Array<[Node, { readonly width?: number }]>;
     expect(calls.at(-1)?.[1].width).toBe(640);
   });
+
+  it("keeps stalled media from consuming the full capture budget", async () => {
+    const hostElement = document.createElement("div");
+    document.body.append(hostElement);
+
+    await captureViewport({ hostElement });
+
+    const calls = vi.mocked(domToBlob).mock.calls as unknown as Array<[Node, { readonly timeout?: number }]>;
+    expect(calls.at(-1)?.[1].timeout).toBe(500);
+  });
+
+  it("removes remote Google font stylesheets from the cloned document", async () => {
+    const hostElement = document.createElement("div");
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Inter";
+    document.head.append(link);
+    document.body.append(hostElement);
+
+    await captureViewport({ hostElement });
+
+    const calls = vi.mocked(domToBlob).mock.calls as unknown as Array<[
+      Node,
+      { readonly onCloneEachNode?: (node: Node) => void; readonly font?: false },
+    ]>;
+    const prepareClone = calls.at(-1)?.[1].onCloneEachNode;
+    prepareClone?.(link);
+
+    expect(link.isConnected).toBe(false);
+    expect(calls.at(-1)?.[1].font).toBe(false);
+  });
+
+  it("reports a processing timeout when rendering does not settle", async () => {
+    const hostElement = document.createElement("div");
+    document.body.append(hostElement);
+    vi.mocked(domToBlob).mockImplementation(() => new Promise<Blob>(() => undefined));
+
+    await expect(captureViewport({ hostElement, processingTimeoutMs: 10 })).rejects.toMatchObject({
+      code: "processing-timeout",
+    });
+  });
 });

@@ -186,7 +186,7 @@ describe("CopyPromptButton agent handoff", () => {
     await act(async () => { connect.click(); });
 
     const status = container.querySelector<HTMLElement>('[data-test="agent-connection-status"]');
-    expect(status?.textContent).toContain("Project connected · Ask your agent to listen");
+    expect(status?.textContent).toContain("Project connected · Ask agent to listen");
     expect(status?.textContent).toContain("Set up");
     expect(status?.querySelector<HTMLButtonElement>('[data-test="agent-status-action"]')?.dataset.action)
       .toBe("setup");
