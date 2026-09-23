@@ -401,32 +401,55 @@ export function settleSketchDispatch(
   agentRequestId?: string,
   localBatchId?: string,
 ): Promise<boolean> {
-  if (batchRevision === undefined) return Promise.resolve(false);
-  const changes = snapshot.handoffs
-    .filter((handoff) => handoff.batchRevision === batchRevision
-      && (localBatchId === undefined || handoff.localBatchId === localBatchId)
-      && (handoff.state === "dispatching" || handoff.state === "handing-off"));
-  if (changes.length === 0) return Promise.resolve(false);
-  return updateHandoffs(changes, (handoff) => {
-    if (state === "working") {
-      return updateHandoff(handoff, {
-        state: "handing-off",
-        transport: "direct",
-        ...(agentRequestId ? { agentRequestId } : {}),
-      });
-    }
+  const projectId = activeProjectId;
+  const expectedGeneration = generation;
+  const hydration = initialization;
+  if (batchRevision === undefined || !projectId) return Promise.resolve(false);
+  return enqueue(async () => {
+    if (hydration) await hydration;
+    assertWritable(projectId, expectedGeneration);
+    // Resolve the current revisions inside the write queue so a pending save
+    // or requeue cannot be removed by an older completion event.
+    const changes = snapshot.items.flatMap(({ document, handoff }) => {
+      if (!handoff || handoff.sketchRevision !== document.revision
+        || handoff.transport !== "direct" || handoff.batchRevision !== batchRevision) return [];
+      // The client batch ID stays stable when the server assigns a request ID.
+      const matchesRequest = localBatchId !== undefined
+        ? handoff.localBatchId === localBatchId
+        : agentRequestId === undefined || handoff.agentRequestId === agentRequestId;
+      if (!matchesRequest) return [];
+      return handoff.state === "dispatching" || handoff.state === "handing-off" || handoff.state === "unknown"
+        || (state === "completed" && handoff.state === "needs-review") ? [handoff] : [];
+    });
+    if (changes.length === 0) return false;
     if (state === "completed") {
-      return updateHandoff(handoff, {
-        state: "needs-review",
-        transport: "direct",
-        ...(agentRequestId ? { agentRequestId } : {}),
-      });
+      for (const handoff of changes) {
+        await deleteSketchPersistence(projectId, handoff.sketchId);
+        assertWritable(projectId, expectedGeneration);
+        publish(
+          projectId,
+          snapshot.documents.filter((document) => document.id !== handoff.sketchId),
+          snapshot.handoffs.filter((candidate) => candidate.sketchId !== handoff.sketchId),
+          null,
+        );
+      }
+      return true;
     }
-    return updateHandoff(handoff, {
+    const nextHandoffs = changes.map((handoff) => updateHandoff(handoff, state === "working" ? {
+      state: "handing-off",
+      transport: "direct",
+      ...(agentRequestId ? { agentRequestId } : {}),
+    } : {
       state: "pending",
       transport: "direct",
       clearDelivery: true,
-    });
+    }));
+    await writeSketchHandoffs(projectId, nextHandoffs);
+    assertWritable(projectId, expectedGeneration);
+    const changedIds = new Set(nextHandoffs.map((handoff) => handoff.id));
+    publish(projectId, snapshot.documents,
+      [...snapshot.handoffs.filter((handoff) => !changedIds.has(handoff.id)), ...nextHandoffs], null);
+    return true;
   });
 }
 
@@ -507,9 +530,13 @@ function updateHandoffs(
   const projectId = activeProjectId;
   const expectedGeneration = generation;
   if (!projectId) return Promise.resolve(false);
-  const nextHandoffs = handoffs.map(update);
   return enqueue(async () => {
     assertWritable(projectId, expectedGeneration);
+    // Completion may delete a sketch before its dispatch response is handled.
+    const nextHandoffs = handoffs
+      .filter((handoff) => currentDocument(handoff.sketchId)?.revision === handoff.sketchRevision)
+      .map(update);
+    if (nextHandoffs.length === 0) return false;
     await writeSketchHandoffs(projectId, nextHandoffs);
     assertWritable(projectId, expectedGeneration);
     const changedIds = new Set(nextHandoffs.map((handoff) => handoff.id));

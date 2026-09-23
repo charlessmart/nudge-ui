@@ -14,7 +14,7 @@ import {
   saveSketch,
   settleSketchDispatch,
 } from "./store.ts";
-import { resetSketchMemory } from "./persistence.ts";
+import { readSketchPersistence, resetSketchMemory } from "./persistence.ts";
 import {
   SKETCH_STROKE_COLOR,
   SKETCH_STROKE_OUTLINE,
@@ -46,6 +46,19 @@ function configureFixture(): void {
     projectId,
     host: "vite-react",
     framework: "React",
+  });
+}
+
+function createSketch(description: string, id?: string) {
+  return saveSketch({
+    ...(id ? { id } : {}),
+    capture,
+    description,
+    strokes: [],
+    imageWidth: 1,
+    imageHeight: 1,
+    originalImage: image,
+    annotatedImage: image,
   });
 }
 
@@ -101,9 +114,102 @@ describe("sketch store", () => {
     await markSketchesHandingOff(entry, 42, "batch-1", "agent-request");
     expect(getSketches()[0]).toMatchObject({ status: "handing-off", handoff: { agentRequestId: "agent-request" } });
     await settleSketchDispatch(42, "completed", "agent-request");
-    expect(getSketches()[0]?.status).toBe("needs-review");
+    expect(getSketches()).toEqual([]);
+    expect(await readSketchPersistence(projectId)).toEqual({ documents: [], handoffs: [] });
+  });
+
+  it("removes only the completed batch and tolerates repeated completion", async () => {
+    const first = await createSketch("Align the heading");
+    const second = await createSketch("Move the button");
+    const unrelated = await createSketch("Keep this note for later");
+    await markSketchesDispatching([first, second], 42, "completed-batch");
+    await markSketchesHandingOff([first, second], 42, "completed-batch", "completed-request");
+    await markSketchesDispatching([unrelated], 42, "other-batch");
+
+    await settleSketchDispatch(42, "completed", "completed-request", "completed-batch");
+    await settleSketchDispatch(42, "completed", "completed-request", "completed-batch");
+
+    expect(getSketches().map((item) => item.document.id)).toEqual([unrelated.id]);
+    resetSketchStore();
+    await initializeSketchStore(projectId);
+    expect(getSketches().map((item) => item.document.id)).toEqual([unrelated.id]);
+  });
+
+  it("settles completion received while persisted sketches are still loading", async () => {
+    const document = await createSketch("Align the heading");
+    await markSketchesDispatching([document], 42, "restored-batch");
+    await markSketchesHandingOff([document], 42, "restored-batch", "restored-request");
+    resetSketchStore();
+    const loading = initializeSketchStore(projectId);
+
+    await settleSketchDispatch(42, "completed", "restored-request", "restored-batch");
+    await loading;
+
+    expect(getSketches()).toEqual([]);
+    expect(await readSketchPersistence(projectId)).toEqual({ documents: [], handoffs: [] });
+  });
+
+  it("keeps a newer revision queued before the old request completes", async () => {
+    const document = await createSketch("Align the heading");
+    await markSketchesDispatching([document], 42, "old-batch");
+    await markSketchesHandingOff([document], 42, "old-batch", "old-request");
+    const saving = createSketch("Also change the color", document.id);
+    const completion = settleSketchDispatch(42, "completed", "old-request", "old-batch");
+    await Promise.all([saving, completion]);
+
+    expect(getSketches()).toMatchObject([{
+      document: { id: document.id, revision: 2, description: "Also change the color" },
+      status: "pending",
+    }]);
+    resetSketchStore();
+    await initializeSketchStore(projectId);
+    expect(getSketches()[0]?.document.revision).toBe(2);
+  });
+
+  it.each(["failed", "interrupted"] as const)("keeps a restored sketch when its request is %s", async (status) => {
+    const document = await createSketch("Align the heading");
+    await markSketchesDispatching([document], 42, "restored-batch");
+    await markSketchesHandingOff([document], 42, "restored-batch", "restored-request");
+    resetSketchStore();
+    await initializeSketchStore(projectId);
+
+    await settleSketchDispatch(42, status, "restored-request", "restored-batch");
+
+    expect(getSketches()).toMatchObject([{ document: { id: document.id }, status: "pending" }]);
+  });
+
+  it("ignores completion from a different request when no batch ID is available", async () => {
+    const document = await createSketch("Align the heading");
+    await markSketchesDispatching([document], 42, "current-batch");
+    await markSketchesHandingOff([document], 42, "current-batch", "current-request");
+
+    await settleSketchDispatch(42, "completed", "unrelated-request");
+
+    expect(getSketches()).toMatchObject([{ document: { id: document.id }, status: "handing-off" }]);
+  });
+
+  it("keeps a requeued sketch when a delayed completion arrives for its old batch", async () => {
+    const document = await createSketch("Align the heading");
+    await markSketchesDispatching([document], 42, "old-batch");
+    await markSketchesHandingOff([document], 42, "old-batch", "old-request");
     await requeueSketch(document.id);
-    expect(getSketches()[0]?.status).toBe("pending");
+    await markSketchesDispatching([document], 42, "retry-batch");
+
+    await settleSketchDispatch(42, "completed", "old-request", "old-batch");
+
+    expect(getSketches()).toMatchObject([{ document: { id: document.id }, status: "dispatching" }]);
+  });
+
+  it("does not restore deleted handoff metadata when the dispatch response arrives after completion", async () => {
+    const document = await createSketch("Align the heading");
+    await markSketchesDispatching([document], 42, "completed-batch");
+
+    const completion = settleSketchDispatch(42, "completed", "completed-request", "completed-batch");
+    const response = markSketchesHandingOff([document], 42, "completed-batch", "completed-request");
+    await Promise.all([completion, response]);
+
+    expect(getSketches()).toEqual([]);
+    expect(await readSketchPersistence(projectId)).toEqual({ documents: [], handoffs: [] });
   });
 
   it("removes a sketch only after it is no longer in delivery", async () => {

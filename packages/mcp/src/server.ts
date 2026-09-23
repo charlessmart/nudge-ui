@@ -191,7 +191,7 @@ function installTools(mcpServer: McpServer, bridge: AgentToolTarget): void {
 
   mcpServer.registerTool("nudge_report_status", {
     title: "Report Nudge request status",
-    description: "Report working, completed, failed, or interrupted status for the prompt currently being handled.",
+    description: "Report working, completed, failed, or interrupted status for the prompt currently being handled. Report completed only after implementing the request; the browser removes its submitted sketches if their revisions are unchanged.",
     inputSchema: {
       requestId: z.string().min(1).max(256),
       status: z.enum(["working", "completed", "failed", "interrupted"]),

@@ -15,6 +15,9 @@ import type {
 import { clearWorkspace, restoreChangeRecords, type ElementChangeRecord } from "../changes/changesLog.ts";
 import { recordAgentDispatch, resetAgentVerification } from "../agent/verification.ts";
 import { setNudgeUiHostDevFlag } from "../runtime/devFlag.ts";
+import { getSketches, initializeSketchStore, markSketchesDispatching, markSketchesHandingOff, resetSketchStore, saveSketch } from "../sketch/store.ts";
+import { resetSketchMemory } from "../sketch/persistence.ts";
+import { toAgentSketchMetadata } from "../sketch/model.ts";
 import { configureNudgeUiRuntime, getNudgeUiRuntimeConfig } from "../runtime/runtimeConfig.ts";
 import {
   clearClipboardHandoff,
@@ -103,6 +106,8 @@ describe("CopyPromptButton agent handoff", () => {
     localStorage.clear();
     clearClipboardHandoff();
     resetAgentVerification();
+    resetSketchStore();
+    resetSketchMemory();
     previousConfig = getNudgeUiRuntimeConfig();
     configureNudgeUiRuntime({ ...previousConfig, projectId: "handoff-project" });
     container = document.createElement("div");
@@ -117,6 +122,8 @@ describe("CopyPromptButton agent handoff", () => {
     clearWorkspace();
     clearClipboardHandoff();
     resetAgentVerification();
+    resetSketchStore();
+    resetSketchMemory();
     configureNudgeUiRuntime(previousConfig);
     container.remove();
     vi.unstubAllGlobals();
@@ -275,6 +282,46 @@ describe("CopyPromptButton agent handoff", () => {
     expect(event.defaultPrevented).toBe(false);
     expect(transport.dispatches).toHaveLength(0);
     input.remove();
+  });
+
+  it("removes a submitted sketch when the agent event stream reports completion", async () => {
+    await initializeSketchStore("handoff-project");
+    const image = new Blob(["png"], { type: "image/png" });
+    const sketch = await saveSketch({
+      description: "Align the heading",
+      capture: {
+        url: window.location.href, title: "Fixture", timestamp: 1,
+        viewportWidth: 800, viewportHeight: 600, scrollX: 0, scrollY: 0,
+        devicePixelRatio: 1, host: "vite-react", framework: "React", imageWidth: 1, imageHeight: 1,
+      },
+      strokes: [], imageWidth: 1, imageHeight: 1, originalImage: image, annotatedImage: image,
+    });
+    await markSketchesDispatching([sketch], 42, "sketch-batch");
+    await markSketchesHandingOff([sketch], 42, "sketch-batch", "sketch-request");
+    const transport = new ButtonTransport();
+    configureAgentBridgeTransport(transport);
+    act(() => root.render(<CopyPromptButton />));
+    await flush();
+    const button = container.querySelector<HTMLButtonElement>('[data-test="copy-prompt"]')!;
+    await act(async () => { button.click(); });
+    expect(transport.eventHandlers).not.toBeNull();
+
+    await act(async () => {
+      transport.eventHandlers?.onEvent({
+        type: "status",
+        status: listeningStatus({
+          connection: "paired", paired: true,
+          request: {
+            requestId: "sketch-request", projectId: "handoff-project", prompt: "Align the heading",
+            changeRevision: 42, clientDispatchId: "sketch-batch",
+            sketches: [toAgentSketchMetadata(sketch)], status: "completed",
+          },
+        }),
+      });
+    });
+
+    expect(getSketches()).toEqual([]);
+    expect(button.disabled).toBe(true);
   });
 
   it("distinguishes verified agent completion from the still-pending preview", async () => {
